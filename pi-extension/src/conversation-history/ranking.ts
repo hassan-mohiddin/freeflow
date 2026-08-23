@@ -1,5 +1,12 @@
 import type { ConversationSearchEntry } from "./types.js";
-import { normalizeText, splitTextIntoPassages, tokenize, unique, type TextPassage } from "./passages.js";
+import {
+  normalizeText,
+  splitTextIntoPassages,
+  throwIfAborted,
+  tokenize,
+  unique,
+  type TextPassage,
+} from "./passages.js";
 
 export const BM25_K1 = 1.2;
 export const BM25_B = 0.75;
@@ -62,17 +69,26 @@ function compareTextPassages(left: RankedTextPassage, right: RankedTextPassage):
   return left.passage.start - right.passage.start;
 }
 
-function rankInputs<T extends PassageInput>(inputs: T[], terms: string[]): Array<T & { score: number }> {
+function rankInputs<T extends PassageInput>(
+  inputs: T[],
+  terms: string[],
+  signal?: AbortSignal,
+): Array<T & { score: number }> {
   const documentFrequency = new Map<string, number>();
   for (const input of inputs) {
+    throwIfAborted(signal);
     for (const term of unique(input.passage.tokens)) {
       documentFrequency.set(term, (documentFrequency.get(term) ?? 0) + 1);
     }
   }
   const averageLength =
     inputs.length === 0 ? 1 : inputs.reduce((total, input) => total + input.passage.length, 0) / inputs.length;
-  return inputs
-    .filter((input) => input.matchedTerms.length > 0 || input.exactPhrase)
+  const matching: T[] = [];
+  for (const input of inputs) {
+    throwIfAborted(signal);
+    if (input.matchedTerms.length > 0 || input.exactPhrase) matching.push(input);
+  }
+  return matching
     .map((input) => ({
       ...input,
       score: bm25Score(input.passage.tokens, terms, documentFrequency, inputs.length, averageLength),
@@ -88,13 +104,19 @@ function rankInputs<T extends PassageInput>(inputs: T[], terms: string[]): Array
     });
 }
 
-export function rankMatchingPassages(entries: readonly ConversationSearchEntry[], query: string): RankedPassage[] {
+export function rankMatchingPassages(
+  entries: readonly ConversationSearchEntry[],
+  query: string,
+  signal?: AbortSignal,
+): RankedPassage[] {
+  throwIfAborted(signal);
   const normalizedQuery = normalizeText(query);
   const terms = unique(tokenize(query));
   if (!normalizedQuery || terms.length === 0) return [];
   const inputs: PassageInput[] = [];
   for (const entry of entries) {
-    for (const passage of splitTextIntoPassages(entry.text)) {
+    throwIfAborted(signal);
+    for (const passage of splitTextIntoPassages(entry.text, signal)) {
       const normalizedPassage = normalizeText(passage.text);
       inputs.push({
         entry,
@@ -104,7 +126,7 @@ export function rankMatchingPassages(entries: readonly ConversationSearchEntry[]
       });
     }
   }
-  return rankInputs(inputs, terms) as RankedPassage[];
+  return rankInputs(inputs, terms, signal) as RankedPassage[];
 }
 
 export function strongestTextPassage(text: string, query: string): RankedTextPassage | undefined {
@@ -123,6 +145,11 @@ export function focusedWindow(text: string, focus: string, maxCharacters: number
   const strongest = strongestTextPassage(text, focus);
   if (!strongest) return undefined;
   const center = Math.floor((strongest.passage.start + strongest.passage.end) / 2);
-  const start = Math.max(0, Math.min(center - Math.floor(maxCharacters / 2), text.length - maxCharacters));
-  return text.slice(start, start + maxCharacters);
+  const proposedStart = Math.max(0, Math.min(center - Math.floor(maxCharacters / 2), text.length - maxCharacters));
+  const previousLineBreak = proposedStart > 0 ? text.lastIndexOf("\n", proposedStart - 1) : -1;
+  const start = previousLineBreak >= 0 ? previousLineBreak + 1 : proposedStart;
+  const proposedEnd = Math.min(text.length, start + maxCharacters);
+  const previousEndLineBreak = proposedEnd < text.length ? text.lastIndexOf("\n", proposedEnd) : -1;
+  const end = previousEndLineBreak > start ? previousEndLineBreak + 1 : proposedEnd;
+  return text.slice(start, end);
 }

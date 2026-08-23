@@ -150,6 +150,25 @@ async function writeConfig(cwd, config) {
   await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify(value, null, 2), "utf8");
 }
 
+const testTheme = {
+  fg(_color, text) {
+    return text;
+  },
+  bold(text) {
+    return text;
+  },
+  dim(text) {
+    return text;
+  },
+  italic(text) {
+    return text;
+  },
+};
+
+function renderComponent(component) {
+  return component.render(120).join("\\n");
+}
+
 test("enabled Context Virtualization registers, projects, archives, restores, and reports through commands", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-context-extension-"));
   try {
@@ -180,6 +199,10 @@ test("enabled Context Virtualization registers, projects, archives, restores, an
     assert.equal(staleSearch.details.result.status, "rejected");
     assert.equal(staleSearch.details.result.reason, "operation_disabled");
     assert.equal(staleSearch.details.result.message, undefined);
+    const staleCompact = contextTool.renderResult(staleSearch, { expanded: false, isPartial: false }, testTheme, {
+      args: { operation: "search", query: "not enabled" },
+    });
+    assert.match(renderComponent(staleCompact), /operation_disabled/);
     const archived = await contextTool.execute(
       "context-archive",
       {
@@ -191,6 +214,11 @@ test("enabled Context Virtualization registers, projects, archives, restores, an
       harness.ctx,
     );
     assert.equal(archived.details.result.status, "ok");
+    const archiveCompact = contextTool.renderResult(archived, { expanded: false, isPartial: false }, testTheme, {
+      args: { operation: "archive", targets: [{ ref: "ctx:tool-1" }] },
+    });
+    assert.match(renderComponent(archiveCompact), /archive · ok · 1 changed/);
+    assert.match(renderComponent(archiveCompact), /Archived 1 tool result/);
     assert.deepEqual(archived.details.result.retained, {
       "ctx:tool-1": "The result is needed only as a failure summary.",
     });
@@ -260,6 +288,65 @@ test("enabled Conversation History exposes only search and retrieve operations",
       contextTool.parameters.oneOf.map((variant) => variant.properties.operation.const),
       ["search", "retrieve"],
     );
+    assert.equal(typeof contextTool.renderCall, "function");
+    assert.equal(typeof contextTool.renderResult, "function");
+    const renderContext = {
+      args: { operation: "search", query: "database timeout" },
+      state: {},
+      toolCallId: "render-test",
+      cwd,
+      executionStarted: true,
+      argsComplete: true,
+      isPartial: false,
+      expanded: false,
+      showImages: false,
+      isError: false,
+      invalidate() {},
+      lastComponent: undefined,
+    };
+    const compactCall = contextTool.renderCall(renderContext.args, testTheme, renderContext);
+    assert.match(renderComponent(compactCall), /search/i);
+    assert.match(renderComponent(compactCall), /database timeout/i);
+    const renderResult = {
+      content: [{ type: "text", text: "raw full result" }],
+      details: {
+        result: {
+          status: "ok",
+          operation: "search",
+          query: "database timeout",
+          coverage: "complete",
+          returned: 1,
+          truncated: false,
+          hits: [
+            {
+              ref: "ctx:render-source",
+              kind: "toolResult",
+              timestamp: "2026-01-01T00:00:00.000Z",
+              snippet: "The database timeout was recovered.",
+              match: { type: "exact-phrase", matchedTerms: ["database", "timeout"], queryTermCount: 2 },
+            },
+          ],
+        },
+      },
+    };
+    const compactResult = contextTool.renderResult(
+      renderResult,
+      { expanded: false, isPartial: false },
+      testTheme,
+      renderContext,
+    );
+    assert.match(renderComponent(compactResult), /1/);
+    assert.match(renderComponent(compactResult), /top exact-phrase/);
+    assert.doesNotMatch(
+      renderComponent(compactResult),
+      /database timeout|raw full result|database timeout was recovered/i,
+    );
+    const expandedResult = contextTool.renderResult(renderResult, { expanded: true, isPartial: false }, testTheme, {
+      ...renderContext,
+      expanded: true,
+    });
+    assert.match(renderComponent(expandedResult), /ctx:render-source/);
+    assert.match(renderComponent(expandedResult), /database timeout was recovered/);
     assert.match(contextTool.description, /hidden conversation history/i);
     assert.doesNotMatch(contextTool.description, /future context projections/i);
     const before = await harness.handlers.get("before_agent_start")({ systemPrompt: "base" }, harness.ctx);
@@ -326,6 +413,11 @@ test("Conversation History searches hidden active-branch entries and retrieves s
       ["ctx:hidden"],
     );
     assert.match(search.content[0].text, /^Conversation History: search/);
+    assert.match(search.content[0].text, /Query: database timeout/);
+    assert.match(search.content[0].text, /Match: exact-phrase/);
+    assert.match(search.content[0].text, /Term coverage: 2\/2/);
+    assert.match(search.content[0].text, /Tools: bash/);
+    assert.match(search.content[0].text, /Error: yes/);
     assert.doesNotMatch(search.content[0].text, /ctx:visible|ctx:freeflow-result/);
 
     const filteredSearch = await contextTool.execute(
@@ -350,6 +442,8 @@ test("Conversation History searches hidden active-branch entries and retrieves s
     );
     assert.equal(retrieve.details.result.status, "ok");
     assert.equal(retrieve.details.result.items[0].ref, "ctx:hidden");
+    assert.match(retrieve.content[0].text, /Source characters:/);
+    assert.match(retrieve.content[0].text, /Returned characters:/);
     assert.match(retrieve.details.result.items[0].content, /database timeout/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -571,7 +665,11 @@ test("Conversation History rejects visible-only searches and bounds oversized re
     assert.equal(retrieve.details.result.status, "ok");
     assert.equal(retrieve.details.result.items[0].completeness, "partial");
     assert.ok(retrieve.details.result.items[0].returnedCharacters <= 8000);
-    assert.match(retrieve.details.result.items[0].content, /database timeout/);
+    const focusedContent = retrieve.details.result.items[0].content;
+    const focusedStart = oversizedText.indexOf(focusedContent);
+    assert.ok(focusedStart === 0 || oversizedText[focusedStart - 1] === "\n");
+    assert.ok(focusedStart + focusedContent.length >= oversizedText.length || focusedContent.endsWith("\n"));
+    assert.match(focusedContent, /database timeout/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

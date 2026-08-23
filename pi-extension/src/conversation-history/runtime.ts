@@ -90,7 +90,8 @@ export class ConversationHistoryRuntime {
     }
   }
 
-  async search(params: Record<string, unknown>): Promise<any> {
+  async search(params: Record<string, unknown>, signal?: AbortSignal): Promise<any> {
+    if (signal?.aborted) return unavailable("search", "conversation_history_search_cancelled");
     if (!this.available || !this.snapshot) return unavailable("search", this.unavailableReason);
     const validation = this.validateSearch(params);
     if (validation) return validation;
@@ -115,14 +116,26 @@ export class ConversationHistoryRuntime {
       };
     }
 
-    const result = searchConversationEntries(hidden as ConversationSearchEntry[], {
-      query,
-      kinds: params.kinds as ConversationSearchOptions["kinds"],
-      toolNames: Array.isArray(params.toolNames)
-        ? params.toolNames.map((name) => (typeof name === "string" ? name.trim() : ""))
-        : undefined,
-      limit: params.limit as number | undefined,
-    });
+    let result;
+    try {
+      result = searchConversationEntries(
+        hidden as ConversationSearchEntry[],
+        {
+          query,
+          kinds: params.kinds as ConversationSearchOptions["kinds"],
+          toolNames: Array.isArray(params.toolNames)
+            ? params.toolNames.map((name) => (typeof name === "string" ? name.trim() : ""))
+            : undefined,
+          limit: params.limit as number | undefined,
+        },
+        signal,
+      );
+    } catch (error) {
+      if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) {
+        return unavailable("search", "conversation_history_search_cancelled");
+      }
+      return unavailable("search");
+    }
     return {
       status: "ok",
       operation: "search",
@@ -135,7 +148,8 @@ export class ConversationHistoryRuntime {
     };
   }
 
-  async retrieve(params: Record<string, unknown>): Promise<any> {
+  async retrieve(params: Record<string, unknown>, signal?: AbortSignal): Promise<any> {
+    if (signal?.aborted) return unavailable("retrieve", "conversation_history_retrieve_cancelled");
     if (!this.available || !this.snapshot) return unavailable("retrieve", this.unavailableReason);
     const refs = params.refs;
     if (!Array.isArray(refs) || refs.length < 1 || refs.length > MAX_RETRIEVE_REFS) {
@@ -162,6 +176,7 @@ export class ConversationHistoryRuntime {
     const items = [];
     let total = 0;
     for (const ref of uniqueRefs) {
+      if (signal?.aborted) return unavailable("retrieve", "conversation_history_retrieve_cancelled");
       const entryId = entryIdFromContextRef(ref);
       const source = entryId ? this.snapshot.entries.get(contextRefForEntry(entryId)) : undefined;
       if (!source) return failure("retrieve", "reference_unresolved");
@@ -189,7 +204,12 @@ export class ConversationHistoryRuntime {
         returnedCharacters: content.length,
       });
     }
-    return { status: "ok", operation: "retrieve", items };
+    return {
+      status: "ok",
+      operation: "retrieve",
+      ...(typeof focus === "string" ? { focus: focus.trim() } : {}),
+      items,
+    };
   }
 
   private validateSearch(params: Record<string, unknown>): any | undefined {

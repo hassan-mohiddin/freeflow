@@ -1,4 +1,4 @@
-import { normalizeText, snippet, tokenize, unique } from "./passages.js";
+import { normalizeText, snippet, throwIfAborted, tokenize, unique } from "./passages.js";
 import { rankMatchingPassages } from "./ranking.js";
 import type {
   ConversationSearchEntry,
@@ -28,16 +28,19 @@ function matchesFilters(entry: ConversationSearchEntry, options: ConversationSea
 export function searchConversationEntries(
   entries: readonly ConversationSearchEntry[],
   options: ConversationSearchOptions,
+  signal?: AbortSignal,
 ): ConversationSearchResult {
+  throwIfAborted(signal);
   const normalizedQuery = normalizeText(options.query);
   const terms = unique(tokenize(options.query));
   const limit = Math.min(20, Math.max(1, Math.trunc(options.limit ?? 8)));
   if (!normalizedQuery || terms.length === 0) return { returned: 0, truncated: false, hits: [] };
 
   const candidates = entries.filter((entry) => matchesFilters(entry, options));
-  const rankedPassages = rankMatchingPassages(candidates, options.query);
+  const rankedPassages = rankMatchingPassages(candidates, options.query, signal);
   const byEntry = new Map<string, (typeof rankedPassages)[number]>();
   for (const passage of rankedPassages) {
+    throwIfAborted(signal);
     if (!byEntry.has(passage.entry.ref)) byEntry.set(passage.entry.ref, passage);
   }
 

@@ -1,3 +1,4 @@
+import { Text } from "@earendil-works/pi-tui";
 export const CONTEXT_VIRTUALIZATION_TOOL_NAME = "freeflow_context";
 export const CONTEXT_VIRTUALIZATION_PARAMETERS = {
   type: "object",
@@ -100,6 +101,8 @@ function resultText(result) {
       ? "Context Virtualization"
       : "Conversation History";
   const lines = [`${feature}: ${result.operation}`, `Status: ${result.status}`];
+  if (typeof result.query === "string") lines.push(`Query: ${result.query}`);
+  if (typeof result.focus === "string") lines.push(`Focus: ${result.focus}`);
   if (result.reason) lines.push(`Reason: ${result.reason}`);
   if (result.changed?.length > 0) lines.push(`Changed: ${result.changed.join(", ")}`);
   if (result.message) lines.push(`Message: ${result.message}`);
@@ -128,12 +131,33 @@ function resultText(result) {
   }
   if (Array.isArray(result.hits)) {
     for (const hit of result.hits) {
-      lines.push("", `Ref: ${hit.ref}`, `Kind: ${hit.kind}`, `Snippet: ${hit.snippet}`);
+      lines.push("", `Ref: ${hit.ref}`, `Kind: ${hit.kind}`);
+      if (hit.timestamp) lines.push(`Timestamp: ${hit.timestamp}`);
+      if (Array.isArray(hit.toolNames) && hit.toolNames.length > 0) {
+        lines.push(`Tools: ${hit.toolNames.join(", ")}${hit.toolNamesTruncated ? " (truncated)" : ""}`);
+      }
+      if (hit.isError !== undefined) lines.push(`Error: ${hit.isError ? "yes" : "no"}`);
+      if (hit.match?.type) lines.push(`Match: ${hit.match.type}`);
+      if (Array.isArray(hit.match?.matchedTerms) && hit.match.matchedTerms.length > 0) {
+        lines.push(`Matched terms: ${hit.match.matchedTerms.join(", ")}`);
+      }
+      if (typeof hit.match?.queryTermCount === "number") {
+        lines.push(`Term coverage: ${hit.match.matchedTerms?.length ?? 0}/${hit.match.queryTermCount}`);
+      }
+      lines.push(`Snippet: ${hit.snippet}`);
     }
   }
   if (Array.isArray(result.items)) {
     for (const item of result.items) {
-      lines.push("", `Ref: ${item.ref}`, `Kind: ${item.kind}`, `Content: ${item.completeness}`, item.content);
+      lines.push("", `Ref: ${item.ref}`, `Kind: ${item.kind}`, `Content: ${item.completeness}`);
+      if (item.timestamp) lines.push(`Timestamp: ${item.timestamp}`);
+      if (Array.isArray(item.toolNames) && item.toolNames.length > 0) {
+        lines.push(`Tools: ${item.toolNames.join(", ")}${item.toolNamesTruncated ? " (truncated)" : ""}`);
+      }
+      if (item.isError !== undefined) lines.push(`Error: ${item.isError ? "yes" : "no"}`);
+      if (typeof item.sourceCharacters === "number") lines.push(`Source characters: ${item.sourceCharacters}`);
+      if (typeof item.returnedCharacters === "number") lines.push(`Returned characters: ${item.returnedCharacters}`);
+      lines.push(item.content);
     }
   }
   return lines.join("\n");
@@ -161,6 +185,60 @@ function featurePromptSnippet(features) {
 }
 function parseOperation(params) {
   return ["archive", "restore", "search", "retrieve"].includes(params.operation) ? params.operation : undefined;
+}
+function displayValue(value, maxCharacters = 160) {
+  const text = typeof value === "string" ? value : JSON.stringify(value ?? "");
+  return text.length > maxCharacters ? `${text.slice(0, maxCharacters - 1)}…` : text;
+}
+function paint(theme, color, text) {
+  return typeof theme?.fg === "function" ? theme.fg(color, text) : text;
+}
+function compactResultText(result, args) {
+  const details = result?.details?.result ?? {};
+  const operation = details.operation ?? args.operation ?? "context";
+  if (details.status !== "ok") {
+    const reason = details.reason ?? details.message;
+    return `${operation} · ${details.status ?? "unavailable"}${reason ? ` · ${displayValue(reason, 120)}` : ""}`;
+  }
+  if (operation === "archive" || operation === "restore") {
+    const changed = Array.isArray(details.changed) ? details.changed.length : 0;
+    return `${operation} · ok · ${changed} changed${details.message ? ` · ${displayValue(details.message, 120)}` : ""}`;
+  }
+  if (operation === "search") {
+    const hits = Array.isArray(details.hits) ? details.hits : [];
+    const refs = hits
+      .slice(0, 3)
+      .map((hit) => hit.ref)
+      .join(", ");
+    const more = hits.length > 3 ? ` · +${hits.length - 3} more` : "";
+    const topMatch = hits[0]?.match?.type ? ` · top ${hits[0].match.type}` : "";
+    return `search · ${details.returned ?? hits.length} hit${(details.returned ?? hits.length) === 1 ? "" : "s"} · ${details.coverage ?? "unknown"}${topMatch}${details.truncated ? " · more available" : ""}${refs ? ` · ${refs}` : ""}${more}`;
+  }
+  if (operation === "retrieve") {
+    const items = Array.isArray(details.items) ? details.items : [];
+    const refs = items.map((item) => `${item.ref} (${item.completeness ?? "unknown"})`).join(", ");
+    return `retrieve · ${items.length} source${items.length === 1 ? "" : "s"}${refs ? ` · ${refs}` : ""}`;
+  }
+  return `${operation} · ${details.status}`;
+}
+function renderCall(args, theme) {
+  const operation = typeof args.operation === "string" ? args.operation : "context";
+  let detail = "";
+  if (operation === "search") detail = ` · "${displayValue(args.query)}"`;
+  else if (operation === "retrieve") {
+    detail = ` · ${Array.isArray(args.refs) ? `${args.refs.length} ref${args.refs.length === 1 ? "" : "s"}` : "refs"}`;
+    if (typeof args.focus === "string" && args.focus.trim()) detail += ` · focus "${displayValue(args.focus)}"`;
+  } else if (operation === "archive")
+    detail = ` · ${Array.isArray(args.targets) ? `${args.targets.length} target${args.targets.length === 1 ? "" : "s"}` : "targets"}`;
+  else if (operation === "restore")
+    detail = ` · ${Array.isArray(args.refs) ? `${args.refs.length} ref${args.refs.length === 1 ? "" : "s"}` : "refs"}`;
+  const title = typeof theme?.bold === "function" ? theme.bold("Freeflow Context") : "Freeflow Context";
+  return new Text(`${paint(theme, "toolTitle", title)} · ${operation}${detail}`, 0, 0);
+}
+function renderResult(result, options, theme, context) {
+  if (options.isPartial) return new Text(paint(theme, "warning", "Processing…"), 0, 0);
+  if (options.expanded) return new Text(resultText(result?.details?.result ?? result), 0, 0);
+  return new Text(paint(theme, "muted", compactResultText(result, context?.args ?? {})), 0, 0);
 }
 export function registerFreeflowContextTool(
   pi,
@@ -195,7 +273,9 @@ export function registerFreeflowContextTool(
         : []),
     ],
     parameters: contextParameters(features),
-    async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
+    renderCall,
+    renderResult,
+    async execute(_toolCallId, params, signal, _onUpdate, _ctx) {
       const operation = parseOperation(params ?? {});
       let result;
       if (!operation) {
@@ -215,8 +295,8 @@ export function registerFreeflowContextTool(
         const runtime = getConversationHistoryRuntime();
         result = runtime
           ? operation === "search"
-            ? await runtime.search(params)
-            : await runtime.retrieve(params)
+            ? await runtime.search(params, signal)
+            : await runtime.retrieve(params, signal)
           : { status: "unavailable", operation, reason: "conversation_history_unavailable" };
       }
       return {

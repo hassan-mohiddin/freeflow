@@ -10,6 +10,12 @@ export function tokenize(value) {
 export function unique(values) {
   return [...new Set(values)];
 }
+export function throwIfAborted(signal) {
+  if (!signal?.aborted) return;
+  const error = new Error("conversation_history_search_cancelled");
+  error.name = "AbortError";
+  throw error;
+}
 function passageEnd(text, start) {
   const target = Math.min(text.length, start + PASSAGE_TARGET_CHARACTERS);
   if (target === text.length) return target;
@@ -19,13 +25,15 @@ function passageEnd(text, start) {
   if (lineBreak > start + PASSAGE_TARGET_CHARACTERS / 2) return lineBreak + 1;
   return target;
 }
-export function splitTextIntoPassages(text) {
+export function splitTextIntoPassages(text, signal) {
+  throwIfAborted(signal);
   if (text.length <= PASSAGE_TARGET_CHARACTERS) {
     return [{ text, start: 0, end: text.length, tokens: tokenize(text), length: Math.max(1, tokenize(text).length) }];
   }
   const result = [];
   let start = 0;
   while (start < text.length) {
+    throwIfAborted(signal);
     const end = passageEnd(text, start);
     const passageText = text.slice(start, end);
     const tokens = tokenize(passageText);

@@ -1,4 +1,4 @@
-import { normalizeText, splitTextIntoPassages, tokenize, unique } from "./passages.js";
+import { normalizeText, splitTextIntoPassages, throwIfAborted, tokenize, unique } from "./passages.js";
 export const BM25_K1 = 1.2;
 export const BM25_B = 0.75;
 function bm25Score(tokens, terms, documentFrequency, documentCount, averageLength) {
@@ -33,17 +33,22 @@ function compareTextPassages(left, right) {
   }
   return left.passage.start - right.passage.start;
 }
-function rankInputs(inputs, terms) {
+function rankInputs(inputs, terms, signal) {
   const documentFrequency = new Map();
   for (const input of inputs) {
+    throwIfAborted(signal);
     for (const term of unique(input.passage.tokens)) {
       documentFrequency.set(term, (documentFrequency.get(term) ?? 0) + 1);
     }
   }
   const averageLength =
     inputs.length === 0 ? 1 : inputs.reduce((total, input) => total + input.passage.length, 0) / inputs.length;
-  return inputs
-    .filter((input) => input.matchedTerms.length > 0 || input.exactPhrase)
+  const matching = [];
+  for (const input of inputs) {
+    throwIfAborted(signal);
+    if (input.matchedTerms.length > 0 || input.exactPhrase) matching.push(input);
+  }
+  return matching
     .map((input) => ({
       ...input,
       score: bm25Score(input.passage.tokens, terms, documentFrequency, inputs.length, averageLength),
@@ -55,13 +60,15 @@ function rankInputs(inputs, terms) {
       return compareTextPassages(left, right);
     });
 }
-export function rankMatchingPassages(entries, query) {
+export function rankMatchingPassages(entries, query, signal) {
+  throwIfAborted(signal);
   const normalizedQuery = normalizeText(query);
   const terms = unique(tokenize(query));
   if (!normalizedQuery || terms.length === 0) return [];
   const inputs = [];
   for (const entry of entries) {
-    for (const passage of splitTextIntoPassages(entry.text)) {
+    throwIfAborted(signal);
+    for (const passage of splitTextIntoPassages(entry.text, signal)) {
       const normalizedPassage = normalizeText(passage.text);
       inputs.push({
         entry,
@@ -71,7 +78,7 @@ export function rankMatchingPassages(entries, query) {
       });
     }
   }
-  return rankInputs(inputs, terms);
+  return rankInputs(inputs, terms, signal);
 }
 export function strongestTextPassage(text, query) {
   const normalizedQuery = normalizeText(query);
@@ -88,6 +95,11 @@ export function focusedWindow(text, focus, maxCharacters) {
   const strongest = strongestTextPassage(text, focus);
   if (!strongest) return undefined;
   const center = Math.floor((strongest.passage.start + strongest.passage.end) / 2);
-  const start = Math.max(0, Math.min(center - Math.floor(maxCharacters / 2), text.length - maxCharacters));
-  return text.slice(start, start + maxCharacters);
+  const proposedStart = Math.max(0, Math.min(center - Math.floor(maxCharacters / 2), text.length - maxCharacters));
+  const previousLineBreak = proposedStart > 0 ? text.lastIndexOf("\n", proposedStart - 1) : -1;
+  const start = previousLineBreak >= 0 ? previousLineBreak + 1 : proposedStart;
+  const proposedEnd = Math.min(text.length, start + maxCharacters);
+  const previousEndLineBreak = proposedEnd < text.length ? text.lastIndexOf("\n", proposedEnd) : -1;
+  const end = previousEndLineBreak > start ? previousEndLineBreak + 1 : proposedEnd;
+  return text.slice(start, end);
 }

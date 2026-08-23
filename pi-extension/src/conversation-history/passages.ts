@@ -22,6 +22,13 @@ export function unique(values: readonly string[]): string[] {
   return [...new Set(values)];
 }
 
+export function throwIfAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return;
+  const error = new Error("conversation_history_search_cancelled");
+  error.name = "AbortError";
+  throw error;
+}
+
 function passageEnd(text: string, start: number): number {
   const target = Math.min(text.length, start + PASSAGE_TARGET_CHARACTERS);
   if (target === text.length) return target;
@@ -32,13 +39,15 @@ function passageEnd(text: string, start: number): number {
   return target;
 }
 
-export function splitTextIntoPassages(text: string): TextPassage[] {
+export function splitTextIntoPassages(text: string, signal?: AbortSignal): TextPassage[] {
+  throwIfAborted(signal);
   if (text.length <= PASSAGE_TARGET_CHARACTERS) {
     return [{ text, start: 0, end: text.length, tokens: tokenize(text), length: Math.max(1, tokenize(text).length) }];
   }
   const result: TextPassage[] = [];
   let start = 0;
   while (start < text.length) {
+    throwIfAborted(signal);
     const end = passageEnd(text, start);
     const passageText = text.slice(start, end);
     const tokens = tokenize(passageText);
