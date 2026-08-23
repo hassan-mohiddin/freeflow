@@ -1,115 +1,77 @@
 # Automatic Routing Kernel
 
-Route from the current `Control` and `Profile`; earlier transition results are history. Under manual control, do not request profile switches. Use the held profile and treat the automatic boundary questions only as efficiency guidance.
+Use this kernel under automatic control. Route from the current runtime state and the latest visible boundary contract. Under manual control, use the held profile and treat this kernel only as efficiency guidance.
 
-Under automatic control, standard Thinks and Acts by default. Reasoning always Thinks and receives task Act only through the gate below.
+Standard Thinks and Acts by default. Reasoning always Thinks; task Act passes through the Reasoning Act Gate below.
 
-## Follow One Open-Boundary Loop
+## Route By Boundary State
 
-```text
-Standard Thinks + Acts
--> if a NEW cognitive boundary appears
-   -> SWITCH to Reasoning
--> if a closed boundary is invalidated
-   -> REOPEN + SWITCH to Reasoning
--> Reasoning leads the OPEN boundary and Thinks
-   -> narrow discriminating evidence needed
-      -> OBSERVE -> reassess
-   -> judgment and action inseparable
-      -> ACT_BOUNDED -> reassess
-   -> broad, mechanical, or token-heavy execution needs no material judgment
-      -> DELEGATE bounded execution to Standard
-      -> Standard works in shared visible context
-      -> if a return condition occurs
-         -> RETURN + SWITCH to Reasoning
-         -> continue the same OPEN boundary
-   -> governing judgment supported
-      -> CLOSE + HANDOFF to Standard
-   -> user decision or authority missing
-      -> return to Workflow
-```
+Boundary state decides the route before the shape of the remaining work.
 
-Every automatic switch uses one route below and its visible transition contract; there is no bare switch. DELEGATE preserves reasoning leadership of the open boundary. CLOSE + HANDOFF ends it. Do not optimize for few switches or many switches; each must transfer one meaningful execution or judgment unit.
+| Current situation | Owner and next action |
+| --- | --- |
+| Standard with no active boundary | Standard owns ordinary work. |
+| Standard finds a material new judgment | Write `NEW`, then switch to reasoning. |
+| Standard finds evidence that defeats a closed conclusion | Write `REOPEN`, then switch to reasoning. |
+| Reasoning leads an `OPEN` boundary | Resolve the judgment, gather bounded evidence, act boundedly, or delegate execution. |
+| Standard receives **Delegation · OPEN** | Execute the bounded contract, then return evidence to reasoning. |
+| Standard receives **Boundary Handoff · CLOSED** | Own continuation through completion and verification. |
 
-## Switch From Standard At A Material Boundary
+A closed boundary may leave routine or mechanical work. That work belongs to standard because reasoning leadership has ended. An open boundary may delegate mechanical execution while reasoning remains the cognitive lead.
 
-Continue in standard when work is clear, bounded, observable, reversible, and directly verifiable. Standard handles routine tool volume, known edits, accepted patterns, mechanical integration, builds, tests, and clear corrections outside a reasoning-led boundary.
+## Standard: Work Or Escalate
 
-Do not manufacture speculative or throwaway standard work merely to avoid reasoning Act. Perform each work unit once in standard when standard is reliably sufficient; otherwise switch before making the material judgment.
+Continue in standard when work is clear, bounded, observable, reversible, and directly verifiable. Standard handles routine tool volume, known edits, accepted patterns, mechanical integration, builds, tests, and clear corrections.
 
-Switch when:
+Continue through local uncertainty when a wrong attempt is observable, reversible, and cheap to correct. Do not manufacture speculative standard work merely to avoid a reasoning switch.
+
+Switch before standard makes the material judgment when:
 
 - materially different valid approaches remain;
 - architecture, interfaces, ownership, or failure behavior remain unresolved;
-- evidence invalidates an important assumption or closed-boundary handoff;
-- a causal failure is unclear or repeats without convergence;
-- difficult synthesis is itself consequential artifact work;
-- an error could be latent, irreversible, or difficult to recover;
-- an open delegation reaches a declared return condition;
+- evidence invalidates an important assumption or closed conclusion;
+- a causal failure is unclear or repeats;
+- difficult synthesis is itself consequential work;
+- error could be latent, irreversible, or expensive to recover;
 - a selected reasoning review is due.
 
-Classify why reasoning is needed:
+Classify the boundary:
 
-- **NEW:** a material boundary appears;
-- **REOPEN:** evidence or changed intent invalidates a closed boundary;
-- **RETURN:** delegated execution reaches a return condition while the same boundary remains open.
+- **NEW:** a material judgment appears.
+- **REOPEN:** new evidence or changed intent defeats a closed conclusion.
 
-Continue through local uncertainty when a wrong attempt is observable, reversible, and cheaply correctable. Do not switch merely because feedback arrived, the task is complex, or reasoning might perform routine work somewhat better.
-
-For **NEW** or **REOPEN**, write only:
+Write:
 
 ```text
 Reasoning Boundary
+Boundary operation: NEW | REOPEN
 What changed:
 Decisive evidence or pointer:
 Why standard should not choose:
 Judgment required:
 ```
 
-For **RETURN**, write only:
+Then switch to reasoning. Reuse shared context rather than repeating task history.
 
-```text
-Return to Reasoning
-Outcome or evidence pointer:
-Return condition reached:
-```
+## Reasoning: Lead The Open Boundary
 
-Do not repeat task history.
+Reasoning owns one `OPEN` cognitive boundary. Choose the next route in this order:
 
-## Gate Automatic Reasoning Act
+1. Missing authority or user direction returns to Workflow.
+2. A supported governing judgment closes and hands off the boundary.
+3. Otherwise use the smallest necessary Reasoning Act or delegate bounded execution.
 
-The gate applies only when automatic reasoning proposes task Act. It permits two forms:
+### Reasoning Act Gate
 
-- **OBSERVE:** one narrow, discriminating evidence scope.
-- **ACT_BOUNDED:** rare cognition-coupled work where judgment and action cannot be separated safely.
+Think needs no gate. Before task Act, identify the open boundary, why action is necessary, and the smallest useful scope and stop condition.
 
-Before either form, ask:
-
-1. What open cognitive boundary does this action advance?
-2. Is the evidence or intervention necessary?
-3. What is the smallest useful scope and stop condition?
-
-OBSERVE passes when the fewest tightly related calls can answer one narrow, discriminating question and direct observation is cheaper and clearer than a delegation round trip.
-
-For **OBSERVE**, write:
+Use **OBSERVE** when a few tightly related calls can answer one narrow, discriminating question more cheaply and clearly than a delegation round trip.
 
 ```text
 Reasoning observation: inspect <scope> to determine <question>; stop when <evidence boundary> is established.
 ```
 
-OBSERVE is one evidence scope, not one tool call. Stop when the evidence boundary is established. If the work becomes broad, repetitive, or exploratory, delegate it.
-
-ACT_BOUNDED passes only when judgment and action are inseparable and:
-
-```text
-Expected loss from delegation
-materially exceeds
-Premium cost of reasoning action
-```
-
-Treat this as qualitative judgment, not a numeric score. Better performance alone does not pass the gate.
-
-For **ACT_BOUNDED**, write:
+Use **ACT_BOUNDED** only when judgment and action are materially inseparable and expected delegation loss materially exceeds premium reasoning cost.
 
 ```text
 Reasoning Act
@@ -119,64 +81,73 @@ Authority:
 Stop and reassess when:
 ```
 
-ACT_BOUNDED is rare. It may cover a focused implementation, diagnostic episode, or difficult artifact section only when delegation would recreate the judgment, lose causal continuity, or leave unsafe discretion. It never grants Reasoning Act for the whole boundary, adjacent integration, broad verification, or cleanup.
+An Act scope may cover one focused implementation, diagnostic episode, or difficult artifact section. It never covers the whole boundary, adjacent integration, broad verification, or cleanup.
 
-Each OBSERVE or ACT_BOUNDED scope expires at its boundary and returns reasoning to Think; it never authorizes the next scope. Reassess before switching, and make any resulting conclusion visible through DELEGATE or CLOSE + HANDOFF.
+Every OBSERVE or ACT_BOUNDED scope expires at its stop condition and returns reasoning to Think. Make the resulting conclusion visible before the next delegation or closure.
 
-## Delegate Execution Without Transferring The Boundary
+## Delegate While The Boundary Is Open
 
-Delegate broad, mechanical, repetitive, or token-heavy execution that requires no material judgment. Reasoning retains leadership of the open boundary; standard performs the bounded work in the same shared context.
-
-Reasoning may delegate after thinking alone, after OBSERVE, or after a separately justified ACT_BOUNDED scope. These remain one boundary, not nested sub-boundaries.
-
-Before delegating, write:
+Delegate broad, mechanical, repetitive, or token-heavy execution that leaves standard no material judgment. Reasoning remains cognitive lead.
 
 ```text
 Delegation
+Boundary state: OPEN
 Supported result or constraint:
 Execution scope:
 Evidence required:
 Stop and return when:
 ```
 
-The contract leaves standard no material judgment or unsafe discretion. Standard may Think locally enough to execute it, but must not resolve the cognitive boundary, reinterpret the governing judgment, expand the scope, or hide contradictory or inconclusive evidence.
+Standard executes the contract without reinterpreting its governing judgment. When expected evidence is available, execution fails, evidence conflicts, or the scope ends, standard writes:
 
-Standard writes the compact RETURN state and switches to reasoning when:
+```text
+Return to Reasoning
+Boundary state: OPEN
+Outcome or evidence pointer:
+Return condition reached:
+```
 
-- expected evidence is available;
-- execution fails;
-- evidence is contradictory or inconclusive;
-- the bounded execution scope ends.
+Standard then switches to reasoning. RETURN resumes the same open boundary. Reasoning reassesses the evidence and may Observe, Act boundedly, delegate again, close, or return to Workflow.
 
-This **RETURN** resumes the same open boundary; it does not reopen a closed one. Reasoning Thinks over the returned evidence and may Observe, Act boundedly, delegate again, close the boundary, or return an authority or user issue to Workflow.
+## Close And Hand Off The Boundary
 
-## Close The Boundary And Hand Off
-
-When the governing judgment is supported, reasoning closes the boundary and writes:
+When the governing judgment is supported, reasoning writes:
 
 ```text
 Boundary Handoff
+Boundary state: CLOSED
+Continuation owner: STANDARD
 Conclusion:
 Important evidence and assumptions:
-Bounded next action:
-Verification:
-Reopen reasoning when:
+Standard completes:
+Standard verifies:
+REOPEN only if:
 ```
 
-Reasoning then hands off to standard. Reasoning leadership ends, and standard owns continuation. `Reopen reasoning when` protects the conclusion from material new evidence, changed user intent, or an invalidated assumption; it does not preserve shadow reasoning ownership.
+Reasoning then switches to standard. Standard owns the continuation through completion and verification.
 
-If a reopen condition occurs, standard uses **REOPEN + SWITCH**. This creates no new switch mechanism and does not retroactively make the closed-boundary handoff a delegation.
+If the named reopen condition later occurs, standard writes the `Reasoning Boundary` contract with `Boundary operation: REOPEN` and switches to reasoning. Otherwise, standard finishes the stated work.
 
-## Preserve Boundaries And Expire Scopes
+## Preserve Continuity
 
-A cognitive boundary may survive response endings, user turns, compaction, resume, reload, or delegated execution. Its Act scope does not. After interruption or lifecycle resume, return to Think and reassess before acting again.
+A cognitive boundary may survive turns, compaction, resume, reload, and delegated execution. Its OBSERVE or ACT_BOUNDED scope does not; after interruption, reasoning reassesses before acting.
 
-Preserve a still-supported open boundary through visible conclusions, evidence, assumptions, execution contracts, and return conditions; hidden reasoning does not transfer. If new user direction changes or makes the boundary irrelevant, return it to Workflow rather than preserving it mechanically.
+Shared visible context carries evidence. Transition contracts carry newly derived conclusions, boundary state, execution scope, and return or reopen conditions. Hidden reasoning is never the continuation mechanism.
 
-## Example: Bursty Delegated Evidence
+Bursty switching is valid when each transition moves one meaningful judgment or execution unit. Tool-by-tool switching and returns without evidence are routing failures, not cost optimization.
 
-Standard verifies a bounded security change, then writes a Reasoning Boundary and switches when review exposes a new failure boundary. Reasoning uses one OBSERVE scope to inspect the decisive permission path and concludes that a complete permission matrix is needed but requires no material judgment.
+## Compact Lifecycle Example
 
-Reasoning delegates the matrix with a compact execution contract. Standard runs it, records the evidence and return condition, and switches with RETURN. If the correction is cognition-coupled, reasoning declares one rare ACT_BOUNDED scope, returns to Think, closes the supported boundary, and hands routine verification to standard.
-
-This is one active agent and one open boundary with bursty profile transitions—not separate agents, hidden orchestration, or nested sub-boundaries.
+```text
+Standard finds NEW judgment
+-> Reasoning Boundary · NEW
+-> reasoning keeps boundary OPEN
+-> Delegation · OPEN
+-> standard executes
+-> Return to Reasoning · OPEN
+-> reasoning supports judgment
+-> Boundary Handoff · CLOSED
+-> standard completes and verifies
+-> later invalidating evidence, if any
+-> Reasoning Boundary · REOPEN
+```
