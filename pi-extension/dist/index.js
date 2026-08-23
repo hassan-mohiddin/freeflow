@@ -32,8 +32,8 @@ import {
   filterBootstrapMessage,
   setModeStatus,
   skillPrompt,
-  withoutCognitiveRoutingRuntimeState,
-  withCognitiveRoutingRuntimeState,
+  withoutFreeflowRuntimeState,
+  withFreeflowRuntimeState,
 } from "./runtime/runtime-context.js";
 function startupSelectionSuppressesCognitiveRouting(ctx) {
   return ctx?.modelStateProvenance?.explicitModel === true || ctx?.modelStateProvenance?.explicitThinking === true;
@@ -453,7 +453,10 @@ export default function freeflow(pi) {
     return { message: bootstrap, systemPrompt };
   });
   pi.on("context", async (event, ctx) => {
-    const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
+    const [modeState, capabilityState] = await Promise.all([
+      readModeState(ctx.cwd),
+      readCapabilityState(ctx.cwd, ctx, pi?.host),
+    ]);
     const cognitiveRoutingRuntime = cognitiveRoutingController?.state();
     const effectivePromptCapabilityState = promptCapabilityState(capabilityState, cognitiveRoutingRuntime, ctx);
     let changed = false;
@@ -479,12 +482,11 @@ export default function freeflow(pi) {
       conversationHistoryRuntime.setContext(ctx);
       conversationHistoryRuntime.capture(effectivePromptCapabilityState.contextVirtualization?.effective === true);
     }
-    const cognitiveRoutingContextEnabled =
-      capabilityState.cognitiveRouting?.effective === true && !startupSelectionSuppressesCognitiveRouting(ctx);
-    const nextMessages = cognitiveRoutingContextEnabled
-      ? withCognitiveRoutingRuntimeState(messages, cognitiveRoutingRuntime)
-      : withoutCognitiveRoutingRuntimeState(messages);
-    if (nextMessages.length !== messages.length || cognitiveRoutingContextEnabled) {
+    const freeflowRuntimeStateEnabled = capabilityState.configured === true && capabilityState.enabled === true;
+    const nextMessages = freeflowRuntimeStateEnabled
+      ? withFreeflowRuntimeState(messages, modeState, effectivePromptCapabilityState, cognitiveRoutingRuntime)
+      : withoutFreeflowRuntimeState(messages);
+    if (nextMessages.length !== messages.length || freeflowRuntimeStateEnabled) {
       changed = true;
     }
     messages = nextMessages;

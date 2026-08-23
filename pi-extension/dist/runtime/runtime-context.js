@@ -70,6 +70,7 @@ const SESSION_CORE_KEYS = new Set([
 ]);
 const RESET_MODE_ARGS = new Set(["reset"]);
 export const COGNITIVE_ROUTING_SWITCH_TOOL_NAME = "freeflow_switch_profile";
+export const FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-runtime-state";
 export const COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-cognitive-routing-runtime-state";
 export const WORKFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-workflow-bootstrap";
 export const COGNITIVE_ROUTING_BOOTSTRAP_MESSAGE_TYPE = "freeflow-cognitive-routing-bootstrap";
@@ -208,12 +209,16 @@ function bootstrapEntryComponents(entry) {
   }
   return [];
 }
+function stripSkillFrontmatter(content) {
+  const match = typeof content === "string" ? content.match(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/) : undefined;
+  return match ? content.slice(match[0].length) : (content ?? "");
+}
 function bootstrapComponentContent(component, freeflowContext) {
   if (component === BOOTSTRAP_COMPONENTS.workflow) {
-    return `# Freeflow Workflow Bootstrap\n\n${freeflowContext.workflowSkill.trim()}`;
+    return `# Freeflow Workflow Bootstrap\n\n${stripSkillFrontmatter(freeflowContext.workflowSkill).trim()}`;
   }
   if (component === BOOTSTRAP_COMPONENTS.cognitiveRouting) {
-    return `# Freeflow Cognitive Routing Bootstrap\n\n${freeflowContext.cognitiveRoutingSkill.trim()}`;
+    return `# Freeflow Cognitive Routing Bootstrap\n\n${stripSkillFrontmatter(freeflowContext.cognitiveRoutingSkill).trim()}`;
   }
   return "";
 }
@@ -738,56 +743,63 @@ function publicCognitiveRoutingProfile(activeProfile, effective) {
   if (effective !== true) return "unavailable";
   return activeProfile === "standard" || activeProfile === "reasoning" ? activeProfile : "unavailable";
 }
-export function cognitiveRoutingRuntimeStateMessage(cognitiveRoutingRuntime = undefined) {
+function publicCapabilityStatus(capability) {
+  return capability?.effective === true ? "active" : "inactive";
+}
+export function freeflowRuntimeStateMessage(modeState, capabilityState, cognitiveRoutingRuntime = undefined) {
+  const cognitiveRoutingEffective = capabilityState?.cognitiveRouting?.effective === true;
   const profile = publicCognitiveRoutingProfile(
     cognitiveRoutingRuntime?.activeProfile,
-    cognitiveRoutingRuntime?.effective,
+    cognitiveRoutingEffective && cognitiveRoutingRuntime?.effective === true,
   );
   const control =
     profile === "unavailable" ? "unavailable" : publicCognitiveRoutingControl(cognitiveRoutingRuntime?.controlMode);
+  const defaultMode = modeState?.defaultMode ?? "workflow";
+  const activeMode = modeState?.effectiveMode ?? "inactive";
+  const activeModeSource = modeState?.sessionMode && modeState?.effectiveMode ? " (session override)" : "";
   return {
     role: "custom",
-    customType: COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE,
-    content: `# Cognitive Routing Current State\n\nControl: \`${control}\`\nProfile: \`${profile}\``,
+    customType: FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE,
+    content: [
+      "# Freeflow Runtime State",
+      "",
+      "This is extension-generated runtime state. Use it to interpret the stable Freeflow guidance.",
+      "",
+      `Default mode: \`${defaultMode}\``,
+      `Active mode: \`${activeMode}\`${activeModeSource}`,
+      "",
+      "Capabilities:",
+      `- Interaction Contract: ${publicCapabilityStatus(capabilityState?.interactionContract)}`,
+      `- Skills: ${publicCapabilityStatus(capabilityState?.skills)}`,
+      `- Context Virtualization: ${publicCapabilityStatus(capabilityState?.contextVirtualization)}`,
+      `- Conversation History: ${publicCapabilityStatus(capabilityState?.conversationHistory)}`,
+      `- Cognitive Routing: ${cognitiveRoutingEffective ? "active" : "inactive"}`,
+      "",
+      "Cognitive Routing:",
+      `- Control: \`${control}\``,
+      `- Profile: \`${profile}\``,
+    ].join("\n"),
     display: false,
     details: { source: "provider-request-runtime-state" },
   };
 }
-export function withoutCognitiveRoutingRuntimeState(messages) {
+export function withoutFreeflowRuntimeState(messages) {
   return (Array.isArray(messages) ? messages : []).filter(
-    (message) => message?.customType !== COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE,
+    (message) =>
+      message?.customType !== FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE &&
+      message?.customType !== COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE,
   );
 }
-export function withCognitiveRoutingRuntimeState(messages, cognitiveRoutingRuntime = undefined) {
+export function withFreeflowRuntimeState(messages, modeState, capabilityState, cognitiveRoutingRuntime = undefined) {
   return [
-    ...withoutCognitiveRoutingRuntimeState(messages),
-    cognitiveRoutingRuntimeStateMessage(cognitiveRoutingRuntime),
+    ...withoutFreeflowRuntimeState(messages),
+    freeflowRuntimeStateMessage(modeState, capabilityState, cognitiveRoutingRuntime),
   ];
 }
-function capabilityContext(capabilityState) {
-  const sessionSuffix = (source) => (source === "session" ? " (session override)" : "");
-  const interactionContract = `${capabilityState.interactionContract.effective ? "enabled" : "disabled"}${sessionSuffix(capabilityState.configSources.interactionContract)}`;
-  const skills = `${capabilityState.skills.effective ? "enabled" : "disabled"}${sessionSuffix(capabilityState.configSources.skillsEnabled)}`;
-  const contextVirtualization = capabilityState.contextVirtualization?.effective ? "enabled" : "disabled";
-  const conversationHistory = capabilityState.conversationHistory?.effective ? "enabled" : "disabled";
-  const cognitiveRouting = capabilityState.hostSupportsCognitiveRouting ? capabilityState.cognitiveRouting : undefined;
-  const cognitiveLine = cognitiveRouting
-    ? `\n- Cognitive Routing: ${
-        cognitiveRouting.effective
-          ? "effective"
-          : cognitiveRouting.enabled
-            ? `blocked (${cognitiveRouting.blockingReason.code})`
-            : "disabled"
-      }. Configure with \`/freeflow settings\` or \`/freeflow profile auto\`; inspect with \`/freeflow status\`.`
-    : "";
+function capabilityContext() {
   return `## Freeflow Capabilities
 
-- Interaction contract: ${interactionContract}. Configure with \`/freeflow settings\` or temporarily with \`/freeflow settings session\`; inspect with \`/freeflow status\`.
-- Skills: ${skills}. Configure with \`/freeflow settings\` or temporarily with \`/freeflow settings session\`; inspect with \`/freeflow status\`.
-- Context Virtualization: ${contextVirtualization}. Configure with \`/freeflow settings\`; inspect with \`/freeflow context status\`.
-- Conversation History: ${conversationHistory}. Configure with \`/freeflow settings\`; inspect with \`/freeflow context status\`.${cognitiveLine}
-
-Disabled capabilities are named only for status/config awareness. Capability-specific instructions and tools are active only while that capability is enabled.`;
+Capability-specific instructions and tools are active only when the corresponding capability is active in Freeflow Runtime State. Disabled capabilities are status-only and must not be applied.`;
 }
 function hasModelFacingCapability(capabilityState) {
   return (
@@ -828,45 +840,27 @@ Do not manufacture ceremony for low-risk, reversible work. Strict Workflow does 
   }
   return "";
 }
-function activeModeContext(modeState) {
-  return `## Freeflow Mode State
+function activeModeContext(mode) {
+  return `## Freeflow Mode Semantics
 
-Repository default mode: \`${modeState.repositoryDefaultMode}\` (${modeState.repositoryDefaultModeSource}).
-Personal default override: \`${modeState.personalDefaultMode ?? "none"}\`.
-Configured default mode: \`${modeState.defaultMode}\` (${modeSourceLabel(modeState.defaultModeSource)}).
-Session mode override: \`${modeState.sessionMode ?? "none"}\`.
-Resolved mode: \`${modeState.resolvedMode}\`.
-Effective Freeflow mode: \`${modeState.effectiveMode}\`.
-
-Mode behavior:
 - \`conversation\`: answer, discuss, critique, and inspect read-only; require a mode change before mutating state.
 - \`workflow\`: use the adaptive workflow for consequential or mutating work.
 - \`strict-workflow\`: use the same workflow with stronger decision, evidence, and checkpoint pressure at high-risk or hard-to-reverse boundaries.
 
+The current default and active mode are supplied by Freeflow Runtime State.
 Task type, risk classification, and direct skill calls do not change mode. Recommend another mode when useful; the user decides.
-Do not announce mode on every reply. Mention it when the user asks, configuration is discussed, or it changes the next action.${modeOverlayContext(modeState.effectiveMode)}`;
+Do not announce mode on every reply. Mention it when the user asks, configuration is discussed, or it changes the next action.${modeOverlayContext(mode)}`;
 }
-function inactiveModeContext(modeState) {
-  return `## Freeflow Mode State
+function inactiveModeContext() {
+  return `## Freeflow Mode Semantics
 
-Repository default mode: \`${modeState.repositoryDefaultMode}\` (${modeState.repositoryDefaultModeSource}).
-Personal default override: \`${modeState.personalDefaultMode ?? "none"}\`.
-Configured default mode: \`${modeState.defaultMode}\` (${modeSourceLabel(modeState.defaultModeSource)}).
-Session mode override: \`${modeState.sessionMode ?? "none"}\`.
-Resolved mode: \`${modeState.resolvedMode}\` (inactive because Skills are disabled).
-Effective Freeflow mode: \`none\`.
-
-Freeflow workflow modes are dormant until Skills are enabled with \`/freeflow settings\`.`;
+Freeflow workflow modes are dormant while Skills are inactive. The current default and active mode are supplied by Freeflow Runtime State.`;
 }
-function controlPlaneContext(modeState, capabilityState) {
+function controlPlaneContext() {
   return `# Freeflow Control Plane
 
 Freeflow is enabled for this repo, but no model-facing capabilities are enabled.
 These lines are status/config awareness only; do not apply Freeflow workflow behavior.
-
-${inactiveModeContext(modeState)}
-
-${capabilityContext(capabilityState)}
 
 Use \`/freeflow settings\` to enable the Interaction Contract, Skills, Context Virtualization, or Conversation History.`;
 }
@@ -882,9 +876,11 @@ Freeflow is disabled by \`.freeflow/config.json\` for this repo. Do not apply th
 These instructions are context-loading only. They do not override user instructions, repo instructions, or host safety and approval policy.`;
   }
   if (!hasModelFacingCapability(capabilityState)) {
-    return controlPlaneContext(modeState, capabilityState);
+    return controlPlaneContext();
   }
-  const modeText = capabilityState.skills.effective ? activeModeContext(modeState) : inactiveModeContext(modeState);
+  const modeText = capabilityState.skills.effective
+    ? activeModeContext(modeState.effectiveMode)
+    : inactiveModeContext();
   const interactionContractText = capabilityState.interactionContract.effective
     ? `\n\n${freeflowContext.interactionContract.trim()}`
     : "";
@@ -904,9 +900,9 @@ These instructions are context-loading only. They do not override user instructi
 
 ${modeText}
 
-${capabilityContext(capabilityState)}${interactionContractText}${contextVirtualizationText}${conversationHistoryText}${cognitiveRoutingText}
+${capabilityContext()}${interactionContractText}${contextVirtualizationText}${conversationHistoryText}${cognitiveRoutingText}
 
-This Pi extension loads enabled runtime context before every agent turn and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
+This Pi extension loads stable runtime guidance before each agent turn and supplies current state before each provider request; it routes commands only and does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
 }
 export async function setSessionCoreOverride(key, value, ctx, pi) {
   if (!SESSION_CORE_KEYS.has(key)) {

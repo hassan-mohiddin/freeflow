@@ -726,7 +726,7 @@ test("visible invalid sources do not make an empty hidden corpus partial", async
   }
 });
 
-test("disabled Context Virtualization hides the tool and leaves context unchanged", async () => {
+test("disabled Context Virtualization hides the tool and leaves tool results unchanged", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-context-disabled-"));
   try {
     await writeConfig(cwd, false);
@@ -738,7 +738,9 @@ test("disabled Context Virtualization hides the tool and leaves context unchange
       { messages: [harness.entries[0].message] },
       harness.ctx,
     );
-    assert.equal(contextResult, undefined);
+    assert.ok(contextResult);
+    assert.deepEqual(contextResult.messages[0], harness.entries[0].message);
+    assert.equal(contextResult.messages.at(-1).customType, "freeflow-runtime-state");
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

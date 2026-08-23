@@ -628,6 +628,7 @@ test("Pi delivers layered bootstrap once and the routing kernel on every turn", 
     assert.match(first.message.content, /^# Freeflow Bootstrap/);
     assert.match(first.message.content, /# Freeflow Workflow Bootstrap/);
     assert.match(first.message.content, /# Freeflow Cognitive Routing Bootstrap/);
+    assert.doesNotMatch(first.message.content, /^---/m);
     assert.doesNotMatch(first.systemPrompt, /^# Cognitive Routing$/m);
     assert.match(first.systemPrompt, /^# Automatic Routing Kernel$/m);
     assert.doesNotMatch(first.systemPrompt, /## Cognitive Routing Runtime State/);
@@ -635,10 +636,28 @@ test("Pi delivers layered bootstrap once and the routing kernel on every turn", 
     const contextHandler = host.handlers.get("context");
     const firstContext = await contextHandler({ messages: [] }, ctx);
     assert.equal(firstContext.messages.length, 1);
-    assert.equal(firstContext.messages[0].customType, "freeflow-cognitive-routing-runtime-state");
+    assert.equal(firstContext.messages[0].customType, "freeflow-runtime-state");
     assert.equal(
       firstContext.messages[0].content,
-      "# Cognitive Routing Current State\n\nControl: `automatic`\nProfile: `standard`",
+      [
+        "# Freeflow Runtime State",
+        "",
+        "This is extension-generated runtime state. Use it to interpret the stable Freeflow guidance.",
+        "",
+        "Default mode: `workflow`",
+        "Active mode: `workflow`",
+        "",
+        "Capabilities:",
+        "- Interaction Contract: active",
+        "- Skills: active",
+        "- Context Virtualization: inactive",
+        "- Conversation History: inactive",
+        "- Cognitive Routing: active",
+        "",
+        "Cognitive Routing:",
+        "- Control: `automatic`",
+        "- Profile: `standard`",
+      ].join("\n"),
     );
 
     const repeatedContext = await contextHandler({ messages: firstContext.messages }, ctx);
@@ -672,9 +691,10 @@ test("Pi delivers layered bootstrap once and the routing kernel on every turn", 
       },
       ctx,
     );
-    assert.equal(filtered.messages.length, 1);
+    assert.equal(filtered.messages.length, 2);
     assert.match(filtered.messages[0].content, /# Freeflow Workflow Bootstrap/);
     assert.doesNotMatch(filtered.messages[0].content, /# Freeflow Cognitive Routing Bootstrap/);
+    assert.equal(filtered.messages[1].customType, "freeflow-runtime-state");
 
     const disabled = await beforeAgentStart({ systemPrompt: "base prompt" }, ctx);
     assert.equal(disabled.message, undefined);

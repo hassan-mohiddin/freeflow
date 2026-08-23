@@ -69,8 +69,8 @@ The hook stays inert without valid repository activation, fails closed on invali
 The Pi extension:
 
 - reads both config layers before agent turns;
-- appends static effective context and the Interaction Contract in `before_agent_start`, then supplies one volatile Control/Profile state record before each provider request;
-- stores Workflow as one hidden persistent custom message while Skills are effective;
+- appends stable effective guidance and the Interaction Contract in `before_agent_start`, then supplies one unified volatile `Freeflow Runtime State` message before each provider request with the current default/active mode, effective capabilities, and Cognitive Routing Control/Profile;
+- stores Workflow and Cognitive Routing guidance as hidden persistent custom messages while effective, with skill frontmatter removed from model-facing bootstrap content;
 - restores temporary session mode from Pi session entries;
 - dynamically exposes 25 model/contributor skills;
 - registers canonical direct commands and two Pi-only compatibility aliases;
