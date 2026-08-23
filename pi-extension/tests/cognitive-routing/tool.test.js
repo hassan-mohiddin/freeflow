@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { COGNITIVE_ROUTING_SWITCH_TOOL_NAME, registerCognitiveRoutingTool } from "../../dist/cognitive-routing/tool.js";
+import {
+  COGNITIVE_ROUTING_HISTORY_TOOL_NAME,
+  COGNITIVE_ROUTING_SWITCH_TOOL_NAME,
+  registerCognitiveRoutingHistoryTool,
+  registerCognitiveRoutingTool,
+} from "../../dist/cognitive-routing/tool.js";
 
 function register(getController) {
   let tool;
@@ -11,6 +16,19 @@ function register(getController) {
       },
     },
     getController,
+  );
+  return tool;
+}
+
+function registerHistory(getHistory) {
+  let tool;
+  registerCognitiveRoutingHistoryTool(
+    {
+      registerTool(candidate) {
+        tool = candidate;
+      },
+    },
+    getHistory,
   );
   return tool;
 }
@@ -147,6 +165,36 @@ test("hides the duplicate pending line without reading mutable controller state"
       .join("\n"),
     "Cognitive Routing: standard → reasoning",
   );
+});
+
+test("exposes the read-only Cognitive Routing history tool contract", async () => {
+  const calls = [];
+  const resultValue = {
+    current: { control: "automatic", profile: "reasoning" },
+    summary: { latestSemanticEventId: "intent-1", unresolvedCount: 0, anomalyCount: 0 },
+    events: [],
+  };
+  const tool = registerHistory((options) => {
+    calls.push(options);
+    return resultValue;
+  });
+
+  assert.equal(tool.name, COGNITIVE_ROUTING_HISTORY_TOOL_NAME);
+  assert.deepEqual(tool.parameters.required, []);
+  assert.deepEqual(tool.parameters.properties.scope.enum, ["session", "active-branch"]);
+  assert.equal(tool.parameters.properties.limit.minimum, 1);
+
+  const result = await tool.execute(
+    "history-1",
+    { scope: "active-branch", anomaliesOnly: true, limit: 7 },
+    undefined,
+    undefined,
+    {},
+  );
+
+  assert.deepEqual(calls, [{ scope: "active-branch", anomaliesOnly: true, limit: 7 }]);
+  assert.deepEqual(result.details.result, resultValue);
+  assert.match(result.content[0].text, /Cognitive Routing history/);
 });
 
 test("routes a valid automatic request through the controller", async () => {

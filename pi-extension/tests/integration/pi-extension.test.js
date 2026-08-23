@@ -368,6 +368,21 @@ test("Pi describes Freeflow argument completions", () => {
       label: "auto",
       description: "Release the manual hold without changing the model",
     },
+    {
+      value: "profile history",
+      label: "history",
+      description: "Show Cognitive Routing transition history",
+    },
+    {
+      value: "profile history active",
+      label: "history active",
+      description: "Show current-branch Cognitive Routing history",
+    },
+    {
+      value: "profile history anomalies",
+      label: "history anomalies",
+      description: "Show Cognitive Routing history anomalies",
+    },
   ]);
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("settings "), [
     { value: "settings session", label: "session", description: "Override Freeflow for this Pi session" },

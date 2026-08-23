@@ -17,15 +17,38 @@ function createContext() {
   };
 }
 
-test("completes only the three deterministic profile controls", () => {
+test("completes profile controls and read-only history views", () => {
   assert.deepEqual(
     cognitiveRoutingProfileCompletions("").map(({ value }) => value),
-    ["standard", "reasoning", "auto"],
+    ["standard", "reasoning", "auto", "history", "history active", "history anomalies"],
   );
   assert.deepEqual(
     cognitiveRoutingProfileCompletions("rea").map(({ value }) => value),
     ["reasoning"],
   );
+  assert.deepEqual(
+    cognitiveRoutingProfileCompletions("history ").map(({ value }) => value),
+    ["history active", "history anomalies"],
+  );
+});
+
+test("reads history without requiring an idle Pi or mutating the controller", async () => {
+  const context = createContext();
+  context.isIdle = () => false;
+  const calls = [];
+  context.history = async (options) => {
+    calls.push(options);
+    return {
+      current: { control: "automatic", profile: "standard" },
+      summary: { unresolvedCount: 0, anomalyCount: 0 },
+      events: [],
+    };
+  };
+
+  assert.equal(await handleCognitiveRoutingProfileCommand("profile history active", context, undefined), true);
+  assert.deepEqual(calls, [{ scope: "active-branch" }]);
+  assert.match(context.notifications[0].message, /Cognitive Routing history/);
+  assert.equal(context.notifications[0].level, "info");
 });
 
 test("routes standard and reasoning to manual controller ownership", async () => {

@@ -1306,8 +1306,8 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiv
         }
         const result =
           value === "auto"
-            ? await cognitiveRoutingController.setAutomaticControl()
-            : await cognitiveRoutingController.setManualProfile(value);
+            ? await cognitiveRoutingController.setAutomaticControl("profile-settings")
+            : await cognitiveRoutingController.setManualProfile(value, "profile-settings");
         if ((result.status !== "automatic" && result.status !== "active") || result.reason) {
           ctx.ui.notify(
             `Cognitive Routing settings could not be applied: ${result.reason ?? result.status}.`,

@@ -962,3 +962,105 @@ test("keeps an unmatched prepared activation pending when recovery retry fails",
   assert.equal(controller.state().effective, false);
   assert.equal(acquireCalls, 1);
 });
+
+test("writes v2 mechanism, causal, and baseline metadata before transitions", async () => {
+  const host = createHost({ onAcquire: appliedLease });
+  const controller = new CognitiveRoutingController({
+    capabilityState,
+    pi: host.pi,
+    ctx: host.ctx,
+    idFactory: (() => {
+      const ids = ["epoch-1", "activation-correlation", "profile-correlation"];
+      return () => ids.shift();
+    })(),
+  });
+
+  await controller.activate();
+  await controller.switchAutomaticProfile("reasoning", "Need a deeper analysis.");
+  await controller.setAutomaticControl();
+
+  const intents = host.sessionEntries.filter(
+    (entry) => entry.type === "custom" && entry.customType === COGNITIVE_ROUTING_INTENT_ENTRY,
+  );
+  assert.deepEqual(intents[0].data, {
+    version: 2,
+    phase: "prepared",
+    kind: "activation",
+    control: "automatic",
+    source: "system",
+    mechanism: "activation",
+    branchId: null,
+    epoch: "epoch-1",
+    correlationId: "activation-correlation",
+    target: { provider: "faux", modelId: "standard", thinkingLevel: "high" },
+    returnTarget: { provider: "faux", modelId: "return", thinkingLevel: "medium" },
+    fromPair: { provider: "faux", modelId: "return", thinkingLevel: "medium" },
+    profile: "standard",
+  });
+  assert.deepEqual(intents[1].data, {
+    version: 2,
+    phase: "prepared",
+    kind: "profile",
+    control: "automatic",
+    source: "agent",
+    mechanism: "agent-tool",
+    decisionCorrelationId: "profile-correlation",
+    branchId: null,
+    epoch: "epoch-1",
+    correlationId: "profile-correlation",
+    profile: "reasoning",
+    target: { provider: "faux", modelId: "reasoning", thinkingLevel: "max" },
+    returnTarget: { provider: "faux", modelId: "return", thinkingLevel: "medium" },
+    fromPair: { provider: "faux", modelId: "standard", thinkingLevel: "high" },
+    fromProfile: "standard",
+    reason: "Need a deeper analysis.",
+  });
+
+  const control = host.sessionEntries.find(
+    (entry) => entry.type === "custom" && entry.customType === COGNITIVE_ROUTING_CONTROL_ENTRY,
+  );
+  assert.deepEqual(control.data, {
+    version: 2,
+    control: "automatic",
+    source: "user",
+    mechanism: "profile-command",
+    reason: "manual hold release",
+    branchId: null,
+    epoch: "epoch-1",
+  });
+});
+
+test("fails closed before a profile transition when no current baseline is observable", async () => {
+  const host = createHost({ onAcquire: appliedLease });
+  const controller = new CognitiveRoutingController({ capabilityState, pi: host.pi, ctx: host.ctx });
+  await controller.activate();
+  const callsBefore = host.calls.length;
+  host.sessionEntries.length = 0;
+  host.ctx.model = undefined;
+  host.ctx.thinkingLevel = undefined;
+
+  const result = await controller.switchAutomaticProfile("reasoning", "Need a deeper analysis.");
+
+  assert.deepEqual(result, { status: "inactive", reason: "current_state_unavailable" });
+  assert.equal(host.calls.length, callsBefore);
+  assert.deepEqual(host.sessionEntries, []);
+});
+
+test("restores the return target without guessing a missing closing baseline", async () => {
+  const host = createHost({ onAcquire: appliedLease });
+  const controller = new CognitiveRoutingController({ capabilityState, pi: host.pi, ctx: host.ctx });
+  await controller.activate();
+  host.sessionEntries.length = 0;
+  host.ctx.model = undefined;
+  host.ctx.thinkingLevel = undefined;
+
+  const result = await controller.deactivate();
+
+  assert.deepEqual(result, { status: "inactive", reason: "restored" });
+  const closingIntent = host.sessionEntries.find(
+    (entry) => entry.type === "custom" && entry.customType === COGNITIVE_ROUTING_INTENT_ENTRY,
+  );
+  assert.equal(closingIntent.data.fromPair, undefined);
+  assert.equal(closingIntent.data.fromProfile, "standard");
+  assert.equal(host.sessionEntries.at(-1).type, "model_state_change");
+});

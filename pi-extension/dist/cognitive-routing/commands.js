@@ -1,21 +1,67 @@
 const PROFILE_VALUES = ["standard", "reasoning", "auto"];
+const HISTORY_VALUES = ["history", "history active", "history anomalies"];
 export function cognitiveRoutingProfileCompletions(prefix) {
   const query = prefix ?? "";
-  return PROFILE_VALUES.filter((value) => value.startsWith(query)).map((value) => ({
-    value,
-    label: value,
-    description:
-      value === "auto" ? "Release the manual hold without changing the model" : `Hold ${value} profile manually`,
-  }));
+  return [...PROFILE_VALUES, ...HISTORY_VALUES]
+    .filter((value) => value.startsWith(query))
+    .map((value) => ({
+      value,
+      label: value,
+      description:
+        value === "auto"
+          ? "Release the manual hold without changing the model"
+          : value === "history"
+            ? "Show Cognitive Routing transition history"
+            : value === "history active"
+              ? "Show current-branch Cognitive Routing history"
+              : value === "history anomalies"
+                ? "Show Cognitive Routing history anomalies"
+                : `Hold ${value} profile manually`,
+    }));
+}
+function historyOptions(value) {
+  if (value === "history") return {};
+  if (value === "history active") return { scope: "active-branch" };
+  if (value === "history anomalies") return { anomaliesOnly: true };
+  return undefined;
+}
+function formatHistory(result) {
+  const lines = [
+    `Cognitive Routing history: ${result.current.profile} · ${result.current.control}`,
+    `Events: ${result.events.length}; unresolved=${result.summary.unresolvedCount}; anomalies=${result.summary.anomalyCount}`,
+  ];
+  if (result.summary.latestSemanticEventId) lines.push(`Latest semantic: ${result.summary.latestSemanticEventId}`);
+  if (result.summary.latestCompletedEventId) lines.push(`Latest completed: ${result.summary.latestCompletedEventId}`);
+  for (const event of result.events) {
+    const transition = event.from && event.to ? ` ${event.from} → ${event.to}` : "";
+    lines.push(
+      `${event.jsonlPosition}: ${event.outcome} · ${event.classification}${transition} · changed=${event.changed} · ${event.id}`,
+    );
+  }
+  return lines.join("\n");
 }
 export async function handleCognitiveRoutingProfileCommand(args, ctx, controller) {
   const input = (args ?? "").trim().toLowerCase();
   const [action, ...rest] = input.split(/\s+/);
   if (action !== "profile") return false;
   const value = rest.join(" ");
+  const historyView = historyOptions(value);
+  if (historyView) {
+    const result = ctx.history
+      ? await ctx.history(historyView)
+      : controller?.history
+        ? controller.history(historyView)
+        : undefined;
+    if (result) {
+      ctx.ui?.notify?.(formatHistory(result), "info");
+    } else {
+      ctx.ui?.notify?.("Cognitive Routing history is unavailable for this session.", "warning");
+    }
+    return true;
+  }
   if (!PROFILE_VALUES.includes(value)) {
     ctx.ui?.notify?.(
-      "Usage: /freeflow profile standard, /freeflow profile reasoning, or /freeflow profile auto",
+      "Usage: /freeflow profile standard, /freeflow profile reasoning, /freeflow profile auto, or /freeflow profile history [active|anomalies]",
       "warning",
     );
     return true;

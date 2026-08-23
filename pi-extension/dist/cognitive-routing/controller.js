@@ -1,8 +1,23 @@
 import { randomUUID } from "node:crypto";
+import { readCognitiveRoutingHistory } from "./history.js";
 export const COGNITIVE_ROUTING_INTENT_ENTRY = "freeflow-cognitive-routing-intent";
 export const COGNITIVE_ROUTING_CONTROL_ENTRY = "freeflow-cognitive-routing-control";
 function isProfileName(value) {
   return value === "standard" || value === "reasoning";
+}
+function isMechanism(value) {
+  return [
+    "agent-tool",
+    "profile-command",
+    "profile-shortcut",
+    "profile-settings",
+    "session-tree",
+    "session-compact",
+    "activation",
+    "reload-restore",
+    "recovery",
+    "shutdown-restore",
+  ].includes(value);
 }
 function asIntentSource(value) {
   if (value === "user" || value === "agent") return value;
@@ -63,7 +78,7 @@ function asIntent(value) {
   if (!value || typeof value !== "object") return undefined;
   const candidate = value;
   if (
-    candidate.version !== 1 ||
+    (candidate.version !== 1 && candidate.version !== 2) ||
     (candidate.kind !== "activation" && candidate.kind !== "profile" && candidate.kind !== "closing") ||
     (candidate.phase !== "prepared" && candidate.phase !== "abandoned") ||
     typeof candidate.epoch !== "string" ||
@@ -73,13 +88,20 @@ function asIntent(value) {
   }
   const target = asPair(candidate.target);
   const returnTarget = asPair(candidate.returnTarget);
+  const fromPair = asPair(candidate.fromPair);
   if (!target || !returnTarget) return undefined;
   return {
-    version: 1,
+    version: candidate.version,
     kind: candidate.kind,
     phase: candidate.phase,
     control: candidate.control === "manual" ? "manual" : "automatic",
     source: asIntentSource(candidate.source),
+    ...(isMechanism(candidate.mechanism) ? { mechanism: candidate.mechanism } : {}),
+    ...(typeof candidate.decisionCorrelationId === "string"
+      ? { decisionCorrelationId: candidate.decisionCorrelationId }
+      : {}),
+    ...(fromPair ? { fromPair } : {}),
+    ...(isProfileName(candidate.fromProfile) ? { fromProfile: candidate.fromProfile } : {}),
     ...(typeof candidate.reason === "string" ? { reason: candidate.reason } : {}),
     ...(typeof candidate.branchId === "string" || candidate.branchId === null ? { branchId: candidate.branchId } : {}),
     epoch: candidate.epoch,
@@ -131,6 +153,10 @@ function controlModeForIntent(intent) {
   if (intent.control === "manual" && intent.profile) return `manual-${intent.profile}`;
   return "automatic";
 }
+function decisionCorrelationForIntent(intent) {
+  if (intent.decisionCorrelationId) return intent.decisionCorrelationId;
+  return intent.source === "user" || intent.source === "agent" ? intent.correlationId : undefined;
+}
 function latestControlMode(entries, intent) {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index];
@@ -142,7 +168,7 @@ function latestControlMode(entries, intent) {
       if (
         data &&
         typeof data === "object" &&
-        data.version === 1 &&
+        (data.version === 1 || data.version === 2) &&
         data.epoch === intent.epoch &&
         data.control === "automatic"
       ) {
@@ -202,6 +228,34 @@ export class CognitiveRoutingController {
       ...(this.returnTarget ? { returnTarget: { ...this.returnTarget } } : {}),
     };
   }
+  history(options = {}) {
+    const state = this.state();
+    const current = {
+      control: state.effective ? (state.controlMode === "automatic" ? "automatic" : "manual") : "unavailable",
+      profile: state.effective && state.activeProfile ? state.activeProfile : "unavailable",
+    };
+    const profilePairs = {
+      ...(this.capabilityState.resolvedProfiles.standard
+        ? {
+            standard: {
+              provider: this.capabilityState.resolvedProfiles.standard.provider,
+              modelId: this.capabilityState.resolvedProfiles.standard.model,
+              thinkingLevel: this.capabilityState.resolvedProfiles.standard.effectiveThinkingLevel,
+            },
+          }
+        : {}),
+      ...(this.capabilityState.resolvedProfiles.reasoning
+        ? {
+            reasoning: {
+              provider: this.capabilityState.resolvedProfiles.reasoning.provider,
+              modelId: this.capabilityState.resolvedProfiles.reasoning.model,
+              thinkingLevel: this.capabilityState.resolvedProfiles.reasoning.effectiveThinkingLevel,
+            },
+          }
+        : {}),
+    };
+    return readCognitiveRoutingHistory(this.ctx, { ...options, current, profilePairs });
+  }
   async activate() {
     return this.enqueue(() => this._activate());
   }
@@ -216,8 +270,8 @@ export class CognitiveRoutingController {
   async recover() {
     return this.enqueue(() => this._recover());
   }
-  async reconcileBranch() {
-    return this.enqueue(() => this._reconcileBranch());
+  async reconcileBranch(mechanism = "session-tree") {
+    return this.enqueue(() => this._reconcileBranch(mechanism));
   }
   async _activate() {
     if (this.state().effective && this.activeProfile) {
@@ -266,6 +320,7 @@ export class CognitiveRoutingController {
       kind: "activation",
       controlMode,
       source: "system",
+      mechanism: preservedReload ? "reload-restore" : "activation",
       ...(preservedReload && lifecycleIntent.resumeReason ? { reason: lifecycleIntent.resumeReason } : {}),
       epoch,
       branchId,
@@ -305,10 +360,15 @@ export class CognitiveRoutingController {
           (candidate) => candidate.kind === "profile" && candidate.epoch === this.epoch,
         )
       : undefined;
+    const fromPair = latestHostPair(this.ctx) ?? this.currentPair();
+    const fromProfile = this.activeProfile ?? profileNameForPair(this.capabilityState, fromPair);
     const intent = this.prepareIntent({
       kind: "closing",
       control: "automatic",
       source: "system",
+      mechanism: "shutdown-restore",
+      ...(fromPair ? { fromPair } : {}),
+      ...(fromProfile ? { fromProfile } : {}),
       ...(resumeProfile ? { resumeProfile } : {}),
       ...(resumeControl ? { resumeControl } : {}),
       ...(resumeIntent?.reason ? { resumeReason: resumeIntent.reason } : {}),
@@ -379,6 +439,7 @@ export class CognitiveRoutingController {
         kind: "activation",
         controlMode: "automatic",
         source: "system",
+        mechanism: "recovery",
         branchId: this.currentBranchId(),
         epoch: lifecycleIntent.epoch,
         returnTarget: lifecycleIntent.returnTarget,
@@ -411,6 +472,10 @@ export class CognitiveRoutingController {
         kind: "profile",
         controlMode: latestControlMode(branchEntries, profileIntent),
         source: "system",
+        mechanism: "recovery",
+        ...(decisionCorrelationForIntent(profileIntent)
+          ? { decisionCorrelationId: decisionCorrelationForIntent(profileIntent) }
+          : {}),
         branchId: this.currentBranchId(),
         epoch: lifecycleIntent.epoch,
         returnTarget: lifecycleIntent.returnTarget,
@@ -423,6 +488,7 @@ export class CognitiveRoutingController {
       kind: "activation",
       controlMode: "automatic",
       source: "system",
+      mechanism: "recovery",
       branchId: this.currentBranchId(),
       epoch: lifecycleIntent.epoch,
       returnTarget: lifecycleIntent.returnTarget,
@@ -431,10 +497,15 @@ export class CognitiveRoutingController {
     });
   }
   async recoverClosingIntent(intent) {
+    const fromPair = latestHostPair(this.ctx) ?? this.currentPair();
+    const fromProfile = intent.fromProfile ?? profileNameForPair(this.capabilityState, fromPair);
     const retryIntent = this.prepareIntent({
       kind: "closing",
       control: "automatic",
       source: "system",
+      mechanism: "shutdown-restore",
+      ...(fromPair ? { fromPair } : {}),
+      ...(fromProfile ? { fromProfile } : {}),
       reason: "Closing recovery",
       ...(intent.resumeProfile ? { resumeProfile: intent.resumeProfile } : {}),
       ...(intent.resumeControl ? { resumeControl: intent.resumeControl } : {}),
@@ -472,10 +543,16 @@ export class CognitiveRoutingController {
   }
   async abandonIntent(intent, reason) {
     try {
+      const fromPair = intent.fromPair ?? latestHostPair(this.ctx) ?? this.currentPair();
+      const fromProfile = intent.fromProfile ?? profileNameForPair(this.capabilityState, fromPair);
       this.pi.appendEntryDurable(COGNITIVE_ROUTING_INTENT_ENTRY, {
         ...intent,
+        version: 2,
         phase: "abandoned",
         source: "system",
+        mechanism: intent.mechanism ?? "recovery",
+        ...(fromPair ? { fromPair } : {}),
+        ...(fromProfile ? { fromProfile } : {}),
         reason,
       });
       const recovered = await this._recover();
@@ -486,11 +563,12 @@ export class CognitiveRoutingController {
       return { status: "pending", reason: "intent_abandon_failed" };
     }
   }
-  async _reconcileBranch() {
+  async _reconcileBranch(mechanism) {
     if (!this.capabilityState.effective) return { status: "inactive", reason: "not_effective" };
     if (!this.activeProfile || !this.lease) {
       return { status: "inactive", reason: "not_active" };
     }
+    const currentProfile = this.activeProfile;
     const sessionEntries = entriesFrom(this.ctx);
     const lifecycleIntent = latestIntent(
       sessionEntries,
@@ -511,42 +589,48 @@ export class CognitiveRoutingController {
       entries,
       (candidate) => candidate.kind === "profile" && candidate.epoch === lifecycleIntent?.epoch,
     );
-    if (intent && !hasMatchingHostEntry(entries, intent)) {
+    if (!intent) {
+      this.branchPending = false;
+      return { status: "active", profile: currentProfile };
+    }
+    if (!hasMatchingHostEntry(entries, intent)) {
       this.branchPending = true;
       return { status: "pending", reason: "branch_intent_unmatched" };
     }
-    const currentBranchId = this.currentBranchId();
-    const lifecycleOwnsCurrentBranch =
-      lifecycleIntent?.kind === "activation" && lifecycleIntent.branchId === currentBranchId;
-    const profile =
-      intent?.profile ?? (lifecycleOwnsCurrentBranch ? lifecycleIntent?.profile : undefined) ?? "standard";
-    const controlMode = intent
-      ? latestControlMode(entries, intent)
-      : lifecycleOwnsCurrentBranch
-        ? controlModeForIntent(lifecycleIntent)
-        : "automatic";
-    if (this.activeProfile === profile && this.controlMode === controlMode) {
+    const decisionCorrelationId = decisionCorrelationForIntent(intent);
+    if (intent.source === "system" && !decisionCorrelationId) {
       this.branchPending = false;
-      return { status: "active", profile };
+      return { status: "active", profile: currentProfile };
     }
-    const result = await this._setProfile(profile, {
+    if (!intent.profile) {
+      this.branchPending = false;
+      return { status: "active", profile: currentProfile };
+    }
+    const controlMode = latestControlMode(entries, intent);
+    if (this.activeProfile === intent.profile && this.controlMode === controlMode) {
+      this.branchPending = false;
+      return { status: "active", profile: intent.profile };
+    }
+    const result = await this._setProfile(intent.profile, {
       controlMode,
       source: "system",
+      mechanism,
+      ...(decisionCorrelationId ? { decisionCorrelationId } : {}),
       reason: "Branch reconciliation",
     });
     this.branchPending = result.status !== "active";
     return result;
   }
-  async setManualProfile(profile) {
-    return this.enqueue(() => this._setManualProfile(profile));
+  async setManualProfile(profile, mechanism = "profile-command") {
+    return this.enqueue(() => this._setManualProfile(profile, mechanism));
   }
-  async setAutomaticControl() {
-    return this.enqueue(() => this._setAutomaticControl());
+  async setAutomaticControl(mechanism = "profile-command") {
+    return this.enqueue(() => this._setAutomaticControl(mechanism));
   }
-  async switchAutomaticProfile(profile, reason, source = "agent") {
-    return this.enqueue(() => this._switchAutomaticProfile(profile, reason, source));
+  async switchAutomaticProfile(profile, reason, source = "agent", mechanism = "agent-tool") {
+    return this.enqueue(() => this._switchAutomaticProfile(profile, reason, source, mechanism));
   }
-  async _setManualProfile(profile) {
+  async _setManualProfile(profile, mechanism) {
     if (!this.capabilityState.effective) {
       return { status: "inactive", reason: "not_effective" };
     }
@@ -555,10 +639,11 @@ export class CognitiveRoutingController {
     return this._setProfile(profile, {
       controlMode: `manual-${profile}`,
       source: "user",
+      mechanism,
       reason: "manual profile command",
     });
   }
-  async _switchAutomaticProfile(profile, reason, source) {
+  async _switchAutomaticProfile(profile, reason, source, mechanism) {
     if (!this.capabilityState.effective) return { status: "blocked", reason: "not_effective" };
     const current = this.state();
     if (!current.effective) return { status: "blocked", reason: "not_active" };
@@ -566,7 +651,7 @@ export class CognitiveRoutingController {
     const from = current.activeProfile;
     if (!from) return { status: "blocked", reason: "profile_unknown" };
     if (from === profile) return { status: "active", changed: false, from, to: profile, profile };
-    const transition = await this._setProfile(profile, { controlMode: "automatic", source, reason });
+    const transition = await this._setProfile(profile, { controlMode: "automatic", source, reason, mechanism });
     if (transition.status !== "active") return transition;
     return { status: "active", changed: true, from, to: transition.profile, profile: transition.profile };
   }
@@ -581,14 +666,25 @@ export class CognitiveRoutingController {
       modelId: resolvedProfile.model,
       thinkingLevel: resolvedProfile.effectiveThinkingLevel,
     };
+    const fromPair = latestHostPair(this.ctx) ?? this.currentPair();
+    if (!fromPair) return { status: "inactive", reason: "current_state_unavailable" };
+    const fromProfile = this.activeProfile ?? profileNameForPair(this.capabilityState, fromPair);
+    const correlationId = this.idFactory();
+    const decisionCorrelationId =
+      options.decisionCorrelationId ??
+      (options.source === "user" || options.source === "agent" ? correlationId : undefined);
     const intent = this.prepareIntent({
       kind: "profile",
       control: options.controlMode === "automatic" ? "automatic" : "manual",
       source: options.source,
+      mechanism: options.mechanism,
+      ...(decisionCorrelationId ? { decisionCorrelationId } : {}),
+      ...(fromPair ? { fromPair } : {}),
+      ...(fromProfile ? { fromProfile } : {}),
       reason: options.reason,
       branchId: this.currentBranchId(),
       epoch: this.epoch,
-      correlationId: this.idFactory(),
+      correlationId,
       profile,
       target,
       returnTarget: this.returnTarget,
@@ -625,15 +721,16 @@ export class CognitiveRoutingController {
       return { status: "inactive", reason: "transition_failed" };
     }
   }
-  async _setAutomaticControl() {
+  async _setAutomaticControl(mechanism) {
     if (!this.lease || !this.epoch) {
       return { status: "rejected", reason: "not_active" };
     }
     try {
       this.pi.appendEntryDurable(COGNITIVE_ROUTING_CONTROL_ENTRY, {
-        version: 1,
+        version: 2,
         control: "automatic",
         source: "user",
+        mechanism,
         reason: "manual hold release",
         branchId: this.currentBranchId(),
         epoch: this.epoch,
@@ -672,17 +769,28 @@ export class CognitiveRoutingController {
     };
   }
   prepareIntent(input) {
-    return { version: 1, phase: "prepared", ...input };
+    return { version: 2, phase: "prepared", ...input };
   }
   async activatePrepared(options) {
+    const fromPair = latestHostPair(this.ctx) ?? this.currentPair();
+    if (!fromPair) return { status: "inactive", reason: "current_state_unavailable" };
+    const fromProfile = profileNameForPair(this.capabilityState, fromPair);
+    const correlationId = this.idFactory();
+    const decisionCorrelationId =
+      options.decisionCorrelationId ??
+      (options.source === "user" || options.source === "agent" ? correlationId : undefined);
     const intent = this.prepareIntent({
       kind: options.kind,
       control: options.controlMode === "automatic" ? "automatic" : "manual",
       source: options.source,
+      mechanism: options.mechanism,
+      ...(decisionCorrelationId ? { decisionCorrelationId } : {}),
+      ...(fromPair ? { fromPair } : {}),
+      ...(fromProfile ? { fromProfile } : {}),
       ...(options.reason ? { reason: options.reason } : {}),
       ...(options.branchId === undefined ? {} : { branchId: options.branchId }),
       epoch: options.epoch,
-      correlationId: this.idFactory(),
+      correlationId,
       profile: options.profile,
       target: options.target,
       returnTarget: options.returnTarget,

@@ -83,8 +83,8 @@ type SettingsItem = {
 
 type CognitiveRoutingSettingsController = {
   state(): { effective: boolean; controlMode: string; activeProfile?: string };
-  setManualProfile(profile: "standard" | "reasoning"): Promise<{ status: string; reason?: string }>;
-  setAutomaticControl(): Promise<{ status: string; reason?: string }>;
+  setManualProfile(profile: "standard" | "reasoning", mechanism?: string): Promise<{ status: string; reason?: string }>;
+  setAutomaticControl(mechanism?: string): Promise<{ status: string; reason?: string }>;
 };
 
 type OpenSettingsOptions = {
@@ -1587,8 +1587,8 @@ export async function handleFreeflowCommand(
         }
         const result =
           value === "auto"
-            ? await cognitiveRoutingController.setAutomaticControl()
-            : await cognitiveRoutingController.setManualProfile(value as "standard" | "reasoning");
+            ? await cognitiveRoutingController.setAutomaticControl("profile-settings")
+            : await cognitiveRoutingController.setManualProfile(value as "standard" | "reasoning", "profile-settings");
         if ((result.status !== "automatic" && result.status !== "active") || result.reason) {
           ctx.ui.notify(
             `Cognitive Routing settings could not be applied: ${result.reason ?? result.status}.`,

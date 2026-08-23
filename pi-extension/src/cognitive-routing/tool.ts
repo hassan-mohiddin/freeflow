@@ -1,8 +1,33 @@
 import type { CognitiveRoutingController, CognitiveRoutingSwitchResult } from "./controller.js";
 import { textComponent } from "../ui/text-component.js";
+import type { CognitiveRoutingHistoryOptions, CognitiveRoutingHistoryResult } from "./history.js";
 import type { CognitiveRoutingProfileName } from "./types.js";
 
 export const COGNITIVE_ROUTING_SWITCH_TOOL_NAME = "freeflow_switch_profile";
+export const COGNITIVE_ROUTING_HISTORY_TOOL_NAME = "freeflow_cognitive_routing_history";
+
+export const COGNITIVE_ROUTING_HISTORY_PARAMETERS = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    scope: {
+      type: "string",
+      enum: ["session", "active-branch"],
+      description: "History scope to read.",
+    },
+    anomaliesOnly: {
+      type: "boolean",
+      description: "Return only events whose integrity is anomaly.",
+    },
+    limit: {
+      type: "integer",
+      minimum: 1,
+      maximum: 100,
+      description: "Maximum number of newest events to return.",
+    },
+  },
+  required: [],
+};
 
 export const COGNITIVE_ROUTING_SWITCH_PARAMETERS = {
   type: "object",
@@ -22,6 +47,17 @@ export const COGNITIVE_ROUTING_SWITCH_PARAMETERS = {
   },
   required: ["target", "reason"],
 };
+
+type HistoryToolParams = {
+  scope?: unknown;
+  anomaliesOnly?: unknown;
+  limit?: unknown;
+};
+
+type HistoryReader = (
+  options: CognitiveRoutingHistoryOptions,
+  context?: unknown,
+) => CognitiveRoutingHistoryResult | Promise<CognitiveRoutingHistoryResult>;
 
 type SwitchToolParams = {
   target?: unknown;
@@ -116,6 +152,14 @@ function resultFromPayload(payload: any): RenderedSwitchResult | undefined {
   return undefined;
 }
 
+function historyOptions(params: HistoryToolParams): CognitiveRoutingHistoryOptions {
+  return {
+    ...(params.scope === "active-branch" ? { scope: "active-branch" as const } : {}),
+    ...(params.anomaliesOnly === true ? { anomaliesOnly: true } : {}),
+    ...(Number.isInteger(params.limit) ? { limit: Math.max(1, Math.min(100, params.limit as number)) } : {}),
+  };
+}
+
 function validateParams(
   params: SwitchToolParams,
 ): { status: "valid"; target: CognitiveRoutingProfileName; reason: string } | { status: "invalid"; reason: string } {
@@ -188,6 +232,41 @@ export function registerCognitiveRoutingTool(
         return renderTransition(`Cognitive Routing: ${outcome.status} · ${outcome.reason}`, theme);
       }
       return renderTransition(`Cognitive Routing: ${result?.isError ? "error" : "result unavailable"}`, theme);
+    },
+  });
+}
+
+export function registerCognitiveRoutingHistoryTool(
+  pi: {
+    registerTool(tool: Record<string, unknown>): void;
+  },
+  readHistory: HistoryReader,
+) {
+  pi.registerTool({
+    name: COGNITIVE_ROUTING_HISTORY_TOOL_NAME,
+    label: "Read Cognitive Routing History",
+    description:
+      "Read the deterministic Cognitive Routing transition history without changing routing or session state.",
+    promptSnippet: "Inspect Cognitive Routing transition history when debugging or monitoring profile behavior.",
+    promptGuidelines: [
+      "Use only when debugging or monitoring Cognitive Routing is requested.",
+      "This tool is read-only and does not change profile, control, branch, or session state.",
+      "Use scope=active-branch to inspect only the current branch ancestry.",
+      "Use anomaliesOnly=true to inspect only integrity anomalies.",
+    ],
+    parameters: COGNITIVE_ROUTING_HISTORY_PARAMETERS,
+    async execute(
+      _toolCallId: string,
+      params: HistoryToolParams,
+      _signal: unknown,
+      _onUpdate: unknown,
+      context: unknown,
+    ) {
+      const result = await readHistory(historyOptions(params ?? {}), context);
+      return {
+        content: [{ type: "text", text: `Cognitive Routing history\n${JSON.stringify(result)}` }],
+        details: { result },
+      };
     },
   });
 }

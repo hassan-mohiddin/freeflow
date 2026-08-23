@@ -423,7 +423,7 @@ test("reload preserves a manual reasoning hold after lease rotation", async () =
   }
 });
 
-test("tree navigation reconciles to the target branch profile", async () => {
+test("tree navigation retains the current profile without a supported branch choice", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-tree-"));
   await mkdir(join(cwd, ".freeflow"));
   await writeFile(
@@ -453,8 +453,8 @@ test("tree navigation reconciles to the target branch profile", async () => {
       ctx,
     );
 
-    assert.deepEqual(host.state, { model: { provider: "faux", id: "standard" }, thinkingLevel: "high" });
-    assert.ok(host.activeToolNames().includes("freeflow_switch_profile"));
+    assert.deepEqual(host.state, { model: { provider: "faux", id: "reasoning" }, thinkingLevel: "max" });
+    assert.ok(!host.activeToolNames().includes("freeflow_switch_profile"));
   } finally {
     await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
     await rm(cwd, { recursive: true, force: true });

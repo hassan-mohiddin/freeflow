@@ -1,5 +1,28 @@
 import { textComponent } from "../ui/text-component.js";
 export const COGNITIVE_ROUTING_SWITCH_TOOL_NAME = "freeflow_switch_profile";
+export const COGNITIVE_ROUTING_HISTORY_TOOL_NAME = "freeflow_cognitive_routing_history";
+export const COGNITIVE_ROUTING_HISTORY_PARAMETERS = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    scope: {
+      type: "string",
+      enum: ["session", "active-branch"],
+      description: "History scope to read.",
+    },
+    anomaliesOnly: {
+      type: "boolean",
+      description: "Return only events whose integrity is anomaly.",
+    },
+    limit: {
+      type: "integer",
+      minimum: 1,
+      maximum: 100,
+      description: "Maximum number of newest events to return.",
+    },
+  },
+  required: [],
+};
 export const COGNITIVE_ROUTING_SWITCH_PARAMETERS = {
   type: "object",
   additionalProperties: false,
@@ -89,6 +112,13 @@ function resultFromPayload(payload) {
   }
   return undefined;
 }
+function historyOptions(params) {
+  return {
+    ...(params.scope === "active-branch" ? { scope: "active-branch" } : {}),
+    ...(params.anomaliesOnly === true ? { anomaliesOnly: true } : {}),
+    ...(Number.isInteger(params.limit) ? { limit: Math.max(1, Math.min(100, params.limit)) } : {}),
+  };
+}
 function validateParams(params) {
   if (params.target !== "standard" && params.target !== "reasoning") {
     return { status: "invalid", reason: "target_must_be_standard_or_reasoning" };
@@ -153,6 +183,29 @@ export function registerCognitiveRoutingTool(pi, getController) {
         return renderTransition(`Cognitive Routing: ${outcome.status} · ${outcome.reason}`, theme);
       }
       return renderTransition(`Cognitive Routing: ${result?.isError ? "error" : "result unavailable"}`, theme);
+    },
+  });
+}
+export function registerCognitiveRoutingHistoryTool(pi, readHistory) {
+  pi.registerTool({
+    name: COGNITIVE_ROUTING_HISTORY_TOOL_NAME,
+    label: "Read Cognitive Routing History",
+    description:
+      "Read the deterministic Cognitive Routing transition history without changing routing or session state.",
+    promptSnippet: "Inspect Cognitive Routing transition history when debugging or monitoring profile behavior.",
+    promptGuidelines: [
+      "Use only when debugging or monitoring Cognitive Routing is requested.",
+      "This tool is read-only and does not change profile, control, branch, or session state.",
+      "Use scope=active-branch to inspect only the current branch ancestry.",
+      "Use anomaliesOnly=true to inspect only integrity anomalies.",
+    ],
+    parameters: COGNITIVE_ROUTING_HISTORY_PARAMETERS,
+    async execute(_toolCallId, params, _signal, _onUpdate, context) {
+      const result = await readHistory(historyOptions(params ?? {}), context);
+      return {
+        content: [{ type: "text", text: `Cognitive Routing history\n${JSON.stringify(result)}` }],
+        details: { result },
+      };
     },
   });
 }
