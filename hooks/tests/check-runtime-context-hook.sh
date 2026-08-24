@@ -4,7 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)"
 HOOK_PATH="$ROOT_DIR/hooks/freeflow-runtime-context.mjs"
 HOOKS_JSON="$ROOT_DIR/hooks/hooks.json"
-WORKFLOW_SKILL="$ROOT_DIR/skills/workflow/SKILL.md"
+CORE_PROMPT="$ROOT_DIR/runtime/prompts/core.md"
+INTERACTION_PROMPT="$ROOT_DIR/runtime/prompts/interaction-contract.md"
+SKILLS_PROMPT="$ROOT_DIR/runtime/prompts/skills.md"
 
 fail() {
 	echo "runtime-context hook check failed: $*" >&2
@@ -29,11 +31,9 @@ assert_not_contains() {
 
 [[ -f "$HOOK_PATH" ]] || fail "missing hook script"
 [[ -f "$HOOKS_JSON" ]] || fail "missing hooks manifest"
-[[ -f "$WORKFLOW_SKILL" ]] || fail "missing canonical Workflow skill"
-workflow_owner_line="$(grep -m1 '^The active agent owns ' "$WORKFLOW_SKILL" || true)"
-workflow_self_review_line="$(grep -m1 '^Self-review is required ' "$WORKFLOW_SKILL" || true)"
-[[ -n "$workflow_owner_line" ]] || fail "canonical Workflow owner sentinel missing"
-[[ -n "$workflow_self_review_line" ]] || fail "canonical Workflow self-review sentinel missing"
+for prompt_file in "$CORE_PROMPT" "$INTERACTION_PROMPT" "$SKILLS_PROMPT"; do
+	[[ -f "$prompt_file" ]] || fail "missing runtime prompt fragment: $prompt_file"
+done
 node --check "$HOOK_PATH"
 node -e '
 const fs = require("fs");
@@ -62,16 +62,17 @@ user_prompt_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$tmp_dir" | node 
 
 for expected in \
 	'"hookEventName":"SessionStart"' \
-	"# Freeflow Runtime Context" \
-	'Runtime delivery: confirmed for this lifecycle-hook invocation.' \
-	'Configured default: `workflow` (repository)' \
-	'Effective mode: `workflow` (configured default, active)' \
+	"# Freeflow Stable Guidance" \
+	"## Mode" \
+	"## Shared Terms" \
+	"## Three Nested Loops" \
+	"## Workflow Cue" \
+	"## Action Selection Cue" \
+	"## Supported Exit" \
 	"# Freeflow Interaction Contract" \
 	"Treat questions, criticism, examples, hypotheses, and tentative ideas as" \
-	"# Freeflow Workflow Bootstrap" \
-	"Use feedback to choose the smallest useful next action." \
-	"$workflow_owner_line" \
-	"$workflow_self_review_line" \
+	'Configured default: `workflow` (repository)' \
+	'Effective mode: `workflow` (configured default, active)' \
 	'Interaction Contract: enabled' \
 	'Skills: enabled'; do
 	assert_contains "$codex_output" "$expected" "Codex config-only context"
@@ -85,7 +86,7 @@ cognitive_dir="$(mktemp -d)"
 mkdir -p "$cognitive_dir/.freeflow"
 printf '{"defaultMode":"workflow","cognitiveRouting":{"enabled":true,"profiles":{"standard":{"provider":"faux","model":"standard","thinkingLevel":"high"},"reasoning":{"provider":"faux","model":"reasoning","thinkingLevel":"max"}}}}\n' >"$cognitive_dir/.freeflow/config.json"
 cognitive_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$cognitive_dir" | node "$HOOK_PATH" SessionStart)"
-assert_contains "$cognitive_output" "# Freeflow Runtime Context" "Pi-only capability tolerance"
+assert_contains "$cognitive_output" "# Freeflow Stable Guidance" "Pi-only capability tolerance"
 assert_not_contains "$cognitive_output" "Cognitive Routing" "non-Pi capability isolation"
 rm -rf "$cognitive_dir"
 for excluded_heading in \
@@ -94,19 +95,21 @@ for excluded_heading in \
 	"## Loaded Mode Contract Skill" \
 	"## Loaded Workflow Skill" \
 	"## Loaded Decision Gate Skill" \
+	"# Freeflow Workflow Bootstrap" \
 	"## Discovery-light" \
 	"## Loaded Output Router Skill"; do
 	assert_not_contains "$codex_output" "$excluded_heading" "default context"
 done
-workflow_bootstrap_count="$(grep -Fo '# Freeflow Workflow Bootstrap' <<<"$codex_output" | wc -l | tr -d ' ')"
-[[ "$workflow_bootstrap_count" == "1" ]] || fail "Codex SessionStart should load Workflow exactly once"
+skills_prompt_count="$(grep -Fo '## Shared Terms' <<<"$codex_output" | wc -l | tr -d ' ')"
+[[ "$skills_prompt_count" == "1" ]] || fail "Codex SessionStart should load the Skills prompt exactly once"
 assert_not_contains "$codex_output" "## Conversation Mode Boundary" "workflow context"
 assert_not_contains "$codex_output" "## Strict Workflow Overlay" "workflow context"
 
 claude_output="$(printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s"}\n' "$tmp_dir" | node "$HOOK_PATH" SessionStart)"
 assert_contains "$claude_output" '"hookEventName":"SessionStart"' "Claude wrapper"
 assert_contains "$claude_output" "# Freeflow Interaction Contract" "Claude config-only context"
-assert_contains "$claude_output" "# Freeflow Workflow Bootstrap" "Claude first-turn context"
+assert_contains "$claude_output" "## Shared Terms" "Claude skills context"
+assert_not_contains "$claude_output" "# Freeflow Workflow Bootstrap" "Claude first-turn context"
 assert_contains "$claude_output" "Treat questions, criticism, examples, hypotheses, and tentative ideas as" "Claude config-only context"
 
 # Session mode changes are host-managed state: they apply before the same model request,
@@ -116,9 +119,12 @@ session_id="session/with unsafe path characters"
 config_before="$(shasum -a 256 "$tmp_dir/.freeflow/config.json" | awk '{print $1}')"
 mode_change_output="$(printf '{"hook_event_name":"UserPromptSubmit","session_id":"%s","cwd":"%s","prompt":"Switch to conversation mode."}\n' "$session_id" "$tmp_dir" | PLUGIN_DATA="$session_data_dir" node "$HOOK_PATH" UserPromptSubmit)"
 assert_contains "$mode_change_output" '"hookEventName":"UserPromptSubmit"' "same-turn mode change wrapper"
+assert_contains "$mode_change_output" '# Freeflow Runtime State' "same-turn mode change"
 assert_contains "$mode_change_output" 'Session override: `conversation`' "same-turn mode change"
 assert_contains "$mode_change_output" 'Effective mode: `conversation` (session override, active)' "same-turn mode change"
-assert_contains "$mode_change_output" "## Conversation Mode Boundary" "same-turn mode change"
+assert_not_contains "$mode_change_output" "# Freeflow Mode Update" "same-turn mode change"
+assert_not_contains "$mode_change_output" "## Conversation Mode Boundary" "same-turn mode change"
+assert_not_contains "$mode_change_output" "Do not call write, edit, or mutating tools" "same-turn mode change"
 
 restored_mode_output="$(printf '{"hook_event_name":"SessionStart","source":"compact","session_id":"%s","cwd":"%s","model":"gpt-5"}\n' "$session_id" "$tmp_dir" | PLUGIN_DATA="$session_data_dir" node "$HOOK_PATH" SessionStart)"
 assert_contains "$restored_mode_output" 'Configured default: `workflow` (repository)' "restored session mode"
@@ -139,8 +145,10 @@ default_prompt_output="$(printf '{"hook_event_name":"UserPromptSubmit","session_
 [[ -z "$default_prompt_output" ]] || fail "default-mode requests should remain agent-routed configuration decisions"
 
 native_change_output="$(printf '{"hook_event_name":"UserPromptSubmit","session_id":"%s","cwd":"%s","prompt":"$mode-contract strict-workflow"}\n' "$session_id" "$tmp_dir" | PLUGIN_DATA="$session_data_dir" node "$HOOK_PATH" UserPromptSubmit)"
+assert_contains "$native_change_output" '# Freeflow Runtime State' "Codex native skill mode control"
 assert_contains "$native_change_output" 'Session override: `strict-workflow`' "Codex native skill mode control"
-assert_contains "$native_change_output" "## Strict Workflow Overlay" "Codex native skill mode control"
+assert_not_contains "$native_change_output" "# Freeflow Mode Update" "Codex native skill mode control"
+assert_not_contains "$native_change_output" "## Strict Workflow Overlay" "Codex native skill mode control"
 
 claude_data_dir="$(mktemp -d)"
 claude_mode_output="$(printf '{"hook_event_name":"UserPromptSubmit","session_id":"claude-session","cwd":"%s","prompt":"/freeflow:mode-contract conversation"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" node "$HOOK_PATH" UserPromptSubmit)"
@@ -183,7 +191,7 @@ printf '{"hook_event_name":"SessionEnd","reason":"clear","session_id":"claude-st
 malformed_transfer_file="$(find "$claude_data_dir/session-modes/claude-clear" -type f -name '*.json' -print -quit)"
 printf 'null\n' >"$malformed_transfer_file"
 claude_malformed_clear_output="$(printf '{"hook_event_name":"SessionStart","source":"clear","session_id":"claude-malformed-target","cwd":"%s"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" CLAUDE_PID="claude-process-malformed" node "$HOOK_PATH" SessionStart)"
-assert_contains "$claude_malformed_clear_output" '# Freeflow Runtime Context' "Claude malformed clear transfer"
+assert_contains "$claude_malformed_clear_output" '# Freeflow Stable Guidance' "Claude malformed clear transfer"
 assert_contains "$claude_malformed_clear_output" 'Session override: none' "Claude malformed clear transfer"
 [[ ! -e "$malformed_transfer_file" ]] || fail "malformed Claude clear transfer should be consumed"
 
@@ -247,11 +255,12 @@ for source in startup resume clear compact; do
 			assert_contains "$event_output" '"hookEventName":"SessionStart"' "Claude $source wrapper"
 		fi
 		assert_contains "$event_output" "# Freeflow Interaction Contract" "$host $source SessionStart context"
-		assert_contains "$event_output" "# Freeflow Workflow Bootstrap" "$host $source SessionStart context"
+		assert_contains "$event_output" "## Shared Terms" "$host $source SessionStart context"
 		contract_count="$(grep -Fo '# Freeflow Interaction Contract' <<<"$event_output" | wc -l | tr -d ' ')"
-		bootstrap_count="$(grep -Fo '# Freeflow Workflow Bootstrap' <<<"$event_output" | wc -l | tr -d ' ')"
+		skills_count="$(grep -Fo '## Shared Terms' <<<"$event_output" | wc -l | tr -d ' ')"
 		[[ "$contract_count" == "1" ]] || fail "$host $source SessionStart should load the Interaction Contract exactly once"
-		[[ "$bootstrap_count" == "1" ]] || fail "$host $source SessionStart should load Workflow exactly once"
+		[[ "$skills_count" == "1" ]] || fail "$host $source SessionStart should load the Skills prompt exactly once"
+		assert_not_contains "$event_output" "# Freeflow Workflow Bootstrap" "$host $source SessionStart context"
 	done
 done
 
@@ -283,10 +292,10 @@ printf '{"defaultMode":"strict-workflow"}\n' >"$local_dir/.freeflow/local.json"
 local_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$local_dir" | node "$HOOK_PATH" SessionStart)"
 assert_contains "$local_output" 'Configured default: `strict-workflow` (personal)' "local default override"
 assert_contains "$local_output" 'Effective mode: `strict-workflow` (configured default, active)' "local default source"
-assert_contains "$local_output" "## Strict Workflow Overlay" "local strict overlay"
-assert_contains "$local_output" "security, privacy, billing, data loss, migrations, public interfaces" "local strict overlay"
+assert_not_contains "$local_output" "## Strict Workflow Overlay" "local strict overlay"
+assert_not_contains "$local_output" "security, privacy, billing, data loss, migrations, public interfaces" "local strict overlay"
 assert_contains "$local_output" "# Freeflow Interaction Contract" "local default override"
-assert_contains "$local_output" "# Freeflow Workflow Bootstrap" "local default override"
+assert_contains "$local_output" "## Shared Terms" "local default override"
 rm -rf "$local_dir"
 
 local_interaction_dir="$(mktemp -d)"
@@ -297,7 +306,7 @@ local_interaction_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$local_inte
 assert_contains "$local_interaction_output" 'Interaction Contract: disabled' "independent local interaction override"
 assert_contains "$local_interaction_output" 'Skills: enabled' "independent local interaction override"
 assert_not_contains "$local_interaction_output" "# Freeflow Interaction Contract" "independent local interaction override"
-assert_contains "$local_interaction_output" "# Freeflow Workflow Bootstrap" "independent local interaction override"
+assert_contains "$local_interaction_output" "## Shared Terms" "independent local interaction override"
 rm -rf "$local_interaction_dir"
 
 local_skills_dir="$(mktemp -d)"
@@ -309,6 +318,7 @@ assert_contains "$local_skills_output" 'Resolved mode: `conversation` (dormant b
 assert_contains "$local_skills_output" 'Interaction Contract: disabled' "local interaction override"
 assert_contains "$local_skills_output" 'Skills: disabled' "local skills override"
 assert_not_contains "$local_skills_output" "# Freeflow Interaction Contract" "local interaction override"
+assert_not_contains "$local_skills_output" "# Freeflow Mode Update" "local skills override"
 assert_not_contains "$local_skills_output" "# Freeflow Workflow Bootstrap" "local skills override"
 rm -rf "$local_skills_dir"
 
@@ -325,17 +335,14 @@ mkdir -p "$local_disabled_dir/.freeflow"
 printf '{"enabled":true,"defaultMode":"workflow"}\n' >"$local_disabled_dir/.freeflow/config.json"
 printf '{"enabled":false,"processing":{"unsafeUnsandboxed":{"enabled":true}}}\n' >"$local_disabled_dir/.freeflow/local.json"
 local_disabled_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$local_disabled_dir" | node "$HOOK_PATH" SessionStart)"
-assert_contains "$local_disabled_output" "# Freeflow Disabled" "local master override"
-assert_contains "$local_disabled_output" 'Configured but inactive: `enabled` is false (personal).' "local master source"
-assert_not_contains "$local_disabled_output" "# Freeflow Interaction Contract" "local master override"
+[[ -z "$local_disabled_output" ]] || fail "local master override should suppress hook prompt delivery"
 rm -rf "$local_disabled_dir"
 
 disabled_dir="$(mktemp -d)"
 mkdir -p "$disabled_dir/.freeflow"
 printf '{"enabled":false,"defaultMode":"workflow"}\n' >"$disabled_dir/.freeflow/config.json"
 disabled_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$disabled_dir" | node "$HOOK_PATH" SessionStart)"
-assert_contains "$disabled_output" "# Freeflow Disabled" "disabled context"
-assert_not_contains "$disabled_output" "# Freeflow Runtime Kernel" "disabled context"
+[[ -z "$disabled_output" ]] || fail "disabled Freeflow should suppress hook prompt delivery"
 rm -rf "$disabled_dir"
 
 router_dir="$(mktemp -d)"
@@ -354,11 +361,11 @@ mkdir -p "$all_dir/.freeflow"
 printf '{"defaultMode":"strict-workflow","outputRouter":{"enabled":true}}\n' >"$all_dir/.freeflow/config.json"
 all_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$all_dir" | node "$HOOK_PATH" SessionStart)"
 assert_contains "$all_output" "# Freeflow Interaction Contract" "Codex strict context"
-assert_contains "$all_output" "# Freeflow Workflow Bootstrap" "Codex strict context"
+assert_contains "$all_output" "## Shared Terms" "Codex strict context"
 assert_not_contains "$all_output" "Output Router" "Codex strict context"
 assert_not_contains "$all_output" "Output router:" "Codex strict context"
 assert_contains "$all_output" 'Effective mode: `strict-workflow` (configured default, active)' "Codex strict context"
-assert_contains "$all_output" "## Strict Workflow Overlay" "all-capabilities strict overlay"
+assert_not_contains "$all_output" "## Strict Workflow Overlay" "all-capabilities strict overlay"
 rm -rf "$all_dir"
 
 conversation_dir="$(mktemp -d)"
@@ -367,9 +374,9 @@ printf '{"defaultMode":"conversation"}\n' >"$conversation_dir/.freeflow/config.j
 conversation_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$conversation_dir" | node "$HOOK_PATH" SessionStart)"
 assert_contains "$conversation_output" 'Configured default: `conversation` (repository)' "conversation context"
 assert_contains "$conversation_output" 'Effective mode: `conversation` (configured default, active)' "conversation context"
-assert_contains "$conversation_output" "## Conversation Mode Boundary" "conversation overlay"
-assert_contains "$conversation_output" "Do not call write, edit, or mutating tools" "conversation overlay"
-assert_contains "$conversation_output" "an execution skill does not override this boundary" "conversation overlay"
+assert_not_contains "$conversation_output" "## Conversation Mode Boundary" "conversation overlay"
+assert_not_contains "$conversation_output" "Do not call write, edit, or mutating tools" "conversation overlay"
+assert_not_contains "$conversation_output" "an execution skill does not override this boundary" "conversation overlay"
 rm -rf "$conversation_dir"
 
 observed_dir="$(mktemp -d)"
@@ -377,7 +384,7 @@ mkdir -p "$observed_dir/.freeflow"
 printf '{"defaultMode":"workflow","outputRouter":{"enabled":true,"observedRouting":{"enabled":true}},"scriptTransform":{"enabled":false}}\n' >"$observed_dir/.freeflow/config.json"
 observed_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$observed_dir" | node "$HOOK_PATH" SessionStart)"
 assert_contains "$observed_output" "# Freeflow Interaction Contract" "Codex context with observed-routing config"
-assert_contains "$observed_output" "# Freeflow Workflow Bootstrap" "Codex context with observed-routing config"
+assert_contains "$observed_output" "## Shared Terms" "Codex context with observed-routing config"
 assert_not_contains "$observed_output" "Output Router" "Codex context with observed-routing config"
 assert_not_contains "$observed_output" "Output router:" "Codex context with observed-routing config"
 rm -rf "$observed_dir"

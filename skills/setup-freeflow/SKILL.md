@@ -68,7 +68,7 @@ If local config is invalid, report that it blocks effective runtime. Repair or r
 
 After successful verification, apply newly effective context directly for the remainder of the setup turn:
 
-- read the [Interaction Contract](../../capabilities/interaction-contract/interaction-contract.md) when it is effective;
+- read the [Interaction Contract](../../runtime/prompts/interaction-contract.md) when it is effective;
 - read [Workflow](../workflow/SKILL.md) and [Mode Contract](../mode-contract/SKILL.md) when Skills are effective.
 
 This direct read establishes same-turn guidance; it does not prove that a lifecycle adapter ran. After first activation, use [host setup](references/host-setup.md) to name the exact host-native lifecycle action for automatic delivery and resource refresh, state what applies before that boundary, and keep delivery confirmed, unavailable, or unconfirmed from evidence.

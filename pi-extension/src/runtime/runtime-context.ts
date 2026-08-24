@@ -9,6 +9,7 @@ export const VALID_MODES = new Set(["conversation", "workflow", "strict-workflow
 
 export const WORKFLOW_COMMANDS = [
   { command: "discuss", skill: "discuss" },
+  { command: "action-selection", skill: "action-selection" },
   { command: "discover", skill: "discuss" },
   { command: "track-work", skill: "track-work" },
   { command: "write-spec", skill: "write-spec" },
@@ -32,6 +33,7 @@ export const WORKFLOW_COMMANDS = [
 export const CONTRIBUTOR_COMMANDS = ["setup-freeflow", "write-skill", "evaluate-skill"];
 
 export const FREEFLOW_MODEL_SKILL_NAMES = [
+  "action-selection",
   "bypass",
   "commit-work",
   "decision-gate",
@@ -59,12 +61,29 @@ export const FREEFLOW_MODEL_SKILL_NAMES = [
   "write-spec",
 ];
 
+export const FREEFLOW_CAPABILITY_SKILL_NAMES = ["cognitive-routing", "context-virtualization", "conversation-history"];
+
 export function freeflowSkillPath(skillName) {
   return fileURLToPath(new URL(`../../../skills/${skillName}/SKILL.md`, import.meta.url));
 }
 
-export function freeflowModelSkillPaths() {
-  return FREEFLOW_MODEL_SKILL_NAMES.map((skillName) => freeflowSkillPath(skillName));
+export function freeflowCapabilitySkillPath(skillName) {
+  return fileURLToPath(new URL(`../../../capabilities/${skillName}/SKILL.md`, import.meta.url));
+}
+
+export function freeflowModelSkillPaths(capabilityState = undefined) {
+  const paths = FREEFLOW_MODEL_SKILL_NAMES.map((skillName) => freeflowSkillPath(skillName));
+  const capabilityStates = {
+    "cognitive-routing": capabilityState?.cognitiveRouting,
+    "context-virtualization": capabilityState?.contextVirtualization,
+    "conversation-history": capabilityState?.conversationHistory,
+  };
+  for (const skillName of FREEFLOW_CAPABILITY_SKILL_NAMES) {
+    if (capabilityStates[skillName]?.effective === true) {
+      paths.push(freeflowCapabilitySkillPath(skillName));
+    }
+  }
+  return paths;
 }
 
 type SessionCoreKey =
@@ -92,75 +111,71 @@ export const FREEFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-bootstrap";
 let runtimeContextCache = null;
 let currentModeOverride = null;
 let currentSessionOverrides: SessionCoreOverrides = {};
+
+async function readPromptFile(url: URL): Promise<string | null> {
+  try {
+    return await readFile(url, "utf8");
+  } catch {
+    return null;
+  }
+}
+
 async function loadRuntimeContext(capabilityState = undefined) {
+  const freeflowEnabled = capabilityState?.enabled === true;
   const interactionContractEnabled = capabilityState?.interactionContract?.effective === true;
   const skillsEnabled = capabilityState?.skills?.effective === true;
   const contextVirtualizationEnabled = capabilityState?.contextVirtualization?.effective === true;
   const conversationHistoryEnabled = capabilityState?.conversationHistory?.effective === true;
   const cognitiveRoutingEnabled = capabilityState?.cognitiveRouting?.effective === true;
   const [
-    interactionContract,
-    workflowSkill,
-    contextVirtualizationSkill,
-    conversationHistorySkill,
-    cognitiveRoutingSkill,
-    cognitiveRoutingReference,
+    corePrompt,
+    interactionContractPrompt,
+    skillsPrompt,
+    cognitiveRoutingPrompt,
+    contextVirtualizationPrompt,
+    conversationHistoryPrompt,
   ] = await Promise.all([
+    freeflowEnabled
+      ? readPromptFile(new URL("../../../runtime/prompts/core.md", import.meta.url))
+      : Promise.resolve(null),
     interactionContractEnabled
-      ? readFile(new URL("../../../capabilities/interaction-contract/interaction-contract.md", import.meta.url), "utf8")
+      ? readPromptFile(new URL("../../../runtime/prompts/interaction-contract.md", import.meta.url))
       : Promise.resolve(null),
     skillsEnabled
-      ? readFile(new URL("../../../skills/workflow/SKILL.md", import.meta.url), "utf8")
+      ? readPromptFile(new URL("../../../runtime/prompts/skills.md", import.meta.url))
+      : Promise.resolve(null),
+    cognitiveRoutingEnabled
+      ? readPromptFile(new URL("../../../runtime/prompts/cognitive-routing.md", import.meta.url))
       : Promise.resolve(null),
     contextVirtualizationEnabled
-      ? readFile(new URL("../../../capabilities/context-virtualization/SKILL.md", import.meta.url), "utf8")
+      ? readPromptFile(new URL("../../../runtime/prompts/context-virtualization.md", import.meta.url))
       : Promise.resolve(null),
     conversationHistoryEnabled
-      ? readFile(new URL("../../../capabilities/conversation-history/SKILL.md", import.meta.url), "utf8")
-      : Promise.resolve(null),
-    cognitiveRoutingEnabled
-      ? readFile(new URL("../../../capabilities/cognitive-routing/SKILL.md", import.meta.url), "utf8")
-      : Promise.resolve(null),
-    cognitiveRoutingEnabled
-      ? readFile(
-          new URL("../../../capabilities/cognitive-routing/references/automatic-routing-kernel.md", import.meta.url),
-          "utf8",
-        )
+      ? readPromptFile(new URL("../../../runtime/prompts/conversation-history.md", import.meta.url))
       : Promise.resolve(null),
   ]);
 
   return {
-    interactionContract,
-    workflowSkill,
-    contextVirtualizationSkill,
-    conversationHistorySkill,
-    cognitiveRoutingSkill,
-    cognitiveRoutingReference,
+    corePrompt,
+    interactionContractPrompt,
+    skillsPrompt,
+    cognitiveRoutingPrompt,
+    contextVirtualizationPrompt,
+    conversationHistoryPrompt,
   };
 }
 
 function runtimeContextCacheSatisfies(capabilityState) {
-  if (!runtimeContextCache) {
-    return false;
-  }
-  if (capabilityState?.interactionContract?.effective === true && !runtimeContextCache.interactionContract) {
-    return false;
-  }
-  if (capabilityState?.skills?.effective === true && !runtimeContextCache.workflowSkill) {
-    return false;
-  }
-  if (capabilityState?.contextVirtualization?.effective === true && !runtimeContextCache.contextVirtualizationSkill) {
-    return false;
-  }
-  if (capabilityState?.conversationHistory?.effective === true && !runtimeContextCache.conversationHistorySkill) {
-    return false;
-  }
-  if (capabilityState?.cognitiveRouting?.effective === true) {
-    if (!runtimeContextCache.cognitiveRoutingSkill || !runtimeContextCache.cognitiveRoutingReference) {
-      return false;
-    }
-  }
-  return true;
+  if (!runtimeContextCache) return false;
+  const expected = {
+    corePrompt: capabilityState?.enabled === true,
+    interactionContractPrompt: capabilityState?.interactionContract?.effective === true,
+    skillsPrompt: capabilityState?.skills?.effective === true,
+    cognitiveRoutingPrompt: capabilityState?.cognitiveRouting?.effective === true,
+    contextVirtualizationPrompt: capabilityState?.contextVirtualization?.effective === true,
+    conversationHistoryPrompt: capabilityState?.conversationHistory?.effective === true,
+  };
+  return Object.entries(expected).every(([key, required]) => !required || Boolean(runtimeContextCache[key]));
 }
 
 export async function refreshRuntimeContext(capabilityState = undefined) {
@@ -175,41 +190,10 @@ export async function getRuntimeContext(capabilityState = undefined) {
   return refreshRuntimeContext(capabilityState);
 }
 
-function activeSessionEntries(sessionManager) {
-  try {
-    if (typeof sessionManager?.buildContextEntries === "function") {
-      const entries = sessionManager.buildContextEntries();
-      if (Array.isArray(entries)) {
-        return entries;
-      }
-    }
-    if (typeof sessionManager?.getEntries === "function") {
-      const entries = sessionManager.getEntries();
-      if (Array.isArray(entries)) {
-        return entries;
-      }
-    }
-  } catch {
-    // A missing session snapshot should reload useful context rather than suppress it.
-  }
-  return [];
-}
-
 const BOOTSTRAP_COMPONENTS = Object.freeze({
   workflow: "workflow",
   cognitiveRouting: "cognitive-routing",
 });
-
-function availableBootstrapComponents(freeflowContext, capabilityState) {
-  const components = [];
-  if (capabilityState?.skills?.effective === true && freeflowContext?.workflowSkill) {
-    components.push(BOOTSTRAP_COMPONENTS.workflow);
-  }
-  if (capabilityState?.cognitiveRouting?.effective === true && freeflowContext?.cognitiveRoutingSkill) {
-    components.push(BOOTSTRAP_COMPONENTS.cognitiveRouting);
-  }
-  return components;
-}
 
 function bootstrapEntryComponents(entry) {
   const isCustomMessage = entry?.role === "custom" || entry?.type === "custom_message" || entry?.type === "custom";
@@ -232,118 +216,8 @@ function bootstrapEntryComponents(entry) {
   return [];
 }
 
-function stripSkillFrontmatter(content) {
-  const match = typeof content === "string" ? content.match(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/) : undefined;
-  return match ? content.slice(match[0].length) : (content ?? "");
-}
-
-function bootstrapComponentContent(component, freeflowContext) {
-  if (component === BOOTSTRAP_COMPONENTS.workflow) {
-    return `# Freeflow Workflow Bootstrap\n\n${stripSkillFrontmatter(freeflowContext.workflowSkill).trim()}`;
-  }
-  if (component === BOOTSTRAP_COMPONENTS.cognitiveRouting) {
-    return `# Freeflow Cognitive Routing Bootstrap\n\n${stripSkillFrontmatter(freeflowContext.cognitiveRoutingSkill).trim()}`;
-  }
-  return "";
-}
-
-function combinedBootstrapContent(components, freeflowContext) {
-  const sections = components.map(
-    (component) =>
-      `<!-- freeflow-bootstrap:${component} -->\n${bootstrapComponentContent(component, freeflowContext)}\n<!-- /freeflow-bootstrap:${component} -->`,
-  );
-  return `# Freeflow Bootstrap\n\n${sections.join("\n\n")}`;
-}
-
-export function bootstrapMessage(freeflowContext, capabilityState, sessionManager) {
-  const available = availableBootstrapComponents(freeflowContext, capabilityState);
-  if (available.length === 0) return undefined;
-
-  const loaded = new Set(activeSessionEntries(sessionManager).flatMap(bootstrapEntryComponents));
-  const missing = available.filter((component) => !loaded.has(component));
-  if (missing.length === 0) return undefined;
-
-  if (missing.length === 1 && missing[0] === BOOTSTRAP_COMPONENTS.workflow) {
-    return {
-      customType: WORKFLOW_BOOTSTRAP_MESSAGE_TYPE,
-      content: bootstrapComponentContent(BOOTSTRAP_COMPONENTS.workflow, freeflowContext),
-      display: false,
-      details: { skill: "workflow", source: "context-start-bootstrap" },
-    };
-  }
-
-  if (missing.length === 1 && missing[0] === BOOTSTRAP_COMPONENTS.cognitiveRouting) {
-    return {
-      customType: COGNITIVE_ROUTING_BOOTSTRAP_MESSAGE_TYPE,
-      content: bootstrapComponentContent(BOOTSTRAP_COMPONENTS.cognitiveRouting, freeflowContext),
-      display: false,
-      details: { skill: "cognitive-routing", source: "context-start-bootstrap" },
-    };
-  }
-
-  return {
-    customType: FREEFLOW_BOOTSTRAP_MESSAGE_TYPE,
-    content: combinedBootstrapContent(missing, freeflowContext),
-    display: false,
-    details: { components: missing, source: "context-start-bootstrap" },
-  };
-}
-
-export function workflowBootstrapMessage(freeflowContext, capabilityState, sessionManager) {
-  if (capabilityState?.skills?.effective !== true || !freeflowContext?.workflowSkill) {
-    return undefined;
-  }
-
-  const alreadyLoaded = activeSessionEntries(sessionManager).some((entry) =>
-    bootstrapEntryComponents(entry).includes(BOOTSTRAP_COMPONENTS.workflow),
-  );
-  if (alreadyLoaded) return undefined;
-
-  return {
-    customType: WORKFLOW_BOOTSTRAP_MESSAGE_TYPE,
-    content: bootstrapComponentContent(BOOTSTRAP_COMPONENTS.workflow, freeflowContext),
-    display: false,
-    details: { skill: "workflow", source: "first-turn-bootstrap" },
-  };
-}
-
-function enabledBootstrapComponents(capabilityState) {
-  const components = [];
-  if (capabilityState?.skills?.effective === true) components.push(BOOTSTRAP_COMPONENTS.workflow);
-  if (capabilityState?.cognitiveRouting?.effective === true) {
-    components.push(BOOTSTRAP_COMPONENTS.cognitiveRouting);
-  }
-  return components;
-}
-
-function bootstrapSection(content, component) {
-  const startMarker = `<!-- freeflow-bootstrap:${component} -->`;
-  const endMarker = `<!-- /freeflow-bootstrap:${component} -->`;
-  const start = typeof content === "string" ? content.indexOf(startMarker) : -1;
-  if (start < 0) return undefined;
-  const end = content.indexOf(endMarker, start + startMarker.length);
-  if (end < 0) return undefined;
-  return content.slice(start, end + endMarker.length);
-}
-
-export function filterBootstrapMessage(message, capabilityState) {
-  const components = bootstrapEntryComponents(message);
-  if (components.length === 0) return message;
-
-  const enabled = new Set(enabledBootstrapComponents(capabilityState));
-  const retained = components.filter((component) => enabled.has(component));
-  if (retained.length === 0) return undefined;
-  if (retained.length === components.length) return message;
-  if (message.customType !== FREEFLOW_BOOTSTRAP_MESSAGE_TYPE) return undefined;
-
-  const sections = retained.map((component) => bootstrapSection(message.content, component)).filter(Boolean);
-  if (sections.length === 0) return undefined;
-
-  return {
-    ...message,
-    content: `# Freeflow Bootstrap\n\n${sections.join("\n\n")}`,
-    details: { ...message.details, components: retained },
-  };
+export function filterBootstrapMessage(message) {
+  return bootstrapEntryComponents(message).length === 0 ? message : undefined;
 }
 
 function isRecord(value) {
@@ -620,23 +494,43 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
   const skillsConfigEnabled = effectiveCore.config.skills.enabled;
   const contextVirtualizationConfigEnabled = effectiveCore.config.contextVirtualization;
   const conversationHistoryConfigEnabled = effectiveCore.config.conversationHistory;
+  const skillsEffective = enabled && skillsConfigEnabled;
   const hostSupportsCognitiveRouting = isPiFlowHost(extensionHost);
   const configuredCognitiveRouting = await resolveCognitiveRoutingState(
     layers.repository.parsed,
     layers.local.parsed,
     hostSupportsCognitiveRouting ? host : undefined,
   );
+  const disabledReason = enabled
+    ? skillsEffective
+      ? undefined
+      : { code: "disabled" as const, message: "Skills are disabled" }
+    : { code: "disabled" as const, message: "Freeflow is disabled" };
+  const childCapability = (configuredEnabled) => ({
+    enabled: configuredEnabled,
+    effective: skillsEffective && configuredEnabled,
+    ...(disabledReason ? { blockingReason: disabledReason } : {}),
+  });
   const cognitiveRouting = enabled
-    ? !hostSupportsCognitiveRouting && configuredCognitiveRouting.configValid
-      ? {
+    ? skillsEffective
+      ? !hostSupportsCognitiveRouting && configuredCognitiveRouting.configValid
+        ? {
+            ...configuredCognitiveRouting,
+            effective: false,
+            blockingReason: {
+              code: "runtime_disabled" as const,
+              message: "Cognitive Routing is disabled outside the PiFlow runtime",
+            },
+          }
+        : configuredCognitiveRouting
+      : {
           ...configuredCognitiveRouting,
           effective: false,
           blockingReason: {
-            code: "runtime_disabled" as const,
-            message: "Cognitive Routing is disabled outside the PiFlow runtime",
+            code: "disabled" as const,
+            message: "Skills are disabled",
           },
         }
-      : configuredCognitiveRouting
     : {
         ...configuredCognitiveRouting,
         enabled: false,
@@ -671,14 +565,8 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
       enabled: skillsConfigEnabled,
       effective: enabled && skillsConfigEnabled,
     },
-    contextVirtualization: {
-      enabled: contextVirtualizationConfigEnabled,
-      effective: enabled && contextVirtualizationConfigEnabled,
-    },
-    conversationHistory: {
-      enabled: conversationHistoryConfigEnabled,
-      effective: enabled && conversationHistoryConfigEnabled,
-    },
+    contextVirtualization: childCapability(contextVirtualizationConfigEnabled),
+    conversationHistory: childCapability(conversationHistoryConfigEnabled),
     hostSupportsCognitiveRouting,
     cognitiveRouting,
   };
@@ -821,11 +709,6 @@ type FreeflowContextMessage = {
   [key: string]: unknown;
 };
 
-function cognitiveRoutingContext(freeflowContext: { cognitiveRoutingReference?: string } | undefined) {
-  const reference = freeflowContext?.cognitiveRoutingReference?.trim();
-  return reference ? `\n\n${reference}` : "";
-}
-
 function publicCognitiveRoutingControl(controlMode) {
   if (controlMode === "automatic") return "automatic";
   if (controlMode === "manual-standard" || controlMode === "manual-reasoning") return "manual";
@@ -838,7 +721,11 @@ function publicCognitiveRoutingProfile(activeProfile, effective) {
 }
 
 function publicCapabilityStatus(capability) {
-  return capability?.effective === true ? "active" : "inactive";
+  if (capability?.effective === true) return "active";
+  if (!capability) return "unavailable";
+  const blockingCode = capability.blockingReason?.code;
+  if (blockingCode && blockingCode !== "disabled") return "unavailable";
+  return "inactive";
 }
 
 export function freeflowRuntimeStateMessage(
@@ -855,7 +742,6 @@ export function freeflowRuntimeStateMessage(
     profile === "unavailable" ? "unavailable" : publicCognitiveRoutingControl(cognitiveRoutingRuntime?.controlMode);
   const defaultMode = modeState?.defaultMode ?? "workflow";
   const activeMode = modeState?.effectiveMode ?? "inactive";
-  const activeModeSource = modeState?.sessionMode && modeState?.effectiveMode ? " (session override)" : "";
 
   return {
     role: "custom",
@@ -866,14 +752,14 @@ export function freeflowRuntimeStateMessage(
       "This is extension-generated runtime state. Use it to interpret the stable Freeflow guidance.",
       "",
       `Default mode: \`${defaultMode}\``,
-      `Active mode: \`${activeMode}\`${activeModeSource}`,
+      `Active mode: \`${activeMode}\``,
       "",
       "Capabilities:",
       `- Interaction Contract: ${publicCapabilityStatus(capabilityState?.interactionContract)}`,
       `- Skills: ${publicCapabilityStatus(capabilityState?.skills)}`,
       `- Context Virtualization: ${publicCapabilityStatus(capabilityState?.contextVirtualization)}`,
       `- Conversation History: ${publicCapabilityStatus(capabilityState?.conversationHistory)}`,
-      `- Cognitive Routing: ${cognitiveRoutingEffective ? "active" : "inactive"}`,
+      `- Cognitive Routing: ${publicCapabilityStatus(capabilityState?.cognitiveRouting)}`,
       "",
       "Cognitive Routing:",
       `- Control: \`${control}\``,
@@ -904,125 +790,29 @@ export function withFreeflowRuntimeState(
   ];
 }
 
-function capabilityContext() {
-  return `## Freeflow Capabilities
-
-Capability-specific instructions and tools are active only when the corresponding capability is active in Freeflow Runtime State. Disabled capabilities are status-only and must not be applied.`;
-}
-
-function hasModelFacingCapability(capabilityState) {
-  return (
-    capabilityState.interactionContract.effective ||
-    capabilityState.skills.effective ||
-    capabilityState.contextVirtualization?.effective === true ||
-    capabilityState.conversationHistory?.effective === true ||
-    capabilityState.cognitiveRouting?.effective === true
-  );
-}
-
-function modeOverlayContext(mode) {
-  if (mode === "conversation") {
-    return `
-
-## Conversation Mode Boundary
-
-Conversation mode is active and read-only.
-
-Do not call write, edit, or mutating tools. Do not create, delete, commit, push, or change repository, system, external, or durable state.
-
-A mutation request does not switch mode, and an execution skill does not override this boundary. Explain that conversation mode is read-only and ask the user to switch to workflow or strict-workflow.`;
-  }
-
-  if (mode === "strict-workflow") {
-    return `
-
-## Strict Workflow Overlay
-
-Strict Workflow is active. Use the adaptive Workflow, but increase decision, evidence, verification, and checkpoint pressure at high-risk or hard-to-reverse boundaries.
-
-For work affecting security, privacy, billing, data loss, migrations, public interfaces, compatibility, deployment, or architecture:
-
-- stop for any user-owned choice or source conflict;
-- inspect the relevant risk surface before crossing the boundary;
-- select only artifacts, checkpoints, and independent review that materially reduce risk;
-- verify at the affected boundary before claiming success.
-
-Do not manufacture ceremony for low-risk, reversible work. Strict Workflow does not authorize mutation, bypass safety, or make every implementation detail a user decision.`;
-  }
-
-  return "";
-}
-
-function activeModeContext(mode) {
-  return `## Freeflow Mode Semantics
-
-- \`conversation\`: answer, discuss, critique, and inspect read-only; require a mode change before mutating state.
-- \`workflow\`: use the adaptive workflow for consequential or mutating work.
-- \`strict-workflow\`: use the same workflow with stronger decision, evidence, and checkpoint pressure at high-risk or hard-to-reverse boundaries.
-
-The current default and active mode are supplied by Freeflow Runtime State.
-Task type, risk classification, and direct skill calls do not change mode. Recommend another mode when useful; the user decides.
-Do not announce mode on every reply. Mention it when the user asks, configuration is discussed, or it changes the next action.${modeOverlayContext(mode)}`;
-}
-
-function inactiveModeContext() {
-  return `## Freeflow Mode Semantics
-
-Freeflow workflow modes are dormant while Skills are inactive. The current default and active mode are supplied by Freeflow Runtime State.`;
-}
-
-function controlPlaneContext() {
-  return `# Freeflow Control Plane
-
-Freeflow is enabled for this repo, but no model-facing capabilities are enabled.
-These lines are status/config awareness only; do not apply Freeflow workflow behavior.
-
-Use \`/freeflow settings\` to enable the Interaction Contract, Skills, Context Virtualization, or Conversation History.`;
-}
-
-export function runtimeContext(modeState, freeflowContext, capabilityState) {
-  if (!capabilityState.configured) {
+export function runtimeContext(freeflowContext, capabilityState) {
+  if (capabilityState?.configured !== true || capabilityState?.enabled !== true || !freeflowContext?.corePrompt) {
     return "";
   }
 
-  if (!capabilityState.enabled) {
-    return `# Freeflow Disabled
-
-Freeflow is disabled by \`.freeflow/config.json\` for this repo. Do not apply the Freeflow Interaction Contract or workflow behavior unless the user re-enables Freeflow with \`/freeflow enable\` or \`/freeflow settings\`.
-
-These instructions are context-loading only. They do not override user instructions, repo instructions, or host safety and approval policy.`;
+  const blocks = [];
+  if (freeflowContext?.corePrompt) blocks.push(freeflowContext.corePrompt.trim());
+  if (capabilityState.interactionContract?.effective === true && freeflowContext?.interactionContractPrompt) {
+    blocks.push(freeflowContext.interactionContractPrompt.trim());
   }
-
-  if (!hasModelFacingCapability(capabilityState)) {
-    return controlPlaneContext();
+  if (capabilityState.skills?.effective === true && freeflowContext?.skillsPrompt) {
+    blocks.push(freeflowContext.skillsPrompt.trim());
   }
-
-  const modeText = capabilityState.skills.effective
-    ? activeModeContext(modeState.effectiveMode)
-    : inactiveModeContext();
-  const interactionContractText = capabilityState.interactionContract.effective
-    ? `\n\n${freeflowContext.interactionContract.trim()}`
-    : "";
-  const contextVirtualizationText = capabilityState.contextVirtualization?.effective
-    ? `\n\n## Loaded Context Virtualization Skill\n\n${freeflowContext.contextVirtualizationSkill.trim()}`
-    : "";
-  const conversationHistoryText = capabilityState.conversationHistory?.effective
-    ? `\n\n## Loaded Conversation History Skill\n\n${freeflowContext.conversationHistorySkill.trim()}`
-    : "";
-  const cognitiveRoutingText =
-    capabilityState.cognitiveRouting?.effective === true ? cognitiveRoutingContext(freeflowContext) : "";
-
-  return `# Freeflow Runtime Context
-
-Freeflow Pi extension loaded this before the agent turn.
-Runtime delivery: confirmed for this Pi \`before_agent_start\` invocation.
-These instructions are context-loading only. They do not override user instructions, repo instructions, or host safety and approval policy.
-
-${modeText}
-
-${capabilityContext()}${interactionContractText}${contextVirtualizationText}${conversationHistoryText}${cognitiveRoutingText}
-
-This Pi extension loads stable runtime guidance before each agent turn and supplies current state before each provider request; it routes commands only and does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
+  if (capabilityState.cognitiveRouting?.effective === true && freeflowContext?.cognitiveRoutingPrompt) {
+    blocks.push(freeflowContext.cognitiveRoutingPrompt.trim());
+  }
+  if (capabilityState.contextVirtualization?.effective === true && freeflowContext?.contextVirtualizationPrompt) {
+    blocks.push(freeflowContext.contextVirtualizationPrompt.trim());
+  }
+  if (capabilityState.conversationHistory?.effective === true && freeflowContext?.conversationHistoryPrompt) {
+    blocks.push(freeflowContext.conversationHistoryPrompt.trim());
+  }
+  return blocks.filter(Boolean).join("\n\n");
 }
 
 export async function setSessionCoreOverride(key: SessionCoreKey, value: boolean | null, ctx, pi) {

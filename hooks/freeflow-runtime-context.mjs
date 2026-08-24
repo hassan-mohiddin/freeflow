@@ -53,16 +53,17 @@ function findWorkspaceRoot(cwd) {
 function loadRuntimeContext(options = {}) {
   const includeInteractionContract = options.interactionContract === true;
   const includeSkills = options.skills === true;
+  const corePrompt = readText(path.join(PLUGIN_ROOT, "runtime", "prompts", "core.md"));
   const interactionContract = includeInteractionContract
-    ? readText(path.join(PLUGIN_ROOT, "capabilities", "interaction-contract", "interaction-contract.md"))
+    ? readText(path.join(PLUGIN_ROOT, "runtime", "prompts", "interaction-contract.md"))
     : null;
-  const workflowSkill = includeSkills ? readText(path.join(PLUGIN_ROOT, "skills", "workflow", "SKILL.md")) : null;
+  const skillsPrompt = includeSkills ? readText(path.join(PLUGIN_ROOT, "runtime", "prompts", "skills.md")) : null;
 
-  if ((includeInteractionContract && !interactionContract) || (includeSkills && !workflowSkill)) {
-    throw new Error("Freeflow runtime context files are missing.");
+  if (!corePrompt || (includeInteractionContract && !interactionContract) || (includeSkills && !skillsPrompt)) {
+    throw new Error("Freeflow runtime prompt files are missing.");
   }
 
-  return { interactionContract, workflowSkill };
+  return { corePrompt, interactionContract, skillsPrompt };
 }
 
 function readConfig(root) {
@@ -80,7 +81,7 @@ function readConfig(root) {
     repositoryValid: repository.valid,
     localExists: local.exists,
     localValid,
-    error: !repository.valid ? repository.error : local.error,
+    error: repository.valid ? local.error : repository.error,
     enabled,
     interactionContractEnabled: enabled && core.config.interactionContract,
     skillsEnabled: enabled && core.config.skills.enabled,
@@ -471,41 +472,6 @@ function resolveRuntimeState(input) {
   };
 }
 
-function modeOverlayGuidance(mode) {
-  if (mode === "conversation") {
-    return [
-      "",
-      "## Conversation Mode Boundary",
-      "",
-      "Conversation mode is active and read-only.",
-      "",
-      "Do not call write, edit, or mutating tools. Do not create, delete, commit, push, or change repository, system, external, or durable state.",
-      "",
-      "A mutation request does not switch mode, and an execution skill does not override this boundary. Explain that conversation mode is read-only and ask the user to switch to workflow or strict-workflow.",
-    ];
-  }
-
-  if (mode === "strict-workflow") {
-    return [
-      "",
-      "## Strict Workflow Overlay",
-      "",
-      "Strict Workflow is active. Use the adaptive Workflow, but increase decision, evidence, verification, and checkpoint pressure at high-risk or hard-to-reverse boundaries.",
-      "",
-      "For work affecting security, privacy, billing, data loss, migrations, public interfaces, compatibility, deployment, or architecture:",
-      "",
-      "- stop for any user-owned choice or source conflict;",
-      "- inspect the relevant risk surface before crossing the boundary;",
-      "- select only artifacts, checkpoints, and independent review that materially reduce risk;",
-      "- verify at the affected boundary before claiming success.",
-      "",
-      "Do not manufacture ceremony for low-risk, reversible work. Strict Workflow does not authorize mutation, bypass safety, or make every implementation detail a user decision.",
-    ];
-  }
-
-  return [];
-}
-
 function stateLines(state, sessionChange = null) {
   const { config } = state;
   const lines = [`Configured default: \`${config.defaultMode}\` (${sourceLabel(config.sources.defaultMode)})`];
@@ -534,6 +500,13 @@ function capabilityLines(config) {
   ];
 }
 
+function runtimeStateContext(state, sessionChange = null) {
+  const { config } = state;
+  return ["# Freeflow Runtime State", "", ...stateLines(state, sessionChange), "", ...capabilityLines(config)].join(
+    "\n",
+  );
+}
+
 function renderSessionStart(state) {
   const { config } = state;
   if (!config.valid) {
@@ -541,41 +514,24 @@ function renderSessionStart(state) {
   }
 
   if (!config.enabled) {
-    return [
-      "# Freeflow Disabled",
-      "",
-      `Configured but inactive: \`enabled\` is false (${sourceLabel(config.sources.enabled)}).`,
-      "No Freeflow interaction, skill, or mode guidance is effective.",
-    ].join("\n");
+    return "";
   }
 
-  const { interactionContract, workflowSkill } = loadRuntimeContext({
+  const { corePrompt, interactionContract, skillsPrompt } = loadRuntimeContext({
     interactionContract: config.interactionContractEnabled,
     skills: config.skillsEnabled,
   });
-  const context = [
-    "# Freeflow Runtime Context",
-    "",
-    "Runtime delivery: confirmed for this lifecycle-hook invocation.",
-    "This context guides behavior only; user instructions, repository instructions, and host safety or approval policy retain precedence.",
-    "",
-    "## Effective State",
-    "",
-    ...stateLines(state),
-    ...capabilityLines(config),
-  ];
+  const context = [corePrompt.trim()];
 
   if (config.interactionContractEnabled) {
-    context.push("", interactionContract.trim());
+    context.push(interactionContract.trim());
   }
   if (config.skillsEnabled) {
-    context.push("", "# Freeflow Workflow Bootstrap", "", workflowSkill.trim());
-  }
-  if (state.effectiveMode) {
-    context.push(...modeOverlayGuidance(state.effectiveMode));
+    context.push(skillsPrompt.trim());
   }
 
-  return context.join("\n");
+  context.push(runtimeStateContext(state));
+  return context.filter(Boolean).join("\n\n");
 }
 
 function normalizePrompt(prompt) {
@@ -622,21 +578,6 @@ function parseModeControl(prompt) {
   return null;
 }
 
-function renderPromptModeChange(state, sessionChange) {
-  const lines = [
-    "# Freeflow Mode Update",
-    "",
-    ...stateLines(state, sessionChange),
-    "",
-    "This user-operated session control changed host-managed state before this model request. It changes workflow behavior, not mutation authority, host permissions, or accepted scope.",
-    "Acknowledge the effective mode briefly. Do not claim that configured defaults changed.",
-  ];
-  if (state.effectiveMode) {
-    lines.push(...modeOverlayGuidance(state.effectiveMode));
-  }
-  return lines.join("\n");
-}
-
 function handleUserPromptSubmit(input) {
   const control = parseModeControl(input.prompt);
   if (!control) {
@@ -648,27 +589,22 @@ function handleUserPromptSubmit(input) {
     return "";
   }
   if (!before.config.skillsEnabled) {
-    return [
-      "# Freeflow Mode Update Unavailable",
-      "",
-      `Resolved mode remains \`${before.resolvedMode}\`, but no Freeflow mode is effective because Skills are disabled.`,
-      "Do not claim that the session mode changed.",
-    ].join("\n");
+    return runtimeStateContext(before);
   }
 
   if (control.action === "set") {
     if (!writeSessionMode(input.session_id, control.mode)) {
-      return "Freeflow could not establish a session mode override because this host invocation supplied no writable plugin data or session identifier. Do not claim that the mode changed.";
+      return runtimeStateContext(before);
     }
     const state = resolveRuntimeState(input);
-    return renderPromptModeChange(state, "set");
+    return runtimeStateContext(state, "set");
   }
 
   if (!clearSessionMode(input.session_id)) {
-    return "Freeflow could not clear the session mode override because this host invocation supplied no writable plugin data or session identifier. Do not claim that the mode changed.";
+    return runtimeStateContext(before);
   }
   const state = resolveRuntimeState(input);
-  return renderPromptModeChange(state, "cleared");
+  return runtimeStateContext(state, "cleared");
 }
 
 function shouldHandle(eventName) {

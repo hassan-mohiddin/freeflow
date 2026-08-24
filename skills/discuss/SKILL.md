@@ -67,6 +67,8 @@ Stay with the highest unresolved question that could change the outcome, boundar
 
 Inspect code, tests, docs, policies, artifacts, repository state, supplied material, or current primary sources when they can answer factual questions. Ask the user about intent, priorities, constraints, and tradeoffs that evidence cannot decide.
 
+When several inspections, searches, or other observers could answer the same factual question, or the likely probe is broad, use [Action Selection](../action-selection/SKILL.md) to choose and bound one environment interaction. Discuss keeps ownership of the question and interpretation; Action Selection returns the observation. Skip it for an obvious focused read.
+
 When materially different paths remain viable:
 
 1. compare only the few that matter, including the current path or waiting when real;

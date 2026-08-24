@@ -59,6 +59,8 @@ Choose the smallest coherent action that can produce the intended result or usef
 - keep every experiment and observation inside the authority envelope;
 - use only specialized methods and domain guidance that the concrete boundary needs.
 
+When several environment actions or observers could produce useful evidence, or the likely action is broad, use [Action Selection](../action-selection/SKILL.md) to choose and bound one interaction. Execute Work keeps ownership of the intended result and accepted effects; Action Selection returns the observation or bounded effect. Skip it when the next action is already known, mechanical, and directly verifiable.
+
 When an accepted behavior change, bug correction with a supported cause, consequential rule, or behavior-preserving refactor benefits from a failing check first, use [TDD](../tdd/SKILL.md) for that bounded action before changing production behavior.
 
 Before work changes the intended result, scope, permitted effects, evidence boundary, stop condition, or authority source, decide through Workflow whether it is an accepted extension or a new slice. When a Working Record exists, use Track Work to record an accepted extension before executing it. Do not let a series of “small” additions silently replace the original result.

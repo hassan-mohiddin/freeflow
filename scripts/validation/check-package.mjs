@@ -5,8 +5,17 @@ import { readFileSync } from "node:fs";
 
 const requiredFiles = [
   "pi-extension/freeflow/index.js",
-  "capabilities/interaction-contract/interaction-contract.md",
+  "runtime/prompts/core.md",
+  "runtime/prompts/interaction-contract.md",
+  "runtime/prompts/skills.md",
+  "runtime/prompts/cognitive-routing.md",
+  "runtime/prompts/context-virtualization.md",
+  "runtime/prompts/conversation-history.md",
+  "skills/action-selection/SKILL.md",
   "skills/workflow/SKILL.md",
+  "capabilities/cognitive-routing/SKILL.md",
+  "capabilities/context-virtualization/SKILL.md",
+  "capabilities/conversation-history/SKILL.md",
 ];
 const excludedPrefixes = ["plugin-docs/", ".skill-eval/", ".deprecated/"];
 const forbiddenPrefixes = ["router/", "capabilities/output-router/"];

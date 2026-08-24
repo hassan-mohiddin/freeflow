@@ -28,16 +28,104 @@ import {
   refreshRuntimeContext,
   restoreModeOverride,
   runtimeContext,
-  bootstrapMessage,
   filterBootstrapMessage,
   setModeStatus,
   skillPrompt,
-  withoutFreeflowRuntimeState,
   withFreeflowRuntimeState,
 } from "./runtime/runtime-context.js";
 
 function startupSelectionSuppressesCognitiveRouting(ctx: any): boolean {
   return ctx?.modelStateProvenance?.explicitModel === true || ctx?.modelStateProvenance?.explicitThinking === true;
+}
+
+function unavailableCapability(capability: any, code: string, message: string): any {
+  return {
+    ...capability,
+    effective: false,
+    blockingReason: { code, message },
+  };
+}
+
+function modelFacingCapabilityState(
+  capabilityState: any,
+  ctx: any,
+  freeflowContext: any,
+  cognitiveRoutingController: CognitiveRoutingController | undefined,
+  cognitiveRoutingActivationFailed = false,
+): any {
+  const surfaceState = {
+    ...capabilityState,
+    interactionContract: { ...capabilityState?.interactionContract },
+    skills: { ...capabilityState?.skills },
+    contextVirtualization: { ...capabilityState?.contextVirtualization },
+    conversationHistory: { ...capabilityState?.conversationHistory },
+    cognitiveRouting: { ...capabilityState?.cognitiveRouting },
+  };
+  if (surfaceState.enabled !== true) return surfaceState;
+
+  const markUnavailable = (key: string, message: string) => {
+    if (surfaceState[key]?.effective === true) {
+      surfaceState[key] = unavailableCapability(surfaceState[key], "unavailable", message);
+    }
+  };
+
+  if (!freeflowContext?.corePrompt) {
+    for (const key of [
+      "interactionContract",
+      "skills",
+      "contextVirtualization",
+      "conversationHistory",
+      "cognitiveRouting",
+    ]) {
+      markUnavailable(key, "Freeflow core prompt is unavailable.");
+    }
+    return surfaceState;
+  }
+
+  if (surfaceState.interactionContract?.effective === true && !freeflowContext.interactionContractPrompt) {
+    markUnavailable("interactionContract", "Interaction Contract prompt is unavailable.");
+  }
+  if (surfaceState.skills?.effective === true && !freeflowContext.skillsPrompt) {
+    markUnavailable("skills", "Skills prompt is unavailable.");
+  }
+
+  if (surfaceState.skills?.effective === true) {
+    if (surfaceState.contextVirtualization?.effective === true && !freeflowContext.contextVirtualizationPrompt) {
+      markUnavailable("contextVirtualization", "Context Virtualization prompt is unavailable.");
+    }
+    if (surfaceState.conversationHistory?.effective === true && !freeflowContext.conversationHistoryPrompt) {
+      markUnavailable("conversationHistory", "Conversation History prompt is unavailable.");
+    }
+  } else {
+    for (const key of ["contextVirtualization", "conversationHistory", "cognitiveRouting"]) {
+      markUnavailable(key, "Skills prompt is unavailable.");
+    }
+  }
+
+  if (surfaceState.cognitiveRouting?.effective === true) {
+    if (startupSelectionSuppressesCognitiveRouting(ctx)) {
+      surfaceState.cognitiveRouting = unavailableCapability(
+        surfaceState.cognitiveRouting,
+        "runtime_inactive",
+        "Cognitive Routing is inactive because the host selected the startup model or thinking level.",
+      );
+    } else if (cognitiveRoutingActivationFailed || cognitiveRoutingController?.state()?.effective === false) {
+      surfaceState.cognitiveRouting = unavailableCapability(
+        surfaceState.cognitiveRouting,
+        "unavailable",
+        "Cognitive Routing could not activate for this session.",
+      );
+    } else if (!freeflowContext.cognitiveRoutingPrompt) {
+      markUnavailable("cognitiveRouting", "Cognitive Routing prompt is unavailable.");
+    }
+  }
+
+  return surfaceState;
+}
+
+function modelFacingModeState(modeState: any, capabilityState: any): any {
+  if (capabilityState?.skills?.effective === true) return modeState;
+  return { ...modeState, active: false, effectiveMode: null };
 }
 
 type SessionEntriesContext = {
@@ -68,27 +156,6 @@ function sessionHasConversationOrRoutingState(ctx: SessionEntriesContext | undef
   } catch {
     return false;
   }
-}
-
-function promptCapabilityState(capabilityState: any, cognitiveRoutingRuntime: any, ctx: any): any {
-  if (
-    capabilityState?.cognitiveRouting?.effective !== true ||
-    (cognitiveRoutingRuntime?.effective === true && !startupSelectionSuppressesCognitiveRouting(ctx))
-  ) {
-    return capabilityState;
-  }
-
-  return {
-    ...capabilityState,
-    cognitiveRouting: {
-      ...capabilityState.cognitiveRouting,
-      effective: false,
-      blockingReason: {
-        code: "disabled",
-        message: "Cognitive Routing is inactive for this Pi runtime",
-      },
-    },
-  };
 }
 
 function hasCognitiveRoutingHost(pi: any, ctx: any): boolean {
@@ -293,6 +360,7 @@ async function sendSkillCommand(pi: any, ctx: any, skill: string, args: string |
 export default function freeflow(pi) {
   let cognitiveRoutingController: CognitiveRoutingController | undefined;
   let latestCognitiveRoutingContext: any;
+  let providerSurfaceSnapshot: { context: any; value: any } | undefined;
   let freeflowContextRuntime: FreeflowContextRuntime | undefined;
   let contextVirtualizationRuntime: ContextVirtualizationRuntime | undefined;
   let conversationHistoryRuntime: ConversationHistoryRuntime | undefined;
@@ -306,6 +374,51 @@ export default function freeflow(pi) {
         conversationHistory: capabilityState?.conversationHistory?.effective === true,
       },
     );
+  };
+  const buildProviderSurface = async (ctx: any, activateCognitiveRouting = false): Promise<any> => {
+    const [modeState, capabilityState] = await Promise.all([
+      readModeState(ctx.cwd),
+      readCapabilityState(ctx.cwd, ctx, pi?.host),
+    ]);
+    const freeflowContext = await getRuntimeContext(capabilityState);
+    const promptCapabilityState = modelFacingCapabilityState(
+      capabilityState,
+      ctx,
+      freeflowContext,
+      cognitiveRoutingController,
+    );
+    let activationAttempted = false;
+    if (
+      activateCognitiveRouting &&
+      (cognitiveRoutingController === undefined || promptCapabilityState.cognitiveRouting?.effective !== true)
+    ) {
+      activationAttempted =
+        promptCapabilityState.cognitiveRouting?.effective === true && !startupSelectionSuppressesCognitiveRouting(ctx);
+      try {
+        cognitiveRoutingController = await reconcileCognitiveRoutingController(
+          pi,
+          ctx,
+          promptCapabilityState,
+          cognitiveRoutingController,
+        );
+      } catch {
+        cognitiveRoutingController = undefined;
+      }
+    }
+    const surfaceCapabilityState = modelFacingCapabilityState(
+      promptCapabilityState,
+      ctx,
+      freeflowContext,
+      cognitiveRoutingController,
+      activationAttempted && !cognitiveRoutingController,
+    );
+    return {
+      modeState: modelFacingModeState(modeState, surfaceCapabilityState),
+      capabilityState: surfaceCapabilityState,
+      freeflowContext,
+      cognitiveRoutingRuntime: cognitiveRoutingController?.state(),
+      configuredCapabilityState: capabilityState,
+    };
   };
   const applyLiveCapabilityStateForSession = async (
     ctx: any,
@@ -384,18 +497,23 @@ export default function freeflow(pi) {
 
   pi.on("resources_discover", async (event, ctx) => {
     const cwd = ctx?.cwd ?? event?.cwd ?? process.cwd();
-    const state = await readCapabilityState(cwd, ctx, pi?.host);
+    const snapshot =
+      providerSurfaceSnapshot?.context === ctx
+        ? providerSurfaceSnapshot.value
+        : await buildProviderSurface(ctx ?? { cwd }, false);
+    const state = snapshot.capabilityState;
     if (!state.configured) {
       return { skillPaths: [freeflowSkillPath("setup-freeflow")] };
     }
     if (!state.enabled || !state.skills.effective) {
       return { skillPaths: [] };
     }
-    return { skillPaths: freeflowModelSkillPaths() };
+    return { skillPaths: freeflowModelSkillPaths(state) };
   });
 
   pi.on("session_start", async (_event, ctx) => {
     latestCognitiveRoutingContext = ctx;
+    providerSurfaceSnapshot = undefined;
     restoreModeOverride(ctx);
     freeflowContextRuntime = new FreeflowContextRuntime(ctx);
     contextVirtualizationRuntime = new ContextVirtualizationRuntime(pi, ctx, freeflowContextRuntime);
@@ -405,24 +523,19 @@ export default function freeflow(pi) {
       freeflowContextRuntime,
     );
     await contextVirtualizationRuntime.recover(ctx);
-    const [modeState, capabilityState] = await Promise.all([
-      readModeState(ctx.cwd),
-      readCapabilityState(ctx.cwd, ctx, pi?.host),
-    ]);
+    const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
     await refreshRuntimeContext(capabilityState);
-    registerContextToolForState(capabilityState);
     const hasSessionState = sessionHasConversationOrRoutingState(ctx);
+    const snapshot = await buildProviderSurface(ctx, hasSessionState);
     const cognitiveRoutingStartupPending =
-      capabilityState?.cognitiveRouting?.effective === true &&
+      snapshot.capabilityState?.cognitiveRouting?.effective === true &&
       !hasSessionState &&
       !startupSelectionSuppressesCognitiveRouting(ctx);
-    cognitiveRoutingController = hasSessionState
-      ? await reconcileCognitiveRoutingController(pi, ctx, capabilityState, cognitiveRoutingController)
-      : undefined;
-    setModeStatus(ctx, modeState, capabilityState, cognitiveRoutingController?.state(), {
+    registerContextToolForState(snapshot.capabilityState);
+    setModeStatus(ctx, snapshot.modeState, snapshot.capabilityState, snapshot.cognitiveRoutingRuntime, {
       cognitiveRoutingStartupPending,
     });
-    await applyCapabilityToolVisibility(pi, ctx, capabilityState, cognitiveRoutingController);
+    await applyCapabilityToolVisibility(pi, ctx, snapshot.capabilityState, cognitiveRoutingController);
   });
 
   pi.on("agent_settled", async (_event, ctx) => {
@@ -432,6 +545,7 @@ export default function freeflow(pi) {
   });
 
   pi.on("session_shutdown", async (event) => {
+    providerSurfaceSnapshot = undefined;
     const controller = cognitiveRoutingController;
     cognitiveRoutingController = undefined;
     freeflowContextRuntime = undefined;
@@ -442,6 +556,7 @@ export default function freeflow(pi) {
 
   pi.on("session_tree", async (_event, ctx) => {
     latestCognitiveRoutingContext = ctx;
+    providerSurfaceSnapshot = undefined;
     restoreModeOverride(ctx);
     const controller = cognitiveRoutingController;
     if (controller) await controller.reconcileBranch();
@@ -455,6 +570,7 @@ export default function freeflow(pi) {
 
   pi.on("session_compact", async (_event, ctx) => {
     latestCognitiveRoutingContext = ctx;
+    providerSurfaceSnapshot = undefined;
     const controller = cognitiveRoutingController;
     if (controller) await controller.reconcileBranch("session-compact");
     if (contextVirtualizationRuntime) {
@@ -474,43 +590,29 @@ export default function freeflow(pi) {
 
   pi.on("before_agent_start", async (event, ctx) => {
     latestCognitiveRoutingContext = ctx;
-    const [modeState, capabilityState] = await Promise.all([
-      readModeState(ctx.cwd),
-      readCapabilityState(ctx.cwd, ctx, pi?.host),
-    ]);
-    registerContextToolForState(capabilityState);
-    if (!cognitiveRoutingController) {
-      cognitiveRoutingController = await reconcileCognitiveRoutingController(
-        pi,
-        ctx,
-        capabilityState,
-        cognitiveRoutingController,
-      );
-    }
-    const cognitiveRoutingRuntime = cognitiveRoutingController?.state();
-    const effectivePromptCapabilityState = promptCapabilityState(capabilityState, cognitiveRoutingRuntime, ctx);
-    const freeflowContext = await getRuntimeContext(effectivePromptCapabilityState);
-    setModeStatus(ctx, modeState, capabilityState, cognitiveRoutingRuntime);
-    await applyCapabilityToolVisibility(pi, ctx, capabilityState, cognitiveRoutingController);
-    const freeflowRuntimeContext = runtimeContext(modeState, freeflowContext, effectivePromptCapabilityState);
-    const bootstrap = bootstrapMessage(freeflowContext, effectivePromptCapabilityState, ctx.sessionManager);
+    const snapshot = await buildProviderSurface(ctx, true);
+    providerSurfaceSnapshot = { context: ctx, value: snapshot };
+    registerContextToolForState(snapshot.capabilityState);
+    setModeStatus(ctx, snapshot.modeState, snapshot.capabilityState, snapshot.cognitiveRoutingRuntime);
+    await applyCapabilityToolVisibility(pi, ctx, snapshot.capabilityState, cognitiveRoutingController);
+    const freeflowRuntimeContext = runtimeContext(snapshot.freeflowContext, snapshot.capabilityState);
     const systemPrompt = freeflowRuntimeContext
       ? `${event.systemPrompt}\n\n${freeflowRuntimeContext}`
       : event.systemPrompt;
-    return { message: bootstrap, systemPrompt };
+    return { systemPrompt };
   });
 
   pi.on("context", async (event, ctx) => {
-    const [modeState, capabilityState] = await Promise.all([
-      readModeState(ctx.cwd),
-      readCapabilityState(ctx.cwd, ctx, pi?.host),
-    ]);
-    const cognitiveRoutingRuntime = cognitiveRoutingController?.state();
-    const effectivePromptCapabilityState = promptCapabilityState(capabilityState, cognitiveRoutingRuntime, ctx);
+    const snapshot =
+      providerSurfaceSnapshot?.context === ctx ? providerSurfaceSnapshot.value : await buildProviderSurface(ctx, false);
+    if (providerSurfaceSnapshot?.context === ctx) providerSurfaceSnapshot = undefined;
+    const cognitiveRoutingRuntime = snapshot.cognitiveRoutingRuntime;
+    const surfaceCapabilityState = snapshot.capabilityState;
+    const surfaceModeState = snapshot.modeState;
     let changed = false;
     let messages = event.messages
       .map((message) => {
-        const filtered = filterBootstrapMessage(message, effectivePromptCapabilityState);
+        const filtered = filterBootstrapMessage(message);
         if (filtered !== message) changed = true;
         return filtered;
       })
@@ -519,24 +621,24 @@ export default function freeflow(pi) {
       contextVirtualizationRuntime.setContext(ctx);
       const projected = await contextVirtualizationRuntime.project(
         messages,
-        effectivePromptCapabilityState.contextVirtualization?.effective === true,
+        surfaceCapabilityState.contextVirtualization?.effective === true,
       );
       if (projected.changed) {
         changed = true;
         messages = projected.messages;
       }
     }
-    if (conversationHistoryRuntime && effectivePromptCapabilityState.conversationHistory?.effective === true) {
+    if (conversationHistoryRuntime && surfaceCapabilityState.conversationHistory?.effective === true) {
       conversationHistoryRuntime.setContext(ctx);
-      conversationHistoryRuntime.capture(effectivePromptCapabilityState.contextVirtualization?.effective === true);
+      conversationHistoryRuntime.capture(surfaceCapabilityState.contextVirtualization?.effective === true);
     }
-    const freeflowRuntimeStateEnabled = capabilityState.configured === true && capabilityState.enabled === true;
-    const nextMessages = freeflowRuntimeStateEnabled
-      ? withFreeflowRuntimeState(messages, modeState, effectivePromptCapabilityState, cognitiveRoutingRuntime)
-      : withoutFreeflowRuntimeState(messages);
-    if (nextMessages.length !== messages.length || freeflowRuntimeStateEnabled) {
-      changed = true;
-    }
+    const nextMessages = withFreeflowRuntimeState(
+      messages,
+      surfaceModeState,
+      surfaceCapabilityState,
+      cognitiveRoutingRuntime,
+    );
+    changed = true;
     messages = nextMessages;
     return changed ? { messages } : undefined;
   });

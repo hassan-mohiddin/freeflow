@@ -29,6 +29,8 @@ Understand:
 
 Review the complete current artifact, not only its summary, change description, or author's reasoning. Review upstream authority before dependent artifacts. If an upstream issue invalidates downstream assumptions, mark affected material contingent instead of generating exhaustive findings against an unresolved basis.
 
+Review Artifact owns the intended-use boundary, lenses, and judgment. When source or dependency inspection branches among several plausible observers or is likely to be broad, use [Action Selection](../action-selection/SKILL.md) to choose and bound one environment interaction. It returns evidence to the same review role. Skip it for an obvious artifact, dependency, or source-truth read.
+
 When reviewing a Working Record, read [Track Work](../track-work/SKILL.md), which owns its format and lifecycle.
 
 ## Judge The Artifact By Its Job

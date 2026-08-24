@@ -30,6 +30,8 @@ Use the smallest direct evidence that can falsify the claim. Evidence must be fr
 
 Verification inherits the current authority envelope. Existing evidence may be inspected without a new run. Run a new active check only when that envelope covers it directly or as contained verification; otherwise return its purpose, expected evidence, and stop condition to Workflow and wait.
 
+Verify Work owns the claim and required evidence boundary. When several covered observers can falsify the same claim, or the likely check is broad, use [Action Selection](../action-selection/SKILL.md) to choose and bound one environment interaction. It returns the observation; Verify Work interprets and classifies support. Skip it when one exact check is already selected.
+
 Passing tests do not prove behavior they do not exercise. A happy path does not prove failure handling. Source inspection does not prove runtime execution. A helper call does not prove registration, host dispatch, or installed-package behavior.
 
 Before selecting or running evidence:

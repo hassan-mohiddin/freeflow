@@ -31,7 +31,7 @@ Mode changes do not authorize work. Task type and direct skill calls do not swit
 
 ## Interaction And Authority
 
-`capabilities/interaction-contract/interaction-contract.md` owns compact interpretation of the whole user turn:
+`runtime/prompts/interaction-contract.md` owns compact interpretation of the whole user turn:
 
 - answer questions without inferring action;
 - treat tentative ideas as discussion;
@@ -54,21 +54,17 @@ host session mode override
 -> built-in default
 ```
 
-Pi session overrides for Freeflow master enablement, Interaction Contract, Skills, and mode live in branch-aware session JSONL. Claude and Codex mode overrides live in plugin-owned state keyed by host session ID. Session state does not mutate config files or bypass missing or invalid repository activation. An invalid existing personal layer blocks effective runtime. Interaction Contract and Skills resolve as independent switches. Mode remains resolved but dormant when Skills are ineffective.
+Pi session overrides for Freeflow master enablement, Interaction Contract, Skills, and mode live in branch-aware session JSONL. Claude and Codex mode overrides live in plugin-owned state keyed by host session ID. Session state does not mutate config files or bypass missing or invalid repository activation. An invalid existing personal layer blocks effective runtime. Interaction Contract may resolve independently; Skills is the parent gate for Cognitive Routing, Context Virtualization, and Conversation History. Mode remains resolved but dormant when Skills are ineffective.
 
 Retired Output Router-shaped configuration remains tolerated in shared config for activation compatibility but is ignored by the runtime and does not enter any host discovery or lifecycle context.
 
 ## Runtime Delivery
 
-When effective, host adapters deliver:
+When effective, host adapters compose static fragments from `runtime/prompts/` and expose discoverable skills/tools from the same effective-state snapshot. Runtime State is appended to every provider invocation with current mode, capability, and Cognitive Routing facts, including disabled or unconfigured Freeflow states.
 
-- `capabilities/interaction-contract/interaction-contract.md` for compact turn guidance;
-- `skills/workflow/SKILL.md` once per context epoch while Skills are effective;
-- compact active or dormant mode state.
+Full Workflow, Action Selection, and capability skill bodies remain discoverable rather than persistent bootstrap content. The Interaction Contract is prompt-only. Skills gates the three Pi-only capability skills.
 
-Mode Contract and other workflow skills remain on demand. The Interaction Contract is the only compact interaction-guidance artifact.
-
-Pi appends compact state and Interaction Contract guidance before agent turns and stores Workflow as one hidden persistent session message. Codex and Claude use one packaged runtime hook: `SessionStart` restores complete enabled context at supported start, resume, clear, and compact boundaries; `UserPromptSubmit` emits only for explicit session-mode controls. Both paths exclude Pi-only capabilities.
+Pi composes prompt fragments before agent turns, filters historical bootstrap entries, and dynamically exposes normal and effective capability skills/tools. Codex and Claude use one packaged runtime hook that loads the shared static fragments without injecting a full Workflow bootstrap. Both paths exclude Pi-only capability delivery.
 
 Activation does not prove delivery. Setup reports confirmed, unavailable, or unconfirmed delivery and distinguishes same-turn direct reads from automatic lifecycle execution.
 
@@ -96,7 +92,7 @@ Workflow owns routing. Leaf skills own focused methods. Method and domain skills
 
 The typed public adjacency map lives in `plugin-docs/skill-routing.md`. It distinguishes owners, sibling routes/composition, references, and optional capability delivery.
 
-The cross-host model surface contains 25 active model/contributor skill packages. Pi separately provides Context Virtualization and Cognitive Routing under `capabilities/`; Codex and Claude do not discover or receive those Pi-only capabilities. Retired Output Router material lives under `.deprecated/output-router/`, and retired Delegation Harness material lives under `.deprecated/delegation-harness/`, outside the package.
+The cross-host model surface contains 26 active model/contributor skill packages, including Action Selection. Pi separately provides Cognitive Routing, Context Virtualization, and Conversation History under `capabilities/`; Codex and Claude do not discover or receive those Pi-only capabilities. Static prompt fragments live under `runtime/prompts/`. Retired Output Router material lives under `.deprecated/output-router/`, and retired Delegation Harness material lives under `.deprecated/delegation-harness/`, outside the package.
 
 ## Artifact Contract
 

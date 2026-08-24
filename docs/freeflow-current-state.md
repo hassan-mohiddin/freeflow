@@ -29,21 +29,17 @@ The adaptive candidate remains **Unverified** pending current baseline-vs-with-s
 
 Invalid existing local core config fails closed, and session enablement cannot bypass missing or invalid repository activation.
 
-When effective, host adapters deliver:
+When effective, host adapters compose static fragments from `runtime/prompts/` and expose discoverable skills/tools from one effective-state snapshot. Runtime State is appended to every provider invocation with the current mode, capability statuses, and Cognitive Routing Control/Profile.
 
-- `capabilities/interaction-contract/interaction-contract.md` as compact interaction guidance;
-- one `skills/workflow/SKILL.md` bootstrap per context epoch while Skills are effective;
-- compact active or dormant mode state.
+The Interaction Contract is prompt-only. Skills is the parent gate for Cognitive Routing, Context Virtualization, and Conversation History. Full Workflow and capability bodies are discoverable rather than persistent bootstrap content. Runtime context guides behavior; it does not enforce policy, block tools, grant permissions, or replace repository instructions.
 
-The Interaction Contract is the only compact interaction-guidance artifact. Interaction Contract and Skills are independently resolved switches. Runtime context guides behavior; it does not enforce policy, block tools, grant permissions, or replace repository instructions.
-
-Pi reads config before turns, appends effective compact context, stores Workflow as one hidden persistent message, restores session mode entries, and dynamically exposes model skills. Codex and Claude use one shared runtime hook: `SessionStart` restores full enabled context after start, resume, clear, and compact; `UserPromptSubmit` emits only for explicit session-mode controls and stays silent on ordinary prompts.
+Pi reads config before turns, composes prompt fragments, filters historical bootstrap entries, restores session mode entries, and dynamically exposes normal and effective capability skills/tools. Codex and Claude use one shared runtime hook without full Workflow bootstrap injection; `UserPromptSubmit` emits only for explicit session-mode controls and stays silent on ordinary prompts.
 
 Setup reports automatic delivery as confirmed, unavailable, or unconfirmed and distinguishes same-turn direct reads from adapter execution.
 
 ## Skill Surface
 
-The cross-host model surface contains 25 active model/contributor skill packages. Pi separately provides Context Virtualization and Cognitive Routing as optional gated capabilities outside `skills/`. Output Router is retired from the live package and preserved under `.deprecated/output-router/`; it is no longer discovered, loaded, or registered.
+The cross-host model surface contains 26 active model/contributor skill packages, including Action Selection. Pi separately provides Cognitive Routing, Context Virtualization, and Conversation History as Skills-gated capabilities outside `skills/`. Static prompt fragments live under `runtime/prompts/`. Output Router is retired from the live package and preserved under `.deprecated/output-router/`; it is no longer discovered, loaded, or registered.
 
 Canonical collaboration and execution skills are `discuss`, `track-work`, and `execute-work`. Pi retains `/discover` and `/execute-plan` as Pi-only compatibility aliases without restoring deleted skill identities.
 
@@ -84,7 +80,7 @@ Current deterministic evidence includes:
 
 - layered Pi repository/personal/session config and mode tests;
 - Codex/Claude lifecycle hook checks;
-- canonical Workflow-bootstrap delivery checks;
+- prompt-fragment, Runtime State, capability-gating, and discoverable-skill checks;
 - command-surface and model-discovery checks;
 - Skill Author structure/dependency tests;
 - Evaluate Skill case-schema tests;

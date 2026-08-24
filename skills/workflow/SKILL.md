@@ -1,110 +1,141 @@
 ---
-name: workflow
-description: Use when coordinating discussion, decisions, durable task memory, execution, verification, review, or a route change from feedback.
+name: "workflow"
+description: "Use when authority, ownership, route changes, context recovery, selected checkpoints, or Supported Exit must be coordinated across Freeflow methods."
 ---
 
 # Workflow
 
-Use feedback to choose the smallest useful next action. Treat work as an **Interaction Lifecycle** with an internal **Feedback Loop**, not a fixed sequence.
+Own the outer Interaction Lifecycle. Establish authority, keep one owner for the current bounded activity, route from evidence, and decide when a Supported Exit is justified.
 
-The active agent owns understanding, routing, authorized work, verification, correction, and completion. It adjudicates selected review. Keep one owner for the current activity; methods, domain guidance, and independent judgment do not take over workflow control.
-
-Read [Workflow edges](references/workflow-edges.md) when work changes authority, crosses owners, resumes after context loss, or reaches a selected review or checkpoint. Read [domain skill composition](references/domain-skill-composition.md) when specialized engineering guidance must operate inside the active route.
+Workflow coordinates methods; it does not replace their detailed jobs. Selecting a skill, tool, artifact, review, or compute profile never widens authority.
 
 ## Enter Through Authority
 
-```text
-[Entry] -> [Feedback Loop when needed] -> [Supported Exit]
-   ^              ^        |                  |
-   |              |________|                  |
-   |__________________________________________|
-            later user turn or evidence
-```
-
-At Entry, interpret the whole user turn and valid prior approval through the effective mode, then establish the current **authority envelope**: requested outcome, permitted effects, evidence boundary, and stop condition.
+Interpret the whole user turn and still-valid prior approval. Establish or confirm the authority envelope before consequential action.
 
 Classify effects cumulatively:
 
-- **Passive observation:** inspect existing evidence or sources without exercising target behavior or intentionally changing task state.
+- **Passive observation:** inspect existing evidence without exercising target behavior or intentionally changing task state.
 - **Active evidence generation:** exercise target behavior to produce new evidence.
 - **Mutation or delivery:** change repository, durable task or session, or external state.
 
-When an action has multiple effects, apply the strongest relevant authority and mode boundary. Mode and skill selection choose or constrain the method; they do not widen authority.
+A direct request authorizes its bounded outcome and entailed tools, checks, and reversible local choices. A Spec, Plan, task-memory artifact, review, recommendation, silence, mode, or newly useful evidence does not create authority.
 
-A direct request authorizes an action when its requested outcome entails that action and its effects. Explicit approval may authorize a proposed action or checkpoint. A user-approved Spec or Plan establishes direction unless its approval also authorizes execution. A Working Record preserves authority but cannot create it.
+Before an uncovered action, return one bounded proposal:
 
-Passive observation may support an answer when safe and relevant. Before uncovered active evidence generation, mutation or delivery, or another separately controlled action, state its exact purpose, expected evidence or result, and stop condition; ask one direct authorization question; then wait. Do not perform the proposed action, dispatch, or dependent next step while waiting.
+```text
+Purpose:
+Action:
+Expected evidence or result:
+Stop condition:
+```
 
-Authorization covers the bounded outcome and its entailed tool calls, tests, verification, and reversible local choices. Ask again only when the outcome, permitted effects, evidence boundary, stop condition, or separately controlled action changes. Settled direction, recommendations, review findings, silence, task memory, and new evidence do not widen the envelope. New evidence supports reporting and routing; it does not by itself authorize correction or another lifecycle stage.
+Ask one direct authorization question and wait. Do not perform the proposed action or a dependent step while waiting.
 
 ## Choose One Owner
 
-Entry may answer, wait, defer, or stop directly. When work is needed, choose the narrowest owner:
+Choose the narrowest discoverable owner whose job matches the current need:
 
-- **Understand and decide:** [Discuss](../discuss/SKILL.md), [Decision Gate](../decision-gate/SKILL.md), or [Bypass](../bypass/SKILL.md), with [Design for Depth](../design-for-depth/SKILL.md) when direction is design-bearing.
-- **Preserve memory or accepted artifacts:** [Track Work](../track-work/SKILL.md), [Write Spec](../write-spec/SKILL.md), [Write Plan](../write-plan/SKILL.md), or [Review Artifact](../review-artifact/SKILL.md).
+- **Understand and decide:** [Discuss](../discuss/SKILL.md), [Decision Gate](../decision-gate/SKILL.md), or [Bypass](../bypass/SKILL.md), with [Design for Depth](../design-for-depth/SKILL.md) as a lens when direction is design-bearing.
+- **Preserve task state or accepted artifacts:** [Track Work](../track-work/SKILL.md), [Write Spec](../write-spec/SKILL.md), [Write Plan](../write-plan/SKILL.md), or [Review Artifact](../review-artifact/SKILL.md).
 - **Execute and learn:** [Execute Work](../execute-work/SKILL.md), [Migration Work](../migration-work/SKILL.md), [Diagnose Failure](../diagnose-failure/SKILL.md), [Verify Work](../verify-work/SKILL.md), or [Review Work](../review-work/SKILL.md).
 - **Preserve or close out:** [Commit Work](../commit-work/SKILL.md), [Handoff](../handoff/SKILL.md), [Finish Branch](../finish-branch/SKILL.md), [Release Work](../release-work/SKILL.md), or [Launch Work](../launch-work/SKILL.md).
 
-These are owners, not mandatory phases. A linked skill does not run automatically, and selecting a method creates no authority.
+These are owners, not mandatory phases. Keep the current owner while its question, authority, and evidence boundary remain coherent.
 
-Before authorized work begins, recommend Discuss only when user input could materially change the outcome, boundary, tradeoff, approach, or acceptance. Name the question and wait. Inspect facts and choose reversible local details without asking. If the user declines optional discussion, do not ask again without new evidence.
+Recommend Discuss before authorized work only when user input could materially change the outcome, boundary, tradeoff, approach, or acceptance. Inspect facts and choose reversible local details without asking.
 
-## Run One Feedback Loop
+When the owner needs an environment interaction and the action or tool choice is not already obvious, use [Action Selection](../action-selection/SKILL.md). Return its observation and state change to the same owner.
 
-For every bounded activity—whether the whole task, a slice, a subtask, an artifact revision, or a small local change:
+Read [Domain Skill Composition](./references/domain-skill-composition.md) when specialized engineering guidance must operate inside the current owner.
 
-1. Orient to accepted intent, the authority envelope, relevant task memory, and live evidence.
-2. Use the owning skill to discuss, preserve, implement, test, observe, verify, or review.
-3. Determine what the result proves at the required boundary.
-4. Once initial evidence supports the result, self-review the resulting state once for alignment, suitability, and unnecessary complexity.
-5. Only then treat the activity as supported, use its result as the basis for later work, or claim it complete.
-6. Continue, correct, diagnose, revise, ask, defer, or stop from the result.
+## Run The Feedback Loop
 
-Self-review is required at each such boundary. It is silent, remains inside the authorized activity rather than creating another activity or review cycle, creates no formal judgment, and does not widen authority. Correct clear local issues required by the accepted outcome within the authority envelope, re-verify the affected boundary, confirm the final state has no unresolved material issue, then freeze it. Return ambiguous, non-local, route-changing, or out-of-envelope issues to Workflow. Further polish, advisory warnings, and unrelated issues require another selected action.
+For each bounded activity:
 
-If evidence fails or contradicts the claim, correct a clear local defect or use Diagnose Failure when the cause is unsupported or repeats. Do not review unsupported work as ready. Handle only edge cases required by accepted behavior, observed evidence, or material safety. A stream of related patches routes to the shared requirement, cause, ownership, or interface.
+1. orient to accepted intent, the authority envelope, relevant task memory, and live evidence;
+2. use the owner to discuss, preserve, implement, observe, verify, or judge;
+3. determine what the result proves at the required evidence boundary;
+4. after initial support, perform the stable self-review once;
+5. correct a clear local defect inside existing authority and re-verify the affected boundary;
+6. otherwise re-enter only the owner whose responsibility changed;
+7. continue only while authority, evidence, checkpoints, and convergence support the route.
 
-Continue only while the authority envelope still covers the work, evidence supports the route, no checkpoint is due, and the work converges.
+Do not review unsupported work as ready, continue because implementation began, or restart the task because one responsibility changed.
 
-## Preserve Only Necessary State
+## Route From Evidence
 
-Decide whether a Working Record is needed before routing to Track Work. Discuss makes this assessment while it owns the route; Workflow may route directly when a clear task's need is already established. Use a Working Record only when losing current task state would risk later misalignment.
-
-Create other durable artifacts only for their own jobs: a Spec for stable accepted content, a Plan for stable ordered strategy, an ADR for a surprising hard-to-reverse decision, or a Handoff for point-in-time transfer.
-
-When an ongoing task resumes after compaction, summarization, clear, resume, or session navigation, re-read the owning skill when its body is absent. Reopen the smallest sources that establish current intent, constraints, route, authority, and expected evidence. Include the Working Record's bounded `resume` view when one exists. Compare memory with the current conversation and live state; do not reconstruct authority or progress from a summary or another conversation branch.
-
-Synchronize durable architecture, plugin, setup, or similar documentation when stabilized behavior or dependent work requires it. Never finish with a known required-doc inconsistency.
-
-## Control Reviews And Checkpoints
-
-A local commit, independent review, correction, follow-up review, push, integration, release, or launch is separately controlled unless the authority envelope explicitly covers it. Recommend a local commit only when it materially improves rollback, provenance, handoff, integration, or preservation; a slice ending alone is insufficient.
-
-Specs and Plans receive separate independent Review Artifact after author self-review. Working Records do not by default. Select independent work review for sensitive, hard-to-reverse, architecture-bearing, strongly interacting, plan-selected, or explicitly requested boundaries—not merely because work paused or a skill was read.
-
-Independent review ends with **Pass**, **Non-blocking**, **Inconclusive**, or **Blocking**. The active agent adjudicates every material item against source truth and evidence:
-
-- accept a supported and applicable problem, stating its consequence and remedy-basis status;
-- reject a stale, duplicate, preference-only, or unsupported item, stating why;
-- keep an item open when evidence or a decision is missing, stating the concern, potential consequence, and missing basis.
-
-When the problem, consequence, bounded remedy, and verification are clear, state the adjudication and remediation-ready route together. When findings interact, assumptions are challenged, materially different remedies remain, or user input could change the approach, report a problem checkpoint and stop before selecting or applying a remedy.
-
-Findings authorize neither correction nor follow-up review. Do not ask for correction authority before the remedy is supported. Use existing authority when it covers the remedy; otherwise state the correction, rationale, verification boundary, and any warranted focused follow-up, then ask once and wait. Return authorized corrections to Execute Work or the artifact owner. Never create an automatic review-fix-review loop or keep editing merely to obtain Pass.
-
-## Route And Exit From Evidence
-
-- **Continue:** evidence supports the current route inside the authority envelope.
+- **Continue:** evidence supports the current owner and authority envelope.
 - **Correct:** one clear local defect preserves accepted intent and effects.
-- **Broaden evidence:** the claim exceeds the observing boundary.
-- **Diagnose:** the cause is unclear or failure repeats.
-- **Discuss:** new options or invalid assumptions change direction.
-- **Track Work:** task memory or history must be reconciled.
-- **Revise Spec or Plan:** accepted content or ordered strategy changed.
+- **Broaden evidence:** the claim exceeds the current observer.
+- **Diagnose:** a cause is unclear or failure repeats.
+- **Discuss:** options, assumptions, or direction materially changed.
 - **Decision Gate:** a user-owned choice or source conflict blocks progress.
+- **Track Work:** durable task state must be created, reconciled, or recovered.
+- **Revise an artifact:** accepted content, strategy, decision, or handoff changed.
+- **Verify Work:** a material claim needs fresh direct evidence.
+- **Review:** selected judgment is needed after factual support.
 - **Stop or defer:** no safe worthwhile continuation remains.
 
-Preserve valid work and revise only the affected layer. A Supported Exit may answer, wait, pause, hand off, defer, stop, preserve a controlled boundary, or complete.
+Preserve unaffected decisions, artifacts, work, and evidence. New evidence changes the route only where its consequence applies.
 
-Claim completion only when fresh evidence supports the accepted outcome, every completed bounded activity has crossed its required self-review boundary with no unresolved material issue, selected reviews are resolved, task memory is accurate, required artifacts are synchronized, and no user-owned decision or source conflict remains hidden. Report the outcome, evidence, gaps, and route. Use `Next:` only when one useful recommendation remains; it does not authorize action.
+## Preserve Continuity Deliberately
+
+Track Work owns a **Working Record** for durable task memory. Decide whether durable task memory is needed before routing to Track Work. Use it when losing decisions, evidence, authority, current work, blockers, or the next useful action could cause later misalignment. Do not create task memory for a short disposable action merely because work occurred.
+
+After compaction, summarization, session navigation, or ownership transfer:
+
+1. use the current runtime state and user turn;
+2. recover the bounded current task view when one exists;
+3. re-read an owning skill whose body is absent when its exact method still matters;
+4. reopen only the accepted artifacts or exact history needed for the next decision;
+5. compare memory with live repository or environment state;
+6. re-establish authority from valid current-session sources.
+
+A summary, historical skill body, Working Record, Plan, or Handoff preserves context but does not become current authority or live source truth.
+
+## Route Reviews And Checkpoints
+
+Select a checkpoint only when it materially protects dependent work, rollback, provenance, transfer, integration, or delivery. Examples include a user decision, independent review, local commit, handoff, integration, release, or launch. Do not select one merely because work paused or a bounded activity ended.
+
+Self-review belongs to the Feedback Loop and is not a checkpoint. Use Review Work for implementation or integrated work. Use Review Artifact for a Working Record, Spec, Plan, decision record, handoff, or another durable guide.
+
+An independent reviewer reports without editing. The active agent adjudicates every material finding against source truth and evidence:
+
+- **Accept:** the problem is supported and applicable.
+- **Reject:** the item is stale, duplicate, resolved, preference-only, out of scope, or unsupported.
+- **Open:** evidence or a user decision is missing.
+
+Review methods return:
+
+- **Pass:** continue within existing authority.
+- **Non-blocking:** continue with explicit deferrals.
+- **Inconclusive:** obtain the missing evidence or decision.
+- **Blocking:** do not cross the boundary; re-enter the narrowest owner, defer, or stop.
+
+A finding, judgment, suggested remedy, or useful checkpoint does not authorize correction or continuation. Establish the problem, consequence, remedy basis, verification boundary, and authority before acting.
+
+When findings interact, assumptions are challenged, materially different remedies remain, or user input could change the approach, report a problem checkpoint and stop before selecting a remedy.
+
+A local commit, handoff, user decision, integration, push, release, or launch remains separately controlled unless the authority envelope explicitly covers it.
+
+Do not create an automatic review–fix–review loop or keep editing merely to obtain Pass. Review skills own their exact role rules, item taxonomy, evidence lenses, reviewer contracts, reports, and cycle limits.
+
+## Reach A Supported Exit
+
+A Supported Exit may answer, wait, pause, hand off, defer, stop, preserve a controlled boundary, or complete.
+
+Claim completion only when:
+
+- fresh evidence supports the accepted outcome at the required boundary;
+- every completed bounded activity crossed self-review with no unresolved material issue;
+- selected reviews and checkpoints are resolved;
+- task memory and required artifacts are accurate;
+- no material contradiction, source conflict, or user-owned decision remains hidden;
+- no separately controlled action is being implied as complete.
+
+Report the outcome, evidence, proof limits, unresolved gaps, and current route. A recommendation for a next action does not authorize it.
+
+## Stop
+
+Stop Workflow when a Supported Exit is reached or one owner can continue without an unresolved authority, ownership, checkpoint, or route question. Resume it only when feedback changes one of those boundaries.

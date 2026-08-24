@@ -86,7 +86,7 @@ Task type and direct skill calls do not silently switch mode.
 
 ## Skills And Routing
 
-Freeflow ships 25 model/contributor skills to Codex, Claude Code, and Pi. Pi also provides optional Context Virtualization and Cognitive Routing capabilities outside the shared skill surface.
+Freeflow ships 26 model/contributor skills to Codex, Claude Code, and Pi, including Action Selection. Pi also provides gated Cognitive Routing, Context Virtualization, and Conversation History capabilities outside the shared skill surface.
 
 See the [typed skill routing map](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/skill-routing.md) for every owner, sibling route, and reference dependency. See [Workflow](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/workflow.md) for the lifecycle and [Architecture](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/architecture.md) for delivery and configuration.
 
@@ -186,15 +186,11 @@ host session mode override
 
 ## Runtime Delivery
 
-When effective, host adapters deliver:
+When effective, host adapters compose static fragments from `runtime/prompts/` and expose discoverable skills/tools from the same effective-state snapshot. Runtime State is appended to every provider invocation with current mode, capability, and Cognitive Routing facts.
 
-- `capabilities/interaction-contract/interaction-contract.md` as developer context for compact turn interpretation;
-- one `skills/workflow/SKILL.md` bootstrap per context epoch while Skills are effective;
-- compact active or dormant mode state.
+Skills is the parent gate for Cognitive Routing, Context Virtualization, and Conversation History. Full Workflow, Action Selection, and capability skill bodies are discoverable rather than persistent bootstrap content. Interaction Contract is prompt-only at `runtime/prompts/interaction-contract.md`. Hooks load context only; they do not enforce policy, block tools, grant permissions, or replace repo instructions.
 
-Mode Contract and other skills remain on demand. Hooks load context only; they do not enforce policy, block tools, grant permissions, or replace repo instructions.
-
-Pi appends effective compact context before agent turns and stores Workflow as one hidden persistent session message. Codex and Claude use one packaged runtime hook: `SessionStart` restores the complete enabled context after startup, resume, clear, and compact; `UserPromptSubmit` emits only for an explicit session-mode control and stays silent on ordinary prompts. Claude uses a bounded host-process-scoped, one-shot lifecycle handoff to retain an override when `/clear` changes the host session identifier. Setup reports automatic delivery as confirmed, unavailable, or unconfirmed.
+Pi composes effective fragments before agent turns and filters historical bootstrap entries. Codex and Claude use one packaged runtime hook without injecting a full Workflow bootstrap. Setup reports automatic delivery as confirmed, unavailable, or unconfirmed.
 
 ## Commands
 
@@ -202,6 +198,7 @@ Natural language is preferred. Pi registers these canonical direct calls:
 
 ```text
 /discuss
+/action-selection
 /track-work
 /write-spec
 /review-artifact

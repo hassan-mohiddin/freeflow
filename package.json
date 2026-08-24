@@ -71,6 +71,7 @@
     "README.md",
     "assets/**",
     "capabilities/**",
+    "runtime/**",
     "command-surface.json",
     "hooks/**",
     "pi-extension/**",

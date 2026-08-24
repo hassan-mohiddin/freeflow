@@ -178,7 +178,8 @@ test("enabled Context Virtualization registers, projects, archives, restores, an
 
     assert.ok(harness.activeToolNames().includes("freeflow_context"));
     const before = await harness.handlers.get("before_agent_start")({ systemPrompt: "base" }, harness.ctx);
-    assert.match(before.systemPrompt, /Loaded Context Virtualization Skill/);
+    assert.match(before.systemPrompt, /## Context Virtualization Cue/);
+    assert.doesNotMatch(before.systemPrompt, /# Context Virtualization$/m);
 
     const contextResult = await harness.handlers.get("context")(
       { messages: [harness.entries[0].message] },
@@ -350,7 +351,8 @@ test("enabled Conversation History exposes only search and retrieve operations",
     assert.match(contextTool.description, /hidden conversation history/i);
     assert.doesNotMatch(contextTool.description, /future context projections/i);
     const before = await harness.handlers.get("before_agent_start")({ systemPrompt: "base" }, harness.ctx);
-    assert.match(before.systemPrompt, /Loaded Conversation History Skill/);
+    assert.match(before.systemPrompt, /## Conversation History Cue/);
+    assert.doesNotMatch(before.systemPrompt, /# Conversation History$/m);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

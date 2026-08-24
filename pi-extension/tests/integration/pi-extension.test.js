@@ -204,14 +204,23 @@ test("normal Pi keeps Cognitive Routing disabled while showing its configuration
       const rootText = renderText(component);
       assert.match(rootText, /Cognitive Routing/);
       assert.match(rootText, /PiFlow only/);
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      await component.waitForWrites();
+      assert.doesNotMatch(renderText(component), /Cognitive Routing\s+enabled \(3\) configured · inactive/);
       for (let index = 0; index < 5; index += 1) component.handleInput("\u001b[B");
       component.handleInput("\r");
       const cognitiveText = renderText(component);
       assert.match(cognitiveText, /Freeflow Settings · Personal overrides › Cognitive Routing/);
-      assert.match(cognitiveText, /Standard preset/);
-      assert.match(cognitiveText, /Reasoning preset/);
+      assert.match(cognitiveText, /Enabled\s+enabled \(local · inactive\)/);
+      assert.match(cognitiveText, /Standard preset\s+test\/standard · high \(local · inactive\)/);
+      assert.match(cognitiveText, /Reasoning preset\s+test\/reasoning · max \(local · inactive\)/);
       component.handleInput("\r");
-      assert.doesNotMatch(renderText(component), /Choose model/);
+      assert.match(renderText(component), /Freeflow Settings · Personal overrides › Cognitive Routing/);
+      assert.doesNotMatch(renderText(component), /Inherit repository/);
       component.handleInput("\u001b");
       return result;
     };
@@ -427,8 +436,8 @@ test("Pi exposes canonical model skills and maps published command aliases", asy
       assert.ok(match, `unexpected skill path: ${path}`);
       return match[1];
     });
-    assert.equal(skillNames.length, 25);
-    for (const skill of ["discuss", "execute-work", "track-work"]) {
+    assert.equal(skillNames.length, 26);
+    for (const skill of ["action-selection", "discuss", "execute-work", "track-work"]) {
       assert.ok(skillNames.includes(skill));
     }
     assert.ok(!skillNames.includes("output-router"));
@@ -437,6 +446,7 @@ test("Pi exposes canonical model skills and maps published command aliases", asy
     await Promise.all(resources.skillPaths.map((path) => readFile(path, "utf8")));
 
     for (const [commandName, expectedSkill] of [
+      ["action-selection", "action-selection"],
       ["discuss", "discuss"],
       ["discover", "discuss"],
       ["track-work", "track-work"],
@@ -751,13 +761,16 @@ test("Pi compact mode context distinguishes layered defaults, session state, and
     assert.ok(freeflowCommand);
 
     let result = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
-    assert.match(result.systemPrompt, /The current default and active mode are supplied by Freeflow Runtime State/);
+    assert.match(result.systemPrompt, /Use the latest extension-generated Freeflow Runtime State/);
     assert.doesNotMatch(result.systemPrompt, /Repository default mode:/);
     assert.doesNotMatch(result.systemPrompt, /Configured default mode:/);
     assert.doesNotMatch(result.systemPrompt, /Effective Freeflow mode:/);
-    assert.match(result.systemPrompt, /direct skill calls do not change mode/);
-    assert.match(result.systemPrompt, /## Strict Workflow Overlay/);
-    assert.match(result.systemPrompt, /security, privacy, billing, data loss, migrations, public interfaces/);
+    assert.match(
+      result.systemPrompt,
+      /Task type, skill selection, direct skill calls, usefulness, or new evidence does not change it/,
+    );
+    assert.doesNotMatch(result.systemPrompt, /## Strict Workflow Overlay/);
+    assert.doesNotMatch(result.systemPrompt, /security, privacy, billing, data loss, migrations, public interfaces/);
     assert.doesNotMatch(result.systemPrompt, /## Conversation Mode Boundary/);
     const providerContext = await handlers.get("context")({ messages: [] }, context(cwd));
     assert.match(providerContext.messages.at(-1).content, /Default mode: `strict-workflow`/);
@@ -768,9 +781,9 @@ test("Pi compact mode context distinguishes layered defaults, session state, and
     assert.doesNotMatch(result.systemPrompt, /Session mode override:/);
     assert.doesNotMatch(result.systemPrompt, /Resolved mode:/);
     assert.doesNotMatch(result.systemPrompt, /Effective Freeflow mode:/);
-    assert.match(result.systemPrompt, /## Conversation Mode Boundary/);
-    assert.match(result.systemPrompt, /Do not call write, edit, or mutating tools/);
-    assert.match(result.systemPrompt, /an execution skill does not override this boundary/);
+    assert.doesNotMatch(result.systemPrompt, /## Conversation Mode Boundary/);
+    assert.doesNotMatch(result.systemPrompt, /Do not call write, edit, or mutating tools/);
+    assert.doesNotMatch(result.systemPrompt, /an execution skill does not override this boundary/);
     assert.doesNotMatch(result.systemPrompt, /## Strict Workflow Overlay/);
 
     await freeflowCommand.definition.handler("mode reset", context(cwd));
@@ -813,13 +826,13 @@ test("Pi restores layered session mode on resume and preserves it through compac
 
     await sessionCompact({ reason: "manual" }, ctx);
     let result = await beforeAgentStart({ prompt: "continue", systemPrompt: "base prompt" }, ctx);
-    assert.match(result.systemPrompt, /## Conversation Mode Boundary/);
+    assert.doesNotMatch(result.systemPrompt, /## Conversation Mode Boundary/);
     assert.doesNotMatch(result.systemPrompt, /Session mode override:/);
     assert.doesNotMatch(result.systemPrompt, /Resolved mode:/);
     assert.doesNotMatch(result.systemPrompt, /Effective Freeflow mode:/);
     let providerContext = await handlers.get("context")({ messages: [] }, ctx);
     assert.match(providerContext.messages.at(-1).content, /Default mode: `strict-workflow`/);
-    assert.match(providerContext.messages.at(-1).content, /Active mode: `conversation` \(session override\)/);
+    assert.match(providerContext.messages.at(-1).content, /Active mode: `conversation`/);
 
     await writeFile(
       localPath,
@@ -943,7 +956,10 @@ test("Pi ordinary prompts and direct skill calls do not change mode state", asyn
     assert.equal(modeState.sessionMode, null);
     assert.equal(modeState.resolvedMode, "strict-workflow");
     assert.equal(modeState.effectiveMode, "strict-workflow");
-    assert.match(result.systemPrompt, /Task type, risk classification, and direct skill calls do not change mode/);
+    assert.match(
+      result.systemPrompt,
+      /Task type, skill selection, direct skill calls, usefulness, or new evidence does not change it/,
+    );
     assert.deepEqual(entries, []);
 
     await freeflowCommand.definition.handler("mode conversation", context(cwd));
@@ -961,7 +977,7 @@ test("Pi ordinary prompts and direct skill calls do not change mode state", asyn
     assert.doesNotMatch(result.systemPrompt, /Effective Freeflow mode:/);
     const providerContext = await handlers.get("context")({ messages: [] }, context(cwd));
     assert.match(providerContext.messages.at(-1).content, /Default mode: `strict-workflow`/);
-    assert.match(providerContext.messages.at(-1).content, /Active mode: `conversation` \(session override\)/);
+    assert.match(providerContext.messages.at(-1).content, /Active mode: `conversation`/);
   } finally {
     restoreModeOverride(context(cwd));
     await rm(cwd, { recursive: true, force: true });
@@ -1126,11 +1142,8 @@ test("Pi master Freeflow toggle disables skills and capabilities", async () => {
     assert.deepEqual(resources.skillPaths, []);
 
     const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, context(cwd));
-    assert.match(result.systemPrompt, /# Freeflow Disabled/);
-    assert.doesNotMatch(result.systemPrompt, /# Freeflow Interaction Contract/);
-    assert.doesNotMatch(result.systemPrompt, /# Freeflow Runtime Kernel/);
-    assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
-    assert.doesNotMatch(result.systemPrompt, /Output Router|freeflow_(search|run|batch)/i);
+    assert.equal(result.systemPrompt, "base prompt");
+    assert.equal(result.message, undefined);
 
     const routed = await handlers.get("tool_result")(
       {
@@ -1176,7 +1189,6 @@ test("Pi skills toggle suppresses workflow skills without enabling retired route
     assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Decision Gate Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Discovery-light/);
-    assert.doesNotMatch(result.systemPrompt, /Skills: disabled/);
     assert.doesNotMatch(result.systemPrompt, /Repository default mode:/);
     assert.doesNotMatch(result.systemPrompt, /Personal default override:/);
     assert.doesNotMatch(result.systemPrompt, /Configured default mode:/);
@@ -1209,9 +1221,10 @@ test("Pi interaction contract can be disabled independently while Workflow stays
       context(cwd),
     );
     assert.doesNotMatch(result.systemPrompt, /# Freeflow Interaction Contract/);
-    assert.doesNotMatch(result.systemPrompt, /# Freeflow Runtime Kernel/);
-    assert.equal(result.message.customType, "freeflow-workflow-bootstrap");
-    assert.match(result.message.content, /# Workflow/);
+    assert.equal(result.message, undefined);
+    assert.match(result.systemPrompt, /# Freeflow Stable Guidance/);
+    assert.match(result.systemPrompt, /## Shared Terms/);
+    assert.doesNotMatch(result.systemPrompt, /# Freeflow Interaction Contract/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -1242,21 +1255,15 @@ test("Pi all-disabled capability state injects only Freeflow control-plane statu
     const ctx = context(cwd);
     const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
 
-    assert.match(result.systemPrompt, /# Freeflow Control Plane/);
-    assert.match(
-      result.systemPrompt,
-      /Freeflow is enabled for this repo, but no model-facing capabilities are enabled/,
-    );
-    assert.doesNotMatch(result.systemPrompt, /Repository default mode:/);
-    assert.doesNotMatch(result.systemPrompt, /Resolved mode:/);
-    assert.doesNotMatch(result.systemPrompt, /Effective Freeflow mode:/);
-    assert.doesNotMatch(result.systemPrompt, /# Freeflow Runtime Context/);
+    assert.match(result.systemPrompt, /# Freeflow Stable Guidance/);
+    assert.match(result.systemPrompt, /## Mode/);
+    assert.doesNotMatch(result.systemPrompt, /## Shared Terms/);
+    assert.doesNotMatch(result.systemPrompt, /# Freeflow Interaction Contract/);
     const providerContext = await handlers.get("context")({ messages: [] }, ctx);
     assert.match(providerContext.messages.at(-1).content, /Default mode: `workflow`/);
     assert.match(providerContext.messages.at(-1).content, /Active mode: `inactive`/);
     assert.match(providerContext.messages.at(-1).content, /Interaction Contract: inactive/);
     assert.match(providerContext.messages.at(-1).content, /Skills: inactive/);
-    assert.doesNotMatch(result.systemPrompt, /# Freeflow Interaction Contract/);
     assert.doesNotMatch(result.systemPrompt, /# Freeflow Runtime Kernel/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Mode Contract Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
@@ -1717,6 +1724,7 @@ test("Pi /freeflow settings marks default mode dormant when Skills are disabled"
       });
       const rootText = renderText(component);
       assert.match(rootText, /Skills\s+disabled \(repository\)/);
+      assert.match(rootText, /Cognitive Routing\s+disabled \(3\) disabled · inactive/);
       assert.match(rootText, /Session mode\s+default \(workflow · repository · inactive\)/);
       assert.match(rootText, /Default mode\s+workflow \(repository · inactive\)/);
 
@@ -1788,7 +1796,7 @@ test("Pi /freeflow settings toggles the interaction contract independently", asy
       context(cwd),
     );
     assert.doesNotMatch(runtime.systemPrompt, /# Freeflow Interaction Contract/);
-    assert.equal(runtime.message.customType, "freeflow-workflow-bootstrap");
+    assert.equal(runtime.message, undefined);
     const enableCtx = context(cwd);
     enableCtx.ui.custom = async (factory) => {
       let result;
@@ -2397,15 +2405,18 @@ test("Pi before_agent_start keeps the per-turn system context to the compact int
 
     const result = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
 
+    assert.match(result.systemPrompt, /# Freeflow Stable Guidance/);
     assert.match(result.systemPrompt, /# Freeflow Interaction Contract/);
+    assert.match(result.systemPrompt, /## Shared Terms/);
+    assert.match(result.systemPrompt, /## Workflow Cue/);
     assert.doesNotMatch(result.systemPrompt, /# Freeflow Runtime Kernel/);
-    assert.match(result.systemPrompt, /Runtime delivery: confirmed for this Pi `before_agent_start` invocation/);
     assert.doesNotMatch(result.systemPrompt, /## Conversation Mode Boundary/);
     assert.doesNotMatch(result.systemPrompt, /## Strict Workflow Overlay/);
     assert.match(result.systemPrompt, /Treat questions, criticism, examples, hypotheses, and tentative ideas as/);
     assert.match(result.systemPrompt, /When a turn mixes a direct question with a request or approval to/);
     assert.match(result.systemPrompt, /With a clear action request, recommend brief discussion/);
-    assert.doesNotMatch(result.systemPrompt, /self-review|final assurance|standing authorization/i);
+    assert.match(result.systemPrompt, /self-review/);
+    assert.doesNotMatch(result.systemPrompt, /final assurance|standing authorization/i);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Mode Contract Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Decision Gate Skill/);
@@ -2415,58 +2426,22 @@ test("Pi before_agent_start keeps the per-turn system context to the compact int
   }
 });
 
-test("Pi loads the full Workflow skill as one persistent first-turn message", async () => {
-  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-workflow-bootstrap-"));
+test("Pi exposes Workflow through discovery rather than a persistent bootstrap", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-workflow-discovery-"));
   try {
-    const workflowSource = await readFile(new URL("../../../skills/workflow/SKILL.md", import.meta.url), "utf8");
-    const workflowLines = workflowSource.split(/\r?\n/);
-    const workflowOwnerLine = workflowLines.find((line) => line.startsWith("The active agent owns "));
-    const workflowSelfReviewLine = workflowLines.find((line) => line.startsWith("Self-review is required "));
-    assert.ok(workflowOwnerLine, "canonical Workflow owner sentinel missing");
-    assert.ok(workflowSelfReviewLine, "canonical Workflow self-review sentinel missing");
-
     await mkdir(join(cwd, ".freeflow"));
-    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }, null, 2), "utf8");
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }), "utf8");
 
     const { handlers } = loadExtension();
-    const beforeAgentStart = handlers.get("before_agent_start");
-    assert.ok(beforeAgentStart);
+    const ctx = context(cwd);
+    const resources = await handlers.get("resources_discover")({ cwd }, ctx);
+    assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/workflow/SKILL.md")));
 
-    const sessionEntries = [];
-    const ctx = context(cwd, sessionEntries);
-    const first = await beforeAgentStart({ prompt: "hi", systemPrompt: "base prompt" }, ctx);
-
-    assert.equal(first.message.customType, "freeflow-workflow-bootstrap");
-    assert.equal(first.message.display, false);
-    assert.match(first.message.content, /^# Freeflow Workflow Bootstrap/);
-    assert.match(first.message.content, /# Workflow/);
-    assert.ok(first.message.content.includes(workflowOwnerLine));
-    assert.ok(first.message.content.includes(workflowSelfReviewLine));
-    assert.match(first.message.content, /evidence/i);
-    assert.doesNotMatch(first.systemPrompt, /# Freeflow Workflow Bootstrap/);
-
-    sessionEntries.push({
-      type: "custom_message",
-      id: "workflow-bootstrap-entry",
-      parentId: null,
-      timestamp: new Date().toISOString(),
-      customType: first.message.customType,
-      content: first.message.content,
-      display: first.message.display,
-      details: first.message.details,
-    });
-    const later = await beforeAgentStart({ prompt: "implement the feature", systemPrompt: "base prompt" }, ctx);
-
-    assert.equal(later.message, undefined);
-    assert.match(later.systemPrompt, /# Freeflow Interaction Contract/);
-    assert.doesNotMatch(later.systemPrompt, /# Freeflow Runtime Kernel/);
-
-    const compactedContext = context(cwd, sessionEntries, []);
-    const afterCompaction = await beforeAgentStart(
-      { prompt: "continue", systemPrompt: "base prompt" },
-      compactedContext,
-    );
-    assert.equal(afterCompaction.message.customType, "freeflow-workflow-bootstrap");
+    const result = await handlers.get("before_agent_start")({ prompt: "hi", systemPrompt: "base prompt" }, ctx);
+    assert.equal(result.message, undefined);
+    assert.match(result.systemPrompt, /## Workflow Cue/);
+    assert.doesNotMatch(result.systemPrompt, /^# Workflow$/m);
+    assert.doesNotMatch(result.systemPrompt, /freeflow-workflow-bootstrap|Freeflow Workflow Bootstrap/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -2511,7 +2486,7 @@ test("Pi suppresses persisted Workflow context while Skills are disabled", async
     assert.ok(enabled);
     assert.deepEqual(
       enabled.messages.filter((message) => message.customType !== "freeflow-runtime-state"),
-      [workflowMessage, userMessage],
+      [userMessage],
     );
     assert.equal(enabled.messages.at(-1).customType, "freeflow-runtime-state");
   } finally {
@@ -2556,7 +2531,11 @@ test("Pi before_agent_start injects the Freeflow interaction contract on every t
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-core-context-"));
   try {
     await mkdir(join(cwd, ".freeflow"));
-    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }, null, 2), "utf8");
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({ defaultMode: "workflow", contextVirtualization: true, conversationHistory: true }, null, 2),
+      "utf8",
+    );
 
     const { handlers } = loadExtension();
     const beforeAgentStart = handlers.get("before_agent_start");
@@ -2566,7 +2545,10 @@ test("Pi before_agent_start injects the Freeflow interaction contract on every t
     const second = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
 
     for (const result of [first, second]) {
-      assert.match(result.systemPrompt, /# Freeflow Runtime Context/);
+      assert.match(result.systemPrompt, /# Freeflow Stable Guidance/);
+      assert.match(result.systemPrompt, /## Shared Terms/);
+      assert.match(result.systemPrompt, /## Context Virtualization Cue/);
+      assert.match(result.systemPrompt, /## Conversation History Cue/);
       assert.match(result.systemPrompt, /# Freeflow Interaction Contract/);
       assert.doesNotMatch(result.systemPrompt, /# Freeflow Runtime Kernel/);
       assert.match(result.systemPrompt, /Treat questions, criticism, examples, hypotheses, and tentative ideas as/);
@@ -2607,19 +2589,17 @@ test("Pi separates stable Freeflow guidance from volatile provider runtime state
     const ctx = context(cwd);
     const before = await beforeAgentStart({ systemPrompt: "base prompt" }, ctx);
 
-    assert.match(before.systemPrompt, /## Freeflow Mode Semantics/);
-    assert.match(before.systemPrompt, /The current default and active mode are supplied by Freeflow Runtime State/);
-    assert.match(before.systemPrompt, /## Freeflow Capabilities/);
-    assert.match(before.systemPrompt, /## Loaded Context Virtualization Skill/);
-    assert.match(before.systemPrompt, /## Loaded Conversation History Skill/);
+    assert.match(before.systemPrompt, /## Mode/);
+    assert.match(before.systemPrompt, /Use the latest extension-generated Freeflow Runtime State/);
+    assert.match(before.systemPrompt, /## Context Virtualization Cue/);
+    assert.match(before.systemPrompt, /## Conversation History Cue/);
     assert.doesNotMatch(before.systemPrompt, /# Automatic Routing Kernel/);
     assert.doesNotMatch(before.systemPrompt, /Repository default mode:/);
     assert.doesNotMatch(before.systemPrompt, /Configured default mode:/);
     assert.doesNotMatch(before.systemPrompt, /Effective Freeflow mode:/);
     assert.doesNotMatch(before.systemPrompt, /- Interaction contract: enabled/);
 
-    assert.match(before.message.content, /# Freeflow Workflow Bootstrap/);
-    assert.doesNotMatch(before.message.content, /^---/m);
+    assert.equal(before.message, undefined);
 
     const firstContext = await contextHandler({ messages: [] }, ctx);
     assert.equal(firstContext.messages.length, 1);

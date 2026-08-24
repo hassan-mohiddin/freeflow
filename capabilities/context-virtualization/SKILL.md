@@ -1,10 +1,15 @@
+---
+name: "context-virtualization"
+description: "Use after broad or noisy tool evidence has been safely narrowed or exhausted, or when an activity boundary leaves raw results that no longer need to remain active."
+---
+
 # Context Virtualization
 
 Keep the active tool-evidence working set focused without removing evidence current work still needs. Context Virtualization changes future model projection, not canonical session history.
 
 This skill begins after a tool result has been consumed. It owns that result's continued residency, not tool selection, task state, authority, or source truth.
 
-When enabled, each resolvable tool result receives a current-session `ctx:<entryId>` reference and begins **Full**.
+Each resolvable tool result receives a current-session `ctx:<entryId>` reference and begins **Full**.
 
 ## Protect Current Work
 
@@ -95,4 +100,4 @@ Use `restore` when an archived result must rejoin ongoing work and its marker re
 freeflow_context({ operation: "restore", refs: ["ctx:<entryId>"] })
 ```
 
-Restore reverses projection; it does not retrieve content removed by compaction. When Conversation History is enabled, use its search and retrieve guidance for hidden historical sources. Never reconstruct exact evidence from retained meaning.
+Restore reverses projection; it does not retrieve content removed by compaction. When Conversation History is available, use its search and retrieve guidance for hidden historical sources. Never reconstruct exact evidence from retained meaning.

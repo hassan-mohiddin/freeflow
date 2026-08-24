@@ -1,6 +1,6 @@
 # Release Evidence
 
-Freeflow v0.5.0 is based on fresh deterministic Pi-extension, Skill Author, and Skill Eval suites; targeted local baseline/candidate evaluation of the revised authoring and evaluation packages; and the historical acceptance evidence identified below. Retired Output Router evidence is documentary and preserved under `.deprecated/output-router/`. Runtime and configuration checks cover the current Interaction Lifecycle, layered configuration, Interaction Contract, and Workflow bootstrap. Evidence remains case-, host-, model-, and configuration-specific and does not establish universal skill readiness.
+Freeflow v0.5.0 is based on fresh deterministic Pi-extension, Skill Author, and Skill Eval suites; targeted local baseline/candidate evaluation of the revised authoring and evaluation packages; and the historical acceptance evidence identified below. Retired Output Router evidence is documentary and preserved under `.deprecated/output-router/`. Runtime and configuration checks cover the current Interaction Lifecycle, layered configuration, prompt-fragment assembly, discoverable skills/tools, Runtime State, and historical-bootstrap filtering. Evidence remains case-, host-, model-, and configuration-specific and does not establish universal skill readiness.
 
 The exact-commit Freeflow development snapshot is an integration input, not release evidence. It must not be treated as a published version, production source, or proof of a clean GitHub installation.
 
@@ -36,7 +36,7 @@ Tracked deterministic tests establish these mechanics. Targeted live Pi runs inf
 The development registry covers:
 
 - 4 mode commands.
-- 19 direct skill calls: 17 canonical commands plus 2 published Pi compatibility aliases.
+- 20 direct skill calls: 18 canonical commands plus 2 published Pi compatibility aliases.
 - 3 developer skill calls.
 - 2 Pi native settings commands.
 
@@ -44,9 +44,11 @@ Freeflow uses host-native skill invocation instead of duplicate manifest command
 
 ## Runtime Context
 
-Freeflow ships one shared runtime hook that stays inert until `.freeflow/config.json` is valid and any `.freeflow/local.json` core layer is missing or valid. At `SessionStart`, it loads the Interaction Contract when effective, the full Workflow skill once per context epoch while Skills are effective, and precise configured/resolved/effective mode state after supported startup, resume, clear, and compact boundaries. At `UserPromptSubmit`, it changes plugin-owned session mode only for explicit native or conservative natural-language controls and otherwise emits nothing. The Pi extension appends effective compact context before every agent turn, stores Workflow as one hidden persistent custom message, and independently loads enabled active Pi capabilities. An effective top-level disabled state suppresses Freeflow context and capabilities; an effective Skills-disabled state suppresses Workflow and mode effectiveness while the Interaction Contract remains independently controlled. Session overrides sit above configured mode values but cannot bypass missing or invalid repository activation. Mode Contract, Decision Gate, and other workflow skills remain on demand. These hooks do not run after edit/write tools, enforce behavior, block tools, or create repo-local hook files.
+Freeflow ships one shared runtime hook that stays inert until `.freeflow/config.json` is valid and any `.freeflow/local.json` core layer is missing or valid. At `SessionStart`, it loads the applicable static fragments from `runtime/prompts/` and current mode/runtime state after supported startup, resume, clear, and compact boundaries; it does not inject a full Workflow bootstrap. At `UserPromptSubmit`, it changes plugin-owned session mode only for explicit native or conservative natural-language controls and otherwise emits nothing. Codex and Claude exclude Pi-only capability delivery. The hook preserves host context, does not enforce behavior, block tools, or create repo-local hook files, and reports automatic delivery separately from same-turn direct reads.
 
-For the same session that runs setup, `setup-freeflow` reads newly effective Interaction Contract, Workflow, and Mode Contract following successful verification. It reports those direct reads separately from automatic lifecycle delivery.
+The Pi extension composes prompt fragments, Runtime State, discoverable skills, and capability tools from one effective-state snapshot. Normal skills are exposed when Skills is effective; Cognitive Routing, Context Virtualization, and Conversation History require Skills plus their own effective gates. Full Workflow and capability bodies remain discoverable rather than persistent bootstrap content. Missing optional fragments or capabilities are reported unavailable and omitted without replacing the host's base prompt or ordinary operation.
+
+For the same session that runs setup, `setup-freeflow` reads newly effective prompt fragments and discoverable skills following successful verification. It reports those direct reads separately from automatic lifecycle delivery.
 
 Host trust prompts for plugin hooks are expected host behavior. Setup reports runtime delivery as confirmed, unavailable, or unconfirmed. `STP-012` registers the untrusted-hook pressure case but remains Unverified. Local metadata validation checks hook packaging and deterministic output, not end-to-end host trust UI.
 

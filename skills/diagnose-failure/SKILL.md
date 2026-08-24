@@ -56,6 +56,8 @@ Start by inspecting the report, existing code, tests, logs, configuration, and a
 5. trace the causal chain from trigger and state to the observed result;
 6. preserve evidence that contradicts the leading hypothesis.
 
+Diagnosis owns the hypothesis and distinguishing question. When several observers or tools can test that same question, or the likely diagnostic loop is broad, use [Action Selection](../action-selection/SKILL.md) to choose and bound one environment interaction. It returns the observation without redefining the hypothesis or cause. Skip it when the diagnostic loop and observer are already exact.
+
 Prefer the reported path, input, environment, and observer. A nearby failure may suggest a hypothesis but does not prove the reported failure. Reduced-fidelity reproduction is diagnostic evidence only; name what it cannot establish.
 
 Allowed behavior is not a reproduction. A cache hit does not prove a stale-read bug when caching is permitted. A possible race in source does not explain a report until timing, traces, steps, logs, or an existing expectation connect it.

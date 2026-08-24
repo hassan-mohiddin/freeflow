@@ -35,6 +35,10 @@
       "skill": "discuss"
     },
     {
+      "command": "/action-selection",
+      "skill": "action-selection"
+    },
+    {
       "command": "/discover",
       "skill": "discuss",
       "aliasFor": "/discuss",

@@ -38,7 +38,7 @@ host session mode override -> personal override -> repository value -> built-in 
 
 Pi session overrides can temporarily change Freeflow master enablement, Interaction Contract, Skills, and mode in branch-aware Pi session JSONL. Claude and Codex support mode-only session overrides in plugin-owned data keyed by the host session ID. No session override mutates config files or bypasses missing or invalid repository activation. An invalid existing local core layer fails closed instead of silently inheriting repository values.
 
-The Interaction Contract, Skills, and top-level Freeflow switch resolve independently. A mode remains resolved but dormant while Skills are ineffective. Pi owns separately gated Context Virtualization and Cognitive Routing capability state.
+The Interaction Contract may resolve independently. Skills is the parent gate for the Pi-only Cognitive Routing, Context Virtualization, and Conversation History capabilities; their settings are unavailable while Skills is ineffective. A mode remains resolved but dormant while Skills are ineffective. Effective-state resolution enforces this relationship independently of the settings UI.
 
 Do not store task state, active slices, Plans, current session overrides, file inventories, or generated workflow instructions in config.
 
@@ -56,20 +56,19 @@ Setup does not generate Freeflow blocks in `AGENTS.md`, `CLAUDE.md`, `.claude/ru
 
 ## Model-Facing Runtime Layers
 
-Freeflow delivers two guidance layers:
+Freeflow separates model-facing delivery into three layers:
 
-1. `capabilities/interaction-contract/interaction-contract.md` owns compact turn interpretation when the Interaction Contract switch is effective.
-2. `skills/workflow/SKILL.md` owns the Interaction Lifecycle, Feedback Loop, routing, review, task continuity, and Supported Exits while Skills are effective.
+1. **Stable prompt fragments:** `runtime/prompts/` owns core guidance, mode semantics, Interaction Contract, shared terminology, the three nested loops, Workflow and Action Selection cues, Supported Exit, and compact child-capability cues.
+2. **Runtime State:** an extension-generated message is appended to every provider invocation with current default/active mode, effective capability statuses, and Cognitive Routing Control/Profile. It is present even when Freeflow is disabled or unconfigured and is not system-prompt policy.
+3. **Discoverable skills:** normal skills under `skills/` are exposed when Skills is effective; child capability skills under `capabilities/` are exposed only when Skills and the child capability are effective.
 
-Hosts also provide compact active or dormant mode state. Mode Contract and other workflow skills remain on demand. Pi loads optional capability guidance only while the corresponding capability is effective.
-
-The Interaction Contract is the only compact interaction-guidance artifact. Runtime adapters load context; they do not enforce policy, block tools, grant permissions, or replace repository instructions.
+Interaction Contract is prompt-only and not discoverable. Full Workflow (`skills/workflow/SKILL.md`), Action Selection, Cognitive Routing, Context Virtualization, and Conversation History bodies are discoverable methods, not always-injected system context. Runtime adapters load and gate content; they do not enforce policy, block tools, grant permissions, or replace repository instructions.
 
 ## Host Lifecycle
 
 ### Codex And Claude
 
-The packaged runtime hook uses event-specific outputs over one shared state resolver. `SessionStart` reads repository, personal, and host session mode state at startup, resume, clear, and compact boundaries; when effective, it delivers the Interaction Contract, Workflow bootstrap, and precise configured/resolved/effective mode state before the next model request. `UserPromptSubmit` handles only explicit native or conservative natural-language session-mode controls, updates plugin-owned state before that same request, and emits a compact mode delta. On Claude, synchronous `SessionEnd(reason="clear")` stages the active override as a host-process-and-workspace-scoped, one-shot handoff for the immediately following `SessionStart(source="clear")`; the handoff expires after one minute, is atomically claimed, and is discarded when invalid or stale. Codex currently reports only `SessionEnd(reason="other")`, so it continues to restore clear state by the host session identifier. Ordinary prompts emit nothing.
+The packaged runtime hook uses event-specific outputs over one shared state resolver. It reads static fragments from `runtime/prompts/`, delivering core, Interaction Contract, and Skills fragments when their effective gates apply; it no longer injects a full Workflow bootstrap. `UserPromptSubmit` handles only explicit native or conservative natural-language session-mode controls, updates plugin-owned state before that same request, and emits a compact mode delta. On Claude, synchronous `SessionEnd(reason="clear")` stages the active override as a host-process-and-workspace-scoped, one-shot handoff for the immediately following `SessionStart(source="clear")`; the handoff expires after one minute, is atomically claimed, and is discarded when invalid or stale. Codex currently reports only `SessionEnd(reason="other")`, so it continues to restore clear state by the host session identifier. Ordinary prompts emit nothing.
 
 The hook remains inert without valid repository activation, fails closed on invalid personal core state, preserves the host's existing context, and never inspects, reports, or injects Pi-only capabilities. Session state survives lifecycle restoration, is isolated by hashed host/session identity, and expires through bounded cleanup rather than repository files.
 
@@ -77,13 +76,12 @@ The hook remains inert without valid repository activation, fails closed on inva
 
 The Pi extension reads both config layers before agent turns. It:
 
-- appends stable runtime guidance and the Interaction Contract during `before_agent_start`;
-- supplies one unified volatile `Freeflow Runtime State` message before each provider request with the current default/active mode, effective capabilities, and Cognitive Routing `Control`/`Profile`;
-- stores Workflow and Cognitive Routing guidance as hidden persistent custom messages while effective, with skill frontmatter removed from model-facing bootstrap content;
-- restores temporary mode from Pi session entries;
-- refreshes state at session start and compaction;
-- dynamically exposes 25 model/contributor skills;
-- loads optional Context Virtualization and Cognitive Routing context and tools only when effective.
+- composes capability-gated static fragments from `runtime/prompts/` during `before_agent_start`;
+- appends one unified volatile `Freeflow Runtime State` message before every provider request with the current default/active mode, effective capabilities, and Cognitive Routing `Control`/`Profile`;
+- exposes normal `skills/` packages when Skills is effective and child capability `SKILL.md` packages only when their parent and child gates are effective;
+- exposes capability tool operations from the same effective-state snapshot;
+- filters historical one-time bootstrap entries without creating new ones;
+- restores temporary mode from Pi session entries and refreshes state at session start and compaction.
 
 `/freeflow settings` edits personal core overrides. `/freeflow settings session` manages branch-aware Pi session overrides for Freeflow, Interaction Contract, Skills, and mode without changing config files. `/freeflow settings repo` edits shared repository settings. `/freeflow mode` remains the direct temporary mode control.
 
@@ -91,7 +89,7 @@ The Pi extension reads both config layers before agent turns. It:
 
 A config written during setup is visible to later runtime lifecycle calls, not retroactively to an adapter invocation that already occurred.
 
-After successful setup verification, Setup reads newly effective Interaction Contract, Workflow, Mode Contract, and explicitly configured capability guidance directly for the remainder of the setup turn. It reports those direct reads separately from automatic delivery and names any required reload, resume, clear, compact, or next-turn boundary.
+After successful setup verification, Setup reads newly effective prompt fragments and discoverable skills directly for the remainder of the setup turn. It reports those direct reads separately from automatic delivery and names any required reload, resume, clear, compact, or next-turn boundary.
 
 ## Interaction Lifecycle
 
@@ -105,13 +103,14 @@ One user turn or new evidence begins an Interaction Lifecycle:
             later user turn or evidence
 ```
 
-At Entry, Workflow establishes the current authority envelope from the whole user turn and any still-valid prior approval. Entry may route directly to an answer, wait, deferment, or stop. When work is needed, Workflow selects the narrowest owning skill without widening that envelope.
+At Entry, the Interaction Contract interprets the whole user turn and Workflow establishes the current authority envelope from it and any still-valid prior approval. Entry may route directly to an answer, wait, deferment, or stop. When work is needed, Workflow selects the narrowest owning skill without widening that envelope.
 
 The Feedback Loop applies to every bounded activity, including a whole task, slice, subtask, artifact revision, or small local change:
 
 ```text
 orient to accepted intent, task memory, and live evidence
 -> use the owning skill
+-> when an environment action branches, use Action Selection
 -> implement, discuss, test, or observe
 -> verify what the evidence proves
 -> once initially supported, self-review the resulting state
@@ -173,7 +172,7 @@ Completion requires fresh active-agent verification, the required self-review fo
 
 ## Current Package Shape
 
-The cross-host model surface contains 25 active model/contributor skill packages. Pi separately provides Context Virtualization and Cognitive Routing under `capabilities/` as optional gated capabilities outside host skill discovery. Retired Output Router material is preserved under `.deprecated/output-router/`.
+The cross-host model surface contains 26 active model/contributor skill packages, including Action Selection. Pi separately provides Cognitive Routing, Context Virtualization, and Conversation History under `capabilities/` as Skills-gated capabilities outside the cross-host skill registry. Static prompt fragments live under `runtime/prompts/`. Retired Output Router material is preserved under `.deprecated/output-router/`.
 
 Retired Delegation Harness implementation and evidence remain under `.deprecated/delegation-harness/` and are not part of runtime delivery.
 

@@ -60,6 +60,7 @@ freeflow/
   .skill-eval/
   .deprecated/
   hooks/
+  runtime/prompts/
   capabilities/
   pi-extension/
   skills/
@@ -74,7 +75,7 @@ Use `.codex-plugin/plugin.json` as the Codex manifest:
 - `name`: `freeflow`
 - `version`: `0.1.0`
 - `license`: `MIT`
-- `skills`: `./skills/` (the 25 cross-host model/contributor skills only)
+- `skills`: `./skills/` (the 26 cross-host model/contributor skills only)
 - `hooks`: `./hooks/hooks.json`
 - `interface.displayName`: `Freeflow`
 - `interface.shortDescription`: `Feedback-based control for coding agents.`
@@ -99,7 +100,7 @@ The root `package.json` exposes the repo as a Pi package:
 - `pi.skills`: `[]` (skill exposure is dynamic)
 - `pi.extensions`: `pi-extension/freeflow/index.js`
 
-The Pi extension registers direct Freeflow commands, keeps `/freeflow mode` changes session-scoped, separates temporary Session mode from configured defaults, and exposes model skills dynamically after setup. It reads required `.freeflow/config.json` plus optional per-checkout `.freeflow/local.json`, appends effective compact state and the Interaction Contract before agent turns, and loads Workflow once as a hidden persistent message while Skills are effective. Top-level `enabled: false` suppresses Freeflow context and capabilities. The extension does not enforce policy, grant permissions, or create repo-local hooks.
+The Pi extension registers direct Freeflow commands, keeps `/freeflow mode` changes session-scoped, separates temporary Session mode from configured defaults, and exposes normal and effective capability skills dynamically after setup. It reads required `.freeflow/config.json` plus optional per-checkout `.freeflow/local.json`, composes static fragments from `runtime/prompts/`, and appends Runtime State to every provider request. It does not inject full Workflow or capability bodies as persistent messages. Top-level `enabled: false` suppresses Freeflow prompt blocks, skills, and capabilities while Runtime State remains explicit. The extension does not enforce policy, grant permissions, or create repo-local hooks.
 
 For local Pi/PiFlow development, Freeflow may provide an exact-commit snapshot built with `git archive` and `npm pack --ignore-scripts`. The snapshot is development-only, does not establish version precedence, and does not replace production npm/Git sources. PiFlow owns host launch, import, update, and upstream synchronization; Freeflow owns policy and snapshot production.
 
@@ -119,7 +120,7 @@ Keep the explanation concise and evidence-backed. Avoid broad competitive claims
 
 ## Release Boundary
 
-The active cross-host plugin runtime ships this 25-skill model/contributor set:
+The active cross-host plugin runtime ships this 26-skill model/contributor set, including `action-selection`:
 
 - `workflow`
 - `mode-contract`

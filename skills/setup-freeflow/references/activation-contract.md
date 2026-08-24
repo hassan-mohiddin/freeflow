@@ -80,11 +80,11 @@ Configuration does not prove runtime delivery.
 
 When effective, host adapters may deliver:
 
-- `capabilities/interaction-contract/interaction-contract.md` when the Interaction Contract switch is enabled;
+- `runtime/prompts/interaction-contract.md` when the Interaction Contract switch is enabled;
 - one full `skills/workflow/SKILL.md` bootstrap when Skills are enabled;
 - compact active or dormant mode state.
 
-Pi may additionally deliver explicitly enabled Pi capability context through its extension. Codex and Claude `SessionStart` hooks deliver only the core Interaction Contract, Workflow bootstrap, and mode state; their `UserPromptSubmit` hook delivers only an explicit session-mode change or failure delta.
+Pi may additionally expose explicitly enabled Pi capability skills and tools through its extension. Codex and Claude `SessionStart` hooks compose static fragments from `runtime/prompts/` and mode state; their `UserPromptSubmit` hook delivers only an explicit session-mode change or failure delta.
 
 The full Mode Contract and other workflow skills remain on demand. Adapters load context only; they do not enforce policy, block tools, grant permissions, or replace repo instructions.
 

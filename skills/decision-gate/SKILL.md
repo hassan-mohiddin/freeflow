@@ -7,7 +7,7 @@ description: Use when proceeding would silently choose for the user, conflict wi
 
 Stop before making a decision that belongs to the user or quietly changing the agreed path.
 
-The [Interaction Contract](../../capabilities/interaction-contract/interaction-contract.md) governs whether the user is asking, proposing, reasoning, or authorizing action. Decision Gate begins only after one blocking choice or conflict is clear. When the problem or alternatives still need broader exploration, read [Discuss](../discuss/SKILL.md) instead.
+The [Interaction Contract](../../runtime/prompts/interaction-contract.md) governs whether the user is asking, proposing, reasoning, or authorizing action. Decision Gate begins only after one blocking choice or conflict is clear. When the problem or alternatives still need broader exploration, read [Discuss](../discuss/SKILL.md) instead.
 
 ## Stop Here
 

@@ -30,6 +30,8 @@ Understand:
 
 Inspect the work and source truth directly, not only the author's summary, reasoning, or claimed result. Before reviewing work that changes trust boundaries, authentication, authorization, permissions, untrusted input, secrets, sensitive data, security-relevant dependencies or external integrations, code-execution boundaries, or failure behavior with security consequences, read the [Security Risk Lens](references/security-risk-lens.md).
 
+Review Work owns the review boundary, lenses, and judgment. When source inspection branches among several plausible observers or is likely to be broad, use [Action Selection](../action-selection/SKILL.md) to choose and bound one environment interaction. It returns evidence to the same review role. Skip it for an obvious diff, file, or source-truth read.
+
 ## Review Proportionately
 
 Apply only lenses that can materially change the result:

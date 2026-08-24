@@ -68,6 +68,7 @@ type SettingsItem = {
   valueLabels?: Record<string, string>;
   valueDescriptions?: Record<string, string>;
   inactive?: boolean;
+  runtimeInactive?: boolean;
   displaySuffix?: string;
   children?: SettingsItem[];
   wizard?: () => SettingsWizard;
@@ -542,8 +543,8 @@ function sessionFreeflowItems(
   const skillsEnabled = state.skills.enabled;
   interactionItem.inactive = freeflowInactive;
   skillsItem.inactive = freeflowInactive;
-  contextVirtualizationItem.inactive = freeflowInactive;
-  conversationHistoryItem.inactive = freeflowInactive;
+  contextVirtualizationItem.inactive = freeflowInactive || !skillsEnabled;
+  conversationHistoryItem.inactive = freeflowInactive || !skillsEnabled;
 
   const sessionMode = modeState.currentMode ?? "default";
   const sessionModeItem: SettingsItem = {
@@ -598,6 +599,7 @@ function sessionFreeflowItems(
           reasoning: "Hold the reasoning profile until /freeflow profile auto.",
         },
         inactive: !state.cognitiveRouting.effective || cognitiveRoutingController === undefined,
+        runtimeInactive: state.cognitiveRouting.blockingReason?.code === "runtime_disabled",
         displaySuffix: cognitiveRoutingState?.effective ? cognitiveRoutingProfile : "unavailable",
       }
     : undefined;
@@ -926,7 +928,7 @@ function freeflowItems(
     localConfig,
     id: "freeflow.skills.enabled",
     label: "Skills",
-    description: "Expose Freeflow skills and load Workflow once on the first turn.",
+    description: "Expose Freeflow skills and discover Workflow before consequential or mutating work.",
     path: ["skills", "enabled"],
     effectiveValue: core.skills.enabled,
     effectiveSource: sources.skillsEnabled,
@@ -974,8 +976,8 @@ function freeflowItems(
   const skillsEnabled = core.skills.enabled;
   interactionItem.inactive = freeflowInactive;
   skillsItem.inactive = freeflowInactive;
-  contextVirtualizationItem.inactive = freeflowInactive;
-  conversationHistoryItem.inactive = freeflowInactive;
+  contextVirtualizationItem.inactive = freeflowInactive || !skillsEnabled;
+  conversationHistoryItem.inactive = freeflowInactive || !skillsEnabled;
   defaultModeItem.inactive = freeflowInactive;
   defaultModeItem.displaySuffix = coreDisplaySuffix(defaultModeItem, freeflowInactive || !skillsEnabled);
   const sessionMode = modeState?.currentMode ?? "default";
@@ -1021,7 +1023,8 @@ function freeflowItems(
       effectiveSource: cognitiveRoutingSettingsSource(cognitiveRoutingState?.enabledSource),
       defaultValue: false,
     });
-    cognitiveRoutingEnabledItem.inactive = freeflowInactive || cognitiveRoutingRuntimeDisabled;
+    cognitiveRoutingEnabledItem.inactive = freeflowInactive || !skillsEnabled || cognitiveRoutingRuntimeDisabled;
+    cognitiveRoutingEnabledItem.runtimeInactive = cognitiveRoutingRuntimeDisabled;
 
     const cognitiveRoutingProfiles = ["standard", "reasoning"].map((name) =>
       cognitiveRoutingProfileItem({
@@ -1034,7 +1037,8 @@ function freeflowItems(
       }),
     );
     for (const item of cognitiveRoutingProfiles) {
-      item.inactive ||= freeflowInactive || cognitiveRoutingRuntimeDisabled;
+      item.inactive ||= freeflowInactive || !skillsEnabled || cognitiveRoutingRuntimeDisabled;
+      item.runtimeInactive = cognitiveRoutingRuntimeDisabled;
     }
     const cognitiveRoutingStatus = cognitiveRoutingRuntimeDisabled
       ? "disabled · PiFlow only"
@@ -1053,7 +1057,7 @@ function freeflowItems(
         : "Configure the automatic standard/reasoning profiles and choose whether Freeflow may manage model state for this repository.",
       kind: "group" as const,
       value: cognitiveRoutingRuntimeDisabled ? false : (cognitiveRoutingState?.enabled ?? false),
-      inactive: freeflowInactive,
+      inactive: freeflowInactive || !skillsEnabled,
       displaySuffix: cognitiveRoutingStatus,
       children: [cognitiveRoutingEnabledItem, ...cognitiveRoutingProfiles],
     } satisfies SettingsItem;
@@ -1254,21 +1258,37 @@ function refreshSettingsDerivedState(items: SettingsItem[]) {
           : "configured"
         : "not configured"
       : "disabled";
-    cognitiveRoutingGroup.inactive = freeflowInactive;
+    cognitiveRoutingGroup.inactive = freeflowInactive || !skillsEnabled;
   }
 
   walkSettingsItems(items, (candidate) => {
     if (candidate.id === "freeflow.session.reset") {
       candidate.inactive = false;
     } else if (candidate.configScope) {
-      const inactive = candidate.id === "freeflow.enabled" ? false : freeflowInactive;
+      const inactive =
+        candidate.id === "freeflow.enabled"
+          ? false
+          : candidate.runtimeInactive === true ||
+            freeflowInactive ||
+            (!skillsEnabled &&
+              [
+                "freeflow.cognitiveRouting",
+                "freeflow.cognitiveRouting.enabled",
+                "freeflow.cognitiveRouting.standard",
+                "freeflow.cognitiveRouting.reasoning",
+                "freeflow.contextVirtualization",
+                "freeflow.conversationHistory",
+              ].includes(candidate.id));
       const displayInactive = candidate.id === "freeflow.defaultMode" ? freeflowInactive || !skillsEnabled : inactive;
       candidate.inactive = inactive;
       candidate.displaySuffix = coreDisplaySuffix(candidate, displayInactive);
     } else if (candidate.id === "freeflow.sessionMode") {
-      candidate.inactive = freeflowInactive || !skillsEnabled;
+      candidate.inactive = candidate.runtimeInactive === true || freeflowInactive || !skillsEnabled;
     } else {
-      candidate.inactive = freeflowInactive;
+      candidate.inactive =
+        candidate.runtimeInactive === true ||
+        freeflowInactive ||
+        (!skillsEnabled && candidate.id === "freeflow.cognitiveRouting");
     }
   });
 }

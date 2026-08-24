@@ -243,8 +243,8 @@ check_host_skill_surface() {
 	local skill_count
 
 	skill_count="$(find "$plugin_root/skills" -mindepth 1 -maxdepth 1 -type d -exec test -f '{}/SKILL.md' ';' -print | wc -l | tr -d ' ')"
-	if [ "$skill_count" != "25" ]; then
-		record_check "$check" "fail" "Codex/Claude skills directory must contain exactly 25 skill packages; found $skill_count."
+	if [ "$skill_count" != "26" ]; then
+		record_check "$check" "fail" "Codex/Claude skills directory must contain exactly 26 skill packages; found $skill_count."
 		ok=0
 	fi
 
@@ -265,7 +265,7 @@ check_host_skill_surface() {
 	fi
 
 	if [ "$ok" = "1" ]; then
-		record_check "$check" "pass" "Codex and Claude expose 25 functional skills with no retired Output Router runtime or discovery surface."
+		record_check "$check" "pass" "Codex and Claude expose 26 functional skills with no retired Output Router runtime or discovery surface."
 	fi
 }
 
@@ -404,7 +404,7 @@ check_package_cleanliness() {
     .[0] as $pack
     | ([$pack.files[].path | select(startswith("plugin-docs/") or startswith(".skill-eval/") or startswith(".deprecated/"))] | length) == 0
       and ([$pack.files[].path | select(. == "skills/workflow/SKILL.md")] | length) == 1
-      and ([$pack.files[].path | select(. == "capabilities/interaction-contract/interaction-contract.md")] | length) == 1
+      and ([$pack.files[].path | select(. == "runtime/prompts/interaction-contract.md")] | length) == 1
       and ([$pack.files[].path | select(. == "capabilities/output-router/SKILL.md" or startswith("router/") or startswith("pi-extension/src/output-router/") or startswith("pi-extension/dist/output-router/"))] | length) == 0
       and ([$pack.files[].path | select(. == "pi-extension/freeflow/index.js")] | length) == 1
   ' <<<"$pack_manifest" >/dev/null; then

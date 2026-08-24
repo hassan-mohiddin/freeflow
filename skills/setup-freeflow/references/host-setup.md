@@ -37,7 +37,7 @@ Session settings can temporarily inherit, enable, or disable Freeflow, Interacti
 
 Personal settings use omission to inherit. The settings path refuses to overwrite invalid or tracked local config and establishes local Git exclusion when needed. These are user-operated host controls; they update state before the next model turn. Agent-performed file edits still follow Setup Freeflow's mutation-authority rules.
 
-When effective, Pi's `before_agent_start` path preserves the existing system prompt, adds current layered status and enabled model-facing context, and loads Workflow as one hidden persistent message while Skills are enabled. Interaction Contract delivery is independent from Skills. Mode Contract remains on demand.
+When effective, Pi's `before_agent_start` path preserves the existing system prompt and composes the gated static fragments from `runtime/prompts/`. Runtime State is appended to every provider request; Workflow, Action Selection, and capability bodies remain discoverable rather than hidden persistent messages. Interaction Contract may be independent from Skills; Cognitive Routing, Context Virtualization, and Conversation History require Skills.
 
 A config written during setup is visible to the available Pi adapter on the next agent turn. After first activation, tell the user to run `/reload` so Pi refreshes skills and resources fully. Without reload, the adapter can load core runtime context on the next agent turn, but resource discovery waits for reload. A session-mode command applies before the next model turn and does not require reload. For the remainder of the setup turn, read newly effective context directly after verification instead of claiming that another `before_agent_start` invocation already occurred.
 
@@ -47,7 +47,7 @@ Confirm automatic delivery through current extension status or runtime evidence 
 
 The packaged runtime hook reads the same repository and local layers plus plugin-owned session mode state. At supported session start, resume, clear, and compact boundaries, `SessionStart` restores the complete enabled context. On submitted prompts, `UserPromptSubmit` changes mode only for an explicit native or conservative natural-language session control and otherwise emits nothing.
 
-When top-level Freeflow is effective, the hook loads the Interaction Contract if enabled and the full Workflow bootstrap if Skills are enabled. It reports configured, session, resolved, and effective mode state without treating a configured default as the current session mode.
+When top-level Freeflow is effective, the hook loads the applicable static fragments from `runtime/prompts/` and reports configured, session, resolved, and effective mode state without treating a configured default as the current session mode. It does not inject a full Workflow bootstrap.
 
 After first-time setup, tell the user to trigger the least disruptive supported host-native lifecycle boundary: resume, clear, compact, or a new session/startup as available. Name the exact control supported by the current host; do not prescribe Pi's `/reload`. Until that boundary runs, use same-turn direct reads without claiming automatic delivery.
 
