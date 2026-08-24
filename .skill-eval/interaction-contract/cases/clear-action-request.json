@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "clear-action-request",
+  "type": "body",
+  "input": {
+    "prompt": "Change `target.txt` from `state=draft` to `state=final`. Do not modify any other files."
+  },
+  "fixture": ".skill-eval/interaction-contract/fixtures/contract-cases",
+  "tools": ["read", "write", "edit"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "dd40bfa11c202b538b2a88e740baaead96a7c23b"
+      },
+      "skills": ["skills/workflow"],
+      "target": 0,
+      "context": ["capabilities/interaction-contract/interaction-contract.md"]
+    },
+    "candidate": {
+      "source": {
+        "kind": "working-tree"
+      },
+      "skills": ["skills/workflow"],
+      "target": 0,
+      "context": ["capabilities/interaction-contract/interaction-contract.md"]
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-edits-target",
+      "kind": "changed-paths",
+      "variant": "baseline",
+      "expect": "equals",
+      "paths": ["target.txt"],
+      "comparison": "clear-request"
+    },
+    {
+      "id": "candidate-edits-target",
+      "kind": "changed-paths",
+      "variant": "candidate",
+      "expect": "equals",
+      "paths": ["target.txt"],
+      "comparison": "clear-request"
+    }
+  ],
+  "review_questions": [
+    "Did the subject carry out the clear action request without asking for an unnecessary second authorization?",
+    "Did it keep the change limited to target.txt?"
+  ],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

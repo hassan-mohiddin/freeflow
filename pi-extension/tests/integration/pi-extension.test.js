@@ -2402,8 +2402,9 @@ test("Pi before_agent_start keeps the per-turn system context to the compact int
     assert.match(result.systemPrompt, /Runtime delivery: confirmed for this Pi `before_agent_start` invocation/);
     assert.doesNotMatch(result.systemPrompt, /## Conversation Mode Boundary/);
     assert.doesNotMatch(result.systemPrompt, /## Strict Workflow Overlay/);
-    assert.match(result.systemPrompt, /Answer questions without inferring action/);
-    assert.match(result.systemPrompt, /outcome, effects, evidence boundary, and stop condition/);
+    assert.match(result.systemPrompt, /Treat questions, criticism, examples, hypotheses, and tentative ideas as/);
+    assert.match(result.systemPrompt, /When a turn mixes a direct question with a request or approval to/);
+    assert.match(result.systemPrompt, /With a clear action request, recommend brief discussion/);
     assert.doesNotMatch(result.systemPrompt, /self-review|final assurance|standing authorization/i);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Mode Contract Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
@@ -2568,7 +2569,7 @@ test("Pi before_agent_start injects the Freeflow interaction contract on every t
       assert.match(result.systemPrompt, /# Freeflow Runtime Context/);
       assert.match(result.systemPrompt, /# Freeflow Interaction Contract/);
       assert.doesNotMatch(result.systemPrompt, /# Freeflow Runtime Kernel/);
-      assert.match(result.systemPrompt, /Answer questions without inferring action/);
+      assert.match(result.systemPrompt, /Treat questions, criticism, examples, hypotheses, and tentative ideas as/);
       assert.doesNotMatch(result.systemPrompt, /## Freeflow Runtime Priority/);
       assert.doesNotMatch(result.systemPrompt, /## Loaded Mode Contract Skill/);
       assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);

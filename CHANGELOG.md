@@ -2,9 +2,16 @@
 
 ## Unreleased
 
+- Adds a deterministic v2 Track Work runtime for schema-driven Working Records, precise updates and views, stdin input, historical reopening, and atomic decision supersession.
+- Simplifies the Interaction Contract into compact evidence-based interaction semantics: separates user goals from factual claims, answers mixed question/action turns before acting, and proceeds on clear requests without silently expanding them; adds focused baseline-versus-candidate behavioral evaluation cases.
+- Adds the Pi-only Cognitive Routing capability with standard/reasoning profiles, manual and automatic controls, state restoration, runtime Control/Profile delivery, transition history, and PiFlow host integration; keeps it experimental pending behavioral acceptance.
+- Adds opt-in Pi-only Context Virtualization for archiving classified tool results from future model context while preserving canonical session history, with archive/restore controls and working-set policy.
+- Adds opt-in Pi-only Conversation History retrieval for bounded current-branch recovery, with passage ranking, cancellation handling, and explicit recovery-policy safeguards.
+- Adds committed exact-revision Freeflow development snapshots for Pi/PiFlow with provenance, atomic refresh, package validation, and isolated targets while separating Freeflow policy from PiFlow host ownership.
+- Adds human-controlled release automation, pull-request/main CI, deterministic version and changelog preparation, metadata validation, tag-verified npm/GitHub Release publishing, recovery support, and release-note extraction.
 - Retires the Output Router runtime, Pi tools, settings command, capability guidance, and active evaluation surface; archives the implementation and evidence under `.deprecated/output-router/` while leaving legacy router-shaped config inert for activation compatibility.
 - Scopes workflow authority by requested outcome, permitted effects, evidence boundary, and stop condition; distinguishes passive observation, active evidence generation, and mutation or delivery; and consolidates detailed policy in Workflow so mode, skill selection, usefulness, or new evidence cannot silently authorize the next action.
-- Aligns discussion, diagnosis, execution, mode, TDD, and verification guidance with the shared authority model and renames conditional references so filenames match their visible titles.
+- Aligns discussion, diagnosis, execution, mode, TDD, verification, and review guidance with the shared authority model; separates review adjudication from remediation, clarifies skill and record continuity, and renames conditional references so filenames match their visible titles.
 - Relocates the Interaction Contract under `capabilities/interaction-contract/` and hides retained historical material under `.deprecated/`, updating live loaders, package checks, documentation, and links.
 - Requires silent self-review after every bounded activity—tasks, slices, subtasks, artifact revisions, and small local changes—before its result is accepted, reused, or claimed complete; keeps corrections inside the existing authority envelope and reinforces the boundary in execution, bypass, task completion, plan defaults, and pre-activation setup.
 

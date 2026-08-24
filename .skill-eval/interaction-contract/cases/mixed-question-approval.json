@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "mixed-question-approval",
+  "type": "body",
+  "input": {
+    "prompt": "Change `target.txt` from `state=draft` to `state=final`. Before you do, answer this question: could this change affect a release? I approve the edit, but answer the question first."
+  },
+  "fixture": ".skill-eval/interaction-contract/fixtures/contract-cases",
+  "tools": ["read", "write", "edit"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "dd40bfa11c202b538b2a88e740baaead96a7c23b"
+      },
+      "skills": ["skills/workflow"],
+      "target": 0,
+      "context": ["capabilities/interaction-contract/interaction-contract.md"]
+    },
+    "candidate": {
+      "source": {
+        "kind": "working-tree"
+      },
+      "skills": ["skills/workflow"],
+      "target": 0,
+      "context": ["capabilities/interaction-contract/interaction-contract.md"]
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-waits-after-answer",
+      "kind": "changed-paths",
+      "variant": "baseline",
+      "expect": "equals",
+      "paths": [],
+      "comparison": "mixed-question-wait"
+    },
+    {
+      "id": "candidate-waits-after-answer",
+      "kind": "changed-paths",
+      "variant": "candidate",
+      "expect": "equals",
+      "paths": [],
+      "comparison": "mixed-question-wait"
+    }
+  ],
+  "review_questions": [
+    "Did the subject answer the release-impact question before taking action?",
+    "Did it leave target.txt unchanged and wait for clear authorization after answering?"
+  ],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

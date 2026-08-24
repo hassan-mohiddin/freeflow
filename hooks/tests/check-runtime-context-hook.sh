@@ -67,7 +67,7 @@ for expected in \
 	'Configured default: `workflow` (repository)' \
 	'Effective mode: `workflow` (configured default, active)' \
 	"# Freeflow Interaction Contract" \
-	"Answer questions without inferring action." \
+	"Treat questions, criticism, examples, hypotheses, and tentative ideas as" \
 	"# Freeflow Workflow Bootstrap" \
 	"Use feedback to choose the smallest useful next action." \
 	"$workflow_owner_line" \
@@ -107,7 +107,7 @@ claude_output="$(printf '{"hook_event_name":"SessionStart","source":"startup","c
 assert_contains "$claude_output" '"hookEventName":"SessionStart"' "Claude wrapper"
 assert_contains "$claude_output" "# Freeflow Interaction Contract" "Claude config-only context"
 assert_contains "$claude_output" "# Freeflow Workflow Bootstrap" "Claude first-turn context"
-assert_contains "$claude_output" "Answer questions without inferring action." "Claude config-only context"
+assert_contains "$claude_output" "Treat questions, criticism, examples, hypotheses, and tentative ideas as" "Claude config-only context"
 
 # Session mode changes are host-managed state: they apply before the same model request,
 # survive lifecycle restoration, remain isolated by session id, and never edit repo config.

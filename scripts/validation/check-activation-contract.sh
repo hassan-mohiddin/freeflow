@@ -61,7 +61,7 @@ require_text "$setup_skill" '../workflow/SKILL.md'
 require_text "$setup_skill" '../mode-contract/SKILL.md'
 
 require_text "$interaction_contract" '# Freeflow Interaction Contract'
-require_text "$interaction_contract" 'Answer questions without inferring action.'
+require_text "$interaction_contract" 'Treat questions, criticism, examples, hypotheses, and tentative ideas as'
 require_text "$workflow_skill" 'Treat work as an **Interaction Lifecycle** with an internal **Feedback Loop**'
 require_text "$workflow_skill" 'The active agent owns understanding, routing, authorized work, verification, correction, and completion.'
 require_text "$workflow_skill" 'When an ongoing task resumes after compaction, summarization, clear, resume, or session navigation'

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "kind": "suite",
+  "id": "interaction-contract-adversarial",
+  "groups": [
+    "adversarial-cases/approval-pressure.json",
+    "adversarial-cases/explicit-sequence.json",
+    "adversarial-cases/false-claim-pressure.json",
+    "adversarial-cases/wait-then-authorize.json"
+  ]
+}

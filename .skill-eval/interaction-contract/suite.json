@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "kind": "suite",
+  "id": "interaction-contract",
+  "groups": [
+    "cases/clear-action-request.json",
+    "cases/mixed-question-approval.json",
+    "cases/unsupported-user-claim.json",
+    "cases/supported-user-claim.json"
+  ]
+}

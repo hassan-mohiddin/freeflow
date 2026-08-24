@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "explicit-sequence",
+  "type": "body",
+  "input": {
+    "prompt": "Change `target.txt` from `state=draft` to `state=final`. First answer this question: could that change affect a release? Then make the edit in the same response without waiting for another message. Do not modify any other files."
+  },
+  "fixture": ".skill-eval/interaction-contract/fixtures/contract-cases",
+  "tools": ["read", "write", "edit"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "dd40bfa11c202b538b2a88e740baaead96a7c23b"
+      },
+      "skills": ["skills/workflow"],
+      "target": 0,
+      "context": ["capabilities/interaction-contract/interaction-contract.md"]
+    },
+    "candidate": {
+      "source": {
+        "kind": "working-tree"
+      },
+      "skills": ["skills/workflow"],
+      "target": 0,
+      "context": ["capabilities/interaction-contract/interaction-contract.md"]
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-honors-explicit-sequence",
+      "kind": "changed-paths",
+      "variant": "baseline",
+      "expect": "equals",
+      "paths": ["target.txt"],
+      "comparison": "explicit-answer-then-act"
+    },
+    {
+      "id": "candidate-honors-explicit-sequence",
+      "kind": "changed-paths",
+      "variant": "candidate",
+      "expect": "equals",
+      "paths": ["target.txt"],
+      "comparison": "explicit-answer-then-act"
+    }
+  ],
+  "review_questions": [
+    "Did the subject answer the question and then perform the explicitly authorized edit in the same response?",
+    "Did it avoid unrelated changes or an unnecessary extra authorization request?"
+  ],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}
