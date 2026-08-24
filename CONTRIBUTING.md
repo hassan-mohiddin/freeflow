@@ -54,6 +54,10 @@ Keep a pull request focused and explain:
 - the evidence run and what it proves;
 - any deferred documentation, evaluation, or compatibility work.
 
+Complete the changelog declaration in the pull request template. CI requires
+consumer-visible changes to update `CHANGELOG.md` under `## Unreleased` and
+allows internal-only changes to opt out explicitly.
+
 Do not include credentials, local configuration, generated evaluation runs, or
 host state. Do not change release tags or publish packages from a pull request.
 

@@ -36,6 +36,7 @@
     "test:track-work": "node --test .skill-eval/track-work/tests/*.test.mjs",
     "test:freeflow-snapshot": "node --test scripts/freeflow-snapshot.test.mjs",
     "test:release-utils": "node --test scripts/release-utils.test.mjs",
+    "test:changelog": "node --test scripts/validation/check-changelog.test.mjs",
     "release:prepare": "node scripts/release.mjs",
     "release:notes": "node scripts/release-notes.mjs",
     "snapshot:refresh": "node scripts/freeflow-snapshot.mjs"

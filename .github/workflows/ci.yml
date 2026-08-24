@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: Set up Node
         # actions/setup-node v7.0.0
@@ -44,6 +46,12 @@ jobs:
       - name: Run local check gate
         run: npm run check
 
+      - name: Validate PR changelog declaration
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node scripts/validation/check-changelog.mjs
+
       - name: Run deterministic tests
         run: |
           npm run test:pi-extension
@@ -52,3 +60,4 @@ jobs:
           npm run test:track-work
           npm run test:freeflow-snapshot
           npm run test:release-utils
+          npm run test:changelog
