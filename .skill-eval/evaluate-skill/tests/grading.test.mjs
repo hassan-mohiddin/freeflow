@@ -37,6 +37,24 @@ function bodyGroup(expectations) {
   };
 }
 
+let contextArtifactIndex = 0;
+
+async function contextRun(workspace, observations) {
+  const contents = `${observations.map((observation) => JSON.stringify(observation)).join("\n")}\n`;
+  const artifactPath = path.join(workspace, `context-observations-${++contextArtifactIndex}.jsonl`);
+  await writeFile(artifactPath, contents, "utf8");
+  return {
+    ...completeRun(workspace, []),
+    contextObservationArtifact: {
+      path: artifactPath,
+      sha256: sha256(contents),
+      bytes: Buffer.byteLength(contents, "utf8"),
+      count: observations.length,
+      surfaces: [...new Set(observations.map((observation) => observation.surface).filter(Boolean))],
+    },
+  };
+}
+
 function completeRun(workspace, files) {
   const entries = files.map((file) => ({ type: "file", ...file }));
   return {
@@ -104,6 +122,237 @@ test("description timing expectations reject missing and out-of-range turns", as
     grade.checks.map(({ id, state }) => ({ id, state })),
     [{ id: "valid-turn", state: "pass" }],
   );
+});
+
+test("tool-call grading distinguishes selective calls from absent calls", async () => {
+  await withTempDirectory(async (root) => {
+    const workspace = path.join(root, "workspace");
+    await mkdir(workspace);
+    const baseline = { ...completeRun(workspace, []), toolActivity: [] };
+    const candidate = {
+      ...completeRun(workspace, []),
+      toolActivity: [
+        {
+          toolName: "freeflow_context",
+          args: {
+            operation: "archive",
+            targets: [{ ref: "ctx:disposable", retained: "keep the decision" }],
+          },
+          isError: false,
+        },
+      ],
+    };
+    const grade = await gradeDeterministic(
+      bodyGroup([
+        {
+          id: "baseline-no-archive",
+          kind: "tool-call",
+          variant: "baseline",
+          tool: "freeflow_context",
+          expect: "called",
+          argumentContains: ["ctx:disposable"],
+          argumentNotContains: ["ctx:protected"],
+          comparison: "archive-call",
+        },
+        {
+          id: "candidate-selective-archive",
+          kind: "tool-call",
+          variant: "candidate",
+          tool: "freeflow_context",
+          expect: "called",
+          argumentContains: ["ctx:disposable"],
+          argumentNotContains: ["ctx:protected"],
+          comparison: "archive-call",
+        },
+      ]),
+      { baseline, candidate },
+      evidence,
+    );
+
+    assert.equal(grade.state, "complete");
+    assert.deepEqual(
+      grade.checks.map(({ id, state }) => ({ id, state })),
+      [
+        { id: "baseline-no-archive", state: "fail" },
+        { id: "candidate-selective-archive", state: "pass" },
+      ],
+    );
+    assert.deepEqual(grade.comparisons, [
+      {
+        id: "archive-call",
+        kind: "tool-call",
+        baseline: { check: "baseline-no-archive", state: "fail" },
+        candidate: { check: "candidate-selective-archive", state: "pass" },
+        transition: "fail-to-pass",
+      },
+    ]);
+  });
+});
+
+test("tool-call grading distinguishes attempted, succeeded, and failed outcomes", async () => {
+  await withTempDirectory(async (root) => {
+    const workspace = path.join(root, "workspace");
+    await mkdir(workspace);
+    const candidate = {
+      ...completeRun(workspace, []),
+      toolActivity: [
+        {
+          toolName: "freeflow_context",
+          args: { operation: "archive", targets: [{ ref: "ctx:failed" }] },
+          completed: true,
+          isError: true,
+        },
+      ],
+    };
+    const grade = await gradeDeterministic(
+      bodyGroup([
+        {
+          id: "attempted",
+          kind: "tool-call",
+          variant: "candidate",
+          tool: "freeflow_context",
+          expect: "called",
+          argumentContains: ["ctx:failed"],
+        },
+        {
+          id: "not-successful",
+          kind: "tool-call",
+          variant: "candidate",
+          tool: "freeflow_context",
+          expect: "succeeded",
+          argumentContains: ["ctx:failed"],
+        },
+        {
+          id: "failed",
+          kind: "tool-call",
+          variant: "candidate",
+          tool: "freeflow_context",
+          expect: "failed",
+          argumentContains: ["ctx:failed"],
+        },
+      ]),
+      { baseline: absentRun, candidate },
+      evidence,
+    );
+
+    assert.equal(grade.state, "complete");
+    assert.deepEqual(
+      grade.checks.map(({ id, state }) => ({ id, state })),
+      [
+        { id: "attempted", state: "pass" },
+        { id: "not-successful", state: "fail" },
+        { id: "failed", state: "pass" },
+      ],
+    );
+  });
+});
+
+test("context-text grading observes per-turn extension injections", async () => {
+  await withTempDirectory(async (root) => {
+    const workspace = path.join(root, "workspace");
+    await mkdir(workspace);
+    const baseline = await contextRun(workspace, [
+      { surface: "system-prompt", turn: 1, requestInTurn: 1, text: "base prompt" },
+    ]);
+    const candidate = await contextRun(workspace, [
+      { surface: "system-prompt", turn: 1, requestInTurn: 1, text: "base prompt\\nInjected extension context" },
+    ]);
+    const grade = await gradeDeterministic(
+      bodyGroup([
+        {
+          id: "baseline-no-injection",
+          kind: "context-text",
+          variant: "baseline",
+          turn: 1,
+          expect: "contains",
+          value: "Injected extension context",
+          comparison: "context-injection",
+        },
+        {
+          id: "candidate-injection",
+          kind: "context-text",
+          variant: "candidate",
+          turn: 1,
+          expect: "contains",
+          value: "Injected extension context",
+          comparison: "context-injection",
+        },
+      ]),
+      { baseline, candidate },
+      evidence,
+    );
+
+    assert.equal(grade.state, "complete");
+    assert.deepEqual(
+      grade.checks.map(({ id, state }) => ({ id, state })),
+      [
+        { id: "baseline-no-injection", state: "fail" },
+        { id: "candidate-injection", state: "pass" },
+      ],
+    );
+  });
+});
+
+test("context-text grading distinguishes provider-context injections from system prompts", async () => {
+  await withTempDirectory(async (root) => {
+    const workspace = path.join(root, "workspace");
+    await mkdir(workspace);
+    const baseline = await contextRun(workspace, [
+      { surface: "provider-context", turn: 1, requestInTurn: 1, text: "base projected messages" },
+      { surface: "provider-context", turn: 1, requestInTurn: 2, text: "base projected messages later" },
+    ]);
+    const candidate = await contextRun(workspace, [
+      { surface: "provider-context", turn: 1, requestInTurn: 1, text: "base projected messages" },
+      {
+        surface: "provider-context",
+        turn: 1,
+        requestInTurn: 2,
+        text: "base projected messages later\\nInjected context event text",
+      },
+    ]);
+    const grade = await gradeDeterministic(
+      bodyGroup([
+        {
+          id: "baseline-no-provider-injection",
+          kind: "context-text",
+          variant: "baseline",
+          surface: "provider-context",
+          request: "last",
+          turn: 1,
+          expect: "contains",
+          value: "Injected context event text",
+          comparison: "provider-context-injection",
+        },
+        {
+          id: "candidate-provider-injection",
+          kind: "context-text",
+          variant: "candidate",
+          surface: "provider-context",
+          request: "last",
+          turn: 1,
+          expect: "contains",
+          value: "Injected context event text",
+          comparison: "provider-context-injection",
+        },
+      ]),
+      { baseline, candidate },
+      evidence,
+    );
+
+    assert.equal(grade.state, "complete");
+    assert.deepEqual(
+      grade.checks.map(({ id, state }) => ({ id, state })),
+      [
+        { id: "baseline-no-provider-injection", state: "fail" },
+        { id: "candidate-provider-injection", state: "pass" },
+      ],
+    );
+    const observed = grade.checks.find((check) => check.id === "candidate-provider-injection")?.observed;
+    assert.equal(observed.systemPrompt, undefined);
+    assert.equal(observed.matched, true);
+    assert.equal(typeof observed.sha256, "string");
+    assert.equal(observed.preview.includes("Injected context event text"), true);
+  });
 });
 
 test("JSON grading distinguishes missing, malformed, absent, null, and other values", async () => {

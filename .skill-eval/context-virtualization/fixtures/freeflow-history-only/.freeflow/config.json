@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "defaultMode": "workflow",
+  "interactionContract": false,
+  "skills": { "enabled": false },
+  "contextVirtualization": false,
+  "conversationHistory": true
+}

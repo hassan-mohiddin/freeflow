@@ -1,5 +1,11 @@
 import { gradeComparisons } from "./grade-comparison.mjs";
-import { gradeResourceRead, gradeResponseText, gradeSkillRead } from "./grade-interaction.mjs";
+import {
+  gradeContextText,
+  gradeResourceRead,
+  gradeResponseText,
+  gradeSkillRead,
+  gradeToolCall,
+} from "./grade-interaction.mjs";
 import { gradeChangedPaths, gradeFileText, gradeJson, gradePath } from "./grade-workspace.mjs";
 
 const GRADERS = new Map([
@@ -10,6 +16,8 @@ const GRADERS = new Map([
   ["file-text", gradeFileText],
   ["json", gradeJson],
   ["response-text", gradeResponseText],
+  ["context-text", gradeContextText],
+  ["tool-call", gradeToolCall],
 ]);
 
 /**

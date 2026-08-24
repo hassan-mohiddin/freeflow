@@ -1,7 +1,8 @@
+import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { createWriteStream } from "node:fs";
-import { realpath } from "node:fs/promises";
+import { mkdir, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -21,12 +22,16 @@ import {
   fingerprintDirectory,
   materializeEnvironment,
   materializeFixture,
+  materializeRuntime,
   snapshotWorkspace,
   verifyEnvironment,
+  verifyRuntime,
   workspaceChanges,
 } from "./sandbox.mjs";
 
 const guardExtension = fileURLToPath(new URL("../pi-guard.mjs", import.meta.url));
+const observerExtension = fileURLToPath(new URL("../pi-observer.mjs", import.meta.url));
+const HOST_COMMANDS = { pi: "pi", piflow: "piflow" };
 const TURN_WORKSPACE_KINDS = new Set(["path", "changed-paths", "file-text", "json"]);
 
 export class VariantSetupError extends Error {
@@ -36,15 +41,15 @@ export class VariantSetupError extends Error {
   }
 }
 
-export async function runDescription({ group, variant, root, variantDirectory, fixture, signal }) {
+export async function runDescription({ group, variant, root, variantDirectory, fixture, runtime, signal }) {
   if (group.input.turns !== undefined) {
-    return runPersistentDescription({ group, variant, root, variantDirectory, fixture, signal });
+    return runPersistentDescription({ group, variant, root, variantDirectory, fixture, runtime, signal });
   }
-  return runOneShotDescription({ group, variant, root, variantDirectory, fixture, signal });
+  return runOneShotDescription({ group, variant, root, variantDirectory, fixture, runtime, signal });
 }
 
-export async function runBody({ group, variant, root, variantDirectory, fixture, signal }) {
-  const options = { group, variant, root, variantDirectory, fixture, signal };
+export async function runBody({ group, variant, root, variantDirectory, fixture, runtime, signal }) {
+  const options = { group, variant, root, variantDirectory, fixture, runtime, signal };
   const subject = await prepareSubject(options, "rpc");
   const before = await fingerprintDirectory(subject.workspace);
   const declaredPrompts = group.input.prompt === undefined ? [...group.input.turns] : [group.input.prompt];
@@ -61,6 +66,11 @@ export async function runBody({ group, variant, root, variantDirectory, fixture,
       ? (turn) => snapshotWorkspace({ workspace: subject.workspace, variantDirectory, turn, before })
       : null,
   });
+  const contextObservation = await readContextObservations(
+    subject.contextObservationPath,
+    subject.requiresContextObservation,
+  );
+  observation.contextObservationArtifact = contextObservation.artifact;
   await verifySubjectResources(subject, observation);
   const after = await fingerprintDirectory(subject.workspace);
 
@@ -132,14 +142,17 @@ function subjectRun({ group, variant }, subject, observation) {
       source: subject.environment.source,
       skills: subject.environment.skills,
       context: subject.environment.context,
+      runtime: subject.runtime,
       contextDelivery: subject.environment.contextDelivery,
       targetPath: subject.environment.targetPath,
     },
+    contextObservationArtifact: observation.contextObservationArtifact ?? null,
     response: observation.response,
     transcript: observation.transcript,
     usage: observation.usage,
     process: {
-      command: "pi",
+      command: subject.host.command,
+      host: subject.host.name,
       args: subject.args,
       exitCode: observation.exitCode,
       signal: observation.signal,
@@ -156,6 +169,7 @@ function subjectRun({ group, variant }, subject, observation) {
 async function runOneShotDescription(options) {
   const subject = await prepareSubject(options, "json");
   const observation = await runPiProcess({
+    command: subject.host.command,
     args: subject.args,
     cwd: subject.workspace,
     eventsFile: subject.eventsFile,
@@ -163,6 +177,11 @@ async function runOneShotDescription(options) {
     signal: options.signal,
     environment: subject.processEnvironment,
   });
+  const contextObservation = await readContextObservations(
+    subject.contextObservationPath,
+    subject.requiresContextObservation,
+  );
+  observation.contextObservationArtifact = contextObservation.artifact;
   await verifySubjectResources(subject, observation);
   const successfulReadPaths = await canonicalReadPaths(observation.successfulReads, subject.workspace);
   const targetRead =
@@ -181,6 +200,7 @@ async function runOneShotDescription(options) {
 async function runPersistentDescription(options) {
   const subject = await prepareSubject(options, "rpc");
   const observation = await runRpcDescriptionSession({
+    command: subject.host.command,
     args: subject.args,
     cwd: subject.workspace,
     eventsFile: subject.eventsFile,
@@ -189,6 +209,11 @@ async function runPersistentDescription(options) {
     prompts: options.group.input.turns,
     environment: subject.processEnvironment,
   });
+  const contextObservation = await readContextObservations(
+    subject.contextObservationPath,
+    subject.requiresContextObservation,
+  );
+  observation.contextObservationArtifact = contextObservation.artifact;
   await verifySubjectResources(subject, observation);
 
   const turns = [];
@@ -222,52 +247,130 @@ async function runPersistentDescription(options) {
   });
 }
 
-async function prepareSubject({ group, variant, root, variantDirectory, fixture: fixtureSnapshot }, mode) {
+async function prepareSubject({ group, variant, root, variantDirectory, fixture: fixtureSnapshot, runtime }, mode) {
   const workspace = path.join(variantDirectory, "workspace");
 
   let environment;
   let fixture;
+  let materializedRuntime;
   try {
     environment = await materializeEnvironment({
       environment: group.variants[variant],
       root,
       variantDirectory,
     });
+    materializedRuntime = await materializeRuntime({ runtime, variantDirectory });
     fixture = await materializeFixture({ fixture: fixtureSnapshot, workspace });
   } catch (error) {
     if (error instanceof VariantSetupError) throw error;
     throw new VariantSetupError(error instanceof Error ? error.message : String(error));
   }
 
-  const args = piArguments(group, environment, mode);
+  const host = { name: materializedRuntime.host, command: HOST_COMMANDS[materializedRuntime.host] };
+  const contextObservationPath = path.join(variantDirectory, "context-observations.jsonl");
+  const requiresContextObservation = group.expectations.some((expectation) => expectation.kind === "context-text");
+  const sessionDirectory = path.join(variantDirectory, "session");
+  if (materializedRuntime.session) await mkdir(sessionDirectory, { recursive: true });
+  const args = piArguments(group, environment, materializedRuntime, mode, requiresContextObservation, sessionDirectory);
   const allowedRoots = [
     await realpath(workspace),
     ...environment.skills.map((skill) => skill.path),
     ...environment.context.map((entry) => entry.path),
+    ...materializedRuntime.extensions.flatMap((bundle) => bundle.resources.map((resource) => resource.path)),
   ];
   return {
     args,
     environment,
+    runtime: materializedRuntime,
+    host,
     fixture,
     workspace,
+    contextObservationPath,
+    requiresContextObservation,
+    sessionDirectory,
     eventsFile: path.join(variantDirectory, "events.jsonl"),
     stderrFile: path.join(variantDirectory, "stderr.log"),
     startedAt: new Date().toISOString(),
-    processEnvironment: {
-      ...process.env,
-      PI_SKIP_VERSION_CHECK: "1",
-      PI_TELEMETRY: "0",
-      SKILL_EVAL_ALLOWED_ROOTS: JSON.stringify(allowedRoots),
-      SKILL_EVAL_WRITABLE_ROOT: await realpath(workspace),
-      SKILL_EVAL_ALLOWED_TOOLS: JSON.stringify(group.tools),
-      SKILL_EVAL_CONTEXT_MANIFEST: environment.contextDelivery.manifestPath ?? "",
-    },
+    processEnvironment: createProcessEnvironment({
+      runtime: materializedRuntime,
+      group,
+      workspace,
+      allowedRoots,
+      contextManifestPath: environment.contextDelivery.manifestPath,
+      contextObservationPath,
+      requiresContextObservation,
+    }),
+  };
+}
+
+function createProcessEnvironment({
+  runtime,
+  group,
+  workspace,
+  allowedRoots,
+  contextManifestPath,
+  contextObservationPath,
+  requiresContextObservation,
+}) {
+  const processEnvironment = { ...process.env };
+  for (const key of Object.keys(processEnvironment)) {
+    if (key.startsWith("PI_")) delete processEnvironment[key];
+  }
+  Object.assign(processEnvironment, {
+    ...runtime.environment.literal,
+    PI_SKIP_VERSION_CHECK: "1",
+    PI_TELEMETRY: "0",
+    SKILL_EVAL_ALLOWED_ROOTS: JSON.stringify(allowedRoots),
+    SKILL_EVAL_WRITABLE_ROOT: workspace,
+    SKILL_EVAL_ALLOWED_TOOLS: JSON.stringify(group.tools),
+    SKILL_EVAL_CONTEXT_MANIFEST: contextManifestPath ?? "",
+    SKILL_EVAL_HOST: runtime.host,
+  });
+  for (const key of runtime.environment.inherit) {
+    if (process.env[key] === undefined) {
+      throw new VariantSetupError(`inherited runtime environment variable is unavailable: ${key}`);
+    }
+    processEnvironment[key] = process.env[key];
+  }
+  if (requiresContextObservation) processEnvironment.SKILL_EVAL_CONTEXT_OBSERVATION_PATH = contextObservationPath;
+  return processEnvironment;
+}
+
+async function readContextObservations(file, required) {
+  const contents = await readFile(file, "utf8").catch((error) => {
+    if (error?.code === "ENOENT") {
+      if (required) throw new Error("context observer produced no evidence");
+      return "";
+    }
+    throw error;
+  });
+  const observations = [];
+  for (const line of contents.split("\n").filter(Boolean)) {
+    try {
+      observations.push(JSON.parse(line));
+    } catch (error) {
+      throw new Error(`context observation is malformed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  return {
+    observations,
+    artifact:
+      contents === ""
+        ? null
+        : {
+            path: file,
+            sha256: createHash("sha256").update(contents, "utf8").digest("hex"),
+            bytes: Buffer.byteLength(contents, "utf8"),
+            count: observations.length,
+            surfaces: [...new Set(observations.map((entry) => entry.surface).filter(Boolean))],
+          },
   };
 }
 
 async function verifySubjectResources(subject, observation) {
   try {
     await verifyEnvironment(subject.environment);
+    await verifyRuntime(subject.runtime);
   } catch (error) {
     observation.protocolErrors ??= [];
     observation.protocolErrors.push({
@@ -300,20 +403,15 @@ function subjectRunState(observation) {
   return "infrastructure-failed";
 }
 
-function piArguments(group, environment, mode) {
+function piArguments(group, environment, runtime, mode, observeContext, sessionDirectory) {
   const args = ["--mode", mode];
   if (mode === "json") args.push("-p");
-  args.push(
-    "--no-session",
-    "--no-extensions",
-    "--extension",
-    guardExtension,
-    "--no-skills",
-    "--no-prompt-templates",
-    "--no-themes",
-    "--no-context-files",
-    "--no-approve",
-  );
+  if (runtime.session) args.push("--session-dir", sessionDirectory);
+  else args.push("--no-session");
+  args.push("--no-extensions", "--extension", guardExtension);
+  for (const bundle of runtime.extensions) args.push("--extension", bundle.entry);
+  if (observeContext) args.push("--extension", observerExtension);
+  args.push("--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files", "--no-approve");
   if (group.tools.length === 0) args.push("--no-tools");
   else args.push("--tools", group.tools.join(","));
   for (const skill of environment.skills) args.push("--skill", skill.path);
@@ -323,8 +421,8 @@ function piArguments(group, environment, mode) {
   return args;
 }
 
-async function runPiProcess({ args, cwd, eventsFile, stderrFile, signal, environment }) {
-  const child = spawn("pi", args, {
+async function runPiProcess({ command, args, cwd, eventsFile, stderrFile, signal, environment }) {
+  const child = spawn(command, args, {
     cwd,
     detached: process.platform !== "win32",
     env: environment,

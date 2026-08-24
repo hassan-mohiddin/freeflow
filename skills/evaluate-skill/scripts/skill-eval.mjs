@@ -34,8 +34,9 @@ Selection:
 Current run support:
   Description and explicit-body groups with prompt or ordered turns
   Working-tree or Git-backed ordered skills/context; optional fresh fixture copies
-  Description tools: read; body tools: read, write, edit
-  Deterministic reads, paths, changed paths, text, JSON, and factual comparisons
+  Description tools: read; body tools: read, write, edit, or declared extension tools
+  Runtime profiles: Pi or PiFlow hosts, ordered immutable extension bundles, environment overrides
+  Deterministic reads, paths, changed paths, text, JSON, tool calls, context observations, and factual comparisons
   Ordered suites run serially and continue after isolated variant, group, or post-processing failures
   Grade-first views show compact criterion details, usage, and result-relative artifact paths
 `,
@@ -71,9 +72,7 @@ function parseOperation(values) {
 
 if (!command || command === "--help" || command === "-h") {
   printUsage();
-} else if (!commands.has(command)) {
-  fail(`Unknown command: ${command}`);
-} else {
+} else if (commands.has(command)) {
   try {
     const operation = parseOperation(argv.slice(1));
     if (command === "view") {
@@ -98,4 +97,6 @@ if (!command || command === "--help" || command === "-h") {
   } catch (error) {
     fail(error instanceof Error ? error.message : String(error), 1);
   }
+} else {
+  fail(`Unknown command: ${command}`);
 }

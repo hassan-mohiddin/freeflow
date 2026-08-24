@@ -94,6 +94,12 @@ test("group definitions preserve turns, fixtures, environments, expectations, re
     };
     definition.expectations = [{ id: "result-file", kind: "path-exists", path: "result.json" }];
     definition.review_questions = ["Did the response preserve the declared behavior?"];
+    definition.runtime = {
+      host: "pi",
+      session: false,
+      extensions: [{ entry: "extensions/context-probe.mjs", resources: ["extensions"] }],
+      environment: { literal: {}, inherit: [] },
+    };
     definition.model = { model: "openai/gpt-5", thinking: "high" };
     const groupFile = await writeJson(root, "integrated.json", definition);
 
@@ -149,6 +155,42 @@ test("group definitions reject structural contradictions", async () => {
         },
       },
       {
+        name: "unsafe-extension",
+        change(definition) {
+          definition.runtime = {
+            host: "pi",
+            session: false,
+            extensions: [{ entry: "extensions/context-probe.mjs", resources: ["../outside-extension.mjs"] }],
+            environment: { literal: {}, inherit: [] },
+          };
+        },
+      },
+      {
+        name: "duplicate-extensions",
+        change(definition) {
+          definition.runtime = {
+            host: "pi",
+            session: false,
+            extensions: [
+              { entry: "extensions/context-probe.mjs", resources: ["extensions/context-probe.mjs"] },
+              { entry: "extensions/context-probe.mjs", resources: ["extensions/context-probe.mjs"] },
+            ],
+            environment: { literal: {}, inherit: [] },
+          };
+        },
+      },
+      {
+        name: "reserved-runtime-environment",
+        change(definition) {
+          definition.runtime = {
+            host: "pi",
+            session: false,
+            extensions: [],
+            environment: { literal: { PATH: "/tmp" }, inherit: [] },
+          };
+        },
+      },
+      {
         name: "duplicate-tools",
         change(definition) {
           definition.tools = ["read", "read"];
@@ -171,6 +213,26 @@ test("group definitions reject structural contradictions", async () => {
       const groupFile = await writeJson(root, `${scenario.name}.json`, definition);
       await assert.rejects(loadDefinition(groupFile, { root }), { name: "DefinitionError" }, scenario.name);
     }
+  });
+});
+
+test("runtime-only groups may omit a candidate skill target", async () => {
+  await withTempDirectory(async (root) => {
+    const definition = group("runtime-only", "body");
+    definition.variants.baseline = environment();
+    definition.variants.candidate = environment();
+    definition.runtime = { host: "piflow", session: false, extensions: [], environment: { literal: {}, inherit: [] } };
+    const groupFile = await writeJson(root, "runtime-only.json", definition);
+
+    const loaded = await loadDefinition(groupFile, { root });
+
+    assert.deepEqual(loaded.runtime, {
+      host: "piflow",
+      session: false,
+      extensions: [],
+      environment: { literal: {}, inherit: [] },
+    });
+    assert.equal(loaded.variants.candidate.target, null);
   });
 });
 

@@ -69,6 +69,98 @@ export async function materializeFixture({ fixture, workspace }) {
   return { ...fixture, materializedPath };
 }
 
+export async function prepareRuntime({ runtime, root, groupDirectory }) {
+  const canonicalRoot = await realpath(root);
+  const runtimeRoot = path.join(groupDirectory, "resources", "runtime", "extensions");
+  await mkdir(runtimeRoot, { recursive: true });
+  const bundles = [];
+
+  for (const [index, bundle] of runtime.extensions.entries()) {
+    const bundleRoot = path.join(runtimeRoot, String(index));
+    await mkdir(bundleRoot, { recursive: true });
+    const resources = [];
+    for (const declaredPath of bundle.resources) {
+      resources.push(
+        await snapshotWorkingTreeResource({
+          canonicalRoot,
+          declaredPath,
+          destination: path.join(bundleRoot, declaredPath),
+          requireDirectory: true,
+          label: "runtime resource",
+        }),
+      );
+    }
+    const root = await realpath(bundleRoot);
+    const entry = await realpath(path.join(root, bundle.entry)).catch(() => null);
+    if (entry === null || !isContained(root, entry)) {
+      throw new Error(`declared runtime entry is missing or escapes its bundle: ${bundle.entry}`);
+    }
+    const entryStat = await lstat(entry);
+    if (!entryStat.isFile()) throw new Error(`declared runtime entry is not a file: ${bundle.entry}`);
+    if (!resources.some((resource) => isContained(resource.path, entry))) {
+      throw new Error(`declared runtime entry is not contained by a resource: ${bundle.entry}`);
+    }
+    bundles.push({
+      entry,
+      root,
+      resources,
+    });
+  }
+
+  return {
+    host: runtime.host,
+    session: runtime.session,
+    environment: { ...runtime.environment },
+    extensions: bundles,
+  };
+}
+
+export async function materializeRuntime({ runtime, variantDirectory }) {
+  const runtimeRoot = path.join(variantDirectory, "resources", "runtime", "extensions");
+  await mkdir(runtimeRoot, { recursive: true });
+  const bundles = [];
+
+  for (const [index, bundle] of runtime.extensions.entries()) {
+    const destination = path.join(runtimeRoot, String(index));
+    await cp(bundle.root, destination, {
+      recursive: true,
+      dereference: false,
+      errorOnExist: true,
+      force: false,
+    });
+    const root = await realpath(destination);
+    const resources = [];
+    for (const resource of bundle.resources) {
+      const resourceRoot = await realpath(path.join(root, resource.declaredPath));
+      const files = await fingerprintDirectory(resourceRoot);
+      if (JSON.stringify(files) !== JSON.stringify(resource.files)) {
+        throw new Error(`declared runtime resource changed while being copied: ${resource.declaredPath}`);
+      }
+      resources.push({ ...resource, path: resourceRoot, files });
+    }
+    const entry = await realpath(path.join(root, path.relative(bundle.root, bundle.entry)));
+    bundles.push({ ...bundle, entry, root, resources });
+  }
+
+  return {
+    host: runtime.host,
+    session: runtime.session,
+    environment: { ...runtime.environment },
+    extensions: bundles,
+  };
+}
+
+export async function verifyRuntime(runtime) {
+  for (const bundle of runtime.extensions) {
+    for (const resource of bundle.resources) {
+      const current = await fingerprintDirectory(resource.path);
+      if (JSON.stringify(current) !== JSON.stringify(resource.files)) {
+        throw new Error(`declared runtime resource changed during subject execution: ${resource.declaredPath}`);
+      }
+    }
+  }
+}
+
 export async function materializeEnvironment({ environment, root, variantDirectory }) {
   const canonicalRoot = await realpath(root);
   let source;

@@ -1,4 +1,5 @@
-import { realpath } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -16,6 +17,10 @@ import {
 } from "./grade-support.mjs";
 
 const ACTIVATION_EXPECTATIONS = new Set(["never", "on-turn", "by-turn", "not-before-turn"]);
+const TOOL_CALL_EXPECTATIONS = new Set(["called", "succeeded", "failed", "not-called"]);
+const CONTEXT_TEXT_EXPECTATIONS = new Set(["contains", "not-contains", "equals"]);
+const CONTEXT_SURFACES = new Set(["system-prompt", "provider-context"]);
+const CONTEXT_REQUEST_SELECTORS = new Set(["first", "last"]);
 
 export async function gradeSkillRead(group, runs, expectation) {
   const turn = expectation.turn ?? null;
@@ -100,6 +105,95 @@ export async function gradeResourceRead(group, runs, expectation) {
   );
 }
 
+export async function gradeContextText(group, runs, expectation) {
+  const turn = expectation.turn ?? null;
+  const surface = expectation.surface ?? "system-prompt";
+  const request = expectation.request ?? "last";
+  if (
+    !validBodyExpectation(group, expectation, turn) ||
+    !CONTEXT_SURFACES.has(surface) ||
+    (!CONTEXT_REQUEST_SELECTORS.has(request) && !Number.isInteger(request)) ||
+    (Number.isInteger(request) && request < 1) ||
+    !CONTEXT_TEXT_EXPECTATIONS.has(expectation.expect) ||
+    typeof expectation.value !== "string"
+  ) {
+    return { error: "invalid context-text expectation" };
+  }
+
+  const expected = { expect: expectation.expect, value: expectation.value, surface, request, turn };
+  const run = runs[expectation.variant];
+  if (!run || run.state !== "complete") return unavailableCheck(expectation, expected);
+  const observed = await contextObservation(run, turn, surface, request);
+  if (observed === null) return unavailableCheck(expectation, expected);
+  const passed = textMatches(expectation.expect, expectation.value, observed.text);
+  return completedCheck(expectation, expected, compactContextObservation(observed, passed), passed);
+}
+
+export async function gradeToolCall(group, runs, expectation) {
+  const turn = expectation.turn ?? null;
+  const contains = expectation.argumentContains ?? [];
+  const notContains = expectation.argumentNotContains ?? [];
+  if (
+    !validBodyExpectation(group, expectation, turn) ||
+    typeof expectation.tool !== "string" ||
+    expectation.tool.trim() === "" ||
+    !TOOL_CALL_EXPECTATIONS.has(expectation.expect) ||
+    !Array.isArray(contains) ||
+    !contains.every((value) => typeof value === "string") ||
+    !Array.isArray(notContains) ||
+    !notContains.every((value) => typeof value === "string")
+  ) {
+    return { error: "invalid tool-call expectation" };
+  }
+
+  const expected = {
+    tool: expectation.tool,
+    expect: expectation.expect,
+    turn,
+    argumentContains: contains,
+    argumentNotContains: notContains,
+  };
+  const run = runs[expectation.variant];
+  if (!run || run.state !== "complete") return unavailableCheck(expectation, expected);
+
+  const calls = toolCalls(run, turn).filter((call) => call.toolName === expectation.tool);
+  const matchingCalls = calls.filter((call) => {
+    const argumentsText = JSON.stringify(call.args ?? null);
+    return (
+      contains.every((value) => argumentsText.includes(value)) &&
+      notContains.every((value) => !argumentsText.includes(value))
+    );
+  });
+  const succeededCalls = matchingCalls.filter((call) => call.completed === true && call.isError !== true);
+  const failedCalls = matchingCalls.filter((call) => call.completed === true && call.isError === true);
+  let passed;
+  if (expectation.expect === "called") {
+    passed = matchingCalls.length > 0;
+  } else if (expectation.expect === "succeeded") {
+    passed = succeededCalls.length > 0;
+  } else if (expectation.expect === "failed") {
+    passed = failedCalls.length > 0;
+  } else if (contains.length > 0 || notContains.length > 0) {
+    passed = matchingCalls.length === 0;
+  } else {
+    passed = calls.length === 0;
+  }
+  const observed = {
+    tool: expectation.tool,
+    turn,
+    callCount: calls.length,
+    matchingCallCount: matchingCalls.length,
+    succeededCount: succeededCalls.length,
+    failedCount: failedCalls.length,
+    calls: calls.map((call) => ({
+      args: call.args ?? null,
+      completed: call.completed ?? null,
+      isError: call.isError ?? null,
+    })),
+  };
+  return completedCheck(expectation, expected, observed, passed);
+}
+
 export async function gradeResponseText(group, runs, expectation) {
   const turn = expectation.turn ?? null;
   if (
@@ -121,6 +215,67 @@ export async function gradeResponseText(group, runs, expectation) {
     observed,
     textMatches(expectation.expect, expectation.value, observed.response),
   );
+}
+
+function compactContextObservation(observation, matched) {
+  return {
+    surface: observation.surface,
+    turn: observation.turn,
+    request: observation.request,
+    characters: observation.characters,
+    sha256: createHash("sha256").update(observation.text, "utf8").digest("hex"),
+    matched,
+    preview: observation.text.slice(0, 240),
+  };
+}
+
+async function contextObservation(run, turn, surface, request) {
+  const observations = await loadContextObservations(run);
+  if (observations === null) return null;
+  const matching = observations.filter((entry) => entry.surface === surface);
+  const inTurn = turn === null ? matching : matching.filter((entry) => entry.turn === turn);
+  if (inTurn.length === 0) return null;
+  let observation;
+  if (request === "first") observation = inTurn[0];
+  else if (request === "last") observation = inTurn.at(-1);
+  else observation = inTurn.find((entry) => (entry.requestInTurn ?? 1) === request);
+  const text = surface === "system-prompt" ? (observation?.text ?? observation?.systemPrompt) : observation?.text;
+  if (!observation || typeof text !== "string") return null;
+  return {
+    surface,
+    turn: observation.turn ?? turn,
+    request: observation.requestInTurn ?? 1,
+    characters: observation.characters ?? text.length,
+    text,
+  };
+}
+
+async function loadContextObservations(run) {
+  const artifact = run.contextObservationArtifact;
+  if (!artifact || typeof artifact.path !== "string" || typeof artifact.sha256 !== "string") return null;
+  const contents = await readFile(artifact.path, "utf8");
+  const actualHash = createHash("sha256").update(contents, "utf8").digest("hex");
+  if (actualHash !== artifact.sha256) throw new Error("context observation artifact changed after run persistence");
+  const observations = [];
+  for (const line of contents.split("\n").filter(Boolean)) {
+    try {
+      observations.push(JSON.parse(line));
+    } catch (error) {
+      throw new Error(
+        `context observation artifact is malformed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+  return observations;
+}
+
+function toolCalls(run, turn) {
+  if (turn === null) {
+    if (Array.isArray(run.turns)) return run.turns.flatMap((entry) => entry.toolActivity ?? []);
+    return Array.isArray(run.toolActivity) ? run.toolActivity : [];
+  }
+  if (!Array.isArray(run.turns)) return turn === 1 && Array.isArray(run.toolActivity) ? run.toolActivity : [];
+  return run.turns.find((entry) => entry.turn === turn)?.toolActivity ?? [];
 }
 
 function activationMatches(expectation, observed) {

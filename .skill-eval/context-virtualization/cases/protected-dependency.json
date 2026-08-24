@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "protected-dependency",
+  "type": "body",
+  "input": {
+    "turns": [
+      "Use governing_context exactly once to retrieve the accepted authority and constraints for this task. Write plan.md preserving the required constraint and the source reference. Do not archive the governing result; the next turn needs its exact authority. Do not mention this evaluation or context management tools.",
+      "Apply the authority in plan.md and write result.md showing that the constraint was followed. Do not use any further tools or modify the original evidence."
+    ]
+  },
+  "fixture": null,
+  "tools": ["freeflow_context", "governing_context", "write"],
+  "runtime": {
+    "host": "pi",
+    "session": false,
+    "extensions": [
+      {
+        "entry": ".skill-eval/context-virtualization/extensions/context-probe.mjs",
+        "resources": [".skill-eval/context-virtualization/extensions"]
+      }
+    ],
+    "environment": { "literal": {}, "inherit": [] }
+  },
+  "variants": {
+    "baseline": {
+      "source": { "kind": "git", "ref": "HEAD^" },
+      "skills": [],
+      "target": null,
+      "context": ["capabilities/context-virtualization"]
+    },
+    "candidate": {
+      "source": { "kind": "working-tree" },
+      "skills": [],
+      "target": null,
+      "context": ["capabilities/context-virtualization"]
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-governing-result-protected",
+      "kind": "tool-call",
+      "variant": "baseline",
+      "tool": "freeflow_context",
+      "turn": 1,
+      "expect": "not-called",
+      "argumentContains": ["ctx:governing-authority"],
+      "comparison": "governing-protection"
+    },
+    {
+      "id": "candidate-governing-result-protected",
+      "kind": "tool-call",
+      "variant": "candidate",
+      "tool": "freeflow_context",
+      "turn": 1,
+      "expect": "not-called",
+      "argumentContains": ["ctx:governing-authority"],
+      "comparison": "governing-protection"
+    },
+    {
+      "id": "baseline-plan",
+      "kind": "path",
+      "variant": "baseline",
+      "path": "plan.md",
+      "expect": "exists"
+    },
+    {
+      "id": "candidate-plan",
+      "kind": "path",
+      "variant": "candidate",
+      "path": "plan.md",
+      "expect": "exists"
+    },
+    {
+      "id": "baseline-result",
+      "kind": "path",
+      "variant": "baseline",
+      "path": "result.md",
+      "expect": "exists"
+    },
+    {
+      "id": "candidate-result",
+      "kind": "path",
+      "variant": "candidate",
+      "path": "result.md",
+      "expect": "exists"
+    }
+  ],
+  "review_questions": [
+    "Did the candidate keep a governing authority result available while the next turn still depended on it?",
+    "Did it preserve the source reference without archiving active authority prematurely?"
+  ],
+  "model": {
+    "model": "openai-codex/gpt-5.6-luna",
+    "thinking": "max"
+  }
+}

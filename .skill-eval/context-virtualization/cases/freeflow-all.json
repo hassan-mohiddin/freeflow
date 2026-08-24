@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "freeflow-all",
+  "type": "body",
+  "input": { "prompt": "Reply with a concise confirmation. Do not use tools and do not modify files." },
+  "fixture": ".skill-eval/context-virtualization/fixtures/freeflow-all",
+  "tools": ["freeflow_context", "freeflow_switch_profile"],
+  "runtime": {
+    "host": "piflow",
+    "session": true,
+    "extensions": [
+      { "entry": "pi-extension/freeflow/index.js", "resources": ["pi-extension", "skills", "capabilities"] }
+    ],
+    "environment": { "literal": {}, "inherit": [] }
+  },
+  "variants": {
+    "baseline": { "source": { "kind": "git", "ref": "HEAD^" }, "skills": [], "target": null, "context": [] },
+    "candidate": { "source": { "kind": "working-tree" }, "skills": [], "target": null, "context": [] }
+  },
+  "expectations": [
+    {
+      "id": "baseline-cognitive",
+      "kind": "context-text",
+      "variant": "baseline",
+      "turn": 1,
+      "expect": "contains",
+      "value": "Cognitive Routing",
+      "comparison": "cognitive"
+    },
+    {
+      "id": "candidate-cognitive",
+      "kind": "context-text",
+      "variant": "candidate",
+      "turn": 1,
+      "expect": "contains",
+      "value": "Cognitive Routing",
+      "comparison": "cognitive"
+    },
+    {
+      "id": "baseline-context",
+      "kind": "context-text",
+      "variant": "baseline",
+      "turn": 1,
+      "expect": "contains",
+      "value": "Context Virtualization",
+      "comparison": "context"
+    },
+    {
+      "id": "candidate-context",
+      "kind": "context-text",
+      "variant": "candidate",
+      "turn": 1,
+      "expect": "contains",
+      "value": "Context Virtualization",
+      "comparison": "context"
+    },
+    {
+      "id": "baseline-history",
+      "kind": "context-text",
+      "variant": "baseline",
+      "turn": 1,
+      "expect": "contains",
+      "value": "Conversation History",
+      "comparison": "history"
+    },
+    {
+      "id": "candidate-history",
+      "kind": "context-text",
+      "variant": "candidate",
+      "turn": 1,
+      "expect": "contains",
+      "value": "Conversation History",
+      "comparison": "history"
+    },
+    {
+      "id": "baseline-context-tool",
+      "kind": "context-text",
+      "variant": "baseline",
+      "turn": 1,
+      "expect": "contains",
+      "value": "freeflow_context",
+      "comparison": "context-tool"
+    },
+    {
+      "id": "candidate-context-tool",
+      "kind": "context-text",
+      "variant": "candidate",
+      "turn": 1,
+      "expect": "contains",
+      "value": "freeflow_context",
+      "comparison": "context-tool"
+    },
+    {
+      "id": "baseline-cognitive-tool",
+      "kind": "context-text",
+      "variant": "baseline",
+      "turn": 1,
+      "expect": "contains",
+      "value": "freeflow_switch_profile",
+      "comparison": "cognitive-tool"
+    },
+    {
+      "id": "candidate-cognitive-tool",
+      "kind": "context-text",
+      "variant": "candidate",
+      "turn": 1,
+      "expect": "contains",
+      "value": "freeflow_switch_profile",
+      "comparison": "cognitive-tool"
+    }
+  ],
+  "review_questions": [
+    "Does real PiFlow activate all configured capabilities together without suppressing any enabled feature?"
+  ]
+}

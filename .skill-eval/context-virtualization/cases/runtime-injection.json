@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "runtime-injection",
+  "type": "body",
+  "input": {
+    "prompt": "Reply with a concise confirmation. Do not use tools and do not modify files."
+  },
+  "fixture": null,
+  "tools": [],
+  "runtime": {
+    "host": "pi",
+    "session": false,
+    "extensions": [
+      {
+        "entry": ".skill-eval/context-virtualization/extensions/context-probe.mjs",
+        "resources": [".skill-eval/context-virtualization/extensions"]
+      }
+    ],
+    "environment": {
+      "literal": {
+        "PROBE_INJECT_CONTEXT": "true",
+        "PROBE_INJECT_PROVIDER_CONTEXT": "true"
+      },
+      "inherit": []
+    }
+  },
+  "variants": {
+    "baseline": {
+      "source": { "kind": "git", "ref": "HEAD^" },
+      "skills": [],
+      "target": null,
+      "context": []
+    },
+    "candidate": {
+      "source": { "kind": "working-tree" },
+      "skills": [],
+      "target": null,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-injected-context",
+      "kind": "context-text",
+      "variant": "baseline",
+      "turn": 1,
+      "expect": "contains",
+      "value": "PROBE_EXTENSION_CONTEXT",
+      "comparison": "runtime-context"
+    },
+    {
+      "id": "candidate-injected-context",
+      "kind": "context-text",
+      "variant": "candidate",
+      "turn": 1,
+      "expect": "contains",
+      "value": "PROBE_EXTENSION_CONTEXT",
+      "comparison": "runtime-context"
+    },
+    {
+      "id": "baseline-provider-injected-context",
+      "kind": "context-text",
+      "variant": "baseline",
+      "surface": "provider-context",
+      "turn": 1,
+      "expect": "contains",
+      "value": "PROBE_PROVIDER_CONTEXT",
+      "comparison": "provider-runtime-context"
+    },
+    {
+      "id": "candidate-provider-injected-context",
+      "kind": "context-text",
+      "variant": "candidate",
+      "surface": "provider-context",
+      "turn": 1,
+      "expect": "contains",
+      "value": "PROBE_PROVIDER_CONTEXT",
+      "comparison": "provider-runtime-context"
+    }
+  ],
+  "review_questions": [
+    "Did the declared extension inject context without the evaluator overwriting it?",
+    "Did both variants use identical runtime bundle bytes and host configuration?"
+  ],
+  "model": {
+    "model": "openai-codex/gpt-5.6-luna",
+    "thinking": "low"
+  }
+}

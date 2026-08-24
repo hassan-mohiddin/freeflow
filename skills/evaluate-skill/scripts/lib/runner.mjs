@@ -5,11 +5,12 @@ import { loadDefinition, selectDefinition } from "./definitions.mjs";
 import { createInvocationId, fileIdentity, writeJson, writeText } from "./evidence.mjs";
 import { gradeDeterministic } from "./grade.mjs";
 import { runBody, runDescription, VariantSetupError } from "./pi.mjs";
-import { prepareFixture } from "./sandbox.mjs";
+import { prepareFixture, prepareRuntime } from "./sandbox.mjs";
 
 const VARIANTS = ["baseline", "candidate"];
 const DESCRIPTION_TOOLS = new Set(["read"]);
 const BODY_TOOLS = new Set(["read", "write", "edit"]);
+const DEFAULT_RUNTIME = { host: "pi", extensions: [], environment: { literal: {}, inherit: [] } };
 
 /**
  * @param {string} definitionFile
@@ -69,8 +70,11 @@ function assertSupportedSelection(selection) {
       throw new Error("command expectations are not supported");
     }
     const supportedTools = group.type === "body" ? BODY_TOOLS : DESCRIPTION_TOOLS;
-    if (group.tools.some((tool) => !supportedTools.has(tool))) {
-      throw new Error(`${group.type} execution currently supports only ${[...supportedTools].join(", ")} tools`);
+    const unsupportedTools = group.tools.filter((tool) => !supportedTools.has(tool));
+    if (unsupportedTools.length > 0 && (group.runtime?.extensions?.length ?? 0) === 0) {
+      throw new Error(
+        `${group.type} execution requires declared extensions for custom tools: ${unsupportedTools.join(", ")}`,
+      );
     }
   }
 }
@@ -82,12 +86,18 @@ async function runGroup({ selected, root, resultDirectory, signal }) {
   await writeJson(path.join(groupDirectory, "definition.json"), group);
 
   let fixture = null;
-  let fixtureError = null;
+  let runtime = null;
+  let resourceError = null;
   if (!signal?.aborted) {
     try {
       fixture = await prepareFixture({ declaredPath: group.fixture, root, groupDirectory });
+      runtime = await prepareRuntime({
+        runtime: group.runtime ?? DEFAULT_RUNTIME,
+        root,
+        groupDirectory,
+      });
     } catch (error) {
-      fixtureError = error instanceof Error ? error.message : String(error);
+      resourceError = error instanceof Error ? error.message : String(error);
     }
   }
 
@@ -100,10 +110,10 @@ async function runGroup({ selected, root, resultDirectory, signal }) {
       runs[variant] = notSelectedRun(group, variant);
     } else if (signal?.aborted) {
       runs[variant] = cancelledRun(group, variant);
-    } else if (fixtureError !== null) {
-      runs[variant] = invalidRun(group, variant, fixtureError);
+    } else if (resourceError !== null) {
+      runs[variant] = invalidRun(group, variant, resourceError);
     } else {
-      runs[variant] = await executeVariant({ group, variant, root, variantDirectory, fixture, signal });
+      runs[variant] = await executeVariant({ group, variant, root, variantDirectory, fixture, runtime, signal });
     }
     const persisted = await persistRunOrFailure(variantDirectory, runs[variant]);
     runs[variant] = persisted.run;
@@ -120,7 +130,8 @@ async function runGroup({ selected, root, resultDirectory, signal }) {
     (variant) => runs[variant],
   );
   const selectedState = selectedGroupState(selectedRuns, persistedGrade.grade);
-  const groupState = selectedState === "cancelled" ? selectedState : fixtureError === null ? selectedState : "invalid";
+  let groupState = selectedState;
+  if (selectedState !== "cancelled" && resourceError !== null) groupState = "invalid";
   const groupResult = {
     id: group.id,
     position: selected.position,
@@ -205,10 +216,10 @@ function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function executeVariant({ group, variant, root, variantDirectory, fixture, signal }) {
+async function executeVariant({ group, variant, root, variantDirectory, fixture, runtime, signal }) {
   try {
     const run = group.type === "body" ? runBody : runDescription;
-    return await run({ group, variant, root, variantDirectory, fixture, signal });
+    return await run({ group, variant, root, variantDirectory, fixture, runtime, signal });
   } catch (error) {
     if (error instanceof VariantSetupError) return invalidRun(group, variant, error.message);
     return infrastructureFailedRun(group, variant, error);
@@ -241,16 +252,18 @@ async function persistRun(variantDirectory, run) {
   await writeText(path.join(variantDirectory, "final.md"), response === "" ? "" : `${response}\n`);
   const runFile = path.join(variantDirectory, "run.json");
   const hasProcessEvidence = run.process !== undefined;
-  await writeJson(runFile, {
+  const persisted = {
     ...run,
-    ...(Array.isArray(run.turns) ? { turns: externalizeTurnTranscripts(run.turns) } : {}),
     transcript: "transcript.json",
     artifacts: {
       events: hasProcessEvidence ? "events.jsonl" : null,
       final: "final.md",
       stderr: hasProcessEvidence ? "stderr.log" : null,
+      context: run.contextObservationArtifact ? "context-observations.jsonl" : null,
     },
-  });
+  };
+  if (Array.isArray(run.turns)) persisted.turns = externalizeTurnTranscripts(run.turns);
+  await writeJson(runFile, persisted);
   return runFile;
 }
 

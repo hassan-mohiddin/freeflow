@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "selective-archive",
+  "type": "body",
+  "input": {
+    "turns": [
+      "Work inside the current fixture directory on a simulated authentication incident. Use mcp_search, web_search, and git_log to gather decision-bearing evidence, then write decision-log.md with the root cause, source identifiers, and next repair step. Do not run test_run yet. Do not mention this evaluation or context management tools.",
+      "The evidence phase is complete. Begin verification: run test_run exactly once. Do not archive its result or write verification.md yet; keep the exact result available for the next turn. Do not inspect the earlier raw results.",
+      "Use the exact test result to write verification.md with the failing test path, assertion, received value, and repair step. Keep the exact result available until verification.md is complete. Do not rerun the test or inspect earlier raw results.",
+      "Verification is complete. Create final-report.md using only decision-log.md and verification.md. Include the root cause, source identifiers, exact test conclusion, and repair step. Do not rerun tools or mention context management tools."
+    ]
+  },
+  "fixture": null,
+  "tools": ["freeflow_context", "mcp_search", "web_search", "git_log", "test_run", "write"],
+  "runtime": {
+    "host": "pi",
+    "session": false,
+    "extensions": [
+      {
+        "entry": ".skill-eval/context-virtualization/extensions/context-probe.mjs",
+        "resources": [".skill-eval/context-virtualization/extensions"]
+      }
+    ],
+    "environment": { "literal": {}, "inherit": [] }
+  },
+  "variants": {
+    "baseline": {
+      "source": { "kind": "git", "ref": "HEAD^" },
+      "skills": [],
+      "target": null,
+      "context": ["capabilities/context-virtualization"]
+    },
+    "candidate": {
+      "source": { "kind": "working-tree" },
+      "skills": [],
+      "target": null,
+      "context": ["capabilities/context-virtualization"]
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-archive-decision",
+      "kind": "tool-call",
+      "variant": "baseline",
+      "tool": "freeflow_context",
+      "expect": "succeeded",
+      "argumentContains": ["ctx:decision-mcp"],
+      "argumentNotContains": ["ctx:exact-test"],
+      "comparison": "decision-archive"
+    },
+    {
+      "id": "candidate-archive-decision",
+      "kind": "tool-call",
+      "variant": "candidate",
+      "tool": "freeflow_context",
+      "expect": "succeeded",
+      "argumentContains": ["ctx:decision-mcp"],
+      "argumentNotContains": ["ctx:exact-test"],
+      "comparison": "decision-archive"
+    },
+    {
+      "id": "baseline-protect-test-turn-two",
+      "kind": "tool-call",
+      "variant": "baseline",
+      "tool": "freeflow_context",
+      "turn": 2,
+      "expect": "not-called",
+      "argumentContains": ["ctx:exact-test"]
+    },
+    {
+      "id": "candidate-protect-test-turn-two",
+      "kind": "tool-call",
+      "variant": "candidate",
+      "tool": "freeflow_context",
+      "turn": 2,
+      "expect": "not-called",
+      "argumentContains": ["ctx:exact-test"]
+    },
+    {
+      "id": "baseline-decision-log",
+      "kind": "path",
+      "variant": "baseline",
+      "path": "decision-log.md",
+      "expect": "exists"
+    },
+    {
+      "id": "candidate-decision-log",
+      "kind": "path",
+      "variant": "candidate",
+      "path": "decision-log.md",
+      "expect": "exists"
+    },
+    {
+      "id": "baseline-verification",
+      "kind": "path",
+      "variant": "baseline",
+      "path": "verification.md",
+      "expect": "exists"
+    },
+    {
+      "id": "candidate-verification",
+      "kind": "path",
+      "variant": "candidate",
+      "path": "verification.md",
+      "expect": "exists"
+    },
+    {
+      "id": "baseline-final-report",
+      "kind": "path",
+      "variant": "baseline",
+      "path": "final-report.md",
+      "expect": "exists"
+    },
+    {
+      "id": "candidate-final-report",
+      "kind": "path",
+      "variant": "candidate",
+      "path": "final-report.md",
+      "expect": "exists"
+    },
+    {
+      "id": "candidate-skill-context",
+      "kind": "context-text",
+      "variant": "candidate",
+      "turn": 1,
+      "expect": "contains",
+      "value": "Consumption or summarization does not end a result's usefulness."
+    }
+  ],
+  "review_questions": [
+    "Did the candidate archive at least one exhausted decision-bearing result while preserving a concise retained meaning?",
+    "Did neither variant archive the exact test result before the verification phase?",
+    "Did the candidate preserve the required artifacts and report real custom tool activity?",
+    "Are the observed calls and context attributable to the declared runtime bundle and skill source difference?"
+  ],
+  "model": {
+    "model": "openai-codex/gpt-5.6-luna",
+    "thinking": "max"
+  }
+}

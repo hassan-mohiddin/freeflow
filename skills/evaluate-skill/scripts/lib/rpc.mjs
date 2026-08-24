@@ -28,8 +28,8 @@ export async function runRpcBodySession(options) {
 }
 
 class RpcSession {
-  constructor({ args, cwd, eventsFile, stderrFile, signal, environment, afterTurn = null }) {
-    this.child = spawn("pi", args, {
+  constructor({ command = "pi", args, cwd, eventsFile, stderrFile, signal, environment, afterTurn = null }) {
+    this.child = spawn(command, args, {
       cwd,
       detached: process.platform !== "win32",
       env: environment,

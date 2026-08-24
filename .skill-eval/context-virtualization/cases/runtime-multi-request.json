@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "runtime-multi-request",
+  "type": "body",
+  "input": {
+    "prompt": "Use mcp_search exactly once to inspect the simulated evidence, then answer with a concise confirmation. Do not use any other tools."
+  },
+  "fixture": null,
+  "tools": ["mcp_search"],
+  "runtime": {
+    "host": "pi",
+    "session": false,
+    "extensions": [
+      {
+        "entry": ".skill-eval/context-virtualization/extensions/context-probe.mjs",
+        "resources": [".skill-eval/context-virtualization/extensions"]
+      }
+    ],
+    "environment": {
+      "literal": {
+        "PROBE_INJECT_PROVIDER_CONTEXT_AFTER_FIRST": "true"
+      },
+      "inherit": []
+    }
+  },
+  "variants": {
+    "baseline": {
+      "source": { "kind": "git", "ref": "HEAD^" },
+      "skills": [],
+      "target": null,
+      "context": []
+    },
+    "candidate": {
+      "source": { "kind": "working-tree" },
+      "skills": [],
+      "target": null,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-search-succeeded",
+      "kind": "tool-call",
+      "variant": "baseline",
+      "tool": "mcp_search",
+      "expect": "succeeded",
+      "comparison": "search-execution"
+    },
+    {
+      "id": "candidate-search-succeeded",
+      "kind": "tool-call",
+      "variant": "candidate",
+      "tool": "mcp_search",
+      "expect": "succeeded",
+      "comparison": "search-execution"
+    },
+    {
+      "id": "baseline-first-context-clean",
+      "kind": "context-text",
+      "variant": "baseline",
+      "surface": "provider-context",
+      "request": "first",
+      "turn": 1,
+      "expect": "not-contains",
+      "value": "PROBE_PROVIDER_CONTEXT",
+      "comparison": "first-context"
+    },
+    {
+      "id": "candidate-first-context-clean",
+      "kind": "context-text",
+      "variant": "candidate",
+      "surface": "provider-context",
+      "request": "first",
+      "turn": 1,
+      "expect": "not-contains",
+      "value": "PROBE_PROVIDER_CONTEXT",
+      "comparison": "first-context"
+    },
+    {
+      "id": "baseline-last-context-injected",
+      "kind": "context-text",
+      "variant": "baseline",
+      "surface": "provider-context",
+      "request": "last",
+      "turn": 1,
+      "expect": "contains",
+      "value": "PROBE_PROVIDER_CONTEXT",
+      "comparison": "last-context"
+    },
+    {
+      "id": "candidate-last-context-injected",
+      "kind": "context-text",
+      "variant": "candidate",
+      "surface": "provider-context",
+      "request": "last",
+      "turn": 1,
+      "expect": "contains",
+      "value": "PROBE_PROVIDER_CONTEXT",
+      "comparison": "last-context"
+    }
+  ],
+  "review_questions": [
+    "Does the evaluator distinguish the first and last provider-context projection within one declared turn?",
+    "Does the late extension injection appear only after the first provider request?"
+  ],
+  "model": {
+    "model": "openai-codex/gpt-5.6-luna",
+    "thinking": "low"
+  }
+}

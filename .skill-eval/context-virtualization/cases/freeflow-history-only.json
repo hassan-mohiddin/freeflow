@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "freeflow-history-only",
+  "type": "body",
+  "input": { "prompt": "Reply with a concise confirmation. Do not use tools and do not modify files." },
+  "fixture": ".skill-eval/context-virtualization/fixtures/freeflow-history-only",
+  "tools": ["freeflow_context"],
+  "runtime": {
+    "host": "pi",
+    "session": false,
+    "extensions": [
+      { "entry": "pi-extension/freeflow/index.js", "resources": ["pi-extension", "skills", "capabilities"] }
+    ],
+    "environment": { "literal": {}, "inherit": [] }
+  },
+  "variants": {
+    "baseline": { "source": { "kind": "git", "ref": "HEAD^" }, "skills": [], "target": null, "context": [] },
+    "candidate": { "source": { "kind": "working-tree" }, "skills": [], "target": null, "context": [] }
+  },
+  "expectations": [
+    {
+      "id": "baseline-history-guidance",
+      "kind": "context-text",
+      "variant": "baseline",
+      "turn": 1,
+      "expect": "contains",
+      "value": "recover bounded hidden conversation history",
+      "comparison": "history-guidance"
+    },
+    {
+      "id": "candidate-history-guidance",
+      "kind": "context-text",
+      "variant": "candidate",
+      "turn": 1,
+      "expect": "contains",
+      "value": "recover bounded hidden conversation history",
+      "comparison": "history-guidance"
+    },
+    {
+      "id": "baseline-history-tool",
+      "kind": "context-text",
+      "variant": "baseline",
+      "turn": 1,
+      "expect": "contains",
+      "value": "freeflow_context",
+      "comparison": "history-tool"
+    },
+    {
+      "id": "candidate-history-tool",
+      "kind": "context-text",
+      "variant": "candidate",
+      "turn": 1,
+      "expect": "contains",
+      "value": "freeflow_context",
+      "comparison": "history-tool"
+    },
+    {
+      "id": "baseline-context-dormant",
+      "kind": "context-text",
+      "variant": "baseline",
+      "turn": 1,
+      "expect": "not-contains",
+      "value": "control context projections",
+      "comparison": "context-dormant"
+    },
+    {
+      "id": "candidate-context-dormant",
+      "kind": "context-text",
+      "variant": "candidate",
+      "turn": 1,
+      "expect": "not-contains",
+      "value": "control context projections",
+      "comparison": "context-dormant"
+    }
+  ],
+  "review_questions": [
+    "Does recover bounded hidden conversation history activate alone while control context projections remains dormant?"
+  ],
+  "model": { "model": "openai-codex/gpt-5.6-luna", "thinking": "low" }
+}

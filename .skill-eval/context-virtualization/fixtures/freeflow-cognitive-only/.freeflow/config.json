@@ -1,0 +1,23 @@
+{
+  "enabled": true,
+  "defaultMode": "workflow",
+  "interactionContract": false,
+  "skills": { "enabled": false },
+  "contextVirtualization": false,
+  "conversationHistory": false,
+  "cognitiveRouting": {
+    "enabled": true,
+    "profiles": {
+      "standard": {
+        "provider": "openai-codex",
+        "model": "gpt-5.6-luna",
+        "thinkingLevel": "max"
+      },
+      "reasoning": {
+        "provider": "openai-codex",
+        "model": "gpt-5.6-sol",
+        "thinkingLevel": "xhigh"
+      }
+    }
+  }
+}

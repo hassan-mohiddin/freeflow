@@ -33,7 +33,9 @@ With no selectors, `run` or `view` selects every suite group and both variants. 
 
 ## Current Execution Boundary
 
-`run` executes description and body groups. `end-to-end` is a reserved definition type and is rejected before subject execution. Description groups allow no tools or `read`; body groups allow no tools or path-guarded `read`, `write`, and `edit`. `bash` and definition-supplied commands are unsupported.
+`run` executes description and body groups. `end-to-end` is a reserved definition type and is rejected before subject execution. Description groups allow no tools or `read`; body groups allow no tools or path-guarded `read`, `write`, and `edit`, plus custom tools supplied by a declared runtime extension bundle. `bash` and definition-supplied commands are unsupported.
+
+A runtime profile selects the installed `pi` or `piflow` host, whether the variant uses an isolated persistent session directory, zero or more ordered extension bundles, and declarative environment sources. Literal values are non-secret configuration; inherited values are passed to the child without being persisted. When a group declares context assertions, the evaluator launches the base guard first, declared extensions second, and a final non-mutating observer last. The observer records both the effective `before_agent_start` system prompt and each provider-neutral `context` message projection; it does not replace or sanitize extension injections after the base guard has established evaluator-owned isolation.
 
 Use fresh JSON-mode execution for one-shot descriptions. Use one persistent RPC process per selected variant for ordered description turns and all body groups. RPC correlates responses, waits for `agent_settled`, disables automatic retry and compaction, preserves directly observed partial-turn evidence, and cleans the process tree.
 
@@ -43,9 +45,12 @@ A body target is matched to the exact snapshotted `SKILL.md` and explicitly deli
 
 For each selected variant:
 
-- snapshot exact declared skills and context;
+- snapshot exact declared skills, context, and the shared runtime bundle resources;
+- copy the shared runtime bundles identically into the variant and verify their fingerprints before and after execution;
 - snapshot the group fixture once from the definition-root working tree—never from a variant Git source—then create an independent writable copy;
 - preserve skill order and target index;
+- preserve runtime host, session mode, and extension order;
+- preserve runtime bundle and provider-context observation evidence when requested;
 - replace ambient instructions with evaluator-owned declared context;
 - keep criteria and review questions outside the subject prompt;
 - allow reads only from workspace and declared immutable resources;
@@ -76,7 +81,7 @@ Views can render a complete result, all baseline or candidate variants, one grou
 
 Path cells escape literal backslashes before tab, carriage return, and newline. Variant views exclude expectation-owned errors from the other variant while retaining comparison, group, and system errors.
 
-Use ordinary file tools for raw `run.json`, events, transcript, final response, stderr, workspace, definition, grade, and group artifacts. Views remove transport noise; they do not replace canonical evidence.
+Use ordinary file tools for raw `run.json`, events, transcript, final response, stderr, workspace, definition, grade, context observations, and group artifacts. Views remove transport noise; they do not replace canonical evidence. Tool-call grades distinguish attempted, succeeded, failed, and not-called outcomes.
 
 ## Safeguards And Limits
 

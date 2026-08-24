@@ -4,6 +4,7 @@ import path from "node:path";
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const EVALUATION_TYPES = new Set(["description", "body", "end-to-end"]);
 const VARIANTS = ["baseline", "candidate"];
+const EVALUATION_HOSTS = new Set(["pi", "piflow"]);
 
 export class DefinitionError extends Error {
   constructor(code, message, definitionPath = null) {
@@ -129,6 +130,87 @@ function validateEnvironment(value, label, definitionPath) {
   }
 }
 
+function validateRuntime(value, definitionPath) {
+  const runtime = requireExactKeys(
+    value,
+    ["host", "extensions", "environment", "session"],
+    [],
+    "group.runtime",
+    definitionPath,
+  );
+  if (!EVALUATION_HOSTS.has(runtime.host)) {
+    fail("invalid-definition", "group.runtime.host must be pi or piflow", definitionPath);
+  }
+  if (!Array.isArray(runtime.extensions)) {
+    fail("invalid-definition", "group.runtime.extensions must be an array", definitionPath);
+  }
+  const bundleIds = new Set();
+  for (const [index, entry] of runtime.extensions.entries()) {
+    const bundle = requireExactKeys(
+      entry,
+      ["entry", "resources"],
+      [],
+      `group.runtime.extensions[${index}]`,
+      definitionPath,
+    );
+    requireSafeRelativePath(bundle.entry, `group.runtime.extensions[${index}].entry`, definitionPath);
+    const resources = requireStringArray(
+      bundle.resources,
+      `group.runtime.extensions[${index}].resources`,
+      definitionPath,
+      { paths: true, unique: true },
+    );
+    if (resources.length === 0) {
+      fail("invalid-definition", `group.runtime.extensions[${index}].resources must not be empty`, definitionPath);
+    }
+    const bundleId = `${bundle.entry}\u0000${resources.join("\u0000")}`;
+    if (bundleIds.has(bundleId)) {
+      fail("invalid-definition", "group.runtime.extensions contains duplicate bundles", definitionPath);
+    }
+    bundleIds.add(bundleId);
+  }
+  if (typeof runtime.session !== "boolean") {
+    fail("invalid-definition", "group.runtime.session must be a boolean", definitionPath);
+  }
+  const environment = requireExactKeys(
+    runtime.environment,
+    ["literal", "inherit"],
+    [],
+    "group.runtime.environment",
+    definitionPath,
+  );
+  const literal = requireObject(environment.literal, "group.runtime.environment.literal", definitionPath);
+  const inherited = requireStringArray(environment.inherit, "group.runtime.environment.inherit", definitionPath, {
+    unique: true,
+  });
+  const reservedKeys = new Set(["PATH", "HOME", "PWD", "OLDPWD", "SHELL", "BASH_ENV", "NODE_OPTIONS", "NODE_PATH"]);
+  for (const [key, value] of Object.entries(literal)) {
+    if (
+      !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) ||
+      key.startsWith("SKILL_EVAL_") ||
+      key.startsWith("PI_") ||
+      reservedKeys.has(key) ||
+      key.startsWith("LD_") ||
+      key.startsWith("DYLD_") ||
+      /TOKEN|SECRET|PASSWORD|API[_-]?KEY|PRIVATE[_-]?KEY|CREDENTIAL/i.test(key)
+    ) {
+      fail(
+        "invalid-definition",
+        `group.runtime.environment.literal contains a reserved or secret-like key: ${key}`,
+        definitionPath,
+      );
+    }
+    if (typeof value !== "string") {
+      fail("invalid-definition", `group.runtime.environment.literal.${key} must be a string`, definitionPath);
+    }
+  }
+  for (const key of inherited) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) || key.startsWith("SKILL_EVAL_") || key.startsWith("PI_")) {
+      fail("invalid-definition", `group.runtime.environment.inherit contains an invalid key: ${key}`, definitionPath);
+    }
+  }
+}
+
 function validateExpectations(value, definitionPath) {
   if (!Array.isArray(value)) fail("invalid-definition", "group.expectations must be an array", definitionPath);
   const ids = new Set();
@@ -164,7 +246,7 @@ function validateGroup(value, definitionPath) {
       "expectations",
       "review_questions",
     ],
-    ["model"],
+    ["model", "runtime"],
     "group",
     definitionPath,
   );
@@ -177,12 +259,13 @@ function validateGroup(value, definitionPath) {
   validateInput(group.input, definitionPath);
   if (group.fixture !== null) requireSafeRelativePath(group.fixture, "group.fixture", definitionPath);
   requireStringArray(group.tools, "group.tools", definitionPath, { unique: true });
+  if (Object.hasOwn(group, "runtime")) validateRuntime(group.runtime, definitionPath);
   const variants = requireExactKeys(group.variants, VARIANTS, [], "group.variants", definitionPath);
   for (const variant of VARIANTS) validateEnvironment(variants[variant], `group.variants.${variant}`, definitionPath);
-  if (variants.candidate.target === null) {
+  if (variants.candidate.target === null && variants.candidate.skills.length > 0) {
     fail(
       "invalid-definition",
-      "group.variants.candidate.target must identify the candidate target skill",
+      "group.variants.candidate.target must identify the candidate target skill when candidate skills are declared",
       definitionPath,
     );
   }

@@ -68,6 +68,7 @@ Rules:
 - `expectations` is an ordered array with unique expectation IDs.
 - `review_questions` is an ordered string array. Questions are rendered for the reviewer and never sent to the subject.
 - `model` is optional. `model.model` names the provider/model; optional `model.thinking` selects its thinking level. The CLI has no model override.
+- `runtime` is optional. When omitted, the group runs under a plain `pi` host with no declared extensions. When present, it declares the host, ordered extension bundles, and string environment overrides.
 
 ## Description Group Example
 
@@ -203,9 +204,44 @@ A body group explicitly delivers each target on turn one and observes first-read
 }
 ```
 
-Body groups allow no tools or path-guarded `read`, `write`, and `edit`. A no-target baseline uses `skills: []` and `target: null`; the candidate must always identify a target.
+Body groups allow built-in `read`, `write`, and `edit`, plus custom tools declared by a runtime extension bundle. A no-target baseline or runtime-only group may use `skills: []` and `target: null`; a candidate that declares skills must identify its target.
 
 The examples are complete definition shapes. Replace fixture, resource, model, and Git-ref values with paths and identities that exist under your definition root.
+
+## Runtime Profile
+
+A runtime profile is shared by both baseline and candidate variants. It changes the host environment, not the skill target:
+
+```json
+{
+  "runtime": {
+    "host": "pi",
+    "session": false,
+    "extensions": [
+      {
+        "entry": "extensions/probe.mjs",
+        "resources": ["extensions"]
+      }
+    ],
+    "environment": {
+      "literal": {
+        "PROBE_MODE": "injection-test"
+      },
+      "inherit": []
+    }
+  }
+}
+```
+
+`host` is `pi` or `piflow`; the evaluator maps it to the corresponding installed host command and records the selected host. `session` controls whether the variant receives an isolated persistent session directory; it defaults to `false` in omitted runtime profiles. A runtime may declare zero or more bundles. Each bundle has an entry file and one or more directory resources copied under their original relative paths, so sibling imports and multi-tree extensions remain intact. Bundle bytes are snapshotted once and copied identically to both variants.
+
+`environment.literal` contains non-secret string configuration and is recorded in run evidence. `environment.inherit` names parent-process variables whose values are passed to the child but never persisted. Missing inherited variables invalidate the variant. Launch-control and secret-like literal keys are rejected.
+
+Extensions are trusted executable inputs, not OS-sandboxed code. The evaluator proves declared identity and post-run immutability, but extension code retains its host permissions.
+
+When a group declares `context-text` expectations, the evaluator loads its base isolation guard first, then declared bundles, then a non-mutating final observer. The observer records two per-turn surfaces: the chained `before_agent_start` system prompt and each provider-neutral `context` message projection. `context-text` expectations select `surface: "system-prompt"` or `surface: "provider-context"` and may select `request: "first"`, `"last"`, or a positive request number. Groups without context assertions do not create context-observation artifacts.
+
+A custom tool name is allowed in `group.tools` only when the runtime declares an extension bundle. The evaluator remains extension-neutral: it does not interpret feature names or configuration schemas. Put feature configuration in the ordinary group fixture or runtime environment, and test combinations as separate suite groups.
 
 ## Variant Environment
 
@@ -255,6 +291,8 @@ Without `turn`, response checks use the final response and workspace checks use 
 | `file-text` | workspace `path`, string `value`, optional body `turn` | `contains`, `not-contains`, `equals` |
 | `json` | workspace `path`, optional body `turn`, conditional `pointer` and `value` | `available`, `missing`, `valid`, `malformed`, `field-present`, `field-absent`, `field-equals` |
 | `response-text` | string `value`, optional body `turn` | `contains`, `not-contains`, `equals` |
+| `tool-call` | string `tool`, optional body `turn`, optional `argumentContains`/`argumentNotContains` arrays | `called`, `succeeded`, `failed`, `not-called` |
+| `context-text` | string `value`, optional `surface` (`system-prompt` or `provider-context`), optional body `turn` | `contains`, `not-contains`, `equals` |
 
 ### Resource paths
 

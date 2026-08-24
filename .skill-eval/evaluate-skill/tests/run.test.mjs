@@ -58,7 +58,13 @@ const skills = args.flatMap((arg, index) => arg === "--skill" ? [args[index + 1]
 const skill = skills[0] ?? null;
 const readSkill = skills[Number(process.env.FAKE_PI_READ_SKILL_INDEX ?? 0)] ?? null;
 const fail = skill !== null && process.env.FAKE_PI_FAIL_SKILL === "1" && (!process.env.FAKE_PI_FAIL_FOR || process.cwd().includes(process.env.FAKE_PI_FAIL_FOR));
-appendFileSync(process.env.FAKE_PI_LOG, JSON.stringify({ pid: process.pid, args, cwd: process.cwd(), allowedRoots: JSON.parse(process.env.SKILL_EVAL_ALLOWED_ROOTS) }) + "\\n");
+appendFileSync(process.env.FAKE_PI_LOG, JSON.stringify({
+  pid: process.pid,
+  args,
+  cwd: process.cwd(),
+  allowedRoots: JSON.parse(process.env.SKILL_EVAL_ALLOWED_ROOTS),
+  inheritedValue: process.env.FAKE_PI_CAPTURE_ENV ? process.env[process.env.FAKE_PI_CAPTURE_ENV] ?? null : null,
+}) + "\\n");
 const variantDirectory = path.dirname(process.cwd());
 const groupDirectory = path.dirname(variantDirectory);
 const currentVariant = path.basename(variantDirectory);
@@ -211,6 +217,160 @@ function descriptionGroup() {
     model: { model: "fake/model", thinking: "low" },
   };
 }
+
+test("runtime bundles are snapshotted once between the base guard and final observer", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    await mkdir(path.join(root, "extensions"), { recursive: true });
+    await mkdir(path.join(root, "support"), { recursive: true });
+    await writeFile(path.join(root, "extensions/probe.mjs"), "export { marker } from '../support/marker.mjs';\n");
+    await writeFile(path.join(root, "support/marker.mjs"), "export const marker = 'ok';\n");
+    const group = descriptionGroup();
+    group.runtime = {
+      host: "pi",
+      session: false,
+      extensions: [{ entry: "extensions/probe.mjs", resources: ["extensions", "support"] }],
+      environment: { literal: {}, inherit: [] },
+    };
+    const definition = await writeJson(root, "groups/extensions.json", group);
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const runs = await Promise.all(
+      ["baseline", "candidate"].map(async (variant) =>
+        parseJson(
+          await readFile(path.join(resultDirectory, `groups/natural-activation/${variant}/run.json`), "utf8"),
+          `${variant} extension run`,
+        ),
+      ),
+    );
+    for (const run of runs) {
+      const bundle = run.resources.runtime.extensions[0];
+      assert.equal(bundle.resources.length, 2);
+      assert.equal(bundle.resources[0].declaredPath, "extensions");
+      assert.equal(bundle.resources[1].declaredPath, "support");
+      assert.equal(bundle.resources[1].files[0].path, "marker.mjs");
+      assert.match(bundle.entry, /resources\/runtime\/extensions\/0\/extensions\/probe\.mjs$/);
+    }
+    assert.deepEqual(
+      runs[0].resources.runtime.extensions[0].resources.map((resource) => resource.files),
+      runs[1].resources.runtime.extensions[0].resources.map((resource) => resource.files),
+    );
+    for (const run of runs) {
+      const guardIndex = run.process.args.findIndex((value) => /pi-guard\.mjs$/.test(value));
+      const bundleIndex = run.process.args.findIndex((value) =>
+        /resources\/runtime\/extensions\/0\/extensions\/probe\.mjs$/.test(value),
+      );
+      const observerIndex = run.process.args.findIndex((value) => /pi-observer\.mjs$/.test(value));
+      assert.ok(guardIndex >= 0);
+      assert.ok(bundleIndex > guardIndex);
+      assert.equal(observerIndex, -1);
+    }
+  });
+});
+
+test("inherited runtime environment reaches the child without entering run evidence", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    const group = descriptionGroup();
+    group.runtime = {
+      host: "pi",
+      session: true,
+      extensions: [],
+      environment: { literal: {}, inherit: ["EVAL_SECRET"] },
+    };
+    const definition = await writeJson(root, "groups/inherited-environment.json", group);
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+        FAKE_PI_CAPTURE_ENV: "EVAL_SECRET",
+        EVAL_SECRET: "do-not-persist-this-value",
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const log = (await readFile(fakeLog, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => parseJson(line, "inherited environment log"));
+    assert.equal(log[0].inheritedValue, "do-not-persist-this-value");
+    const runText = await readFile(path.join(resultDirectory, "groups/natural-activation/candidate/run.json"), "utf8");
+    assert.doesNotMatch(runText, /do-not-persist-this-value/);
+    const run = parseJson(runText, "inherited environment run");
+    assert.deepEqual(run.resources.runtime.environment, { literal: {}, inherit: ["EVAL_SECRET"] });
+    assert.equal(run.resources.runtime.session, true);
+    assert.ok(run.process.args.includes("--session-dir"));
+    assert.equal(run.process.args.includes("--no-session"), false);
+  });
+});
+
+test("required context observations fail the subject when the observer artifact is missing", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    const group = descriptionGroup();
+    group.expectations = [
+      {
+        id: "context-observed",
+        kind: "context-text",
+        variant: "candidate",
+        turn: 1,
+        expect: "contains",
+        value: "context",
+      },
+    ];
+    const definition = await writeJson(root, "groups/missing-context-observer.json", group);
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 1, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const run = parseJson(
+      await readFile(path.join(resultDirectory, "groups/natural-activation/candidate/run.json"), "utf8"),
+      "missing observer run",
+    );
+    assert.equal(run.state, "infrastructure-failed");
+  });
+});
 
 test("fixture copies are fresh per variant and preserve declared materialization evidence", async () => {
   await withTempDirectory(async (root) => {

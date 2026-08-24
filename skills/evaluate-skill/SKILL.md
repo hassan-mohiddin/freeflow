@@ -67,7 +67,7 @@ If both variants pass, the pressure may be weak or the baseline sufficient. If b
 
 Use the exact [Evaluation Definition Schema](references/evaluation-definition-schema.md) for group, environment, expectation, suite, and selector shapes.
 
-Declare the prompt or turns, fixture, exact ordered skills and target, working-tree or Git source, UTF-8 context, tools, model and thinking, deterministic expectations, comparison IDs, and review questions. Snapshot every declared subject resource. Ambient installation is not declared composition.
+Declare the prompt or turns, fixture, exact ordered skills and target, working-tree or Git source, runtime host/session mode and ordered extension bundles when needed, literal/inherited environment sources, UTF-8 context, tools, model and thinking, deterministic expectations, comparison IDs, and review questions. Snapshot every declared subject resource. Ambient installation is not declared composition.
 
 ## Run And View
 
@@ -82,7 +82,7 @@ Run from the definition root. Definition targets resolve from the current workin
 
 With no selectors, every suite group and both variants are selected. `--group` is invalid for a direct group. Run `--help` before relying on an operation.
 
-Pi is the direct subject process. One-shot descriptions use fresh JSON-mode subjects. Ordered description turns and body groups use one isolated RPC process per variant. Body groups explicitly deliver one target on turn one. `bash`, definition-supplied command execution, and end-to-end execution are unsupported.
+Pi is the direct subject process; a runtime profile may select the compatible `piflow` command as an explicit host variant. One-shot descriptions use fresh JSON-mode subjects. Ordered description turns and body groups use one isolated RPC process per variant. Body groups explicitly deliver one target on turn one. Declared extension bundles may provide custom tools and context injections; `bash`, definition-supplied command execution, and end-to-end execution are unsupported.
 
 Read [execution and evidence](references/execution-and-evidence.md) when operating commands, resolving paths, interpreting states, or reasoning about Pi isolation, persistence, views, cancellation, cleanup, and safeguards.
 
@@ -90,9 +90,9 @@ Read [execution and evidence](references/execution-and-evidence.md) when operati
 
 Append deterministic grades only after canonical run evidence exists. A grade is derived evidence and never mutates or invalidates a run.
 
-Supported checks cover exact skill/resource reads, typed paths, changed paths, file/response text, explicit JSON states, valid turn scope, and factual baseline-to-candidate transitions. A failed check remains ordinary behavioral evidence. Missing evidence stays unavailable. Malformed checks or grading failures produce separate `grade-error` evidence. Transitions carry no quality or readiness meaning.
+Supported checks cover exact skill/resource reads, typed paths, changed paths, file/response text, explicit JSON states, tool-call outcomes and argument predicates, system-prompt or provider-context text by selected request and turn, valid turn scope, and factual baseline-to-candidate transitions. A failed check remains ordinary behavioral evidence. Missing evidence stays unavailable. Malformed checks or grading failures produce separate `grade-error` evidence. Transitions carry no quality or readiness meaning.
 
-Prefer generated grade-first views for routine inspection. Use ordinary file tools for raw run, event, transcript, response, stderr, workspace, definition, grade, and group artifacts. A view may remove repeated transport structure; it must not hide evidence required by the question.
+Prefer generated grade-first views for routine inspection. Use ordinary file tools for raw run, event, transcript, response, stderr, workspace, definition, grade, context-observation, and group artifacts. A view may remove repeated transport structure; it must not hide evidence required by the question.
 
 Read [review and revision](references/review-and-revision.md) after evidence exists, when surfaces conflict, meaning still needs judgment, or a revision/rerun boundary must be chosen.
 

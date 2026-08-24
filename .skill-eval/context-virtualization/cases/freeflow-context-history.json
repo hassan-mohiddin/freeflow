@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "freeflow-context-history",
+  "type": "body",
+  "input": {
+    "prompt": "Reply with a concise confirmation. Do not use tools and do not modify files."
+  },
+  "fixture": ".skill-eval/context-virtualization/fixtures/freeflow-context-history",
+  "tools": ["freeflow_context"],
+  "runtime": {
+    "host": "pi",
+    "session": false,
+    "extensions": [
+      {
+        "entry": "pi-extension/freeflow/index.js",
+        "resources": ["pi-extension", "skills", "capabilities"]
+      }
+    ],
+    "environment": {
+      "literal": {},
+      "inherit": []
+    }
+  },
+  "variants": {
+    "baseline": {
+      "source": { "kind": "git", "ref": "HEAD^" },
+      "skills": [],
+      "target": null,
+      "context": []
+    },
+    "candidate": {
+      "source": { "kind": "working-tree" },
+      "skills": [],
+      "target": null,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-context-virtualization-guidance",
+      "kind": "context-text",
+      "variant": "baseline",
+      "turn": 1,
+      "expect": "contains",
+      "value": "Context Virtualization",
+      "comparison": "context-virtualization-guidance"
+    },
+    {
+      "id": "candidate-context-virtualization-guidance",
+      "kind": "context-text",
+      "variant": "candidate",
+      "turn": 1,
+      "expect": "contains",
+      "value": "Context Virtualization",
+      "comparison": "context-virtualization-guidance"
+    },
+    {
+      "id": "baseline-conversation-history-guidance",
+      "kind": "context-text",
+      "variant": "baseline",
+      "turn": 1,
+      "expect": "contains",
+      "value": "Conversation History",
+      "comparison": "conversation-history-guidance"
+    },
+    {
+      "id": "candidate-conversation-history-guidance",
+      "kind": "context-text",
+      "variant": "candidate",
+      "turn": 1,
+      "expect": "contains",
+      "value": "Conversation History",
+      "comparison": "conversation-history-guidance"
+    }
+  ],
+  "review_questions": [
+    "Did the real Freeflow extension load from the declared multi-tree bundle?",
+    "Did the ordinary fixture configuration activate both capabilities without evaluator-specific feature logic?"
+  ],
+  "model": {
+    "model": "openai-codex/gpt-5.6-luna",
+    "thinking": "low"
+  }
+}
