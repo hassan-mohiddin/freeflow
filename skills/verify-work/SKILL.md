@@ -32,7 +32,13 @@ Verification inherits the current authority envelope. Existing evidence may be i
 
 Passing tests do not prove behavior they do not exercise. A happy path does not prove failure handling. Source inspection does not prove runtime execution. A helper call does not prove registration, host dispatch, or installed-package behavior.
 
-Read [integration evidence](references/integration-evidence.md) for callback, host-lifecycle, installed-artifact, absence, or mutation-footprint claims. Read [browser runtime evidence](references/browser-runtime-evidence.md) for rendered, interactive, network, accessibility, console, or visual claims. Read [performance evidence](references/performance-evidence.md) for latency, throughput, memory, CPU, bundle, query, or resource claims.
+Before selecting or running evidence:
+
+- read [integration evidence](references/integration-evidence.md) when a claim depends on a registered callback or executor, host lifecycle, producer invocation, fallback protocol, installed package, absence counter, or a check that may mutate shared state;
+- read [browser runtime evidence](references/browser-runtime-evidence.md) when a claim depends on rendered UI, browser behavior, accessibility, client networking, console state, visual output, or browser runtime performance;
+- read [performance evidence](references/performance-evidence.md) when verifying latency, throughput, memory, CPU, bundle, query, rendering, capacity, or resource-regression claims.
+
+For browser-performance claims, read both Browser Runtime Evidence for runtime fidelity and Performance Evidence for workload, baseline, variance, and metrics.
 
 Review may judge whether evidence is sufficient, but review does not prove that behavior occurred.
 

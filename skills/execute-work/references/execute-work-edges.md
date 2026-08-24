@@ -1,6 +1,6 @@
 # Execute Work Edges
 
-Read this after [Execute Work](../SKILL.md) when execution spans multiple actions or slices, resumes from prior state, reaches a selected checkpoint, or reveals follow-on work. Execute Work owns the normal action-and-evidence loop; this reference covers continuation edges.
+Read this after [Execute Work](../SKILL.md) when work spans multiple actions or slices, resumes from prior state, needs a specialized method, reaches a checkpoint, or reveals follow-on work. Execute Work owns the normal action-and-evidence loop; this reference covers continuation edges.
 
 ## Continue Or Return
 
@@ -28,10 +28,10 @@ Preserve supported work when returning. Do not continue because implementation b
 
 Use only the method the current action needs:
 
-- [TDD](../../tdd/SKILL.md) for test-first behavior work; read [Test Design](../../tdd/references/test-design.md) when the seam, oracle, double, or composed failure is unclear.
-- [Simplify Code](../../simplify-code/SKILL.md) for behavior-preserving simplification; read [Simplification Patterns](../../simplify-code/references/simplification-patterns.md) when choosing a transformation.
+- [TDD](../../tdd/SKILL.md) for test-first behavior work.
+- [Simplify Code](../../simplify-code/SKILL.md) for behavior-preserving simplification.
 - [Design for Depth](../../design-for-depth/SKILL.md) when evidence shows design-bearing ownership, interface, state, failure-unit, or coordination pressure; use its deeper references only for that pressure.
-- [Diagnose Failure](../../diagnose-failure/SKILL.md) when a cause is unsupported; read the [Diagnostic Loop Catalog](../../diagnose-failure/references/diagnostic-loop-catalog.md) or [Flaky and Performance Diagnosis](../../diagnose-failure/references/flaky-and-performance-diagnosis.md) when their conditions apply.
+- [Diagnose Failure](../../diagnose-failure/SKILL.md) when a cause is unsupported.
 
 Do not stack methods because several descriptions match. Keep Execute Work as owner while a method supplies one bounded technique.
 
@@ -41,12 +41,12 @@ When an approved checkpoint becomes due, stop before the next bounded action, us
 
 Separately controlled routes include:
 
-- [Commit Work](../../commit-work/SKILL.md), with [Staging Decisions](../../commit-work/references/staging-decisions.md) for mixed changed state;
-- [Migration Work](../../migration-work/SKILL.md), with the [Migration Lifecycle](../../migration-work/references/migration-lifecycle.md);
-- [Finish Branch](../../finish-branch/SKILL.md), with [Integration Options](../../finish-branch/references/integration-options.md);
-- [Release Work](../../release-work/SKILL.md), with [Release Evidence](../../release-work/references/release-evidence.md);
-- [Launch Work](../../launch-work/SKILL.md), with [Launch Readiness](../../launch-work/references/launch-readiness.md);
-- [Handoff](../../handoff/SKILL.md), with [Handoff Templates](../../handoff/references/handoff-templates.md).
+- [Commit Work](../../commit-work/SKILL.md);
+- [Migration Work](../../migration-work/SKILL.md);
+- [Finish Branch](../../finish-branch/SKILL.md);
+- [Release Work](../../release-work/SKILL.md);
+- [Launch Work](../../launch-work/SKILL.md);
+- [Handoff](../../handoff/SKILL.md).
 
 A checkpoint result may support continuation, correction, another route, deferment, or stopping. It does not authorize the next lifecycle stage.
 

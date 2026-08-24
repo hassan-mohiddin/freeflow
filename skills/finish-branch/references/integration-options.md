@@ -1,6 +1,6 @@
 # Integration Options
 
-Use this after inspecting branch, base, remote, dirty state, verification, and workspace ownership.
+Read this after inspecting branch, base, remote, dirty state, verification, and workspace ownership and before choosing local integration, pull request, preservation, discard, or cleanup.
 
 ## Local Integration
 

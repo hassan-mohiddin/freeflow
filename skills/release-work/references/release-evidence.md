@@ -1,6 +1,6 @@
 # Release Evidence
 
-Read this when version, source, artifact, tag, publication, or recovery identity matters.
+Read this before defining or changing version, source, artifact, tag, publication, or recovery identity.
 
 ## Version Basis
 

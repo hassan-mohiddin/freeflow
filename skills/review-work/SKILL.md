@@ -16,7 +16,7 @@ Choose the role before reviewing:
 - **Self-review:** you produced the work. Inspect it silently using the relevant boundary and lenses below. Correct clear local issues within existing authority and re-verify. Create no formal review items, judgment, number, or cycle. Return unresolved material issues to [Workflow](../workflow/SKILL.md).
 - **Independent review:** you did not produce the reviewed state. Inspect and report without editing. Use the formal item, judgment, and report method below. The receiving active agent adjudicates and routes the result.
 
-Reading this skill does not create independence. If you produced the work, do not present your own judgment as independent review. Read the [Independent Work Reviewer Contract](references/independent-work-reviewer-contract.md) when preparing or performing a separately selected independent review.
+Reading this skill does not create independence. If you produced the work, do not present your own judgment as independent review. Before preparing or performing a separately selected independent review, read the [Independent Work Reviewer Contract](references/independent-work-reviewer-contract.md).
 
 ## Establish The Boundary
 
@@ -28,7 +28,7 @@ Understand:
 - verification evidence and known gaps;
 - risks and interactions material to the future action this review protects.
 
-Inspect the work and source truth directly, not only the author's summary, reasoning, or claimed result. Read [the security risk lens](references/security-risk-lens.md) when the work changes a security-relevant boundary.
+Inspect the work and source truth directly, not only the author's summary, reasoning, or claimed result. Before reviewing work that changes trust boundaries, authentication, authorization, permissions, untrusted input, secrets, sensitive data, security-relevant dependencies or external integrations, code-execution boundaries, or failure behavior with security consequences, read the [Security Risk Lens](references/security-risk-lens.md).
 
 ## Review Proportionately
 

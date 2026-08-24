@@ -1,6 +1,6 @@
 # Integration Evidence
 
-Use this when a claim depends on a registered callback or executor, host lifecycle, producer invocation, fallback protocol, installed package, absence counter, or checks that may mutate shared state.
+Read this before selecting or running evidence when a claim depends on a registered callback or executor, host lifecycle, producer invocation, fallback protocol, installed package, absence counter, or a check that may mutate shared state.
 
 ## Match The Boundary
 

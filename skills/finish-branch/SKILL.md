@@ -23,7 +23,7 @@ Before offering or executing a route, inspect:
 
 Do not infer the base, remote destination, pull-request target, or workspace owner when the wrong choice could lose work or affect collaborators.
 
-Read [integration options](references/integration-options.md) when choosing local integration, pull request, preservation, discard, or cleanup. Use [Commit Work](../commit-work/SKILL.md) when the selected route requires a local commit or simple push; do not commit merely to make branch status look finished.
+After inspecting branch, base, remote, dirty state, verification, and workspace ownership, read [integration options](references/integration-options.md) before choosing local integration, pull request, preservation, discard, or cleanup. Use [Commit Work](../commit-work/SKILL.md) when the selected route requires a local commit or simple push; do not commit merely to make branch status look finished.
 
 Use [Release Work](../release-work/SKILL.md) for a separately approved versioned release and [Launch Work](../launch-work/SKILL.md) for a separately approved production deployment or rollout.
 
@@ -99,7 +99,7 @@ Do not run destructive reset, clean, branch deletion, worktree removal, remote d
 
 Resolve a conflict locally only when both sides' intended behavior is settled and the resolution is mechanical. Return behavior, source-truth, API, data, security, compatibility, or architecture conflicts to [Workflow](../workflow/SKILL.md).
 
-Use [Diagnose Failure](../diagnose-failure/SKILL.md) when integrated checks fail without a supported cause. Return mixed or unrelated branch contents to [Commit Work](../commit-work/SKILL.md) and [staging decisions](../commit-work/references/staging-decisions.md). Preserve branch state before re-entering another owning activity.
+Use [Diagnose Failure](../diagnose-failure/SKILL.md) when integrated checks fail without a supported cause. Return mixed or unrelated branch contents to [Commit Work](../commit-work/SKILL.md), which owns staging decisions. Preserve branch state before re-entering another owning activity.
 
 ## Report The Chosen Outcome
 

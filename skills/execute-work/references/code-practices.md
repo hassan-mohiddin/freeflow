@@ -1,6 +1,6 @@
 # Code Practices
 
-Read this when an Execute Work slice writes or changes code. Follow the repository's language, style, testing, and documentation conventions before generic advice.
+Read this before an Execute Work slice writes or changes code. Follow the repository's language, style, testing, and documentation conventions before generic advice.
 
 ## Make Intent Legible
 

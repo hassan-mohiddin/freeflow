@@ -1,6 +1,6 @@
 # Test Design
 
-Read this when the right test level is unclear, a dependency needs a double, legacy behavior lacks a seam, or test setup starts driving production design.
+Read this before designing or materially changing a TDD behavior check. Use it to choose the test level, seam, oracle, failure coverage, doubles, time or concurrency boundary, and characterization strategy.
 
 The goal is confidence in accepted behavior, not maximal isolation or a fixed unit/integration/end-to-end ratio.
 

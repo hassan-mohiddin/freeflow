@@ -3,8 +3,8 @@
 This contributor map describes current ownership and explicit links in active skill bodies. It is not a mandatory sequence, authorization source, or replacement for the skills themselves.
 
 - **Owner:** the job the skill controls.
-- **Routes / composition:** sibling skills explicitly named for a changed condition or composed method.
-- **References:** local depth read or run at the condition named by the active body.
+- **Routes / composition:** sibling skills directly Markdown-linked for a changed condition or composed method.
+- **References:** agent-facing references or scripts directly linked for reading or execution at the condition named by the active body.
 
 Workflow chooses the current owner. A linked skill does not run automatically, and a reference link does not imply a route.
 
@@ -16,7 +16,7 @@ Workflow chooses the current owner. A linked skill does not run automatically, a
 | [`mode-contract`](../skills/mode-contract/SKILL.md) | Active/dormant mode and session/personal/repository mode changes | `setup-freeflow`, `workflow`, `decision-gate` | None |
 | [`decision-gate`](../skills/decision-gate/SKILL.md) | One blocking user-owned decision, source conflict, or material path change | `discuss` | [`Interaction Contract`](../capabilities/interaction-contract/interaction-contract.md) |
 | [`discuss`](../skills/discuss/SKILL.md) | Collaborative exploration and direction revision | `workflow`, `decision-gate`, `diagnose-failure`, `design-for-depth`, `track-work`, `execute-work`, `write-spec`, `write-plan` | [`discussion-checkpoints`](../skills/discuss/references/discussion-checkpoints.md) |
-| [`track-work`](../skills/track-work/SKILL.md) | Working Record selection, living state, and deterministic transitions | — | None — command mechanics live in `skills/track-work/scripts/working-record.mjs` |
+| [`track-work`](../skills/track-work/SKILL.md) | Working Record creation, living state, and deterministic transitions after Workflow or Discuss establishes the need | — | None — command mechanics live in `skills/track-work/scripts/working-record.mjs` |
 | [`bypass`](../skills/bypass/SKILL.md) | Scoped reduction of optional pressure inside accepted work | `workflow`, `mode-contract`, `decision-gate`, `track-work` | None |
 | [`design-for-depth`](../skills/design-for-depth/SKILL.md) | Compositional design lens for boundaries, interfaces, ownership, state, and failure | `diagnose-failure`, `decision-gate`, `workflow` | [`software-design-philosophy`](../skills/design-for-depth/references/software-design-philosophy.md), [`design-pressure-signals`](../skills/design-for-depth/references/design-pressure-signals.md), [`interface-design-loop`](../skills/design-for-depth/references/interface-design-loop.md) |
 
@@ -41,7 +41,7 @@ Workflow chooses the current owner. A linked skill does not run automatically, a
 | [`diagnose-failure`](../skills/diagnose-failure/SKILL.md) | Supported cause for unexplained, repeated, flaky, or performance failure | `workflow`, `decision-gate`, `design-for-depth`, `execute-work`, `tdd`, `simplify-code`, `verify-work` | [`diagnostic-loop-catalog`](../skills/diagnose-failure/references/diagnostic-loop-catalog.md), [`flaky-and-performance-diagnosis`](../skills/diagnose-failure/references/flaky-and-performance-diagnosis.md) |
 | [`commit-work`](../skills/commit-work/SKILL.md) | Authorized coherent commit or simple push | `workflow`, `decision-gate`, `track-work`, `finish-branch`, `release-work`, `launch-work` | [`staging-decisions`](../skills/commit-work/references/staging-decisions.md) |
 | [`handoff`](../skills/handoff/SKILL.md) | Point-in-time continuation transfer | `track-work`, `decision-gate`, `workflow` | [`handoff-templates`](../skills/handoff/references/handoff-templates.md) |
-| [`finish-branch`](../skills/finish-branch/SKILL.md) | Branch integration, preservation, sharing, discard, and cleanup | `commit-work`, `release-work`, `launch-work`, `verify-work`, `handoff`, `workflow`, `diagnose-failure` | [`integration-options`](../skills/finish-branch/references/integration-options.md), [`staging-decisions`](../skills/commit-work/references/staging-decisions.md) |
+| [`finish-branch`](../skills/finish-branch/SKILL.md) | Branch integration, preservation, sharing, discard, and cleanup | `commit-work`, `release-work`, `launch-work`, `verify-work`, `handoff`, `workflow`, `diagnose-failure` | [`integration-options`](../skills/finish-branch/references/integration-options.md) |
 | [`release-work`](../skills/release-work/SKILL.md) | Versioned artifact preparation and publication | `decision-gate`, `migration-work`, `workflow`, `verify-work`, `launch-work` | [`release-evidence`](../skills/release-work/references/release-evidence.md) |
 | [`launch-work`](../skills/launch-work/SKILL.md) | Production deployment, exposure, observation, and recovery | `decision-gate`, `release-work`, `migration-work`, `verify-work`, `workflow`, `diagnose-failure` | [`launch-readiness`](../skills/launch-work/references/launch-readiness.md) |
 
@@ -61,7 +61,9 @@ Workflow chooses the current owner. A linked skill does not run automatically, a
 
 ## Reading The Graph
 
-The table is an adjacency map, not a call graph. Runtime behavior still depends on:
+The table is an adjacency map of direct Markdown links, not a call graph. Plain-text return destinations express control flow without creating package dependencies or table edges. Add a sibling link only when the target skill must be read or declared composition requires it.
+
+Runtime behavior still depends on:
 
 1. the Interaction Contract and effective mode;
 2. Workflow selecting the narrowest owner;

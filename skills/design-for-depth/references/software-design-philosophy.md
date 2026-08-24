@@ -1,6 +1,6 @@
 # Software Design Philosophy
 
-Use this reference when `design-for-depth` needs deeper reasoning than the active skill can carry.
+Read this when structural pressure is supported but the likely-changing decision or missing information-hiding boundary cannot yet be named.
 
 This is not a checklist to run every time. Pull the idea that changes the next route.
 

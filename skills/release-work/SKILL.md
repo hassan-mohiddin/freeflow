@@ -22,7 +22,7 @@ Use [Decision Gate](../decision-gate/SKILL.md) when the route depends on an unre
 - yanking, deprecating, replacing, or republishing an artifact;
 - release branches, history rewriting, or recovery from partial publication.
 
-Do not impose semantic versioning when the project uses another scheme. Read [release evidence](references/release-evidence.md) when version, source, artifact, tag, publication, or recovery identity matters.
+Do not impose semantic versioning when the project uses another scheme. Before defining or changing version, source, artifact, tag, publication, or recovery identity, read [release evidence](references/release-evidence.md).
 
 ## Define The Release Contract
 

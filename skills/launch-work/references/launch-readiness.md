@@ -1,6 +1,6 @@
 # Launch Readiness
 
-Use only the lenses relevant to the production change. This is not a universal checklist.
+Read this before selecting risk lenses, operational evidence, rollout stages, or recovery checks. Use only the lenses relevant to the production change; this is not a universal checklist.
 
 ## Identity And Ownership
 

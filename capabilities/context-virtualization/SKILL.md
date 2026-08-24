@@ -1,32 +1,66 @@
 # Context Virtualization
 
-Keep one active working set of tool evidence. Context Virtualization changes future model projection, not canonical session history.
+Keep the active tool-evidence working set focused without removing evidence current work still needs. Context Virtualization changes future model projection, not canonical session history.
+
+This skill begins after a tool result has been consumed. It owns that result's continued residency, not tool selection, task state, authority, or source truth.
 
 When enabled, each resolvable tool result receives a current-session `ctx:<entryId>` reference and begins **Full**.
 
-## Classify And Revisit
+## Protect Current Work
 
-After consuming a result, silently classify the tool call and result as one semantic unit:
+Keep a result Full while its raw text, images, structure, wording, or exact evidence may still support the current activity, its self-review, or its expected continuation.
 
-- **Full:** keep the raw result while a bounded activity, its self-review, or an expected immediate follow-up needs its text, images, structure, or exact evidence.
-- **Retained:** archive the raw result with transformed working memory when conclusions, identifiers, constraints, provenance, or unresolved failures still matter.
-- **Reference-only:** archive without retained meaning when nothing from the result needs to remain active.
+Keep governing instructions, active skill bodies, current authority and task memory, active accepted artifacts, unresolved evidence, and current verification evidence Full while they govern work.
 
-Consumption or summarization does not end a result's usefulness. Keep governing instructions, active skill bodies, current authority and task memory, and exact or uncertain evidence Full while work still depends on them. When uncertain, keep the result Full.
+Archive only after positively establishing that the raw result is exhausted or has been adequately replaced. Size, age, tool name, consumption, or summarization alone does not establish that. When uncertain, keep it Full.
 
-Archive Retained and Reference-only results before moving on. Target the result's `ctx:` reference; keeping a result Full requires no tool call or management commentary.
+## Narrow Broad Exploration
 
-Reconsider Full results when their activity finishes. At task entry, resume, or a meaningful activity or route change, review visible references from completed work once and batch related transitions when practical. Do not wait for token pressure or archive to satisfy a quota.
+Treat broad discovery output as a temporary search surface:
 
-## Preserve Sufficient Meaning
+1. use it to locate relevant sources or evidence;
+2. inspect the focused source;
+3. confirm the focused evidence is sufficient for current work;
+4. archive the broad result.
 
-Retained meaning must preserve what later work depends on, such as:
+When the focused result now carries everything required, archive the broad result without retained meaning. When paths, queries, URLs, candidates, provenance, or unresolved findings still matter, preserve them as retained meaning.
 
-- the relevant command, query, source, or filters;
-- conclusions, identifiers, paths, line numbers, URLs, and failure states;
-- provenance, uncertainty, contradictions, and unresolved next steps.
+Do not archive a broad result while exact evidence remains trapped inside it. Materialize or inspect that evidence first.
 
-Treat retained meaning as transformed working memory, not verbatim evidence. If exact content or quotation may still matter, keep the result Full. Prefer richer meaning for expensive or volatile external results; cheap live state that can be safely observed again often needs little or none.
+```text
+broad repository search
+-> focused file or symbol read
+-> focused evidence remains Full
+-> broad search result becomes Reference-only
+```
+
+## Clean At Meaningful Boundaries
+
+Reconsider visible results when:
+
+- an exploratory activity finishes;
+- verification and self-review settle an evidence boundary;
+- the route changes;
+- one task ends and another begins;
+- work resumes and the active working set is reconciled.
+
+Start with likely pollutants: broad searches, repository inventories, verbose MCP or web output, logs, repeated diagnostics, and superseded exploratory paths. Then consider stale reads, mutation receipts, and superseded checks.
+
+Tool type and output size determine inspection priority, not the final decision. A shell result may be exact verification evidence; a file read may be disposable exploration.
+
+Review completed work once and batch related transitions when practical. Do not manage every result merely because it exists, wait for token pressure, or archive to satisfy a quota.
+
+## Choose The Required Fidelity
+
+Decide in this order:
+
+1. **Full:** current work may still need the raw result.
+2. **Retained:** raw content is exhausted, but transformed conclusions, identifiers, constraints, provenance, or unresolved failures still matter.
+3. **Reference-only:** neither raw content nor its meaning needs to remain active.
+
+Full wins whenever more than one state appears plausible.
+
+Retained meaning is working memory, not verbatim evidence. Preserve enough for later work without copying the raw result. Include the relevant command, query, source, filters, paths, line numbers, URLs, failure states, provenance, uncertainty, contradictions, or next step when they matter. If exact content or quotation may still matter, keep the result Full.
 
 ## Apply Transitions
 
@@ -41,7 +75,7 @@ Archive with retained meaning:
 ```text
 freeflow_context({
   operation: "archive",
-  targets: [{ ref: "ctx:<entryId>", retained: "<sufficient transformed working memory>" }],
+  targets: [{ ref: "ctx:<entryId>", retained: "<necessary transformed meaning>" }],
 })
 ```
 
@@ -49,16 +83,16 @@ Archive only references present in the current model-visible request; never gues
 
 For every non-`ok` transition:
 
-- Read its reported status, reason, message, and changed references. Treat only references reported as changed as applied; never assume partial success or repeat the same request blindly.
-- When the failure is safely caller-correctable, rebuild the request from currently eligible references, correct or remove invalid items, recompute retained meaning that depended on them, and retry once.
-- For unavailable, unstructured, persistence-uncertain, or repeated failures, do not loop. Re-observe state when the outcome may be uncertain; otherwise report the failure and stop.
+- read its status, reason, message, and changed references; treat only references reported as changed as applied;
+- when the failure is safely caller-correctable, rebuild the request from currently eligible references, correct or remove invalid items, recompute affected retained meaning, and retry once;
+- for unavailable, unstructured, persistence-uncertain, or repeated failures, do not loop; re-observe state when the outcome may be uncertain, otherwise report the failure and stop.
 
 ## Recover Exact Evidence
 
-Use `restore` while an archived result's marker remains visible:
+Use `restore` when an archived result must rejoin ongoing work and its marker remains visible:
 
 ```text
 freeflow_context({ operation: "restore", refs: ["ctx:<entryId>"] })
 ```
 
-Restore does not retrieve content removed by compaction. When Conversation History is enabled, follow its search and retrieve guidance for hidden sources. Never reconstruct exact evidence from retained meaning.
+Restore reverses projection; it does not retrieve content removed by compaction. When Conversation History is enabled, use its search and retrieve guidance for hidden historical sources. Never reconstruct exact evidence from retained meaning.

@@ -13,6 +13,16 @@ TDD is an execution method inside [Execute Work](../execute-work/SKILL.md). One 
 
 TDD does not define intended behavior. The accepted request, source truth, and user decisions establish what should happen.
 
+## Use Or Exit Deliberately
+
+Use TDD when test-first execution is selected for an accepted behavior change, bug correction with a supported cause, consequential logic, or refactor whose behavior needs protection.
+
+Do not force test-first work onto documentation, static content, mechanical formatting, generated output, or a disposable learning prototype whose result is not selected production behavior.
+
+Stop before RED when expected behavior, failure semantics, or a public contract is unsettled. Return the missing direction to [Workflow](../workflow/SKILL.md) rather than encoding a guess as a test.
+
+When TDD applies, before designing or materially changing its behavior check, read [Test Design](references/test-design.md) to choose the test level, seam, oracle, doubles, rejected-state coverage, composed failures, time or concurrency boundary, and characterization strategy.
+
 ## Follow The Behavior Loop
 
 ```text
@@ -35,39 +45,19 @@ TDD does not define intended behavior. The accepted request, source truth, and u
 
 Do not write all tests first and all implementation later. Finish, verify, and route one accepted behavior before starting another.
 
-## Use Or Exit Deliberately
-
-Use TDD for accepted behavior changes, bug fixes with a supported cause, consequential logic, and refactors whose behavior needs protection.
-
-Do not force test-first work onto documentation, static content, mechanical formatting, generated output, or a disposable learning prototype whose result is not selected production behavior.
-
-Stop before RED when expected behavior, failure semantics, or a public contract is unsettled. Return the missing direction to [Workflow](../workflow/SKILL.md) rather than encoding a guess as a test.
-
-## Choose The Seam And Oracle
-
-Test observable behavior through the highest stable caller interface that exercises the real requirement and can disagree with the implementation. Derive expected results from source truth, a worked example, protocol contract, or independent calculation—not the implementation algorithm.
-
-Read [Test Design](references/test-design.md) when the test level, seam, oracle, double, rejected state, composed failure, time or concurrency boundary, or legacy behavior is unclear.
-
-If testing requires owned internals, duplicated caller choreography, or production hooks used only by tests, return the evidence to Workflow. Use [Design for Depth](../design-for-depth/SKILL.md) only when it establishes design-bearing interface or ownership pressure; do not redesign merely because one test is inconvenient.
-
 ## Enforce The Test-First Evidence
 
 - Observe RED failing for the intended missing behavior before changing production code.
 - If RED passes immediately, inspect the test, observing boundary, and existing behavior; do not proceed to GREEN automatically.
 - If RED fails because of syntax, setup, environment, or unrelated behavior, correct the harness or diagnose before implementation.
-- Implement the smallest complete GREEN behavior. Read [Code Practices](../execute-work/references/code-practices.md) while changing code.
+- Before changing production code for GREEN, read [Code Practices](../execute-work/references/code-practices.md). Then implement the smallest complete behavior.
 - Refactor only when it improves the result while the focused behavior check remains green.
 - Re-run the original path and smallest affected boundary before returning the supported action and evidence to Execute Work.
 - Do not claim TDD when the check was written after implementation or RED was never observed for the intended reason.
 
 ## Keep Tests About Accepted Behavior
 
-Prefer observable outcomes over internal call sequences, real implementations before doubles, independent expected values, descriptive domain names, and one behavior concept per test.
-
-Use fakes, stubs, mocks, or spies only at a boundary where replacement is necessary and the double preserves the fields, effects, invariants, and failure behavior the test needs.
-
-Do not copy the implementation into the expected value, add production methods used only by tests, change a valid test merely to make implementation pass, or treat coverage and test count as proof.
+Use the behavior check as the RED/GREEN contract for one accepted behavior. Do not change a valid test, copy the production implementation into its expected value, or add production hooks used only by tests merely to reach GREEN.
 
 Add an edge-case check only when accepted behavior, observed failure, material safety, or a settled failure contract requires it. If behavior is undefined, return it to Workflow. When related cases keep adding states, flags, setup, or patches, stop the behavior-loop stream and diagnose the shared contract, cause, ownership, or interface.
 
@@ -79,9 +69,7 @@ If no reliable diagnostic loop or supported cause exists, use [Diagnose Failure]
 
 ## Stop When Tests Start Designing The System
 
-Return evidence to Workflow when test setup grows faster than behavior coverage, each case requires another public state or fallback, tests protect machinery introduced by earlier patches, the next check requires an unplanned subsystem, or making it pass expands accepted scope.
-
-A green local loop does not prove the global design is right. Diagnose repeated or unexplained failure before redesigning.
+When Test Design's pressure signals appear, the next check requires an unplanned subsystem, or making it pass expands accepted scope, stop and return the evidence to Workflow. Use [Design for Depth](../design-for-depth/SKILL.md) only when that evidence establishes design-bearing interface or ownership pressure; diagnose repeated or unexplained failure before redesigning.
 
 ## Report
 

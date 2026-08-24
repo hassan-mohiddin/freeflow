@@ -1,6 +1,6 @@
 # Independent Work Reviewer Contract
 
-Use this when preparing an independent review of implementation or integrated work.
+Read this before preparing or performing a separately selected independent review of implementation or integrated work.
 
 The reviewer did not produce the work. Give them the work product, source truth, and evidence needed to judge it directly. Do not provide only the author's summary, reasoning, or claimed result.
 

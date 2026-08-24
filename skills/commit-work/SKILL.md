@@ -15,7 +15,7 @@ A planned checkpoint remains conditional on live state. Do not force it when its
 
 A commit does not select or trigger independent review. Complete only review selected by Workflow, an approved Plan, or repository policy. Commit Work does not adjudicate findings or authorize corrections or follow-up review. Fresh verification is required for the claim the commit represents.
 
-Read [staging decisions](references/staging-decisions.md) when changes are mixed, generated files or durable docs appear, existing staged state is unclear, or broad commit/push language conflicts with diff evidence.
+Read [staging decisions](references/staging-decisions.md) when changes or staged state are mixed, generated files or durable docs appear, existing staged ownership is unclear, broad commit/push language conflicts with diff evidence, or producing a narrow checkpoint may touch user-owned work.
 
 ## Route Check
 

@@ -26,6 +26,8 @@ When replacement behavior, interfaces, ownership, or failure semantics remain un
 
 ## Define The Migration Contract
 
+Before choosing migration shape or units, compatibility, cutover evidence, rollback or forward recovery, or removal proof, read [the migration lifecycle](references/migration-lifecycle.md). Use only the stages required by the accepted migration; do not force every migration through one sequence.
+
 Before moving anything, establish:
 
 ```text
@@ -41,8 +43,6 @@ Removal proof:
 Owner decisions and stop conditions:
 Approved stages and scope:
 ```
-
-Read [the migration lifecycle](references/migration-lifecycle.md) when choosing an API, code, configuration, dependency, feature, traffic, or data shape. Use only the stages required by the accepted migration; do not force every migration through one sequence.
 
 Treat undocumented observable behavior as a possible consumer dependency until evidence says otherwise. Do not preserve every quirk automatically; surface consequential differences for decision.
 

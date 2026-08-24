@@ -1,6 +1,6 @@
 # Migration Lifecycle
 
-Read this when choosing migration units, compatibility shape, cutover evidence, rollback, or removal proof.
+Read this before choosing migration shape or units, compatibility, cutover evidence, rollback or forward recovery, or removal proof.
 
 ## Migration Shapes
 

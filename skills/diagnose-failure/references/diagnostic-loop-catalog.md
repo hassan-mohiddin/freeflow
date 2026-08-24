@@ -1,6 +1,6 @@
 # Diagnostic Loop Catalog
 
-Read this when the smallest useful diagnostic loop for a reported failure or current hypothesis is unclear.
+Read this before choosing a diagnostic loop for a reported failure or current hypothesis. Use it to select the smallest observation that can distinguish meaningful alternatives at the required boundary.
 
 ## Common Loops
 

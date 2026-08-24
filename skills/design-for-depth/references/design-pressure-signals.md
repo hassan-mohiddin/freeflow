@@ -1,6 +1,6 @@
 # Design Pressure Signals
 
-Use this reference when reviewing code, artifacts, or work for shallow modules and complexity spread.
+Read this when evidence suggests caller knowledge or coordination is spreading and the next route must be classified.
 
 The goal is not to find every smell. The goal is to notice pressure that changes the next route.
 

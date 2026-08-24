@@ -1,6 +1,6 @@
 # Discussion Checkpoints
 
-Read this when closing or preserving a compact discussion checkpoint.
+Read this when selecting or preserving a compact discussion checkpoint or re-entry state.
 
 A checkpoint records enough shared understanding to continue or choose the next action. It does not mean discussion is permanently complete.
 

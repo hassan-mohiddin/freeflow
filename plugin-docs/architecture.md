@@ -85,7 +85,7 @@ Pi source lives under `pi-extension/src/`; the package executes built output und
 
 Workflow owns routing and the current authority envelope. Leaf skills own focused methods and return evidence, decisions, or route changes rather than redefining the lifecycle or widening authority. Selecting a leaf method never authorizes active evidence generation, mutation, or delivery.
 
-A skill body is complete on first read with guaranteed context. Conditional depth lives in linked references; deterministic repeated work may live in scripts. Cross-skill links are project dependencies, not bundled local resources.
+A skill body establishes the first-read job and normal route from guaranteed context. Separately owned required depth and conditional branch depth live in linked references whose read points are declared by the body; deterministic repeated work may live in scripts. Cross-skill links are project dependencies, not bundled local resources.
 
 See [Skill routing](skill-routing.md) for the typed owner, route, and reference adjacency map.
 

@@ -1,6 +1,6 @@
 # Interface Design Loop
 
-Use this when structural pressure makes the current interface suspect. The goal is to choose an outcome-level module shape, not add detail to the first plausible design.
+Read this before comparing materially different interfaces when structural pressure or an important pre-implementation correctness boundary makes their ownership consequential, especially when evidence cannot choose or authority, canonical state, atomic visibility, replay, cancellation, or post-commit recovery affects correctness. The goal is to choose an outcome-level module shape, not add detail to the first plausible design.
 
 ## 1. Frame The Outcome
 

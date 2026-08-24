@@ -1,6 +1,6 @@
 # Flaky And Performance Diagnosis
 
-Read this when timing, randomness, environment variance, or resource behavior makes the failure difficult to reproduce or explain.
+Read this before choosing or running a diagnostic observation when timing, randomness, environment variance, or resource behavior shapes the failure.
 
 ## Flaky Failures
 

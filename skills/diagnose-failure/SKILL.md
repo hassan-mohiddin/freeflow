@@ -13,6 +13,8 @@ A requested patch, plausible code path, reviewer theory, or one favorable rerun 
 
 Diagnosis inherits the current authority envelope. Selecting this method authorizes neither active evidence generation nor correction.
 
+When diagnosis applies, before choosing its loop, read [the Diagnostic Loop Catalog](references/diagnostic-loop-catalog.md). When timing, randomness, environment variance, or resource behavior shapes the failure, also read [Flaky and Performance Diagnosis](references/flaky-and-performance-diagnosis.md) before choosing or running the observation.
+
 ## Follow The Diagnostic Route
 
 ```text
@@ -55,8 +57,6 @@ Start by inspecting the report, existing code, tests, logs, configuration, and a
 6. preserve evidence that contradicts the leading hypothesis.
 
 Prefer the reported path, input, environment, and observer. A nearby failure may suggest a hypothesis but does not prove the reported failure. Reduced-fidelity reproduction is diagnostic evidence only; name what it cannot establish.
-
-Read [the diagnostic-loop catalog](references/diagnostic-loop-catalog.md) when the best loop is unclear. Read [Flaky and Performance Diagnosis](references/flaky-and-performance-diagnosis.md) when timing, randomness, environment variance, or resources shape the failure.
 
 Allowed behavior is not a reproduction. A cache hit does not prove a stale-read bug when caching is permitted. A possible race in source does not explain a report until timing, traces, steps, logs, or an existing expectation connect it.
 

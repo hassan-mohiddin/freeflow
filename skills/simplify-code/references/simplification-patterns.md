@@ -1,6 +1,6 @@
 # Simplification Patterns
 
-Use these as candidate transformations, not automatic rules. Preserve behavior and project conventions.
+Read this before choosing a simplification transformation or deciding whether deletion really reduces complexity. Use these patterns as candidates, not automatic rules. Preserve behavior and project conventions.
 
 ## Control Flow
 

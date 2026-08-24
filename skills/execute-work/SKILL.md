@@ -69,7 +69,7 @@ Match implementation and evidence to the work. Code may need behavior tests or r
 
 Do not rewrite tests, checks, Specs, Plans, policies, or accepted behavior merely to make implementation pass. Determine whether the implementation, evidence, environment, or source is wrong before changing what defines success.
 
-When writing or changing code, read [Code Practices](references/code-practices.md). Prefer clear ownership, names, and failure behavior. Comment only non-obvious rationale, constraints, invariants, or temporary behavior with a real exit condition.
+Before writing or changing code, read [Code Practices](references/code-practices.md). Prefer clear ownership, names, and failure behavior. Comment only non-obvious rationale, constraints, invariants, or temporary behavior with a real exit condition.
 
 Handle an edge case only when accepted behavior, observed evidence, or material safety requires it. If expected behavior is undefined and would change observable behavior or scope, return it to Workflow. When related patches keep adding states, flags, or caller coordination, stop and return the shared pressure rather than extending the patch stream.
 

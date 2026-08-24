@@ -20,7 +20,7 @@ Before editing:
 
 Use this skill only when behavior should remain unchanged. If expected behavior is unclear or needs to change, return that evidence to [Workflow](../workflow/SKILL.md). If the interface or ownership is structurally wrong, use [Design for Depth](../design-for-depth/SKILL.md). If no reliable behavior loop exists, use [TDD](../tdd/SKILL.md) or [Diagnose Failure](../diagnose-failure/SKILL.md) first.
 
-Read [Code Practices](../execute-work/references/code-practices.md) while changing code. Read [Simplification Patterns](references/simplification-patterns.md) when choosing a transformation or deciding whether deletion really reduces complexity.
+Before changing code, read [Code Practices](../execute-work/references/code-practices.md). Before choosing a transformation or deciding whether deletion really reduces complexity, read [Simplification Patterns](references/simplification-patterns.md).
 
 ## Classify The Opportunity
 

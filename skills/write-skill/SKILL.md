@@ -69,13 +69,14 @@ Keep examples general enough to transfer beyond one fixture. Do not turn the bod
 
 ## Add Resources Only When Needed
 
-Read [progressive disclosure](references/progressive-disclosure.md) before adding or reorganizing references and scripts.
+Before adding or reorganizing references and scripts, read [progressive disclosure](references/progressive-disclosure.md) to classify each read as entry-required, activity-required, or conditional. References do not activate independently: `SKILL.md` directs each read at its first useful point, and required means necessary rather than recommended.
 
 Start with one `SKILL.md`. Remove repeated prose and low-value checklists before expanding the file set.
 
-- Add a required reference when normal execution genuinely needs separately owned depth; link it before the dependency is used.
+- Add a required reference when normal execution genuinely needs separately owned depth; state whether it is read at entry or before its normal activity.
 - Add a conditional reference when a distinct branch needs depth that would obscure the normal route; state the observable condition for reading it.
 - Add a script for repeated deterministic work or a feature the skill owns when automation is safer, clearer, or materially less wasteful than retyping it.
+- Make the body instruction and reference introduction name the same read condition; neither may silently narrow or widen it.
 - Link every agent-facing reference, asset, declared dependency, and executable entrypoint from `SKILL.md`; internal implementation modules need not be linked.
 - Keep owned resources inside the skill package unless a declared package dependency is required.
 - Treat unlinked-file inspection as factual inventory, not an automatic defect.

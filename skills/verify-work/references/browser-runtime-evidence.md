@@ -1,6 +1,6 @@
 # Browser Runtime Evidence
 
-Read this when a claim depends on rendered UI, browser behavior, accessibility, client networking, console state, visual output, or browser performance.
+Read this before selecting or running evidence when a claim depends on rendered UI, browser behavior, accessibility, client networking, console state, visual output, or browser runtime performance.
 
 Use the available browser or DevTools capability for the host. This reference defines evidence quality, not tool-specific commands.
 

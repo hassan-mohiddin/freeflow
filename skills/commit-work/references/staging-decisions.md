@@ -1,6 +1,6 @@
 # Staging Decisions
 
-Use this when staged state is mixed, generated files or durable docs appear, broad commit/push language conflicts with the diff, or producing a narrow checkpoint may touch user-owned work.
+Read this when changes or staged state are mixed, generated files or durable docs appear, existing staged ownership is unclear, broad commit/push language conflicts with diff evidence, or producing a narrow checkpoint may touch user-owned work.
 
 ## Evidence First
 

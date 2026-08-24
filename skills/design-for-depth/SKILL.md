@@ -15,7 +15,7 @@ Use this as a compositional lens, not a mandatory phase or permission to refacto
 
 ## Compose The Lens Early
 
-Read this during design-bearing discussion before core boundaries settle. Use it while writing a Spec or Plan when ownership, interfaces, state, or failure behavior shapes the contract. Keep it available during execution, TDD, and review when the work must preserve those decisions or exposes new coordination.
+Use this lens during design-bearing discussion before core boundaries settle. Use it while writing a Spec or Plan when ownership, interfaces, state, or failure behavior shapes the contract. Keep it available during execution, TDD, and review when the work must preserve those decisions or exposes new coordination.
 
 Feedback may also route here after [Diagnose Failure](../diagnose-failure/SKILL.md) establishes structural ownership, interface, state, or failure-unit pressure. Ordinary bugs, failed tests, or finding count do not prove bad design.
 
@@ -51,7 +51,7 @@ Before exposing a flag, state, path, filename, ordering rule, retry, timing beha
 
 Keep caller-owned outcomes and decisions public. Keep internal sequencing, storage, cleanup, provider mechanics, integrity publication, and optimization private unless correct use requires caller control.
 
-Read [software design philosophy](references/software-design-philosophy.md) when the reason a design is shallow or coordination-heavy is unclear.
+Read [software design philosophy](references/software-design-philosophy.md) when structural pressure is supported but the likely-changing decision or missing information-hiding boundary cannot yet be named.
 
 ## Recognize Structural Pressure
 
@@ -64,13 +64,15 @@ Structural pressure exists when evidence shows that:
 - a bounded outcome requires an unplanned subsystem because no current seam can own it;
 - correctness depends on coordinated steps that no module owns.
 
-These signals justify design attention, not automatic refactoring. Read [design pressure signals](references/design-pressure-signals.md) when code, artifacts, tests, or reviews show complexity spreading.
+These signals justify design attention, not automatic refactoring. Read [design pressure signals](references/design-pressure-signals.md) when evidence suggests caller knowledge or coordination is spreading and the next route must be classified.
 
 Diagnose repeated or unexplained failure before redesigning. Direct design work is appropriate when structural pressure is already observable or an important boundary must be chosen before implementation.
 
 ## Shape The Interface
 
-When pressure changes the next action:
+Before comparing materially different interfaces, read [the interface design loop](references/interface-design-loop.md) when structural pressure or an important pre-implementation correctness boundary makes their ownership consequential, especially when evidence cannot choose or authority, canonical state, atomic visibility, replay, cancellation, or post-commit recovery affects correctness.
+
+When interface shape changes the next action:
 
 1. Name the complete outcome and settled behavior.
 2. Choose the success and failure unit.
@@ -79,8 +81,6 @@ When pressure changes the next action:
 5. Separate required trust and safety from speculative efficiency, scale, or portability.
 6. For a structural or hard-to-reverse choice, compare materially different ownership or seam placements—not cosmetic variants.
 7. Prefer the design with less caller knowledge, better locality, safer failure behavior, easier correct use, and proportionate evidence cost.
-
-Read [the interface design loop](references/interface-design-loop.md) when materially different interfaces must be compared, evidence cannot yet choose one, or authority, canonical state, atomic visibility, replay, cancellation, or post-commit recovery affects correctness.
 
 Do not force multiple designs for an obvious local choice. If source inspection cannot distinguish viable designs, propose one bounded learning slice with a question, competing designs, evidence, cost boundary, and discard-or-promote condition.
 

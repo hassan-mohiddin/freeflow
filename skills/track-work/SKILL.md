@@ -1,24 +1,23 @@
 ---
 name: track-work
-description: Use when deciding whether proposed or ongoing work needs durable task memory, or when creating, resuming, and maintaining a Working Record through precise deterministic views and transitions.
+description: Use when a Working Record is needed or already exists and must be created, inspected, resumed, reconciled, updated, or closed.
 ---
 
 # Track Work
 
-Use Track Work when forgetting decisions, evidence, authority, proposed outcomes, the current slice, or the next action could misalign later work. It owns living task memory. It does not own discussion, implementation authority, semantic truth, review adjudication, or task completion.
+Track Work operates living task memory after its need is established. It does not decide whether a task needs durable memory or own discussion, implementation authority, semantic truth, review adjudication, or task completion.
 
 A Working Record is memory, not authority. User decisions, live evidence, repository instructions, and accepted source truth override stale record content.
 
-## Track Only When Continuity Matters
+## Enter With A Record Need
 
-Use a Working Record when:
+Enter when:
 
-- work spans turns, context loss, pause, or ownership transfer;
-- decisions, evidence, blockers, or authority need durable recovery;
-- one outcome may contain several implementation, verification, review, or correction iterations;
-- detailed future outcomes need to remain ordered and visible without becoming authorized work.
+- Workflow or Discuss has established that losing current task state would risk later misalignment;
+- the user has explicitly requested a Working Record operation;
+- an existing record needs recovery, reconciliation, update, or a lifecycle transition.
 
-Do not create one for a short discussion or disposable local action when forgetting it would not risk misalignment. Ask before initialization when continuity value or task ownership is unclear.
+If the Working Record need, task ownership, or mutation authority remains unresolved, return to Workflow or Discuss instead of deciding or initializing here. Reading Track Work alone does not justify creating a record.
 
 Use one ignored local directory per task:
 

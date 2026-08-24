@@ -1,6 +1,6 @@
 # Performance Evidence
 
-Read this when verifying latency, throughput, memory, CPU, bundle, query, rendering, capacity, or resource-regression claims.
+Read this before selecting or running evidence when verifying latency, throughput, memory, CPU, bundle, query, rendering, capacity, or resource-regression claims.
 
 A faster synthetic operation does not prove the reported path improved. Preserve correctness while measuring representative work.
 

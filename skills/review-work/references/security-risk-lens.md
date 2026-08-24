@@ -1,6 +1,6 @@
 # Security Risk Lens
 
-Read this when work changes trust boundaries, authentication, authorization, permissions, untrusted input, secrets, sensitive data, dependencies, external integrations, execution, or failure behavior with security consequences.
+Read this before reviewing work that changes trust boundaries, authentication, authorization, permissions, untrusted input, secrets, sensitive data, security-relevant dependencies or external integrations, code-execution boundaries, or failure behavior with security consequences.
 
 This lens helps frame review. It does not replace repo security policy, threat modeling, specialist review, or stack-specific hardening guidance.
 

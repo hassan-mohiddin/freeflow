@@ -69,7 +69,9 @@ Continue only while the authority envelope still covers the work, evidence suppo
 
 ## Preserve Only Necessary State
 
-Use Track Work when forgetting current context, decisions, evidence, or the next bounded action would risk misalignment. Create other durable artifacts only for their own jobs: a Spec for stable accepted content, a Plan for stable ordered strategy, an ADR for a surprising hard-to-reverse decision, or a Handoff for point-in-time transfer.
+Decide whether a Working Record is needed before routing to Track Work. Discuss makes this assessment while it owns the route; Workflow may route directly when a clear task's need is already established. Use a Working Record only when losing current task state would risk later misalignment.
+
+Create other durable artifacts only for their own jobs: a Spec for stable accepted content, a Plan for stable ordered strategy, an ADR for a surprising hard-to-reverse decision, or a Handoff for point-in-time transfer.
 
 When an ongoing task resumes after compaction, summarization, clear, resume, or session navigation, re-read the owning skill when its body is absent. Reopen the smallest sources that establish current intent, constraints, route, authority, and expected evidence. Include the Working Record's bounded `resume` view when one exists. Compare memory with the current conversation and live state; do not reconstruct authority or progress from a summary or another conversation branch.
 
