@@ -50,17 +50,33 @@ function modelRegistry(host) {
 export function supportsCognitiveRoutingModelRegistry(host) {
   return modelRegistry(host) !== undefined;
 }
-let piAiClampThinkingLevelPromise;
-async function loadPiAiClampThinkingLevel() {
-  piAiClampThinkingLevelPromise ??= import("@earendil-works/pi-ai")
-    .then((module) => (isFunction(module.clampThinkingLevel) ? module.clampThinkingLevel : undefined))
-    .catch(() => undefined);
-  return piAiClampThinkingLevelPromise;
+function supportedThinkingLevels(model) {
+  if (!model.reasoning) return ["off"];
+  return THINKING_LEVEL_ORDER.filter((level) => {
+    const mapped = model.thinkingLevelMap?.[level];
+    if (mapped === null) return false;
+    if (level === "xhigh" || level === "max") return mapped !== undefined;
+    return true;
+  });
 }
-async function resolveEffectiveThinkingLevel(registry, model, requested) {
+function clampThinkingLevel(model, requested) {
+  const availableLevels = supportedThinkingLevels(model);
+  if (availableLevels.includes(requested)) return requested;
+  const requestedIndex = THINKING_LEVEL_ORDER.indexOf(requested);
+  if (requestedIndex < 0) return availableLevels[0] ?? "off";
+  for (let index = requestedIndex; index < THINKING_LEVEL_ORDER.length; index += 1) {
+    const candidate = THINKING_LEVEL_ORDER[index];
+    if (availableLevels.includes(candidate)) return candidate;
+  }
+  for (let index = requestedIndex - 1; index >= 0; index -= 1) {
+    const candidate = THINKING_LEVEL_ORDER[index];
+    if (availableLevels.includes(candidate)) return candidate;
+  }
+  return availableLevels[0] ?? "off";
+}
+function resolveEffectiveThinkingLevel(registry, model, requested) {
   if (registry.clampThinkingLevel) return registry.clampThinkingLevel(model, requested);
-  const clampThinkingLevel = await loadPiAiClampThinkingLevel();
-  return clampThinkingLevel?.(model, requested);
+  return clampThinkingLevel(model, requested);
 }
 function blocking(code, message, profile) {
   return { code, message, ...(profile ? { profile } : {}) };

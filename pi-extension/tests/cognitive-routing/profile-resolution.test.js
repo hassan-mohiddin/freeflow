@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import test from "node:test";
 import { resolveCognitiveRoutingConfig } from "../../dist/cognitive-routing/config.js";
 import { resolveCognitiveRoutingState } from "../../dist/cognitive-routing/runtime.js";
@@ -217,6 +218,55 @@ test("preflights exact identities, authentication, and effective thinking levels
     ...reasoning,
     effectiveThinkingLevel: "max",
   });
+});
+
+test("packed preflight clamps thinking levels from model metadata without runtime peer imports", async () => {
+  const packageDir = await mkdtemp(join(tmpdir(), "freeflow-packed-host-"));
+  const packedHostPath = join(packageDir, "host.js");
+  await copyFile(new URL("../../dist/cognitive-routing/host.js", import.meta.url), packedHostPath);
+  await copyFile(new URL("../../dist/cognitive-routing/types.js", import.meta.url), join(packageDir, "types.js"));
+
+  try {
+    const { preflightCognitiveRoutingProfiles } = await import(
+      `${pathToFileURL(packedHostPath).href}?packed=${Date.now()}`
+    );
+    const models = [
+      {
+        provider: standard.provider,
+        id: standard.model,
+        reasoning: true,
+        thinkingLevelMap: { minimal: "low", xhigh: "xhigh", max: "max" },
+      },
+      {
+        provider: reasoning.provider,
+        id: reasoning.model,
+        reasoning: true,
+        thinkingLevelMap: { minimal: "low", xhigh: "xhigh", max: "max" },
+      },
+    ];
+    const modelMap = new Map(models.map((model) => [`${model.provider}/${model.id}`, model]));
+    const host = {
+      modelRegistry: {
+        find(provider, modelId) {
+          return modelMap.get(`${provider}/${modelId}`);
+        },
+        async getApiKeyAndHeaders() {
+          return { ok: true };
+        },
+      },
+    };
+
+    const result = await preflightCognitiveRoutingProfiles(
+      resolveCognitiveRoutingConfig(configuredRepository(), {}),
+      host,
+    );
+
+    assert.equal(result.effective, true);
+    assert.equal(result.resolvedProfiles.standard.effectiveThinkingLevel, "high");
+    assert.equal(result.resolvedProfiles.reasoning.effectiveThinkingLevel, "max");
+  } finally {
+    await rm(packageDir, { recursive: true, force: true });
+  }
 });
 
 test("runtime context isolates invalid Cognitive Routing from core Freeflow state", async () => {
