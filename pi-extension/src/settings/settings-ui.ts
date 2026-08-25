@@ -1570,10 +1570,13 @@ async function finalizeSettingsSession(
   reloadWarning = "Run /reload for Freeflow changes to fully apply.",
   afterChangeOptions: AfterChangeOptions = {},
 ) {
-  if (!session.configChanged) return false;
+  if (!session.changed || session.failed) return false;
+  if (!session.configChanged) {
+    ctx.ui.notify(`${savedMessage} Session Start changes apply to future sessions.`, "info");
+    return false;
+  }
 
   await afterChange(true, afterChangeOptions);
-  if (session.failed) return false;
 
   ctx.ui.notify(savedMessage, "info");
   if (typeof ctx.reload !== "function") {
@@ -1797,10 +1800,11 @@ export async function handleFreeflowCommand(
         return { changed: result.changed, reloadRequired: result.reloadRequired === true };
       }
       await updateConfig(ctx.cwd, item, value, item.configScope ?? "repository");
-      if (!item.id.startsWith("freeflow.cognitiveRouting.sessionStart.")) {
+      const sessionStartSetting = item.id.startsWith("freeflow.cognitiveRouting.sessionStart.");
+      if (!sessionStartSetting) {
         reconcileCognitiveRouting = true;
       }
-      return { changed: true, reloadRequired: true };
+      return { changed: true, reloadRequired: !sessionStartSetting };
     },
   });
 
@@ -1814,7 +1818,7 @@ export async function handleFreeflowCommand(
     session,
     ctx,
     afterChange,
-    `Freeflow ${savedTarget} saved. Reloading Freeflow runtime...`,
+    `Freeflow ${savedTarget} saved.`,
     "Run /reload for Freeflow changes to fully apply.",
     { reconcileCognitiveRouting },
   );

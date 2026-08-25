@@ -1,4 +1,3 @@
-import type { CognitiveRoutingController } from "./controller.js";
 import type { CognitiveRoutingHistoryOptions, CognitiveRoutingHistoryResult } from "./history.js";
 import type { CognitiveRoutingProfileName } from "./types.js";
 
@@ -11,6 +10,17 @@ type ProfileCommandContext = {
   history?: (
     options: CognitiveRoutingHistoryOptions,
   ) => CognitiveRoutingHistoryResult | Promise<CognitiveRoutingHistoryResult>;
+};
+
+type CognitiveRoutingProfileController = {
+  history?: (
+    options: CognitiveRoutingHistoryOptions,
+  ) => CognitiveRoutingHistoryResult | Promise<CognitiveRoutingHistoryResult>;
+  setManualProfile(
+    profile: CognitiveRoutingProfileName,
+    mechanism?: string,
+  ): Promise<{ status: string; profile?: CognitiveRoutingProfileName; reason?: string }>;
+  setAutomaticControl(mechanism?: string): Promise<{ status: string; reason?: string }>;
 };
 
 export function cognitiveRoutingProfileCompletions(prefix: string | undefined) {
@@ -59,7 +69,7 @@ function formatHistory(result: CognitiveRoutingHistoryResult): string {
 export async function handleCognitiveRoutingProfileCommand(
   args: string | undefined,
   ctx: ProfileCommandContext,
-  controller: CognitiveRoutingController | undefined,
+  controller: CognitiveRoutingProfileController | undefined,
 ): Promise<boolean> {
   const input = (args ?? "").trim().toLowerCase();
   const [action, ...rest] = input.split(/\s+/);
@@ -71,7 +81,7 @@ export async function handleCognitiveRoutingProfileCommand(
     const result = ctx.history
       ? await ctx.history(historyView)
       : controller?.history
-        ? controller.history(historyView)
+        ? await controller.history(historyView)
         : undefined;
     if (result) {
       ctx.ui?.notify?.(formatHistory(result), "info");

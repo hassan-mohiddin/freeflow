@@ -292,7 +292,7 @@ test("PiFlow statusline reports the current cognitive profile and control mode",
   assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · reasoning · automatic");
 });
 
-test("PiFlow statusline shows the configured standard profile pending first prompt activation", () => {
+test("PiFlow statusline shows the configured standard profile before first prompt activation", () => {
   const ctx = context();
   setModeStatus(
     ctx,
@@ -305,13 +305,12 @@ test("PiFlow statusline shows the configured standard profile pending first prom
       skills: { effective: true },
       cognitiveRouting: { enabled: true, effective: true, blockingReason: null },
     },
-    undefined,
-    { cognitiveRoutingStartupPending: true },
+    { effective: true, activeProfile: "standard", controlMode: "automatic" },
   );
-  assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · standard · pending");
+  assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · standard · automatic");
 });
 
-test("PiFlow statusline shows the configured startup profile while pending", () => {
+test("PiFlow statusline shows the configured startup profile before first prompt activation", () => {
   const ctx = context();
   setModeStatus(
     ctx,
@@ -329,10 +328,9 @@ test("PiFlow statusline shows the configured startup profile while pending", () 
         blockingReason: null,
       },
     },
-    undefined,
-    { cognitiveRoutingStartupPending: true },
+    { effective: true, activeProfile: "reasoning", controlMode: "manual-reasoning" },
   );
-  assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · reasoning · pending");
+  assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · reasoning · manual hold");
 });
 
 test("PiFlow statusline keeps an inactive runtime blocked instead of showing startup pending", () => {
@@ -349,7 +347,6 @@ test("PiFlow statusline keeps an inactive runtime blocked instead of showing sta
       cognitiveRouting: { enabled: true, effective: true, blockingReason: null },
     },
     { effective: false, activeProfile: "standard", controlMode: "automatic" },
-    { cognitiveRoutingStartupPending: true },
   );
   assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · cognitive blocked · runtime_inactive");
 });
@@ -369,12 +366,11 @@ test("PiFlow statusline preserves startup suppression when the host selected a m
       cognitiveRouting: { enabled: true, effective: true, blockingReason: null },
     },
     undefined,
-    { cognitiveRoutingStartupPending: true },
   );
   assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · cognitive blocked · runtime_inactive");
 });
 
-test("PiFlow empty configured sessions show standard pending before first prompt", async () => {
+test("PiFlow empty configured sessions show standard automatic before first prompt", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-pending-cognitive-status-"));
   try {
     await mkdir(join(cwd, ".freeflow"));
@@ -397,7 +393,7 @@ test("PiFlow empty configured sessions show standard pending before first prompt
     ctx.modelRegistry = cognitiveRoutingModelRegistry();
 
     await handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
-    assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · standard · pending");
+    assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · standard · automatic");
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -2373,7 +2369,7 @@ test("PiFlow settings persist independent new-session control and profile overri
     await freeflowCommand.definition.handler("settings", settingsCtx);
     const saved = JSON.parse(await readFile(join(cwd, ".freeflow/local.json"), "utf8"));
     assert.deepEqual(saved.cognitiveRouting.sessionStart, { control: "manual", profile: "reasoning" });
-    assert.equal(settingsCtx.reloads.length, 1);
+    assert.equal(settingsCtx.reloads.length, 0);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

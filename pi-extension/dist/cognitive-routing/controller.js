@@ -311,6 +311,7 @@ export class CognitiveRoutingController {
   capabilityState;
   pi;
   ctx;
+  initialSessionStart;
   label;
   idFactory;
   lease;
@@ -324,6 +325,7 @@ export class CognitiveRoutingController {
     this.capabilityState = options.capabilityState;
     this.pi = options.pi;
     this.ctx = options.ctx;
+    this.initialSessionStart = options.initialSessionStart;
     this.label = options.label ?? "Cognitive Routing";
     this.idFactory = options.idFactory ?? randomUUID;
   }
@@ -413,10 +415,11 @@ export class CognitiveRoutingController {
     }
     const epoch = this.epoch ?? this.idFactory();
     const branchId = this.currentBranchId();
-    const sessionStart = this.capabilityState.sessionStart ?? {
-      control: "automatic",
-      profile: "standard",
-    };
+    const sessionStart = this.initialSessionStart ??
+      this.capabilityState.sessionStart ?? {
+        control: "automatic",
+        profile: "standard",
+      };
     const profileName = preservedReload ? lifecycleIntent.resumeProfile : sessionStart.profile;
     const profile = this.capabilityState.resolvedProfiles[profileName];
     if (!profile) {

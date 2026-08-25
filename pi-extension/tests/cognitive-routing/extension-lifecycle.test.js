@@ -157,6 +157,7 @@ test("registered shortcuts cycle manual holds and automatic profiles", async () 
   ctx.isIdle = () => true;
   try {
     await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    await host.handlers.get("before_agent_start")({ prompt: "hello", systemPrompt: "base prompt" }, ctx);
     const cycle = host.shortcuts.find(({ shortcut }) => shortcut === "ctrl+shift+r");
     const automatic = host.shortcuts.find(({ shortcut }) => shortcut === "ctrl+shift+a");
     assert.ok(cycle);
@@ -345,6 +346,100 @@ test("missing Cognitive Routing prompt prevents lifecycle activation", async () 
   }
 });
 
+test("empty sessions expose an armed routing state without persisting it", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-armed-empty-"));
+  await mkdir(join(cwd, ".freeflow"));
+  await writeFile(
+    join(cwd, ".freeflow", "config.json"),
+    JSON.stringify({
+      cognitiveRouting: {
+        enabled: true,
+        profiles: {
+          standard: { provider: "faux", model: "standard", thinkingLevel: "high" },
+          reasoning: { provider: "faux", model: "reasoning", thinkingLevel: "max" },
+        },
+      },
+    }),
+  );
+  const host = createExtensionHost();
+  const ctx = createContext(cwd, host);
+  const statuses = [];
+  ctx.isIdle = () => true;
+  ctx.ui.setStatus = (_key, value) => statuses.push(value);
+  try {
+    await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+
+    assert.equal(statuses.at(-1), "freeflow: interaction · workflow · standard · automatic");
+    assert.deepEqual(host.operations, []);
+    assert.deepEqual(host.entries, []);
+
+    await host.shortcuts.find(({ shortcut }) => shortcut === "ctrl+shift+a").definition.handler(ctx);
+    assert.equal(statuses.at(-1), "freeflow: interaction · workflow · reasoning · automatic");
+    assert.deepEqual(host.operations, []);
+    assert.deepEqual(host.entries, []);
+
+    await host.shortcuts.find(({ shortcut }) => shortcut === "ctrl+shift+r").definition.handler(ctx);
+    assert.equal(statuses.at(-1), "freeflow: interaction · workflow · standard · manual hold");
+    assert.deepEqual(host.operations, []);
+    assert.deepEqual(host.entries, []);
+
+    const command = host.commands.find(({ name }) => name === "freeflow");
+    await command.definition.handler("profile reasoning", ctx);
+    assert.equal(statuses.at(-1), "freeflow: interaction · workflow · reasoning · manual hold");
+    assert.deepEqual(host.operations, []);
+    assert.deepEqual(host.entries, []);
+    await command.definition.handler("profile auto", ctx);
+    assert.equal(statuses.at(-1), "freeflow: interaction · workflow · reasoning · automatic");
+    assert.deepEqual(host.operations, []);
+    assert.deepEqual(host.entries, []);
+
+    await host.handlers.get("session_start")({ type: "session_start", reason: "reload" }, ctx);
+    assert.equal(statuses.at(-1), "freeflow: interaction · workflow · standard · automatic");
+    assert.deepEqual(host.operations, []);
+    assert.deepEqual(host.entries, []);
+  } finally {
+    await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("first prompt activates the armed pre-prompt profile and control", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-armed-activation-"));
+  await mkdir(join(cwd, ".freeflow"));
+  await writeFile(
+    join(cwd, ".freeflow", "config.json"),
+    JSON.stringify({
+      cognitiveRouting: {
+        enabled: true,
+        profiles: {
+          standard: { provider: "faux", model: "standard", thinkingLevel: "high" },
+          reasoning: { provider: "faux", model: "reasoning", thinkingLevel: "max" },
+        },
+      },
+    }),
+  );
+  const host = createExtensionHost();
+  const ctx = createContext(cwd, host);
+  ctx.isIdle = () => true;
+  try {
+    await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    await host.shortcuts.find(({ shortcut }) => shortcut === "ctrl+shift+a").definition.handler(ctx);
+    await host.shortcuts.find(({ shortcut }) => shortcut === "ctrl+shift+r").definition.handler(ctx);
+    await host.handlers.get("before_agent_start")({ prompt: "hello", systemPrompt: "base prompt" }, ctx);
+
+    assert.equal(host.entries.filter((entry) => entry.modelId).at(-1).modelId, "standard");
+    const activation = host.entries.find(
+      (entry) => entry.customType === "freeflow-cognitive-routing-intent" && entry.data.kind === "activation",
+    );
+    assert.equal(activation.data.profile, "standard");
+    assert.equal(activation.data.control, "manual");
+    assert.deepEqual(host.operations.slice(0, 3), ["prepare", "acquire", "setState"]);
+  } finally {
+    await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("new empty sessions do not persist Cognitive Routing state until the first prompt", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-lazy-start-"));
   await mkdir(join(cwd, ".freeflow"));
@@ -445,6 +540,12 @@ test("editing session-start settings does not activate the current empty session
 
   const host = createExtensionHost();
   const ctx = createContext(cwd, host);
+  const statuses = [];
+  let reloads = 0;
+  ctx.ui.setStatus = (_key, value) => statuses.push(value);
+  ctx.reload = async () => {
+    reloads += 1;
+  };
   ctx.mode = "tui";
   ctx.hasUI = true;
   ctx.isIdle = () => true;
@@ -482,8 +583,53 @@ test("editing session-start settings does not activate the current empty session
     assert.deepEqual(host.operations, []);
     assert.deepEqual(host.state, { model: { provider: "faux", id: "return" }, thinkingLevel: "medium" });
     assert.equal(host.entries.filter((entry) => entry.modelId).length, 0);
+    assert.equal(reloads, 0);
+    assert.equal(statuses.at(-1), "freeflow: interaction · workflow · standard · automatic");
     const saved = JSON.parse(await readFile(join(cwd, ".freeflow", "local.json"), "utf8"));
     assert.equal(saved.cognitiveRouting.sessionStart.control, "manual");
+
+    await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "reload" }, ctx);
+    await host.handlers.get("session_start")({ type: "session_start", reason: "reload" }, ctx);
+    assert.equal(statuses.at(-1), "freeflow: interaction · workflow · standard · manual hold");
+    assert.deepEqual(host.operations, []);
+    assert.deepEqual(host.entries, []);
+  } finally {
+    await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("reload re-arms an empty session from updated session-start defaults", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-armed-reload-"));
+  await mkdir(join(cwd, ".freeflow"));
+  const profiles = {
+    standard: { provider: "faux", model: "standard", thinkingLevel: "high" },
+    reasoning: { provider: "faux", model: "reasoning", thinkingLevel: "max" },
+  };
+  await writeFile(
+    join(cwd, ".freeflow", "config.json"),
+    JSON.stringify({ cognitiveRouting: { enabled: true, profiles } }),
+  );
+  const host = createExtensionHost();
+  const ctx = createContext(cwd, host);
+  const statuses = [];
+  ctx.ui.setStatus = (_key, value) => statuses.push(value);
+  try {
+    await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    assert.equal(statuses.at(-1), "freeflow: interaction · workflow · standard · automatic");
+    await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "reload" }, ctx);
+
+    await writeFile(
+      join(cwd, ".freeflow", "config.json"),
+      JSON.stringify({
+        cognitiveRouting: { enabled: true, sessionStart: { control: "manual", profile: "reasoning" }, profiles },
+      }),
+    );
+    await host.handlers.get("session_start")({ type: "session_start", reason: "reload" }, ctx);
+
+    assert.equal(statuses.at(-1), "freeflow: interaction · workflow · reasoning · manual hold");
+    assert.deepEqual(host.operations, []);
+    assert.deepEqual(host.entries, []);
   } finally {
     await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
     await rm(cwd, { recursive: true, force: true });
@@ -548,6 +694,7 @@ test("registered profile commands create manual holds and release them without a
   const ctx = createContext(cwd, host);
   try {
     await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    await host.handlers.get("before_agent_start")({ prompt: "hello", systemPrompt: "base prompt" }, ctx);
     const command = host.commands.find(({ name }) => name === "freeflow");
     assert.ok(command);
     assert.deepEqual(
@@ -665,6 +812,7 @@ test("reload preserves a manual reasoning hold after lease rotation", async () =
   ctx.isIdle = () => true;
   try {
     await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    await host.handlers.get("before_agent_start")({ prompt: "hello", systemPrompt: "base prompt" }, ctx);
     await host.commands.find(({ name }) => name === "freeflow").definition.handler("profile reasoning", ctx);
     await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "reload" }, ctx);
 
@@ -705,6 +853,7 @@ test("tree navigation retains the current profile without a supported branch cho
   const ctx = createContext(cwd, host);
   try {
     await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    await host.handlers.get("before_agent_start")({ prompt: "hello", systemPrompt: "base prompt" }, ctx);
     const standardBranch = [...host.entries];
     const command = host.commands.find(({ name }) => name === "freeflow");
     await command.definition.handler("profile reasoning", ctx);

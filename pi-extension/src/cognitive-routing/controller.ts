@@ -9,6 +9,7 @@ import { PI_SESSION_MODEL_STATE_ENTRY, parsePiSessionModelStateCommit } from "./
 import type {
   CognitiveRoutingCapabilityState,
   CognitiveRoutingProfileName,
+  CognitiveRoutingSessionStart,
   CognitiveRoutingThinkingLevel,
 } from "./types.js";
 
@@ -100,6 +101,7 @@ type ControllerOptions = {
   capabilityState: CognitiveRoutingCapabilityState;
   pi: ControllerPi;
   ctx: ControllerContext;
+  initialSessionStart?: CognitiveRoutingSessionStart;
   label?: string;
   idFactory?: () => string;
 };
@@ -496,6 +498,7 @@ export class CognitiveRoutingController {
   private readonly capabilityState: CognitiveRoutingCapabilityState;
   private readonly pi: ControllerPi;
   private readonly ctx: ControllerContext;
+  private readonly initialSessionStart: CognitiveRoutingSessionStart | undefined;
   private readonly label: string;
   private readonly idFactory: () => string;
   private lease: ModelStateLease | undefined;
@@ -510,6 +513,7 @@ export class CognitiveRoutingController {
     this.capabilityState = options.capabilityState;
     this.pi = options.pi;
     this.ctx = options.ctx;
+    this.initialSessionStart = options.initialSessionStart;
     this.label = options.label ?? "Cognitive Routing";
     this.idFactory = options.idFactory ?? randomUUID;
   }
@@ -612,10 +616,11 @@ export class CognitiveRoutingController {
     }
     const epoch = this.epoch ?? this.idFactory();
     const branchId = this.currentBranchId();
-    const sessionStart = this.capabilityState.sessionStart ?? {
-      control: "automatic" as const,
-      profile: "standard" as const,
-    };
+    const sessionStart = this.initialSessionStart ??
+      this.capabilityState.sessionStart ?? {
+        control: "automatic" as const,
+        profile: "standard" as const,
+      };
     const profileName: CognitiveRoutingProfileName = preservedReload
       ? lifecycleIntent.resumeProfile
       : sessionStart.profile;
