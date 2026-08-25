@@ -734,8 +734,10 @@ export default function freeflow(pi) {
       await handleFreeflowCommand(
         args,
         ctx,
-        async () => {
-          await applyLiveCapabilityStateForSession(ctx, { reconcileCognitiveRouting: true });
+        async (_changed, options = {}) => {
+          await applyLiveCapabilityStateForSession(ctx, {
+            reconcileCognitiveRouting: options.reconcileCognitiveRouting ?? true,
+          });
         },
         pi,
         cognitiveRoutingController,

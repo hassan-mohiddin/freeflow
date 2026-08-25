@@ -478,16 +478,23 @@ export class CognitiveRoutingController {
     }
     const epoch = this.epoch ?? this.idFactory();
     const branchId = this.currentBranchId();
-    const profileName: CognitiveRoutingProfileName = preservedReload ? lifecycleIntent.resumeProfile : "standard";
+    const sessionStart = this.capabilityState.sessionStart ?? {
+      control: "automatic" as const,
+      profile: "standard" as const,
+    };
+    const profileName: CognitiveRoutingProfileName = preservedReload
+      ? lifecycleIntent.resumeProfile
+      : sessionStart.profile;
     const profile = this.capabilityState.resolvedProfiles[profileName];
     if (!profile) {
       return { status: "inactive", reason: preservedReload ? "resume_profile_unavailable" : "profile_unavailable" };
     }
-    const controlMode: CognitiveRoutingControlMode = preservedReload
-      ? lifecycleIntent.resumeControl === "manual"
-        ? `manual-${profileName}`
-        : "automatic"
-      : "automatic";
+    let controlMode: CognitiveRoutingControlMode;
+    if (preservedReload) {
+      controlMode = lifecycleIntent.resumeControl === "manual" ? `manual-${profileName}` : "automatic";
+    } else {
+      controlMode = sessionStart.control === "manual" ? `manual-${profileName}` : "automatic";
+    }
     const target = {
       provider: profile.provider,
       modelId: profile.model,

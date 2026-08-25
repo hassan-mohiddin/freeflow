@@ -109,6 +109,39 @@ test("prepares activation before acquiring and applying the host pair", async ()
   assert.equal(controller.state().activeProfile, "standard");
 });
 
+test("activates each configured session-start control and profile combination", async () => {
+  const combinations = [
+    ["automatic", "standard", "automatic"],
+    ["automatic", "reasoning", "automatic"],
+    ["manual", "standard", "manual-standard"],
+    ["manual", "reasoning", "manual-reasoning"],
+  ];
+
+  for (const [control, profile, expectedControlMode] of combinations) {
+    const host = createHost({ onAcquire: appliedLease });
+    const controller = new CognitiveRoutingController({
+      capabilityState: {
+        ...capabilityState,
+        sessionStart: { control, profile },
+        sessionStartSources: { control: "repository", profile: "repository" },
+      },
+      pi: host.pi,
+      ctx: host.ctx,
+      idFactory: (() => {
+        const ids = ["epoch-1", "correlation-1"];
+        return () => ids.shift();
+      })(),
+    });
+
+    const result = await controller.activate();
+
+    assert.equal(result.status, "active");
+    assert.equal(controller.state().activeProfile, profile);
+    assert.equal(controller.state().controlMode, expectedControlMode);
+    assert.equal(host.calls[2][1].modelId, profile);
+  }
+});
+
 test("applies a durable manual profile hold through the owned transition", async () => {
   const host = createHost({ onAcquire: appliedLease });
   const controller = new CognitiveRoutingController({

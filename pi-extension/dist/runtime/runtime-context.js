@@ -7,13 +7,11 @@ export const VALID_MODES = new Set(["conversation", "workflow", "strict-workflow
 export const WORKFLOW_COMMANDS = [
   { command: "discuss", skill: "discuss" },
   { command: "action-selection", skill: "action-selection" },
-  { command: "discover", skill: "discuss" },
   { command: "track-work", skill: "track-work" },
   { command: "write-spec", skill: "write-spec" },
   { command: "review-artifact", skill: "review-artifact" },
   { command: "write-plan", skill: "write-plan" },
   { command: "execute-work", skill: "execute-work" },
-  { command: "execute-plan", skill: "execute-work" },
   { command: "simplify-code", skill: "simplify-code" },
   { command: "migration-work", skill: "migration-work" },
   { command: "diagnose-failure", skill: "diagnose-failure" },
@@ -602,7 +600,8 @@ export function setModeStatus(
       options.cognitiveRoutingStartupPending === true &&
       !startupSelectionSuppressesCognitiveRouting
     ) {
-      active.push("standard · pending");
+      const startupProfile = cognitiveRouting.sessionStart?.profile ?? "standard";
+      active.push(`${startupProfile} · pending`);
     } else {
       const reason =
         cognitiveRouting?.effective === true

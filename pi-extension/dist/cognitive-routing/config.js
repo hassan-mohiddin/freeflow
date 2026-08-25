@@ -1,4 +1,8 @@
-import { COGNITIVE_ROUTING_PROFILE_NAMES } from "./types.js";
+import {
+  COGNITIVE_ROUTING_PROFILE_NAMES,
+  COGNITIVE_ROUTING_SESSION_START_CONTROLS,
+  DEFAULT_COGNITIVE_ROUTING_SESSION_START,
+} from "./types.js";
 const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 const PROFILE_NAME_SET = new Set(COGNITIVE_ROUTING_PROFILE_NAMES);
 function isRecord(value) {
@@ -42,25 +46,72 @@ function parseProfile(value, source, name) {
     },
   };
 }
+function parseSessionStart(value, source) {
+  if (!isRecord(value)) {
+    return {
+      error: invalid(source, "invalid_session_start", `${source} cognitiveRouting.sessionStart must be an object`),
+    };
+  }
+  const allowedKeys = new Set(["control", "profile"]);
+  const unsupportedKey = Object.keys(value).find((key) => !allowedKeys.has(key));
+  if (unsupportedKey) {
+    return {
+      error: invalid(
+        source,
+        "unsupported_key",
+        `${source} cognitiveRouting.sessionStart contains unsupported key: ${unsupportedKey}`,
+      ),
+    };
+  }
+  let control;
+  if (Object.hasOwn(value, "control")) {
+    if (typeof value.control !== "string" || !COGNITIVE_ROUTING_SESSION_START_CONTROLS.includes(value.control)) {
+      return {
+        error: invalid(
+          source,
+          "invalid_session_start",
+          `${source} cognitiveRouting.sessionStart.control must be automatic or manual`,
+        ),
+      };
+    }
+    control = value.control;
+  }
+  let profile;
+  if (Object.hasOwn(value, "profile")) {
+    if (typeof value.profile !== "string" || !PROFILE_NAME_SET.has(value.profile)) {
+      return {
+        error: invalid(
+          source,
+          "invalid_session_start",
+          `${source} cognitiveRouting.sessionStart.profile must be standard or reasoning`,
+        ),
+      };
+    }
+    profile = value.profile;
+  }
+  return { sessionStart: { ...(control ? { control } : {}), ...(profile ? { profile } : {}) } };
+}
 function parseLayer(value, source) {
   if (value === undefined) {
-    return { present: false, valid: true, profiles: {} };
+    return { present: false, valid: true, profiles: {}, sessionStart: {} };
   }
   if (!isRecord(value)) {
     return {
       present: true,
       valid: false,
       profiles: {},
+      sessionStart: {},
       error: invalid(source, "invalid_block", `${source} cognitiveRouting must be an object`),
     };
   }
-  const allowedKeys = new Set(["enabled", "profiles"]);
+  const allowedKeys = new Set(["enabled", "profiles", "sessionStart"]);
   const unsupportedKey = Object.keys(value).find((key) => !allowedKeys.has(key));
   if (unsupportedKey) {
     return {
       present: true,
       valid: false,
       profiles: {},
+      sessionStart: {},
       error: invalid(
         source,
         "unsupported_key",
@@ -75,10 +126,18 @@ function parseLayer(value, source) {
         present: true,
         valid: false,
         profiles: {},
+        sessionStart: {},
         error: invalid(source, "invalid_enabled", `${source} cognitiveRouting.enabled must be a boolean`),
       };
     }
     enabled = value.enabled;
+  }
+  let sessionStart = {};
+  if (Object.hasOwn(value, "sessionStart")) {
+    const parsed = parseSessionStart(value.sessionStart, source);
+    if (parsed.error)
+      return { present: true, valid: false, enabled, profiles: {}, sessionStart: {}, error: parsed.error };
+    sessionStart = parsed.sessionStart ?? {};
   }
   const profiles = {};
   if (Object.hasOwn(value, "profiles")) {
@@ -87,6 +146,7 @@ function parseLayer(value, source) {
         present: true,
         valid: false,
         profiles: {},
+        sessionStart: {},
         error: invalid(source, "invalid_profiles", `${source} cognitiveRouting.profiles must be an object`),
       };
     }
@@ -96,6 +156,7 @@ function parseLayer(value, source) {
         present: true,
         valid: false,
         profiles: {},
+        sessionStart: {},
         error: invalid(
           source,
           "unsupported_key",
@@ -107,12 +168,12 @@ function parseLayer(value, source) {
       if (!Object.hasOwn(value.profiles, name)) continue;
       const parsed = parseProfile(value.profiles[name], source, name);
       if (parsed.error) {
-        return { present: true, valid: false, enabled, profiles: {}, error: parsed.error };
+        return { present: true, valid: false, enabled, profiles: {}, sessionStart: {}, error: parsed.error };
       }
       profiles[name] = parsed.profile;
     }
   }
-  return { present: true, valid: true, enabled, profiles };
+  return { present: true, valid: true, enabled, profiles, sessionStart };
 }
 export function resolveCognitiveRoutingConfig(repositoryConfig, personalConfig) {
   const repositoryValue = isRecord(repositoryConfig) ? repositoryConfig.cognitiveRouting : undefined;
@@ -136,6 +197,30 @@ export function resolveCognitiveRoutingConfig(repositoryConfig, personalConfig) 
   let enabledSource = "default";
   if (repository.enabled !== undefined) enabledSource = "repository";
   if (personal.enabled !== undefined) enabledSource = "personal";
+  const sessionStart = {
+    control:
+      personal.sessionStart.control ??
+      repository.sessionStart.control ??
+      DEFAULT_COGNITIVE_ROUTING_SESSION_START.control,
+    profile:
+      personal.sessionStart.profile ??
+      repository.sessionStart.profile ??
+      DEFAULT_COGNITIVE_ROUTING_SESSION_START.profile,
+  };
+  const sessionStartSources = {
+    control:
+      personal.sessionStart.control !== undefined
+        ? "personal"
+        : repository.sessionStart.control !== undefined
+          ? "repository"
+          : "default",
+    profile:
+      personal.sessionStart.profile !== undefined
+        ? "personal"
+        : repository.sessionStart.profile !== undefined
+          ? "repository"
+          : "default",
+  };
   const error = repository.error ?? personal.error;
   return {
     configured,
@@ -144,6 +229,8 @@ export function resolveCognitiveRoutingConfig(repositoryConfig, personalConfig) 
     enabledSource,
     profiles,
     profileSources,
+    sessionStart,
+    sessionStartSources,
     ...(error ? { error } : {}),
   };
 }

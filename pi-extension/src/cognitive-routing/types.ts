@@ -1,8 +1,20 @@
 export const COGNITIVE_ROUTING_PROFILE_NAMES = ["standard", "reasoning"] as const;
+export const COGNITIVE_ROUTING_SESSION_START_CONTROLS = ["automatic", "manual"] as const;
 
 export type CognitiveRoutingProfileName = (typeof COGNITIVE_ROUTING_PROFILE_NAMES)[number];
+export type CognitiveRoutingSessionStartControl = (typeof COGNITIVE_ROUTING_SESSION_START_CONTROLS)[number];
 export type CognitiveRoutingThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 export type CognitiveRoutingConfigSource = "default" | "repository" | "personal";
+
+export interface CognitiveRoutingSessionStart {
+  control: CognitiveRoutingSessionStartControl;
+  profile: CognitiveRoutingProfileName;
+}
+
+export const DEFAULT_COGNITIVE_ROUTING_SESSION_START = {
+  control: "automatic",
+  profile: "standard",
+} as const satisfies CognitiveRoutingSessionStart;
 
 export interface CognitiveRoutingProfile {
   provider: string;
@@ -11,7 +23,13 @@ export interface CognitiveRoutingProfile {
 }
 
 export interface CognitiveRoutingConfigError {
-  code: "invalid_block" | "invalid_enabled" | "invalid_profiles" | "invalid_profile" | "unsupported_key";
+  code:
+    | "invalid_block"
+    | "invalid_enabled"
+    | "invalid_profiles"
+    | "invalid_profile"
+    | "invalid_session_start"
+    | "unsupported_key";
   message: string;
   profile?: CognitiveRoutingProfileName;
   source: "repository" | "personal";
@@ -24,6 +42,11 @@ export interface CognitiveRoutingConfigResolution {
   enabledSource: CognitiveRoutingConfigSource;
   profiles: Partial<Record<CognitiveRoutingProfileName, CognitiveRoutingProfile>>;
   profileSources: Partial<Record<CognitiveRoutingProfileName, CognitiveRoutingConfigSource>>;
+  sessionStart: CognitiveRoutingSessionStart;
+  sessionStartSources: {
+    control: CognitiveRoutingConfigSource;
+    profile: CognitiveRoutingConfigSource;
+  };
   error?: CognitiveRoutingConfigError;
 }
 
@@ -56,6 +79,11 @@ export interface CognitiveRoutingCapabilityState {
   enabledSource: CognitiveRoutingConfigSource;
   profiles: Partial<Record<CognitiveRoutingProfileName, CognitiveRoutingProfile>>;
   profileSources: Partial<Record<CognitiveRoutingProfileName, CognitiveRoutingConfigSource>>;
+  sessionStart: CognitiveRoutingSessionStart;
+  sessionStartSources: {
+    control: CognitiveRoutingConfigSource;
+    profile: CognitiveRoutingConfigSource;
+  };
   resolvedProfiles: Partial<Record<CognitiveRoutingProfileName, CognitiveRoutingResolvedProfile>>;
   blockingReason: CognitiveRoutingBlockingReason;
 }

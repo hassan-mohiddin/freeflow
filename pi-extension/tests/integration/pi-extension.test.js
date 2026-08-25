@@ -135,9 +135,11 @@ test("Pi registers Freeflow commands without retired router tools", () => {
 
   assert.ok(commandNames.includes("freeflow"));
   assert.ok(!commandNames.includes("output-router"));
-  for (const command of ["discuss", "discover", "track-work", "execute-work", "execute-plan"]) {
+  for (const command of ["discuss", "track-work", "execute-work"]) {
     assert.ok(commandNames.includes(command));
   }
+  assert.ok(!commandNames.includes("discover"));
+  assert.ok(!commandNames.includes("execute-plan"));
   assert.ok(!commandNames.includes("workflow"));
   assert.deepEqual(
     shortcuts.map(({ shortcut }) => shortcut),
@@ -210,7 +212,7 @@ test("normal Pi keeps Cognitive Routing disabled while showing its configuration
       component.handleInput("\u001b[B");
       component.handleInput("\r");
       await component.waitForWrites();
-      assert.doesNotMatch(renderText(component), /Cognitive Routing\s+enabled \(3\) configured · inactive/);
+      assert.doesNotMatch(renderText(component), /Cognitive Routing\s+enabled \(5\) configured · inactive/);
       for (let index = 0; index < 5; index += 1) component.handleInput("\u001b[B");
       component.handleInput("\r");
       const cognitiveText = renderText(component);
@@ -265,6 +267,30 @@ test("PiFlow statusline shows the configured standard profile pending first prom
     { cognitiveRoutingStartupPending: true },
   );
   assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · standard · pending");
+});
+
+test("PiFlow statusline shows the configured startup profile while pending", () => {
+  const ctx = context();
+  setModeStatus(
+    ctx,
+    { effectiveMode: "workflow", currentMode: null },
+    {
+      configured: true,
+      enabled: true,
+      configSources: { interactionContract: "builtin", skillsEnabled: "builtin", enabled: "builtin" },
+      interactionContract: { effective: true },
+      skills: { effective: true },
+      cognitiveRouting: {
+        enabled: true,
+        effective: true,
+        sessionStart: { control: "manual", profile: "reasoning" },
+        blockingReason: null,
+      },
+    },
+    undefined,
+    { cognitiveRoutingStartupPending: true },
+  );
+  assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · reasoning · pending");
 });
 
 test("PiFlow statusline keeps an inactive runtime blocked instead of showing startup pending", () => {
@@ -423,7 +449,7 @@ test("Pi describes Freeflow argument completions", () => {
   ]);
 });
 
-test("Pi exposes canonical model skills and maps published command aliases", async () => {
+test("Pi exposes canonical model skills without compatibility aliases", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-canonical-skills-"));
   try {
     await mkdir(join(cwd, ".freeflow"));
@@ -448,15 +474,16 @@ test("Pi exposes canonical model skills and maps published command aliases", asy
     for (const [commandName, expectedSkill] of [
       ["action-selection", "action-selection"],
       ["discuss", "discuss"],
-      ["discover", "discuss"],
       ["track-work", "track-work"],
       ["execute-work", "execute-work"],
-      ["execute-plan", "execute-work"],
     ]) {
       const command = commands.find((candidate) => candidate.name === commandName);
       assert.ok(command);
       await command.definition.handler(undefined, context(cwd));
       assert.equal(sentMessages.at(-1), `/skill:${expectedSkill}`);
+    }
+    for (const alias of ["discover", "execute-plan"]) {
+      assert.ok(!commands.some((candidate) => candidate.name === alias));
     }
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -1724,7 +1751,7 @@ test("Pi /freeflow settings marks default mode dormant when Skills are disabled"
       });
       const rootText = renderText(component);
       assert.match(rootText, /Skills\s+disabled \(repository\)/);
-      assert.match(rootText, /Cognitive Routing\s+disabled \(3\) disabled · inactive/);
+      assert.match(rootText, /Cognitive Routing\s+disabled \(5\) disabled · inactive/);
       assert.match(rootText, /Session mode\s+default \(workflow · repository · inactive\)/);
       assert.match(rootText, /Default mode\s+workflow \(repository · inactive\)/);
 
@@ -2083,7 +2110,7 @@ test("PiFlow shows unset Cognitive Routing presets as not configured and edits t
         result = value;
       });
       const rootText = renderText(component);
-      assert.match(rootText, /Cognitive Routing\s+disabled \(3\) disabled/);
+      assert.match(rootText, /Cognitive Routing\s+disabled \(5\) disabled/);
       assert.doesNotMatch(rootText, /Output Router/);
       for (let index = 0; index < 5; index += 1) component.handleInput("\u001b[B");
       component.handleInput("\r");
@@ -2143,7 +2170,7 @@ test("PiFlow settings refresh the Cognitive Routing group after enabling it", as
       const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
         result = value;
       });
-      assert.match(renderText(component), /Cognitive Routing\s+disabled \(3\) disabled/);
+      assert.match(renderText(component), /Cognitive Routing\s+disabled \(5\) disabled/);
       for (let index = 0; index < 5; index += 1) component.handleInput("\u001b[B");
       component.handleInput("\r");
       component.handleInput("\r");
@@ -2152,7 +2179,7 @@ test("PiFlow settings refresh the Cognitive Routing group after enabling it", as
       await component.waitForWrites();
       component.handleInput("\u001b");
       component.handleInput("\u001b");
-      assert.match(renderText(component), /Cognitive Routing\s+enabled \(3\) configured/);
+      assert.match(renderText(component), /Cognitive Routing\s+enabled \(5\) configured/);
       component.handleInput("\u001b");
       return result;
     };
@@ -2160,6 +2187,50 @@ test("PiFlow settings refresh the Cognitive Routing group after enabling it", as
     await freeflowCommand.definition.handler("settings", settingsCtx);
     const saved = JSON.parse(await readFile(join(cwd, ".freeflow/local.json"), "utf8"));
     assert.equal(saved.cognitiveRouting.enabled, true);
+    assert.equal(settingsCtx.reloads.length, 1);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi Freeflow Context parent summary refreshes after a child feature changes", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-context-settings-hot-reload-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({ contextVirtualization: true }, null, 2),
+      "utf8",
+    );
+
+    const { commands } = loadExtension();
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    assert.ok(freeflowCommand);
+    const settingsCtx = context(cwd);
+    settingsCtx.ui.custom = async (factory) => {
+      let result;
+      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+        result = value;
+      });
+      assert.match(renderText(component), /Freeflow Context\s+enabled \(2\) 1\/2 enabled/);
+
+      for (let index = 0; index < 6; index += 1) component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\r");
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      await component.waitForWrites();
+      component.handleInput("\u001b");
+
+      assert.match(renderText(component), /Freeflow Context\s+disabled \(2\) 0\/2 enabled/);
+      component.handleInput("\u001b");
+      return result;
+    };
+
+    await freeflowCommand.definition.handler("settings", settingsCtx);
+    const local = JSON.parse(await readFile(join(cwd, ".freeflow/local.json"), "utf8"));
+    assert.equal(local.contextVirtualization, false);
     assert.equal(settingsCtx.reloads.length, 1);
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -2190,6 +2261,81 @@ function cognitiveRoutingModelRegistry() {
     },
   };
 }
+
+test("PiFlow settings persist independent new-session control and profile overrides", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-cognitive-session-start-settings-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify(
+        {
+          defaultMode: "workflow",
+          cognitiveRouting: {
+            enabled: true,
+            profiles: {
+              standard: { provider: "test", model: "model-a", thinkingLevel: "low" },
+              reasoning: { provider: "test", model: "model-b", thinkingLevel: "high" },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const { commands } = loadExtension();
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    assert.ok(freeflowCommand);
+    const settingsCtx = context(cwd);
+    settingsCtx.isIdle = () => true;
+    settingsCtx.modelRegistry = cognitiveRoutingModelRegistry();
+    settingsCtx.ui.custom = async (factory) => {
+      let result;
+      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+        result = value;
+      });
+      for (let index = 0; index < 5; index += 1) component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      assert.match(renderText(component), /Session start control\s+automatic \(builtin\)/);
+      assert.match(renderText(component), /Session start profile\s+standard \(builtin\)/);
+
+      for (let index = 0; index < 3; index += 1) component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      await component.waitForWrites();
+
+      component.handleInput("\u001b");
+      for (let index = 0; index < 5; index += 1) component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      for (let index = 0; index < 4; index += 1) component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      await component.waitForWrites();
+
+      component.handleInput("\u001b");
+      for (let index = 0; index < 5; index += 1) component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      assert.match(renderText(component), /Session start control\s+manual \(local\)/);
+      assert.match(renderText(component), /Session start profile\s+reasoning \(local\)/);
+      component.handleInput("\u001b");
+      component.handleInput("\u001b");
+      return result;
+    };
+
+    await freeflowCommand.definition.handler("settings", settingsCtx);
+    const saved = JSON.parse(await readFile(join(cwd, ".freeflow/local.json"), "utf8"));
+    assert.deepEqual(saved.cognitiveRouting.sessionStart, { control: "manual", profile: "reasoning" });
+    assert.equal(settingsCtx.reloads.length, 1);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
 
 test("Pi Cognitive Routing settings save a complete authenticated model and effort preset atomically", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-cognitive-settings-"));

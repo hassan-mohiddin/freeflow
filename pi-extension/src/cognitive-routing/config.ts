@@ -1,10 +1,14 @@
 import {
   COGNITIVE_ROUTING_PROFILE_NAMES,
+  COGNITIVE_ROUTING_SESSION_START_CONTROLS,
+  DEFAULT_COGNITIVE_ROUTING_SESSION_START,
   type CognitiveRoutingConfigError,
   type CognitiveRoutingConfigResolution,
   type CognitiveRoutingConfigSource,
   type CognitiveRoutingProfile,
   type CognitiveRoutingProfileName,
+  type CognitiveRoutingSessionStart,
+  type CognitiveRoutingSessionStartControl,
   type CognitiveRoutingThinkingLevel,
 } from "./types.js";
 
@@ -83,29 +87,88 @@ interface ParsedLayer {
   valid: boolean;
   enabled?: boolean;
   profiles: Partial<Record<CognitiveRoutingProfileName, CognitiveRoutingProfile>>;
+  sessionStart: Partial<CognitiveRoutingSessionStart>;
   error?: CognitiveRoutingConfigError;
+}
+
+function parseSessionStart(
+  value: unknown,
+  source: "repository" | "personal",
+): { sessionStart?: Partial<CognitiveRoutingSessionStart>; error?: CognitiveRoutingConfigError } {
+  if (!isRecord(value)) {
+    return {
+      error: invalid(source, "invalid_session_start", `${source} cognitiveRouting.sessionStart must be an object`),
+    };
+  }
+
+  const allowedKeys = new Set(["control", "profile"]);
+  const unsupportedKey = Object.keys(value).find((key) => !allowedKeys.has(key));
+  if (unsupportedKey) {
+    return {
+      error: invalid(
+        source,
+        "unsupported_key",
+        `${source} cognitiveRouting.sessionStart contains unsupported key: ${unsupportedKey}`,
+      ),
+    };
+  }
+
+  let control: CognitiveRoutingSessionStartControl | undefined;
+  if (Object.hasOwn(value, "control")) {
+    if (
+      typeof value.control !== "string" ||
+      !COGNITIVE_ROUTING_SESSION_START_CONTROLS.includes(value.control as CognitiveRoutingSessionStartControl)
+    ) {
+      return {
+        error: invalid(
+          source,
+          "invalid_session_start",
+          `${source} cognitiveRouting.sessionStart.control must be automatic or manual`,
+        ),
+      };
+    }
+    control = value.control as CognitiveRoutingSessionStartControl;
+  }
+
+  let profile: CognitiveRoutingProfileName | undefined;
+  if (Object.hasOwn(value, "profile")) {
+    if (typeof value.profile !== "string" || !PROFILE_NAME_SET.has(value.profile)) {
+      return {
+        error: invalid(
+          source,
+          "invalid_session_start",
+          `${source} cognitiveRouting.sessionStart.profile must be standard or reasoning`,
+        ),
+      };
+    }
+    profile = value.profile as CognitiveRoutingProfileName;
+  }
+
+  return { sessionStart: { ...(control ? { control } : {}), ...(profile ? { profile } : {}) } };
 }
 
 function parseLayer(value: unknown, source: "repository" | "personal"): ParsedLayer {
   if (value === undefined) {
-    return { present: false, valid: true, profiles: {} };
+    return { present: false, valid: true, profiles: {}, sessionStart: {} };
   }
   if (!isRecord(value)) {
     return {
       present: true,
       valid: false,
       profiles: {},
+      sessionStart: {},
       error: invalid(source, "invalid_block", `${source} cognitiveRouting must be an object`),
     };
   }
 
-  const allowedKeys = new Set(["enabled", "profiles"]);
+  const allowedKeys = new Set(["enabled", "profiles", "sessionStart"]);
   const unsupportedKey = Object.keys(value).find((key) => !allowedKeys.has(key));
   if (unsupportedKey) {
     return {
       present: true,
       valid: false,
       profiles: {},
+      sessionStart: {},
       error: invalid(
         source,
         "unsupported_key",
@@ -121,10 +184,19 @@ function parseLayer(value: unknown, source: "repository" | "personal"): ParsedLa
         present: true,
         valid: false,
         profiles: {},
+        sessionStart: {},
         error: invalid(source, "invalid_enabled", `${source} cognitiveRouting.enabled must be a boolean`),
       };
     }
     enabled = value.enabled;
+  }
+
+  let sessionStart: Partial<CognitiveRoutingSessionStart> = {};
+  if (Object.hasOwn(value, "sessionStart")) {
+    const parsed = parseSessionStart(value.sessionStart, source);
+    if (parsed.error)
+      return { present: true, valid: false, enabled, profiles: {}, sessionStart: {}, error: parsed.error };
+    sessionStart = parsed.sessionStart ?? {};
   }
 
   const profiles: Partial<Record<CognitiveRoutingProfileName, CognitiveRoutingProfile>> = {};
@@ -134,6 +206,7 @@ function parseLayer(value: unknown, source: "repository" | "personal"): ParsedLa
         present: true,
         valid: false,
         profiles: {},
+        sessionStart: {},
         error: invalid(source, "invalid_profiles", `${source} cognitiveRouting.profiles must be an object`),
       };
     }
@@ -144,6 +217,7 @@ function parseLayer(value: unknown, source: "repository" | "personal"): ParsedLa
         present: true,
         valid: false,
         profiles: {},
+        sessionStart: {},
         error: invalid(
           source,
           "unsupported_key",
@@ -156,13 +230,13 @@ function parseLayer(value: unknown, source: "repository" | "personal"): ParsedLa
       if (!Object.hasOwn(value.profiles, name)) continue;
       const parsed = parseProfile(value.profiles[name], source, name);
       if (parsed.error) {
-        return { present: true, valid: false, enabled, profiles: {}, error: parsed.error };
+        return { present: true, valid: false, enabled, profiles: {}, sessionStart: {}, error: parsed.error };
       }
       profiles[name] = parsed.profile;
     }
   }
 
-  return { present: true, valid: true, enabled, profiles };
+  return { present: true, valid: true, enabled, profiles, sessionStart };
 }
 
 export function resolveCognitiveRoutingConfig(
@@ -192,6 +266,31 @@ export function resolveCognitiveRoutingConfig(
   let enabledSource: CognitiveRoutingConfigSource = "default";
   if (repository.enabled !== undefined) enabledSource = "repository";
   if (personal.enabled !== undefined) enabledSource = "personal";
+
+  const sessionStart: CognitiveRoutingSessionStart = {
+    control:
+      personal.sessionStart.control ??
+      repository.sessionStart.control ??
+      DEFAULT_COGNITIVE_ROUTING_SESSION_START.control,
+    profile:
+      personal.sessionStart.profile ??
+      repository.sessionStart.profile ??
+      DEFAULT_COGNITIVE_ROUTING_SESSION_START.profile,
+  };
+  const sessionStartSources = {
+    control:
+      personal.sessionStart.control !== undefined
+        ? ("personal" as const)
+        : repository.sessionStart.control !== undefined
+          ? ("repository" as const)
+          : ("default" as const),
+    profile:
+      personal.sessionStart.profile !== undefined
+        ? ("personal" as const)
+        : repository.sessionStart.profile !== undefined
+          ? ("repository" as const)
+          : ("default" as const),
+  };
   const error = repository.error ?? personal.error;
 
   return {
@@ -201,6 +300,8 @@ export function resolveCognitiveRoutingConfig(
     enabledSource,
     profiles,
     profileSources,
+    sessionStart,
+    sessionStartSources,
     ...(error ? { error } : {}),
   };
 }

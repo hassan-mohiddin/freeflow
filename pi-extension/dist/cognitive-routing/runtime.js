@@ -12,6 +12,8 @@ function baseState(config) {
     enabledSource: config.enabledSource,
     profiles: config.profiles,
     profileSources: config.profileSources,
+    sessionStart: config.sessionStart,
+    sessionStartSources: config.sessionStartSources,
     resolvedProfiles: {},
     blockingReason: blockingReason("disabled", "Cognitive Routing is disabled"),
   };

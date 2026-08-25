@@ -60,6 +60,30 @@ test("resolves two complete repository profiles", () => {
   assert.deepEqual(result.profileSources, { standard: "repository", reasoning: "repository" });
 });
 
+test("defaults new-session Cognitive Routing to automatic standard control", () => {
+  const result = resolveCognitiveRoutingConfig(configuredRepository(), {});
+
+  assert.deepEqual(result.sessionStart, { control: "automatic", profile: "standard" });
+  assert.deepEqual(result.sessionStartSources, { control: "default", profile: "default" });
+});
+
+test("layers session-start control and profile independently", () => {
+  const result = resolveCognitiveRoutingConfig(
+    configuredRepository({ sessionStart: { control: "automatic", profile: "standard" } }),
+    { cognitiveRouting: { sessionStart: { control: "manual", profile: "reasoning" } } },
+  );
+
+  assert.deepEqual(result.sessionStart, { control: "manual", profile: "reasoning" });
+  assert.deepEqual(result.sessionStartSources, { control: "personal", profile: "personal" });
+
+  const inheritedProfile = resolveCognitiveRoutingConfig(
+    configuredRepository({ sessionStart: { control: "manual" } }),
+    { cognitiveRouting: { sessionStart: { profile: "reasoning" } } },
+  );
+  assert.deepEqual(inheritedProfile.sessionStart, { control: "manual", profile: "reasoning" });
+  assert.deepEqual(inheritedProfile.sessionStartSources, { control: "repository", profile: "personal" });
+});
+
 test("replaces a profile atomically from the personal layer", () => {
   const personalStandard = {
     provider: "openai-codex",

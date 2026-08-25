@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { cp, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -377,6 +377,113 @@ test("new empty sessions do not persist Cognitive Routing state until the first 
     assert.match(beforeAgentStart.systemPrompt, /## Cognitive Routing Cue/);
     assert.doesNotMatch(beforeAgentStart.systemPrompt, /^# Automatic Routing Kernel$/m);
     assert.equal(beforeAgentStart.message, undefined);
+  } finally {
+    await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("new sessions honor each configured Cognitive Routing startup combination", async () => {
+  const combinations = [
+    ["automatic", "standard"],
+    ["automatic", "reasoning"],
+    ["manual", "standard"],
+    ["manual", "reasoning"],
+  ];
+
+  for (const [control, profile] of combinations) {
+    const cwd = await mkdtemp(join(tmpdir(), `freeflow-cognitive-routing-start-${control}-${profile}-`));
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow", "config.json"),
+      JSON.stringify({
+        cognitiveRouting: {
+          enabled: true,
+          sessionStart: { control, profile },
+          profiles: {
+            standard: { provider: "faux", model: "standard", thinkingLevel: "high" },
+            reasoning: { provider: "faux", model: "reasoning", thinkingLevel: "max" },
+          },
+        },
+      }),
+    );
+
+    const host = createExtensionHost();
+    const ctx = createContext(cwd, host);
+    try {
+      await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+      await host.handlers.get("before_agent_start")({ prompt: "hello", systemPrompt: "base prompt" }, ctx);
+
+      assert.equal(host.entries.filter((entry) => entry.modelId).at(-1).modelId, profile);
+      const activation = host.entries.find(
+        (entry) => entry.customType === "freeflow-cognitive-routing-intent" && entry.data.kind === "activation",
+      );
+      assert.equal(activation.data.profile, profile);
+      assert.equal(activation.data.control, control);
+    } finally {
+      await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
+      await rm(cwd, { recursive: true, force: true });
+    }
+  }
+});
+
+test("editing session-start settings does not activate the current empty session", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-session-start-current-session-"));
+  await mkdir(join(cwd, ".freeflow"));
+  await writeFile(
+    join(cwd, ".freeflow", "config.json"),
+    JSON.stringify({
+      cognitiveRouting: {
+        enabled: true,
+        profiles: {
+          standard: { provider: "faux", model: "standard", thinkingLevel: "high" },
+          reasoning: { provider: "faux", model: "reasoning", thinkingLevel: "max" },
+        },
+      },
+    }),
+  );
+
+  const host = createExtensionHost();
+  const ctx = createContext(cwd, host);
+  ctx.mode = "tui";
+  ctx.hasUI = true;
+  ctx.isIdle = () => true;
+  ctx.ui.custom = async (factory) => {
+    let result;
+    const theme = {
+      fg(_color, text) {
+        return text;
+      },
+      bold(text) {
+        return text;
+      },
+    };
+    const component = factory({ requestRender() {} }, theme, {}, (value) => {
+      result = value;
+    });
+    for (let index = 0; index < 5; index += 1) component.handleInput("\u001b[B");
+    component.handleInput("\r");
+    for (let index = 0; index < 3; index += 1) component.handleInput("\u001b[B");
+    component.handleInput("\r");
+    component.handleInput("\u001b[B");
+    component.handleInput("\u001b[B");
+    component.handleInput("\r");
+    await component.waitForWrites();
+    component.handleInput("\u001b");
+    component.handleInput("\u001b");
+    return result;
+  };
+
+  try {
+    await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    host.operations.length = 0;
+    await host.commands.find((command) => command.name === "freeflow").definition.handler("settings", ctx);
+
+    assert.deepEqual(host.operations, []);
+    assert.deepEqual(host.state, { model: { provider: "faux", id: "return" }, thinkingLevel: "medium" });
+    assert.equal(host.entries.filter((entry) => entry.modelId).length, 0);
+    const saved = JSON.parse(await readFile(join(cwd, ".freeflow", "local.json"), "utf8"));
+    assert.equal(saved.cognitiveRouting.sessionStart.control, "manual");
   } finally {
     await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
     await rm(cwd, { recursive: true, force: true });

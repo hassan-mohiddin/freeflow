@@ -90,6 +90,12 @@ type CognitiveRoutingSettingsController = {
   setAutomaticControl(mechanism?: string): Promise<{ status: string; reason?: string }>;
 };
 
+type AfterChangeOptions = {
+  reconcileCognitiveRouting?: boolean;
+};
+
+type AfterChange = (changed: boolean, options?: AfterChangeOptions) => Promise<void> | void;
+
 type OpenSettingsOptions = {
   title: string;
   items: SettingsItem[];
@@ -883,6 +889,90 @@ function cognitiveRoutingProfileItem(options: {
   };
 }
 
+type CognitiveRoutingSessionStartSetting = "control" | "profile";
+
+function cognitiveRoutingSessionStartItem(options: {
+  setting: CognitiveRoutingSessionStartSetting;
+  scope: ConfigScope;
+  rawConfig: Record<string, unknown>;
+  localConfig: Record<string, unknown>;
+  capabilityState: CognitiveRoutingCapabilityState | undefined;
+}): SettingsItem {
+  const path = ["cognitiveRouting", "sessionStart", options.setting];
+  const defaultValue = options.setting === "control" ? "automatic" : "standard";
+  const values = options.setting === "control" ? ["automatic", "manual"] : ["standard", "reasoning"];
+  const labels = Object.fromEntries(values.map((value) => [value, value]));
+  const descriptions =
+    options.setting === "control"
+      ? {
+          automatic: "Let Cognitive Routing manage profile transitions for the new session.",
+          manual: "Hold the selected profile for the new session until the user changes it.",
+        }
+      : {
+          standard: "Start a new session with the configured Standard preset.",
+          reasoning: "Start a new session with the configured Reasoning preset.",
+        };
+  const repositoryValue = getPath(options.rawConfig, path);
+  const localValue = getPath(options.localConfig, path);
+  const isValidValue = (value: unknown): value is string => values.includes(value as string);
+  const repositorySetting = isValidValue(repositoryValue) ? repositoryValue : undefined;
+  const localSetting = isValidValue(localValue) ? localValue : undefined;
+  const inheritedValue = repositorySetting ?? defaultValue;
+  const inheritedSource: ConfigSource = repositorySetting ? "repository" : "builtin";
+  const configuredSource =
+    options.capabilityState?.sessionStartSources?.[options.setting] ?? (repositorySetting ? "repository" : undefined);
+  const effectiveValue = options.capabilityState?.sessionStart?.[options.setting] ?? inheritedValue;
+  const effectiveSource = cognitiveRoutingSettingsSource(configuredSource);
+  const label = options.setting === "control" ? "Session start control" : "Session start profile";
+  const description =
+    options.setting === "control"
+      ? "Choose automatic or manual control for new sessions only; changing this does not alter the active session."
+      : "Choose the initial profile for new sessions only; changing this does not alter the active session.";
+
+  const item: SettingsItem =
+    options.scope === "local"
+      ? {
+          id: `freeflow.cognitiveRouting.sessionStart.${options.setting}`,
+          label,
+          description: `${description} Choose inherit to use the repository value; use /freeflow settings repo to edit shared defaults.`,
+          path,
+          kind: "enum",
+          value: localSetting ?? LOCAL_INHERIT,
+          values: [LOCAL_INHERIT, ...values],
+          valueLabels: { inherit: "Inherit repository", ...labels },
+          valueDescriptions: {
+            inherit: `Use ${inheritedValue} from ${inheritedSource}.`,
+            ...descriptions,
+          },
+          format: (value) => String(value),
+          configScope: "local",
+          configValues: { inherit: undefined },
+          effectiveValue,
+          effectiveSource,
+          inheritedValue,
+          inheritedSource,
+        }
+      : {
+          id: `freeflow.cognitiveRouting.sessionStart.${options.setting}`,
+          label,
+          description: `${description} This edits shared .freeflow/config.json.`,
+          path,
+          kind: "enum",
+          value: inheritedValue,
+          values,
+          valueLabels: labels,
+          valueDescriptions: descriptions,
+          format: (value) => String(value),
+          defaultValue,
+          configScope: "repository",
+          effectiveValue,
+          effectiveSource,
+          localOverrideValue: localSetting,
+        };
+  item.displaySuffix = coreDisplaySuffix(item);
+  return item;
+}
+
 function freeflowItems(
   rawConfig: Record<string, unknown>,
   modeState?: Awaited<ReturnType<typeof readModeState>>,
@@ -1036,7 +1126,17 @@ function freeflowItems(
         ctx: options.ctx,
       }),
     );
-    for (const item of cognitiveRoutingProfiles) {
+    const cognitiveRoutingSessionStart = (["control", "profile"] as CognitiveRoutingSessionStartSetting[]).map(
+      (setting) =>
+        cognitiveRoutingSessionStartItem({
+          setting,
+          scope,
+          rawConfig,
+          localConfig,
+          capabilityState: cognitiveRoutingState,
+        }),
+    );
+    for (const item of [...cognitiveRoutingProfiles, ...cognitiveRoutingSessionStart]) {
       item.inactive ||= freeflowInactive || !skillsEnabled || cognitiveRoutingRuntimeDisabled;
       item.runtimeInactive = cognitiveRoutingRuntimeDisabled;
     }
@@ -1059,7 +1159,7 @@ function freeflowItems(
       value: cognitiveRoutingRuntimeDisabled ? false : (cognitiveRoutingState?.enabled ?? false),
       inactive: freeflowInactive || !skillsEnabled,
       displaySuffix: cognitiveRoutingStatus,
-      children: [cognitiveRoutingEnabledItem, ...cognitiveRoutingProfiles],
+      children: [cognitiveRoutingEnabledItem, ...cognitiveRoutingProfiles, ...cognitiveRoutingSessionStart],
     } satisfies SettingsItem;
   })();
 
@@ -1261,6 +1361,13 @@ function refreshSettingsDerivedState(items: SettingsItem[]) {
     cognitiveRoutingGroup.inactive = freeflowInactive || !skillsEnabled;
   }
 
+  const contextGroup = findSettingsItem(items, "freeflow.context");
+  if (contextGroup?.children?.length) {
+    const enabledCount = contextGroup.children.filter((item) => effectiveItemValue(item) === true).length;
+    contextGroup.value = enabledCount > 0;
+    contextGroup.displaySuffix = `${enabledCount}/${contextGroup.children.length} enabled`;
+  }
+
   walkSettingsItems(items, (candidate) => {
     if (candidate.id === "freeflow.session.reset") {
       candidate.inactive = false;
@@ -1276,6 +1383,8 @@ function refreshSettingsDerivedState(items: SettingsItem[]) {
                 "freeflow.cognitiveRouting.enabled",
                 "freeflow.cognitiveRouting.standard",
                 "freeflow.cognitiveRouting.reasoning",
+                "freeflow.cognitiveRouting.sessionStart.control",
+                "freeflow.cognitiveRouting.sessionStart.profile",
                 "freeflow.contextVirtualization",
                 "freeflow.conversationHistory",
               ].includes(candidate.id));
@@ -1451,13 +1560,14 @@ function nonTuiGuidance(ctx: any, message: string) {
 async function finalizeSettingsSession(
   session: SettingsSessionResult,
   ctx: any,
-  afterChange: (changed: boolean) => Promise<void> | void,
+  afterChange: AfterChange,
   savedMessage: string,
   reloadWarning = "Run /reload for Freeflow changes to fully apply.",
+  afterChangeOptions: AfterChangeOptions = {},
 ) {
   if (!session.configChanged) return false;
 
-  await afterChange(true);
+  await afterChange(true, afterChangeOptions);
   if (session.failed) return false;
 
   ctx.ui.notify(savedMessage, "info");
@@ -1470,11 +1580,7 @@ async function finalizeSettingsSession(
   return true;
 }
 
-async function finalizeSessionSettings(
-  session: SettingsSessionResult,
-  ctx: any,
-  afterChange: (changed: boolean) => Promise<void> | void,
-) {
+async function finalizeSessionSettings(session: SettingsSessionResult, ctx: any, afterChange: AfterChange) {
   if (!session.changed) return false;
 
   await afterChange(true);
@@ -1497,7 +1603,7 @@ async function finalizeSessionSettings(
 export async function handleFreeflowCommand(
   args: string | undefined,
   ctx: any,
-  afterChange: (changed: boolean) => Promise<void> | void,
+  afterChange: AfterChange,
   pi: any,
   cognitiveRoutingController?: CognitiveRoutingSettingsController,
 ) {
@@ -1619,6 +1725,7 @@ export async function handleFreeflowCommand(
 
   if (!ensureSettingsIdle(ctx)) return { changed: false, reloaded: false, error: "busy" };
 
+  let reconcileCognitiveRouting = settingsScope === "session";
   const items =
     settingsScope === "session"
       ? sessionFreeflowItems(state, modeState, cognitiveRoutingController)
@@ -1685,6 +1792,9 @@ export async function handleFreeflowCommand(
         return { changed: result.changed, reloadRequired: result.reloadRequired === true };
       }
       await updateConfig(ctx.cwd, item, value, item.configScope ?? "repository");
+      if (!item.id.startsWith("freeflow.cognitiveRouting.sessionStart.")) {
+        reconcileCognitiveRouting = true;
+      }
       return { changed: true, reloadRequired: true };
     },
   });
@@ -1700,6 +1810,8 @@ export async function handleFreeflowCommand(
     ctx,
     afterChange,
     `Freeflow ${savedTarget} saved. Reloading Freeflow runtime...`,
+    "Run /reload for Freeflow changes to fully apply.",
+    { reconcileCognitiveRouting },
   );
   return { changed: session.changed, reloaded, error: session.failed ? "write_failed" : undefined };
 }
