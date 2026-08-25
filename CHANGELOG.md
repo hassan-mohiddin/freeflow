@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.0 - 2026-08-25
+
 ### Added
 
 - Adds a deterministic v2 Track Work runtime with strict schema-driven updates, bounded views, decision and checkpoint lifecycles, historical reopening, stale-lock recovery, loss-resistant migration and compression, candidate round-trip validation, and atomic persistence.

@@ -85,7 +85,7 @@ function prepareFiles(root, currentVersion, nextVersion, date) {
   }
   lock.version = nextVersion;
   lock.packages[""].version = nextVersion;
-  changes.set(lockPath, `${JSON.stringify(lock, null, "\t")}\n`);
+  changes.set(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
 
   const changelogPath = resolve(root, "CHANGELOG.md");
   const changelog = readFileSync(changelogPath, "utf8");

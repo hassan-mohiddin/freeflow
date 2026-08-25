@@ -19,7 +19,7 @@ After a release is frozen, its version record is historical evidence. Do not rew
 ## Version records
 
 - [Freeflow v0.5.0](v0.5.0.md): the evidence preserved for the released v0.5.0 source and artifact boundary.
-- A `v0.6.0.md` record will be created only when the v0.6.0 candidate has its corresponding verified evidence. The current `CHANGELOG.md` Unreleased section is not release evidence by itself.
+- [Freeflow v0.6.0 candidate](v0.6.0.md): prepared local candidate evidence; commit, tag, publication, and consumer verification remain pending.
 
 ## Related documentation
 
