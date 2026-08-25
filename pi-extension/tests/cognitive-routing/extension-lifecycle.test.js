@@ -784,7 +784,11 @@ test("Pi delivers a compact Cognitive Routing cue and volatile state per turn", 
     assert.match(first.systemPrompt, /## Cognitive Routing Cue/);
     assert.match(
       first.systemPrompt,
-      /governs compute selection across Freeflow methods.*read the discoverable Cognitive Routing skill before applying another Freeflow skill or taking task Act/s,
+      /governs compute placement across Freeflow methods.*read the discoverable Cognitive Routing skill before applying another Freeflow skill or taking task Act/s,
+    );
+    assert.match(
+      first.systemPrompt,
+      /every authorized execution-bearing bounded activity is Reasoning-led.*Standard takes task Act only inside delegation/s,
     );
     assert.ok(
       first.systemPrompt.indexOf("## Action Selection Cue") < first.systemPrompt.indexOf("## Cognitive Routing Cue"),
