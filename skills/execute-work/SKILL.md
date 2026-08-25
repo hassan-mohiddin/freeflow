@@ -7,9 +7,9 @@ description: Use when executing or resuming implementation, fixes, prototypes, d
 
 Carry out concrete work through bounded actions and fresh evidence only when it was requested or approved and the effective mode permits its effects.
 
-A **slice** is one coherent result tracked as a unit. A **bounded action** is one implementation, experiment, correction, or observation inside that slice. One slice may span multiple Feedback Loop iterations and owning skills while its intended result remains coherent.
+A Slice is the shared coherent outcome. Execute Work owns each **bounded action**—one implementation, experiment, correction, or observation—inside it. A Slice need not have durable task memory; when one does, Track Work records its Current Slice.
 
-Read [Execute Work edges](references/execute-work-edges.md) when work spans multiple actions or slices, resumes from prior state, needs a specialized method, reaches a checkpoint, or reveals follow-on work.
+Read [Execute Work edges](references/execute-work-edges.md) when work resumes from prior state, crosses a Slice boundary, reaches a selected checkpoint, or reveals separately controlled follow-on work.
 
 ## Follow The Execution Route
 

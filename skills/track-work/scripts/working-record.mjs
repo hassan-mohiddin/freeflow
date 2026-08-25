@@ -37,13 +37,14 @@ function usage() {
 Commands:
   init     --root <repo> --name <short-name> [--input <json-file|->] [--dry-run]
   view     --record <record.md> --view <resume|discuss|execute|recent|entity|full> [--entity <id-or-title>]
-  schema   --command <init|update|start|block|resume|reopen|close|migrate|compress|all> [--help]
+  schema   --command <init|update|start|block|resume|reopen|close|unlock|migrate|compress|all> [--help]
   update   --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
   start    --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
   block    --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
   resume   --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
   reopen   --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
   close    --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
+  unlock   --record <record.md> --input <json-file|->
   migrate  --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
   compress --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
   validate --record <record.md>

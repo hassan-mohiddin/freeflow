@@ -1,9 +1,61 @@
 import { randomUUID } from "node:crypto";
 import { open, readFile, rename, unlink, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
-import { WorkingRecordError, fail, failureInjection, sha256, validateModel } from "./model.mjs";
-import { parseRecord } from "./codec.mjs";
-import { assertNoSymlinkPath, assertTaskRecordPath, displayPath, exists } from "./workspace.mjs";
+import { basename, dirname, join, resolve } from "node:path";
+import { WorkingRecordError, canonicalizeValue, fail, failureInjection, sha256, validateModel } from "./model.mjs";
+import { parseRecord, renderRecord } from "./codec.mjs";
+import { assertNoSymlinkPath, assertTaskRecordPath, displayPath, exists, taskRoot } from "./workspace.mjs";
+
+const STALE_LOCK_AGE_MS = 5 * 60 * 1000;
+
+function lockPath(recordPath) {
+  return join(dirname(recordPath), ".working-record.lock");
+}
+
+function validLock(lock) {
+  return (
+    lock &&
+    typeof lock === "object" &&
+    !Array.isArray(lock) &&
+    Number.isSafeInteger(lock.pid) &&
+    lock.pid > 0 &&
+    typeof lock.createdAt === "string" &&
+    Number.isFinite(Date.parse(lock.createdAt)) &&
+    typeof lock.path === "string" &&
+    lock.path.length > 0
+  );
+}
+
+async function inspectLock(lockFile) {
+  let text;
+  try {
+    text = await readFile(lockFile, "utf8");
+  } catch (error) {
+    if (error?.code === "ENOENT") return { status: "missing" };
+    return { status: "invalid" };
+  }
+  let lock;
+  try {
+    lock = JSON.parse(text);
+  } catch {
+    return { status: "invalid" };
+  }
+  return validLock(lock) ? { status: "valid", lock } : { status: "invalid" };
+}
+
+function processAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code !== "ESRCH";
+  }
+}
+
+function staleLock(lock) {
+  const createdAt = typeof lock?.createdAt === "string" ? Date.parse(lock.createdAt) : NaN;
+  return Number.isFinite(createdAt) && Date.now() - createdAt >= STALE_LOCK_AGE_MS && !processAlive(lock.pid);
+}
 
 export async function loadRecord(root, recordPath) {
   const path = assertTaskRecordPath(root, recordPath);
@@ -17,7 +69,7 @@ export async function loadRecord(root, recordPath) {
     parsed = parseRecord(text, path);
   } catch (error) {
     if (error instanceof WorkingRecordError) {
-      error.details = { ...(error.details ?? {}), path: displayPath(root, path), sha256: rawSha };
+      error.details = { ...error.details, path: displayPath(root, path), sha256: rawSha };
     }
     throw error;
   }
@@ -25,20 +77,95 @@ export async function loadRecord(root, recordPath) {
 }
 
 export async function acquireLock(recordPath) {
-  const lockPath = join(dirname(recordPath), ".working-record.lock");
+  const lockFile = lockPath(recordPath);
   let handle;
+  let created = false;
   try {
-    handle = await open(lockPath, "wx");
+    handle = await open(lockFile, "wx");
+    created = true;
+    if (failureInjection("lock-write")) fail("lock-write-failure", "Injected lock metadata write failure");
     await handle.writeFile(JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString(), path: recordPath }));
     await handle.close();
+    handle = null;
   } catch (error) {
     if (handle) await handle.close().catch(() => undefined);
-    if (error?.code === "EEXIST") fail("lock-conflict", `Task mutation lock is held: ${lockPath}`, { lockPath });
+    if (created) {
+      try {
+        await unlink(lockFile);
+      } catch (cleanupError) {
+        fail("lock-cleanup-failure", "Could not clean up an incomplete mutation lock", {
+          lockPath: lockFile,
+          cause: cleanupError.message,
+        });
+      }
+    }
+    if (error?.code === "EEXIST") {
+      const inspected = await inspectLock(lockFile);
+      if (inspected.status === "invalid")
+        fail("lock-metadata-invalid", `Mutation lock metadata is invalid: ${lockFile}`, { lockPath: lockFile });
+      if (inspected.status === "valid" && staleLock(inspected.lock))
+        fail("stale-lock", `Task mutation lock is stale: ${lockFile}`, {
+          lockPath: lockFile,
+          recoverable: true,
+          lock: inspected.lock,
+        });
+      fail("lock-conflict", `Task mutation lock is held: ${lockFile}`, { lockPath: lockFile });
+    }
     throw error;
   }
   return async () => {
-    await unlink(lockPath).catch(() => undefined);
+    await unlink(lockFile).catch(() => undefined);
   };
+}
+
+export async function recoverStaleLock(root, ownerPath, input) {
+  const lockFile = lockPath(ownerPath);
+  await assertNoSymlinkPath(lockFile, taskRoot(root));
+  const inspected = await inspectLock(lockFile);
+  if (inspected.status === "missing")
+    fail("stale-lock-changed", `The stale lock disappeared before recovery: ${lockFile}`, { lockPath: lockFile });
+  if (inspected.status === "invalid")
+    fail("lock-metadata-invalid", `Mutation lock metadata is invalid: ${lockFile}`, { lockPath: lockFile });
+  const existing = inspected.lock;
+  if (!staleLock(existing))
+    fail("lock-conflict", `Task mutation lock is not stale: ${lockFile}`, { lockPath: lockFile });
+  if (resolve(root, existing.path ?? "") !== resolve(ownerPath))
+    fail("stale-lock-owner-mismatch", "The stale lock belongs to a different owner path", {
+      lockPath: lockFile,
+      expectedOwnerPath: resolve(ownerPath),
+      actualOwnerPath: existing.path,
+    });
+  if (existing.pid !== input.lockPid || existing.createdAt !== input.lockCreatedAt)
+    fail("stale-lock-changed", "The stale lock changed before recovery", { lockPath: lockFile, lock: existing });
+  if (failureInjection("stale-lock-recheck"))
+    await writeFile(lockFile, JSON.stringify({ ...existing, createdAt: "2000-01-01T00:00:01.000Z" }));
+  const confirmedInspection = await inspectLock(lockFile);
+  if (
+    confirmedInspection.status !== "valid" ||
+    JSON.stringify(canonicalizeValue(confirmedInspection.lock)) !== JSON.stringify(canonicalizeValue(existing))
+  )
+    fail("stale-lock-changed", "The stale lock changed before recovery", { lockPath: lockFile });
+  const recoveryPath = `${lockFile}.${process.pid}.${randomUUID()}.recovery`;
+  try {
+    await rename(lockFile, recoveryPath);
+  } catch (error) {
+    if (error?.code === "ENOENT")
+      fail("stale-lock-changed", "The stale lock changed before recovery", { lockPath: lockFile });
+    fail("lock-recovery-failure", "Could not claim the stale lock for recovery", {
+      lockPath: lockFile,
+      cause: error.message,
+    });
+  }
+  try {
+    await unlink(recoveryPath);
+  } catch (error) {
+    fail("lock-recovery-failure", "Could not remove the quarantined stale lock", {
+      lockPath: lockFile,
+      recoveryPath,
+      cause: error.message,
+    });
+  }
+  return { lockPath: lockFile, ownerPath, lock: confirmedInspection.lock };
 }
 
 export async function withMutationLock(recordPath, options, callback) {
@@ -70,6 +197,12 @@ export async function commitText(recordPath, candidateText, candidateData) {
         ? validateModel(reparsed.data)
         : [{ code: "legacy-candidate", message: "Candidate must be schema v2" }];
     if (validation.length) fail("candidate-validation-failure", "Candidate failed validation", { validation });
+    if (JSON.stringify(canonicalizeValue(candidateData)) !== JSON.stringify(canonicalizeValue(reparsed.data)))
+      fail("candidate-roundtrip-failure", "Candidate changed during Markdown parse", { path: recordPath });
+    if (renderRecord(reparsed.data) !== candidateText)
+      fail("candidate-roundtrip-failure", "Candidate changed during Markdown render/parse round-trip", {
+        path: recordPath,
+      });
     if (failureInjection("rename")) fail("rename-failure", "Injected atomic rename failure");
     await rename(temporaryPath, recordPath);
     committed = true;

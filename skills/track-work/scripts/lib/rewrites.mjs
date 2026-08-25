@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { CommittedResultError, commitText, loadRecord, requireV2, withMutationLock } from "./record-store.mjs";
 import { parseRecord, renderRecord } from "./codec.mjs";
-import { sourceUnits } from "./source-inventory.mjs";
+import { sourceEntities, sourceUnitOwners, sourceUnits } from "./source-inventory.mjs";
 import {
   WorkingRecordError,
   changedSemanticPaths,
@@ -80,42 +80,70 @@ function candidateFromText(candidateText, recordPath) {
   return clone(parsed.data);
 }
 
-function semanticPathExists(data, path) {
-  if (typeof path !== "string" || !path) return false;
+function semanticPathValue(data, path) {
+  if (typeof path !== "string" || !path) return undefined;
   const matcher = /([^.[\]]+)(?:\[([^\]]+)\])?/g;
   let current = data;
   let consumed = 0;
   let match;
   while ((match = matcher.exec(path))) {
-    if (match.index !== consumed) return false;
+    if (match.index !== consumed) return undefined;
     const key = match[1];
-    if (!current || typeof current !== "object" || !Object.hasOwn(current, key)) return false;
+    if (!current || typeof current !== "object" || !Object.hasOwn(current, key)) return undefined;
     current = current[key];
     if (match[2] !== undefined) {
-      if (!Array.isArray(current)) return false;
+      if (!Array.isArray(current)) return undefined;
       const selector = /^(id|title)=(.+)$/.exec(match[2]);
-      if (!selector) return false;
+      if (!selector) return undefined;
       let expected = selector[2];
       if (expected.startsWith('"')) {
         try {
           expected = JSON.parse(expected);
         } catch {
-          return false;
+          return undefined;
         }
       }
       current = current.find((item) => String(item?.[selector[1]]) === String(expected));
-      if (!current) return false;
+      if (!current) return undefined;
     }
     consumed = matcher.lastIndex;
     if (path[consumed] === ".") consumed += 1;
   }
-  return consumed === path.length;
+  return consumed === path.length ? current : undefined;
+}
+
+function valueContainsPayload(value, payload) {
+  if (typeof value === "string") return value.includes(payload);
+  if (Array.isArray(value)) return value.some((item) => valueContainsPayload(item, payload));
+  if (value && typeof value === "object")
+    return Object.values(value).some((item) => valueContainsPayload(item, payload));
+  return false;
+}
+
+function sourcePayload(unit, owners) {
+  const text = unit.text.trim();
+  if (!text || text === "None" || /^(?:Schema|Last updated):/.test(text)) return null;
+  if (/^#{1,6}[ \t]+/.test(text)) {
+    const owner = owners.get(unit.unitId);
+    if (owner?.structural && owner.recognized) return null;
+    return text.replace(/^#{1,6}[ \t]+/, "").trim() || null;
+  }
+  const field = /^(?:-\s+)?[^:]+:\s*(.*)$/.exec(text);
+  let payload = (field ? field[1] : text).trim();
+  if (payload.startsWith("- ")) payload = payload.slice(2).trim();
+  return payload || null;
+}
+
+function formattingOnlySourceUnit(unit, owners) {
+  const trimmed = unit.text.trim();
+  return !trimmed || Boolean(owners.get(unit.unitId)?.structural && owners.get(unit.unitId)?.recognized);
 }
 
 function validateCoverage(text, coverage, candidateText, candidate) {
   if (!Array.isArray(coverage) || coverage.length === 0)
     fail("missing-coverage", "Migration requires a complete non-empty coverage ledger", { path: "coverage" });
   const inventory = sourceUnits(text);
+  const owners = sourceUnitOwners(text);
   const candidateInventory = sourceUnits(candidateText);
   const byId = new Map(inventory.map((unit) => [unit.unitId, unit]));
   const consumedCandidateUnits = new Set();
@@ -134,20 +162,43 @@ function validateCoverage(text, coverage, candidateText, candidate) {
     seen.add(entry.unitId);
     if (entry.startByte !== unit.startByte || entry.endByte !== unit.endByte)
       fail("stale-coverage", `Source boundaries do not match ${entry.unitId}`, { path });
-    if (
-      entry.sourceSha256 !== unit.sourceSha256 ||
-      entry.kind !== unit.kind ||
-      (entry.line !== undefined && entry.line !== unit.line)
-    )
+    if (entry.sourceSha256 !== unit.sourceSha256 || entry.kind !== unit.kind || entry.line !== unit.line)
       fail("stale-coverage", `Source descriptor does not match ${entry.unitId}`, { path });
     if (!MIGRATION_DISPOSITIONS.has(entry.disposition))
       fail("invalid-migration-disposition", `Unsupported migration disposition: ${entry.disposition}`, { path });
+    if (entry.disposition === "formatting-normalized" && !formattingOnlySourceUnit(unit, owners))
+      fail("invalid-formatting-normalization", `${unit.unitId} contains semantic content`, { path });
     const targetPaths = entry.targetPaths ?? [];
     if (!Array.isArray(targetPaths) || targetPaths.some((target) => typeof target !== "string" || !target))
       fail("invalid-coverage", "targetPaths must be an array of non-empty strings", { path: `${path}.targetPaths` });
+    if (entry.disposition !== "verbatim" && entry.disposition !== "formatting-normalized") {
+      const sourceOwner = owners.get(unit.unitId)?.owner;
+      if (!sourceOwner) fail("unmapped-source", `${unit.unitId} has no deterministic semantic owner`, { path });
+      if (
+        !targetPaths.some(
+          (target) =>
+            target === sourceOwner || target.startsWith(`${sourceOwner}.`) || target.startsWith(`${sourceOwner}[`),
+        )
+      )
+        fail("invalid-migration-target", `${unit.unitId} targets a different semantic owner`, {
+          path,
+          sourceOwner,
+          targetPaths,
+        });
+    }
     for (const target of targetPaths)
-      if (!semanticPathExists(candidate, target))
+      if (semanticPathValue(candidate, target) === undefined)
         fail("unmapped-source", `Candidate does not contain migration target path: ${target}`, { path });
+    const payload =
+      entry.disposition === "verbatim" || entry.disposition === "formatting-normalized"
+        ? null
+        : sourcePayload(unit, owners);
+    if (payload && !targetPaths.some((target) => valueContainsPayload(semanticPathValue(candidate, target), payload)))
+      fail("invalid-migration-representation", `${unit.unitId} is not represented by its target values`, {
+        path,
+        payload,
+        targetPaths,
+      });
     if (entry.disposition === "verbatim") {
       const candidateIndex = candidateInventory.findIndex(
         (candidateUnit, candidateUnitIndex) =>
@@ -193,7 +244,32 @@ function collectIds(data) {
   return ids;
 }
 
+function candidateEntityKeys(data) {
+  return [
+    ...(data.proposals ?? []).map((item) => `proposal:${item.title}`),
+    ...(data.history?.decisions ?? []).map((item) => `decision:${item.id}|${item.title}`),
+    ...(data.history?.checkpoints ?? []).map((item) =>
+      item.id ? `checkpoint:${item.id}|${item.title}` : `checkpoint:${item.title}`,
+    ),
+    ...(data.history?.slices ?? []).map((item) => `slice:${item.id}|${item.title}`),
+    ...(data.notes ?? []).map((item) => `note:${item.title}`),
+  ];
+}
+
+function assertSourceEntityInvariants(sourceText, candidate) {
+  const remaining = new Map();
+  for (const key of candidateEntityKeys(candidate)) remaining.set(key, (remaining.get(key) ?? 0) + 1);
+  const missing = [];
+  for (const { key } of sourceEntities(sourceText)) {
+    const count = remaining.get(key) ?? 0;
+    if (count) remaining.set(key, count - 1);
+    else missing.push(key);
+  }
+  if (missing.length) fail("protected-invariant", "Migration cannot remove recognized source entities", { missing });
+}
+
 function assertMigrationInvariants(source, candidate) {
+  assertSourceEntityInvariants(source.raw ?? "", candidate);
   if (source.data.taskName && source.data.taskName !== "Unknown task" && candidate.taskName !== source.data.taskName)
     fail("protected-invariant", "Migration cannot change the task name", { path: "taskName" });
   if (source.data.taskState && candidate.taskState !== source.data.taskState)
@@ -221,9 +297,9 @@ function assertMigrationInvariants(source, candidate) {
 function entitySignature(data) {
   return {
     proposals: (data.proposals ?? []).map((item) => item.title),
-    decisions: (data.history?.decisions ?? []).map((item) => item.id),
-    checkpoints: (data.history?.checkpoints ?? []).map((item) => item.id),
-    slices: (data.history?.slices ?? []).map((item) => item.id),
+    decisions: (data.history?.decisions ?? []).map((item) => `${item.id}|${item.title}`),
+    checkpoints: (data.history?.checkpoints ?? []).map((item) => (item.id ? `${item.id}|${item.title}` : item.title)),
+    slices: (data.history?.slices ?? []).map((item) => `${item.id}|${item.title}`),
     notes: (data.notes ?? []).map((item) => item.title),
   };
 }
@@ -255,10 +331,29 @@ function protectedProjection(data) {
           stopCondition: data.currentWork.currentSlice.stopCondition,
           blocker: data.currentWork.currentSlice.blocker,
           resumeWhen: data.currentWork.currentSlice.resumeWhen,
+          startingState: data.currentWork.currentSlice.startingState,
+          acceptedExtensions: data.currentWork.currentSlice.acceptedExtensions,
+          dependencies: data.currentWork.currentSlice.dependencies,
+          selectedCheckpoints: data.currentWork.currentSlice.selectedCheckpoints,
           pendingBoundaries: data.currentWork.currentSlice.pendingBoundaries,
+          pendingReviews: data.currentWork.currentSlice.pendingReviews,
         }
       : null,
     entitySignature: entitySignature(data),
+    proposalBoundaries: (data.proposals ?? []).map((proposal) => ({
+      title: proposal.title,
+      dependencies: proposal.dependencies,
+      selectedCheckpoints: proposal.selectedCheckpoints,
+    })),
+    historicalBoundaries: (data.history?.slices ?? []).map((slice) => ({
+      id: slice.id,
+      acceptedExtensions: slice.acceptedExtensions,
+      dependencies: slice.dependencies,
+      selectedCheckpoints: slice.selectedCheckpoints,
+      pendingBoundaries: slice.pendingBoundaries,
+      pendingReviews: slice.pendingReviews,
+      abandonmentReason: slice.abandonmentReason,
+    })),
     authoritySources: collectKeyValues(data, /^authoritySource$/),
     blockers: collectKeyValues(data, /^(blocker|resumeWhen)$/),
     pending: [data.currentWork?.upcomingCheckpoints ?? [], ...collectKeyValues(data, /pending/i)],
@@ -267,6 +362,24 @@ function protectedProjection(data) {
       state: item.state,
       supersedes: item.supersedes,
       supersededBy: item.supersededBy,
+    })),
+    decisionContent: (data.history?.decisions ?? []).map((item) => ({
+      id: item.id,
+      title: item.title,
+      decision: item.decision,
+      rationale: item.rationale,
+      consequences: item.consequences,
+      revisitWhen: item.revisitWhen,
+    })),
+    checkpointContent: (data.history?.checkpoints ?? []).map((item) => ({
+      id: item.id,
+      title: item.title,
+      type: item.type,
+      selectedBy: item.selectedBy,
+      condition: item.condition,
+      result: item.result,
+      judgment: item.judgment,
+      effect: item.effect,
     })),
     evidence: collectKeyValues(data, /^(evidence|expectedEvidence)$/),
   };
@@ -311,9 +424,10 @@ function removedSemanticPaths(before, after, path = "") {
     if (!Array.isArray(before) || !Array.isArray(after)) return [path || "$"];
     const afterIds = new Set(after.map((item) => item?.id ?? item?.title));
     return before.flatMap((item, index) => {
-      const identity = item?.id ?? item?.title;
+      const hasId = item?.id !== undefined;
+      const identity = hasId ? item.id : item?.title;
       if (identity !== undefined && !afterIds.has(identity))
-        return [`${path}[${typeof identity === "string" ? `title=${JSON.stringify(identity)}` : identity}]`];
+        return [`${path}[${hasId ? "id" : "title"}=${JSON.stringify(identity)}]`];
       return removedSemanticPaths(item, after[index], `${path}[${index}]`);
     });
   }

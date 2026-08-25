@@ -6,6 +6,7 @@ import {
   loadRecord,
   acquireLock,
   commitText,
+  recoverStaleLock,
   requireV2,
   withMutationLock,
 } from "./record-store.mjs";
@@ -13,6 +14,7 @@ import { parseRecord, renderRecord } from "./codec.mjs";
 import { applyOperation } from "./operations.mjs";
 import {
   WorkingRecordError,
+  canonicalizeValue,
   changedSemanticPaths,
   clone,
   createRecord,
@@ -34,6 +36,7 @@ import {
   versionControlEvidence,
 } from "./workspace.mjs";
 import { baseEnvelope, errorItems, recordMetadata } from "./result.mjs";
+import { INIT_INPUT_KEYS, UNLOCK_INPUT_KEYS, VIEW_INPUT_KEYS } from "./contract.mjs";
 import {
   inspectData,
   legacyView,
@@ -51,8 +54,32 @@ function normalizeInput(input) {
   return input;
 }
 
+function assertKnownInput(input, allowed, command) {
+  for (const key of Object.keys(input))
+    if (!allowed.has(key))
+      fail("unknown-input-field", `Unknown ${command} input field: ${key}`, { path: `${command}.${key}` });
+}
+
 function readOnlyReason(loaded) {
   return loaded.kind === "legacy" ? "legacy-record" : "unsupported-schema";
+}
+
+function validateCandidate(root, candidate, candidateText, recordPath) {
+  const parsedCandidate = parseRecord(candidateText, recordPath);
+  const validation =
+    parsedCandidate.kind === "v2"
+      ? validateModel(parsedCandidate.data)
+      : [{ code: "candidate-validation", message: "Candidate is not schema v2" }];
+  if (validation.length) fail("candidate-validation-failure", "Candidate failed validation", { validation });
+  if (JSON.stringify(canonicalizeValue(candidate)) !== JSON.stringify(canonicalizeValue(parsedCandidate.data)))
+    fail("candidate-roundtrip-failure", "Candidate changed during Markdown parse", {
+      path: displayPath(root, recordPath),
+    });
+  if (renderRecord(parsedCandidate.data) !== candidateText)
+    fail("candidate-roundtrip-failure", "Candidate changed during Markdown render/parse round-trip", {
+      path: displayPath(root, recordPath),
+    });
+  return parsedCandidate;
 }
 
 async function readStdin() {
@@ -98,9 +125,7 @@ async function mutateExisting(root, command, recordPath, input, options) {
     const candidate = clone(loaded.data);
     const operation = applyOperation(candidate, command, input);
     const changedPaths = changedSemanticPaths(before, candidate);
-    const unchangedText = renderRecord(candidate);
-    const currentText = loaded.text.endsWith("\n") ? loaded.text : `${loaded.text}\n`;
-    if (unchangedText === currentText) {
+    if (changedPaths.length === 0) {
       const envelope = baseEnvelope(command, command, recordMetadata(root, recordPath, loaded.data, loaded.rawSha));
       envelope.beforeSha256 = loaded.rawSha;
       envelope.afterSha256 = loaded.rawSha;
@@ -123,12 +148,7 @@ async function mutateExisting(root, command, recordPath, input, options) {
     const candidateText = renderRecord(candidate);
     if (failureInjection("candidate-validation"))
       fail("candidate-validation-failure", "Injected candidate-validation failure");
-    const parsedCandidate = parseRecord(candidateText, recordPath);
-    const validation =
-      parsedCandidate.kind === "v2"
-        ? validateModel(parsedCandidate.data)
-        : [{ code: "candidate-validation", message: "Candidate is not schema v2" }];
-    if (validation.length) fail("candidate-validation-failure", "Candidate failed validation", { validation });
+    validateCandidate(root, candidate, candidateText, recordPath);
     const candidateSha = sha256(candidateText);
     if (dryRun) {
       const envelope = baseEnvelope(command, command, recordMetadata(root, recordPath, loaded.data, loaded.rawSha));
@@ -196,6 +216,7 @@ async function mutateExisting(root, command, recordPath, input, options) {
 }
 
 async function initRecord(root, input, options) {
+  assertKnownInput(input, INIT_INPUT_KEYS, "init");
   const shortName = safeShortName(options["--name"] ?? input.shortName ?? input.slug ?? input.name);
   const recordInput = { ...input, taskName: input.taskName ?? input.displayName ?? input.name ?? shortName };
   const tasks = taskRoot(root);
@@ -219,6 +240,7 @@ async function initRecord(root, input, options) {
   if (options["--dry-run"] || input.dryRun) {
     const candidate = createRecord(recordInput, isoNow());
     const text = renderRecord(candidate);
+    validateCandidate(root, candidate, text, recordPath);
     const envelope = baseEnvelope(
       "init",
       "init",
@@ -253,9 +275,7 @@ async function initRecord(root, input, options) {
     try {
       if (failureInjection("temp-write")) fail("temp-write-failure", "Injected temporary-write failure");
       await writeFile(tempPath, text, { encoding: "utf8", flag: "wx" });
-      const parsed = parseRecord(text, recordPath);
-      const validation = validateModel(parsed.data);
-      if (validation.length) fail("candidate-validation-failure", "Candidate failed validation", { validation });
+      validateCandidate(root, candidate, text, recordPath);
       if (failureInjection("rename")) fail("rename-failure", "Injected atomic rename failure");
       await rename(tempPath, recordPath);
       committed = true;
@@ -384,6 +404,32 @@ async function executeMutationCommand(root, command, input, options) {
   }
 }
 
+async function executeUnlockCommand(root, input, options) {
+  assertKnownInput(input, UNLOCK_INPUT_KEYS, "unlock");
+  if (typeof input.authoritySource !== "string" || !input.authoritySource.trim())
+    fail("missing-authority", "unlock requires authoritySource");
+  const scope = input.scope ?? "record";
+  if (scope !== "record" && scope !== "init") fail("invalid-unlock-scope", "unlock scope must be record or init");
+  if (!Number.isSafeInteger(input.lockPid) || input.lockPid <= 0)
+    fail("invalid-lock-selector", "unlock requires a positive integer lockPid");
+  if (typeof input.lockCreatedAt !== "string" || !Number.isFinite(Date.parse(input.lockCreatedAt)))
+    fail("invalid-lock-selector", "unlock requires a valid lockCreatedAt timestamp");
+  const ownerPath = scope === "init" ? join(taskRoot(root), ".init") : resolveRecordPath(root, options);
+  const recovered = await recoverStaleLock(root, ownerPath, input);
+  const envelope = baseEnvelope("unlock", "unlock");
+  envelope.status = "unlocked";
+  envelope.record = { path: displayPath(root, ownerPath), confirmation: "unchanged", scope };
+  envelope.lock = {
+    scope,
+    lockPath: displayPath(root, recovered.lockPath),
+    ownerPath: displayPath(root, recovered.ownerPath),
+    pid: recovered.lock.pid,
+    createdAt: recovered.lock.createdAt,
+    authoritySource: input.authoritySource,
+  };
+  return envelope;
+}
+
 function executeSchemaCommand(input, options) {
   const command = options["--command"] ?? input.command ?? "all";
   return {
@@ -396,7 +442,18 @@ function executeSchemaCommand(input, options) {
   };
 }
 
+function parseViewLimit(input, options) {
+  const raw = options["--limit"] ?? input.limit;
+  if (raw === undefined) return 5;
+  const limit = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100)
+    fail("invalid-limit", "View limit must be an integer from 1 through 100");
+  return limit;
+}
+
 async function executeViewCommand(root, input, options, command) {
+  assertKnownInput(input, VIEW_INPUT_KEYS, "view");
+  const limit = parseViewLimit(input, options);
   const recordPath = resolveRecordPath(root, options);
   const loaded = await loadRecord(root, recordPath);
   const view = options["--view"] ?? input.view ?? "resume";
@@ -415,7 +472,7 @@ async function executeViewCommand(root, input, options, command) {
       message: "Legacy or unsupported record was rendered read-only; explicit migration is required for mutation",
     });
     try {
-      const content = legacyView(loaded, view, entity, section);
+      const content = legacyView(loaded, view, entity, section, limit);
       envelope.view = { name: view, sha256: sha256(content), content };
       return envelope;
     } catch (error) {
@@ -436,7 +493,7 @@ async function executeViewCommand(root, input, options, command) {
   const content =
     view === "section"
       ? `${renderRecordHeaderOnly(loaded.data)}\n${renderNamedSection(loaded.data, section)}`
-      : renderView(loaded.data, view, entity, Number(options["--limit"] ?? input.limit ?? 5), loaded.rawSha);
+      : renderView(loaded.data, view, entity, limit, loaded.rawSha);
   envelope.view = { name: view, sha256: sha256(content), content };
   return envelope;
 }
@@ -502,6 +559,7 @@ export async function executeCommand(command, { root = process.cwd(), options = 
   if (command === "validate") return executeValidateCommand(workspaceRoot, options);
   if (command === "inspect") return executeInspectCommand(workspaceRoot, options);
   if (command === "schema") return executeSchemaCommand(normalizedInput, options);
+  if (command === "unlock") return executeUnlockCommand(workspaceRoot, normalizedInput, options);
   if (["update", "start", "block", "resume", "reopen", "close"].includes(command))
     return executeMutationCommand(workspaceRoot, command, normalizedInput, options);
   if (["migrate", "compress"].includes(command))

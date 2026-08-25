@@ -35,7 +35,7 @@ When diagnosis applies, before choosing its loop, read [the Diagnostic Loop Cata
    -> active harm before cause -> propose bounded containment
 ```
 
-Diagnosis may recur inside one Track Work slice. A new hypothesis, observation, or owning-skill route does not create a new slice by itself.
+Diagnosis may recur inside one Slice. A new hypothesis, observation, or owning-skill route does not create a new Slice by itself. When durable task memory exists, [Track Work](../track-work/SKILL.md) preserves diagnosis inside the same Current Slice.
 
 ## Enter Diagnosis Deliberately
 
@@ -102,7 +102,7 @@ A requested patch may instead be an authorized learning action. Its result can s
 
 ## Return The Supported Result
 
-When evidence supports a cause, return the failure boundary, diagnostic loop, causal explanation, regression signal, and smallest coherent correction to Workflow. The evidence supports the conclusion and route; it does not by itself authorize the correction. Return an authorized implementation correction to [Execute Work](../execute-work/SKILL.md); use [TDD](../tdd/SKILL.md) when the diagnostic loop provides a failing behavior check that should guide it. Use [Simplify Code](../simplify-code/SKILL.md) when the supported cause shows that obsolete, duplicated, or workaround machinery can be removed while preserving accepted behavior. Mess left by unsuccessful attempts is not enough: settle any behavior or contract change through Workflow first, and do not use cleanup in place of correcting the supported failure or while its evidence remains unresolved. The correction may remain in the current Track Work slice while that slice still has one coherent result.
+When evidence supports a cause, return the failure boundary, diagnostic loop, causal explanation, regression signal, and smallest coherent correction to Workflow. The evidence supports the conclusion and route; it does not by itself authorize the correction. Return an authorized implementation correction to [Execute Work](../execute-work/SKILL.md); use [TDD](../tdd/SKILL.md) when the diagnostic loop provides a failing behavior check that should guide it. Use [Simplify Code](../simplify-code/SKILL.md) when the supported cause shows that obsolete, duplicated, or workaround machinery can be removed while preserving accepted behavior. Mess left by unsuccessful attempts is not enough: settle any behavior or contract change through Workflow first, and do not use cleanup in place of correcting the supported failure or while its evidence remains unresolved. The correction may remain in the same Slice while its result stays coherent; Track Work preserves that continuity when a Working Record exists.
 
 After correction, use [Verify Work](../verify-work/SKILL.md) to rerun both the minimized regression signal and the original reported path or strongest available observer. If correction fails or exposes related shared-state consequences, re-enter diagnosis before another patch.
 

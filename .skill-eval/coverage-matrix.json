@@ -96,7 +96,7 @@
       "case_concept": "Block a plan that defers an authority prerequisite while rejecting preference-only comments.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/review-artifact/SKILL.md",
-      "source_sha256": "33ef69384d6aeae197e8e9cc008094cd658a4746cd2e112b7db4d7c41182b895",
+      "source_sha256": "38a91dce59a4f6ef3a82a2892d21ed036ebc913610f4a52535a3587ef8465af6",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -127,7 +127,7 @@
       "case_concept": "Complete one accepted local correction, then preserve it and change route when repeated evidence exposes a shared failure unit.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/execute-work/SKILL.md",
-      "source_sha256": "c2cd22565b723de4018a7a7ff83b4e21d7ae2b836076487604e73154558284c4",
+      "source_sha256": "4f9c3238478a370b84f2a34c0cc27918d013b9e81de34859b8af7da9c4c10e56",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -150,7 +150,7 @@
       "case_concept": "Repeated sibling defects must route to shared publication ownership instead of another caller patch.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/design-for-depth/SKILL.md",
-      "source_sha256": "7e3df719eda8114d335bb0dbcc8e38244b49e72a204ce5b6aa9bd10d078ee74d",
+      "source_sha256": "ae71ce1528d18a2f5c8b6be69593b4c68548a94a48a0dda0d0070e21842efad7",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -173,7 +173,7 @@
       "case_concept": "Malformed replacement must preserve empty and existing canonical state before implementation.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/tdd/SKILL.md",
-      "source_sha256": "bec52fad4a1a3fb52ca5ed2219f50517c644316796ccb9440a237a3ce28a1eeb",
+      "source_sha256": "aef54d664333f6014ceeaefe1d65c5dbc50501c8999ddb34a892bf89009f8c44",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -242,7 +242,7 @@
       "case_concept": "A write followed by read returns stale data despite a documented invalidation event; use a diagnostic loop to discriminate cache-key from invalidation-delivery hypotheses before selecting the correction boundary.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/diagnose-failure/SKILL.md",
-      "source_sha256": "33127a1a71ab4db75f97cf006b840631ec42818a41f991694e3279cfa3e1fd56",
+      "source_sha256": "0f1c063ce7b27555ee9575c2e17cdad077c803086828a8258fb91f589550131f",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -273,7 +273,7 @@
       "case_concept": "Explore a materially open implementation direction without creating artifacts or treating discussion as execution authority.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/discuss/SKILL.md",
-      "source_sha256": "794f00def96e74919610397165d4832e7ef8403f02bb66aa96efa36eb39b2d1f",
+      "source_sha256": "9a9172ad5ce74c0cf034bc66ae8f3e2a37afba8e78dcd2c69bac52acbf1b4cb5",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -542,14 +542,14 @@
       "positive_trigger": "Ongoing work needs a recoverable current state, slice, decisions, evidence, proposals, or next action.",
       "near_miss": "A short self-contained action needs no durable record.",
       "pressure": "Compaction, session navigation, or in-slice feedback tempts the agent to invent authority, duplicate history, or replace the current slice.",
-      "observable": "Restore the complete record, reconcile live evidence, preserve one coherent current slice, and record state changes rather than every activity.",
+      "observable": "Restore bounded active state, reconcile live evidence, preserve one coherent Current Slice, and maintain decisions, checkpoints, proposals, Notes, evidence, and the next action without logging every activity.",
       "stop_edge": "Do not mutate a record from guessed schema, import sibling-branch authority, or expand a slice without a write-ahead accepted boundary.",
-      "neighbours": ["workflow", "discuss", "handoff", "write-spec", "write-plan"],
+      "neighbours": ["workflow", "discuss", "execute-work", "handoff", "write-spec", "write-plan"],
       "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Resume after context loss, preserve the current slice through feedback, and record only route- or state-changing evidence.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/track-work/SKILL.md",
-      "source_sha256": "f024d268b47cd41e5ff3b629547d922eef6aa72081d0031d3b39e775eb8aa72f",
+      "source_sha256": "3df12bf16316faf4964d6b3dee2a9ab96c984ac9d40103be08b0c425035d6782",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

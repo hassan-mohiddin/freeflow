@@ -3,6 +3,7 @@
 - **Authority envelope:** the requested outcome, permitted effects, evidence boundary, and stop condition established by valid current authority.
 - **Owner:** the one activity or skill responsible for the current bounded activity. Methods, tools, reviewers, and domain guidance do not take ownership automatically.
 - **Bounded activity:** one coherent unit of discussion, preservation, work, evidence, or judgment that can be assessed as one result.
+- **Slice:** one coherent outcome that can be executed and checked as a unit. It may span several bounded activities and methods. Track Work gives it durable identity when task memory is needed.
 - **Evidence boundary:** the strongest claim the current observer can directly support.
 - **Self-review:** after initial evidence supports a bounded result, the producing agent silently checks it once for alignment, suitability, and unnecessary complexity before accepting or reusing it. Self-review is not independent review.
 - **Independent review:** separately selected judgment from a context that did not produce the reviewed state. It reports without editing and does not authorize correction.
@@ -54,6 +55,8 @@ The Environment Interaction Loop may run zero or more times inside one Feedback 
 Workflow is the outer controller for authority, one active owner, evidence-driven re-entry, and Supported Exit.
 
 At Entry, establish the authority envelope. A direct request covers its bounded outcome and entailed tools, checks, and reversible local choices. Before uncovered active evidence generation, mutation, delivery, or another separately controlled action, state the purpose, action, expected evidence or result, and stop condition; ask once and wait. Mode, skills, memory, reviews, and new evidence do not create authority.
+
+After context compaction, clear, session resume or navigation, or ownership transfer, reconstruct the current decision surface before consequential continuation: use the latest Runtime State and user turn, recover bounded task memory when it exists, reopen only the owning skill and artifacts needed for the next decision, compare remembered state with live repository or environment evidence, and re-establish authority from valid current-session sources. A summary, task-memory record, Plan, or Handoff preserves context but does not prove live state or create authority.
 
 When the current Workflow skill body is absent, read the discoverable Workflow skill before beginning consequential or mutating work or selecting another Freeflow owner.
 

@@ -1,6 +1,6 @@
 ---
 name: review-artifact
-description: Use when reviewing a Working Record, spec, PRD, issue, API contract, technical design, migration contract, plan, decision record, ADR, handoff, or other durable artifact for fitness to guide its intended use.
+description: Use when reviewing durable task memory, a spec, PRD, issue, API contract, technical design, migration contract, plan, decision record, ADR, handoff, or another durable artifact for fitness to guide its intended use.
 ---
 
 # Review Artifact

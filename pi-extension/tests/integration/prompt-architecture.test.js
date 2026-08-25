@@ -90,6 +90,14 @@ test("composes conditional prompt fragments, discoverable capabilities, and runt
       "## Conversation History Cue",
     ].map((marker) => prompt.indexOf(marker));
     assert.ok(order.every((index) => index >= 0));
+    assert.match(
+      prompt,
+      /\*\*Slice:\*\* one coherent outcome that can be executed and checked as a unit.*Track Work gives it durable identity/s,
+    );
+    assert.match(
+      prompt,
+      /After context compaction, clear, session resume or navigation, or ownership transfer.*reconstruct the current decision surface.*recover bounded task memory when it exists.*compare remembered state with live repository or environment evidence.*re-establish authority/s,
+    );
     assert.deepEqual(
       order,
       [...order].sort((a, b) => a - b),

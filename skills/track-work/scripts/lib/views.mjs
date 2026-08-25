@@ -180,7 +180,7 @@ function findEntity(data, identifier) {
   const collections = [
     ...data.history.slices.map((item) => ({
       item,
-      content: renderEntity(item, HISTORY_SLICE_FIELDS, "####", HISTORY_SLICE_OPTIONAL_FIELDS, false),
+      content: renderEntity(item, HISTORY_SLICE_FIELDS, "####", HISTORY_SLICE_OPTIONAL_FIELDS, true),
     })),
     ...data.history.decisions.map((item) => ({ item, content: renderEntity(item, DECISION_FIELDS) })),
     ...data.history.checkpoints.map((item) => ({ item, content: renderEntity(item, CHECKPOINT_FIELDS) })),
@@ -232,7 +232,31 @@ function legacySectionView(raw, title) {
   return legacyHeadingRange(raw, (found) => found.level === 2 && found.title === title);
 }
 
-export function legacyView(loaded, view, entity, section) {
+function legacyRecentView(raw, limit) {
+  const history = legacySectionView(raw, "History");
+  const lines = history.split("\n");
+  const starts = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const found = heading(lines[index]);
+    if (found?.level === 4 && /^S-\d{3,}\s+—\s+/.test(found.title)) starts.push(index);
+  }
+  if (!starts.length) return history;
+  const selected = starts.slice(-limit);
+  const blocks = selected.map((start) => {
+    let end = lines.length;
+    for (let index = start + 1; index < lines.length; index += 1) {
+      const found = heading(lines[index]);
+      if (found && found.level <= 4) {
+        end = index;
+        break;
+      }
+    }
+    return lines.slice(start, end).join("\n");
+  });
+  return ["## History", "### Slices", ...blocks].join("\n") + "\n";
+}
+
+export function legacyView(loaded, view, entity, section, limit = 5) {
   if (view === "full") return loaded.raw;
   const state = loaded.data.taskState ?? "Unavailable";
   const slice = loaded.data.currentWork.currentSlice;
@@ -259,7 +283,7 @@ export function legacyView(loaded, view, entity, section) {
       "\n\n",
     );
   } else if (view === "recent") {
-    body = legacySectionView(loaded.raw, "History");
+    body = legacyRecentView(loaded.raw, limit);
   } else if (view === "resume") {
     const sections = ["Current Context", "Current Work"].map((title) => legacySectionView(loaded.raw, title));
     body = sections.join("\n\n");

@@ -17,6 +17,7 @@ import {
   failureInjection,
   normalizeLineEndings,
 } from "./model.mjs";
+import { ENTITY_TITLE_PATTERN } from "./contract.mjs";
 
 export function heading(line) {
   const match = /^(#{1,6})[ \t]+(.+?)\s*$/.exec(line);
@@ -137,9 +138,9 @@ function rawField(fields, key) {
   return fields.get(key)?.lines ?? [];
 }
 
-function parsedField(fields, key, { array = false, json = false } = {}) {
+function parsedField(fields, key, { array, json = false } = {}) {
   const lines = rawField(fields, key);
-  if (array || ARRAY_FIELDS.has(key)) {
+  if (array ?? ARRAY_FIELDS.has(key)) {
     return lines.map((line) => (line.startsWith("- ") ? line.slice(2) : line)).filter((line) => line !== "");
   }
   const text = readTextBlock(lines);
@@ -170,7 +171,8 @@ function renderBulletFields(fields, definitions) {
     .map(([label, key]) => {
       if (fields[key] === undefined || fields[key] === null) return null;
       const rendered = renderFieldValue(fields[key]);
-      return rendered ? `- ${label}: ${rendered}` : null;
+      if (!rendered) return null;
+      return Array.isArray(fields[key]) ? `- ${label}:\n${rendered}` : `- ${label}: ${rendered}`;
     })
     .filter(Boolean)
     .join("\n");
@@ -290,16 +292,16 @@ export function renderProposal(proposal) {
   return `### ${proposal.title}\n${renderBulletFields(proposal, PROPOSAL_FIELDS)}\n`;
 }
 
-function parseEntity(block, definitions, idFromTitle = true, optionalDefinitions = []) {
+function parseEntity(block, definitions, idFromTitle = true, optionalDefinitions = [], arrayFields = ARRAY_FIELDS) {
   const fields = parseBulletFields(block.lines);
   assertKnownAndRequiredFields(fields, definitions, "history entity", optionalDefinitions);
-  const match = idFromTitle ? /^(?<id>[A-Z]-\d{3})\s+—\s+(?<title>.+)$/.exec(block.title) : null;
+  const match = idFromTitle ? ENTITY_TITLE_PATTERN.exec(block.title) : null;
   return compactObject({
     ...(match ? { id: match.groups.id, title: match.groups.title } : { title: block.title }),
     ...Object.fromEntries(
       [...definitions, ...optionalDefinitions].map(([, key]) => [
         key,
-        parsedField(fields, key, { array: ARRAY_FIELDS.has(key), json: ["blocker"].includes(key) }),
+        parsedField(fields, key, { array: arrayFields.has(key), json: ["blocker"].includes(key) }),
       ]),
     ),
   });
@@ -408,7 +410,9 @@ function parseV2(text, path) {
   const slicesBlock = exactHeadingBlock(historyBlocks, "Slices", { required: true });
   const history = {
     decisions: headingBlocks(decisionsBlock.lines, 4).map((block) => parseEntity(block, DECISION_FIELDS)),
-    checkpoints: headingBlocks(checkpointsBlock.lines, 4).map((block) => parseEntity(block, CHECKPOINT_FIELDS)),
+    checkpoints: headingBlocks(checkpointsBlock.lines, 4).map((block) =>
+      parseEntity(block, CHECKPOINT_FIELDS, true, [], new Set()),
+    ),
     slices: headingBlocks(slicesBlock.lines, 4).map((block) =>
       parseEntity(block, HISTORY_SLICE_FIELDS, true, HISTORY_SLICE_OPTIONAL_FIELDS),
     ),

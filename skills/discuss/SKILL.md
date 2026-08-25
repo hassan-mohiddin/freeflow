@@ -22,7 +22,7 @@ Use this as a directed map, not a checklist:
    -> enough understanding
       -> decide continuity
          -> no record -> return direction to Workflow
-         -> record needed and mutation covered -> Track Work -> Workflow
+         -> record needed and mutation covered -> Track Work -> Discuss -> Workflow
          -> record needed but mutation uncovered -> propose exact mutation -> wait
    -> one user-owned choice or source conflict -> Decision Gate
    -> evidence needed -> propose a bounded learning action
@@ -99,7 +99,7 @@ Keep state in conversation when context is sufficient and the discussion or next
 
 Recommend independent review, local commit, user decision, or continuity checkpoints only when they protect dependent work or reduce material risk. Discussion may shape and preserve an approved checkpoint, but does not execute it. Normal verification and silent self-review provide the ordinary self-check; Workflow establishes the slice outcome.
 
-Read [Discussion Checkpoints](references/discussion-checkpoints.md) when selecting or preserving a compact discussion checkpoint or re-entry state.
+Read [Discussion Continuity](references/discussion-continuity.md) when preserving a compact discussion state or re-entry summary, or when carrying a selected checkpoint from discussion.
 
 ## Learn Through Bounded Action
 

@@ -2,9 +2,10 @@
 
 ## Unreleased
 
-- Adds a deterministic v2 Track Work runtime for schema-driven Working Records, precise updates and views, stdin input, historical reopening, and atomic decision supersession.
+- Adds a deterministic v2 Track Work runtime with strict schema-driven updates, bounded views, decision and checkpoint lifecycles, historical reopening, stale-lock recovery, loss-resistant migration and compression, candidate round-trip validation, and atomic persistence.
+- Rebuilds Track Work as one complete lifecycle method for task-memory creation and recovery, Current Slice continuity, proposals, decisions, checkpoints, evidence, Notes, closure, and reconciliation while keeping exact command mechanics schema-driven.
 - Simplifies the Interaction Contract into compact evidence-based interaction semantics: separates user goals from factual claims, answers mixed question/action turns before acting, and proceeds on clear requests without silently expanding them; adds focused baseline-versus-candidate behavioral evaluation cases.
-- Adds the Pi-only Cognitive Routing capability with standard/reasoning profiles, manual and automatic controls, state restoration, runtime Control/Profile delivery, transition history, and PiFlow host integration; keeps it experimental pending behavioral acceptance.
+- Adds the Pi-only Cognitive Routing capability with standard/reasoning profiles, manual unsplit control, Reasoning-led automatic execution boundaries with Standard delegation, state restoration, runtime Control/Profile delivery, transition history, and PiFlow host integration; keeps it experimental pending behavioral acceptance.
 - Adds opt-in Pi-only Context Virtualization for archiving classified tool results from future model context while preserving canonical session history, with archive/restore controls and working-set policy.
 - Adds opt-in Pi-only Conversation History retrieval for bounded current-branch recovery, with passage ranking, cancellation handling, and explicit recovery-policy safeguards.
 - Adds committed exact-revision Freeflow development snapshots for Pi/PiFlow with provenance, atomic refresh, package validation, and isolated targets while separating Freeflow policy from PiFlow host ownership.

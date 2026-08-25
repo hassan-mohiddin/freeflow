@@ -10,10 +10,36 @@ import {
   ensureString,
   fail,
   nextId,
+  normalizeLineEndings,
   normalizeDecision,
+  normalizeCheckpoint,
   normalizeProposal,
   normalizeSlice,
 } from "./model.mjs";
+import {
+  CHECKPOINT_RESULTS,
+  COMMAND_INPUT_KEYS,
+  CONTEXT_PATCH_FIELDS,
+  DECISION_CONTROLLED_FIELDS,
+  DECISION_ID_PATTERN,
+  DECISION_OPERATIONS,
+  EDIT_MODE_INPUT_KEYS,
+  hasDecisionContent,
+  isSingleLineTitle,
+  PRECISE_FORBIDDEN_FIELDS,
+  PRECISE_LIST_FIELDS,
+  PRECISE_STRING_FIELDS,
+  PROPOSAL_OPERATIONS,
+  NOTE_OPERATIONS,
+  SLICE_LIST_FIELDS,
+  UPDATE_INPUT_KEYS,
+  WORK_PATCH_FIELDS,
+  isSingleLineList,
+} from "./contract.mjs";
+
+function assertSingleLineTitle(value, path) {
+  if (!isSingleLineTitle(value)) fail("invalid-title", "Title must be a non-empty single-line string", { path });
+}
 
 function activeDecisionSync(data) {
   delete data.currentContext.activeDecisions;
@@ -25,7 +51,7 @@ function findById(entities, id) {
 
 function assertDecisionReference(value, field, path) {
   if (value === undefined || value === "") return;
-  if (typeof value !== "string" || !/^D-\d{3}$/.test(value))
+  if (typeof value !== "string" || !DECISION_ID_PATTERN.test(value))
     fail("invalid-decision-reference", `Decision ${field} requires a D-NNN string`, { path });
 }
 
@@ -36,6 +62,59 @@ function assertDecisionReferences(change, path) {
     assertDecisionReference(change.replacement.supersedes, "supersedes", `${path}.replacement.supersedes`);
     assertDecisionReference(change.replacement.supersededBy, "supersededBy", `${path}.replacement.supersededBy`);
   }
+}
+
+function assertKnownCommandInput(input, command) {
+  for (const key of Object.keys(input))
+    if (!COMMAND_INPUT_KEYS[command]?.has(key))
+      fail("unknown-input-field", `Unknown ${command} input field: ${key}`, { path: `${command}.${key}` });
+}
+
+function assertSliceListInputs(input, path) {
+  for (const field of SLICE_LIST_FIELDS) {
+    if (input[field] === undefined) continue;
+    if (!Array.isArray(input[field]) || input[field].some((item) => typeof item !== "string"))
+      fail("invalid-input-type", `Field requires an array of strings: ${path}.${field}`, {
+        path: `${path}.${field}`,
+        expected: "string[]",
+      });
+    if (!isSingleLineList(input[field]))
+      fail("invalid-list-member", `List members must be single-line strings: ${path}.${field}`, {
+        path: `${path}.${field}`,
+      });
+  }
+}
+
+function assertRequiredText(value, code, message, path) {
+  if (typeof value !== "string" || !value.trim()) fail(code, message, { path });
+}
+
+function assertDecisionContent(decision, path) {
+  if (!hasDecisionContent(decision))
+    fail("missing-decision-content", "Decision requires decision, rationale, or consequences", { path });
+}
+
+function assertProposalContent(proposal, path) {
+  assertRequiredText(
+    proposal.intendedResult,
+    "missing-proposal-content",
+    "Proposal intended result is required",
+    `${path}.intendedResult`,
+  );
+  assertRequiredText(
+    proposal.expectedEvidence,
+    "missing-proposal-content",
+    "Proposal expected evidence is required",
+    `${path}.expectedEvidence`,
+  );
+}
+
+function assertNoCallerControlledDecisionFields(change, path, allowed = new Set()) {
+  for (const field of DECISION_CONTROLLED_FIELDS)
+    if (Object.hasOwn(change, field) && !allowed.has(field))
+      fail("caller-controlled-decision-field", `Decision field is controlled by its lifecycle: ${field}`, {
+        path: `${path}.${field}`,
+      });
 }
 
 function patchObject(target, patch) {
@@ -64,8 +143,35 @@ function applyTaskState(data, input) {
   data.taskState = next;
 }
 
+function assertUpdateValue(value, type, path) {
+  if (type === "string" && typeof value !== "string")
+    fail("invalid-input-type", `Field requires a string: ${path}`, { path, expected: "string" });
+  if (type === "array") {
+    if (!Array.isArray(value) || value.some((item) => typeof item !== "string"))
+      fail("invalid-input-type", `Field requires an array of strings: ${path}`, { path, expected: "string[]" });
+    if (!isSingleLineList(value))
+      fail("invalid-list-member", `List members must be single-line strings: ${path}`, { path });
+  }
+}
+
+function assertUpdatePatch(patch, fields, path) {
+  if (patch === undefined) return {};
+  if (!patch || typeof patch !== "object" || Array.isArray(patch))
+    fail("invalid-input-type", `Patch requires an object: ${path}`, { path, expected: "object" });
+  for (const [key, value] of Object.entries(patch)) {
+    const type = fields[key];
+    if (!type) fail("unknown-input-field", `Unknown update field: ${key}`, { path: `${path}.${key}` });
+    if (type === "forbidden")
+      fail("invalid-operation", "Use start, block, resume, or close to change Current Slice ownership", {
+        path: `${path}.${key}`,
+      });
+    assertUpdateValue(value, type, `${path}.${key}`);
+  }
+  return patch;
+}
+
 function applyContextPatch(data, input) {
-  const contextPatch = input.currentContext ?? {};
+  const contextPatch = { ...assertUpdatePatch(input.currentContext, CONTEXT_PATCH_FIELDS, "input.currentContext") };
   const aliases = {
     goal: input.goal,
     whatDefinesTask: input.whatDefinesTask,
@@ -75,20 +181,29 @@ function applyContextPatch(data, input) {
     currentDirection: input.currentDirection,
     boundaries: input.boundaries,
   };
-  for (const [key, value] of Object.entries(aliases)) if (value !== undefined) contextPatch[key] = value;
-  patchObject(data.currentContext, contextPatch);
-  if (input.currentWork && typeof input.currentWork === "object") {
-    if (Object.hasOwn(input.currentWork, "currentSlice"))
-      fail("invalid-operation", "Use start, block, resume, or close to change Current Slice ownership");
-    patchObject(data.currentWork, input.currentWork);
+  for (const [key, value] of Object.entries(aliases)) {
+    if (value !== undefined) {
+      assertUpdateValue(value, CONTEXT_PATCH_FIELDS[key], `input.${key}`);
+      contextPatch[key] = value;
+    }
   }
+  patchObject(data.currentContext, contextPatch);
+
+  const currentWorkPatch = assertUpdatePatch(input.currentWork, WORK_PATCH_FIELDS, "input.currentWork");
+  patchObject(data.currentWork, currentWorkPatch);
+
   const workAliases = {
     route: input.currentRoute ?? input.route,
     nextAction: input.nextAction ?? input.nextUsefulAction,
     blockers: input.blockers,
     upcomingCheckpoints: input.upcomingCheckpoints,
   };
-  for (const [key, value] of Object.entries(workAliases)) if (value !== undefined) data.currentWork[key] = clone(value);
+  for (const [key, value] of Object.entries(workAliases)) {
+    if (value !== undefined) {
+      assertUpdateValue(value, WORK_PATCH_FIELDS[key], `input.${key}`);
+      data.currentWork[key] = clone(value);
+    }
+  }
 }
 
 function applyDecisionChange(data, input) {
@@ -99,9 +214,20 @@ function applyDecisionChange(data, input) {
   const change = input.decision ?? (input.decisions && !Array.isArray(input.decisions) ? input.decisions : null);
   if (!change) return;
   const operation = change.operation ?? change.op ?? "add";
+  if (!DECISION_OPERATIONS.has(operation))
+    fail("unsupported-decision-operation", `Unsupported decision operation: ${operation}`, {
+      path: "decision.operation",
+    });
   assertDecisionReferences(change, "decision");
+  assertNoCallerControlledDecisionFields(
+    change,
+    "decision",
+    operation === "supersede" ? new Set(["supersededBy"]) : undefined,
+  );
   if (operation === "add") {
     if (change.id !== undefined) fail("caller-supplied-id", "The script assigns decision IDs");
+    assertSingleLineTitle(change.title ?? change.name ?? "Untitled decision", "decision.title");
+    assertDecisionContent(change, "decision");
     const decision = normalizeDecision(change, nextId(data, "D"));
     if (findById(data.history.decisions, decision.id))
       fail("duplicate-id", `Decision ID already exists: ${decision.id}`);
@@ -116,6 +242,12 @@ function applyDecisionChange(data, input) {
       let replacement = replacementId ? findById(data.history.decisions, replacementId) : null;
       if (change.replacement) {
         if (change.replacement.id !== undefined) fail("caller-supplied-id", "The script assigns decision IDs");
+        assertNoCallerControlledDecisionFields(change.replacement, "decision.replacement");
+        assertSingleLineTitle(
+          change.replacement.title ?? change.replacement.name ?? "Untitled decision",
+          "decision.replacement.title",
+        );
+        assertDecisionContent(change.replacement, "decision.replacement");
         replacement = normalizeDecision(change.replacement, nextId(data, "D"));
         replacementId = replacement.id;
         data.history.decisions.push(replacement);
@@ -127,7 +259,9 @@ function applyDecisionChange(data, input) {
       existing.supersededBy = replacementId;
       replacement.supersedes = existing.id;
     } else {
-      Object.assign(existing, normalizeDecision({ ...existing, ...change }, existing.id));
+      const updated = normalizeDecision({ ...existing, ...change }, existing.id);
+      assertDecisionContent(updated, "decision");
+      Object.assign(existing, updated);
     }
   }
   activeDecisionSync(data);
@@ -141,12 +275,19 @@ function applyProposalChange(data, input) {
     return;
   }
   const operation = change.operation ?? change.op ?? "add";
+  if (!PROPOSAL_OPERATIONS.has(operation))
+    fail("unsupported-proposal-operation", `Unsupported proposal operation: ${operation}`, {
+      path: "proposal.operation",
+    });
+  assertSliceListInputs(change, "proposal");
   const title = change.title ?? change.name;
   const index = data.proposals.findIndex((proposal) => proposal.title === title);
   if (operation === "add") {
     if (index >= 0) fail("duplicate-proposal", `Proposal already exists: ${title}`);
+    assertSingleLineTitle(title, "proposal.title");
     const proposal = normalizeProposal(change);
     if (!proposal.title) fail("missing-proposal-title", "Proposal title is required");
+    assertProposalContent(proposal, "proposal");
     data.proposals.push(proposal);
   } else if (index < 0) fail("missing-proposal", `Proposal does not exist: ${title}`);
   else if (operation === "remove") data.proposals.splice(index, 1);
@@ -161,21 +302,47 @@ function applyNoteChange(data, input) {
     return;
   }
   const operation = change.operation ?? change.op ?? "add";
+  if (!NOTE_OPERATIONS.has(operation))
+    fail("unsupported-note-operation", `Unsupported Note operation: ${operation}`, {
+      path: "note.operation",
+    });
   const title = change.title;
   const index = data.notes.findIndex((note) => note.title === title);
   if (operation === "add") {
     if (index >= 0) fail("duplicate-note", `Note already exists: ${title}`);
+    assertSingleLineTitle(title, "note.title");
     data.notes.push({ title, source: ensureString(change.source), body: ensureString(change.body) });
   } else if (index < 0) fail("missing-note", `Note does not exist: ${title}`);
   else if (operation === "remove") data.notes.splice(index, 1);
-  else data.notes[index] = { ...data.notes[index], ...clone(change), title };
+  else {
+    if (change.source !== undefined && typeof change.source !== "string")
+      fail("invalid-input-type", "Note source requires a string", { path: "note.source" });
+    if (change.body !== undefined && typeof change.body !== "string")
+      fail("invalid-input-type", "Note body requires a string", { path: "note.body" });
+    data.notes[index] = {
+      title,
+      source: change.source === undefined ? data.notes[index].source : change.source,
+      body: change.body === undefined ? data.notes[index].body : change.body,
+    };
+  }
 }
 
 function applyCurrentSlicePatch(data, input) {
   const patch = input.currentSlice;
-  if (!patch) return;
+  if (patch === undefined) return;
+  if (!patch || typeof patch !== "object" || Array.isArray(patch))
+    fail("invalid-input-type", "currentSlice patch requires an object");
   if (!data.currentWork.currentSlice) fail("invalid-operation", "Use start to create a Current Slice");
-  if (patch.id !== undefined) fail("caller-supplied-id", "Current Slice IDs are script-owned");
+  assertSliceListInputs(patch, "currentSlice");
+  for (const [field, value] of Object.entries(patch)) {
+    if (field === "id") fail("caller-supplied-id", "Current Slice IDs are script-owned");
+    if (field === "state") {
+      if (value !== data.currentWork.currentSlice.state)
+        fail("invalid-transition", "Use block or resume for Current Slice state transitions");
+      continue;
+    }
+    assertPreciseValue(field, value, `currentSlice.${field}`);
+  }
   if (patch.state && patch.state !== data.currentWork.currentSlice.state)
     fail("invalid-transition", "Use block or resume for Current Slice state transitions");
   const current = data.currentWork.currentSlice;
@@ -185,57 +352,6 @@ function applyCurrentSlicePatch(data, input) {
   assertCompleteSlice(normalized, "update");
   data.currentWork.currentSlice = normalized;
 }
-
-const PRECISE_STRING_FIELDS = new Set([
-  "title",
-  "type",
-  "intendedResult",
-  "expectedEvidence",
-  "authoritySource",
-  "reasonAndScope",
-  "stopCondition",
-  "startingState",
-  "resumeWhen",
-  "result",
-  "reviewSummary",
-  "taskEffect",
-  "goal",
-  "whatDefinesTask",
-  "settled",
-  "tentative",
-  "open",
-  "currentDirection",
-  "boundaries",
-  "route",
-  "nextAction",
-  "decision",
-  "establishedBy",
-  "rationale",
-  "consequences",
-  "revisitWhen",
-  "supersedes",
-  "supersededBy",
-  "source",
-  "body",
-  "selectedBy",
-  "condition",
-  "judgment",
-  "evidence",
-  "effect",
-]);
-const PRECISE_LIST_FIELDS = new Set([
-  "acceptedExtensions",
-  "dependencies",
-  "selectedCheckpoints",
-  "blockerHistory",
-  "pendingBoundaries",
-  "pendingReviews",
-  "reopenHistory",
-  "evidence",
-  "blockers",
-  "upcomingCheckpoints",
-]);
-const PRECISE_FORBIDDEN_FIELDS = new Set(["id", "state", "supersedes", "supersededBy", "currentSlice"]);
 
 function preciseFieldType(field) {
   if (PRECISE_LIST_FIELDS.has(field)) return "array";
@@ -341,16 +457,19 @@ function replacePreciseText(owner, field, replacement, path) {
     fail("invalid-edit-type", "replaceText requires { old, new } strings", { path });
   const current = owner[field];
   if (typeof current !== "string") fail("invalid-edit-type", `replaceText requires a string field: ${field}`, { path });
-  const matches = current.split(replacement.old).length - 1;
+  const oldText = normalizeLineEndings(replacement.old);
+  const newText = normalizeLineEndings(replacement.new);
+  const matches = current.split(oldText).length - 1;
   if (matches !== 1)
     fail("ambiguous-text-replacement", `Expected exactly one match in ${field}, found ${matches}`, { path });
-  owner[field] = current.replace(replacement.old, replacement.new);
+  owner[field] = current.replace(oldText, newText);
 }
 
 function applyListChange(owner, operation, field, values, path) {
   if (!PRECISE_LIST_FIELDS.has(field)) fail("invalid-list-field", `Field ${field} is not an editable list`, { path });
   if (!Array.isArray(values) || values.some((item) => typeof item !== "string"))
     fail("invalid-edit-type", `List operation ${operation} requires an array of strings`, { path });
+  if (!isSingleLineList(values)) fail("invalid-list-member", "List members must be single-line strings", { path });
   const current = Array.isArray(owner[field]) ? [...owner[field]] : [];
   if (operation === "add") {
     for (const value of values) {
@@ -407,9 +526,10 @@ function applyPreciseEntityEdit(data, edit, path) {
   const selected = selectPreciseEntity(data, edit.target, `${path}.target`);
   const entity = selected.entity;
   if (!entity) fail("missing-entity", "There is no Current Slice to edit", { path });
+  if (edit.clear !== undefined && !Array.isArray(edit.clear))
+    fail("invalid-edit-type", "clear requires an array of field names", { path: `${path}.clear` });
   if (edit.rename !== undefined) {
-    if (typeof edit.rename !== "string" || !edit.rename.trim())
-      fail("invalid-edit-type", "rename requires a non-empty string", { path });
+    assertSingleLineTitle(edit.rename, `${path}.rename`);
     entity.title = edit.rename;
   }
   applyFieldMap(entity, edit.set, "set", `${path}.set`);
@@ -435,6 +555,10 @@ function applyPreciseFieldEdit(data, edit, path) {
     if (!allowed.has(key)) fail("unknown-edit-operation", `Unknown edit operation: ${key}`, { path });
   const target = fieldPathTarget(data, edit.target, `${path}.target`);
   if (!target) fail("invalid-edit-target", "Unsupported edit target", { path });
+  const operations = [edit.set !== undefined, edit.clear !== undefined, edit.replaceText !== undefined].filter(Boolean);
+  if (operations.length > 1) fail("multiple-edit-operations", "A field edit must choose one operation", { path });
+  if (edit.clear !== undefined && edit.clear !== true)
+    fail("invalid-edit-type", "clear requires the boolean true", { path: `${path}.clear` });
   if (edit.set !== undefined) {
     if (typeof edit.set === "object" && !Array.isArray(edit.set))
       fail("invalid-edit-type", "Field target set requires one scalar value", { path });
@@ -446,39 +570,65 @@ function applyPreciseFieldEdit(data, edit, path) {
 }
 
 function applyPreciseCollectionEdit(data, edit, path) {
+  const affectedIds = [];
   const allowed = new Set(["target", "addEntity", "removeEntity"]);
   for (const key of Object.keys(edit))
     if (!allowed.has(key)) fail("unknown-edit-operation", `Unknown edit operation: ${key}`, { path });
+  const hasAdd = edit.addEntity !== undefined;
+  const hasRemove = edit.removeEntity !== undefined;
+  if (hasAdd === hasRemove)
+    fail("multiple-edit-operations", "A collection edit must choose exactly one operation", { path });
   const collectionName = edit.target?.kind ?? edit.target?.collection;
-  if (collectionName !== "proposals" && collectionName !== "decisions" && collectionName !== "notes")
+  if (
+    collectionName !== "proposals" &&
+    collectionName !== "decisions" &&
+    collectionName !== "checkpoints" &&
+    collectionName !== "notes"
+  )
     fail("invalid-edit-target", `Unknown editable collection: ${collectionName}`, { path });
   const collection =
     collectionName === "proposals"
       ? data.proposals
       : collectionName === "decisions"
         ? data.history.decisions
-        : data.notes;
+        : collectionName === "checkpoints"
+          ? data.history.checkpoints
+          : data.notes;
   if (edit.addEntity !== undefined) {
     const value = edit.addEntity;
     if (!value || typeof value !== "object" || Array.isArray(value))
       fail("invalid-edit-type", "addEntity requires an object", { path });
     if (collectionName === "proposals") {
-      if (typeof value.title !== "string" || !value.title.trim())
-        fail("missing-proposal-title", "Proposal title is required", { path });
+      assertSingleLineTitle(value.title, `${path}.addEntity.title`);
       if (collection.some((item) => item.title === value.title))
         fail("duplicate-proposal", `Proposal already exists: ${value.title}`, { path });
       if (!SLICE_TYPES.has(value.type)) fail("invalid-proposal-type", `Invalid proposal type: ${value.type}`, { path });
       assertPreciseValue("intendedResult", value.intendedResult, `${path}.addEntity.intendedResult`);
       assertPreciseValue("expectedEvidence", value.expectedEvidence, `${path}.addEntity.expectedEvidence`);
-      collection.push(normalizeProposal(value));
+      assertSliceListInputs(value, `${path}.addEntity`);
+      const proposal = normalizeProposal(value);
+      assertProposalContent(proposal, `${path}.addEntity`);
+      collection.push(proposal);
     } else if (collectionName === "decisions") {
-      if (typeof value.title !== "string" || !value.title.trim())
-        fail("missing-decision-title", "Decision title is required", { path });
+      if (value.id !== undefined) fail("caller-supplied-id", "The script assigns decision IDs", { path });
+      assertNoCallerControlledDecisionFields(value, `${path}.addEntity`);
+      assertSingleLineTitle(value.title, `${path}.addEntity.title`);
+      assertDecisionContent(value, `${path}.addEntity`);
       assertDecisionReferences(value, `${path}.addEntity`);
-      collection.push(normalizeDecision(value, nextId(data, "D")));
+      const decision = normalizeDecision(value, nextId(data, "D"));
+      collection.push(decision);
+      affectedIds.push(decision.id);
+    } else if (collectionName === "checkpoints") {
+      assertSingleLineTitle(value.title, `${path}.addEntity.title`);
+      if (typeof value.type !== "string" || !value.type.trim())
+        fail("missing-checkpoint-field", "Checkpoint type is required", { path: `${path}.addEntity.type` });
+      for (const field of ["selectedBy", "condition", "result"])
+        assertPreciseValue(field, value[field], `${path}.addEntity.${field}`);
+      if (collection.some((item) => item.title === value.title))
+        fail("duplicate-checkpoint", `Checkpoint already exists: ${value.title}`, { path });
+      collection.push(normalizeCheckpoint(value));
     } else {
-      if (typeof value.title !== "string" || !value.title.trim())
-        fail("missing-note-title", "Note title is required", { path });
+      assertSingleLineTitle(value.title, `${path}.addEntity.title`);
       if (typeof value.body !== "string") fail("invalid-edit-type", "Note body requires a string", { path });
       collection.push({
         title: value.title,
@@ -488,6 +638,8 @@ function applyPreciseCollectionEdit(data, edit, path) {
     }
   }
   if (edit.removeEntity !== undefined) {
+    if (collectionName === "decisions")
+      fail("decision-removal-requires-lifecycle", "Retire or supersede decisions through the decision operation");
     const selector = edit.removeEntity;
     if (!selector || typeof selector !== "object")
       fail("invalid-edit-target", "removeEntity requires an id or title selector", { path });
@@ -500,25 +652,45 @@ function applyPreciseCollectionEdit(data, edit, path) {
       );
     if (!matches.length) fail("missing-entity", `No ${collectionName} matched the remove selector`, { path });
     if (matches.length > 1) fail("ambiguous-entity", `Remove selector matched multiple ${collectionName}`, { path });
+    if (matches[0].item.id) affectedIds.push(matches[0].item.id);
     collection.splice(matches[0].index, 1);
   }
+  return affectedIds;
 }
 
 function applyPreciseEdits(data, edits) {
+  const affectedIds = [];
   if (!Array.isArray(edits) || edits.length === 0) fail("missing-edits", "update requires a non-empty edits array");
   for (const [index, edit] of edits.entries()) {
     if (!edit || typeof edit !== "object" || Array.isArray(edit))
       fail("invalid-edit", `Edit ${index} must be an object`);
     if (edit.addEntity !== undefined || edit.removeEntity !== undefined)
-      applyPreciseCollectionEdit(data, edit, `edits[${index}]`);
+      affectedIds.push(...applyPreciseCollectionEdit(data, edit, `edits[${index}]`));
     else if (typeof edit.target === "string") applyPreciseFieldEdit(data, edit, `edits[${index}]`);
     else applyPreciseEntityEdit(data, edit, `edits[${index}]`);
+    if (edit.target?.id) affectedIds.push(edit.target.id);
   }
-  return { affectedIds: edits.map((edit) => edit.target?.id).filter(Boolean) };
+  return { affectedIds: [...new Set(affectedIds)] };
+}
+
+function assertKnownUpdateInput(input) {
+  for (const key of Object.keys(input))
+    if (!UPDATE_INPUT_KEYS.has(key))
+      fail("unknown-input-field", `Unknown update input field: ${key}`, { path: `input.${key}` });
+}
+
+function assertNoMixedEditInput(input) {
+  const mixedFields = Object.keys(input).filter((key) => !EDIT_MODE_INPUT_KEYS.has(key));
+  if (mixedFields.length)
+    fail("mixed-update-input", "The edits form cannot be combined with direct update fields", {
+      fields: mixedFields,
+    });
 }
 
 function applyUpdate(data, input) {
+  assertKnownUpdateInput(input);
   if (input.edits !== undefined) {
+    assertNoMixedEditInput(input);
     const operation = applyPreciseEdits(data, input.edits);
     applyTaskState(data, input);
     return operation;
@@ -558,6 +730,8 @@ function assertExpectedCurrentSlice(data, input) {
 }
 
 function applyStart(data, input) {
+  assertKnownCommandInput(input, "start");
+  assertSliceListInputs(input, "start");
   assertActiveTask(data, "start");
   if (data.currentWork.currentSlice) fail("existing-current-slice", "A Current Slice already exists");
   if (input.id !== undefined) fail("caller-supplied-id", "The script assigns Current Slice IDs");
@@ -578,6 +752,7 @@ function applyStart(data, input) {
     },
     nextId(data, "S"),
   );
+  assertSingleLineTitle(slice.title, "start.title");
   if (!slice.authoritySource) fail("missing-authority", "start requires authoritySource");
   if (!SLICE_TYPES.has(slice.type)) fail("invalid-slice-type", `Invalid slice type: ${slice.type}`);
   assertCompleteSlice(slice, "start");
@@ -587,6 +762,7 @@ function applyStart(data, input) {
 }
 
 function applyBlock(data, input) {
+  assertKnownCommandInput(input, "block");
   const slice = assertExpectedCurrentSlice(data, input);
   if (slice.state !== "In progress") fail("invalid-transition", "Only an In progress slice can be blocked");
   const blocker = input.blocker ?? {
@@ -604,6 +780,8 @@ function applyBlock(data, input) {
 }
 
 function applyResume(data, input) {
+  assertKnownCommandInput(input, "resume");
+  assertSliceListInputs(input, "resume");
   assertActiveTask(data, "resume");
   const slice = assertExpectedCurrentSlice(data, input);
   if (slice.state !== "Blocked") fail("invalid-transition", "Only a Blocked slice can be resumed");
@@ -613,16 +791,17 @@ function applyResume(data, input) {
     ...ensureArray(slice.blockerHistory),
     JSON.stringify({ blocker: slice.blocker, resolutionSource: resolution }),
   ];
-  slice.blocker = "";
+  slice.blocker = null;
   slice.resumeWhen = "";
   slice.state = "In progress";
   data.currentWork.blockers = [];
   if (input.evidence !== undefined) slice.evidence = ensureArray(input.evidence);
-  if (input.scopeChange !== undefined) slice.reasonAndScope = ensureString(input.scopeChange);
   return { affectedIds: [slice.id] };
 }
 
 function applyReopen(data, input) {
+  assertKnownCommandInput(input, "reopen");
+  assertSliceListInputs(input, "reopen");
   assertActiveTask(data, "reopen");
   if (data.currentWork.currentSlice) fail("existing-current-slice", "A Current Slice already exists");
   const sliceId = input.sliceId ?? input.id ?? input.currentSliceId;
@@ -650,6 +829,7 @@ function applyReopen(data, input) {
       priorEvidence: historical.evidence,
       priorBlocker: historical.blocker,
       priorTaskEffect: historical.taskEffect,
+      priorAbandonmentReason: historical.abandonmentReason,
       authoritySource: authority,
       reopenReason: reason,
     }),
@@ -679,6 +859,7 @@ function applyReopen(data, input) {
     },
     historical.id,
   );
+  assertSingleLineTitle(reopened.title, "reopen.title");
   assertCompleteSlice(reopened, "reopen");
   data.history.slices.splice(historyIndex, 1);
   data.currentWork.currentSlice = reopened;
@@ -690,7 +871,18 @@ function applyReopen(data, input) {
   return { affectedIds: [reopened.id] };
 }
 
+function unresolvedSelectedCheckpoints(data, slice) {
+  const resolved = new Set(
+    data.history.checkpoints
+      .filter((checkpoint) => CHECKPOINT_RESULTS.has(checkpoint.result))
+      .map((checkpoint) => checkpoint.title),
+  );
+  return ensureArray(slice.selectedCheckpoints).filter((title) => !resolved.has(title));
+}
+
 function applyClose(data, input) {
+  assertKnownCommandInput(input, "close");
+  assertSliceListInputs(input, "close");
   const slice = assertExpectedCurrentSlice(data, input);
   const finalState = input.finalState ?? input.state;
   if (!HISTORICAL_SLICE_STATES.has(finalState)) fail("invalid-close-state", `Invalid final slice state: ${finalState}`);
@@ -709,13 +901,13 @@ function applyClose(data, input) {
     fail("missing-residual-effects", "Abandoned close requires residualEffects or taskEffect");
   if (!evidence.length) fail("missing-evidence", "close requires the strongest available evidence boundary");
   if (finalState === "Completed") {
-    const pending = [...ensureArray(slice.pendingBoundaries), ...ensureArray(slice.pendingReviews)];
-    if (pending.length && !input.resolvedPending)
-      fail(
-        "unresolved-settlement",
-        "Completed close requires all pending boundaries to be resolved or explicitly deferrable",
-        { pending },
-      );
+    const pending = [
+      ...ensureArray(slice.pendingBoundaries),
+      ...ensureArray(slice.pendingReviews),
+      ...unresolvedSelectedCheckpoints(data, slice),
+    ];
+    if (pending.length)
+      fail("unresolved-settlement", "Completed close requires all pending boundaries to be reconciled", { pending });
     if (slice.state === "Blocked")
       fail("blocked-close", "A Blocked slice must be parked as historical Blocked or explicitly abandoned");
   }
@@ -732,10 +924,12 @@ function applyClose(data, input) {
     evidence,
     reviewSummary: ensureString(input.reviewSummary ?? slice.reviewSummary) || undefined,
     taskEffect: ensureString(input.residualEffects ?? input.taskEffect ?? slice.taskEffect) || undefined,
+    abandonmentReason:
+      finalState === "Abandoned" ? ensureString(input.abandonmentReason ?? input.reason) || undefined : undefined,
     reopenHistory: slice.reopenHistory.length ? slice.reopenHistory : undefined,
     blocker:
       finalState === "Blocked"
-        ? JSON.stringify({ blocker: slice.blocker, resumeWhen: slice.resumeWhen, required: slice.blocker?.required })
+        ? { blocker: slice.blocker, resumeWhen: slice.resumeWhen, required: slice.blocker?.required }
         : undefined,
   });
   data.history.slices.push(entry);

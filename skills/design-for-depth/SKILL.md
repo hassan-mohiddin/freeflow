@@ -23,20 +23,16 @@ Do not force this lens onto a local change whose interface remains sound. Do not
 
 ## Start With Outcome And Failure
 
-Before choosing classes, services, states, or adapters, ask:
+Before choosing classes, services, states, or adapters, establish:
 
-- What complete outcome should the caller request?
-- Which decisions genuinely belong to the caller?
-- Which ordering, policy, storage, retry, cleanup, or provider details can the module own?
-- What counts as complete and visible success?
-- If it fails, who observes it, what state or evidence is written, and what must never happen?
-- Does failure stop, fail closed, fail open, degrade, retry, escalate, or require recovery?
-- What is safe to restart, and what evidence establishes recovery?
-- Which likely-changing decision should remain local?
+- the complete outcome callers need and the decisions they genuinely own;
+- the coordination or likely-changing policy the module can hide;
+- visible success and the **failure unit**—the smallest outcome treated as one success, failure, and recovery boundary;
+- failure observers, state or evidence written, forbidden partial outcomes, response policy (stop, fail closed/open, degrade, retry, or escalate), safe restart, recovery, and required proof.
 
-The answers form the **failure contract**: failure modes, observers, written state, forbidden outcomes, retry or degradation behavior, recovery, and proof. The **failure unit** is the smallest outcome treated as one success, failure, and recovery boundary. Failure behavior is part of the interface even when its mechanism remains private.
+These form the **failure contract**. Failure behavior is part of the interface even when its mechanism remains private.
 
-When these answers change product behavior, public interfaces, compatibility, permissions, security, privacy, billing, data loss, migration direction, or another user-owned outcome, use [Decision Gate](../decision-gate/SKILL.md). This lens surfaces the decision; it does not make it silently.
+When the boundary changes product behavior, public interfaces, compatibility, permissions, security, privacy, billing, data loss, migration direction, or another user-owned outcome, use [Decision Gate](../decision-gate/SKILL.md). This lens surfaces the decision; it does not make it silently.
 
 ## Hide Coordination
 
@@ -55,34 +51,19 @@ Read [software design philosophy](references/software-design-philosophy.md) when
 
 ## Recognize Structural Pressure
 
-Structural pressure exists when evidence shows that:
+Structural pressure appears when caller knowledge, duplicated policy, lifecycle choreography, test-only exposure, or unowned failure behavior spreads across a boundary, or a bounded outcome requires an unplanned subsystem because no current seam owns it.
 
-- each correction adds caller knowledge, public states, flags, retries, or recovery rules;
-- one policy or behavior requires unrelated edits across callers;
-- callers or tests duplicate lifecycle choreography;
-- tests need many owned internals or production hooks created only for testing;
-- a bounded outcome requires an unplanned subsystem because no current seam can own it;
-- correctness depends on coordinated steps that no module owns.
-
-These signals justify design attention, not automatic refactoring. Read [design pressure signals](references/design-pressure-signals.md) when evidence suggests caller knowledge or coordination is spreading and the next route must be classified.
+Read [design pressure signals](references/design-pressure-signals.md) when that evidence may change the next route. The reference owns the detailed classifier and examples; the signals justify design attention, not automatic refactoring.
 
 Diagnose repeated or unexplained failure before redesigning. Direct design work is appropriate when structural pressure is already observable or an important boundary must be chosen before implementation.
 
 ## Shape The Interface
 
-Before comparing materially different interfaces, read [the interface design loop](references/interface-design-loop.md) when structural pressure or an important pre-implementation correctness boundary makes their ownership consequential, especially when evidence cannot choose or authority, canonical state, atomic visibility, replay, cancellation, or post-commit recovery affects correctness.
+Before comparing materially different interfaces, read [the interface design loop](references/interface-design-loop.md) when structural pressure or an important pre-implementation correctness boundary makes ownership consequential, especially when authority, canonical state, atomic visibility, replay, cancellation, or post-commit recovery affects correctness.
 
-When interface shape changes the next action:
+The reference owns the complete comparison method. Prefer the interface that removes caller knowledge, localizes likely change, makes correct use easy, preserves honest failure and recovery, and costs proportionate evidence.
 
-1. Name the complete outcome and settled behavior.
-2. Choose the success and failure unit.
-3. Inventory what callers, tests, reviewers, and future agents must know.
-4. Keep caller-owned decisions public and move internal protocol behind the module.
-5. Separate required trust and safety from speculative efficiency, scale, or portability.
-6. For a structural or hard-to-reverse choice, compare materially different ownership or seam placements—not cosmetic variants.
-7. Prefer the design with less caller knowledge, better locality, safer failure behavior, easier correct use, and proportionate evidence cost.
-
-Do not force multiple designs for an obvious local choice. If source inspection cannot distinguish viable designs, propose one bounded learning slice with a question, competing designs, evidence, cost boundary, and discard-or-promote condition.
+Do not force multiple designs for an obvious local choice. When evidence cannot distinguish viable seams, use the reference's bounded learning route rather than quietly implementing the whole subsystem.
 
 ## Tests And Evidence
 

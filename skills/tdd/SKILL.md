@@ -9,7 +9,7 @@ Selecting TDD creates no authority. Enter RED only when accepted behavior is set
 
 Use one observed failing behavior check to guide the smallest complete implementation for one accepted behavior.
 
-TDD is an execution method inside [Execute Work](../execute-work/SKILL.md). One vertical RED/GREEN/REFACTOR loop is a bounded action, not automatically a Track Work slice. Several accepted behavior loops may remain inside one coherent current slice.
+TDD is an execution method inside [Execute Work](../execute-work/SKILL.md). One vertical RED/GREEN/REFACTOR loop is a bounded action, not automatically a new Slice. Several accepted behavior loops may remain inside one coherent Slice; when durable task memory exists, [Track Work](../track-work/SKILL.md) preserves it as the Current Slice.
 
 TDD does not define intended behavior. The accepted request, source truth, and user decisions establish what should happen.
 
@@ -73,4 +73,4 @@ When Test Design's pressure signals appear, the next check requires an unplanned
 
 ## Report
 
-Report the accepted behavior and seam, observed RED result, GREEN implementation, refactor if any, original-path and broader verification, current slice effect, and remaining unverified behavior. Return route-changing evidence rather than silently beginning another behavior or slice.
+Report the accepted behavior and seam, observed RED result, GREEN implementation, refactor if any, original-path and broader verification, Slice effect when relevant, and remaining unverified behavior. Return route-changing evidence rather than silently beginning another behavior or slice.
