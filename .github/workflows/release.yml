@@ -65,11 +65,17 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify generated runtime is clean
+        run: git diff --exit-code -- pi-extension/dist
+
       - name: Run deterministic checks
         run: npm run check
 
       - name: Run release metadata checks
         run: npm run check:release-metadata
+
+      - name: Validate changelog structure
+        run: npm run check:changelog
 
       - name: Run release-focused tests
         run: |
@@ -79,6 +85,42 @@ jobs:
           npm run test:track-work
           npm run test:freeflow-snapshot
           npm run test:release-utils
+          npm run test:release-workflow
+          npm run test:changelog
+          npm run test:docs
+
+      - name: Verify worktree is clean
+        run: test -z "$(git status --porcelain)"
+
+      - name: Extract changelog release notes
+        run: |
+          node scripts/release-notes.mjs \
+            --version "${RELEASE_TAG#v}" \
+            --out "$RUNNER_TEMP/RELEASE_NOTES.md"
+          test -s "$RUNNER_TEMP/RELEASE_NOTES.md"
+
+      - name: Pack exact release artifact
+        env:
+          RELEASE_DIR: ${{ runner.temp }}/freeflow-release
+        run: |
+          set -euo pipefail
+          rm -rf "$RELEASE_DIR"
+          mkdir -p "$RELEASE_DIR"
+          pack_manifest="$RELEASE_DIR/pack.json"
+          npm pack --ignore-scripts \
+            --pack-destination "$RELEASE_DIR" \
+            --json > "$pack_manifest"
+          filename="$(jq -r '.[0].filename // empty' "$pack_manifest")"
+          shasum="$(jq -r '.[0].shasum // empty' "$pack_manifest")"
+          integrity="$(jq -r '.[0].integrity // empty' "$pack_manifest")"
+          test -n "$filename"
+          test -n "$shasum"
+          test -n "$integrity"
+          {
+            printf 'RELEASE_TARBALL=%s\n' "$RELEASE_DIR/$filename"
+            printf 'RELEASE_SHASUM=%s\n' "$shasum"
+            printf 'RELEASE_INTEGRITY=%s\n' "$integrity"
+          } >> "$GITHUB_ENV"
 
       - name: Publish npm package when not already published
         env:
@@ -86,21 +128,44 @@ jobs:
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#v}"
-          published_version="$(
-            npm view "${PACKAGE_NAME}@${version}" version 2>/dev/null || true
-          )"
-          if [ "$published_version" = "$version" ]; then
-            echo "${PACKAGE_NAME}@${version} is already published;"
-            echo "continuing as release recovery."
-            exit 0
+          release_dir="$RUNNER_TEMP/freeflow-release"
+          registry_dist="$release_dir/registry-dist.json"
+          registry_error="$release_dir/registry-error.log"
+          if npm view "$PACKAGE_NAME@$version" dist --json \
+            > "$registry_dist" 2> "$registry_error"; then
+            registry_shasum="$(jq -r '.shasum // empty' "$registry_dist")"
+            if [ "$registry_shasum" != "$RELEASE_SHASUM" ]; then
+              echo "Published artifact checksum does not match the tag." >&2
+              exit 1
+            fi
+            echo "$PACKAGE_NAME@$version already matches the tag artifact."
+          else
+            if ! rg -q 'E404|404 Not Found' "$registry_error"; then
+              cat "$registry_error" >&2
+              exit 1
+            fi
+            npm publish "$RELEASE_TARBALL" \
+              --access public \
+              --tag "$NPM_DIST_TAG" \
+              --provenance
           fi
-          npm publish --access public --tag "$NPM_DIST_TAG" --provenance
 
-      - name: Extract changelog release notes
+      - name: Verify published npm artifact
+        env:
+          PACKAGE_NAME: "@hassangameryt/freeflow"
         run: |
-          node scripts/release-notes.mjs \
-            --version "${RELEASE_TAG#v}" \
-            --out "$RUNNER_TEMP/RELEASE_NOTES.md"
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          registry_dist="$RUNNER_TEMP/freeflow-release/published-dist.json"
+          npm view "$PACKAGE_NAME@$version" dist --json > "$registry_dist"
+          jq -e \
+            --arg shasum "$RELEASE_SHASUM" \
+            --arg integrity "$RELEASE_INTEGRITY" \
+            '.shasum == $shasum
+             and .integrity == $integrity
+             and .attestations.provenance.predicateType
+                 == "https://slsa.dev/provenance/v1"' \
+            "$registry_dist" >/dev/null
 
       - name: Create GitHub Release if absent
         env:

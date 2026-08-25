@@ -10,8 +10,9 @@ Read:
 
 - `AGENTS.md` for repository and agent instructions;
 - `CONTEXT.md` for project language and boundaries;
-- `docs/README.md` for the documentation map;
-- the relevant skill, runtime contract, test, or release evidence before editing.
+- `plugin-docs/README.md` for the current documentation map;
+- the relevant architecture, integration, workflow, routing, release, ADR, skill, runtime, test, or evidence page before editing;
+- the active Working Record through Track Work when work is ongoing.
 
 The repository root is the source of truth. Do not create generated package
 mirrors or copy runtime files into a second maintained tree.
@@ -29,6 +30,9 @@ sudo apt-get update && sudo apt-get install --no-install-recommends -y ripgrep j
 
 npm ci --ignore-scripts
 npm run check
+npm run test:docs
+npm run test:changelog
+npm run test:release-workflow
 ```
 
 Run focused tests for the area you change. Model-based skill evaluations are
@@ -39,12 +43,20 @@ readiness, or release evidence is in scope.
 
 Keep skill bodies concise and behavior-shaping. Put conditional depth in the
 nearest reference file. Update `CHANGELOG.md` under `## Unreleased` for verified
-consumer-visible changes when the task authorization covers that update.
+consumer-visible changes when the task authorization covers that update. Use
+only `Breaking Changes`, `Added`, `Changed`, `Fixed`, and `Removed`, with each
+entry as a bullet under one category. Run `npm run check:changelog`; do not edit
+released sections or guess categories during automation.
 
-Do not edit released changelog sections. Changes to `plugin-docs/`, public
-contract/install guidance, durable project docs, ADRs, or release evidence
-require explicit authorization and should be deferred to the final documentation
-slice.
+Use this ownership map:
+
+- runtime or host behavior -> `plugin-docs/architecture.md` and the relevant integration page;
+- skill ownership or routes -> `plugin-docs/skill-routing.md` and the owning skill;
+- public installation or commands -> `README.md` and the relevant getting-started or integration page;
+- release behavior or evidence -> `plugin-docs/release.md`, versioned `plugin-docs/release-evidence/` records, and `CHANGELOG.md`;
+- durable, surprising decisions -> `plugin-docs/adr/`.
+
+Historical `docs/` material is provenance, not a substitute for current public docs. Do not edit released changelog sections. Public contract, install guidance, ADR, release-evidence, deletion, package-boundary, versioning, and release changes require explicit authorization and human review at their selected checkpoints.
 
 ## Pull requests
 
@@ -70,9 +82,15 @@ section, but it does not commit, tag, push, or publish by itself.
 The normal release boundary is:
 
 ```text
-verified source -> release preparation -> human-approved tag push -> CI publish
+verified source
+-> release preparation and normalized release notes
+-> human-approved commit and immutable tag push
+-> CI verifies the exact tag, notes, generated output, tests, and tarball
+-> npm publish with provenance
+-> registry and GitHub Release verification
 ```
 
 Use `release-work` for version classification, artifact checks, publication,
 recovery, and consumer-side verification. Never reuse an npm version or force-
-move a release tag.
+move a release tag. npm Trusted Publishing and the protected `npm` environment
+must be configured outside the repository before publication can succeed.

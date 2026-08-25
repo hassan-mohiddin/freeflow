@@ -1,3 +1,7 @@
+import { normalizeUnreleasedBody } from "./changelog-utils.mjs";
+
+export { normalizeUnreleasedBody } from "./changelog-utils.mjs";
+
 const VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
 
 function escapeRegExp(value) {
@@ -78,14 +82,11 @@ export function prepareChangelog(markdown, version, date) {
   const remainder = markdown.slice(sectionStart);
   const nextHeading = remainder.search(/^##\s+/m);
   const body = nextHeading === -1 ? remainder : remainder.slice(0, nextHeading);
-  if (!body.trim()) {
-    throw new Error("CHANGELOG.md Unreleased section is empty");
-  }
-
+  const normalizedBody = normalizeUnreleasedBody(body);
   const after = nextHeading === -1 ? "" : remainder.slice(nextHeading);
   const bracketed = heading[1] === "[" && heading[2] === "]";
   const unreleasedLabel = bracketed ? "[Unreleased]" : "Unreleased";
   const releaseLabel = bracketed ? `[${normalizedVersion}]` : normalizedVersion;
   const prefix = markdown.slice(0, heading.index);
-  return `${prefix}## ${unreleasedLabel}\n\n## ${releaseLabel} - ${date}\n${body}${after}`;
+  return `${prefix}## ${unreleasedLabel}\n\n## ${releaseLabel} - ${date}\n\n${normalizedBody}${after ? `\n\n${after}` : "\n"}`;
 }

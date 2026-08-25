@@ -50,6 +50,51 @@ orient to accepted intent, task memory, and live evidence
 
 A later turn or new evidence begins another Interaction Lifecycle. Re-enter only the owning activity whose responsibility changed; preserve valid work and decisions.
 
+## Nested execution model
+
+The Workflow Feedback Loop contains the current owner and, under automatic Cognitive Routing, a nested execution loop. These diagrams describe ownership and control nesting, not a mandatory phase sequence.
+
+### Runtime/control nesting
+
+```text
+Interaction Lifecycle
+└─ Workflow Feedback Loop
+   ├─ establishes authority, owner, and slice
+   └─ Cognitive Execution Loop — automatic control only
+      ├─ Reasoning establishes the governing execution contract
+      ├─ DELEGATE to Standard
+      │  └─ Environment Interaction Loop
+      │     ├─ select and bound the next action
+      │     ├─ use Action Selection when uncertain or broad
+      │     ├─ take the obvious fast path when mechanical
+      │     ├─ execute and observe
+      │     └─ repeat within the delegation contract
+      ├─ RETURN evidence to Reasoning
+      ├─ Reasoning self-reviews
+      └─ close, delegate correction, or return to Workflow
+```
+
+The Cognitive Execution Loop exists only for automatic, authorized execution-bearing work. Manual profile control runs the ordinary unsplit Workflow. A Slice may contain multiple sequential cognitive execution boundaries, but a cognitive boundary is not a new owner, task, authority source, Plan, or Working Record.
+
+### Workflow ownership and composition
+
+```text
+Workflow Feedback Loop
+└─ current owner
+   ├─ Discuss ↔ Track Work for direction and durable state
+   ├─ Cognitive Routing controls compute placement
+   │  ├─ Reasoning leads the execution boundary
+   │  └─ Standard executes the owner’s contract
+   │     └─ Action Selection owns uncertain Environment Interactions
+   ├─ Execute Work / TDD supply execution methods
+   ├─ Verify Work establishes factual support
+   ├─ Review Work / Artifact supply judgment when applicable
+   ├─ Diagnose Failure owns unsupported causes
+   └─ Design for Depth composes as a lens
+```
+
+Discuss owns open direction and alternatives. Track Work owns durable task memory only when continuity value justifies it. Action Selection returns the observation and state change to the requesting owner; it does not replace Workflow or authorize work. Verify, review, diagnosis, TDD, and design methods compose when their conditions apply rather than forming a mandatory pipeline.
+
 ## Authority And Effects
 
 Each interaction carries an **authority envelope**: requested outcome, permitted effects, evidence boundary, and stop condition. Workflow establishes it from the whole user turn and any still-valid prior approval. Mode, skill selection, useful follow-on work, and new evidence do not widen it.

@@ -96,7 +96,7 @@ test("composes conditional prompt fragments, discoverable capabilities, and runt
     );
     assert.match(
       prompt,
-      /After context compaction, clear, session resume or navigation, or ownership transfer.*reconstruct the current decision surface.*recover bounded task memory when it exists.*compare remembered state with live repository or environment evidence.*re-establish authority/s,
+      /After context loss.*current user direction, bounded task memory, and live evidence.*read Track Work before any record operation.*`resume` view and current schema before mutation.*Workflow is unread.*read it before consequential work or owner selection/s,
     );
     assert.deepEqual(
       order,

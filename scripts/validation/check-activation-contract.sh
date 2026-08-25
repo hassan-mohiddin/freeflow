@@ -15,8 +15,9 @@ context_virtualization_prompt="$repo_root/runtime/prompts/context-virtualization
 conversation_history_prompt="$repo_root/runtime/prompts/conversation-history.md"
 mode_skill="$repo_root/skills/mode-contract/SKILL.md"
 agents_file="$repo_root/AGENTS.md"
-runtime_doc="$repo_root/docs/freeflow-runtime-and-lifecycle.md"
+runtime_doc="$repo_root/plugin-docs/architecture.md"
 architecture_doc="$repo_root/plugin-docs/architecture.md"
+workflow_doc="$repo_root/plugin-docs/workflow.md"
 pi_runtime="$repo_root/pi-extension/src/runtime/runtime-context.ts"
 shared_hook="$repo_root/hooks/freeflow-runtime-context.mjs"
 
@@ -80,8 +81,8 @@ require_text "$action_selection_skill" 'Control one environment interaction insi
 require_text "$mode_skill" 'Effective mode:'
 
 require_text "$runtime_doc" 'runtime/prompts/'
-require_text "$runtime_doc" 'skills/workflow/SKILL.md'
-require_text "$architecture_doc" 'runtime/prompts/'
+require_text "$runtime_doc" 'Workflow/Action Selection cues'
+require_text "$workflow_doc" 'Interaction Lifecycle'
 
 require_text "$pi_runtime" '../../../runtime/prompts/core.md'
 require_text "$pi_runtime" '../../../runtime/prompts/interaction-contract.md'
@@ -98,14 +99,13 @@ for file in \
 	"$agents_file" \
 	"$repo_root/CONTEXT.md" \
 	"$repo_root/README.md" \
-	"$repo_root/docs/freeflow-current-state.md" \
-	"$repo_root/docs/freeflow-packaging-and-publishing-design.md" \
-	"$runtime_doc" \
-	"$repo_root/docs/plugin-contract.md" \
 	"$repo_root/plugin-docs/README.md" \
-	"$repo_root/plugin-docs/workflow.md" \
+	"$workflow_doc" \
+	"$repo_root/plugin-docs/release.md" \
+	"$repo_root/plugin-docs/integrations/pi.md" \
+	"$repo_root/plugin-docs/integrations/piflow.md" \
 	"$architecture_doc" \
-	"$repo_root/plugin-docs/release-evidence.md"; do
+	"$repo_root/plugin-docs/release-evidence/README.md"; do
 	reject_text "$file" 'runtime kernel'
 done
 

@@ -2,17 +2,17 @@
 
 ## Status
 
-Superseded by [ADR 0005](0005-discuss-and-track-work-replace-discover.md).
+Superseded by [ADR 0005](0005-discuss-and-track-work-replace-discover.md) and [ADR 0010](0010-remove-pi-compatibility-aliases.md).
 
 This ADR preserves the historical decision that consolidated three shallow discovery skills. Its `discover` identity and command are no longer the current canonical surface.
 
 ## Decision
 
-Freeflow uses one active `discover` skill for discovery work before spec, plan, build, or durable memory.
+Freeflow used one active `discover` skill for discovery work at the time of this decision. The current canonical owner is `discuss`; the former Pi command alias was later removed by ADR 0010.
 
 The previous active skills `research-brief`, `grill-context`, and `capture-decisions` are deprecated and moved to root `.deprecated/skills/`. They are no longer part of the runtime skill surface or direct command surface.
 
-The active direct command is `/discover`.
+The active direct command was `/discover` at the time of this decision; it is historical and no longer part of the active command surface.
 
 ## Rationale
 
@@ -25,4 +25,5 @@ The `discover` skill uses the `design-for-depth` lens when module/interface/seam
 - `/research-brief`, `/grill-context`, and `/capture-decisions` are removed from the current command surface.
 - Historical evals and reports for the deprecated skills remain as development evidence.
 - Legacy discovery evidence lives in `.deprecated/skill-evals-v1/reports/by-skill/discover-1-report.md` and is documentary only. Current readiness requires accepted evidence under `.skill-eval/`.
-- Durable decisions now belong to the checkpoint destination chosen by `discover`: spec, plan, handoff, decision note, ADR, domain memory, or chat.
+- Durable decisions belonged to the checkpoint destination chosen by `discover`: spec, plan, handoff, decision note, ADR, domain memory, or chat.
+- The current `discuss` and `track-work` ownership split is recorded in ADR 0005; the former command alias removal is recorded in ADR 0010.

@@ -3,7 +3,7 @@
 > **Type:** Historical rolling implementation plan
 > **Status:** Superseded before implementation
 > **Source:** `docs/specs/skills/2026-07-13-freeflow-evaluator-v3.md` (superseded)
-> **Current direction:** [`skills/evaluate-skill/SKILL.md`](../../../skills/evaluate-skill/SKILL.md) and its fresh `run`/`view` implementation
+> **Current direction:** [`skills/evaluate-skill/SKILL.md`](../../../../skills/evaluate-skill/SKILL.md) and its fresh `run`/`view` implementation
 > **Historical baseline:** Retired evaluator under `.deprecated/skill-tooling-pre-rewrite/`
 > **Historical review:** Passed artifact review after one revision pass; four initial blockers were resolved
 > **Historical progress:** Phases 0–1 and accepted Phase 1 review corrections were self-verified before this plan was superseded

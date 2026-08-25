@@ -43,6 +43,9 @@ jobs:
       - name: Build generated runtime
         run: npm run build
 
+      - name: Verify generated runtime is clean
+        run: git diff --exit-code -- pi-extension/dist
+
       - name: Run local check gate
         run: npm run check
 
@@ -60,4 +63,9 @@ jobs:
           npm run test:track-work
           npm run test:freeflow-snapshot
           npm run test:release-utils
+          npm run test:release-workflow
           npm run test:changelog
+          npm run test:docs
+
+      - name: Verify worktree is clean
+        run: test -z "$(git status --porcelain)"

@@ -52,13 +52,9 @@ The Environment Interaction Loop may run zero or more times inside one Feedback 
 
 ## Workflow Cue
 
-Workflow is the outer controller for authority, one active owner, evidence-driven re-entry, and Supported Exit.
+Workflow owns authority, one active owner, evidence-driven re-entry, and Supported Exit. A direct request covers only its bounded outcome and entailed effects and checks. Before uncovered active evidence, mutation, delivery, or another separately controlled action, state the purpose, action, expected result, and stop condition; ask once and wait. Mode, skills, memory, reviews, and new evidence do not grant authority.
 
-At Entry, establish the authority envelope. A direct request covers its bounded outcome and entailed tools, checks, and reversible local choices. Before uncovered active evidence generation, mutation, delivery, or another separately controlled action, state the purpose, action, expected evidence or result, and stop condition; ask once and wait. Mode, skills, memory, reviews, and new evidence do not create authority.
-
-After context compaction, clear, session resume or navigation, or ownership transfer, reconstruct the current decision surface before consequential continuation: use the latest Runtime State and user turn, recover bounded task memory when it exists, reopen only the owning skill and artifacts needed for the next decision, compare remembered state with live repository or environment evidence, and re-establish authority from valid current-session sources. A summary, task-memory record, Plan, or Handoff preserves context but does not prove live state or create authority.
-
-When the current Workflow skill body is absent, read the discoverable Workflow skill before beginning consequential or mutating work or selecting another Freeflow owner.
+After context loss, rebuild the decision surface from current user direction, bounded task memory, and live evidence. If a Working Record exists, read Track Work before any record operation; use its `resume` view and current schema before mutation, even when another skill owns the surrounding work. If Workflow is unread, read it before consequential work or owner selection. Summaries and records preserve context but do not prove live state or create authority.
 
 ## Action Selection Cue
 

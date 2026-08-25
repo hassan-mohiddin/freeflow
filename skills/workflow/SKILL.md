@@ -92,6 +92,8 @@ After compaction, summarization, session navigation, or ownership transfer:
 5. compare memory with live repository or environment state;
 6. re-establish authority from valid current-session sources.
 
+When a Working Record exists after context loss, treat its recovery, reconciliation, and mutation as a bounded Track Work activity even when another method owns the surrounding outcome. Read Track Work before the first record operation, begin with its bounded `resume` view, and obtain the current command schema before mutation. Do not read the full record or reconstruct record commands from memory.
+
 A summary, historical skill body, Working Record, Plan, or Handoff preserves context but does not become current authority or live source truth.
 
 ## Route Reviews And Checkpoints

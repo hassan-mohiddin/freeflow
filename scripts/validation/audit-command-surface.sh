@@ -138,17 +138,9 @@ while IFS=$'\t' read -r command skill; do
 	fi
 done < <(jq -r '.directSkillCalls[] | [.command, .skill] | @tsv' "$registry")
 
-while IFS=$'\t' read -r command skill alias_for pi_only; do
-	target_skill="$(jq -r --arg command "$alias_for" '.directSkillCalls[] | select(.command == $command) | .skill' "$registry")"
-	if [ -z "$target_skill" ] || [ "$target_skill" = "null" ]; then
-		fail "$command aliases missing canonical command: $alias_for"
-	elif [ "$target_skill" != "$skill" ]; then
-		fail "$command alias skill $skill differs from $alias_for skill $target_skill"
-	fi
-	if [ "$pi_only" != "true" ]; then
-		fail "$command compatibility alias must remain Pi-only because Claude/Codex use their native skill selectors"
-	fi
-done < <(jq -r '.directSkillCalls[] | select(.aliasFor != null) | [.command, .skill, .aliasFor, (.piOnly // false)] | @tsv' "$registry")
+if jq -e '.directSkillCalls[] | select(.aliasFor != null)' "$registry" >/dev/null; then
+\tfail "compatibility aliases are not supported in the active command surface"
+fi
 
 while IFS=$'\t' read -r command skill; do
 	if ! registry_has_direct_command "$command"; then
@@ -222,10 +214,8 @@ for legacy_skill in deprecation-and-migration shipping-and-launch; do
 		"$pi_extension_dist" \
 		"$plugin_root/README.md" \
 		"$plugin_root/plugin-docs/skill-routing.md" \
-		"$plugin_root/docs/freeflow-current-state.md" \
-		"$plugin_root/docs/freeflow-packaging-and-publishing-design.md" \
-		"$plugin_root/docs/freeflow-runtime-and-lifecycle.md" \
-		"$plugin_root/docs/plugin-contract.md" \
+		"$plugin_root/README.md" \
+		"$plugin_root/plugin-docs" \
 		"$command_docs" \
 		"$skills_dir" >/dev/null; then
 		fail "legacy skill identity remains in active runtime or docs: $legacy_skill"
@@ -239,10 +229,6 @@ for stale_active_label in discovery-light "Deprecation and migration" "Shipping 
 		"$pi_extension_dist" \
 		"$plugin_root/README.md" \
 		"$plugin_root/plugin-docs" \
-		"$plugin_root/docs/freeflow-current-state.md" \
-		"$plugin_root/docs/freeflow-packaging-and-publishing-design.md" \
-		"$plugin_root/docs/freeflow-runtime-and-lifecycle.md" \
-		"$plugin_root/docs/plugin-contract.md" \
 		"$command_docs" >/dev/null; then
 		fail "stale active skill label remains: $stale_active_label"
 	fi

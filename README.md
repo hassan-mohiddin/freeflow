@@ -2,127 +2,96 @@
 
 **A feedback-based control system for coding agents.**
 
-Freeflow helps coding agents move through consequential work without a rigid pipeline, silent decisions, or context-heavy ceremony.
+Freeflow helps coding agents do consequential work without turning every task into a rigid ceremony. It gives the agent a clear interaction contract, evidence-driven Workflow, focused methods, durable task memory, and controlled delivery boundaries.
 
-> Use feedback to choose the smallest useful next action.
->
-> Re-enter the narrowest owning activity when evidence changes the path.
->
-> Memory preserves context. It does not create authority.
-
-The active agent still does the work. Freeflow supplies the interaction contract, workflow routing, focused methods, task memory, and evidence discipline that help it decide what to do next—and when not to edit.
+The host agent still owns tools, permissions, and execution. Freeflow helps it choose the right next action—and know when to stop, ask, verify, or hand work back.
 
 ## Why Freeflow
 
-Coding agents are strong at mutation and weak at control boundaries:
+Coding agents commonly fail at control boundaries:
 
-| Common failure | Freeflow response |
+| Pressure | Freeflow response |
 | --- | --- |
 | A question or tentative idea becomes an edit. | The Interaction Contract answers first and waits for clear action authority. |
-| A prompt conflicts with tests, policy, or accepted behavior. | Decision Gate names the conflict and stops before mutation. |
-| Work follows a plan after evidence invalidates it. | Workflow routes from evidence and preserves unaffected work. |
-| Every task gets a spec, plan, review, and status ceremony. | Workflow enters at the narrowest useful owner and creates artifacts only when they help. |
-| A passing command becomes an unsupported completion claim. | Verify Work matches direct evidence to the exact claim and boundary. |
-| Review findings are treated as commands. | The active agent adjudicates; corrections require existing or explicit authority. |
-| Compaction loses task state or imports stale branch authority. | Track Work restores the complete Working Record and reconciles it with the current conversation and live repo. |
-| Consumed tool results keep occupying future context. | Pi's optional Context Virtualization archives consumed results while preserving canonical session history. |
+| A prompt conflicts with tests, policy, or accepted behavior. | Decision Gate names the conflict before mutation. |
+| New evidence invalidates the plan. | Workflow routes from evidence and preserves unaffected work. |
+| Every task receives unnecessary ceremony. | Workflow enters at the narrowest useful owner. |
+| A passing command becomes an unsupported completion claim. | Verify Work matches evidence to the exact claim and boundary. |
+| Compaction loses task state. | Track Work restores a Working Record and reconciles it with live state. |
+| Tool output consumes future context. | Context Virtualization can archive consumed evidence while preserving session history. |
 
-Freeflow is not a new agent or workflow engine. It is a portable control layer for Codex, Claude Code, Pi, and similar coding environments.
+## Contents
 
-## The Control System
+- [How it works](#how-it-works)
+- [Host support](#host-support)
+- [Capabilities](#capabilities)
+- [Quick start](#quick-start)
+- [Modes and workflow](#modes-and-workflow)
+- [System prompt architecture](#system-prompt-architecture)
+- [Evidence and limits](#evidence-and-limits)
+- [Commands](#commands)
+- [Documentation and development](#documentation-and-development)
+- [What Freeflow is not](#what-freeflow-is-not)
 
-One user interaction is an **Interaction Lifecycle**:
+## How it works
 
-![Freeflow Workflow: Entry, Feedback Loop, and Supported Exit](assets/workflow.png)
-
-```text
-[Entry] -> [Feedback Loop when needed] -> [Supported Exit]
-   ^              ^        |                  |
-   |              |________|                  |
-   |__________________________________________|
-            later user turn or evidence
-```
-
-When work is needed, the inner **Feedback Loop** applies to every bounded activity:
-
-![Freeflow Core Feedback Loop: orient, use the owning skill, verify, self-review the supported result, and route from evidence](assets/feedback-loop.png)
+Freeflow uses one active agent, one shared context, and nested feedback loops:
 
 ```text
-orient to accepted intent, task memory, and live evidence
--> use the narrowest owning skill
--> implement, discuss, test, or observe
--> verify what the evidence proves
--> once initially supported, self-review the resulting state
--> only then accept, reuse, or claim that activity complete
--> continue, correct, diagnose, revise, ask, defer, or stop
+Interaction Lifecycle
+└─ Workflow Feedback Loop
+   ├─ establishes authority, owner, and slice
+   └─ Cognitive Execution Loop — automatic control only
+      ├─ Reasoning establishes the governing execution contract
+      ├─ DELEGATE to Standard
+      │  └─ Environment Interaction Loop
+      │     ├─ select and bound the next action
+      │     ├─ use Action Selection when uncertain or broad
+      │     ├─ take the obvious fast path when mechanical
+      │     ├─ execute and observe
+      │     └─ repeat within the delegation contract
+      ├─ RETURN evidence to Reasoning
+      ├─ Reasoning self-reviews
+      └─ close, delegate correction, or return to Workflow
 ```
 
-A Supported Exit may answer, wait, pause, hand off, defer, stop, preserve a controlled boundary, or complete. Freeflow does not invent another phase merely because one exists in the full skill pack.
+Under manual profile control, the Cognitive Execution Loop is not used; the held profile runs the ordinary unsplit Workflow. Cognitive Routing changes compute placement only. It never changes authority, ownership, mode, task scope, evidence requirements, or review independence.
 
-## Core Principles
+The Workflow owner may be Discuss, Track Work, Execute Work, Verify Work, Review Work, Review Artifact, Diagnose Failure, or another focused method. These methods compose when their conditions apply; they are not a mandatory phase pipeline.
 
-- **The active agent owns the current route.** Independent review may add judgment; it does not take over routing or verification.
-- **Authority is outcome-and-effect scoped.** Each interaction carries a requested outcome, permitted effects, evidence boundary, and stop condition established by a direct request or still-valid approval. Mode, skill selection, usefulness, and new evidence do not widen it.
-- **Passive observation differs from active evidence generation.** Inspecting existing evidence may support an inquiry; exercising target behavior or changing repository, durable task or session, or external state requires coverage by the current authority envelope. Effects are cumulative, so the strongest relevant boundary applies.
-- **Verification is factual. Review is judgment.** The active agent verifies; self-review is silent; selected independent review uses a separate context.
-- **Pass is not the only review exit.** Pass, Non-blocking, Inconclusive, and Blocking all end review and return evidence to Workflow.
-- **Review findings do not authorize edits.** Ask for unapproved corrections and any warranted focused follow-up together.
-- **Specs and Plans have separate jobs and separate reviews.** Working Records carry evolving state; Plans remain stable ordered strategy.
-- **A slice may span several feedback iterations.** Extend its boundary write-ahead only while the intended result remains coherent.
-- **Diagnose before redesigning.** Ordinary mistakes do not prove structural failure.
-- **Bypass skips optional pressure, not authority, safety, evidence, or selected review.**
+## Host support
 
-## Modes
+Freeflow is one package with different host boundaries:
 
-Freeflow has exactly three modes:
-
-| Mode | Use for | Guardrail |
+| Host | Freeflow support | Cognitive Routing |
 | --- | --- | --- |
-| `conversation` | Discussion, critique, explanation, and passive inspection of existing evidence | Active evidence generation and mutation or delivery require switching mode plus authority. |
-| `workflow` | Active evidence generation and normal consequential or mutating work | Use the adaptive lifecycle and proportionate evidence. |
-| `strict-workflow` | High-risk or hard-to-reverse work | Stronger decision, evidence, and checkpoint pressure without mandatory independent review after every slice. |
+| Codex | Shared skills and lifecycle hook | Not available; Pi-only capabilities are not delivered |
+| Claude Code | Shared skills and lifecycle hook | Not available; Pi-only capabilities are not delivered |
+| Pi | Shared skills, Pi extension, and optional context capabilities | Configuration is inspectable but execution is disabled |
+| PiFlow | Freeflow package hosted by the separate PiFlow distribution | Available when host controls, Skills, and profiles are configured |
 
-Task type and direct skill calls do not silently switch mode.
+Freeflow owns workflow policy, prompt fragments, skills, capabilities, and the Pi extension. PiFlow owns host launch, package installation, session state, updates, and the model-state control required by Cognitive Routing.
 
-## Skills And Routing
+## Capabilities
 
-Freeflow ships 26 model/contributor skills to Codex, Claude Code, and Pi, including Action Selection. Pi also provides gated Cognitive Routing, Context Virtualization, and Conversation History capabilities outside the shared skill surface.
+### Workflow and task memory
 
-See the [typed skill routing map](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/skill-routing.md) for every owner, sibling route, and reference dependency. See [Workflow](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/workflow.md) for the lifecycle and [Architecture](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/architecture.md) for delivery and configuration.
+- **Workflow** coordinates authority, owner selection, evidence-driven re-entry, and Supported Exit.
+- **Action Selection** bounds uncertain or broad Environment Interactions while preserving the current owner.
+- **Track Work** maintains one Working Record when decisions, evidence, blockers, or the next action must survive context loss.
+- **Verify Work, Review Work, Review Artifact, and Diagnose Failure** separate factual support, judgment, artifact fitness, and unsupported causes.
 
-## Task Memory Without A Second Task System
+### Optional host capabilities
 
-Track Work maintains one Working Record for an ongoing task:
+- **[Cognitive Routing](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/cognitive-routing.md)** places compute between Reasoning and Standard under automatic control. It is PiFlow-only and experimental.
+- **[Context Virtualization](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/context-virtualization.md)** classifies consumed tool evidence as Full, Retained, or Reference-only for future context while leaving canonical history unchanged.
+- **[Conversation History](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/conversation-history.md)** performs bounded retrieval of exact missing prior-conversation evidence from the current active branch.
 
-- current context;
-- one current slice;
-- ordered proposed slices;
-- task-local decisions and hypotheses;
-- evidence pointers and completed history;
-- one next useful action;
-- optional inert Notes.
+All three capabilities are Skills-gated and default-off or unavailable unless their configuration and host conditions are effective. None of them grants authority or replaces Workflow.
 
-It records state transitions, not every edit or comment. Routine in-slice feedback is not checkpoint history. After compaction, summarization, clear, resume, or session navigation, Workflow uses the bounded `resume` view and retrieves exact history only when needed, treating the record as memory rather than authority.
+## Quick start
 
-## Context Is For Decisions, Not Dumps
-
-In Pi, optional Context Virtualization lets the model archive consumed tool-result content from future context while preserving canonical session history. Use native host tools for direct file reads, commands, and mutations.
-
-## Evidence, Not Marketing Certainty
-
-Historical workflow and router benchmarks remain documentary evidence, not universal guarantees. Retired Output Router material is preserved under `.deprecated/output-router/`. The current adaptive skill candidate is **Unverified** pending baseline-vs-with-skill behavioral evaluation.
-
-| Evidence | Result |
-| --- | --- |
-| Historical v0.1 acceptance suite | 15/15 fixtures passed after measured fixes. |
-| Historical source-truth conflict pressure | Baseline 2/10; with-skill 10/10. |
-| Retrieval benchmark | 7/7 gated fixtures; 98.54% weighted context reduction. |
-| Command-output benchmark | 8/8 fixtures with exact recovery; 85.03% weighted reduction. |
-| Pi observed-routing eval | 28/28 objective gates; 82.2% overall byte reduction. |
-
-See [release evidence](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/release-evidence.md) for boundaries, reports, and deferred checks.
-
-## Install
+For the complete host-specific setup, see [Getting Started](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/getting-started.md).
 
 ### Codex
 
@@ -130,20 +99,17 @@ See [release evidence](https://github.com/hassan-mohiddin/freeflow/blob/main/plu
 codex plugin marketplace add https://github.com/hassan-mohiddin/freeflow.git
 codex plugin marketplace upgrade freeflow
 codex plugin add freeflow@freeflow
-codex plugin list | rg freeflow
 ```
 
-Trust the Freeflow `SessionStart` hook from `/hooks` when Codex requests review, then start a new session so skills and lifecycle context load from the installed plugin.
+Trust the Freeflow hook from `/hooks`, then start a new session.
 
 ### Claude Code
 
-```bash
+```text
 /plugin marketplace add hassan-mohiddin/freeflow
 /plugin install freeflow
 /reload-plugins
 ```
-
-Start a new session after first install when the current session predates the plugin.
 
 ### Pi
 
@@ -157,40 +123,77 @@ Or:
 pi install git:github.com/hassan-mohiddin/freeflow
 ```
 
-## Activate In A Repository
+### PiFlow
 
-Run:
+Install PiFlow separately, then install Freeflow into it:
+
+```bash
+npm install -g --ignore-scripts @hassangameryt/piflow
+piflow install npm:@hassangameryt/freeflow
+```
+
+For a Git source:
+
+```bash
+piflow install git:github.com/hassan-mohiddin/freeflow
+```
+
+In the target repository, run:
 
 ```text
 /setup-freeflow
 ```
 
-Minimal setup creates shared activation:
+Setup creates `.freeflow/config.json`, the required shared activation boundary. `.freeflow/local.json` is an optional personal override and cannot activate Freeflow by itself.
 
-```json
-{
-  "defaultMode": "workflow"
-}
-```
+## Modes and workflow
 
-Configuration layers are:
+Freeflow has exactly three modes:
+
+| Mode | Use for |
+| --- | --- |
+| `conversation` | Discussion, critique, explanation, and passive inspection |
+| `workflow` | Active evidence generation and normal consequential work |
+| `strict-workflow` | High-risk or hard-to-reverse work |
+
+Mode changes do not authorize work. A direct request, still-valid approval, or accepted task contract establishes the authority envelope; mode, skill selection, usefulness, and new evidence do not widen it.
+
+Every bounded activity follows the same Feedback Loop:
 
 ```text
-host session mode override
--> .freeflow/local.json personal core override
--> .freeflow/config.json shared repository value
--> built-in default
+orient to accepted intent, task memory, and live evidence
+-> use the narrowest owner
+-> act, discuss, test, or observe
+-> verify what the evidence proves
+-> self-review the supported result
+-> continue, correct, diagnose, revise, ask, defer, or stop
 ```
 
-`.freeflow/config.json` is required. `.freeflow/local.json` is optional and cannot activate Freeflow by itself. Pi stores session overrides in branch-aware session JSONL; Claude and Codex store mode overrides in plugin-owned data keyed by host session ID. Session controls do not mutate config files and cannot bypass missing or invalid repository activation. Setup does not write Freeflow instructions into `AGENTS.md`, `CLAUDE.md`, or host rule files.
+## System prompt architecture
 
-## Runtime Delivery
+Freeflow’s model-facing surface has three layers:
 
-When effective, host adapters compose static fragments from `runtime/prompts/` and expose discoverable skills/tools from the same effective-state snapshot. Runtime State is appended to every provider invocation with current mode, capability, and Cognitive Routing facts.
+1. **Stable prompt fragments** under `runtime/prompts/` provide compact guidance and conditional capability cues.
+2. **Runtime State** reports current mode, capability availability, and Cognitive Routing `Control`/`Profile` before every provider request.
+3. **Discoverable skills and tools** provide complete methods and operations when effective gates apply.
 
-Skills is the parent gate for Cognitive Routing, Context Virtualization, and Conversation History. Full Workflow, Action Selection, and capability skill bodies are discoverable rather than persistent bootstrap content. Interaction Contract is prompt-only at `runtime/prompts/interaction-contract.md`. Hooks load context only; they do not enforce policy, block tools, grant permissions, or replace repo instructions.
+One effective-state snapshot determines all three surfaces. The Interaction Contract is prompt-only. Skills gates Cognitive Routing, Context Virtualization, and Conversation History. Missing optional capability content is omitted and reported unavailable rather than fabricated.
 
-Pi composes effective fragments before agent turns and filters historical bootstrap entries. Codex and Claude use one packaged runtime hook without injecting a full Workflow bootstrap. Setup reports automatic delivery as confirmed, unavailable, or unconfirmed.
+Read the full [System Prompt Architecture](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/prompt-architecture.md) and [Workflow](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/workflow.md) docs for the complete contract.
+
+## Evidence and limits
+
+Freeflow is explicit about what its checks prove:
+
+- deterministic checks prove structure, assembly, package boundaries, and selected delivery behavior;
+- release evidence is versioned and records source, checks, artifacts, deferred evidence, and limits;
+- local installation does not prove remote host installation or registry propagation;
+- deterministic skill/runtime checks do not prove model behavior or universal skill readiness;
+- Cognitive Routing remains experimental pending behavioral acceptance.
+
+The deprecated Output Router is removed and no longer available. Its implementation and evidence remain archived under `.deprecated/output-router/`.
+
+See [Release Process](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/release.md) and [Release Evidence](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/release-evidence/README.md).
 
 ## Commands
 
@@ -217,13 +220,6 @@ Natural language is preferred. Pi registers these canonical direct calls:
 /bypass
 ```
 
-Pi-only compatibility aliases:
-
-```text
-/discover
-/execute-plan
-```
-
 Contributor calls:
 
 ```text
@@ -241,34 +237,45 @@ Mode controls:
 /freeflow mode reset
 ```
 
-Pi-native settings controls:
+Pi settings and PiFlow-only Cognitive Routing controls:
 
 ```text
 /freeflow
+/freeflow profile standard
+/freeflow profile reasoning
+/freeflow profile auto
 ```
 
-Pi `/freeflow settings` edits personal core overrides, `/freeflow settings session` manages temporary core and mode overrides, and `/freeflow settings repo` edits shared settings. For session mode, Pi uses `/freeflow mode <mode|reset>`, Claude uses `/freeflow:mode-contract <mode|reset>`, and Codex uses `$mode-contract <mode|reset>`. Clear natural-language instructions such as “Switch to conversation mode” use the same host-managed session control; questions and hypotheticals do not.
+Pi `/freeflow settings` edits personal overrides, `/freeflow settings session` manages temporary session overrides, and `/freeflow settings repo` edits shared repository settings. Profile changes require PiFlow and an idle host.
 
-Claude exposes plugin skills as namespaced commands such as `/freeflow:discuss`; Codex exposes them through `/skills` and `$discuss`. Freeflow uses these host-native skill surfaces instead of duplicate manifest command handlers. Direct skill calls select a method. They do not change mode, widen the authority envelope, or create independent review context.
+In PiFlow, while the host is idle:
 
-A request to change the **default** is separate. Explicit local/personal wording targets `.freeflow/local.json`; explicit repository/shared/team wording targets `.freeflow/config.json`. An unqualified “change the default mode” request requires one local-versus-repository clarification before editing.
+- `Ctrl+Shift+R` cycles the manual standard/reasoning hold.
+- `Ctrl+Shift+A` cycles the automatic standard/reasoning profile; from a manual hold, its first press returns to automatic control without forcing a profile transition.
 
-## Public Docs
+Normal Pi does not register these Cognitive Routing shortcuts.
 
-- [Docs index](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/README.md)
-- [Workflow](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/workflow.md)
-- [Skill routing](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/skill-routing.md)
+## Documentation and development
+
+- [Documentation hub](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/README.md)
+- [Getting Started](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/getting-started.md)
 - [Architecture](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/architecture.md)
-- [Release evidence](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/release-evidence.md)
-- [Release ADRs](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/adr/README.md)
+- [System Prompt Architecture](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/prompt-architecture.md)
+- [Capabilities](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/README.md)
+- [PiFlow integration](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/integrations/piflow.md)
+- [Skill routing](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/skill-routing.md)
+- [Release Process](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/release.md)
+- [Changelog](CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md)
 
-## What Freeflow Is Not
+For local development, use committed Freeflow snapshots with `npm run snapshot:refresh`. Do not treat an uncommitted working tree as a production package source. PiFlow owns the host development launcher and state synchronization.
 
-- Not a new agent.
-- Not a mandatory phase pipeline.
-- Not a CLI enforcement framework.
+## What Freeflow is not
+
+- Not a new agent or workflow engine.
+- Not a rigid phase pipeline.
+- Not a permission or CLI enforcement framework.
 - Not a replacement for repository instructions, tests, policies, or review culture.
-- Not old Orchestra with a smaller README.
 - Not proof that the current candidate is behaviorally ready.
 
 ## License

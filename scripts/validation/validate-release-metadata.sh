@@ -86,9 +86,9 @@ skill_routing_stderr="$(mktemp "${TMPDIR:-/tmp}/freeflow-skill-routing.err.XXXXX
 runtime_hook_stdout="$(mktemp "${TMPDIR:-/tmp}/freeflow-runtime-hook.out.XXXXXX")"
 runtime_hook_stderr="$(mktemp "${TMPDIR:-/tmp}/freeflow-runtime-hook.err.XXXXXX")"
 readme="$plugin_root/README.md"
-packaging_design="$plugin_root/docs/freeflow-packaging-and-publishing-design.md"
 architecture_doc="$plugin_root/plugin-docs/architecture.md"
-release_evidence="$plugin_root/plugin-docs/release-evidence.md"
+release_doc="$plugin_root/plugin-docs/release.md"
+release_evidence="$plugin_root/plugin-docs/release-evidence/v${release_version}.md"
 release_boundary_adr="$plugin_root/plugin-docs/adr/0003-release-boundary.md"
 
 checks_file="$(mktemp "${TMPDIR:-/tmp}/freeflow-release-checks.XXXXXX")"
@@ -310,7 +310,7 @@ check_release_boundary() {
 	local check="release-boundary"
 	local ok=1
 
-	for file in "$architecture_doc" "$release_evidence" "$release_boundary_adr"; do
+	for file in "$architecture_doc" "$release_doc" "$release_evidence" "$release_boundary_adr"; do
 		require_file "$check" "$file" || ok=0
 	done
 
@@ -331,6 +331,11 @@ check_release_boundary() {
 
 	contains_fixed "$architecture_doc" "shared context-and-session-mode hook" || {
 		record_check "$check" "fail" "Architecture doc no longer documents the shared runtime hook."
+		ok=0
+	}
+
+	contains_fixed "$release_doc" "Release preparation is an authorized local preparation step" || {
+		record_check "$check" "fail" "Release docs no longer document the preparation boundary."
 		ok=0
 	}
 
@@ -467,36 +472,35 @@ check_docs_drift() {
 		ok=0
 	}
 
-	contains_fixed "$packaging_design" 'Tagline: `A feedback-based control system for coding agents.`' || {
-		record_check "$check" "fail" "Packaging design no longer states the accepted product identity."
-		ok=0
-	}
-
 	local mode_count direct_count developer_count pi_native_count
 	mode_count="$(json_get "$command_surface" '.modeCommands | length')"
 	direct_count="$(json_get "$command_surface" '.directSkillCalls | length')"
 	developer_count="$(json_get "$command_surface" '.developerSkillCalls | length')"
 	pi_native_count="$(json_get "$command_surface" '.piNativeCommands | length')"
 
-	contains_fixed "$release_evidence" "$mode_count mode commands" || {
-		record_check "$check" "fail" "Release evidence no longer lists $mode_count mode commands."
-		ok=0
-	}
+	if [ "$mode" = "release" ]; then
+		contains_fixed "$release_evidence" "$mode_count mode commands" || {
+			record_check "$check" "fail" "Release evidence no longer lists $mode_count mode commands."
+			ok=0
+		}
 
-	contains_fixed "$release_evidence" "$direct_count direct skill calls" || {
-		record_check "$check" "fail" "Release evidence no longer lists $direct_count direct skill calls."
-		ok=0
-	}
+		contains_fixed "$release_evidence" "$direct_count direct skill calls" || {
+			record_check "$check" "fail" "Release evidence no longer lists $direct_count direct skill calls."
+			ok=0
+		}
 
-	contains_fixed "$release_evidence" "$developer_count developer skill calls" || {
-		record_check "$check" "fail" "Release evidence no longer lists $developer_count developer skill calls."
-		ok=0
-	}
+		contains_fixed "$release_evidence" "$developer_count developer skill calls" || {
+			record_check "$check" "fail" "Release evidence no longer lists $developer_count developer skill calls."
+			ok=0
+		}
 
-	contains_fixed "$release_evidence" "$pi_native_count Pi native settings commands" || {
-		record_check "$check" "fail" "Release evidence no longer lists $pi_native_count Pi native settings commands."
-		ok=0
-	}
+		contains_fixed "$release_evidence" "$pi_native_count Pi native settings commands" || {
+			record_check "$check" "fail" "Release evidence no longer lists $pi_native_count Pi native settings commands."
+			ok=0
+		}
+	else
+		record_check "$check" "pass" "Versioned release evidence is immutable; current command-surface counts are validated separately."
+	fi
 
 	if [ "$ok" = "1" ]; then
 		record_check "$check" "pass" "Docs and manifests agree with the current command-surface boundary."

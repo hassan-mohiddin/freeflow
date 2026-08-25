@@ -39,12 +39,6 @@
       "skill": "action-selection"
     },
     {
-      "command": "/discover",
-      "skill": "discuss",
-      "aliasFor": "/discuss",
-      "piOnly": true
-    },
-    {
       "command": "/track-work",
       "skill": "track-work"
     },
@@ -63,12 +57,6 @@
     {
       "command": "/execute-work",
       "skill": "execute-work"
-    },
-    {
-      "command": "/execute-plan",
-      "skill": "execute-work",
-      "aliasFor": "/execute-work",
-      "piOnly": true
     },
     {
       "command": "/simplify-code",

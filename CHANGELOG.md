@@ -2,19 +2,33 @@
 
 ## Unreleased
 
+### Added
+
 - Adds a deterministic v2 Track Work runtime with strict schema-driven updates, bounded views, decision and checkpoint lifecycles, historical reopening, stale-lock recovery, loss-resistant migration and compression, candidate round-trip validation, and atomic persistence.
 - Rebuilds Track Work as one complete lifecycle method for task-memory creation and recovery, Current Slice continuity, proposals, decisions, checkpoints, evidence, Notes, closure, and reconciliation while keeping exact command mechanics schema-driven.
-- Simplifies the Interaction Contract into compact evidence-based interaction semantics: separates user goals from factual claims, answers mixed question/action turns before acting, and proceeds on clear requests without silently expanding them; adds focused baseline-versus-candidate behavioral evaluation cases.
+- Extends Evaluate Skill with explicit runtime profiles, PiFlow host variants, extension bundles, prompt/context evidence, tool-call predicates, and stronger isolation and evidence safeguards for behavioral evaluation.
 - Adds the Pi-only Cognitive Routing capability with standard/reasoning profiles, manual unsplit control, Reasoning-led automatic execution boundaries with Standard delegation, state restoration, runtime Control/Profile delivery, transition history, and PiFlow host integration; keeps it experimental pending behavioral acceptance.
+- Adds Action Selection as a cross-host skill for bounding uncertain or broad environment interactions before choosing tools or repeated actions.
 - Adds opt-in Pi-only Context Virtualization for archiving classified tool results from future model context while preserving canonical session history, with archive/restore controls and working-set policy.
 - Adds opt-in Pi-only Conversation History retrieval for bounded current-branch recovery, with passage ranking, cancellation handling, and explicit recovery-policy safeguards.
 - Adds committed exact-revision Freeflow development snapshots for Pi/PiFlow with provenance, atomic refresh, package validation, and isolated targets while separating Freeflow policy from PiFlow host ownership.
 - Adds human-controlled release automation, pull-request/main CI, deterministic version and changelog preparation, metadata validation, tag-verified npm/GitHub Release publishing, recovery support, release-note extraction, and PR changelog declaration validation.
-- Retires the Output Router runtime, Pi tools, settings command, capability guidance, and active evaluation surface; archives the implementation and evidence under `.deprecated/output-router/` while leaving legacy router-shaped config inert for activation compatibility.
+- Adds a canonical public documentation hub, Pi/PiFlow Getting Started guidance, versioned release evidence, consolidated ADR ownership, tracked historical project-doc archiving, and deterministic documentation validation.
+
+### Changed
+
+- Simplifies the Interaction Contract into compact evidence-based interaction semantics: separates user goals from factual claims, answers mixed question/action turns before acting, and proceeds on clear requests without silently expanding them; adds focused baseline-versus-candidate behavioral evaluation cases.
 - Scopes workflow authority by requested outcome, permitted effects, evidence boundary, and stop condition; distinguishes passive observation, active evidence generation, and mutation or delivery; and consolidates detailed policy in Workflow so mode, skill selection, usefulness, or new evidence cannot silently authorize the next action.
 - Aligns discussion, diagnosis, execution, mode, TDD, verification, and review guidance with the shared authority model; separates review adjudication from remediation; moves Working Record selection to Discuss and Workflow while Track Work operates established memory; defines entry-required, activity-required, and conditional reference reads; makes child skills own their reference activation; and keeps reference filenames aligned with their visible titles.
-- Relocates the Interaction Contract under `capabilities/interaction-contract/` and hides retained historical material under `.deprecated/`, updating live loaders, package checks, documentation, and links.
+- Moves the Interaction Contract into layered runtime prompt fragments and hides retained historical material under `.deprecated/`, updating live loaders, package checks, documentation, and links.
+- Adds layered prompt-fragment, Runtime State, and discoverable-skill delivery with capability gating so hosts receive stable guidance and opt-in Pi capabilities through separate runtime surfaces.
 - Requires silent self-review after every bounded activity—tasks, slices, subtasks, artifact revisions, and small local changes—before its result is accepted, reused, or claimed complete; keeps corrections inside the existing authority envelope and reinforces the boundary in execution, bypass, task completion, plan defaults, and pre-activation setup.
+- Hardens changelog governance and tag-driven release CI with canonical category validation, released-history immutability, pre-publication release-note checks, exact artifact verification, and recovery safeguards.
+
+### Removed
+
+- Removes the deprecated Output Router from the Pi runtime, tools, settings command, capability guidance, and active evaluation surface; it is no longer available for use. Legacy router-shaped configuration remains inert for activation compatibility, while the implementation and evidence are archived under `.deprecated/output-router/`.
+- Removes the legacy Pi-only `/discover` and `/execute-plan` compatibility aliases; use `/discuss` and `/execute-work` instead.
 
 ## 0.5.0 - 2026-08-13
 

@@ -2,38 +2,33 @@
 
 These docs describe the public plugin behavior.
 
-After installing Freeflow, run setup in each repo where you want it active:
+Start with [Getting Started](getting-started.md) for host-specific installation, repository activation, and first-session verification. This page is a navigation hub; detailed behavior belongs in the linked integration, architecture, workflow, routing, and release pages.
 
-```text
-/setup-freeflow
-```
+## Integrations
 
-Setup creates `.freeflow/config.json`, the sole repo activation boundary. It does not generate Freeflow text in repo-owned host instruction files.
+- [Pi integration](integrations/pi.md): normal Pi installation, activation, capabilities, and host limits.
+- [PiFlow integration](integrations/piflow.md): separate PiFlow installation, ownership boundaries, and Cognitive Routing.
 
-In Codex, open the hooks screen after install:
+## Capabilities
 
-```text
-/hooks
-```
+- [Capability overview](capabilities/README.md): gates, host support, composition, and evidence limits.
+- [Cognitive Routing](capabilities/cognitive-routing.md): Reasoning/Standard compute placement and PiFlow boundary.
+- [Context Virtualization](capabilities/context-virtualization.md): archive/restore of consumed evidence projections.
+- [Conversation History](capabilities/conversation-history.md): bounded current-branch evidence recovery.
 
-Press `t` to trust/enable the Freeflow plugin hooks when Codex marks them as needing review. Once enabled, the shared runtime hook stays inert until repository configuration is valid and any personal layer is missing or valid. `SessionStart` loads the applicable static fragments from `runtime/prompts/` and current mode state after start, resume, clear, and compact; it does not inject a full Workflow bootstrap. `UserPromptSubmit` runs for every submitted prompt but emits context only for an explicit session-mode control; ordinary prompts remain silent. Neither path exposes Pi-only capabilities. Setup reports runtime delivery as confirmed, unavailable, or unconfirmed instead of treating config as proof that the hook ran.
+## Documentation
 
-In Pi, install Freeflow as a Pi package from npm:
-
-```bash
-pi install npm:@hassangameryt/freeflow
-```
-
-Or install directly from GitHub:
-
-```bash
-pi install git:github.com/hassan-mohiddin/freeflow
-```
-
-The package exposes the built Pi extension at `pi-extension/dist/index.js`. Pi extension source lives in `pi-extension/src/`. The Pi extension dynamically exposes normal and effective capability skills after repo setup, keeps `/freeflow mode` changes scoped to the Pi session, refreshes prompt fragments and Runtime State on every provider request, filters historical bootstrap entries, and does not inject full Workflow or capability bodies into the system prompt. Use `/freeflow` for the unified settings/status UI, including separate Session mode and Default mode controls; when Freeflow is off, nested skill, mode, and capability settings are inactive until re-enabled. The extension does not enforce policy, grant permissions, or create repo-local hooks.
-
+- [Getting Started](getting-started.md): install, activate, and verify Freeflow on each supported host.
 - [Workflow](workflow.md): modes, entry points, loops, and the compact workflow map.
 - [Skill routing](skill-routing.md): shipped skills, ownership, sibling routes, and reference dependencies.
 - [Architecture](architecture.md): package layout, layered configuration, runtime delivery, review topology, and task memory.
-- [Release evidence](release-evidence.md): current release evidence and deferred checks.
+- [System prompt architecture](prompt-architecture.md): prompt fragments, Runtime State, discoverable skills, gating, and nested execution context.
+- [Release process](release.md): one-package preparation, evidence, and human-controlled release boundaries.
+- [Release evidence](release-evidence/README.md): versioned evidence records and deferred checks.
 - [ADRs](adr/README.md): durable release decisions.
+
+## For contributors
+
+- [Repository agent guidance](../AGENTS.md): source selection, task continuity, snapshots, and release boundaries.
+- [Contribution guidance](../CONTRIBUTING.md): checks, documentation ownership, changelog rules, and human-controlled operations.
+- Use Track Work for active Working Records; do not put task state in the README or public documentation.

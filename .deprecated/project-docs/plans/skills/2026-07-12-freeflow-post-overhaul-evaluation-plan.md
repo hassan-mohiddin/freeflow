@@ -5,7 +5,7 @@
 > **Owner:** Hassan Mohiddin
 > **Type:** Historical plan
 > **Status:** Superseded
-> **Current route:** None; the evaluator v3 plan and this campaign were superseded by the fresh [`Evaluate Skill`](../../../skills/evaluate-skill/SKILL.md) contract
+> **Current route:** None; the evaluator v3 plan and this campaign were superseded by the fresh [`Evaluate Skill`](../../../../skills/evaluate-skill/SKILL.md) contract
 > **Historical sources:** `docs/specs/skills/2026-07-12-freeflow-composition-evaluation-extension.md`; `docs/specs/skills/skill-authoring-and-evaluation-v2.md`; the then-current 26-skill inventory and evidence registry; Output Router and Delegation review-loop incident handoffs; owner-approved evaluation campaign
 
 The instructions below are documentary history only. Do not resume their `evaluate --plan-only`, semantic-grader, readiness, cap, or owner-approval workflow against the active evaluator.

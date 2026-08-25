@@ -4,6 +4,9 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { extractUnreleasedSection, releasedSectionsEqual, validateChangelogStructure } from "../changelog-utils.mjs";
+
+export { extractUnreleasedSection, validateChangelogStructure };
 
 const CHANGELOG_PATH = "CHANGELOG.md";
 const DECLARATION_MARKERS = {
@@ -38,37 +41,32 @@ export function parseDeclaration(body) {
   };
 }
 
-export function extractUnreleasedSection(markdown) {
-  const headingPattern = /^##\s+(?:\[)?Unreleased(?:\])?\s*$/m;
-  const heading = headingPattern.exec(markdown);
-  if (!heading) return null;
-
-  const sectionStart = heading.index + heading[0].length;
-  const remainder = markdown.slice(sectionStart);
-  const nextHeading = remainder.search(/^##\s+/m);
-  const body = nextHeading === -1 ? remainder : remainder.slice(0, nextHeading);
-  return body.trim();
-}
-
 export function validateChangelogDeclaration({ body, changedPaths, currentChangelog, baseChangelog }) {
   const parsed = parseDeclaration(body);
   if (parsed.errors.length > 0) return parsed;
-  if (parsed.declaration === "internal") return parsed;
 
-  const errors = [];
-  if (!changedPaths.includes(CHANGELOG_PATH)) {
-    errors.push("Consumer-visible pull requests must change CHANGELOG.md.");
-  }
-
-  const currentUnreleased = extractUnreleasedSection(currentChangelog);
-  if (!currentUnreleased) {
-    errors.push("CHANGELOG.md must contain a non-empty ## Unreleased section.");
-  }
-
+  const errors = [...validateChangelogStructure(currentChangelog).errors];
   if (baseChangelog !== undefined && baseChangelog !== null) {
-    const baseUnreleased = extractUnreleasedSection(baseChangelog);
-    if (currentUnreleased && currentUnreleased === baseUnreleased) {
-      errors.push("Consumer-visible pull requests must update the ## Unreleased section.");
+    if (!releasedSectionsEqual(currentChangelog, baseChangelog)) {
+      errors.push("Released changelog sections are immutable and must not change in a pull request.");
+    }
+  }
+
+  if (parsed.declaration === "consumer") {
+    if (!changedPaths.includes(CHANGELOG_PATH)) {
+      errors.push("Consumer-visible pull requests must change CHANGELOG.md.");
+    }
+
+    const currentUnreleased = extractUnreleasedSection(currentChangelog);
+    if (!currentUnreleased) {
+      errors.push("CHANGELOG.md must contain a non-empty ## Unreleased section.");
+    }
+
+    if (baseChangelog !== undefined && baseChangelog !== null) {
+      const baseUnreleased = extractUnreleasedSection(baseChangelog);
+      if (currentUnreleased && currentUnreleased === baseUnreleased) {
+        errors.push("Consumer-visible pull requests must update the ## Unreleased section.");
+      }
     }
   }
 
@@ -85,6 +83,33 @@ function readJson(path) {
   } catch (error) {
     throw new Error(`Invalid JSON in ${path}`, { cause: error });
   }
+}
+
+function parseArgs(args) {
+  let structureOnly = false;
+  for (const argument of args) {
+    if (argument === "--structure") {
+      structureOnly = true;
+      continue;
+    }
+    if (argument === "--help") {
+      console.log("Usage: node scripts/validation/check-changelog.mjs [--structure]");
+      process.exit(0);
+    }
+    throw new Error(`Unknown argument: ${argument}`);
+  }
+  return { structureOnly };
+}
+
+function runStructureCheck() {
+  const changelog = readFileSync(resolve(CHANGELOG_PATH), "utf8");
+  const result = validateChangelogStructure(changelog);
+  if (result.errors.length > 0) {
+    for (const error of result.errors) console.error(`FAIL: ${error}`);
+    process.exitCode = 1;
+    return;
+  }
+  console.log("Changelog structure passed: canonical Unreleased categories and bullet entries.");
 }
 
 function runPullRequestCheck() {
@@ -126,7 +151,9 @@ function runPullRequestCheck() {
 const isMain = process.argv[1] && resolve(fileURLToPath(import.meta.url)) === resolve(process.argv[1]);
 if (isMain) {
   try {
-    runPullRequestCheck();
+    const options = parseArgs(process.argv.slice(2));
+    if (options.structureOnly) runStructureCheck();
+    else runPullRequestCheck();
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;

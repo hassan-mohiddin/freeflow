@@ -16,11 +16,19 @@ freeflow/
   .deprecated/
   command-surface.json
   plugin-docs/
-  docs/
+  .deprecated/project-docs/
   .skill-eval/
 ```
 
 The npm tarball contains runtime-required files. GitHub also retains plugin docs, project memory, current eval definitions, and deprecated historical evidence. Retired Output Router evidence is preserved under `.deprecated/output-router/`. There is no generated package mirror.
+
+## Documentation and source boundaries
+
+- `plugin-docs/` is the canonical current public documentation surface.
+- `plugin-docs/release-evidence/` stores immutable versioned evidence records rather than a rolling current-state page.
+- `CHANGELOG.md` records release history for the single published Freeflow package.
+- `.deprecated/project-docs/` preserves project plans, handoffs, research, issues, and historical evidence; it is not the normal current-runtime reading path.
+- `.freeflow/tasks/` contains ignored Working Records and task-local Plans; it is not public or package documentation.
 
 For local Pi/PiFlow integration, Freeflow can provide an exact-commit development snapshot outside the repository. It is not a production release or source-precedence mechanism; production installs use ordinary npm/Git sources. PiFlow owns host launch, import, update, and upstream synchronization, while Freeflow owns policy and snapshot production.
 
@@ -51,7 +59,7 @@ Freeflow has three model-facing layers:
 2. **Runtime State:** the extension appends current default/active mode, effective capabilities, and Cognitive Routing Control/Profile to every provider invocation, including disabled or unconfigured states. It is not system-prompt policy.
 3. **Discoverable skills:** normal skills under `skills/` are exposed when Skills is effective; child capability skills under `capabilities/` are exposed only when Skills and the child capability are effective.
 
-The Interaction Contract is prompt-only and not discoverable. Full Workflow and capability bodies are discoverable methods, not persistent bootstrap content. Context loading does not enforce policy, block tools, grant permissions, or replace repository instructions.
+The Interaction Contract is prompt-only and not discoverable. Full Workflow and capability bodies are discoverable methods, not persistent bootstrap content. Context loading does not enforce policy, block tools, grant permissions, or replace repository instructions. See [System prompt architecture](prompt-architecture.md) for the canonical assembly and gating contract, and [Capabilities](capabilities/README.md) for detailed capability contracts.
 
 ## Host Delivery
 
@@ -70,9 +78,9 @@ The Pi extension:
 - appends one unified volatile `Freeflow Runtime State` message before every provider request with the current default/active mode, effective capabilities, and Cognitive Routing Control/Profile;
 - restores temporary session mode from Pi session entries;
 - dynamically exposes 26 normal model/contributor skills plus effective child capability skills;
-- registers canonical direct commands and two Pi-only compatibility aliases;
+- registers canonical direct commands;
 - activates capability tools and discoverable capability skills only when their parent and child gates are effective;
-- owns the Pi-only Cognitive Routing lease, prepared profile intents, manual profile commands, sticky automatic reasoning episodes, reload state restoration, automatic switch tool, and session status.
+- when hosted by PiFlow, owns the Pi-only Cognitive Routing lease, prepared profile intents, manual profile commands, sticky automatic reasoning episodes, reload state restoration, automatic switch tool, and session status.
 
 `/freeflow settings` edits personal core overrides. `/freeflow settings session` manages temporary, branch-aware Freeflow, Interaction Contract, Skills, and mode overrides without changing config files. `/freeflow settings repo` edits shared repository settings. `/freeflow mode` remains the direct temporary mode control.
 
@@ -109,7 +117,7 @@ After compaction, summarization, clear, resume, or session navigation, Workflow 
 
 The Pi-only Context Virtualization capability owns projection-only archive and restore of consumed tool-result content while preserving canonical session history.
 
-The Pi-only Cognitive Routing capability owns exactly two configured compute profiles, complete model-and-thinking transitions through Pi's lease, deterministic `/freeflow profile standard|reasoning|auto` controls, the guarded `freeflow_switch_profile(target, reason)` request, and one volatile model-facing Control/Profile state record per provider request. Transition results are historical evidence; the volatile record is the current-state authority. Its discoverable skill is exposed only while Skills and Cognitive Routing are effective; it shares authority, tools, workflow, context, and evidence requirements with the active agent and does not authorize work. The current implementation remains an experimental local-Pi MVP until behavioral acceptance evidence is complete.
+The Pi-only Cognitive Routing capability owns exactly two configured compute profiles, complete model-and-thinking transitions through Pi's lease, deterministic `/freeflow profile standard|reasoning|auto` controls, the guarded `freeflow_switch_profile(target, reason)` request, and one volatile model-facing Control/Profile state record per provider request. Transition results are historical evidence; the volatile record is the current-state authority. Its discoverable skill is exposed only while Skills and Cognitive Routing are effective; it shares authority, tools, workflow, context, and evidence requirements with the active agent and does not authorize work. The current implementation remains an experimental PiFlow-hosted MVP until behavioral acceptance evidence is complete; normal Pi keeps the configuration inspectable but runtime-disabled.
 
 Delegation Harness is retired from the live package. Its implementation and historical evidence remain under `.deprecated/delegation-harness/`.
 

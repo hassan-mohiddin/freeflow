@@ -11,6 +11,9 @@ node_modules/
 # Local Freeflow runtime state and task memory.
 .freeflow/*/
 
+# Root project-documentation path is reserved; historical docs live under .deprecated/project-docs/.
+/docs/
+
 # Graphify generated output.
 graphify-out/
 

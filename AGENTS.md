@@ -8,17 +8,17 @@ This file governs contributing to the Freeflow repository. It does not define th
 
 ## Read First
 
-Use the project material relevant to the change:
+Use the smallest current source set relevant to the change:
 
-- Read `docs/README.md` for the project docs map.
 - Read `CONTEXT.md` for project language and direction.
-- Read `docs/freeflow-current-state.md`, `docs/freeflow-packaging-and-publishing-design.md`, and `docs/freeflow-runtime-and-lifecycle.md` when changing product behavior, runtime, packaging, or architecture.
-- Read `plugin-docs/README.md`, `plugin-docs/workflow.md`, `plugin-docs/architecture.md`, and `plugin-docs/release-evidence.md` when changing public plugin behavior, docs, or release guidance.
-- Read `docs/adr/` or `plugin-docs/adr/` when the change touches a durable decision.
-- Read the latest relevant file in `docs/handoffs/` when resuming an existing project task or transfer.
+- Read `plugin-docs/README.md` for the current documentation map, then open only the relevant topic or integration pages.
+- Read `plugin-docs/adr/` when the change touches a durable decision.
+- Recover the active Working Record through Track Work when an ongoing task has one.
+- Read the latest relevant file in `docs/handoffs/` only when a point-in-time transfer is needed or the current record does not cover it.
+- Read the relevant live skill, runtime contract, test, package metadata, or release-evidence record before editing.
 - Inspect `.skill-eval/` and the accepted bundle when changing or evaluating a skill's evidence. Historical v1 cases and reports under `.deprecated/skill-evals-v1/` are documentary only and never establish current readiness.
 
-Historical research under `docs/` is background only; live repository evidence and current plugin docs override it.
+Historical plans, research, handoffs, issues, and evidence under `docs/` preserve project context but are not current product authority. Live repository evidence and current `plugin-docs/` pages override them.
 
 ## Development Snapshot Boundary
 
@@ -28,7 +28,7 @@ Pi and PiFlow development consume a committed Freeflow snapshot, not this checko
 npm run snapshot:refresh
 ```
 
-Commit intended Freeflow changes before refreshing. The tool archives the selected Git revision, packs it with `npm pack --ignore-scripts`, records provenance, and replaces the target atomically. It excludes uncommitted and ignored files and does not mutate host state. Snapshots are development-only; production uses ordinary npm/Git sources. Read `docs/guides/tooling/freeflow-development-snapshot.md` for isolated targets, rollback, and clean-install verification.
+Commit intended Freeflow changes before refreshing. The tool archives the selected Git revision, packs it with `npm pack --ignore-scripts`, records provenance, and replaces the target atomically. It excludes uncommitted and ignored files and does not mutate host state. Snapshots are development-only; production uses ordinary npm/Git sources. Read `plugin-docs/integrations/piflow.md` for current PiFlow ownership and integration; use `.deprecated/project-docs/guides/tooling/freeflow-development-snapshot.md` only for detailed historical snapshot mechanics.
 
 PiFlow launch, import, and update behavior remains PiFlow-owned; Freeflow supplies policy and the development package snapshot.
 
@@ -66,7 +66,8 @@ When reference skills conflict during skill development:
 
 ## Documentation And Changelog Policy
 
-- Agents may update `CHANGELOG.md` under `## Unreleased` for verified consumer-visible work when the task authorization covers that update. Defer the entry until the final implementation slice unless bounded write-ahead authorization says otherwise.
+- Agents may update `CHANGELOG.md` under `## Unreleased` for verified consumer-visible work when the task authorization covers that update. Use only the canonical categories `Breaking Changes`, `Added`, `Changed`, `Fixed`, and `Removed`; keep each entry as a bullet under exactly one category. Defer the entry until the final implementation slice unless bounded write-ahead authorization says otherwise.
+- Run `npm run check:changelog` after changelog changes. Never hand-edit versioned release sections or ask automation to infer a category; release preparation only normalizes already categorized entries.
 - Never edit released changelog sections.
 - Changes to `plugin-docs/`, public contract or install guidance, durable project docs, ADRs, or release evidence require explicit authorization and should be deferred to the final documentation slice.
 - If leaving a document stale would make the repository misleading, stop and ask rather than silently editing it.
@@ -76,8 +77,9 @@ When reference skills conflict during skill development:
 - Use `release-work` for version classification, release preparation, artifact checks, publication, recovery, and consumer-side verification.
 - `npm run check` is the deterministic local/CI gate. It does not run model-based skill evaluations or require publication credentials.
 - Release preparation may update version metadata and move verified `Unreleased` notes into a version section, but it must not commit, tag, push, publish, or create a GitHub Release by itself.
-- A Git tag in the form `vX.Y.Z` is the human-controlled release boundary. The tag workflow verifies the exact source and version, then publishes npm and creates the GitHub Release.
-- Never reuse an npm version or force-move a release tag. If publication partially succeeds, inspect remote state before retrying.
+- A Git tag in the form `vX.Y.Z` is the human-controlled release boundary. The tag workflow verifies the exact source and version, validates changelog/release notes before publication, builds and checks generated output, publishes one exact npm tarball with provenance, verifies registry identity, and creates the GitHub Release.
+- Never reuse an npm version or force-move a release tag. If publication partially succeeds, inspect remote state before retrying; recovery is allowed only when the existing registry artifact matches the candidate checksum and provenance.
+- npm Trusted Publishing and the protected `npm` GitHub environment are external prerequisites; source checks cannot prove their configuration.
 - Do not run `npm run snapshot:refresh` as part of a production release. Snapshots are development-only.
 
 ## Implementation Pointers

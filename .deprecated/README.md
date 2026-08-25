@@ -16,6 +16,7 @@ Historical Freeflow artifacts kept outside the active plugin runtime and npm pac
 
 ## Documentation
 
+- `project-docs/`: tracked archive of the former repository `docs/` tree, including historical ADRs, plans, handoffs, research, issues, guides, designs, and specifications.
 - `codex-cli-agent-harness/`: historical Codex CLI and agent-runtime research.
 - Legacy Output Router v0.4 plans, specs, issues, and handoffs now live under `output-router/docs/legacy-pi-v04/`.
 
@@ -30,4 +31,4 @@ Historical Freeflow artifacts kept outside the active plugin runtime and npm pac
 - `skills/grill-context/`
 - `skills/capture-decisions/`
 
-These discovery skills were replaced by the active `skills/discover/` skill. See `plugin-docs/adr/0004-discover-replaces-shallow-discovery-skills.md`.
+These discovery skills were replaced by the active `skills/discover/` skill. See `../plugin-docs/adr/0004-discover-replaces-shallow-discovery-skills.md`.
