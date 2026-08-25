@@ -2,7 +2,7 @@
   "enabled": true,
   "defaultMode": "workflow",
   "interactionContract": false,
-  "skills": { "enabled": false },
+  "skills": { "enabled": true },
   "contextVirtualization": false,
   "conversationHistory": true
 }

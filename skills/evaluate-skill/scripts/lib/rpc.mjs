@@ -79,17 +79,17 @@ class RpcSession {
   async run(prompts, targetPath = null) {
     let deliveredPrompts = prompts;
     /** @type {any} */
-    let delivery = { kind: "natural-prompt", turn: 1, targetPath: null };
+    let delivery = { kind: "unavailable", turn: 1, targetPath };
     try {
       await this.configure();
       if (targetPath !== null) {
-        delivery = { kind: "unavailable", turn: 1, targetPath };
         const command = await this.resolveSkillCommand(targetPath);
         deliveredPrompts = [`/${command} ${prompts[0]}`, ...prompts.slice(1)];
         delivery = { kind: "explicit-skill-command", turn: 1, targetPath, command };
       }
       for (const [index, prompt] of deliveredPrompts.entries()) {
         if (this.signal?.aborted || this.terminationReason !== null) break;
+        if (delivery.kind === "unavailable") delivery = { kind: "natural-prompt", turn: 1, targetPath: null };
         const turn = await this.runTurn(index + 1, prompt);
         this.turns.push(turn);
         if (this.afterTurn !== null) turn.workspace = await this.afterTurn(turn.turn);

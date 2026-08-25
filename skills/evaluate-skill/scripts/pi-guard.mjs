@@ -15,7 +15,7 @@ function parseStringArray(value) {
 
 function isContained(root, target) {
   const relative = path.relative(root, target);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+  return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
 }
 
 function resolveWritablePath(cwd, requested) {

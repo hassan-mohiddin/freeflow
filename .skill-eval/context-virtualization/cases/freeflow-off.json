@@ -10,7 +10,7 @@
     "host": "pi",
     "session": false,
     "extensions": [
-      { "entry": "pi-extension/freeflow/index.js", "resources": ["pi-extension", "skills", "capabilities"] }
+      { "entry": "pi-extension/freeflow/index.js", "resources": ["pi-extension", "skills", "capabilities", "runtime"] }
     ],
     "environment": { "literal": {}, "inherit": [] }
   },

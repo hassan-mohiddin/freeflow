@@ -143,8 +143,9 @@ test("Pi guard permits only declared tools and reads contained by canonical root
     const workspace = path.join(root, "workspace");
     const outside = path.join(root, "outside.md");
     const outsideCreated = path.join(root, "outside-created.md");
-    await mkdir(workspace);
+    await mkdir(path.join(workspace, "..valid"), { recursive: true });
     await writeFile(path.join(workspace, "inside.md"), "inside\n");
+    await writeFile(path.join(workspace, "..valid/input.txt"), "valid prefix\n");
     await writeFile(outside, "outside\n");
     await symlink(outside, path.join(workspace, "escaped.md"));
     await symlink(outsideCreated, path.join(workspace, "dangling.md"));
@@ -158,6 +159,7 @@ test("Pi guard permits only declared tools and reads contained by canonical root
       const guard = installGuard().get("tool_call");
       assert.ok(guard);
       assert.equal(guard({ toolName: "read", input: { path: "inside.md" } }, { cwd: workspace }), undefined);
+      assert.equal(guard({ toolName: "read", input: { path: "..valid/input.txt" } }, { cwd: workspace }), undefined);
       assert.match(
         guard({ toolName: "read", input: { path: outside } }, { cwd: workspace }).reason,
         /escapes the evaluation environment/,

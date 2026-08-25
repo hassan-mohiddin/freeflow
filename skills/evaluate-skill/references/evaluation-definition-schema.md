@@ -204,7 +204,7 @@ A body group explicitly delivers each target on turn one and observes first-read
 }
 ```
 
-Body groups allow built-in `read`, `write`, and `edit`, plus custom tools declared by a runtime extension bundle. A no-target baseline or runtime-only group may use `skills: []` and `target: null`; a candidate that declares skills must identify its target.
+Description groups allow no tools or only built-in `read`. Body groups allow built-in `read`, `write`, and `edit`, plus custom tools declared by a runtime extension bundle. Native `bash`, `powershell`, `grep`, `find`, and `ls` tools are unsupported. A no-target baseline or runtime-only group may use `skills: []` and `target: null`; a candidate that declares skills must identify its target.
 
 The examples are complete definition shapes. Replace fixture, resource, model, and Git-ref values with paths and identities that exist under your definition root.
 
@@ -235,7 +235,7 @@ A runtime profile is shared by both baseline and candidate variants. It changes 
 
 `host` is `pi` or `piflow`; the evaluator maps it to the corresponding installed host command and records the selected host. `session` controls whether the variant receives an isolated persistent session directory; it defaults to `false` in omitted runtime profiles. A runtime may declare zero or more bundles. Each bundle has an entry file and one or more directory resources copied under their original relative paths, so sibling imports and multi-tree extensions remain intact. Bundle bytes are snapshotted once and copied identically to both variants.
 
-`environment.literal` contains non-secret string configuration and is recorded in run evidence. `environment.inherit` names parent-process variables whose values are passed to the child but never persisted. Missing inherited variables invalidate the variant. Launch-control and secret-like literal keys are rejected.
+`environment.literal` contains non-secret string configuration and is recorded in run evidence. `environment.inherit` names parent-process variables whose values are passed to the child but never persisted; other parent variables are not passed. Missing inherited variables invalidate the variant. The evaluator supplies only a small host-runtime baseline such as `PATH` and `HOME`. Launch-control and loader keys are rejected from inherited values, literal and inherited names must not overlap, and secret-like literal keys are rejected.
 
 Extensions are trusted executable inputs, not OS-sandboxed code. The evaluator proves declared identity and post-run immutability, but extension code retains its host permissions.
 
@@ -292,7 +292,9 @@ Without `turn`, response checks use the final response and workspace checks use 
 | `json` | workspace `path`, optional body `turn`, conditional `pointer` and `value` | `available`, `missing`, `valid`, `malformed`, `field-present`, `field-absent`, `field-equals` |
 | `response-text` | string `value`, optional body `turn` | `contains`, `not-contains`, `equals` |
 | `tool-call` | string `tool`, optional body `turn`, optional `argumentContains`/`argumentNotContains` arrays | `called`, `succeeded`, `failed`, `not-called` |
-| `context-text` | string `value`, optional `surface` (`system-prompt` or `provider-context`), optional body `turn` | `contains`, `not-contains`, `equals` |
+| `context-text` | string `value`, optional `surface` (`system-prompt` or `provider-context`), optional `request`, optional body `turn` | `contains`, `not-contains`, `equals` |
+
+For `tool-call` with `expect: "not-called"`, omitted argument filters require zero calls to the named tool. Supplied filters scope the absence check to calls matching those argument predicates.
 
 ### Resource paths
 

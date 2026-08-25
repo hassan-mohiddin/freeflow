@@ -3,11 +3,54 @@ import { createHash } from "node:crypto";
 import { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawnSync as rawSpawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-skill/scripts/skill-eval.mjs", import.meta.url));
+const FAKE_PI_ENVIRONMENT_KEYS = [
+  "FAKE_PI_BREAK_FINAL_FOR",
+  "FAKE_PI_BREAK_GRADE_FALLBACK_FOR",
+  "FAKE_PI_BREAK_GROUP_ARTIFACTS_FOR",
+  "FAKE_PI_BREAK_RUN_FOR",
+  "FAKE_PI_CANCEL_PARENT",
+  "FAKE_PI_CAPTURE_ENV",
+  "FAKE_PI_DESCENDANT_PID",
+  "FAKE_PI_ERROR_SKILL",
+  "FAKE_PI_EXTENSION_ERROR",
+  "FAKE_PI_FAIL_FOR",
+  "FAKE_PI_FAIL_SKILL",
+  "FAKE_PI_FIXTURE_SOURCE",
+  "FAKE_PI_LOG",
+  "FAKE_PI_MUTATE_FIXTURE",
+  "FAKE_PI_MUTATE_SKILL",
+  "FAKE_PI_PRIOR_GROUP",
+  "FAKE_PI_READ_SKILL_INDEX",
+  "FAKE_PI_REQUIRE_BASELINE_RUN",
+  "FAKE_PI_REQUIRE_PRIOR_FOR",
+  "FAKE_PI_SERIAL_LOCK",
+];
+
+function spawnSync(command, args, options) {
+  if (command === process.execPath && args?.includes(entrypoint)) {
+    const env = { ...(options?.env ?? process.env) };
+    for (const key of FAKE_PI_ENVIRONMENT_KEYS) env[key] ??= "";
+    return rawSpawnSync(command, args, { ...options, env });
+  }
+  return rawSpawnSync(command, args, options);
+}
+
+function fakeRuntime({ host = "pi", session = false, extensions = [], inherit = [] } = {}) {
+  return {
+    host,
+    session,
+    extensions,
+    environment: {
+      literal: {},
+      inherit: [...new Set([...FAKE_PI_ENVIRONMENT_KEYS, ...inherit])],
+    },
+  };
+}
 
 async function withTempDirectory(run) {
   const directory = await mkdtemp(path.join(tmpdir(), "skill-eval-run-test-"));
@@ -58,13 +101,15 @@ const skills = args.flatMap((arg, index) => arg === "--skill" ? [args[index + 1]
 const skill = skills[0] ?? null;
 const readSkill = skills[Number(process.env.FAKE_PI_READ_SKILL_INDEX ?? 0)] ?? null;
 const fail = skill !== null && process.env.FAKE_PI_FAIL_SKILL === "1" && (!process.env.FAKE_PI_FAIL_FOR || process.cwd().includes(process.env.FAKE_PI_FAIL_FOR));
-appendFileSync(process.env.FAKE_PI_LOG, JSON.stringify({
-  pid: process.pid,
-  args,
-  cwd: process.cwd(),
-  allowedRoots: JSON.parse(process.env.SKILL_EVAL_ALLOWED_ROOTS),
-  inheritedValue: process.env.FAKE_PI_CAPTURE_ENV ? process.env[process.env.FAKE_PI_CAPTURE_ENV] ?? null : null,
-}) + "\\n");
+if (process.env.FAKE_PI_LOG) {
+  appendFileSync(process.env.FAKE_PI_LOG, JSON.stringify({
+    pid: process.pid,
+    args,
+    cwd: process.cwd(),
+    allowedRoots: JSON.parse(process.env.SKILL_EVAL_ALLOWED_ROOTS),
+    inheritedValue: process.env.FAKE_PI_CAPTURE_ENV ? process.env[process.env.FAKE_PI_CAPTURE_ENV] ?? null : null,
+  }) + "\\n");
+}
 const variantDirectory = path.dirname(process.cwd());
 const groupDirectory = path.dirname(variantDirectory);
 const currentVariant = path.basename(variantDirectory);
@@ -167,6 +212,8 @@ if (process.env.FAKE_PI_CANCEL_PARENT === "1") process.kill(process.ppid, "SIGIN
 `,
   );
   await chmod(executable, 0o755);
+  await writeFile(path.join(bin, "piflow"), await readFile(executable));
+  await chmod(path.join(bin, "piflow"), 0o755);
   return bin;
 }
 
@@ -214,6 +261,7 @@ function descriptionGroup() {
       { id: "candidate-read", kind: "skill-read", variant: "candidate", expect: "by-turn", turn: 1 },
     ],
     review_questions: [],
+    runtime: fakeRuntime(),
     model: { model: "fake/model", thinking: "low" },
   };
 }
@@ -231,12 +279,9 @@ test("runtime bundles are snapshotted once between the base guard and final obse
     await writeFile(path.join(root, "extensions/probe.mjs"), "export { marker } from '../support/marker.mjs';\n");
     await writeFile(path.join(root, "support/marker.mjs"), "export const marker = 'ok';\n");
     const group = descriptionGroup();
-    group.runtime = {
-      host: "pi",
-      session: false,
+    group.runtime = fakeRuntime({
       extensions: [{ entry: "extensions/probe.mjs", resources: ["extensions", "support"] }],
-      environment: { literal: {}, inherit: [] },
-    };
+    });
     const definition = await writeJson(root, "groups/extensions.json", group);
 
     const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
@@ -294,12 +339,7 @@ test("inherited runtime environment reaches the child without entering run evide
       description: "Use when choosing how to deliver a completed software change.",
     });
     const group = descriptionGroup();
-    group.runtime = {
-      host: "pi",
-      session: true,
-      extensions: [],
-      environment: { literal: {}, inherit: ["EVAL_SECRET"] },
-    };
+    group.runtime = fakeRuntime({ session: true, inherit: ["EVAL_SECRET"] });
     const definition = await writeJson(root, "groups/inherited-environment.json", group);
     const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
       cwd: root,
@@ -324,10 +364,90 @@ test("inherited runtime environment reaches the child without entering run evide
     const runText = await readFile(path.join(resultDirectory, "groups/natural-activation/candidate/run.json"), "utf8");
     assert.doesNotMatch(runText, /do-not-persist-this-value/);
     const run = parseJson(runText, "inherited environment run");
-    assert.deepEqual(run.resources.runtime.environment, { literal: {}, inherit: ["EVAL_SECRET"] });
+    assert.deepEqual(run.resources.runtime.environment, {
+      literal: {},
+      inherit: [...new Set([...FAKE_PI_ENVIRONMENT_KEYS, "EVAL_SECRET"])],
+    });
     assert.equal(run.resources.runtime.session, true);
     assert.ok(run.process.args.includes("--session-dir"));
     assert.equal(run.process.args.includes("--no-session"), false);
+  });
+});
+
+test("undeclared parent environment values stay out of the subject process", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    const definition = await writeJson(root, "groups/undeclared-environment.json", descriptionGroup());
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+        FAKE_PI_CAPTURE_ENV: "UNDECLARED_SECRET",
+        UNDECLARED_SECRET: "must-not-reach-subject",
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const log = (await readFile(fakeLog, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => parseJson(line, "undeclared environment log"));
+    assert.equal(log[0].inheritedValue, null);
+  });
+});
+
+test("forbidden native tools are rejected even when an extension is declared", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakePi(root);
+    const group = descriptionGroup();
+    group.tools = ["bash", "powershell"];
+    group.runtime = fakeRuntime({
+      extensions: [{ entry: "extensions/probe.mjs", resources: ["extensions"] }],
+    });
+    const definition = await writeJson(root, "groups/forbidden-tool.json", group);
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /does not support native tools: bash, powershell/);
+    await assert.rejects(readFile(fakeLog, "utf8"), { code: "ENOENT" });
+    await assert.rejects(readFile(path.join(root, ".skill-eval/runs"), "utf8"), { code: "ENOENT" });
+  });
+});
+
+test("description groups reject custom tools even when an extension is declared", async () => {
+  await withTempDirectory(async (root) => {
+    const group = descriptionGroup();
+    group.tools = ["custom_probe"];
+    group.runtime = fakeRuntime({
+      extensions: [{ entry: "extensions/probe.mjs", resources: ["extensions"] }],
+    });
+    const definition = await writeJson(root, "groups/description-custom-tool.json", group);
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env },
+    });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /does not support custom tools: custom_probe/);
+    await assert.rejects(readFile(path.join(root, ".skill-eval/runs"), "utf8"), { code: "ENOENT" });
   });
 });
 
@@ -1623,6 +1743,44 @@ test("view renders a direct result grade-first and filters one variant", async (
     assert.match(view.stdout, /candidate\/transcript\.json/);
     assert.match(view.stdout, /candidate\/final\.md/);
     assert.match(view.stdout, /candidate\/stderr\.log/);
+  });
+});
+
+test("omitted runtime defaults to an explicit non-session profile", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    const group = descriptionGroup();
+    delete group.runtime;
+    group.expectations = [];
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    const definition = await writeJson(root, "groups/default-runtime.json", group);
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const run = parseJson(
+      await readFile(path.join(resultDirectory, "groups/natural-activation/candidate/run.json"), "utf8"),
+      "default runtime run",
+    );
+    assert.deepEqual(run.resources.runtime, {
+      host: "pi",
+      session: false,
+      environment: { literal: {}, inherit: [] },
+      extensions: [],
+    });
+    assert.equal(run.process.command, "pi");
+    assert.ok(run.process.args.includes("--no-session"));
   });
 });
 

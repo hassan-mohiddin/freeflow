@@ -10,7 +10,9 @@ import { prepareFixture, prepareRuntime } from "./sandbox.mjs";
 const VARIANTS = ["baseline", "candidate"];
 const DESCRIPTION_TOOLS = new Set(["read"]);
 const BODY_TOOLS = new Set(["read", "write", "edit"]);
-const DEFAULT_RUNTIME = { host: "pi", extensions: [], environment: { literal: {}, inherit: [] } };
+// Native tools must be separated from extension tools before CLI tool selection is built.
+const NATIVE_TOOLS = new Set(["read", "bash", "powershell", "edit", "write", "grep", "find", "ls"]);
+const DEFAULT_RUNTIME = { host: "pi", session: false, extensions: [], environment: { literal: {}, inherit: [] } };
 
 /**
  * @param {string} definitionFile
@@ -70,10 +72,17 @@ function assertSupportedSelection(selection) {
       throw new Error("command expectations are not supported");
     }
     const supportedTools = group.type === "body" ? BODY_TOOLS : DESCRIPTION_TOOLS;
-    const unsupportedTools = group.tools.filter((tool) => !supportedTools.has(tool));
-    if (unsupportedTools.length > 0 && (group.runtime?.extensions?.length ?? 0) === 0) {
+    const unsupportedNativeTools = group.tools.filter((tool) => NATIVE_TOOLS.has(tool) && !supportedTools.has(tool));
+    if (unsupportedNativeTools.length > 0) {
+      throw new Error(`${group.type} execution does not support native tools: ${unsupportedNativeTools.join(", ")}`);
+    }
+    const customTools = group.tools.filter((tool) => !NATIVE_TOOLS.has(tool) && !supportedTools.has(tool));
+    if (group.type === "description" && customTools.length > 0) {
+      throw new Error(`${group.type} execution does not support custom tools: ${customTools.join(", ")}`);
+    }
+    if (customTools.length > 0 && (group.runtime?.extensions?.length ?? 0) === 0) {
       throw new Error(
-        `${group.type} execution requires declared extensions for custom tools: ${unsupportedTools.join(", ")}`,
+        `${group.type} execution requires declared extensions for custom tools: ${customTools.join(", ")}`,
       );
     }
   }
@@ -110,10 +119,10 @@ async function runGroup({ selected, root, resultDirectory, signal }) {
       runs[variant] = notSelectedRun(group, variant);
     } else if (signal?.aborted) {
       runs[variant] = cancelledRun(group, variant);
-    } else if (resourceError !== null) {
-      runs[variant] = invalidRun(group, variant, resourceError);
-    } else {
+    } else if (resourceError === null) {
       runs[variant] = await executeVariant({ group, variant, root, variantDirectory, fixture, runtime, signal });
+    } else {
+      runs[variant] = invalidRun(group, variant, resourceError);
     }
     const persisted = await persistRunOrFailure(variantDirectory, runs[variant]);
     runs[variant] = persisted.run;

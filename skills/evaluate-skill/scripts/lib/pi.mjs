@@ -32,6 +32,22 @@ import {
 const guardExtension = fileURLToPath(new URL("../pi-guard.mjs", import.meta.url));
 const observerExtension = fileURLToPath(new URL("../pi-observer.mjs", import.meta.url));
 const HOST_COMMANDS = { pi: "pi", piflow: "piflow" };
+const BASE_PROCESS_ENVIRONMENT_KEYS = [
+  "PATH",
+  "HOME",
+  "TMPDIR",
+  "TMP",
+  "TEMP",
+  "LANG",
+  "LC_ALL",
+  "XDG_CONFIG_HOME",
+  "XDG_DATA_HOME",
+  "XDG_CACHE_HOME",
+  "PIFLOW_CODING_AGENT_DIR",
+  "PIFLOW_CODING_AGENT_SESSION_DIR",
+  "PI_PACKAGE_DIR",
+  "PI_OFFLINE",
+];
 const TURN_WORKSPACE_KINDS = new Set(["path", "changed-paths", "file-text", "json"]);
 
 export class VariantSetupError extends Error {
@@ -54,6 +70,7 @@ export async function runBody({ group, variant, root, variantDirectory, fixture,
   const before = await fingerprintDirectory(subject.workspace);
   const declaredPrompts = group.input.prompt === undefined ? [...group.input.turns] : [group.input.prompt];
   const observation = await runRpcBodySession({
+    command: subject.host.command,
     args: subject.args,
     cwd: subject.workspace,
     eventsFile: subject.eventsFile,
@@ -312,11 +329,11 @@ function createProcessEnvironment({
   contextObservationPath,
   requiresContextObservation,
 }) {
-  const processEnvironment = { ...process.env };
-  for (const key of Object.keys(processEnvironment)) {
-    if (key.startsWith("PI_")) delete processEnvironment[key];
-  }
+  const processEnvironment = Object.fromEntries(
+    BASE_PROCESS_ENVIRONMENT_KEYS.flatMap((key) => (process.env[key] === undefined ? [] : [[key, process.env[key]]])),
+  );
   Object.assign(processEnvironment, {
+    PWD: workspace,
     ...runtime.environment.literal,
     PI_SKIP_VERSION_CHECK: "1",
     PI_TELEMETRY: "0",

@@ -2,12 +2,52 @@ import assert from "node:assert/strict";
 import { chmod, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawnSync as rawSpawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-skill/scripts/skill-eval.mjs", import.meta.url));
+const FAKE_RPC_ENVIRONMENT_KEYS = [
+  "FAKE_PI_LOG",
+  "FAKE_RPC_CANCEL_PARENT",
+  "FAKE_RPC_COMMAND_PATH",
+  "FAKE_RPC_DESCENDANT_PID",
+  "FAKE_RPC_DIRECTORY_EFFECTS",
+  "FAKE_RPC_EMPTY_FRAME",
+  "FAKE_RPC_EXIT_BEFORE_SETTLEMENT",
+  "FAKE_RPC_EXIT_ON_START",
+  "FAKE_RPC_EXTENSION_ERROR",
+  "FAKE_RPC_GRADING_FIXTURE",
+  "FAKE_RPC_INCOMPLETE_FRAME",
+  "FAKE_RPC_INVALID_FRAME",
+  "FAKE_RPC_PROVIDER_ERROR",
+  "FAKE_RPC_SPLIT_UTF8",
+  "FAKE_RPC_TURN_EFFECTS",
+  "FAKE_RPC_WRITE_EFFECT",
+  "FAKE_RPC_WRONG_ID",
+];
+
+function spawnSync(command, args, options) {
+  if (command === process.execPath && args?.includes(entrypoint)) {
+    const env = { ...(options?.env ?? process.env) };
+    for (const key of FAKE_RPC_ENVIRONMENT_KEYS) env[key] ??= "";
+    return rawSpawnSync(command, args, { ...options, env });
+  }
+  return rawSpawnSync(command, args, options);
+}
+
+function fakeRuntime({ host = "pi", session = false, extensions = [], inherit = [] } = {}) {
+  return {
+    host,
+    session,
+    extensions,
+    environment: {
+      literal: {},
+      inherit: [...new Set([...FAKE_RPC_ENVIRONMENT_KEYS, ...inherit])],
+    },
+  };
+}
 
 async function withTempDirectory(run) {
   const directory = await mkdtemp(path.join(tmpdir(), "skill-eval-rpc-test-"));
@@ -60,11 +100,12 @@ async function installFakeRpcPi(root) {
     `#!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { appendFileSync, mkdirSync, readFileSync, rmdirSync, unlinkSync, writeFileSync } from "node:fs";
+import path from "node:path";
 const args = process.argv.slice(2);
 const skills = args.flatMap((arg, index) => arg === "--skill" ? [args[index + 1]] : []);
 const log = (value) => appendFileSync(process.env.FAKE_PI_LOG, JSON.stringify(value) + "\\n");
 const emit = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
-log({ kind: "spawn", args, cwd: process.cwd(), allowedRoots: JSON.parse(process.env.SKILL_EVAL_ALLOWED_ROOTS), contextManifest: process.env.SKILL_EVAL_CONTEXT_MANIFEST ?? null });
+log({ host: path.basename(process.argv[1]), kind: "spawn", args, cwd: process.cwd(), allowedRoots: JSON.parse(process.env.SKILL_EVAL_ALLOWED_ROOTS), contextManifest: process.env.SKILL_EVAL_CONTEXT_MANIFEST || null });
 if (process.env.FAKE_RPC_EXTENSION_ERROR === "1") {
   emit({
     type: "extension_error",
@@ -110,7 +151,7 @@ process.stdin.on("data", (chunk) => {
         commands: skills.map((skill) => ({
           name: "skill:" + (readFileSync(skill + "/SKILL.md", "utf8").match(/^name: (.+)$/m)?.[1] ?? "unknown"),
           source: "skill",
-          sourceInfo: { path: process.env.FAKE_RPC_COMMAND_PATH ?? skill + "/SKILL.md" },
+          sourceInfo: { path: process.env.FAKE_RPC_COMMAND_PATH || skill + "/SKILL.md" },
         })),
       };
     }
@@ -209,6 +250,8 @@ process.stdin.on("data", (chunk) => {
 `,
   );
   await chmod(executable, 0o755);
+  await writeFile(path.join(bin, "piflow"), await readFile(executable));
+  await chmod(path.join(bin, "piflow"), 0o755);
   return bin;
 }
 
@@ -258,6 +301,7 @@ function multiTurnGroup() {
       },
     ],
     review_questions: [],
+    runtime: fakeRuntime(),
     model: { model: "fake/model", thinking: "low" },
   };
 }
@@ -287,6 +331,7 @@ function bodyGroup() {
     },
     expectations: [],
     review_questions: ["Did the response follow the supplied delivery constraints?"],
+    runtime: fakeRuntime(),
     model: { model: "fake/model", thinking: "low" },
   };
 }
@@ -295,8 +340,10 @@ test("body evaluation explicitly delivers only the selected target body and pres
   await withTempDirectory(async (root) => {
     const fakeLog = path.join(root, "fake-pi.jsonl");
     const bin = await installFakeRpcPi(root);
+    const group = bodyGroup();
+    group.runtime.host = "piflow";
     await writeSkill(root, "skills/release-route");
-    const definition = await writeJson(root, "groups/body.json", bodyGroup());
+    const definition = await writeJson(root, "groups/body.json", group);
 
     const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
       cwd: root,
@@ -313,6 +360,11 @@ test("body evaluation explicitly delivers only the selected target body and pres
     assert.ok(resultDirectory);
 
     const log = await readJsonLines(fakeLog, "fake Pi log");
+    const spawns = log.filter((entry) => entry.kind === "spawn");
+    assert.deepEqual(
+      spawns.map(({ host }) => host),
+      ["piflow", "piflow"],
+    );
     const prompts = log
       .filter((entry) => entry.kind === "command" && entry.command.type === "prompt")
       .map((entry) => entry.command.message);
@@ -448,6 +500,38 @@ test("multi-skill body evaluation fails before prompting when the target command
       log.some((entry) => entry.kind === "command" && entry.command.type === "prompt"),
       false,
     );
+  });
+});
+
+test("body delivery remains unavailable when RPC fails before prompt acceptance", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakeRpcPi(root);
+    await writeSkill(root, "skills/release-route");
+    const definition = await writeJson(root, "groups/body-before-prompt.json", bodyGroup());
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+        FAKE_RPC_EXIT_ON_START: "1",
+      },
+    });
+
+    assert.equal(result.status, 1);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const candidate = parseJson(
+      await readFile(path.join(resultDirectory, "groups/body-behavior/candidate/run.json"), "utf8"),
+      "pre-prompt body run",
+    );
+    assert.equal(candidate.state, "infrastructure-failed");
+    assert.equal(candidate.delivery.kind, "unavailable");
+    assert.match(candidate.delivery.targetPath, /resources\/skills\/0\/SKILL\.md$/);
+    assert.equal(candidate.turns?.length ?? 0, 0);
   });
 });
 

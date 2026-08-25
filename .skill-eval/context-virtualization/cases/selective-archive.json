@@ -125,7 +125,7 @@
       "variant": "candidate",
       "turn": 1,
       "expect": "contains",
-      "value": "Consumption or summarization does not end a result's usefulness."
+      "value": "Keep the active tool-evidence working set focused without removing evidence current work still needs."
     }
   ],
   "review_questions": [

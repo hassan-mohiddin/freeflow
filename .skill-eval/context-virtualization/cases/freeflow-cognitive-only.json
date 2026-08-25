@@ -10,7 +10,11 @@
     "host": "piflow",
     "session": true,
     "extensions": [
-      { "entry": "pi-extension/freeflow/index.js", "resources": ["pi-extension", "skills", "capabilities"] }
+      { "entry": "pi-extension/freeflow/index.js", "resources": ["pi-extension", "skills", "capabilities", "runtime"] },
+      {
+        "entry": ".skill-eval/context-virtualization/extensions/active-tools-probe.mjs",
+        "resources": [".skill-eval/context-virtualization/extensions"]
+      }
     ],
     "environment": { "literal": {}, "inherit": [] }
   },

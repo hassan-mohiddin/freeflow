@@ -191,6 +191,39 @@ test("group definitions reject structural contradictions", async () => {
         },
       },
       {
+        name: "reserved-inherited-runtime-environment",
+        change(definition) {
+          definition.runtime = {
+            host: "pi",
+            session: false,
+            extensions: [],
+            environment: { literal: {}, inherit: ["PATH"] },
+          };
+        },
+      },
+      {
+        name: "loader-inherited-runtime-environment",
+        change(definition) {
+          definition.runtime = {
+            host: "pi",
+            session: false,
+            extensions: [],
+            environment: { literal: {}, inherit: ["NODE_OPTIONS"] },
+          };
+        },
+      },
+      {
+        name: "overlapping-runtime-environment",
+        change(definition) {
+          definition.runtime = {
+            host: "pi",
+            session: false,
+            extensions: [],
+            environment: { literal: { PROBE_MODE: "literal" }, inherit: ["probe_mode"] },
+          };
+        },
+      },
+      {
         name: "duplicate-tools",
         change(definition) {
           definition.tools = ["read", "read"];

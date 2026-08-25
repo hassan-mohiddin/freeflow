@@ -5,6 +5,19 @@ const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const EVALUATION_TYPES = new Set(["description", "body", "end-to-end"]);
 const VARIANTS = ["baseline", "candidate"];
 const EVALUATION_HOSTS = new Set(["pi", "piflow"]);
+const RESERVED_ENVIRONMENT_KEYS = new Set([
+  "PATH",
+  "HOME",
+  "PWD",
+  "OLDPWD",
+  "SHELL",
+  "BASH_ENV",
+  "NODE_OPTIONS",
+  "NODE_PATH",
+  "PI_PACKAGE_DIR",
+  "PIFLOW_CODING_AGENT_DIR",
+  "PIFLOW_CODING_AGENT_SESSION_DIR",
+]);
 
 export class DefinitionError extends Error {
   constructor(code, message, definitionPath = null) {
@@ -183,15 +196,12 @@ function validateRuntime(value, definitionPath) {
   const inherited = requireStringArray(environment.inherit, "group.runtime.environment.inherit", definitionPath, {
     unique: true,
   });
-  const reservedKeys = new Set(["PATH", "HOME", "PWD", "OLDPWD", "SHELL", "BASH_ENV", "NODE_OPTIONS", "NODE_PATH"]);
+  const literalKeys = new Set(Object.keys(literal).map((key) => key.toUpperCase()));
   for (const [key, value] of Object.entries(literal)) {
+    const normalizedKey = key.toUpperCase();
     if (
       !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) ||
-      key.startsWith("SKILL_EVAL_") ||
-      key.startsWith("PI_") ||
-      reservedKeys.has(key) ||
-      key.startsWith("LD_") ||
-      key.startsWith("DYLD_") ||
+      isBlockedEnvironmentKey(normalizedKey) ||
       /TOKEN|SECRET|PASSWORD|API[_-]?KEY|PRIVATE[_-]?KEY|CREDENTIAL/i.test(key)
     ) {
       fail(
@@ -205,10 +215,28 @@ function validateRuntime(value, definitionPath) {
     }
   }
   for (const key of inherited) {
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) || key.startsWith("SKILL_EVAL_") || key.startsWith("PI_")) {
+    const normalizedKey = key.toUpperCase();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) || isBlockedEnvironmentKey(normalizedKey)) {
       fail("invalid-definition", `group.runtime.environment.inherit contains an invalid key: ${key}`, definitionPath);
     }
+    if (literalKeys.has(normalizedKey)) {
+      fail(
+        "invalid-definition",
+        `group.runtime.environment key is declared as both literal and inherited: ${key}`,
+        definitionPath,
+      );
+    }
   }
+}
+
+function isBlockedEnvironmentKey(normalizedKey) {
+  return (
+    RESERVED_ENVIRONMENT_KEYS.has(normalizedKey) ||
+    normalizedKey.startsWith("SKILL_EVAL_") ||
+    normalizedKey.startsWith("PI_") ||
+    normalizedKey.startsWith("LD_") ||
+    normalizedKey.startsWith("DYLD_")
+  );
 }
 
 function validateExpectations(value, definitionPath) {

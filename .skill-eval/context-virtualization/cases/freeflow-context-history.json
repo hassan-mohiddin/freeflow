@@ -14,7 +14,7 @@
     "extensions": [
       {
         "entry": "pi-extension/freeflow/index.js",
-        "resources": ["pi-extension", "skills", "capabilities"]
+        "resources": ["pi-extension", "skills", "capabilities", "runtime"]
       }
     ],
     "environment": {

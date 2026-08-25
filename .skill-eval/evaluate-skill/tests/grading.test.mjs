@@ -247,6 +247,54 @@ test("tool-call grading distinguishes attempted, succeeded, and failed outcomes"
   });
 });
 
+test("tool-call not-called filters distinguish selective absence from no calls", async () => {
+  await withTempDirectory(async (root) => {
+    const workspace = path.join(root, "workspace");
+    await mkdir(workspace);
+    const candidate = {
+      ...completeRun(workspace, []),
+      toolActivity: [
+        {
+          toolName: "freeflow_context",
+          args: { operation: "archive", targets: [{ ref: "ctx:disposable" }] },
+          completed: true,
+          isError: false,
+        },
+      ],
+    };
+    const grade = await gradeDeterministic(
+      bodyGroup([
+        {
+          id: "protected-reference-not-called",
+          kind: "tool-call",
+          variant: "candidate",
+          tool: "freeflow_context",
+          expect: "not-called",
+          argumentContains: ["ctx:protected"],
+        },
+        {
+          id: "tool-not-called",
+          kind: "tool-call",
+          variant: "candidate",
+          tool: "freeflow_context",
+          expect: "not-called",
+        },
+      ]),
+      { baseline: absentRun, candidate },
+      evidence,
+    );
+
+    assert.equal(grade.state, "complete");
+    assert.deepEqual(
+      grade.checks.map(({ id, state }) => ({ id, state })),
+      [
+        { id: "protected-reference-not-called", state: "pass" },
+        { id: "tool-not-called", state: "fail" },
+      ],
+    );
+  });
+});
+
 test("context-text grading observes per-turn extension injections", async () => {
   await withTempDirectory(async (root) => {
     const workspace = path.join(root, "workspace");

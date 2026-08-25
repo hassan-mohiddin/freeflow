@@ -82,7 +82,7 @@ Run from the definition root. Definition targets resolve from the current workin
 
 With no selectors, every suite group and both variants are selected. `--group` is invalid for a direct group. Run `--help` before relying on an operation.
 
-Pi is the direct subject process; a runtime profile may select the compatible `piflow` command as an explicit host variant. One-shot descriptions use fresh JSON-mode subjects. Ordered description turns and body groups use one isolated RPC process per variant. Body groups explicitly deliver one target on turn one. Declared extension bundles may provide custom tools and context injections; `bash`, definition-supplied command execution, and end-to-end execution are unsupported.
+Pi is the direct subject process; a runtime profile may select the compatible `piflow` command as an explicit host variant. One-shot descriptions use fresh JSON-mode subjects. Ordered description turns and body groups use one isolated RPC process per variant. Body groups explicitly deliver one target on turn one. Declared extension bundles may provide non-native custom tools in body groups and context injections; description groups remain limited to no tools or `read`. Native `bash`, `powershell`, `grep`, `find`, and `ls` tools, definition-supplied command execution, and end-to-end execution are unsupported.
 
 Read [execution and evidence](references/execution-and-evidence.md) when operating commands, resolving paths, interpreting states, or reasoning about Pi isolation, persistence, views, cancellation, cleanup, and safeguards.
 
