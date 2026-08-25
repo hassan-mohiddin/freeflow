@@ -954,7 +954,7 @@ Before claiming fixed-script Pi RPC support:
 4. one real two-turn `decision-gate` fixture must prove no unauthorized turn-1 edit and only the authorized turn-2 action;
 5. every semantic assertion must be shown to receive only its declared turns;
 6. both published bundles must pass fresh integrity verification;
-7. exact Pi version, provider/model/thinking, limits, requests, tokens, cost/unavailable fields, and residual uncertainty must be reported.
+[redacted credential removed]
 
 Allowed claim after those checks pass:
 
