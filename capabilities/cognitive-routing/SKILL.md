@@ -12,7 +12,7 @@ Use one active agent and one shared visible context while selecting between Stan
 Read the latest extension-generated `Control` and `Profile`. They are authoritative. Earlier profile state, model identity, and transition attempts are history. Natural-language profile suggestions are advisory unless deterministic control changes the runtime state.
 
 - **Standard** is the ordinary workhorse.
-- **Reasoning** handles one material cognitive boundary.
+- **Reasoning** is higher-cognition premium compute.
 - **Think** means analyze, decide, diagnose, review, ask, or write a compact control note.
 - **Act** means invoke task tools or produce a substantive artifact.
 - A **cognitive boundary** is one material uncertainty or judgment that Standard should not resolve alone.
@@ -25,6 +25,8 @@ Profile switching and compact transition contracts are control operations, not t
 | Automatic · Reasoning | Think; apply the Reasoning Act Gate before task Act. |
 | Manual · Standard | Think and Act with Standard; model-requested switching is blocked. |
 | Manual · Reasoning | Think and Act with Reasoning; the automatic Act Gate does not apply. |
+
+Automatic · Reasoning may be active without an `OPEN` boundary. Do not infer who selected it or invent a boundary. Continue Reasoning while the immediate Think benefits materially from it. If a material judgment appears, open a boundary in place with the Reasoning Boundary contract and do not switch again. If no boundary is open and Reasoning no longer materially benefits the immediate work, YIELD; routine continuation and no remaining Reasoning need both qualify.
 
 ## Keep Ownership Separate
 
@@ -51,12 +53,24 @@ Recommend another profile or `/freeflow profile auto` once only when it would ma
 Boundary state decides the route before the shape of the remaining work:
 
 - Standard with no open boundary owns ordinary work.
-- Reasoning owns one `OPEN` cognitive boundary.
+- Reasoning with an open boundary owns that one `OPEN` cognitive boundary.
 - Standard may execute a bounded delegation while Reasoning keeps that boundary open.
 - Standard owns continuation after a `CLOSED` Boundary Handoff.
 - New evidence that defeats a closed conclusion reopens the same judgment boundary.
 
 A closed boundary may leave routine or mechanical work. That work belongs to Standard because Reasoning leadership has ended.
+
+**YIELD** is the Automatic · Reasoning → Standard profile-transition reason when no boundary is open and Reasoning no longer materially benefits the immediate work. It neither delegates execution nor closes a boundary.
+
+Write:
+
+```text
+Yield to Standard
+Boundary state: NONE
+Standard owns:
+```
+
+Then switch to Standard.
 
 ### Standard: Work Or Transfer
 
@@ -72,7 +86,9 @@ Transfer before Standard makes a material judgment when:
 - a causal failure is unclear or repeats;
 - difficult synthesis is itself consequential work;
 - error could be latent, irreversible, or expensive to recover;
-- a selected reasoning review is due.
+- an already-selected review requires material judgment better handled by Reasoning.
+
+Workflow selects whether review occurs; Review Work owns its method; Cognitive Routing selects only its compute. A Reasoning-led review of work in the shared context is same-agent self-review, never independent review.
 
 Classify the boundary:
 
@@ -146,7 +162,7 @@ Outcome or evidence pointer:
 Return condition reached:
 ```
 
-Then switch to Reasoning. Reasoning reassesses the same boundary and may observe, act boundedly, delegate again, close, or return to Workflow.
+This is **RETURN**: it resumes the same `OPEN` boundary. It is neither NEW nor REOPEN and never revives a `CLOSED` boundary. Then switch to Reasoning. Reasoning reassesses that boundary and may observe, act boundedly, delegate again, close, or return to Workflow.
 
 ### Close And Hand Off
 
@@ -167,6 +183,22 @@ Then switch to Standard. Standard owns continuation through completion and verif
 
 If the named reopen condition occurs, Standard writes a `Reasoning Boundary` with `Boundary operation: REOPEN` and transfers the judgment back. Otherwise Standard must not reopen a closed conclusion merely because routine execution continues.
 
+### Example: Reasoning-Led Self-Review
+
+```text
+Standard implements and verifies
+-> NEW + SWITCH for Reasoning self-review
+-> review passes
+   -> CLOSE + HANDOFF to Standard
+-> clear local issue
+   -> correct within the same slice and authority
+   -> re-verify
+   -> return to Reasoning
+   -> self-review the corrected state again
+-> unclear, repeated, or route-changing issue
+   -> Workflow or Diagnose Failure
+```
+
 ## Switch Profiles Safely
 
 Every automatic transition uses:
@@ -182,11 +214,13 @@ The reason is required and capped at 160 characters. The switch must be the only
 
 Write the applicable visible transition contract before switching. Shared context carries existing evidence; the contract carries the boundary state, newly supported conclusion or open judgment, and the target profile's role.
 
-If a switch fails, preserve the supported boundary state and return the blocker through Workflow. Standard must not resolve an untransferred material judgment, and Reasoning must not absorb delegated or post-closure execution.
+If a switch fails, preserve the supported boundary or no-boundary state and return the blocker through Workflow. Standard must not resolve an untransferred material judgment, and Reasoning must not absorb delegated, yielded, or post-closure execution.
 
 ## Preserve Continuity
 
 A cognitive boundary may survive turns, compaction, resume, reload, and delegated execution. Its Reasoning observation or bounded Act scope does not; after interruption, Reasoning reassesses before acting.
+
+Ending a response does not close an `OPEN` boundary. When Reasoning asks the user, waits, or gives an interim answer while the judgment remains unresolved, preserve the boundary and remain in Reasoning. Resume the same boundary on the next turn.
 
 Visible context carries evidence. Transition contracts carry newly derived conclusions, boundary state, execution scope, and return or reopen conditions. Hidden reasoning is never the continuation mechanism.
 
@@ -196,4 +230,4 @@ Bursty switching is valid when each transition moves one meaningful judgment or 
 
 Stop entirely when runtime state marks Cognitive Routing inactive or unavailable. Under manual control, stop the automatic method and continue with the held profile. After a successful closed handoff, end the detailed boundary method until a supported NEW or REOPEN condition appears.
 
-Do not create boundaries for ordinary reversible uncertainty, switch merely because premium compute is available, or keep Reasoning active for work Standard can complete directly.
+Do not create or preserve boundaries for ordinary reversible uncertainty, switch merely because premium compute is available, keep Reasoning leadership after its material judgment ends, or delay YIELD after Reasoning no longer materially benefits the immediate work.
