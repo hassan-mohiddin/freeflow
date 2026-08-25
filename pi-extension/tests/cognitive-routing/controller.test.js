@@ -1046,6 +1046,7 @@ test("writes v2 mechanism, causal, and baseline metadata before transitions", as
     returnTarget: { provider: "faux", modelId: "return", thinkingLevel: "medium" },
     fromPair: { provider: "faux", modelId: "standard", thinkingLevel: "high" },
     fromProfile: "standard",
+    fromControl: "automatic",
     reason: "Need a deeper analysis.",
   });
 

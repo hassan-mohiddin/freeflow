@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readCognitiveRoutingHistory } from "./history.js";
+import { PI_SESSION_MODEL_STATE_ENTRY, parsePiSessionModelStateCommit } from "./pi-session-control.js";
 export const COGNITIVE_ROUTING_INTENT_ENTRY = "freeflow-cognitive-routing-intent";
 export const COGNITIVE_ROUTING_CONTROL_ENTRY = "freeflow-cognitive-routing-control";
 function isProfileName(value) {
@@ -42,18 +43,44 @@ function asPair(value) {
     thinkingLevel: candidate.thinkingLevel,
   };
 }
+function hostPairFromEntry(entry) {
+  if (entry.type === "model_state_change") {
+    return asPair({
+      provider: entry.provider,
+      modelId: entry.modelId,
+      thinkingLevel: entry.thinkingLevel,
+    });
+  }
+  if (entry.type !== "custom" || entry.customType !== PI_SESSION_MODEL_STATE_ENTRY) return undefined;
+  const commit = parsePiSessionModelStateCommit(entry.data);
+  if (!commit || commit.phase !== "committed" || commit.status !== "applied") return undefined;
+  return commit.target;
+}
+function hostCorrelationIdFromEntry(entry) {
+  if (entry.type === "model_state_change") {
+    return typeof entry.correlationId === "string" ? entry.correlationId : undefined;
+  }
+  if (entry.type !== "custom" || entry.customType !== PI_SESSION_MODEL_STATE_ENTRY) return undefined;
+  const commit = parsePiSessionModelStateCommit(entry.data);
+  return commit?.phase === "committed" && commit.status === "applied" ? commit.correlationId : undefined;
+}
+function latestPiSessionCommit(entries, correlationId) {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (!entry || typeof entry !== "object") continue;
+    const candidate = entry;
+    if (candidate.type !== "custom" || candidate.customType !== PI_SESSION_MODEL_STATE_ENTRY) continue;
+    const commit = parsePiSessionModelStateCommit(candidate.data);
+    if (commit?.correlationId === correlationId) return commit;
+  }
+  return undefined;
+}
 function latestHostPair(context) {
   const entries = branchEntriesFrom(context);
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index];
     if (!entry || typeof entry !== "object") continue;
-    const candidate = entry;
-    if (candidate.type !== "model_state_change") continue;
-    const pair = asPair({
-      provider: candidate.provider,
-      modelId: candidate.modelId,
-      thinkingLevel: candidate.thinkingLevel,
-    });
+    const pair = hostPairFromEntry(entry);
     if (pair) return pair;
   }
   return undefined;
@@ -73,6 +100,17 @@ function profileNameForPair(capabilityState, pair) {
     }
   }
   return undefined;
+}
+function pairMatchesProfile(capabilityState, pair, profileName) {
+  const profile = capabilityState.resolvedProfiles[profileName];
+  return Boolean(
+    profile &&
+    pairEquals(pair, {
+      provider: profile.provider,
+      modelId: profile.model,
+      thinkingLevel: profile.effectiveThinkingLevel,
+    }),
+  );
 }
 function asIntent(value) {
   if (!value || typeof value !== "object") return undefined;
@@ -102,6 +140,9 @@ function asIntent(value) {
       : {}),
     ...(fromPair ? { fromPair } : {}),
     ...(isProfileName(candidate.fromProfile) ? { fromProfile: candidate.fromProfile } : {}),
+    ...(candidate.fromControl === "automatic" || candidate.fromControl === "manual"
+      ? { fromControl: candidate.fromControl }
+      : {}),
     ...(typeof candidate.reason === "string" ? { reason: candidate.reason } : {}),
     ...(typeof candidate.branchId === "string" || candidate.branchId === null ? { branchId: candidate.branchId } : {}),
     epoch: candidate.epoch,
@@ -177,21 +218,92 @@ function latestControlMode(entries, intent) {
     }
     if (candidate.customType !== COGNITIVE_ROUTING_INTENT_ENTRY) continue;
     const candidateIntent = asIntent(candidate.data);
-    if (!candidateIntent || candidateIntent.phase !== "prepared" || candidateIntent.epoch !== intent.epoch) continue;
+    if (!candidateIntent || candidateIntent.epoch !== intent.epoch) continue;
+    if (candidateIntent.phase === "abandoned") {
+      if (candidateIntent.fromControl === "manual" && candidateIntent.fromProfile) {
+        return `manual-${candidateIntent.fromProfile}`;
+      }
+      if (candidateIntent.fromControl === "automatic") return "automatic";
+      continue;
+    }
     if (candidateIntent.kind === "profile" || candidateIntent.kind === "activation") {
       return controlModeForIntent(candidateIntent);
     }
   }
   return "automatic";
 }
+function intentEntryIndex(entries, intent) {
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    if (!entry || typeof entry !== "object") continue;
+    const candidate = entry;
+    if (candidate.type !== "custom" || candidate.customType !== COGNITIVE_ROUTING_INTENT_ENTRY) continue;
+    const parsed = asIntent(candidate.data);
+    if (parsed?.correlationId === intent.correlationId && parsed.phase === "prepared") return index;
+  }
+  return entries.length;
+}
+function matchesBaseline(candidate, failed) {
+  if (failed.fromPair && !pairEquals(candidate.target, failed.fromPair)) return false;
+  if (failed.fromProfile && candidate.profile !== failed.fromProfile) return false;
+  return true;
+}
+export function resolveControlBeforeIntent(entries, intent) {
+  if (intent.fromControl === "automatic") return "automatic";
+  if (intent.fromControl === "manual") {
+    return intent.fromProfile ? `manual-${intent.fromProfile}` : undefined;
+  }
+  const priorEntries = entries.slice(0, intentEntryIndex(entries, intent));
+  const abandonedCorrelations = new Set();
+  for (const entry of priorEntries) {
+    if (!entry || typeof entry !== "object") continue;
+    const candidate = entry;
+    if (candidate.type !== "custom" || candidate.customType !== COGNITIVE_ROUTING_INTENT_ENTRY) continue;
+    const parsed = asIntent(candidate.data);
+    if (parsed?.phase === "abandoned") abandonedCorrelations.add(parsed.correlationId);
+  }
+  let resolved;
+  for (const entry of priorEntries) {
+    if (!entry || typeof entry !== "object") continue;
+    const candidate = entry;
+    if (candidate.type !== "custom") continue;
+    if (candidate.customType === COGNITIVE_ROUTING_CONTROL_ENTRY) {
+      const data = candidate.data;
+      if (
+        data &&
+        typeof data === "object" &&
+        (data.version === 1 || data.version === 2) &&
+        data.epoch === intent.epoch &&
+        data.control === "automatic"
+      ) {
+        resolved = "automatic";
+      }
+      continue;
+    }
+    if (candidate.customType !== COGNITIVE_ROUTING_INTENT_ENTRY) continue;
+    const parsed = asIntent(candidate.data);
+    if (
+      !parsed ||
+      parsed.phase !== "prepared" ||
+      parsed.epoch !== intent.epoch ||
+      abandonedCorrelations.has(parsed.correlationId) ||
+      (parsed.kind !== "profile" && parsed.kind !== "activation") ||
+      !hasMatchingHostEntry(priorEntries, parsed) ||
+      !matchesBaseline(parsed, intent)
+    ) {
+      continue;
+    }
+    resolved = controlModeForIntent(parsed);
+  }
+  return resolved;
+}
 function hasMatchingHostEntry(entries, intent) {
   return entries.some((entry) => {
     if (!entry || typeof entry !== "object") return false;
     const candidate = entry;
     return (
-      candidate.type === "model_state_change" &&
-      candidate.correlationId === intent.correlationId &&
-      pairEquals(asPair(candidate), intent.target)
+      hostCorrelationIdFromEntry(candidate) === intent.correlationId &&
+      pairEquals(hostPairFromEntry(candidate), intent.target)
     );
   });
 }
@@ -403,6 +515,105 @@ export class CognitiveRoutingController {
       await this.releaseLease(lease);
     }
   }
+  async recoverTerminalIntent(intent) {
+    const commit = latestPiSessionCommit(branchEntriesFrom(this.ctx), intent.correlationId);
+    if (!commit) return undefined;
+    if (commit.phase === "prepared") {
+      if (!this.pi.recoverPreparedModelState) {
+        return { status: "pending", reason: "prepared_recovery_unsupported" };
+      }
+      let recovery;
+      try {
+        recovery = await this.pi.recoverPreparedModelState({
+          fromPair: commit.fromPair,
+          target: commit.target,
+          correlationId: commit.correlationId,
+        });
+      } catch {
+        return { status: "pending", reason: "prepared_recovery_failed" };
+      }
+      if (recovery.status === "rollback-failed") {
+        return { status: "pending", reason: "rollback_failed" };
+      }
+      if (recovery.status !== "restored") {
+        return { status: "pending", reason: "prepared_recovery_failed" };
+      }
+      try {
+        this.abandonPreparedIntent(intent, "Pi session transition interrupted.");
+      } catch {
+        return { status: "pending", reason: "intent_abandon_failed" };
+      }
+      const recovered = await this._recover();
+      return recovered.status === "inactive" && recovered.reason === "no_pending_intent"
+        ? { status: "inactive", reason: "intent_abandoned" }
+        : recovered;
+    }
+    if (commit.phase !== "aborted") return undefined;
+    if (commit.status === "rollback-failed") {
+      return { status: "pending", reason: "rollback_failed" };
+    }
+    try {
+      this.abandonPreparedIntent(intent, "Pi session transition rolled back.");
+    } catch {
+      return { status: "pending", reason: "intent_abandon_failed" };
+    }
+    return this._recover();
+  }
+  async recoverTerminalProfileIntent(intent) {
+    const commit = latestPiSessionCommit(branchEntriesFrom(this.ctx), intent.correlationId);
+    if (!commit || commit.phase === "committed") return undefined;
+    if (commit.phase === "aborted" && commit.status === "rollback-failed") {
+      return { status: "pending", reason: "rollback_failed" };
+    }
+    const controlMode = resolveControlBeforeIntent(branchEntriesFrom(this.ctx), intent);
+    if (
+      !controlMode ||
+      !intent.fromPair ||
+      !intent.fromProfile ||
+      !pairMatchesProfile(this.capabilityState, intent.fromPair, intent.fromProfile)
+    ) {
+      return { status: "pending", reason: "baseline_control_unknown" };
+    }
+    if (commit.phase === "prepared") {
+      if (!this.pi.recoverPreparedModelState) {
+        return { status: "pending", reason: "prepared_recovery_unsupported" };
+      }
+      let recovery;
+      try {
+        recovery = await this.pi.recoverPreparedModelState({
+          fromPair: commit.fromPair,
+          target: commit.target,
+          correlationId: commit.correlationId,
+        });
+      } catch {
+        return { status: "pending", reason: "prepared_recovery_failed" };
+      }
+      if (recovery.status === "rollback-failed") {
+        return { status: "pending", reason: "rollback_failed" };
+      }
+      if (recovery.status !== "restored") {
+        return { status: "pending", reason: "prepared_recovery_failed" };
+      }
+    }
+    try {
+      this.abandonPreparedIntent(intent, "Pi session transition interrupted or rolled back.");
+    } catch {
+      return { status: "pending", reason: "intent_abandon_failed" };
+    }
+    const recovered = await this.activatePrepared({
+      kind: "profile",
+      controlMode,
+      source: "system",
+      mechanism: "recovery",
+      ...(decisionCorrelationForIntent(intent) ? { decisionCorrelationId: decisionCorrelationForIntent(intent) } : {}),
+      branchId: this.currentBranchId(),
+      epoch: intent.epoch,
+      returnTarget: intent.returnTarget,
+      target: intent.fromPair,
+      profile: intent.fromProfile,
+    });
+    return recovered.status === "active" ? recovered : { status: "pending", reason: "baseline_recovery_failed" };
+  }
   async _recover() {
     const sessionEntries = entriesFrom(this.ctx);
     const branchEntries = branchEntriesFrom(this.ctx);
@@ -412,6 +623,10 @@ export class CognitiveRoutingController {
     );
     if (!lifecycleIntent) {
       return { status: "inactive", reason: "no_pending_intent" };
+    }
+    if (lifecycleIntent.kind === "activation") {
+      const lifecycleTerminal = await this.recoverTerminalIntent(lifecycleIntent);
+      if (lifecycleTerminal) return lifecycleTerminal;
     }
     if (lifecycleIntent.kind === "closing") {
       return hasMatchingHostEntry(sessionEntries, lifecycleIntent)
@@ -442,7 +657,7 @@ export class CognitiveRoutingController {
     if (!activationMatched) {
       const retried = await this.activatePrepared({
         kind: "activation",
-        controlMode: "automatic",
+        controlMode: latestControlMode(branchEntries, lifecycleIntent),
         source: "system",
         mechanism: "recovery",
         branchId: this.currentBranchId(),
@@ -458,6 +673,8 @@ export class CognitiveRoutingController {
       (intent) => intent.kind === "profile" && intent.epoch === lifecycleIntent.epoch,
     );
     if (profileIntent) {
+      const terminal = await this.recoverTerminalProfileIntent(profileIntent);
+      if (terminal) return terminal;
       const currentProfile = this.capabilityState.resolvedProfiles[profileIntent.profile ?? "standard"];
       if (!currentProfile) {
         return this.abandonIntent(profileIntent, "Prepared profile is unavailable.");
@@ -491,7 +708,7 @@ export class CognitiveRoutingController {
     }
     return this.activatePrepared({
       kind: "activation",
-      controlMode: "automatic",
+      controlMode: latestControlMode(branchEntries, lifecycleIntent),
       source: "system",
       mechanism: "recovery",
       branchId: this.currentBranchId(),
@@ -546,20 +763,23 @@ export class CognitiveRoutingController {
       await this.releaseLease(acquisition.lease);
     }
   }
+  abandonPreparedIntent(intent, reason) {
+    const fromPair = intent.fromPair ?? latestHostPair(this.ctx) ?? this.currentPair();
+    const fromProfile = intent.fromProfile ?? profileNameForPair(this.capabilityState, fromPair);
+    this.pi.appendEntryDurable(COGNITIVE_ROUTING_INTENT_ENTRY, {
+      ...intent,
+      version: 2,
+      phase: "abandoned",
+      source: "system",
+      mechanism: intent.mechanism ?? "recovery",
+      ...(fromPair ? { fromPair } : {}),
+      ...(fromProfile ? { fromProfile } : {}),
+      reason,
+    });
+  }
   async abandonIntent(intent, reason) {
     try {
-      const fromPair = intent.fromPair ?? latestHostPair(this.ctx) ?? this.currentPair();
-      const fromProfile = intent.fromProfile ?? profileNameForPair(this.capabilityState, fromPair);
-      this.pi.appendEntryDurable(COGNITIVE_ROUTING_INTENT_ENTRY, {
-        ...intent,
-        version: 2,
-        phase: "abandoned",
-        source: "system",
-        mechanism: intent.mechanism ?? "recovery",
-        ...(fromPair ? { fromPair } : {}),
-        ...(fromProfile ? { fromProfile } : {}),
-        reason,
-      });
+      this.abandonPreparedIntent(intent, reason);
       const recovered = await this._recover();
       return recovered.status === "inactive" && recovered.reason === "no_pending_intent"
         ? { status: "inactive", reason: "intent_abandoned" }
@@ -686,6 +906,7 @@ export class CognitiveRoutingController {
       ...(decisionCorrelationId ? { decisionCorrelationId } : {}),
       ...(fromPair ? { fromPair } : {}),
       ...(fromProfile ? { fromProfile } : {}),
+      fromControl: options.controlMode === "automatic" ? "automatic" : "manual",
       reason: options.reason,
       branchId: this.currentBranchId(),
       epoch: this.epoch,
@@ -716,6 +937,25 @@ export class CognitiveRoutingController {
     try {
       const result = await lease.setState({ ...target, correlationId: intent.correlationId });
       if (result.status !== "applied" && result.status !== "unchanged") {
+        const commit = latestPiSessionCommit(branchEntriesFrom(this.ctx), intent.correlationId);
+        if (result.status === "rejected" && commit?.phase === "aborted" && commit.status === "rollback-failed") {
+          try {
+            this.abandonPreparedIntent(intent, "Pi session rollback failed.");
+          } catch {
+            // Fail closed even when the terminal abandonment cannot be persisted.
+          }
+          await this.releaseLease(lease);
+          this.clearActiveState();
+          return { status: "inactive", reason: "rollback_failed" };
+        }
+        if (result.status === "rejected" && commit?.phase === "aborted" && commit.status === "rolled-back") {
+          try {
+            this.abandonPreparedIntent(intent, "Pi session transition rolled back.");
+            this.branchPending = false;
+          } catch {
+            // Preserve the pending boundary when the terminal abandonment cannot be persisted.
+          }
+        }
         return { status: "inactive", reason: "transition_rejected" };
       }
       this.activeProfile = profile;

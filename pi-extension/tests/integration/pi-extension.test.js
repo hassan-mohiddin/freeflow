@@ -21,7 +21,7 @@ import { PIFLOW_HOST } from "../cognitive-routing/host-fixture.js";
 
 const execFileAsync = promisify(execFile);
 
-function loadExtension(host = PIFLOW_HOST) {
+function loadExtension(host = PIFLOW_HOST, runtimeApi = {}) {
   const handlers = new Map();
   const tools = [];
   const commands = [];
@@ -64,6 +64,7 @@ function loadExtension(host = PIFLOW_HOST) {
       activeToolNames = [...names];
     },
   };
+  Object.assign(pi, runtimeApi);
 
   freeflowExtension(pi);
   return {
@@ -155,7 +156,7 @@ test("Pi registers Freeflow commands without retired router tools", () => {
   assert.ok(!toolNames.includes("freeflow_capture"));
 });
 
-test("normal Pi keeps Cognitive Routing disabled while showing its configuration", async () => {
+test("unsupported Pi hosts keep Cognitive Routing unavailable while showing its configuration", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-normal-runtime-"));
   try {
     await mkdir(join(cwd, ".freeflow"));
@@ -179,20 +180,16 @@ test("normal Pi keeps Cognitive Routing disabled while showing its configuration
     assert.deepEqual(shortcuts, []);
     assert.ok(!tools.some((tool) => tool.name === "freeflow_switch_profile"));
     assert.ok(!freeflowCommand.definition.getArgumentCompletions("").some((item) => item.value === "profile"));
-    const capabilityState = await readCapabilityState(
-      cwd,
-      { modelRegistry: cognitiveRoutingModelRegistry() },
-      undefined,
-    );
+    const capabilityState = await readCapabilityState(cwd, undefined, undefined);
     assert.equal(capabilityState.cognitiveRouting.enabled, true);
     assert.equal(capabilityState.cognitiveRouting.effective, false);
-    assert.equal(capabilityState.cognitiveRouting.blockingReason.code, "runtime_disabled");
+    assert.equal(capabilityState.cognitiveRouting.blockingReason.code, "host_unsupported");
 
     const ctx = context(cwd);
     await freeflowCommand.definition.handler("status", ctx);
-    assert.match(ctx.notifications.at(-1).message, /cognitive routing: disabled \(PiFlow only\)/i);
+    assert.match(ctx.notifications.at(-1).message, /cognitive routing: blocked \(host_unsupported\)/i);
     await handlers.get("session_start")({ type: "session_start" }, ctx);
-    assert.match(ctx.statuses.at(-1).value, /cognitive disabled · PiFlow only/);
+    assert.match(ctx.statuses.at(-1).value, /cognitive blocked · host_unsupported/);
     const beforeAgentStart = await handlers.get("before_agent_start")({ systemPrompt: "base" }, ctx);
     assert.doesNotMatch(
       `${beforeAgentStart?.systemPrompt ?? ""}\n${beforeAgentStart?.message ?? ""}`,
@@ -205,7 +202,7 @@ test("normal Pi keeps Cognitive Routing disabled while showing its configuration
       });
       const rootText = renderText(component);
       assert.match(rootText, /Cognitive Routing/);
-      assert.match(rootText, /PiFlow only/);
+      assert.match(rootText, /host unsupported/);
       component.handleInput("\u001b[B");
       component.handleInput("\r");
       component.handleInput("\u001b[B");
@@ -227,6 +224,51 @@ test("normal Pi keeps Cognitive Routing disabled while showing its configuration
       return result;
     };
     await freeflowCommand.definition.handler("settings", ctx);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("normal Pi settings expose active Cognitive Routing configuration", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-normal-cognitive-settings-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({
+        defaultMode: "workflow",
+        cognitiveRouting: {
+          enabled: true,
+          profiles: {
+            standard: { provider: "test", model: "model-a", thinkingLevel: "low" },
+            reasoning: { provider: "test", model: "model-b", thinkingLevel: "high" },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const { commands } = loadExtension(null, {
+      appendEntry() {},
+      async setModel() {
+        return true;
+      },
+      setThinkingLevel() {},
+    });
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    assert.ok(freeflowCommand);
+    const settingsCtx = context(cwd);
+    settingsCtx.isIdle = () => true;
+    settingsCtx.modelRegistry = cognitiveRoutingModelRegistry();
+    settingsCtx.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+      const rootText = renderText(component);
+      assert.match(rootText, /Cognitive Routing\s+enabled.*active/);
+      assert.doesNotMatch(rootText, /PiFlow only/);
+      return undefined;
+    };
+
+    await freeflowCommand.definition.handler("settings", settingsCtx);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

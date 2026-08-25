@@ -22,6 +22,7 @@ import {
   type SettingsWizard,
   type SettingsWizardStep,
 } from "./settings-tui.js";
+import { supportsPiSessionModelStateApi } from "../cognitive-routing/pi-session-control.js";
 import { isPiFlowHost } from "../runtime/runtime-identity.js";
 import type {
   CognitiveRoutingCapabilityState,
@@ -973,6 +974,10 @@ function cognitiveRoutingSessionStartItem(options: {
   return item;
 }
 
+function isCognitiveRoutingRuntimeAvailable(pi: any): boolean {
+  return isPiFlowHost(pi?.host) || supportsPiSessionModelStateApi(pi);
+}
+
 function freeflowItems(
   rawConfig: Record<string, unknown>,
   modeState?: Awaited<ReturnType<typeof readModeState>>,
@@ -981,7 +986,7 @@ function freeflowItems(
     layers?: Awaited<ReturnType<typeof readFreeflowConfigLayers>>;
     cognitiveRouting?: CognitiveRoutingCapabilityState;
     ctx?: any;
-    hostInfo?: unknown;
+    runtimeAvailable?: boolean;
   } = {},
 ): SettingsItem[] {
   const scope = options.scope ?? "repository";
@@ -1097,7 +1102,7 @@ function freeflowItems(
   };
 
   const cognitiveRoutingState = options.cognitiveRouting;
-  const cognitiveRoutingRuntimeDisabled = !isPiFlowHost(options.hostInfo);
+  const cognitiveRoutingRuntimeDisabled = options.runtimeAvailable !== true;
   const cognitiveRoutingGroup = (() => {
     const cognitiveRoutingEnabledItem = createScopedBooleanItem({
       scope,
@@ -1106,7 +1111,7 @@ function freeflowItems(
       id: "freeflow.cognitiveRouting.enabled",
       label: "Enabled",
       description: cognitiveRoutingRuntimeDisabled
-        ? "Configured for PiFlow, but disabled in normal Pi."
+        ? "Requires a host model-state control API; configuration is read-only on this host."
         : "Allow Cognitive Routing to own the session model lease and switch the configured profiles.",
       path: ["cognitiveRouting", "enabled"],
       effectiveValue: cognitiveRoutingState?.enabled ?? false,
@@ -1141,7 +1146,7 @@ function freeflowItems(
       item.runtimeInactive = cognitiveRoutingRuntimeDisabled;
     }
     const cognitiveRoutingStatus = cognitiveRoutingRuntimeDisabled
-      ? "disabled · PiFlow only"
+      ? "unavailable · host unsupported"
       : cognitiveRoutingState
         ? cognitiveRoutingState.effective
           ? "active"
@@ -1153,7 +1158,7 @@ function freeflowItems(
       id: "freeflow.cognitiveRouting",
       label: "Cognitive Routing",
       description: cognitiveRoutingRuntimeDisabled
-        ? "Cognitive Routing configuration is visible for inspection but can only run in PiFlow."
+        ? "Cognitive Routing configuration is visible for inspection but requires a host model-state control API."
         : "Configure the automatic standard/reasoning profiles and choose whether Freeflow may manage model state for this repository.",
       kind: "group" as const,
       value: cognitiveRoutingRuntimeDisabled ? false : (cognitiveRoutingState?.enabled ?? false),
@@ -1666,7 +1671,7 @@ export async function handleFreeflowCommand(
       layers,
       cognitiveRouting: state.cognitiveRouting as CognitiveRoutingCapabilityState,
       ctx,
-      hostInfo: pi?.host,
+      runtimeAvailable: isCognitiveRoutingRuntimeAvailable(pi),
     }).find((candidate) => candidate.id === "freeflow.sessionMode")!;
     const session = await openSettings({
       title: "Freeflow Mode",
@@ -1689,7 +1694,7 @@ export async function handleFreeflowCommand(
       layers,
       cognitiveRouting: state.cognitiveRouting as CognitiveRoutingCapabilityState,
       ctx,
-      hostInfo: pi?.host,
+      runtimeAvailable: isCognitiveRoutingRuntimeAvailable(pi),
     }).find((candidate) => candidate.id === "freeflow.enabled")!;
     await updateConfig(ctx.cwd, item, enabled, "repository");
     await afterChange(true);
@@ -1734,7 +1739,7 @@ export async function handleFreeflowCommand(
           layers,
           cognitiveRouting: state.cognitiveRouting as CognitiveRoutingCapabilityState,
           ctx,
-          hostInfo: pi?.host,
+          runtimeAvailable: isCognitiveRoutingRuntimeAvailable(pi),
         });
   const session = await openSettings({
     title:
@@ -1747,8 +1752,8 @@ export async function handleFreeflowCommand(
     ctx,
     onChange: async (item, value) => {
       if (!ensureSettingsIdle(ctx)) return { changed: false, reloadRequired: false };
-      if (!isPiFlowHost(pi?.host) && item.id.startsWith("freeflow.cognitiveRouting.")) {
-        ctx.ui.notify("Cognitive Routing is available only in PiFlow.", "warning");
+      if (!isCognitiveRoutingRuntimeAvailable(pi) && item.id.startsWith("freeflow.cognitiveRouting.")) {
+        ctx.ui.notify("Cognitive Routing is unavailable because this host lacks model-state controls.", "warning");
         return { changed: false, reloadRequired: false };
       }
       if (item.id === "freeflow.sessionMode") {

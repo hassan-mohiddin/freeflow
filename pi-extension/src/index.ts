@@ -3,6 +3,7 @@ import {
   COGNITIVE_ROUTING_INTENT_ENTRY,
   CognitiveRoutingController,
 } from "./cognitive-routing/controller.js";
+import { createPiSessionControllerHost } from "./cognitive-routing/pi-session-control.js";
 import {
   cognitiveRoutingProfileCompletions,
   handleCognitiveRoutingProfileCommand,
@@ -158,13 +159,39 @@ function sessionHasConversationOrRoutingState(ctx: SessionEntriesContext | undef
   }
 }
 
-function hasCognitiveRoutingHost(pi: any, ctx: any): boolean {
+function hasPiSessionModelStateApi(pi: any): boolean {
   return (
+    typeof pi?.appendEntry === "function" &&
+    typeof pi?.setModel === "function" &&
+    typeof pi?.setThinkingLevel === "function"
+  );
+}
+
+function hasCognitiveRoutingHost(pi: any, ctx: any): boolean {
+  if (
     isPiFlowHost(pi?.host) &&
     typeof pi?.appendEntryDurable === "function" &&
-    typeof pi?.acquireModelStateControl === "function" &&
+    typeof pi?.acquireModelStateControl === "function"
+  ) {
+    return true;
+  }
+  return (
+    hasPiSessionModelStateApi(pi) &&
+    typeof ctx?.modelRegistry?.find === "function" &&
     typeof ctx?.modelRegistry?.getApiKeyAndHeaders === "function"
   );
+}
+
+function cognitiveRoutingControllerHost(pi: any, ctx: any): any | undefined {
+  if (isPiFlowHost(pi?.host) && typeof pi?.acquireModelStateControl === "function") return pi;
+  if (hasPiSessionModelStateApi(pi) && hasCognitiveRoutingHost(pi, ctx)) {
+    return createPiSessionControllerHost({ pi, ctx });
+  }
+  return undefined;
+}
+
+function supportsCognitiveRoutingRuntime(pi: any): boolean {
+  return isPiFlowHost(pi?.host) || hasPiSessionModelStateApi(pi);
 }
 
 async function reconcileCognitiveRoutingController(
@@ -174,17 +201,13 @@ async function reconcileCognitiveRoutingController(
   previous: CognitiveRoutingController | undefined,
 ): Promise<CognitiveRoutingController | undefined> {
   const cognitiveRouting = capabilityState?.cognitiveRouting;
-  if (
-    !isPiFlowHost(pi?.host) ||
-    !cognitiveRouting?.effective ||
-    startupSelectionSuppressesCognitiveRouting(ctx) ||
-    !hasCognitiveRoutingHost(pi, ctx)
-  ) {
+  const controllerPi = cognitiveRoutingControllerHost(pi, ctx);
+  if (!cognitiveRouting?.effective || startupSelectionSuppressesCognitiveRouting(ctx) || !controllerPi) {
     if (previous) await previous.deactivate();
     return undefined;
   }
 
-  const controller = new CognitiveRoutingController({ capabilityState: cognitiveRouting, pi, ctx });
+  const controller = new CognitiveRoutingController({ capabilityState: cognitiveRouting, pi: controllerPi, ctx });
   const recovered = await controller.recover();
   if (recovered.status === "pending") return controller;
   if (recovered.status !== "active") {
@@ -268,7 +291,7 @@ function disabledToolCall(toolName: string, capability: string) {
   };
 }
 
-function freeflowCompletions(prefix: string | undefined, hostInfo = undefined) {
+function freeflowCompletions(prefix: string | undefined, cognitiveRoutingAvailable = false) {
   const query = prefix ?? "";
   if (query.startsWith("settings ")) {
     const settingsQuery = query.slice("settings ".length);
@@ -280,7 +303,7 @@ function freeflowCompletions(prefix: string | undefined, hostInfo = undefined) {
       .filter((item) => item.value.startsWith(settingsQuery))
       .map((item) => ({ ...item, value: `settings ${item.value}` }));
   }
-  if (isPiFlowHost(hostInfo) && query.startsWith("profile ")) {
+  if (cognitiveRoutingAvailable && query.startsWith("profile ")) {
     return cognitiveRoutingProfileCompletions(query.slice("profile ".length)).map((item) => ({
       ...item,
       value: `profile ${item.value}`,
@@ -317,7 +340,7 @@ function freeflowCompletions(prefix: string | undefined, hostInfo = undefined) {
     { value: "status", label: "status", description: "Show effective Freeflow state" },
     { value: "context", label: "context", description: "Inspect Freeflow Context" },
     { value: "mode", label: "mode", description: "Select a temporary session mode" },
-    ...(isPiFlowHost(hostInfo)
+    ...(cognitiveRoutingAvailable
       ? [{ value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" }]
       : []),
     { value: "enable", label: "enable", description: "Enable Freeflow for this repository" },
@@ -428,7 +451,7 @@ export default function freeflow(pi) {
     registerContextToolForState(await readCapabilityState(ctx.cwd, ctx, pi?.host));
   };
 
-  if (isPiFlowHost(pi?.host)) {
+  if (supportsCognitiveRoutingRuntime(pi)) {
     registerCognitiveRoutingTool(pi, () => cognitiveRoutingController);
     registerCognitiveRoutingHistoryTool(pi, (options, context) => {
       if (cognitiveRoutingController) return cognitiveRoutingController.history(options);
@@ -442,7 +465,7 @@ export default function freeflow(pi) {
     { contextVirtualization: false, conversationHistory: false },
   );
 
-  if (isPiFlowHost(pi?.host) && typeof pi.registerShortcut === "function") {
+  if (supportsCognitiveRoutingRuntime(pi) && typeof pi.registerShortcut === "function") {
     pi.registerShortcut("ctrl+shift+r", {
       description: "Cycle the Cognitive Routing manual standard/reasoning hold",
       handler: async (ctx) => {
@@ -670,7 +693,7 @@ export default function freeflow(pi) {
 
   pi.on("tool_result", async (event, ctx) => {
     const toolName = typeof event?.toolName === "string" ? event.toolName : "";
-    if (isPiFlowHost(pi?.host) && toolName === COGNITIVE_ROUTING_SWITCH_TOOL_NAME) {
+    if (supportsCognitiveRoutingRuntime(pi) && toolName === COGNITIVE_ROUTING_SWITCH_TOOL_NAME) {
       await applyLiveCapabilityStateForSession(ctx);
     }
     return undefined;
@@ -697,7 +720,7 @@ export default function freeflow(pi) {
 
   pi.registerCommand("freeflow", {
     description: "Open unified Freeflow settings or print compact status",
-    getArgumentCompletions: (prefix) => freeflowCompletions(prefix, pi?.host),
+    getArgumentCompletions: (prefix) => freeflowCompletions(prefix, supportsCognitiveRoutingRuntime(pi)),
     handler: async (args, ctx) => {
       const contextInput = (args ?? "").trim();
       if (contextInput === "context" || contextInput.startsWith("context ")) {
@@ -711,7 +734,7 @@ export default function freeflow(pi) {
         );
         return;
       }
-      if (isPiFlowHost(pi?.host) && /^profile(?:\s|$)/i.test((args ?? "").trim())) {
+      if (supportsCognitiveRoutingRuntime(pi) && /^profile(?:\s|$)/i.test((args ?? "").trim())) {
         const profileCommandContext = {
           isIdle: ctx?.isIdle,
           ui: ctx?.ui,

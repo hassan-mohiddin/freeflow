@@ -1,20 +1,66 @@
 import { COGNITIVE_ROUTING_PROFILE_NAMES } from "./types.js";
 const THINKING_LEVEL_ORDER = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 const THINKING_LEVELS = new Set(THINKING_LEVEL_ORDER);
-function modelRegistry(host) {
-  if (!host || typeof host !== "object") return undefined;
-  const hostRecord = host;
-  const candidateValue = hostRecord.modelRegistry ?? hostRecord;
-  if (!candidateValue || typeof candidateValue !== "object") return undefined;
-  const candidate = candidateValue;
-  if (
-    typeof candidate.find !== "function" ||
-    typeof candidate.getApiKeyAndHeaders !== "function" ||
-    typeof candidate.clampThinkingLevel !== "function"
-  ) {
-    return undefined;
+function isRecord(value) {
+  return typeof value === "object" && value !== null;
+}
+function isFunction(value) {
+  return typeof value === "function";
+}
+function parseThinkingLevelMap(value) {
+  if (!isRecord(value)) return undefined;
+  const map = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (entry === null) map[key] = null;
+    else if (entry === undefined) map[key] = undefined;
+    else if (typeof entry === "string") map[key] = entry;
   }
-  return candidate;
+  return map;
+}
+function parseModel(value) {
+  if (!isRecord(value) || typeof value.provider !== "string" || typeof value.id !== "string") return undefined;
+  const thinkingLevelMap = parseThinkingLevelMap(value.thinkingLevelMap);
+  return {
+    ...value,
+    provider: value.provider,
+    id: value.id,
+    reasoning: typeof value.reasoning === "boolean" ? value.reasoning : undefined,
+    ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
+  };
+}
+function modelRegistry(host) {
+  if (!isRecord(host)) return undefined;
+  const candidateValue = host.modelRegistry ?? host;
+  if (!isRecord(candidateValue)) return undefined;
+  const candidate = candidateValue;
+  if (!isFunction(candidate.find) || !isFunction(candidate.getApiKeyAndHeaders)) return undefined;
+  const find = candidate.find;
+  const getApiKeyAndHeaders = candidate.getApiKeyAndHeaders;
+  const clamp = isFunction(candidate.clampThinkingLevel) ? candidate.clampThinkingLevel : undefined;
+  return {
+    find: (provider, modelId) => parseModel(find.call(candidate, provider, modelId)),
+    getApiKeyAndHeaders: (model) => getApiKeyAndHeaders.call(candidate, model),
+    ...(clamp
+      ? {
+          clampThinkingLevel: (model, level) => clamp.call(candidate, model, level),
+        }
+      : {}),
+  };
+}
+export function supportsCognitiveRoutingModelRegistry(host) {
+  return modelRegistry(host) !== undefined;
+}
+let piAiClampThinkingLevelPromise;
+async function loadPiAiClampThinkingLevel() {
+  piAiClampThinkingLevelPromise ??= import("@earendil-works/pi-ai")
+    .then((module) => (isFunction(module.clampThinkingLevel) ? module.clampThinkingLevel : undefined))
+    .catch(() => undefined);
+  return piAiClampThinkingLevelPromise;
+}
+async function resolveEffectiveThinkingLevel(registry, model, requested) {
+  if (registry.clampThinkingLevel) return registry.clampThinkingLevel(model, requested);
+  const clampThinkingLevel = await loadPiAiClampThinkingLevel();
+  return clampThinkingLevel?.(model, requested);
 }
 function blocking(code, message, profile) {
   return { code, message, ...(profile ? { profile } : {}) };
@@ -79,8 +125,8 @@ export async function preflightCognitiveRoutingProfiles(config, host) {
         ),
       };
     }
-    const effectiveThinkingLevel = registry.clampThinkingLevel(model, profile.thinkingLevel);
-    if (!THINKING_LEVELS.has(effectiveThinkingLevel)) {
+    const effectiveThinkingLevel = await resolveEffectiveThinkingLevel(registry, model, profile.thinkingLevel);
+    if (!effectiveThinkingLevel || !THINKING_LEVELS.has(effectiveThinkingLevel)) {
       return {
         effective: false,
         resolvedProfiles,

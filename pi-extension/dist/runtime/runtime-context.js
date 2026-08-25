@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveCognitiveRoutingState } from "../cognitive-routing/runtime.js";
-import { isPiFlowHost } from "./runtime-identity.js";
+import { supportsCognitiveRoutingModelRegistry } from "../cognitive-routing/host.js";
 export const VALID_MODES = new Set(["conversation", "workflow", "strict-workflow"]);
 export const WORKFLOW_COMMANDS = [
   { command: "discuss", skill: "discuss" },
@@ -438,7 +438,7 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
   const contextVirtualizationConfigEnabled = effectiveCore.config.contextVirtualization;
   const conversationHistoryConfigEnabled = effectiveCore.config.conversationHistory;
   const skillsEffective = enabled && skillsConfigEnabled;
-  const hostSupportsCognitiveRouting = isPiFlowHost(extensionHost);
+  const hostSupportsCognitiveRouting = supportsCognitiveRoutingModelRegistry(host);
   const configuredCognitiveRouting = await resolveCognitiveRoutingState(
     layers.repository.parsed,
     layers.local.parsed,
@@ -456,16 +456,7 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
   });
   const cognitiveRouting = enabled
     ? skillsEffective
-      ? !hostSupportsCognitiveRouting && configuredCognitiveRouting.configValid
-        ? {
-            ...configuredCognitiveRouting,
-            effective: false,
-            blockingReason: {
-              code: "runtime_disabled",
-              message: "Cognitive Routing is disabled outside the PiFlow runtime",
-            },
-          }
-        : configuredCognitiveRouting
+      ? configuredCognitiveRouting
       : {
           ...configuredCognitiveRouting,
           effective: false,

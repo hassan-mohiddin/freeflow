@@ -29,15 +29,17 @@ function configuredRepository(overrides = {}) {
   };
 }
 
-function createHost({ models = [], unauthenticated = [], clamps = {} } = {}) {
+function createHost({ models = [], unauthenticated = [], clamps = {}, authModels = [] } = {}) {
   const modelMap = new Map(models.map((model) => [`${model.provider}/${model.id}`, model]));
   const unauthenticatedSet = new Set(unauthenticated);
   return {
+    authModels,
     modelRegistry: {
       find(provider, modelId) {
         return modelMap.get(`${provider}/${modelId}`);
       },
       async getApiKeyAndHeaders(model) {
+        authModels.push(model);
         return unauthenticatedSet.has(model.provider) ? { ok: false, error: "missing credentials" } : { ok: true };
       },
       clampThinkingLevel(model, level) {
@@ -138,6 +140,65 @@ test("reports an unsupported host without weakening core capability state", asyn
   assert.equal(result.enabled, true);
   assert.equal(result.effective, false);
   assert.equal(result.blockingReason.code, "host_unsupported");
+});
+
+test("normal Pi model-registry context enables Cognitive Routing preflight", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-normal-pi-"));
+  const host = createHost({ models: [standardModel, reasoningModel] });
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow", "config.json"),
+      JSON.stringify({ defaultMode: "workflow", cognitiveRouting: configuredRepository().cognitiveRouting }),
+    );
+
+    const state = await readCapabilityState(cwd, host);
+
+    assert.equal(state.hostSupportsCognitiveRouting, true);
+    assert.equal(state.cognitiveRouting.effective, true);
+    assert.deepEqual(state.cognitiveRouting.resolvedProfiles.standard, {
+      ...standard,
+      effectiveThinkingLevel: "high",
+    });
+    assert.deepEqual(state.cognitiveRouting.resolvedProfiles.reasoning, {
+      ...reasoning,
+      effectiveThinkingLevel: "max",
+    });
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("preserves the complete official model descriptor for auth preflight", async () => {
+  const modelA = {
+    provider: "faux",
+    id: "standard",
+    reasoning: true,
+    headers: { "x-model": "standard" },
+    metadata: "preserve-me",
+  };
+  const modelB = {
+    provider: "faux",
+    id: "reasoning",
+    reasoning: true,
+    headers: { "x-model": "reasoning" },
+    metadata: "also-preserve-me",
+  };
+  const host = createHost({ models: [modelA, modelB] });
+  const result = await resolveCognitiveRoutingState(
+    configuredRepository({
+      profiles: {
+        standard: { provider: "faux", model: "standard", thinkingLevel: "high" },
+        reasoning: { provider: "faux", model: "reasoning", thinkingLevel: "max" },
+      },
+    }),
+    {},
+    host,
+  );
+
+  assert.equal(result.effective, true);
+  assert.equal(host.authModels[0].metadata, "preserve-me");
+  assert.deepEqual(host.authModels[0].headers, { "x-model": "standard" });
 });
 
 test("preflights exact identities, authentication, and effective thinking levels", async () => {

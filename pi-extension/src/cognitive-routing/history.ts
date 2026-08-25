@@ -1,3 +1,4 @@
+import { PI_SESSION_MODEL_STATE_ENTRY, parsePiSessionModelStateCommit } from "./pi-session-control.js";
 import type { CognitiveRoutingProfileName } from "./types.js";
 
 const COGNITIVE_ROUTING_INTENT_ENTRY = "freeflow-cognitive-routing-intent";
@@ -477,6 +478,17 @@ export function projectCognitiveRoutingHistory(
     if (entry.type === "custom" && entry.customType === COGNITIVE_ROUTING_CONTROL_ENTRY) {
       const parsed = parseControl(entry.data);
       if (parsed) controls.push({ metadata, control: parsed });
+      return;
+    }
+    if (entry.type === "custom" && entry.customType === PI_SESSION_MODEL_STATE_ENTRY) {
+      const parsed = parsePiSessionModelStateCommit(entry.data);
+      if (!parsed || parsed.phase !== "committed" || parsed.status !== "applied") return;
+      hosts.push({
+        metadata,
+        pair: parsed.target,
+        correlationId: parsed.correlationId,
+        hostOrigin: parsed.origin,
+      });
       return;
     }
     if (entry.type === "model_state_change") {
