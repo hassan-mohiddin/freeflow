@@ -39,7 +39,15 @@ function armedCognitiveRoutingControllerState(armed) {
     effective: true,
     controlMode: armed.control === "manual" ? `manual-${armed.profile}` : "automatic",
     activeProfile: armed.profile,
+    conversation: armed.control === "manual" ? armed.profile : armed.conversation,
   };
+}
+function armedCognitiveRoutingStateFor(capabilityState) {
+  const conversation = capabilityState.conversation;
+  const sessionStart = capabilityState.sessionStart;
+  const profile =
+    sessionStart.control === "automatic" && conversation !== "adaptive" ? conversation : sessionStart.profile;
+  return { ...sessionStart, profile, conversation };
 }
 function createArmedCognitiveRoutingController(armed) {
   return {
@@ -581,7 +589,7 @@ export default function freeflow(pi) {
       !hasSessionState &&
       snapshot.capabilityState?.cognitiveRouting?.effective === true &&
       !startupSelectionSuppressesCognitiveRouting(ctx)
-        ? { ...snapshot.capabilityState.cognitiveRouting.sessionStart }
+        ? armedCognitiveRoutingStateFor(snapshot.capabilityState.cognitiveRouting)
         : undefined;
     registerContextToolForState(snapshot.capabilityState);
     setModeStatus(

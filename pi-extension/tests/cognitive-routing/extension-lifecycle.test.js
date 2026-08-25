@@ -480,21 +480,25 @@ test("new empty sessions do not persist Cognitive Routing state until the first 
 
 test("new sessions honor each configured Cognitive Routing startup combination", async () => {
   const combinations = [
-    ["automatic", "standard"],
-    ["automatic", "reasoning"],
-    ["manual", "standard"],
-    ["manual", "reasoning"],
+    ["automatic", "standard", "adaptive", "standard", "adaptive"],
+    ["automatic", "reasoning", "adaptive", "reasoning", "adaptive"],
+    ["automatic", "standard", "reasoning", "reasoning", "reasoning"],
+    ["manual", "standard", "reasoning", "standard", "standard"],
+    ["manual", "reasoning", "standard", "reasoning", "reasoning"],
   ];
 
-  for (const [control, profile] of combinations) {
-    const cwd = await mkdtemp(join(tmpdir(), `freeflow-cognitive-routing-start-${control}-${profile}-`));
+  for (const [control, sessionProfile, conversation, expectedProfile, expectedConversation] of combinations) {
+    const cwd = await mkdtemp(
+      join(tmpdir(), `freeflow-cognitive-routing-start-${control}-${sessionProfile}-${conversation}-`),
+    );
     await mkdir(join(cwd, ".freeflow"));
     await writeFile(
       join(cwd, ".freeflow", "config.json"),
       JSON.stringify({
         cognitiveRouting: {
           enabled: true,
-          sessionStart: { control, profile },
+          conversation,
+          sessionStart: { control, profile: sessionProfile },
           profiles: {
             standard: { provider: "faux", model: "standard", thinkingLevel: "high" },
             reasoning: { provider: "faux", model: "reasoning", thinkingLevel: "max" },
@@ -509,12 +513,14 @@ test("new sessions honor each configured Cognitive Routing startup combination",
       await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
       await host.handlers.get("before_agent_start")({ prompt: "hello", systemPrompt: "base prompt" }, ctx);
 
-      assert.equal(host.entries.filter((entry) => entry.modelId).at(-1).modelId, profile);
+      assert.equal(host.entries.filter((entry) => entry.modelId).at(-1).modelId, expectedProfile);
       const activation = host.entries.find(
         (entry) => entry.customType === "freeflow-cognitive-routing-intent" && entry.data.kind === "activation",
       );
-      assert.equal(activation.data.profile, profile);
+      assert.equal(activation.data.profile, expectedProfile);
       assert.equal(activation.data.control, control);
+      const runtimeState = await host.handlers.get("context")({ messages: [] }, ctx);
+      assert.ok(runtimeState.messages.at(-1).content.includes("Conversation: `" + expectedConversation + "`"));
     } finally {
       await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
       await rm(cwd, { recursive: true, force: true });
@@ -1038,14 +1044,16 @@ test("Pi delivers a compact Cognitive Routing cue and volatile state per turn", 
 
     assert.equal(first.message, undefined);
     assert.match(first.systemPrompt, /## Cognitive Routing Cue/);
+    const cognitiveRoutingCue = first.systemPrompt.slice(first.systemPrompt.indexOf("## Cognitive Routing Cue"));
     assert.match(
-      first.systemPrompt,
-      /governs compute placement across Freeflow methods.*skill has not been read in the current context.*read it before applying another Freeflow skill or taking task Act/s,
+      cognitiveRoutingCue,
+      /governs compute placement across Freeflow methods.*Runtime State `Control`, `Profile`, and `Conversation`.*skill has not been read in the current context.*read it before applying another Freeflow skill or taking Task Act/s,
     );
     assert.match(
-      first.systemPrompt,
-      /every authorized execution-bearing bounded activity is Reasoning-led.*Standard takes task Act only inside delegation/s,
+      cognitiveRoutingCue,
+      /`Conversation` selects substantive user-facing Think outside execution.*Every authorized execution-bearing bounded activity is Reasoning-led.*Reasoning alone performs NEW, REOPEN, and CLOSE.*Standard takes Task Act only inside DELEGATE or REMEDIATE and returns through RETURN.*direct Reasoning Task Act remains gated/s,
     );
+    assert.doesNotMatch(cognitiveRoutingCue, /\b(?:handoff|yield(?:ing)?)\b/i);
     assert.ok(
       first.systemPrompt.indexOf("## Action Selection Cue") < first.systemPrompt.indexOf("## Cognitive Routing Cue"),
     );
@@ -1059,6 +1067,7 @@ test("Pi delivers a compact Cognitive Routing cue and volatile state per turn", 
     assert.match(firstContext.messages[0].content, /Cognitive Routing: active/);
     assert.match(firstContext.messages[0].content, /Control: `automatic`/);
     assert.match(firstContext.messages[0].content, /Profile: `standard`/);
+    assert.match(firstContext.messages[0].content, /Conversation: `adaptive`/);
 
     const second = await beforeAgentStart({ systemPrompt: "base prompt" }, ctx);
     assert.equal(second.message, undefined);

@@ -615,6 +615,15 @@ function publicCognitiveRoutingProfile(activeProfile, effective) {
   if (effective !== true) return "unavailable";
   return activeProfile === "standard" || activeProfile === "reasoning" ? activeProfile : "unavailable";
 }
+function publicCognitiveRoutingConversation(conversation, controlMode, activeProfile, effective) {
+  if (effective !== true) return "unavailable";
+  if (controlMode === "manual-standard" || controlMode === "manual-reasoning") {
+    return activeProfile === "standard" || activeProfile === "reasoning" ? activeProfile : "unavailable";
+  }
+  return conversation === "standard" || conversation === "reasoning" || conversation === "adaptive"
+    ? conversation
+    : "unavailable";
+}
 function publicCapabilityStatus(capability) {
   if (capability?.effective === true) return "active";
   if (!capability) return "unavailable";
@@ -630,6 +639,12 @@ export function freeflowRuntimeStateMessage(modeState, capabilityState, cognitiv
   );
   const control =
     profile === "unavailable" ? "unavailable" : publicCognitiveRoutingControl(cognitiveRoutingRuntime?.controlMode);
+  const conversation = publicCognitiveRoutingConversation(
+    cognitiveRoutingRuntime?.conversation,
+    cognitiveRoutingRuntime?.controlMode,
+    cognitiveRoutingRuntime?.activeProfile,
+    cognitiveRoutingEffective && cognitiveRoutingRuntime?.effective === true,
+  );
   const defaultMode = modeState?.defaultMode ?? "workflow";
   const activeMode = modeState?.effectiveMode ?? "inactive";
   return {
@@ -653,6 +668,7 @@ export function freeflowRuntimeStateMessage(modeState, capabilityState, cognitiv
       "Cognitive Routing:",
       `- Control: \`${control}\``,
       `- Profile: \`${profile}\``,
+      `- Conversation: \`${conversation}\``,
     ].join("\n"),
     display: false,
     details: { source: "provider-request-runtime-state" },

@@ -12,6 +12,7 @@ const capabilityState = {
   enabled: true,
   effective: true,
   enabledSource: "repository",
+  conversation: "adaptive",
   profiles: {},
   profileSources: { standard: "repository", reasoning: "repository" },
   resolvedProfiles: {
@@ -142,6 +143,39 @@ test("activates each configured session-start control and profile combination", 
   }
 });
 
+test("applies Conversation policy at activation and resolves manual Conversation to the held profile", async () => {
+  const cases = [
+    ["automatic", "standard", "reasoning", "reasoning", "reasoning"],
+    ["automatic", "reasoning", "adaptive", "reasoning", "adaptive"],
+    ["manual", "standard", "reasoning", "standard", "standard"],
+  ];
+
+  for (const [control, sessionProfile, conversation, expectedProfile, expectedConversation] of cases) {
+    const host = createHost({ onAcquire: appliedLease });
+    const controller = new CognitiveRoutingController({
+      capabilityState: {
+        ...capabilityState,
+        conversation,
+        sessionStart: { control, profile: sessionProfile },
+        sessionStartSources: { control: "repository", profile: "repository" },
+      },
+      pi: host.pi,
+      ctx: host.ctx,
+      idFactory: (() => {
+        const ids = ["epoch-1", "correlation-1"];
+        return () => ids.shift();
+      })(),
+    });
+
+    const result = await controller.activate();
+
+    assert.equal(result.status, "active");
+    assert.equal(controller.state().activeProfile, expectedProfile);
+    assert.equal(controller.state().conversation, expectedConversation);
+    assert.equal(host.calls[2][1].modelId, expectedProfile);
+  }
+});
+
 test("applies a durable manual profile hold through the owned transition", async () => {
   const host = createHost({ onAcquire: appliedLease });
   const controller = new CognitiveRoutingController({
@@ -160,6 +194,7 @@ test("applies a durable manual profile hold through the owned transition", async
   assert.equal(result.status, "active");
   assert.equal(controller.state().activeProfile, "reasoning");
   assert.equal(controller.state().controlMode, "manual-reasoning");
+  assert.equal(controller.state().conversation, "reasoning");
   assert.deepEqual(
     host.calls.map(([kind]) => kind),
     ["prepare", "acquire", "setState", "prepare", "setState"],

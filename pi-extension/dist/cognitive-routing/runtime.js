@@ -10,6 +10,8 @@ function baseState(config) {
     enabled: config.enabled,
     effective: false,
     enabledSource: config.enabledSource,
+    conversation: config.conversation,
+    conversationSource: config.conversationSource,
     profiles: config.profiles,
     profileSources: config.profileSources,
     sessionStart: config.sessionStart,

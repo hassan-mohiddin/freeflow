@@ -687,6 +687,67 @@ function cognitiveRoutingProfileItem(options) {
     wizard: () => createCognitiveRoutingProfileWizard(value, models, options.scope === "local"),
   };
 }
+function cognitiveRoutingConversationItem(options) {
+  const path = ["cognitiveRouting", "conversation"];
+  const values = ["standard", "reasoning", "adaptive"];
+  const labels = Object.fromEntries(values.map((value) => [value, value]));
+  const descriptions = {
+    standard: "Use Standard for substantive user-facing Think.",
+    reasoning: "Use Reasoning for substantive user-facing Think.",
+    adaptive: "Keep the current profile unless the other materially better fits the immediate Think.",
+  };
+  const repositoryValue = getPath(options.rawConfig, path);
+  const localValue = getPath(options.localConfig, path);
+  const isValidValue = (value) => values.includes(value);
+  const repositoryConversation = isValidValue(repositoryValue) ? repositoryValue : undefined;
+  const localConversation = isValidValue(localValue) ? localValue : undefined;
+  const inheritedValue = repositoryConversation ?? "adaptive";
+  const inheritedSource = repositoryConversation ? "repository" : "builtin";
+  const configuredSource =
+    options.capabilityState?.conversationSource ?? (repositoryConversation ? "repository" : undefined);
+  const effectiveValue = options.capabilityState?.conversation ?? inheritedValue;
+  const effectiveSource = cognitiveRoutingSettingsSource(configuredSource);
+  const label = "Conversation";
+  const description = "Choose the profile for substantive user-facing Think outside execution.";
+  if (options.scope === "local") {
+    return {
+      id: "freeflow.cognitiveRouting.conversation",
+      label,
+      description: `${description} Choose inherit to use the repository value; use /freeflow settings repo to edit shared defaults.`,
+      path,
+      kind: "enum",
+      value: localConversation ?? LOCAL_INHERIT,
+      values: [LOCAL_INHERIT, ...values],
+      valueLabels: { inherit: "Inherit repository", ...labels },
+      valueDescriptions: { inherit: `Use ${inheritedValue} from ${inheritedSource}.`, ...descriptions },
+      format: (value) => String(value),
+      configScope: "local",
+      configValues: { inherit: undefined },
+      effectiveValue,
+      effectiveSource,
+      inheritedValue,
+      inheritedSource,
+    };
+  }
+  return {
+    id: "freeflow.cognitiveRouting.conversation",
+    label,
+    description: `${description} This edits shared .freeflow/config.json.`,
+    path,
+    kind: "enum",
+    value: inheritedValue,
+    values,
+    valueLabels: labels,
+    valueDescriptions: descriptions,
+    format: (value) => String(value),
+    defaultValue: "adaptive",
+    configScope: "repository",
+    effectiveValue,
+    effectiveSource,
+    inheritedValue,
+    inheritedSource,
+  };
+}
 function cognitiveRoutingSessionStartItem(options) {
   const path = ["cognitiveRouting", "sessionStart", options.setting];
   const defaultValue = options.setting === "control" ? "automatic" : "standard";
@@ -699,8 +760,8 @@ function cognitiveRoutingSessionStartItem(options) {
           manual: "Hold the selected profile for the new session until the user changes it.",
         }
       : {
-          standard: "Start a new session with the configured Standard preset.",
-          reasoning: "Start a new session with the configured Reasoning preset.",
+          standard: "Start with Standard when Conversation is adaptive or when manual control holds Standard.",
+          reasoning: "Start with Reasoning when Conversation is adaptive or when manual control holds Reasoning.",
         };
   const repositoryValue = getPath(options.rawConfig, path);
   const localValue = getPath(options.localConfig, path);
@@ -717,7 +778,7 @@ function cognitiveRoutingSessionStartItem(options) {
   const description =
     options.setting === "control"
       ? "Choose automatic or manual control for new sessions only; changing this does not alter the active session."
-      : "Choose the initial profile for new sessions only; changing this does not alter the active session.";
+      : "Choose the initial profile for new sessions only; it applies when Conversation is adaptive or manual control is selected. Fixed Conversation overrides it for automatic starts.";
   const item =
     options.scope === "local"
       ? {
@@ -911,7 +972,16 @@ function freeflowItems(rawConfig, modeState, options = {}) {
         capabilityState: cognitiveRoutingState,
       }),
     );
-    for (const item of [...cognitiveRoutingProfiles, ...cognitiveRoutingSessionStart]) {
+    const cognitiveRoutingConversation =
+      scope === "session"
+        ? undefined
+        : cognitiveRoutingConversationItem({ scope, rawConfig, localConfig, capabilityState: cognitiveRoutingState });
+    const cognitiveRoutingSettings = [
+      ...cognitiveRoutingProfiles,
+      ...cognitiveRoutingSessionStart,
+      ...(cognitiveRoutingConversation ? [cognitiveRoutingConversation] : []),
+    ];
+    for (const item of cognitiveRoutingSettings) {
       item.inactive ||= freeflowInactive || !skillsEnabled || cognitiveRoutingRuntimeDisabled;
       item.runtimeInactive = cognitiveRoutingRuntimeDisabled;
     }
@@ -929,12 +999,12 @@ function freeflowItems(rawConfig, modeState, options = {}) {
       label: "Cognitive Routing",
       description: cognitiveRoutingRuntimeDisabled
         ? "Cognitive Routing configuration is visible for inspection but requires a host model-state control API."
-        : "Configure the automatic standard/reasoning profiles and choose whether Freeflow may manage model state for this repository.",
+        : "Configure the standard/reasoning profiles, Conversation route, and whether Freeflow may manage model state for this repository.",
       kind: "group",
       value: cognitiveRoutingRuntimeDisabled ? false : (cognitiveRoutingState?.enabled ?? false),
       inactive: freeflowInactive || !skillsEnabled,
       displaySuffix: cognitiveRoutingStatus,
-      children: [cognitiveRoutingEnabledItem, ...cognitiveRoutingProfiles, ...cognitiveRoutingSessionStart],
+      children: [cognitiveRoutingEnabledItem, ...cognitiveRoutingSettings],
     };
   })();
   return [

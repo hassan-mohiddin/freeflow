@@ -1,7 +1,9 @@
 export const COGNITIVE_ROUTING_PROFILE_NAMES = ["standard", "reasoning"] as const;
+export const COGNITIVE_ROUTING_CONVERSATIONS = ["standard", "reasoning", "adaptive"] as const;
 export const COGNITIVE_ROUTING_SESSION_START_CONTROLS = ["automatic", "manual"] as const;
 
 export type CognitiveRoutingProfileName = (typeof COGNITIVE_ROUTING_PROFILE_NAMES)[number];
+export type CognitiveRoutingConversation = (typeof COGNITIVE_ROUTING_CONVERSATIONS)[number];
 export type CognitiveRoutingSessionStartControl = (typeof COGNITIVE_ROUTING_SESSION_START_CONTROLS)[number];
 export type CognitiveRoutingThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 export type CognitiveRoutingConfigSource = "default" | "repository" | "personal";
@@ -16,6 +18,8 @@ export const DEFAULT_COGNITIVE_ROUTING_SESSION_START = {
   profile: "standard",
 } as const satisfies CognitiveRoutingSessionStart;
 
+export const DEFAULT_COGNITIVE_ROUTING_CONVERSATION = "adaptive" as const satisfies CognitiveRoutingConversation;
+
 export interface CognitiveRoutingProfile {
   provider: string;
   model: string;
@@ -28,6 +32,7 @@ export interface CognitiveRoutingConfigError {
     | "invalid_enabled"
     | "invalid_profiles"
     | "invalid_profile"
+    | "invalid_conversation"
     | "invalid_session_start"
     | "unsupported_key";
   message: string;
@@ -40,6 +45,8 @@ export interface CognitiveRoutingConfigResolution {
   valid: boolean;
   enabled: boolean;
   enabledSource: CognitiveRoutingConfigSource;
+  conversation: CognitiveRoutingConversation;
+  conversationSource: CognitiveRoutingConfigSource;
   profiles: Partial<Record<CognitiveRoutingProfileName, CognitiveRoutingProfile>>;
   profileSources: Partial<Record<CognitiveRoutingProfileName, CognitiveRoutingConfigSource>>;
   sessionStart: CognitiveRoutingSessionStart;
@@ -77,6 +84,8 @@ export interface CognitiveRoutingCapabilityState {
   enabled: boolean;
   effective: boolean;
   enabledSource: CognitiveRoutingConfigSource;
+  conversation: CognitiveRoutingConversation;
+  conversationSource: CognitiveRoutingConfigSource;
   profiles: Partial<Record<CognitiveRoutingProfileName, CognitiveRoutingProfile>>;
   profileSources: Partial<Record<CognitiveRoutingProfileName, CognitiveRoutingConfigSource>>;
   sessionStart: CognitiveRoutingSessionStart;

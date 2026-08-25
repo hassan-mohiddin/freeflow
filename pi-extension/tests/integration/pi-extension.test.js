@@ -209,7 +209,7 @@ test("unsupported Pi hosts keep Cognitive Routing unavailable while showing its 
       component.handleInput("\u001b[B");
       component.handleInput("\r");
       await component.waitForWrites();
-      assert.doesNotMatch(renderText(component), /Cognitive Routing\s+enabled \(5\) configured · inactive/);
+      assert.doesNotMatch(renderText(component), /Cognitive Routing\s+enabled \(6\) configured · inactive/);
       for (let index = 0; index < 5; index += 1) component.handleInput("\u001b[B");
       component.handleInput("\r");
       const cognitiveText = renderText(component);
@@ -394,6 +394,36 @@ test("PiFlow empty configured sessions show standard automatic before first prom
 
     await handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
     assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · standard · automatic");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("PiFlow empty configured sessions use fixed Conversation before first prompt", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-pending-conversation-status-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({
+        defaultMode: "workflow",
+        cognitiveRouting: {
+          enabled: true,
+          conversation: "reasoning",
+          profiles: {
+            standard: { provider: "test", model: "model-a", thinkingLevel: "low" },
+            reasoning: { provider: "test", model: "model-b", thinkingLevel: "high" },
+          },
+        },
+      }),
+      "utf8",
+    );
+    const { handlers } = loadExtension();
+    const ctx = context(cwd);
+    ctx.modelRegistry = cognitiveRoutingModelRegistry();
+
+    await handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · reasoning · automatic");
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -1789,7 +1819,7 @@ test("Pi /freeflow settings marks default mode dormant when Skills are disabled"
       });
       const rootText = renderText(component);
       assert.match(rootText, /Skills\s+disabled \(repository\)/);
-      assert.match(rootText, /Cognitive Routing\s+disabled \(5\) disabled · inactive/);
+      assert.match(rootText, /Cognitive Routing\s+disabled \(6\) disabled · inactive/);
       assert.match(rootText, /Session mode\s+default \(workflow · repository · inactive\)/);
       assert.match(rootText, /Default mode\s+workflow \(repository · inactive\)/);
 
@@ -2148,7 +2178,7 @@ test("PiFlow shows unset Cognitive Routing presets as not configured and edits t
         result = value;
       });
       const rootText = renderText(component);
-      assert.match(rootText, /Cognitive Routing\s+disabled \(5\) disabled/);
+      assert.match(rootText, /Cognitive Routing\s+disabled \(6\) disabled/);
       assert.doesNotMatch(rootText, /Output Router/);
       for (let index = 0; index < 5; index += 1) component.handleInput("\u001b[B");
       component.handleInput("\r");
@@ -2208,7 +2238,7 @@ test("PiFlow settings refresh the Cognitive Routing group after enabling it", as
       const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
         result = value;
       });
-      assert.match(renderText(component), /Cognitive Routing\s+disabled \(5\) disabled/);
+      assert.match(renderText(component), /Cognitive Routing\s+disabled \(6\) disabled/);
       for (let index = 0; index < 5; index += 1) component.handleInput("\u001b[B");
       component.handleInput("\r");
       component.handleInput("\r");
@@ -2217,7 +2247,7 @@ test("PiFlow settings refresh the Cognitive Routing group after enabling it", as
       await component.waitForWrites();
       component.handleInput("\u001b");
       component.handleInput("\u001b");
-      assert.match(renderText(component), /Cognitive Routing\s+enabled \(5\) configured/);
+      assert.match(renderText(component), /Cognitive Routing\s+enabled \(6\) configured/);
       component.handleInput("\u001b");
       return result;
     };
@@ -2338,6 +2368,7 @@ test("PiFlow settings persist independent new-session control and profile overri
       component.handleInput("\r");
       assert.match(renderText(component), /Session start control\s+automatic \(builtin\)/);
       assert.match(renderText(component), /Session start profile\s+standard \(builtin\)/);
+      assert.match(renderText(component), /Conversation\s+adaptive/);
 
       for (let index = 0; index < 3; index += 1) component.handleInput("\u001b[B");
       component.handleInput("\r");
@@ -2361,6 +2392,9 @@ test("PiFlow settings persist independent new-session control and profile overri
       component.handleInput("\r");
       assert.match(renderText(component), /Session start control\s+manual \(local\)/);
       assert.match(renderText(component), /Session start profile\s+reasoning \(local\)/);
+      for (let index = 0; index < 4; index += 1) component.handleInput("\u001b[B");
+      assert.match(renderText(component), /Conversation is adaptive or manual control is/);
+      assert.match(renderText(component), /Fixed Conversation overrides it for automatic starts/);
       component.handleInput("\u001b");
       component.handleInput("\u001b");
       return result;
@@ -2370,6 +2404,61 @@ test("PiFlow settings persist independent new-session control and profile overri
     const saved = JSON.parse(await readFile(join(cwd, ".freeflow/local.json"), "utf8"));
     assert.deepEqual(saved.cognitiveRouting.sessionStart, { control: "manual", profile: "reasoning" });
     assert.equal(settingsCtx.reloads.length, 0);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("PiFlow settings persist the Conversation route", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-cognitive-conversation-settings-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify(
+        {
+          defaultMode: "workflow",
+          cognitiveRouting: {
+            enabled: true,
+            profiles: {
+              standard: { provider: "test", model: "model-a", thinkingLevel: "low" },
+              reasoning: { provider: "test", model: "model-b", thinkingLevel: "high" },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const { commands } = loadExtension();
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    assert.ok(freeflowCommand);
+    const settingsCtx = context(cwd);
+    settingsCtx.isIdle = () => true;
+    settingsCtx.modelRegistry = cognitiveRoutingModelRegistry();
+    settingsCtx.ui.custom = async (factory) => {
+      let result;
+      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+        result = value;
+      });
+      for (let index = 0; index < 5; index += 1) component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      for (let index = 0; index < 5; index += 1) component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      await component.waitForWrites();
+      component.handleInput("\u001b");
+      component.handleInput("\u001b");
+      return result;
+    };
+
+    await freeflowCommand.definition.handler("settings", settingsCtx);
+    const saved = JSON.parse(await readFile(join(cwd, ".freeflow/local.json"), "utf8"));
+    assert.equal(saved.cognitiveRouting.conversation, "reasoning");
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -2808,6 +2897,7 @@ test("Pi separates stable Freeflow guidance from volatile provider runtime state
         "Cognitive Routing:",
         "- Control: `unavailable`",
         "- Profile: `unavailable`",
+        "- Conversation: `unavailable`",
       ].join("\n"),
     );
 

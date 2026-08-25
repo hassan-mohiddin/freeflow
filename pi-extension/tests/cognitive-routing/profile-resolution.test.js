@@ -63,11 +63,32 @@ test("resolves two complete repository profiles", () => {
   assert.deepEqual(result.profileSources, { standard: "repository", reasoning: "repository" });
 });
 
-test("defaults new-session Cognitive Routing to automatic standard control", () => {
+test("defaults Cognitive Routing Conversation adaptively and new sessions to automatic standard control", () => {
   const result = resolveCognitiveRoutingConfig(configuredRepository(), {});
 
+  assert.equal(result.conversation, "adaptive");
+  assert.equal(result.conversationSource, "default");
   assert.deepEqual(result.sessionStart, { control: "automatic", profile: "standard" });
   assert.deepEqual(result.sessionStartSources, { control: "default", profile: "default" });
+});
+
+test("layers Conversation independently from session-start control and profile", () => {
+  const result = resolveCognitiveRoutingConfig(
+    configuredRepository({ conversation: "standard", sessionStart: { control: "automatic", profile: "standard" } }),
+    { cognitiveRouting: { conversation: "reasoning", sessionStart: { control: "manual", profile: "reasoning" } } },
+  );
+
+  assert.equal(result.conversation, "reasoning");
+  assert.equal(result.conversationSource, "personal");
+  assert.deepEqual(result.sessionStart, { control: "manual", profile: "reasoning" });
+  assert.deepEqual(result.sessionStartSources, { control: "personal", profile: "personal" });
+});
+
+test("rejects an invalid Conversation value", () => {
+  const result = resolveCognitiveRoutingConfig(configuredRepository({ conversation: "automatic" }), {});
+
+  assert.equal(result.valid, false);
+  assert.equal(result.error.code, "invalid_conversation");
 });
 
 test("layers session-start control and profile independently", () => {

@@ -8,6 +8,7 @@ import {
 import { PI_SESSION_MODEL_STATE_ENTRY, parsePiSessionModelStateCommit } from "./pi-session-control.js";
 import type {
   CognitiveRoutingCapabilityState,
+  CognitiveRoutingConversation,
   CognitiveRoutingProfileName,
   CognitiveRoutingSessionStart,
   CognitiveRoutingThinkingLevel,
@@ -112,6 +113,7 @@ export type CognitiveRoutingControllerState = {
   effective: boolean;
   controlMode: CognitiveRoutingControlMode;
   activeProfile?: CognitiveRoutingProfileName;
+  conversation?: CognitiveRoutingConversation;
   epoch?: string;
   returnTarget?: CognitiveRoutingPair;
 };
@@ -153,6 +155,20 @@ export type CognitiveRoutingBranchResult =
 
 function isProfileName(value: unknown): value is CognitiveRoutingProfileName {
   return value === "standard" || value === "reasoning";
+}
+
+function isConversation(value: unknown): value is CognitiveRoutingConversation {
+  return value === "standard" || value === "reasoning" || value === "adaptive";
+}
+
+function effectiveConversation(
+  capabilityState: CognitiveRoutingCapabilityState,
+  controlMode: CognitiveRoutingControlMode,
+  activeProfile: CognitiveRoutingProfileName | undefined,
+): CognitiveRoutingConversation | undefined {
+  if (!activeProfile) return undefined;
+  if (controlMode !== "automatic") return activeProfile;
+  return isConversation(capabilityState.conversation) ? capabilityState.conversation : "adaptive";
 }
 
 function isMechanism(value: unknown): value is CognitiveRoutingMechanism {
@@ -527,6 +543,9 @@ export class CognitiveRoutingController {
       effective: this.lease !== undefined && activeProfile !== undefined && !this.branchPending,
       controlMode: this.controlMode,
       ...(activeProfile ? { activeProfile } : {}),
+      ...(activeProfile
+        ? { conversation: effectiveConversation(this.capabilityState, this.controlMode, activeProfile) }
+        : {}),
       ...(this.epoch ? { epoch: this.epoch } : {}),
       ...(this.returnTarget ? { returnTarget: { ...this.returnTarget } } : {}),
     };
@@ -621,9 +640,17 @@ export class CognitiveRoutingController {
         control: "automatic" as const,
         profile: "standard" as const,
       };
-    const profileName: CognitiveRoutingProfileName = preservedReload
-      ? lifecycleIntent.resumeProfile
-      : sessionStart.profile;
+    const configuredConversation = isConversation(this.capabilityState.conversation)
+      ? this.capabilityState.conversation
+      : "adaptive";
+    let profileName: CognitiveRoutingProfileName;
+    if (preservedReload) {
+      profileName = lifecycleIntent.resumeProfile;
+    } else if (sessionStart.control === "automatic" && configuredConversation !== "adaptive") {
+      profileName = configuredConversation;
+    } else {
+      profileName = sessionStart.profile;
+    }
     const profile = this.capabilityState.resolvedProfiles[profileName];
     if (!profile) {
       return { status: "inactive", reason: preservedReload ? "resume_profile_unavailable" : "profile_unavailable" };

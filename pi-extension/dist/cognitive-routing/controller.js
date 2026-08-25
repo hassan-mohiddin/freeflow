@@ -6,6 +6,14 @@ export const COGNITIVE_ROUTING_CONTROL_ENTRY = "freeflow-cognitive-routing-contr
 function isProfileName(value) {
   return value === "standard" || value === "reasoning";
 }
+function isConversation(value) {
+  return value === "standard" || value === "reasoning" || value === "adaptive";
+}
+function effectiveConversation(capabilityState, controlMode, activeProfile) {
+  if (!activeProfile) return undefined;
+  if (controlMode !== "automatic") return activeProfile;
+  return isConversation(capabilityState.conversation) ? capabilityState.conversation : "adaptive";
+}
 function isMechanism(value) {
   return [
     "agent-tool",
@@ -338,6 +346,9 @@ export class CognitiveRoutingController {
       effective: this.lease !== undefined && activeProfile !== undefined && !this.branchPending,
       controlMode: this.controlMode,
       ...(activeProfile ? { activeProfile } : {}),
+      ...(activeProfile
+        ? { conversation: effectiveConversation(this.capabilityState, this.controlMode, activeProfile) }
+        : {}),
       ...(this.epoch ? { epoch: this.epoch } : {}),
       ...(this.returnTarget ? { returnTarget: { ...this.returnTarget } } : {}),
     };
@@ -420,7 +431,17 @@ export class CognitiveRoutingController {
         control: "automatic",
         profile: "standard",
       };
-    const profileName = preservedReload ? lifecycleIntent.resumeProfile : sessionStart.profile;
+    const configuredConversation = isConversation(this.capabilityState.conversation)
+      ? this.capabilityState.conversation
+      : "adaptive";
+    let profileName;
+    if (preservedReload) {
+      profileName = lifecycleIntent.resumeProfile;
+    } else if (sessionStart.control === "automatic" && configuredConversation !== "adaptive") {
+      profileName = configuredConversation;
+    } else {
+      profileName = sessionStart.profile;
+    }
     const profile = this.capabilityState.resolvedProfiles[profileName];
     if (!profile) {
       return { status: "inactive", reason: preservedReload ? "resume_profile_unavailable" : "profile_unavailable" };

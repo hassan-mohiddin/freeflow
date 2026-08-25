@@ -18,7 +18,12 @@ import { handleContextCommand } from "./context-virtualization/commands.js";
 import { ContextVirtualizationRuntime } from "./context-virtualization/runtime.js";
 import { handleFreeflowCommand } from "./settings/settings-ui.js";
 import { isPiFlowHost } from "./runtime/runtime-identity.js";
-import type { CognitiveRoutingProfileName, CognitiveRoutingSessionStart } from "./cognitive-routing/types.js";
+import type {
+  CognitiveRoutingCapabilityState,
+  CognitiveRoutingConversation,
+  CognitiveRoutingProfileName,
+  CognitiveRoutingSessionStart,
+} from "./cognitive-routing/types.js";
 import {
   CONTRIBUTOR_COMMANDS,
   COGNITIVE_ROUTING_SWITCH_TOOL_NAME,
@@ -37,7 +42,9 @@ import {
   withFreeflowRuntimeState,
 } from "./runtime/runtime-context.js";
 
-type ArmedCognitiveRoutingState = CognitiveRoutingSessionStart;
+type ArmedCognitiveRoutingState = CognitiveRoutingSessionStart & {
+  conversation: CognitiveRoutingConversation;
+};
 
 type ArmedCognitiveRoutingController = {
   state(): CognitiveRoutingControllerState;
@@ -53,7 +60,16 @@ function armedCognitiveRoutingControllerState(armed: ArmedCognitiveRoutingState)
     effective: true,
     controlMode: armed.control === "manual" ? `manual-${armed.profile}` : "automatic",
     activeProfile: armed.profile,
+    conversation: armed.control === "manual" ? armed.profile : armed.conversation,
   };
+}
+
+function armedCognitiveRoutingStateFor(capabilityState: CognitiveRoutingCapabilityState): ArmedCognitiveRoutingState {
+  const conversation = capabilityState.conversation;
+  const sessionStart = capabilityState.sessionStart;
+  const profile =
+    sessionStart.control === "automatic" && conversation !== "adaptive" ? conversation : sessionStart.profile;
+  return { ...sessionStart, profile, conversation };
 }
 
 function createArmedCognitiveRoutingController(armed: ArmedCognitiveRoutingState): ArmedCognitiveRoutingController {
@@ -650,7 +666,7 @@ export default function freeflow(pi) {
       !hasSessionState &&
       snapshot.capabilityState?.cognitiveRouting?.effective === true &&
       !startupSelectionSuppressesCognitiveRouting(ctx)
-        ? { ...snapshot.capabilityState.cognitiveRouting.sessionStart }
+        ? armedCognitiveRoutingStateFor(snapshot.capabilityState.cognitiveRouting)
         : undefined;
     registerContextToolForState(snapshot.capabilityState);
     setModeStatus(
