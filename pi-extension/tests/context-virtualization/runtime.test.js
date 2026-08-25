@@ -146,6 +146,35 @@ test("archive batches validate atomically and reject unseen references", async (
   assert.match(next.messages[0].content.at(-1).text, /ctx:tool-1/);
 });
 
+test("archive rejects duplicate normalized references atomically", async () => {
+  const { runtime } = createFixture();
+  await runtime.project([toolMessage()], true);
+
+  const result = await runtime.archive([
+    { ref: contextRefForEntry("tool-1") },
+    { ref: `${contextRefForEntry("tool-1")} ` },
+  ]);
+  assert.equal(result.status, "rejected");
+  assert.match(result.message, /duplicate_reference:ctx:tool-1/);
+
+  const next = await runtime.project([toolMessage()], true);
+  assert.match(next.messages[0].content.at(-1).text, /ctx:tool-1/);
+  assert.doesNotMatch(next.messages[0].content[0].text, /context archived/);
+});
+
+test("restore rejects duplicate normalized references atomically", async () => {
+  const { runtime } = createFixture();
+  await runtime.project([toolMessage()], true);
+  assert.equal((await runtime.archive([{ ref: contextRefForEntry("tool-1") }])).status, "ok");
+
+  const result = await runtime.restore([contextRefForEntry("tool-1"), `${contextRefForEntry("tool-1")} `]);
+  assert.equal(result.status, "rejected");
+  assert.match(result.message, /duplicate_reference:ctx:tool-1/);
+
+  const next = await runtime.project([toolMessage()], true);
+  assert.match(next.messages[0].content[0].text, /context archived: ctx:tool-1/);
+});
+
 test("restore after compaction records full state but reports history-only availability", async () => {
   const { ctx, runtime } = createFixture();
   await runtime.project([toolMessage()], true);

@@ -253,8 +253,12 @@ export class ContextVirtualizationRuntime {
     if (!Array.isArray(targets) || targets.length === 0) {
       return this.rejected("archive", "targets_required");
     }
-    const refs = targets.map((target) => (target && typeof target === "object" ? (target as any).ref : undefined));
-    const duplicate = isDuplicate(refs.filter((ref): ref is string => typeof ref === "string"));
+    const normalizedRefs = targets.map((target) =>
+      target && typeof target === "object" ? entryIdFromContextRef((target as any).ref) : undefined,
+    );
+    const duplicate = isDuplicate(
+      normalizedRefs.flatMap((ref) => (ref === undefined ? [] : [contextRefForEntry(ref)])),
+    );
     if (duplicate) return this.rejected("archive", `duplicate_reference:${duplicate}`);
     const latestRequest = this.freeflowContext.latestRequest();
     if (!latestRequest) return this.rejected("archive", "no_consumed_context_request");
@@ -264,7 +268,7 @@ export class ContextVirtualizationRuntime {
     for (let index = 0; index < targets.length; index += 1) {
       const target = targets[index];
       if (!target || typeof target !== "object") return this.rejected("archive", `target_${index}_must_be_object`);
-      const ref = entryIdFromContextRef((target as any).ref);
+      const ref = normalizedRefs[index];
       if (!ref) return this.rejected("archive", `target_${index}_invalid_reference`);
       const normalizedRef = contextRefForEntry(ref);
       const source = latestRequest.refs.get(normalizedRef);
@@ -300,7 +304,10 @@ export class ContextVirtualizationRuntime {
   private async restoreNow(refs: unknown, actor: "model" | "user"): Promise<ContextOperationResult> {
     if (!this.available) return this.unavailable("restore");
     if (!Array.isArray(refs) || refs.length === 0) return this.rejected("restore", "refs_required");
-    const duplicate = isDuplicate(refs.filter((ref): ref is string => typeof ref === "string"));
+    const normalizedRefs = refs.map((ref) => entryIdFromContextRef(ref));
+    const duplicate = isDuplicate(
+      normalizedRefs.flatMap((ref) => (ref === undefined ? [] : [contextRefForEntry(ref)])),
+    );
     if (duplicate) return this.rejected("restore", `duplicate_reference:${duplicate}`);
 
     const changes: ContextProjectionChange[] = [];
@@ -308,7 +315,7 @@ export class ContextVirtualizationRuntime {
     const activeIds = this.freeflowContext.resolver.activeToolResultIds();
     const latestRequest = this.freeflowContext.latestRequest();
     for (let index = 0; index < refs.length; index += 1) {
-      const ref = entryIdFromContextRef(refs[index]);
+      const ref = normalizedRefs[index];
       if (!ref) return this.rejected("restore", `ref_${index}_invalid_reference`);
       const normalizedRef = contextRefForEntry(ref);
       const current = this.projectionState.get(ref);
