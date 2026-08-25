@@ -190,12 +190,12 @@ Standard implements and verifies
 -> NEW + SWITCH for Reasoning self-review
 -> review passes
    -> CLOSE + HANDOFF to Standard
--> clear local issue
-   -> correct within the same slice and authority
-   -> re-verify
-   -> return to Reasoning
-   -> self-review the corrected state again
--> unclear, repeated, or route-changing issue
+-> clear local issue within existing authority
+   -> Reasoning defines the bounded correction
+   -> DELEGATE correction and re-verification to Standard
+   -> RETURN + SWITCH to Reasoning
+   -> Reasoning self-reviews the corrected state again
+-> unclear, repeated, route-changing, or unauthorized issue
    -> Workflow or Diagnose Failure
 ```
 

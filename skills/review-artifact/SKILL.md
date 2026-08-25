@@ -74,7 +74,7 @@ A Blocking Issue must name the exact location, violated source truth or artifact
 
 Pass, Non-blocking, Inconclusive, and Blocking are all valid review exits. A review ends with its report; it does not remain active until the artifact passes.
 
-## Adjudicate And Route
+## Adjudicate Independent Review And Route
 
 After independent review, the receiving active agent adjudicates each material item against the artifact, source truth, and evidence rather than forwarding the report:
 
@@ -89,7 +89,7 @@ A reviewer's suggested revision may bound an item, but it does not settle source
 - **Inconclusive:** gather the missing evidence or decision.
 - **Blocking:** do not use the artifact across the blocked boundary; re-enter its narrowest owner, defer, or stop.
 
-### Decide Whether Revision Is Ready
+### Decide Whether Independent-Review Revision Is Ready
 
 A revision is ready when the artifact's job, the problem and consequence, and enough source or decision basis support a bounded revision. When the issue and source are clear, the revision local, affected dependencies known, and no material alternative or user choice remains, include adjudication and revision in the same assistant response.
 

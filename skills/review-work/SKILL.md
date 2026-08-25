@@ -74,7 +74,7 @@ Use the most consequential applicable judgment:
 
 Pass, Non-blocking, Inconclusive, and Blocking are all valid review exits. A review ends with its report; it does not remain active until the work passes.
 
-## Adjudicate And Route
+## Adjudicate Independent Review And Route
 
 After independent review, the receiving active agent adjudicates each material item against the work, source truth, and evidence rather than forwarding the report:
 
@@ -89,7 +89,7 @@ A reviewer's suggested correction may bound an item, but it does not establish t
 - **Inconclusive:** gather the missing evidence or decision.
 - **Blocking:** do not cross the boundary; re-enter the narrowest owning activity, defer, or stop.
 
-### Decide Whether Remediation Is Ready
+### Decide Whether Independent-Review Remediation Is Ready
 
 Remediation is ready when accepted behavior, the problem and consequence, and enough causal or decision basis support a bounded correction. When the finding is clear, the correction local, verification direct, and no material alternative or user choice remains, include adjudication and remediation in the same assistant response.
 
