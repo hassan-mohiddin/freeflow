@@ -832,7 +832,7 @@ export class CognitiveRoutingController {
   async switchAutomaticProfile(
     profile: CognitiveRoutingProfileName,
     reason: string,
-    source: "agent" | "system" = "agent",
+    source: "agent" | "system" | "user" = "agent",
     mechanism: CognitiveRoutingMechanism = "agent-tool",
   ): Promise<CognitiveRoutingSwitchResult> {
     return this.enqueue(() => this._switchAutomaticProfile(profile, reason, source, mechanism));
@@ -859,7 +859,7 @@ export class CognitiveRoutingController {
   private async _switchAutomaticProfile(
     profile: CognitiveRoutingProfileName,
     reason: string,
-    source: "agent" | "system",
+    source: "agent" | "system" | "user",
     mechanism: CognitiveRoutingMechanism,
   ): Promise<CognitiveRoutingSwitchResult> {
     if (!this.capabilityState.effective) return { status: "blocked", reason: "not_effective" };

@@ -137,7 +137,7 @@ function createContext(cwd, host) {
   };
 }
 
-test("registered shortcuts cycle manual control and release it to automatic mode", async () => {
+test("registered shortcuts cycle manual holds and automatic profiles", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-shortcuts-"));
   await mkdir(join(cwd, ".freeflow"));
   await writeFile(
@@ -166,7 +166,29 @@ test("registered shortcuts cycle manual control and release it to automatic mode
     assert.equal(host.entries.at(-1).modelId, "reasoning");
     await automatic.definition.handler(ctx);
     assert.equal(host.entries.at(-1).customType, "freeflow-cognitive-routing-control");
-    assert.deepEqual(host.operations, ["prepare", "acquire", "setState", "prepare", "setState", "prepare"]);
+    assert.equal(host.entries.filter((entry) => entry.modelId).at(-1).modelId, "reasoning");
+    await automatic.definition.handler(ctx);
+    assert.equal(host.entries.at(-1).modelId, "standard");
+    await automatic.definition.handler(ctx);
+    assert.equal(host.entries.at(-1).modelId, "reasoning");
+    const automaticIntent = host.entries
+      .filter((entry) => entry.customType === "freeflow-cognitive-routing-intent")
+      .at(-1);
+    assert.equal(automaticIntent.data.source, "user");
+    assert.equal(automaticIntent.data.mechanism, "profile-shortcut");
+    assert.equal(automaticIntent.data.reason, "Cycle automatic profile to reasoning.");
+    assert.deepEqual(host.operations, [
+      "prepare",
+      "acquire",
+      "setState",
+      "prepare",
+      "setState",
+      "prepare",
+      "prepare",
+      "setState",
+      "prepare",
+      "setState",
+    ]);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

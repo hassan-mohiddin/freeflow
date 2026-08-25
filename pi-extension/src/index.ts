@@ -470,7 +470,7 @@ export default function freeflow(pi) {
       },
     });
     pi.registerShortcut("ctrl+shift+a", {
-      description: "Release the Cognitive Routing manual hold and return to automatic control",
+      description: "Cycle the Cognitive Routing automatic standard/reasoning profile",
       handler: async (ctx) => {
         if (typeof ctx?.isIdle === "function" && !ctx.isIdle()) {
           ctx.ui?.notify?.("Freeflow settings and profile changes are available only while Pi is idle.", "warning");
@@ -484,11 +484,23 @@ export default function freeflow(pi) {
           ctx.ui?.notify?.("Cognitive Routing is unavailable for this session.", "warning");
           return;
         }
-        const result = await controller.setAutomaticControl("profile-shortcut");
+        const state = controller.state();
+        const target = state.activeProfile === "reasoning" ? "standard" : "reasoning";
+        const result =
+          state.controlMode === "automatic" && state.activeProfile
+            ? await controller.switchAutomaticProfile(
+                target,
+                `Cycle automatic profile to ${target}.`,
+                "user",
+                "profile-shortcut",
+              )
+            : await controller.setAutomaticControl("profile-shortcut");
         if (result.status === "automatic") {
           ctx.ui?.notify?.("Cognitive Routing automatic control active.", "info");
+        } else if (result.status === "active") {
+          ctx.ui?.notify?.(`Cognitive Routing automatic profile set to ${result.profile}.`, "info");
         } else {
-          ctx.ui?.notify?.(`Cognitive Routing could not return to automatic control: ${result.reason}.`, "warning");
+          ctx.ui?.notify?.(`Cognitive Routing could not cycle the automatic profile: ${result.reason}.`, "warning");
         }
         await applyLiveCapabilityStateForSession(ctx);
       },
