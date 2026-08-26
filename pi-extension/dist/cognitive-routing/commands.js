@@ -25,6 +25,16 @@ function historyOptions(value) {
   if (value === "history anomalies") return { anomaliesOnly: true };
   return undefined;
 }
+export function parseCognitiveRoutingProfileCommand(args) {
+  const input = (args ?? "").trim().toLowerCase();
+  const [action, ...rest] = input.split(/\s+/);
+  if (action !== "profile") return { kind: "not-profile" };
+  const value = rest.join(" ");
+  const historyView = historyOptions(value);
+  if (historyView) return { kind: "history", options: historyView };
+  if (!PROFILE_VALUES.includes(value)) return { kind: "invalid" };
+  return { kind: "control", profile: value };
+}
 function formatHistory(result) {
   const lines = [
     `Cognitive Routing history: ${result.current.profile} · ${result.current.control}`,
@@ -41,16 +51,13 @@ function formatHistory(result) {
   return lines.join("\n");
 }
 export async function handleCognitiveRoutingProfileCommand(args, ctx, controller) {
-  const input = (args ?? "").trim().toLowerCase();
-  const [action, ...rest] = input.split(/\s+/);
-  if (action !== "profile") return false;
-  const value = rest.join(" ");
-  const historyView = historyOptions(value);
-  if (historyView) {
+  const parsed = parseCognitiveRoutingProfileCommand(args);
+  if (parsed.kind === "not-profile") return false;
+  if (parsed.kind === "history") {
     const result = ctx.history
-      ? await ctx.history(historyView)
+      ? await ctx.history(parsed.options)
       : controller?.history
-        ? await controller.history(historyView)
+        ? await controller.history(parsed.options)
         : undefined;
     if (result) {
       ctx.ui?.notify?.(formatHistory(result), "info");
@@ -59,7 +66,7 @@ export async function handleCognitiveRoutingProfileCommand(args, ctx, controller
     }
     return true;
   }
-  if (!PROFILE_VALUES.includes(value)) {
+  if (parsed.kind === "invalid") {
     ctx.ui?.notify?.(
       "Usage: /freeflow profile standard, /freeflow profile reasoning, /freeflow profile auto, or /freeflow profile history [active|anomalies]",
       "warning",
@@ -77,7 +84,7 @@ export async function handleCognitiveRoutingProfileCommand(args, ctx, controller
     );
     return true;
   }
-  if (value === "auto") {
+  if (parsed.profile === "auto") {
     const result = await controller.setAutomaticControl();
     if (result.status === "automatic") {
       ctx.ui?.notify?.("Cognitive Routing manual hold released; automatic control is active.", "info");
@@ -86,7 +93,7 @@ export async function handleCognitiveRoutingProfileCommand(args, ctx, controller
     }
     return true;
   }
-  const result = await controller.setManualProfile(value);
+  const result = await controller.setManualProfile(parsed.profile);
   if (result.status === "active") {
     ctx.ui?.notify?.(`Cognitive Routing manual hold set to ${result.profile}.`, "info");
   } else {

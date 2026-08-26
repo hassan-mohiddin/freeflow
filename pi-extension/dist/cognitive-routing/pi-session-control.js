@@ -15,6 +15,14 @@ function isRecord(value) {
 function isThinkingLevel(value) {
   return typeof value === "string" && THINKING_LEVELS.has(value);
 }
+function appendModelStateCommit(pi, commit) {
+  try {
+    pi.appendEntry(PI_SESSION_MODEL_STATE_ENTRY, commit);
+    return true;
+  } catch {
+    return false;
+  }
+}
 function pairFrom(value) {
   if (!isRecord(value)) return undefined;
   if (
@@ -211,7 +219,7 @@ export function createPiSessionModelStateControl({ pi, ctx }) {
                   failure: "model-change-failed",
                   origin: { source: "pi", operation: "session-model-state-control" },
                 };
-                pi.appendEntry(PI_SESSION_MODEL_STATE_ENTRY, aborted);
+                appendModelStateCommit(pi, aborted);
                 return { status: "rejected" };
               }
               try {
@@ -239,7 +247,7 @@ export function createPiSessionModelStateControl({ pi, ctx }) {
                   ...(currentPair(ctx) ? { observedPair: currentPair(ctx) } : {}),
                   origin: { source: "pi", operation: "session-model-state-control" },
                 };
-                pi.appendEntry(PI_SESSION_MODEL_STATE_ENTRY, rollbackFailed);
+                appendModelStateCommit(pi, rollbackFailed);
                 return { status: "rejected" };
               }
               const aborted = {
@@ -252,7 +260,7 @@ export function createPiSessionModelStateControl({ pi, ctx }) {
                 failure,
                 origin: { source: "pi", operation: "session-model-state-control" },
               };
-              pi.appendEntry(PI_SESSION_MODEL_STATE_ENTRY, aborted);
+              appendModelStateCommit(pi, aborted);
               return { status: "rejected" };
             }
             const commit = {
@@ -265,7 +273,7 @@ export function createPiSessionModelStateControl({ pi, ctx }) {
               origin: { source: "pi", operation: "session-model-state-control" },
             };
             try {
-              pi.appendEntry(PI_SESSION_MODEL_STATE_ENTRY, commit);
+              if (!appendModelStateCommit(pi, commit)) throw new Error("commit persistence failed");
               return { status: "applied" };
             } catch {
               const restored = await restorePair(pi, ctx, fromPair);
@@ -281,7 +289,7 @@ export function createPiSessionModelStateControl({ pi, ctx }) {
                   ...(currentPair(ctx) ? { observedPair: currentPair(ctx) } : {}),
                   origin: { source: "pi", operation: "session-model-state-control" },
                 };
-                pi.appendEntry(PI_SESSION_MODEL_STATE_ENTRY, rollbackFailed);
+                appendModelStateCommit(pi, rollbackFailed);
                 return { status: "rejected" };
               }
               const aborted = {
@@ -294,7 +302,7 @@ export function createPiSessionModelStateControl({ pi, ctx }) {
                 failure: "commit-persistence-failed",
                 origin: { source: "pi", operation: "session-model-state-control" },
               };
-              pi.appendEntry(PI_SESSION_MODEL_STATE_ENTRY, aborted);
+              appendModelStateCommit(pi, aborted);
               return { status: "rejected" };
             }
           },

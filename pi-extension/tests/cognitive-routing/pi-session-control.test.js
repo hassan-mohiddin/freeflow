@@ -16,7 +16,12 @@ const targetPair = {
   thinkingLevel: "high",
 };
 
-function createHost({ failTargetThinking = false, failRollbackModel = false, failCommitPersistence = false } = {}) {
+function createHost({
+  failTargetThinking = false,
+  failRollbackModel = false,
+  failCommitPersistence = false,
+  failAbortedPersistence = false,
+} = {}) {
   let currentModel = { provider: fromPair.provider, id: fromPair.modelId };
   let currentThinkingLevel = fromPair.thinkingLevel;
   const entries = [];
@@ -44,6 +49,9 @@ function createHost({ failTargetThinking = false, failRollbackModel = false, fai
       calls.push(["appendEntry", customType, data]);
       if (failCommitPersistence && data?.phase === "committed") {
         throw new Error("simulated commit persistence failure");
+      }
+      if (failAbortedPersistence && data?.phase === "aborted") {
+        throw new Error("simulated aborted persistence failure");
       }
       entries.push({ type: "custom", customType, data });
     },
@@ -211,6 +219,26 @@ test("fails closed when rollback cannot restore the captured pair", async () => 
       },
     },
   ]);
+
+  await acquisition.lease.release();
+});
+
+test("returns a rejection when rolled-back marker persistence fails", async () => {
+  const host = createHost({ failTargetThinking: true, failAbortedPersistence: true });
+  const control = createPiSessionModelStateControl(host);
+  const acquisition = await control.acquireModelStateControl({ label: "Cognitive Routing" });
+
+  assert.equal(acquisition.status, "acquired");
+  const result = await acquisition.lease.setState({
+    ...targetPair,
+    correlationId: "correlation-aborted-persist-failed",
+  });
+
+  assert.deepEqual(result, { status: "rejected" });
+  assert.deepEqual(
+    { provider: host.ctx.model.provider, modelId: host.ctx.model.id, thinkingLevel: host.ctx.thinkingLevel },
+    fromPair,
+  );
 
   await acquisition.lease.release();
 });

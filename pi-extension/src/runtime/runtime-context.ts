@@ -627,8 +627,18 @@ export function setModeStatus(ctx, modeState, capabilityState = undefined, cogni
     active.push("skills off (session)");
   }
   const cognitiveRouting = capabilityState?.cognitiveRouting;
+  const cognitiveRoutingInactive =
+    cognitiveRouting?.enabled === true && cognitiveRoutingRuntime?.runtimeStatus === "inactive";
+  const cognitiveRoutingBlocked =
+    cognitiveRouting?.enabled === true &&
+    (cognitiveRouting?.blockingReason?.code === "runtime_blocked" ||
+      cognitiveRoutingRuntime?.runtimeStatus === "blocked");
   const cognitiveRoutingActive = cognitiveRouting?.effective === true && cognitiveRoutingRuntime?.effective === true;
-  if (cognitiveRoutingActive) {
+  if (cognitiveRoutingInactive) {
+    active.push("cognitive inactive");
+  } else if (cognitiveRoutingBlocked) {
+    active.push(`cognitive blocked · ${cognitiveRoutingRuntime?.runtimeReason ?? "runtime_blocked"}`);
+  } else if (cognitiveRoutingActive) {
     const profile = cognitiveRoutingRuntime.activeProfile;
     const control =
       cognitiveRoutingRuntime.controlMode === "manual-standard" ||
@@ -674,6 +684,8 @@ export function skillPrompt(skill, args) {
 
 type CognitiveRoutingRuntimeSnapshot = {
   effective?: boolean;
+  runtimeStatus?: "active" | "inactive" | "blocked";
+  runtimeReason?: unknown;
   activeProfile?: unknown;
   controlMode?: unknown;
   conversation?: unknown;
@@ -713,6 +725,11 @@ function publicCapabilityStatus(capability) {
   return "inactive";
 }
 
+function publicCognitiveRoutingStatus(capability, runtime) {
+  if (runtime?.runtimeStatus === "inactive") return "inactive";
+  return publicCapabilityStatus(capability);
+}
+
 export function freeflowRuntimeStateMessage(
   modeState,
   capabilityState,
@@ -750,7 +767,7 @@ export function freeflowRuntimeStateMessage(
       `- Skills: ${publicCapabilityStatus(capabilityState?.skills)}`,
       `- Context Virtualization: ${publicCapabilityStatus(capabilityState?.contextVirtualization)}`,
       `- Conversation History: ${publicCapabilityStatus(capabilityState?.conversationHistory)}`,
-      `- Cognitive Routing: ${publicCapabilityStatus(capabilityState?.cognitiveRouting)}`,
+      `- Cognitive Routing: ${publicCognitiveRoutingStatus(capabilityState?.cognitiveRouting, cognitiveRoutingRuntime)}`,
       "",
       "Cognitive Routing:",
       `- Control: \`${control}\``,
