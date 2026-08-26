@@ -16,7 +16,7 @@
       },
       "skills": ["skills/workflow"],
       "target": 0,
-      "context": ["capabilities/interaction-contract/interaction-contract.md"]
+      "context": ["runtime/prompts/interaction-contract.md"]
     },
     "candidate": {
       "source": {
@@ -24,7 +24,7 @@
       },
       "skills": ["skills/workflow"],
       "target": 0,
-      "context": ["capabilities/interaction-contract/interaction-contract.md"]
+      "context": ["runtime/prompts/interaction-contract.md"]
     }
   },
   "expectations": [

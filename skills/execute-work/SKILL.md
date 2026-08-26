@@ -5,7 +5,7 @@ description: Use when executing or resuming implementation, fixes, prototypes, d
 
 # Execute Work
 
-Carry out concrete work through bounded actions and fresh evidence only when it was requested or approved and the effective mode permits its effects.
+Carry out concrete work through bounded actions and fresh evidence only when it was requested or approved.
 
 A Slice is the shared coherent outcome. Execute Work owns each **bounded action**—one implementation, experiment, correction, or observation—inside it. A Slice need not have durable task memory; when one does, Track Work records its Current Slice.
 
@@ -16,7 +16,7 @@ Read [Execute Work edges](references/execute-work-edges.md) when work resumes fr
 Use this as a directed map, not a fixed phase sequence:
 
 ```text
-[Requested or approved concrete work; effective mode permits its effects]
+[Requested or approved concrete work]
 -> [Orient and establish the current slice]
 -> [Take one bounded action]
 -> [Test or observe]

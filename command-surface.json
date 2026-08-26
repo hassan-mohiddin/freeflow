@@ -5,30 +5,6 @@
     "codex": "skill-mention",
     "pi": "registered-command"
   },
-  "sessionModeControls": {
-    "claude": "/freeflow:mode-contract <mode|reset>",
-    "codex": "$mode-contract <mode|reset>",
-    "pi": "/freeflow mode <mode|reset>",
-    "naturalLanguage": true
-  },
-  "modeCommands": [
-    {
-      "command": "/freeflow mode conversation",
-      "routesTo": "mode-contract"
-    },
-    {
-      "command": "/freeflow mode workflow",
-      "routesTo": "mode-contract"
-    },
-    {
-      "command": "/freeflow mode strict-workflow",
-      "routesTo": "mode-contract"
-    },
-    {
-      "command": "/freeflow mode reset",
-      "routesTo": "mode-contract"
-    }
-  ],
   "directSkillCalls": [
     {
       "command": "/discuss",

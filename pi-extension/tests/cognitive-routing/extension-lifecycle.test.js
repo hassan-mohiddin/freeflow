@@ -461,7 +461,7 @@ test("editing session-start settings does not activate the current empty session
     const component = factory({ requestRender() {} }, theme, {}, (value) => {
       result = value;
     });
-    for (let index = 0; index < 5; index += 1) component.handleInput("\u001b[B");
+    component.handleInput("\u001b[B");
     component.handleInput("\r");
     for (let index = 0; index < 3; index += 1) component.handleInput("\u001b[B");
     component.handleInput("\r");
@@ -966,7 +966,7 @@ test("Pi refreshes volatile Cognitive Routing state after a profile switch", asy
   }
 });
 
-test("Pi keeps Cognitive Routing behind the Skills parent gate", async () => {
+test("Pi rejects the removed Skills configuration instead of gating Cognitive Routing", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-skills-gate-"));
   await mkdir(join(cwd, ".freeflow"));
   await writeFile(
@@ -992,8 +992,8 @@ test("Pi keeps Cognitive Routing behind the Skills parent gate", async () => {
     assert.doesNotMatch(result.systemPrompt, /^# Cognitive Routing$/m);
     assert.ok(!host.activeToolNames().includes("freeflow_switch_profile"));
     const providerContext = await host.handlers.get("context")({ messages: [] }, ctx);
-    assert.match(providerContext.messages[0].content, /Skills: inactive/);
-    assert.match(providerContext.messages[0].content, /Cognitive Routing: inactive/);
+    assert.match(providerContext.messages[0].content, /Freeflow: config error/);
+    assert.doesNotMatch(providerContext.messages[0].content, /Skills:/);
   } finally {
     await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
     await rm(cwd, { recursive: true, force: true });

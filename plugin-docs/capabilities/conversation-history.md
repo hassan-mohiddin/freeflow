@@ -10,7 +10,7 @@ Visible current context, live source, current task memory, and current user dire
 
 ## Activation and source boundary
 
-Conversation History requires valid Freeflow activation, effective Skills, and its own capability gate. Its prompt cue, discoverable skill, and tools are exposed from the same effective surface snapshot.
+Conversation History requires valid Freeflow activation and its own capability gate. Its prompt cue, discoverable skill, and tools are exposed from the same effective surface snapshot.
 
 Search is limited to hidden eligible sources on the current active branch. It does not browse alternate branches or sessions, create a durable semantic index, or search the web. Source visibility and provenance remain explicit.
 

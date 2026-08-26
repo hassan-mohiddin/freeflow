@@ -53,7 +53,7 @@ function loadExtension(extension = freeflowExtension, host = PIFLOW_HOST) {
   return { handlers, activeToolNames: () => activeToolNames ?? tools.map((tool) => tool.name) };
 }
 
-async function configuredRepo(config) {
+async function configuredRepo(config = {}) {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-prompt-architecture-"));
   await mkdir(join(cwd, ".freeflow"));
   await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify(config, null, 2), "utf8");
@@ -64,12 +64,8 @@ function lastRuntimeState(messages) {
   return messages.findLast((message) => message.customType === "freeflow-runtime-state");
 }
 
-test("composes conditional prompt fragments, discoverable capabilities, and runtime state", async () => {
-  const cwd = await configuredRepo({
-    defaultMode: "workflow",
-    contextVirtualization: true,
-    conversationHistory: true,
-  });
+test("composes the mandatory core fragments, optional capabilities, discovery, and runtime state", async () => {
+  const cwd = await configuredRepo({ contextVirtualization: true, conversationHistory: true });
   try {
     const { handlers, activeToolNames } = loadExtension();
     const ctx = context(cwd);
@@ -80,45 +76,39 @@ test("composes conditional prompt fragments, discoverable capabilities, and runt
     const prompt = before.systemPrompt;
     const order = [
       "# Freeflow Stable Guidance",
-      "# Freeflow Interaction Contract",
       "## Shared Terms",
       "## Three Nested Loops",
       "## Workflow Cue",
       "## Action Selection Cue",
       "## Supported Exit",
+      "# Freeflow Interaction Contract",
       "## Context Virtualization Cue",
       "## Conversation History Cue",
     ].map((marker) => prompt.indexOf(marker));
     assert.ok(order.every((index) => index >= 0));
-    assert.match(
-      prompt,
-      /\*\*Slice:\*\* one coherent outcome that can be executed and checked as a unit.*Track Work gives it durable identity/s,
-    );
-    assert.match(
-      prompt,
-      /After context loss.*current user direction, bounded task memory, and live evidence.*read Track Work before any record operation.*`resume` view and current schema before mutation.*Workflow is unread.*read it before consequential work or owner selection/s,
-    );
     assert.deepEqual(
       order,
       [...order].sort((a, b) => a - b),
     );
+    assert.doesNotMatch(prompt, /## Mode\b|strict-workflow|conversation mode|workflow mode/);
+    assert.doesNotMatch(prompt, /Skills prompt/);
     assert.doesNotMatch(prompt, /# Workflow\n/);
     assert.doesNotMatch(prompt, /# Cognitive Routing\n/);
-    assert.doesNotMatch(prompt, /# Conversation History\n/);
 
     const providerContext = await handlers.get("context")({ messages: [] }, ctx);
     const runtimeState = lastRuntimeState(providerContext.messages);
     assert.ok(runtimeState);
-    assert.match(runtimeState.content, /Skills: active/);
+    assert.match(runtimeState.content, /Freeflow: active/);
     assert.match(runtimeState.content, /Context Virtualization: active/);
     assert.match(runtimeState.content, /Conversation History: active/);
     assert.match(runtimeState.content, /Cognitive Routing: inactive/);
+    assert.doesNotMatch(runtimeState.content, /Default mode|Active mode|Interaction Contract|Skills/);
 
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/action-selection/SKILL.md")));
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/capabilities/context-virtualization/SKILL.md")));
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/capabilities/conversation-history/SKILL.md")));
-    assert.ok(!resources.skillPaths.some((path) => path.endsWith("/capabilities/cognitive-routing/SKILL.md")));
+    assert.ok(!resources.skillPaths.some((path) => path.endsWith("/skills/mode-contract/SKILL.md")));
     assert.ok(activeToolNames().includes("freeflow_context"));
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -126,7 +116,7 @@ test("composes conditional prompt fragments, discoverable capabilities, and runt
 });
 
 test("provider context reuses the before-agent surface until the next provider turn", async () => {
-  const cwd = await configuredRepo({ defaultMode: "workflow", contextVirtualization: true });
+  const cwd = await configuredRepo({ contextVirtualization: true });
   try {
     const { handlers } = loadExtension();
     const ctx = context(cwd);
@@ -135,59 +125,20 @@ test("provider context reuses the before-agent surface until the next provider t
     const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
     assert.match(before.systemPrompt, /## Context Virtualization Cue/);
 
-    await writeFile(
-      join(cwd, ".freeflow/config.json"),
-      JSON.stringify({ defaultMode: "workflow", skills: { enabled: false }, contextVirtualization: true }),
-      "utf8",
-    );
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({}), "utf8");
     const sameTurn = await handlers.get("context")({ messages: [] }, ctx);
-    assert.match(lastRuntimeState(sameTurn.messages).content, /Skills: active/);
     assert.match(lastRuntimeState(sameTurn.messages).content, /Context Virtualization: active/);
 
     const next = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.doesNotMatch(next.systemPrompt, /## Shared Terms/);
     assert.doesNotMatch(next.systemPrompt, /## Context Virtualization Cue/);
+    assert.match(next.systemPrompt, /# Freeflow Interaction Contract/);
+    assert.match(next.systemPrompt, /## Shared Terms/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
 });
 
-test("Skills is the parent gate for capability prompt, discovery, and tools", async () => {
-  const cwd = await configuredRepo({
-    defaultMode: "workflow",
-    skills: { enabled: false },
-    contextVirtualization: true,
-    conversationHistory: true,
-  });
-  try {
-    const { handlers, activeToolNames } = loadExtension();
-    const ctx = context(cwd);
-    await handlers.get("session_start")({ type: "session_start" }, ctx);
-
-    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.match(before.systemPrompt, /# Freeflow Stable Guidance/);
-    assert.match(before.systemPrompt, /## Mode/);
-    assert.match(before.systemPrompt, /# Freeflow Interaction Contract/);
-    assert.doesNotMatch(before.systemPrompt, /## Shared Terms/);
-    assert.doesNotMatch(before.systemPrompt, /## Three Nested Loops/);
-    assert.doesNotMatch(before.systemPrompt, /## Context Virtualization Cue/);
-    assert.doesNotMatch(before.systemPrompt, /## Conversation History Cue/);
-
-    const providerContext = await handlers.get("context")({ messages: [] }, ctx);
-    const runtimeState = lastRuntimeState(providerContext.messages);
-    assert.match(runtimeState.content, /Skills: inactive/);
-    assert.match(runtimeState.content, /Context Virtualization: inactive/);
-    assert.match(runtimeState.content, /Conversation History: inactive/);
-
-    const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.deepEqual(resources.skillPaths, []);
-    assert.ok(!activeToolNames().includes("freeflow_context"));
-  } finally {
-    await rm(cwd, { recursive: true, force: true });
-  }
-});
-
-test("missing optional prompt fragments preserve runtime context loading", async () => {
+test("missing optional prompt fragments preserve the mandatory core surface", async () => {
   const root = await mkdtemp(join(tmpdir(), "freeflow-prompt-fragment-failure-"));
   try {
     await cp(join(process.cwd(), "pi-extension", "dist"), join(root, "pi-extension", "dist"), { recursive: true });
@@ -200,8 +151,6 @@ test("missing optional prompt fragments preserve runtime context loading", async
     const state = {
       configured: true,
       enabled: true,
-      interactionContract: { effective: true },
-      skills: { effective: true },
       cognitiveRouting: { effective: true },
       contextVirtualization: { effective: false },
       conversationHistory: { effective: false },
@@ -213,6 +162,10 @@ test("missing optional prompt fragments preserve runtime context loading", async
       runtime.runtimeContext(loaded, { ...state, cognitiveRouting: { effective: false } }),
       /# Freeflow Stable Guidance/,
     );
+    assert.match(
+      runtime.runtimeContext(loaded, { ...state, cognitiveRouting: { effective: false } }),
+      /# Freeflow Interaction Contract/,
+    );
     assert.doesNotMatch(
       runtime.runtimeContext(loaded, { ...state, cognitiveRouting: { effective: false } }),
       /## Cognitive Routing Cue/,
@@ -222,9 +175,9 @@ test("missing optional prompt fragments preserve runtime context loading", async
   }
 });
 
-test("missing child prompt removes that capability from every model-facing surface", async () => {
+test("missing child prompt removes only that capability from every model-facing surface", async () => {
   const root = await mkdtemp(join(tmpdir(), "freeflow-child-prompt-failure-"));
-  const cwd = await configuredRepo({ defaultMode: "workflow", contextVirtualization: true });
+  const cwd = await configuredRepo({ contextVirtualization: true });
   try {
     await cp(join(process.cwd(), "pi-extension", "dist"), join(root, "pi-extension", "dist"), { recursive: true });
     await cp(join(process.cwd(), "runtime", "prompts"), join(root, "runtime", "prompts"), { recursive: true });
@@ -240,20 +193,76 @@ test("missing child prompt removes that capability from every model-facing surfa
 
     const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
     assert.doesNotMatch(before.systemPrompt, /## Context Virtualization Cue/);
+    assert.match(before.systemPrompt, /# Freeflow Interaction Contract/);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.ok(!resources.skillPaths.some((path) => path.endsWith("/capabilities/context-virtualization/SKILL.md")));
     assert.ok(!activeToolNames().includes("freeflow_context"));
+
+    await handlers.get("session_tree")({}, ctx);
+    assert.ok(!activeToolNames().includes("freeflow_context"));
+    await handlers.get("session_compact")({}, ctx);
+    assert.ok(!activeToolNames().includes("freeflow_context"));
+
     const providerContext = await handlers.get("context")({ messages: [] }, ctx);
     assert.match(providerContext.messages.at(-1).content, /Context Virtualization: unavailable/);
+
+    await writeFile(join(root, "runtime", "prompts", "context-virtualization.md"), " \n\t", "utf8");
+    const whitespaceBefore = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+    assert.doesNotMatch(whitespaceBefore.systemPrompt, /## Context Virtualization Cue/);
+    const whitespaceResources = await handlers.get("resources_discover")({ cwd }, ctx);
+    assert.ok(
+      !whitespaceResources.skillPaths.some((path) => path.endsWith("/capabilities/context-virtualization/SKILL.md")),
+    );
+    assert.ok(!activeToolNames().includes("freeflow_context"));
+    const whitespaceContext = await handlers.get("context")({ messages: [] }, ctx);
+    assert.match(whitespaceContext.messages.at(-1).content, /Context Virtualization: unavailable/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test("missing core prompt preserves the host prompt and marks Freeflow unavailable", async () => {
+test("missing mandatory Interaction Contract preserves the host prompt and hides base skills", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-interaction-contract-failure-"));
+  const cwd = await configuredRepo();
+  try {
+    await cp(join(process.cwd(), "pi-extension", "dist"), join(root, "pi-extension", "dist"), { recursive: true });
+    await cp(join(process.cwd(), "runtime", "prompts"), join(root, "runtime", "prompts"), { recursive: true });
+    await symlink(join(process.cwd(), "node_modules"), join(root, "node_modules"), "dir");
+    await rm(join(root, "runtime", "prompts", "interaction-contract.md"));
+
+    const extension = (
+      await import(
+        `${pathToFileURL(join(root, "pi-extension", "dist", "index.js")).href}?missing-contract=${Date.now()}`
+      )
+    ).default;
+    const { handlers, activeToolNames } = loadExtension(extension);
+    const ctx = context(cwd);
+    await handlers.get("session_start")({}, ctx);
+    assert.ok(!activeToolNames().includes("freeflow_context"));
+    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+    assert.equal(before.systemPrompt, "base prompt");
+    const resources = await handlers.get("resources_discover")({ cwd }, ctx);
+    assert.deepEqual(resources.skillPaths, []);
+    await handlers.get("session_tree")({}, ctx);
+    assert.ok(!activeToolNames().includes("freeflow_context"));
+
+    await writeFile(join(root, "runtime", "prompts", "interaction-contract.md"), " \n\t", "utf8");
+    const whitespaceBefore = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+    assert.equal(whitespaceBefore.systemPrompt, "base prompt");
+    const whitespaceResources = await handlers.get("resources_discover")({ cwd }, ctx);
+    assert.deepEqual(whitespaceResources.skillPaths, []);
+    const whitespaceContext = await handlers.get("context")({ messages: [] }, ctx);
+    assert.match(whitespaceContext.messages.at(-1).content, /Freeflow: unavailable/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("missing mandatory core prompt preserves the host prompt and hides base skills", async () => {
   const root = await mkdtemp(join(tmpdir(), "freeflow-core-prompt-failure-"));
-  const cwd = await configuredRepo({ defaultMode: "workflow" });
+  const cwd = await configuredRepo({ contextVirtualization: true });
   try {
     await cp(join(process.cwd(), "pi-extension", "dist"), join(root, "pi-extension", "dist"), { recursive: true });
     await cp(join(process.cwd(), "runtime", "prompts"), join(root, "runtime", "prompts"), { recursive: true });
@@ -263,7 +272,7 @@ test("missing core prompt preserves the host prompt and marks Freeflow unavailab
     const extension = (
       await import(`${pathToFileURL(join(root, "pi-extension", "dist", "index.js")).href}?missing-core=${Date.now()}`)
     ).default;
-    const { handlers } = loadExtension(extension);
+    const { handlers, activeToolNames } = loadExtension(extension);
     const ctx = context(cwd);
     await handlers.get("session_start")({ type: "session_start" }, ctx);
 
@@ -272,17 +281,32 @@ test("missing core prompt preserves the host prompt and marks Freeflow unavailab
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.deepEqual(resources.skillPaths, []);
     const providerContext = await handlers.get("context")({ messages: [] }, ctx);
-    assert.match(providerContext.messages.at(-1).content, /Interaction Contract: unavailable/);
-    assert.match(providerContext.messages.at(-1).content, /Skills: unavailable/);
-    assert.match(providerContext.messages.at(-1).content, /Active mode: `inactive`/);
+    assert.match(providerContext.messages.at(-1).content, /Freeflow: unavailable/);
+    assert.doesNotMatch(
+      providerContext.messages.at(-1).content,
+      /Default mode|Active mode|Interaction Contract|Skills/,
+    );
+
+    await handlers.get("session_tree")({}, ctx);
+    assert.ok(!activeToolNames().includes("freeflow_context"));
+    await handlers.get("session_compact")({}, ctx);
+    assert.ok(!activeToolNames().includes("freeflow_context"));
+
+    await writeFile(join(root, "runtime", "prompts", "core.md"), " \n\t", "utf8");
+    const whitespaceBefore = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+    assert.equal(whitespaceBefore.systemPrompt, "base prompt");
+    const whitespaceResources = await handlers.get("resources_discover")({ cwd }, ctx);
+    assert.deepEqual(whitespaceResources.skillPaths, []);
+    const whitespaceContext = await handlers.get("context")({ messages: [] }, ctx);
+    assert.match(whitespaceContext.messages.at(-1).content, /Freeflow: unavailable/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test("Runtime State remains present while Freeflow is disabled and prompt surfaces disappear", async () => {
-  const cwd = await configuredRepo({ enabled: false, skills: { enabled: true } });
+test("Runtime State remains present while Freeflow is disabled without optional core labels", async () => {
+  const cwd = await configuredRepo({ enabled: false });
   try {
     const { handlers } = loadExtension();
     const ctx = context(cwd);
@@ -293,9 +317,8 @@ test("Runtime State remains present while Freeflow is disabled and prompt surfac
     const providerContext = await handlers.get("context")({ messages: [] }, ctx);
     const runtimeState = lastRuntimeState(providerContext.messages);
     assert.ok(runtimeState);
-    assert.match(runtimeState.content, /Active mode: `inactive`/);
-    assert.match(runtimeState.content, /Skills: inactive/);
-    assert.match(runtimeState.content, /Interaction Contract: inactive/);
+    assert.match(runtimeState.content, /Freeflow: inactive/);
+    assert.doesNotMatch(runtimeState.content, /Default mode|Active mode|Interaction Contract|Skills/);
 
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.deepEqual(resources.skillPaths, []);

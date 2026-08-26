@@ -19,7 +19,7 @@ Classify effects cumulatively:
 - **Active evidence generation:** exercise target behavior to produce new evidence.
 - **Mutation or delivery:** change repository, durable task or session, or external state.
 
-A direct request authorizes its bounded outcome and entailed tools, checks, and reversible local choices. A Spec, Plan, task-memory artifact, review, recommendation, silence, mode, or newly useful evidence does not create authority.
+A direct request authorizes its bounded outcome and entailed tools, checks, and reversible local choices. A Spec, Plan, task-memory artifact, review, recommendation, silence, or newly useful evidence does not create authority.
 
 Before an uncovered action, return one bounded proposal:
 

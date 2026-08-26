@@ -14,7 +14,7 @@ The canonical session history remains unchanged. Archive and restore affect futu
 
 ## Activation and ownership
 
-Context Virtualization requires valid Freeflow activation, effective Skills, and the Context Virtualization capability gate. Its prompt cue and discoverable skill appear only when the same effective surface snapshot exposes the capability.
+Context Virtualization requires valid Freeflow activation and its own capability gate. Its prompt cue and discoverable skill appear only when the same effective surface snapshot exposes the capability.
 
 The capability does not choose the task owner, widen authority, select a tool, or decide whether evidence is sufficient. It returns residency state to the current owner. A result stays Full whenever its raw content may still be needed for the current activity, self-review, or expected continuation.
 

@@ -29,7 +29,7 @@ release_version=""
 format="text"
 product_description="Feedback-based control system for coding agents."
 short_description="Feedback-based control for coding agents."
-long_description="Freeflow gives coding agents an Interaction Contract, evidence-driven Workflow, focused methods, and durable task memory across conversation, workflow, and strict-workflow modes."
+long_description="Freeflow gives coding agents an Interaction Contract, adaptive Workflow, focused methods, and durable task memory."
 
 while [ "$#" -gt 0 ]; do
 	case "$1" in
@@ -243,8 +243,8 @@ check_host_skill_surface() {
 	local skill_count
 
 	skill_count="$(find "$plugin_root/skills" -mindepth 1 -maxdepth 1 -type d -exec test -f '{}/SKILL.md' ';' -print | wc -l | tr -d ' ')"
-	if [ "$skill_count" != "26" ]; then
-		record_check "$check" "fail" "Codex/Claude skills directory must contain exactly 26 skill packages; found $skill_count."
+	if [ "$skill_count" != "25" ]; then
+		record_check "$check" "fail" "Codex/Claude skills directory must contain exactly 25 skill packages; found $skill_count."
 		ok=0
 	fi
 
@@ -265,7 +265,7 @@ check_host_skill_surface() {
 	fi
 
 	if [ "$ok" = "1" ]; then
-		record_check "$check" "pass" "Codex and Claude expose 26 functional skills with no retired Output Router runtime or discovery surface."
+		record_check "$check" "pass" "Codex and Claude expose 25 functional skills with no retired Output Router runtime or discovery surface."
 	fi
 }
 
@@ -329,7 +329,7 @@ check_release_boundary() {
 		ok=0
 	}
 
-	contains_fixed "$architecture_doc" "shared context-and-session-mode hook" || {
+	contains_fixed "$architecture_doc" "shared runtime context hook" || {
 		record_check "$check" "fail" "Architecture doc no longer documents the shared runtime hook."
 		ok=0
 	}
@@ -437,11 +437,6 @@ check_docs_drift() {
 		ok=0
 	fi
 
-	if [ "$(json_get "$command_surface" '.sessionModeControls.naturalLanguage')" != "true" ]; then
-		record_check "$check" "fail" "command-surface.json does not declare natural-language session mode controls."
-		ok=0
-	fi
-
 	if jq -e 'has("commands") or has("slashCommands")' "$codex_manifest" >/dev/null; then
 		record_check "$check" "fail" "Codex manifest declares duplicate command handlers instead of using native skill mentions."
 		ok=0
@@ -472,18 +467,12 @@ check_docs_drift() {
 		ok=0
 	}
 
-	local mode_count direct_count developer_count pi_native_count
-	mode_count="$(json_get "$command_surface" '.modeCommands | length')"
+	local direct_count developer_count pi_native_count
 	direct_count="$(json_get "$command_surface" '.directSkillCalls | length')"
 	developer_count="$(json_get "$command_surface" '.developerSkillCalls | length')"
 	pi_native_count="$(json_get "$command_surface" '.piNativeCommands | length')"
 
 	if [ "$mode" = "release" ]; then
-		contains_fixed "$release_evidence" "$mode_count mode commands" || {
-			record_check "$check" "fail" "Release evidence no longer lists $mode_count mode commands."
-			ok=0
-		}
-
 		contains_fixed "$release_evidence" "$direct_count direct skill calls" || {
 			record_check "$check" "fail" "Release evidence no longer lists $direct_count direct skill calls."
 			ok=0

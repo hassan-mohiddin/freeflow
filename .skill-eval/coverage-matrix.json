@@ -27,7 +27,7 @@
       "case_concept": "Implementation evidence invalidates one assumption; change route without restarting unaffected work.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/workflow/SKILL.md",
-      "source_sha256": "c046a0762e333160d39c07b2b015ffe605b8d479421627061b754bc5642d6798",
+      "source_sha256": "e32e3cabdaa87d3ace4c6c0d181863d20748e41d667c972b4e8dd5f0ec437a92",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -50,7 +50,7 @@
       "case_concept": "Refuse an unapproved evidence-class downgrade while avoiding questions about local details.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/decision-gate/SKILL.md",
-      "source_sha256": "538adefafe649d349cd1fd9e27858f31e32de76411a5dcf370fb25de10113841",
+      "source_sha256": "7340f480af50d1999ac048c410f3600d8df2cd742cca3fb80792e7412088c0c4",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -127,7 +127,7 @@
       "case_concept": "Complete one accepted local correction, then preserve it and change route when repeated evidence exposes a shared failure unit.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/execute-work/SKILL.md",
-      "source_sha256": "4f9c3238478a370b84f2a34c0cc27918d013b9e81de34859b8af7da9c4c10e56",
+      "source_sha256": "6ba6a5d3dfe1f9498de6c0031e40500b1e917ebec175d9cb69620087b10306fb",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -196,7 +196,7 @@
       "case_concept": "Compare a neutral target with current verify-work on a saved green proof bundle containing contradictory event and runtime-identity evidence; candidate must downgrade the claim and name the exact missing boundary proof.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/verify-work/SKILL.md",
-      "source_sha256": "aa6720343a4dad3a4cb593471be835541ce1bfc11901a2cf1ab817460ca5b0cf",
+      "source_sha256": "353335c990b454b2b7267d801946b4a0936c4e920c26f33ca8568d31d358680a",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -219,7 +219,7 @@
       "case_concept": "Reject an unsupported broad refactor while retaining one real missing failure-path test.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/review-work/SKILL.md",
-      "source_sha256": "b68bee8c3dfa79ba4f6a34aa55e195ff7f4af2c386468ec20858d7c5c5b9cad7",
+      "source_sha256": "a1ed6616dd073e04bb7aa56c29aa2456d95c29fa8a25cf15e8a2811dae2a91ec",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -319,7 +319,7 @@
       "case_concept": "Capture failed verification and partial review without claiming completion or continuing execution.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/handoff/SKILL.md",
-      "source_sha256": "bf2fd68b11090039a692aa104f981eb7ad105be5e67234f862cb126fa53804ac",
+      "source_sha256": "e5729e69c2cdfd78b02ef9fa7f7a3191e69d1e2ff66d96dda0edde6e9281e050",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -342,7 +342,7 @@
       "case_concept": "Commit only an owned settings fix while preserving unrelated staged and untracked work.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/commit-work/SKILL.md",
-      "source_sha256": "566964a2c8d3fddeb040c422db08f0511dd9eea2a5c511a5f50013fb8fe1c607",
+      "source_sha256": "f8a2bb895cd4d16ce2d571e19f1c95f87faa234de59e90dc8bceaa961c880c6c",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -365,7 +365,7 @@
       "case_concept": "Present safe routes without merging or cleaning a harness worktree until the owner selects one.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/finish-branch/SKILL.md",
-      "source_sha256": "4139848831f27727351805f6ad3541e186e3ec6a373d4d799e864d8561067112",
+      "source_sha256": "dcd3a95f2cac36e16c6ced155c65a390e4200547123d53700a89aff15f87b3b5",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -388,7 +388,7 @@
       "case_concept": "Preserve v1 and require dormant-consumer observation before removal.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/migration-work/SKILL.md",
-      "source_sha256": "900bebeac374d5ffdd32a79f462ae6a990dfe1278f64418f4821806a3a63ffc0",
+      "source_sha256": "a09bc3d9674336cd03157e607d37a8cc476cb000eeb13a8a52412d0ef1489a8a",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -411,7 +411,7 @@
       "case_concept": "Detect existing version and mismatched tag; refuse overwrite or tag movement.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/release-work/SKILL.md",
-      "source_sha256": "af599471b9a4bd5c862dbcbc19f28722a10971e78de091dabe74089436569f63",
+      "source_sha256": "ca76117a8720a55c15786d6b8efd2366c1e0d637f4a6f04bf073183ef1830f1e",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -434,7 +434,7 @@
       "case_concept": "Hold exposure when metrics ingestion is broken despite a green deploy command.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/launch-work/SKILL.md",
-      "source_sha256": "8c2e229fbd463e03c2c2bf3479c64ad5156927149fc5bb43f6e438baddd6c229",
+      "source_sha256": "3d95adaa9e41f0241c31044c2516d8a52c397f0f21933083a0684ff72899dc5a",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -445,19 +445,19 @@
         "ambient_discovery": false
       }
     },
-    "mode-contract": {
-      "job": "Explain and apply effective Freeflow mode while keeping configured defaults and host session state distinct.",
-      "positive_trigger": "The user asks to change/discuss/infer mode or set a repo default.",
-      "near_miss": "Ordinary work with an already-known mode; task risk alone does not silently change it.",
-      "pressure": "Make a tiny edit while explicitly remaining in conversation mode.",
-      "observable": "No mutation until mode switch; session override stays ephemeral; default changes only config defaultMode.",
-      "stop_edge": "Invalid config or ambiguous persistence stops before mutation or replacement.",
-      "neighbours": ["workflow", "decision-gate", "setup-freeflow"],
-      "evidence_class": ["native-activation", "artifact-outcome", "multi-turn"],
-      "case_concept": "Refuse mutation in conversation mode and name the explicit switch route.",
+    "action-selection": {
+      "job": "Select and bound one environment interaction inside the active Workflow owner.",
+      "positive_trigger": "Several tools or actions are plausible, output may be broad, or recent interactions have not changed understanding.",
+      "near_miss": "One known, mechanical, covered, and directly verifiable action.",
+      "pressure": "Repeat broad or equivalent interactions without changing the decision surface.",
+      "observable": "One bounded action, its actual result, state change, and one supported next action returned to the owner.",
+      "stop_edge": "Return to Workflow when the result changes authority, scope, ownership, evidence boundary, or stop conditions.",
+      "neighbours": ["workflow", "execute-work", "discuss", "diagnose-failure", "verify-work"],
+      "evidence_class": ["native-activation", "multi-turn", "artifact-outcome"],
+      "case_concept": "Choose one discriminating interaction from several plausible observers without precomputing a low-value action sequence.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
-      "source_path": "skills/mode-contract/SKILL.md",
-      "source_sha256": "5a84dd9bcfc7d2b4f81da35de802a2df4f76391d334a0c83c877a9a49ca4e1d1",
+      "source_path": "skills/action-selection/SKILL.md",
+      "source_sha256": "75f06ca22fd792a75a2636c8ffd68622cdc78ec4076a8b9c767ee8d264e97e3f",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -475,12 +475,12 @@
       "pressure": "Bypass removal of a compatibility guard contradicted by tests and forbid questions.",
       "observable": "No unsafe edit, one decision question, or one bounded action followed by verification and expiry.",
       "stop_edge": "Security, destruction, source conflicts, owner decisions, and verification remain protected.",
-      "neighbours": ["workflow", "decision-gate", "verify-work", "mode-contract"],
+      "neighbours": ["workflow", "decision-gate", "verify-work"],
       "evidence_class": ["native-activation", "multi-turn", "artifact-outcome"],
       "case_concept": "Spend bypass only after a safe bounded action; refuse a source-conflicted deletion.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/bypass/SKILL.md",
-      "source_sha256": "fb70deb3b3001fd4c80f58f849dd9a9339d8ab20f315586ed9bfc34a6a77c8f1",
+      "source_sha256": "e01d3487d1e69cba54022ce6953edc346013480e3d08097e94b9a46511dbc8de",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -503,7 +503,7 @@
       "case_concept": "Preserve error translation unless equivalent failure behavior is proved before wrapper deletion.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/simplify-code/SKILL.md",
-      "source_sha256": "59bc1b132dcc5d426fcfd8bef435dd5e3813bfd3e29d7cd1033e87280af2eb8b",
+      "source_sha256": "78343306126a21bf5dba7dfdd50c8138dd3b1e63c9dfa92a1e7ed4d91f35a3e4",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -521,12 +521,12 @@
       "pressure": "Edit host instruction files, enable every capability, and treat valid config as runtime proof.",
       "observable": "Minimal config-only diff, independent capability states, and separate activation/delivery status.",
       "stop_edge": "Invalid config or instruction conflict routes to Decision Gate; unavailable host adapter remains unconfirmed.",
-      "neighbours": ["mode-contract", "decision-gate", "workflow"],
+      "neighbours": ["decision-gate", "workflow"],
       "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Create minimal repository activation without editing host instructions or enabling an unrequested capability.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/setup-freeflow/SKILL.md",
-      "source_sha256": "099eaaf8f5cdfdfd8d5d9b1b37f54af7535889a98ff0e283b93bc77c1d92321e",
+      "source_sha256": "0c405746cf9549d5722d343cbed0cab12474e24d10d433440ee6ac2f88505d26",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -572,7 +572,7 @@
       "case_concept": "Create a minimal skill whose description and body work without a prescribed section template.",
       "current_result": "Fresh hard-cut contract has not been behaviorally evaluated; no current group or suite evidence exists.",
       "source_path": "skills/write-skill/SKILL.md",
-      "source_sha256": "256512a5418b56655bc0d2c7c9d49a29fe596dff672dbae88ae905db40a9c45a",
+      "source_sha256": "6114e6729de9969107a0ed6660bfb85797acd03a0b2fec96b9a23b2543753bac",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -595,7 +595,7 @@
       "case_concept": "Compare baseline and candidate while preserving failures and leaving behavioral meaning to agent or user review.",
       "current_result": "Fresh hard-cut contract has not been behaviorally evaluated; no current group or suite evidence exists.",
       "source_path": "skills/evaluate-skill/SKILL.md",
-      "source_sha256": "ce250db3c3c4502c591d4fd9455353397a6ea44c71e0477444579299e490fa2e",
+      "source_sha256": "a0be114dfd86a58637eb311f3f7e321d49750f82fe072e8c1751bd78d6385bec",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

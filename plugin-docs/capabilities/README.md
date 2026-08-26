@@ -1,11 +1,11 @@
 # Freeflow Capabilities
 
-Capabilities are optional Pi/PiFlow extensions outside the shared 26-skill surface. They add bounded host or context behavior; they do not replace Workflow, change authority, or become a second agent.
+Capabilities are optional Pi/PiFlow extensions outside the shared 25-skill surface. They add bounded host or context behavior; they do not replace Workflow, change authority, or become a second agent.
 
 ## Common rules
 
 - Capabilities are off or unavailable unless their configuration and host gates are effective.
-- Skills is the parent gate for Cognitive Routing, Context Virtualization, and Conversation History.
+- Cognitive Routing, Context Virtualization, and Conversation History are independently gated optional capabilities.
 - One effective-state snapshot controls each capability’s prompt cue, discoverable skill, settings, and tools.
 - Runtime State reports current availability; it does not authorize work or prove behavioral readiness.
 - Capabilities preserve the ordinary Workflow owner and return evidence or state changes to that owner.

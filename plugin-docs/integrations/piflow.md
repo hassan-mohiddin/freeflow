@@ -40,7 +40,7 @@ In the target repository, run:
 /setup-freeflow
 ```
 
-Then open `/freeflow` and enable Skills and Cognitive Routing. Configure distinct `standard` and `reasoning` profiles with authenticated provider/model pairs. Profiles may be supplied through the shared repository configuration or the personal checkout layer according to the normal Freeflow configuration precedence.
+Then open `/freeflow` and enable Cognitive Routing. Configure distinct `standard` and `reasoning` profiles with authenticated provider/model pairs. Profiles may be supplied through the shared repository configuration or the personal checkout layer according to the normal Freeflow configuration precedence.
 
 A Cognitive Routing profile must resolve to an available and authenticated model with a supported thinking level. Identical effective profiles, missing profiles, unavailable models, failed authentication, or weakened thinking levels leave routing unavailable rather than partially active.
 
@@ -96,7 +96,7 @@ Use the PiFlow development launcher or a released PiFlow host with temporary sta
 ## Troubleshooting
 
 - **Cognitive Routing says PiFlow only:** the package is running in normal Pi; install and run it through PiFlow.
-- **Skills are inactive:** the three child capabilities cannot activate until Skills is effective.
+- **Cognitive Routing is inactive:** confirm Freeflow is enabled and its own configuration, profiles, authentication, and host controls are valid.
 - **Profiles are unavailable:** check provider authentication, model identifiers, thinking levels, and whether the two profiles resolve to distinct effective pairs.
 - **Profile changes are rejected:** PiFlow must be idle before settings or profile changes are applied.
 - **A package update is not visible:** use PiFlow’s package update/reload behavior or restart the host at its native lifecycle boundary.

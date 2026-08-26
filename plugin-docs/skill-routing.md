@@ -14,11 +14,10 @@ Workflow chooses the current owner. A linked skill does not run automatically, a
 | --- | --- | --- | --- |
 | [`action-selection`](../skills/action-selection/SKILL.md) | Select, bound, execute, and learn from one uncertain or broad environment interaction | — | None |
 | [`workflow`](../skills/workflow/SKILL.md) | Interaction Lifecycle, authority envelope, Feedback Loop, routing, selected review, Supported Exit | `action-selection`, `discuss`, `decision-gate`, `bypass`, `design-for-depth`, `track-work`, `write-spec`, `write-plan`, `review-artifact`, `execute-work`, `migration-work`, `diagnose-failure`, `verify-work`, `review-work`, `commit-work`, `handoff`, `finish-branch`, `release-work`, `launch-work` | [`domain-skill-composition`](../skills/workflow/references/domain-skill-composition.md) |
-| [`mode-contract`](../skills/mode-contract/SKILL.md) | Active/dormant mode and session/personal/repository mode changes | `setup-freeflow`, `workflow`, `decision-gate` | None |
 | [`decision-gate`](../skills/decision-gate/SKILL.md) | One blocking user-owned decision, source conflict, or material path change | `discuss` | [`Interaction Contract`](../runtime/prompts/interaction-contract.md) |
 | [`discuss`](../skills/discuss/SKILL.md) | Collaborative exploration and direction revision | `action-selection`, `workflow`, `decision-gate`, `diagnose-failure`, `design-for-depth`, `track-work`, `execute-work`, `write-spec`, `write-plan` | [`discussion-continuity`](../skills/discuss/references/discussion-continuity.md) |
 | [`track-work`](../skills/track-work/SKILL.md) | Durable task memory, Current Slice lifecycle, decisions, checkpoints, proposals, evidence, and reconciliation | `workflow`, `discuss`, `write-spec`, `write-plan`, `execute-work`, `handoff` | None — command mechanics live in `skills/track-work/scripts/working-record.mjs` |
-| [`bypass`](../skills/bypass/SKILL.md) | Scoped reduction of optional pressure inside accepted work | `workflow`, `mode-contract`, `decision-gate`, `track-work` | None |
+| [`bypass`](../skills/bypass/SKILL.md) | Scoped reduction of optional pressure inside accepted work | `workflow`, `decision-gate`, `track-work` | None |
 | [`design-for-depth`](../skills/design-for-depth/SKILL.md) | Compositional design lens for boundaries, interfaces, ownership, state, and failure | `diagnose-failure`, `decision-gate`, `workflow` | [`software-design-philosophy`](../skills/design-for-depth/references/software-design-philosophy.md), [`design-pressure-signals`](../skills/design-for-depth/references/design-pressure-signals.md), [`interface-design-loop`](../skills/design-for-depth/references/interface-design-loop.md) |
 
 ## Artifacts, Review, And Evidence
@@ -42,7 +41,7 @@ Workflow chooses the current owner. A linked skill does not run automatically, a
 | [`diagnose-failure`](../skills/diagnose-failure/SKILL.md) | Supported cause for unexplained, repeated, flaky, or performance failure | `action-selection`, `workflow`, `decision-gate`, `track-work`, `design-for-depth`, `execute-work`, `tdd`, `simplify-code`, `verify-work` | [`diagnostic-loop-catalog`](../skills/diagnose-failure/references/diagnostic-loop-catalog.md), [`flaky-and-performance-diagnosis`](../skills/diagnose-failure/references/flaky-and-performance-diagnosis.md) |
 | [`commit-work`](../skills/commit-work/SKILL.md) | Authorized coherent commit or simple push | `workflow`, `decision-gate`, `track-work`, `finish-branch`, `release-work`, `launch-work` | [`staging-decisions`](../skills/commit-work/references/staging-decisions.md) |
 | [`handoff`](../skills/handoff/SKILL.md) | Point-in-time continuation transfer | `track-work`, `decision-gate`, `workflow` | [`handoff-templates`](../skills/handoff/references/handoff-templates.md) |
-| [`finish-branch`](../skills/finish-branch/SKILL.md) | Branch integration, preservation, sharing, discard, and cleanup | `commit-work`, `release-work`, `launch-work`, `verify-work`, `handoff`, `workflow`, `diagnose-failure` | [`integration-options`](../skills/finish-branch/references/integration-options.md) |
+| [`finish-branch`](../skills/finish-branch/SKILL.md) | Inspect integration readiness and execute only an owner-selected merge, PR, keep, or discard route | `commit-work`, `release-work`, `launch-work`, `verify-work`, `handoff`, `workflow`, `diagnose-failure` | [`integration-options`](../skills/finish-branch/references/integration-options.md) |
 | [`release-work`](../skills/release-work/SKILL.md) | Versioned artifact preparation and publication | `decision-gate`, `migration-work`, `workflow`, `verify-work`, `launch-work` | [`release-evidence`](../skills/release-work/references/release-evidence.md) |
 | [`launch-work`](../skills/launch-work/SKILL.md) | Production deployment, exposure, observation, and recovery | `decision-gate`, `release-work`, `migration-work`, `verify-work`, `workflow`, `diagnose-failure` | [`launch-readiness`](../skills/launch-work/references/launch-readiness.md) |
 
@@ -50,7 +49,7 @@ Workflow chooses the current owner. A linked skill does not run automatically, a
 
 | Skill | Owner | Routes / composition | References / scripts |
 | --- | --- | --- | --- |
-| [`setup-freeflow`](../skills/setup-freeflow/SKILL.md) | Layered activation, repair, same-turn context, and delivery reporting | `decision-gate`, `workflow`, `mode-contract` | [`activation-contract`](../skills/setup-freeflow/references/activation-contract.md), [`host-setup`](../skills/setup-freeflow/references/host-setup.md), [`Interaction Contract`](../runtime/prompts/interaction-contract.md) |
+| [`setup-freeflow`](../skills/setup-freeflow/SKILL.md) | Layered activation, repair, same-turn context, and delivery reporting | `decision-gate`, `workflow` | [`activation-contract`](../skills/setup-freeflow/references/activation-contract.md), [`host-setup`](../skills/setup-freeflow/references/host-setup.md), [`Interaction Contract`](../runtime/prompts/interaction-contract.md) |
 | [`write-skill`](../skills/write-skill/SKILL.md) | Minimal agent-first skill creation and revision | `evaluate-skill` | [`activation-boundaries`](../skills/write-skill/references/activation-boundaries.md), [`agent-first-instructions`](../skills/write-skill/references/agent-first-instructions.md), [`progressive-disclosure`](../skills/write-skill/references/progressive-disclosure.md), [`skill-author entrypoint`](../skills/write-skill/scripts/skill-author.mjs) |
 | [`evaluate-skill`](../skills/evaluate-skill/SKILL.md) | Baseline-versus-candidate behavioral evidence | `write-skill` | [`evaluation-definition-schema`](../skills/evaluate-skill/references/evaluation-definition-schema.md), [`evaluation-design`](../skills/evaluate-skill/references/evaluation-design.md), [`execution-and-evidence`](../skills/evaluate-skill/references/execution-and-evidence.md), [`review-and-revision`](../skills/evaluate-skill/references/review-and-revision.md), [`skill-eval entrypoint`](../skills/evaluate-skill/scripts/skill-eval.mjs) |
 
@@ -58,9 +57,9 @@ Workflow chooses the current owner. A linked skill does not run automatically, a
 
 | Package or archive | Role | Delivery |
 | --- | --- | --- |
-| [`cognitive-routing`](../capabilities/cognitive-routing/SKILL.md) | Reasoning-led automatic execution boundaries, Standard delegation, and manual unsplit profile control | Discoverable only when Skills and Cognitive Routing are effective; its conditional cue requires the current body before another Freeflow skill or task Act without changing prompt order. |
-| [`conversation-history`](../capabilities/conversation-history/SKILL.md) | Bounded search or retrieval of exact missing prior-conversation evidence | Discoverable only when Skills and Conversation History are effective; its conditional cue owns activation. |
-| [`context-virtualization`](../capabilities/context-virtualization/SKILL.md) | Continued residency of consumed tool evidence | Discoverable only when Skills and Context Virtualization are effective; its conditional cue owns activation. |
+| [`cognitive-routing`](../capabilities/cognitive-routing/SKILL.md) | Reasoning-led automatic execution boundaries, Standard delegation, and manual unsplit profile control | Discoverable only when Cognitive Routing is effective; its conditional cue requires the current body before another Freeflow skill or task Act without changing prompt order. |
+| [`conversation-history`](../capabilities/conversation-history/SKILL.md) | Bounded search or retrieval of exact missing prior-conversation evidence | Discoverable only when Conversation History is effective; its conditional cue owns activation. |
+| [`context-virtualization`](../capabilities/context-virtualization/SKILL.md) | Continued residency of consumed tool evidence | Discoverable only when Context Virtualization is effective; its conditional cue owns activation. |
 | [`delegation-harness`](../.deprecated/delegation-harness/README.md) | Retired implementation and historical evidence | Excluded from the live package, Setup, commands, runtime context, and active model-skill discovery. |
 
 ## Reading The Graph
@@ -69,10 +68,10 @@ The table is an adjacency map of direct Markdown links, not a call graph. Plain-
 
 Runtime behavior still depends on:
 
-1. the Interaction Contract and effective mode;
+1. the Interaction Contract and Workflow;
 2. Workflow selecting the narrowest owner;
 3. the strongest cumulative effect and any controlled boundary being covered by the current authority envelope;
 4. the selected skill deciding whether a linked route or reference applies;
 5. evidence returning to Workflow for the next route or Supported Exit.
 
-Run `node scripts/validation/check-skill-routing-doc.mjs` after changing skill dependencies. It compares all 26 shared cross-host rows with declared sibling routes and direct resource links. Gated capability packages are listed separately and are not counted as always-active rows. Update this map only when ownership, a declared route, or a reference boundary changes—not after ordinary implementation progress.
+Run `node scripts/validation/check-skill-routing-doc.mjs` after changing skill dependencies. It compares all 25 shared cross-host rows with declared sibling routes and direct resource links. Gated capability packages are listed separately and are not counted as always-active rows. Update this map only when ownership, a declared route, or a reference boundary changes—not after ordinary implementation progress.

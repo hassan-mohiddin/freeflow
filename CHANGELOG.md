@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Breaking Changes
+
+- Removes Freeflow's selectable modes, mode commands, session mode state, and `defaultMode` configuration; all work now uses one adaptive Workflow.
+- Removes the `interactionContract` and `skills` configuration toggles. The separately editable Interaction Contract and 25 base skills are always present whenever Freeflow is enabled, while optional capabilities remain independently gated.
+
 ## 0.6.0 - 2026-08-25
 
 ### Added

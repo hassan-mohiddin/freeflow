@@ -7,19 +7,18 @@ Freeflow uses layered checkout configuration. Shared repository activation, pers
 `.freeflow/config.json` is the required shared activation boundary. Minimal setup is:
 
 ```json
-{
-  "defaultMode": "workflow"
-}
+{}
 ```
 
-Supported defaults are `conversation`, `workflow`, and `strict-workflow`. Missing core keys use built-in defaults:
+Missing core keys use built-in defaults:
 
 - `enabled: true`
-- `interactionContract: true`
-- `skills.enabled: true`
-- `defaultMode: workflow`
+- `contextVirtualization: false`
+- `conversationHistory: false`
 
-Do not add current mode, task state, phase, file inventories, plans, version metadata, activation paths, empty optional sections, host instruction copies, or generated workflow text.
+Optional capability configuration is explicit and remains independently gated. The legacy `defaultMode`, `interactionContract`, and `skills` keys are unsupported and make the configuration invalid.
+
+Do not add task state, phase, file inventories, plans, version metadata, activation paths, empty optional sections, host instruction copies, or generated workflow text.
 
 Missing or invalid repository config means repository activation is absent. A valid config with effective `enabled: false` remains configured but inactive.
 
@@ -31,12 +30,9 @@ It may override these core values:
 
 ```json
 {
-  "enabled": true,
-  "interactionContract": true,
-  "skills": {
-    "enabled": true
-  },
-  "defaultMode": "strict-workflow"
+  "enabled": false,
+  "contextVirtualization": true,
+  "conversationHistory": true
 }
 ```
 
@@ -48,29 +44,28 @@ A missing local file means full inheritance. An invalid existing local file bloc
 
 ## Effective Core State
 
-Resolve core values in this order:
+Resolve remaining configurable values in this order:
 
 ```text
 host session override -> personal override -> repository value -> built-in default
 ```
 
-Host session overrides are host state, not config, and cannot bypass missing or invalid repository activation. Pi may temporarily override Freeflow master enablement, Interaction Contract, Skills, and mode. Claude and Codex support mode-only overrides in plugin-owned session state.
+Host session overrides are host state, not config, and cannot bypass missing or invalid repository activation. Pi may temporarily override Freeflow enablement and the remaining optional context capabilities. Cognitive Routing has its own host-managed session control.
 
 Effective Freeflow requires:
 
 1. valid repository config;
 2. missing or valid local config;
-3. session-resolved `enabled: true`.
+3. session-resolved `enabled: true`;
+4. the mandatory `core.md` and `interaction-contract.md` prompt files.
 
-The Interaction Contract and Skills are independent resolved switches. When Skills are disabled, the configured mode remains visible as resolved state but no Freeflow mode is effective.
+The core prompt and Interaction Contract are always delivered together when Freeflow is enabled. Base Freeflow skills are exposed with that core surface. Context Virtualization, Conversation History, and Cognitive Routing remain independently gated capabilities.
 
 ## Mutation Authority By State
 
-Mode constrains agent-performed setup only when a mode is effective:
-
-- **Unconfigured:** missing or invalid repository config means no effective mode. An explicit setup request may create missing minimal activation; replacing invalid config requires specific authorization and source-conflict resolution.
-- **Configured but ineffective:** top-level disablement, dormant Skills, or invalid local config leaves no effective mode. An explicit request governs the selected enablement, configuration, or repair; any reported resolved mode remains dormant state only.
-- **Effective:** obey the reported mode. Conversation is read-only. Workflow and Strict Workflow allow only separately authorized setup or repair.
+- **Unconfigured:** missing or invalid repository config means Freeflow is not effective. An explicit setup request may create missing minimal activation; replacing invalid config requires specific authorization and source-conflict resolution.
+- **Configured but ineffective:** top-level disablement or invalid local config prevents effective Freeflow. An explicit request governs the selected enablement, configuration, or repair.
+- **Effective:** obey the Interaction Contract and core Workflow guidance. Optional capability behavior remains subject to its own effective state.
 
 A user operating native host settings changes host-managed state directly. That action is distinct from an agent editing `.freeflow/config.json` or `.freeflow/local.json`; verify the resulting source and effective state afterward.
 
@@ -78,15 +73,14 @@ A user operating native host settings changes host-managed state directly. That 
 
 Configuration does not prove runtime delivery.
 
-When effective, host adapters may deliver:
+When effective, host adapters deliver:
 
-- `runtime/prompts/interaction-contract.md` when the Interaction Contract switch is enabled;
-- one full `skills/workflow/SKILL.md` bootstrap when Skills are enabled;
-- compact active or dormant mode state.
+- `runtime/prompts/core.md`;
+- `runtime/prompts/interaction-contract.md`;
+- the base Freeflow skill surface;
+- compact current capability state.
 
-Pi may additionally expose explicitly enabled Pi capability skills and tools through its extension. Codex and Claude `SessionStart` hooks compose static fragments from `runtime/prompts/` and mode state; their `UserPromptSubmit` hook delivers only an explicit session-mode change or failure delta.
-
-The full Mode Contract and other workflow skills remain on demand. Adapters load context only; they do not enforce policy, block tools, grant permissions, or replace repo instructions.
+Pi may additionally expose explicitly enabled Pi capability skills and tools. Codex and Claude `SessionStart` hooks compose the mandatory core fragments. Adapters load context only; they do not enforce policy, block tools, grant permissions, or replace repo instructions.
 
 A setup report classifies automatic delivery as:
 

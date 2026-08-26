@@ -7,7 +7,7 @@ description: Use when the user explicitly asks to skip or reduce workflow steps 
 
 Skip optional ceremony, not authority, judgment, safety, or evidence.
 
-Bypass changes the workflow method within an already accepted action. It does not authorize work, expand scope, switch mode, resolve a user-owned decision, override source truth, or create host permissions.
+Bypass changes the workflow method within an already accepted action. It does not authorize work, expand scope, resolve a user-owned decision, override source truth, or create host permissions.
 
 ## Establish The Boundary
 
@@ -15,12 +15,11 @@ Before using bypass, identify:
 
 - the accepted action it applies to;
 - the named optional step, or whether the user selected `next` or `task` scope;
-- the effective mode;
 - the evidence and checkpoints that still govern the action.
 
 A bare `/bypass` means `/bypass next`. If no accepted action exists, return to [Workflow](../workflow/SKILL.md); do not treat bypass itself as implementation authorization.
 
-Bypass never changes mode. In `conversation`, remain read-only and use [Mode Contract](../mode-contract/SKILL.md) before mutation. In `workflow` or `strict-workflow`, keep the active mode's decision and evidence pressure.
+Bypass does not alter Freeflow's core guidance or risk-sensitive Workflow. It does not authorize a change to the accepted action or its evidence boundary.
 
 ## Skip Only Optional Pressure
 
@@ -80,4 +79,4 @@ When a boundary remains:
 
 1. do not perform the blocked action;
 2. name the boundary bypass cannot remove;
-3. route to the owning mode, decision, discussion, or workflow step.
+3. route to the owning decision, discussion, or Workflow step.

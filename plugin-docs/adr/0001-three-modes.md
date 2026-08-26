@@ -2,26 +2,18 @@
 
 ## Status
 
-Accepted.
+Superseded by [ADR 0011: Single Adaptive Workflow](0011-single-adaptive-workflow.md).
 
-## Decision
+## Historical decision
 
-Freeflow has exactly three modes:
+Freeflow previously exposed exactly three user-selectable modes:
 
 - `conversation`
 - `workflow`
 - `strict-workflow`
 
-## Rationale
+The decision gave users explicit process control and used the three values to distinguish discussion, ordinary consequential work, and higher-risk work.
 
-Three modes give users explicit process control without creating a mode for every task shape.
+## Supersession
 
-`conversation` removes workflow pressure for questions and discussion.
-
-`workflow` is the default for consequential work.
-
-`strict-workflow` exists for high-risk or hard-to-reverse work.
-
-## Consequences
-
-Freeflow must scale process inside these modes instead of adding new modes. Host permission modes remain separate from Freeflow workflow modes.
+The three-mode design was removed in the breaking change recorded by ADR 0011. The historical rationale remains here for provenance; these values, controls, and configuration fields are no longer supported.

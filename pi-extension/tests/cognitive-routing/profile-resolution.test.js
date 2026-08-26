@@ -165,7 +165,7 @@ test("runtime context isolates invalid Cognitive Routing from core Freeflow stat
   try {
     await writeFile(
       join(cwd, ".freeflow", "config.json"),
-      JSON.stringify({ defaultMode: "workflow", cognitiveRouting: configuredRepository().cognitiveRouting }),
+      JSON.stringify({ cognitiveRouting: configuredRepository().cognitiveRouting }),
     );
     let state = await readCapabilityState(cwd, host, PIFLOW_HOST);
     assert.equal(state.configured, true);
@@ -185,7 +185,6 @@ test("runtime context isolates invalid Cognitive Routing from core Freeflow stat
     await writeFile(
       join(cwd, ".freeflow", "config.json"),
       JSON.stringify({
-        defaultMode: "workflow",
         cognitiveRouting: { enabled: true, profiles: { standard: { provider: "only-provider" } } },
       }),
     );

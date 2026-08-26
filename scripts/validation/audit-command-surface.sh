@@ -7,7 +7,6 @@ registry="$plugin_root/command-surface.json"
 manifest="$plugin_root/.codex-plugin/plugin.json"
 command_docs="$plugin_root/README.md"
 skills_dir="$plugin_root/skills"
-mode_skill="$skills_dir/mode-contract/SKILL.md"
 pi_extension="$plugin_root/pi-extension/src/runtime/runtime-context.ts"
 pi_extension_dist="$plugin_root/pi-extension/dist/runtime/runtime-context.js"
 
@@ -109,11 +108,8 @@ if [ "$(jq -r '.hostNativeSkillInvocation.claude' "$registry")" != "namespaced-s
 	fail "host-native skill invocation metadata is incomplete"
 fi
 
-if [ "$(jq -r '.sessionModeControls.claude' "$registry")" != '/freeflow:mode-contract <mode|reset>' ] ||
-	[ "$(jq -r '.sessionModeControls.codex' "$registry")" != '$mode-contract <mode|reset>' ] ||
-	[ "$(jq -r '.sessionModeControls.pi' "$registry")" != '/freeflow mode <mode|reset>' ] ||
-	[ "$(jq -r '.sessionModeControls.naturalLanguage' "$registry")" != "true" ]; then
-	fail "session mode control metadata is incomplete"
+if jq -e 'has("sessionModeControls") or has("modeCommands")' "$registry" >/dev/null; then
+	fail "command surface retains removed mode controls"
 fi
 
 while IFS=$'\t' read -r command skill; do
@@ -139,7 +135,7 @@ while IFS=$'\t' read -r command skill; do
 done < <(jq -r '.directSkillCalls[] | [.command, .skill] | @tsv' "$registry")
 
 if jq -e '.directSkillCalls[] | select(.aliasFor != null)' "$registry" >/dev/null; then
-\tfail "compatibility aliases are not supported in the active command surface"
+	fail "compatibility aliases are not supported in the active command surface"
 fi
 
 while IFS=$'\t' read -r command skill; do
@@ -169,39 +165,6 @@ while IFS=$'\t' read -r command skill; do
 		fi
 	fi
 done < <(jq -r '.developerSkillCalls[]? | [.command, .skill] | @tsv' "$registry")
-
-while IFS=$'\t' read -r command skill; do
-	if [[ "$command" != /freeflow\ mode\ * ]]; then
-		fail "mode command should use /freeflow mode prefix: $command"
-	fi
-
-	if [ "$skill" != "mode-contract" ]; then
-		fail "$command should route to mode-contract, got: $skill"
-	fi
-
-	if [ ! -f "$skills_dir/$skill/SKILL.md" ]; then
-		fail "$command maps to missing skill: $skill"
-	fi
-
-	if ! rg -Fq "$command" "$command_docs"; then
-		fail "$command is missing from command-surface matrix"
-	fi
-
-	if ! rg -Fq "$command" "$mode_skill"; then
-		fail "$command is missing from mode-contract"
-	fi
-done < <(jq -r '.modeCommands[] | [.command, .routesTo] | @tsv' "$registry")
-
-if rg -n '^/workflow (conversation|workflow|strict-workflow|reset)$' "$mode_skill" >/dev/null; then
-	fail "stale /workflow mode alias remains in the active mode skill"
-fi
-
-if ! rg -Fq 'Task shape does not change mode.' "$mode_skill"; then
-	fail "mode-contract does not preserve the configured effective mode across task shapes"
-fi
-if rg -Fq 'If no current conversation override exists and the user asks to implement' "$mode_skill"; then
-	fail "mode-contract still infers workflow from task type instead of honoring the effective mode"
-fi
 
 for legacy_skill in deprecation-and-migration shipping-and-launch; do
 	if [ -e "$skills_dir/$legacy_skill" ]; then
@@ -256,8 +219,7 @@ if [ "$failures" -gt 0 ]; then
 	exit 1
 fi
 
-printf 'Command surface audit passed: %s direct skill calls, %s developer skill calls, %s mode commands, %s Pi native commands, host-native skill invocation declared.\n' \
+printf 'Command surface audit passed: %s direct skill calls, %s developer skill calls, %s Pi native commands, host-native skill invocation declared.\n' \
 	"$(jq '.directSkillCalls | length' "$registry")" \
 	"$(jq '.developerSkillCalls | length' "$registry")" \
-	"$(jq '.modeCommands | length' "$registry")" \
 	"$(jq '.piNativeCommands // [] | length' "$registry")"

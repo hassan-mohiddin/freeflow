@@ -4,15 +4,12 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import {
-  handleModeCommand,
   readCapabilityState,
   readFreeflowConfig,
   readFreeflowConfigLayers,
   readFreeflowLocalConfig,
-  readModeState,
   resetSessionOverrides,
   setSessionCoreOverride,
-  VALID_MODES,
 } from "../runtime/runtime-context.js";
 import {
   PiSettingsComponent,
@@ -31,22 +28,8 @@ import type {
 } from "../cognitive-routing/types.js";
 
 const DEFAULT_FREEFLOW_ENABLED = true;
-const DEFAULT_INTERACTION_CONTRACT_ENABLED = true;
-const DEFAULT_SKILLS_ENABLED = true;
 const DEFAULT_CONTEXT_VIRTUALIZATION_ENABLED = false;
 const DEFAULT_CONVERSATION_HISTORY_ENABLED = false;
-const MODE_VALUES = ["conversation", "workflow", "strict-workflow"];
-const MODE_LABELS = {
-  default: "Use configured default",
-  conversation: "conversation",
-  workflow: "workflow",
-  "strict-workflow": "strict-workflow",
-};
-const MODE_DESCRIPTIONS = {
-  conversation: "Discussion and read-only inspection",
-  workflow: "Adaptive workflow for consequential work",
-  "strict-workflow": "Stronger decision and evidence pressure for high-risk work",
-};
 const LOCAL_INHERIT = "inherit";
 const execFileAsync = promisify(execFile);
 
@@ -307,114 +290,29 @@ function createScopedBooleanItem(options: ScopedBooleanItemOptions): SettingsIte
   return item;
 }
 
-type ScopedDefaultModeItemOptions = {
-  scope: ConfigScope;
-  repositoryDefaultMode: string;
-  repositoryDefaultSource: ConfigSource;
-  localDefaultMode?: string;
-  effectiveValue: string;
-  effectiveSource: ConfigSource;
-};
-
-function createScopedDefaultModeItem(options: ScopedDefaultModeItemOptions): SettingsItem {
-  let item: SettingsItem;
-  if (options.scope === "local") {
-    item = {
-      id: "freeflow.defaultMode",
-      label: "Default mode",
-      description:
-        "Personal default mode for this checkout. Choose inherit to use the repository default; use /freeflow settings repo to edit shared defaults.",
-      path: ["defaultMode"],
-      kind: "enum",
-      value: options.localDefaultMode ?? LOCAL_INHERIT,
-      values: [LOCAL_INHERIT, ...MODE_VALUES],
-      valueLabels: {
-        inherit: "Inherit repository",
-        ...MODE_LABELS,
-      },
-      valueDescriptions: {
-        inherit: `Use ${options.repositoryDefaultMode} from ${options.repositoryDefaultSource}.`,
-        ...MODE_DESCRIPTIONS,
-      },
-      format: (value) => String(value),
-      configScope: "local",
-      configValues: { inherit: undefined },
-      effectiveValue: options.effectiveValue,
-      effectiveSource: options.effectiveSource,
-      inheritedValue: options.repositoryDefaultMode,
-      inheritedSource: options.repositoryDefaultSource,
-    };
-  } else {
-    item = {
-      id: "freeflow.defaultMode",
-      label: "Default mode",
-      description:
-        "Shared repository default Freeflow mode used when Skills are enabled. This edits .freeflow/config.json.",
-      path: ["defaultMode"],
-      kind: "enum",
-      value: options.repositoryDefaultMode,
-      values: MODE_VALUES,
-      valueLabels: MODE_LABELS,
-      valueDescriptions: MODE_DESCRIPTIONS,
-      configScope: "repository",
-      effectiveValue: options.effectiveValue,
-      effectiveSource: options.effectiveSource,
-      localOverrideValue: options.localDefaultMode,
-    };
-  }
-  item.displaySuffix = coreDisplaySuffix(item);
-  return item;
-}
-
-function sessionModeDisplaySuffix(
-  sessionMode: string,
-  defaultMode: string,
-  defaultSource: ConfigSource,
-  inactive: boolean,
-): string | undefined {
-  if (sessionMode !== "default") return undefined;
-  const inactiveSuffix = inactive ? " · inactive" : "";
-  return `(${defaultMode} · ${defaultSource}${inactiveSuffix})`;
-}
-
-function validModeOrUndefined(value: unknown): string | undefined {
-  return typeof value === "string" && VALID_MODES.has(value) ? value : undefined;
-}
-
 function resolveSettingsCoreView(
   rawConfig: Record<string, unknown>,
   layers?: Awaited<ReturnType<typeof readFreeflowConfigLayers>>,
 ) {
   const localConfig = layers?.local.valid && isRecord(layers.local.parsed) ? layers.local.parsed : {};
-  const repositorySkillsValue = getPath(rawConfig, ["skills"]);
-  const repositorySkills = isRecord(repositorySkillsValue) ? repositorySkillsValue : {};
   const fallbackCore = {
     enabled: getPath(rawConfig, ["enabled"]) !== false,
-    interactionContract: getPath(rawConfig, ["interactionContract"]) !== false,
     contextVirtualization: getPath(rawConfig, ["contextVirtualization"]) === true,
     conversationHistory: getPath(rawConfig, ["conversationHistory"]) === true,
-    skills: { enabled: getPath(repositorySkills, ["enabled"]) !== false },
-    defaultMode: validModeOrUndefined(rawConfig.defaultMode) ?? "workflow",
   };
   const fallbackSources = {
     enabled: typeof getPath(rawConfig, ["enabled"]) === "boolean" ? "repository" : "builtin",
-    interactionContract: typeof getPath(rawConfig, ["interactionContract"]) === "boolean" ? "repository" : "builtin",
     contextVirtualization:
       typeof getPath(rawConfig, ["contextVirtualization"]) === "boolean" ? "repository" : "builtin",
     conversationHistory: typeof getPath(rawConfig, ["conversationHistory"]) === "boolean" ? "repository" : "builtin",
-    skillsEnabled: typeof getPath(repositorySkills, ["enabled"]) === "boolean" ? "repository" : "builtin",
-    defaultMode: validModeOrUndefined(rawConfig.defaultMode) === undefined ? "builtin" : "repository",
   } as const;
   return {
     localConfig,
     core: layers?.coreConfig ?? fallbackCore,
     sources: (layers?.sources ?? fallbackSources) as {
       enabled: ConfigSource;
-      interactionContract: ConfigSource;
       contextVirtualization: ConfigSource;
       conversationHistory: ConfigSource;
-      skillsEnabled: ConfigSource;
-      defaultMode: ConfigSource;
     },
   };
 }
@@ -423,7 +321,7 @@ function createSessionBooleanItem(options: {
   id: string;
   label: string;
   description: string;
-  key: "enabled" | "interactionContract" | "skillsEnabled" | "contextVirtualization" | "conversationHistory";
+  key: "enabled" | "contextVirtualization" | "conversationHistory";
   inheritedValue: boolean;
   inheritedSource: ConfigSource;
   effectiveValue: boolean;
@@ -469,24 +367,19 @@ function createSessionBooleanItem(options: {
 
 function sessionFreeflowItems(
   state: Awaited<ReturnType<typeof readCapabilityState>>,
-  modeState: Awaited<ReturnType<typeof readModeState>>,
   cognitiveRoutingController?: CognitiveRoutingSettingsController,
 ): SettingsItem[] {
   const sessionOverrides = state.sessionOverrides as Record<string, boolean>;
   const configured = state.configuredCoreConfig;
   const configuredSources = state.configuredSources as {
     enabled: ConfigSource;
-    interactionContract: ConfigSource;
     contextVirtualization: ConfigSource;
     conversationHistory: ConfigSource;
-    skillsEnabled: ConfigSource;
   };
   const effectiveSources = state.configSources as {
     enabled: ConfigSource;
-    interactionContract: ConfigSource;
     contextVirtualization: ConfigSource;
     conversationHistory: ConfigSource;
-    skillsEnabled: ConfigSource;
   };
 
   const freeflowItem = createSessionBooleanItem({
@@ -498,28 +391,6 @@ function sessionFreeflowItems(
     inheritedSource: configuredSources.enabled,
     effectiveValue: state.enabled,
     effectiveSource: effectiveSources.enabled,
-    sessionOverrides,
-  });
-  const interactionItem = createSessionBooleanItem({
-    id: "freeflow.interactionContract",
-    label: "Interaction Contract",
-    description: "Temporary Interaction Contract override for this Pi session.",
-    key: "interactionContract",
-    inheritedValue: configured.interactionContract,
-    inheritedSource: configuredSources.interactionContract,
-    effectiveValue: state.interactionContract.enabled,
-    effectiveSource: effectiveSources.interactionContract,
-    sessionOverrides,
-  });
-  const skillsItem = createSessionBooleanItem({
-    id: "freeflow.skills.enabled",
-    label: "Skills",
-    description: "Temporary Freeflow Skills override for this Pi session.",
-    key: "skillsEnabled",
-    inheritedValue: configured.skills.enabled,
-    inheritedSource: configuredSources.skillsEnabled,
-    effectiveValue: state.skills.enabled,
-    effectiveSource: effectiveSources.skillsEnabled,
     sessionOverrides,
   });
   const contextVirtualizationItem = createSessionBooleanItem({
@@ -546,38 +417,8 @@ function sessionFreeflowItems(
   });
 
   const freeflowInactive = !state.enabled;
-  const skillsEnabled = state.skills.enabled;
-  interactionItem.inactive = freeflowInactive;
-  skillsItem.inactive = freeflowInactive;
-  contextVirtualizationItem.inactive = freeflowInactive || !skillsEnabled;
-  conversationHistoryItem.inactive = freeflowInactive || !skillsEnabled;
-
-  const sessionMode = modeState.currentMode ?? "default";
-  const sessionModeItem: SettingsItem = {
-    id: "freeflow.sessionMode",
-    label: "Mode",
-    description: "Temporary mode override for this Pi session.",
-    kind: "enum",
-    value: sessionMode,
-    values: ["default", ...MODE_VALUES],
-    valueLabels: {
-      ...MODE_LABELS,
-      default: "Use configured default",
-    },
-    valueDescriptions: {
-      default: `${modeState.defaultMode} from ${modeState.defaultModeSource}`,
-      ...MODE_DESCRIPTIONS,
-    },
-    inactive: freeflowInactive || !skillsEnabled,
-    displaySuffix: sessionModeDisplaySuffix(
-      sessionMode,
-      modeState.defaultMode,
-      modeState.defaultModeSource,
-      freeflowInactive || !skillsEnabled,
-    ),
-    inheritedValue: modeState.defaultMode,
-    inheritedSource: modeState.defaultModeSource,
-  };
+  contextVirtualizationItem.inactive = freeflowInactive;
+  conversationHistoryItem.inactive = freeflowInactive;
 
   const cognitiveRoutingState = cognitiveRoutingController?.state();
   const cognitiveRoutingProfile =
@@ -604,7 +445,7 @@ function sessionFreeflowItems(
           standard: "Hold the standard profile until /freeflow profile auto.",
           reasoning: "Hold the reasoning profile until /freeflow profile auto.",
         },
-        inactive: !state.cognitiveRouting.effective || cognitiveRoutingController === undefined,
+        inactive: freeflowInactive || !state.cognitiveRouting.effective || cognitiveRoutingController === undefined,
         runtimeInactive: state.cognitiveRouting.blockingReason?.code === "runtime_disabled",
         displaySuffix: cognitiveRoutingState?.effective ? cognitiveRoutingProfile : "unavailable",
       }
@@ -612,15 +453,11 @@ function sessionFreeflowItems(
 
   return [
     freeflowItem,
-    interactionItem,
-    skillsItem,
-    sessionModeItem,
     ...(cognitiveRoutingItem ? [cognitiveRoutingItem] : []),
     {
       id: "freeflow.session.reset",
       label: "Reset session overrides",
-      description:
-        "Clear Freeflow, Interaction Contract, Skills, Context Virtualization, Conversation History, and mode overrides for this Pi session.",
+      description: "Clear Freeflow, Context Virtualization, and Conversation History overrides for this Pi session.",
       kind: "enum",
       value: "available",
       values: ["reset"],
@@ -975,7 +812,6 @@ function cognitiveRoutingSessionStartItem(options: {
 
 function freeflowItems(
   rawConfig: Record<string, unknown>,
-  modeState?: Awaited<ReturnType<typeof readModeState>>,
   options: {
     scope?: ConfigScope;
     layers?: Awaited<ReturnType<typeof readFreeflowConfigLayers>>;
@@ -994,35 +830,11 @@ function freeflowItems(
     localConfig,
     id: "freeflow.enabled",
     label: "Freeflow",
-    description: "Master switch for the Interaction Contract and Freeflow skills in this checkout.",
+    description: "Master switch for Freeflow's core guidance, skills, and optional capabilities in this checkout.",
     path: ["enabled"],
     effectiveValue: core.enabled,
     effectiveSource: sources.enabled,
     defaultValue: DEFAULT_FREEFLOW_ENABLED,
-  });
-  const interactionItem = createScopedBooleanItem({
-    scope,
-    rawConfig,
-    localConfig,
-    id: "freeflow.interactionContract",
-    label: "Interaction Contract",
-    description: "Apply Freeflow's compact turn-interpretation and collaboration guidance.",
-    path: ["interactionContract"],
-    effectiveValue: core.interactionContract,
-    effectiveSource: sources.interactionContract,
-    defaultValue: DEFAULT_INTERACTION_CONTRACT_ENABLED,
-  });
-  const skillsItem = createScopedBooleanItem({
-    scope,
-    rawConfig,
-    localConfig,
-    id: "freeflow.skills.enabled",
-    label: "Skills",
-    description: "Expose Freeflow skills and discover Workflow before consequential or mutating work.",
-    path: ["skills", "enabled"],
-    effectiveValue: core.skills.enabled,
-    effectiveSource: sources.skillsEnabled,
-    defaultValue: DEFAULT_SKILLS_ENABLED,
   });
   const contextVirtualizationItem = createScopedBooleanItem({
     scope,
@@ -1049,52 +861,9 @@ function freeflowItems(
     defaultValue: DEFAULT_CONVERSATION_HISTORY_ENABLED,
   });
 
-  const repositoryModeValue = validModeOrUndefined(rawConfig.defaultMode);
-  const repositoryDefaultMode = repositoryModeValue ?? "workflow";
-  const repositoryDefaultSource: ConfigSource = repositoryModeValue ? "repository" : "builtin";
-  const localDefaultMode = validModeOrUndefined(localConfig.defaultMode);
-  const defaultModeItem = createScopedDefaultModeItem({
-    scope,
-    repositoryDefaultMode,
-    repositoryDefaultSource,
-    localDefaultMode,
-    effectiveValue: core.defaultMode,
-    effectiveSource: sources.defaultMode,
-  });
-
   const freeflowInactive = !core.enabled;
-  const skillsEnabled = core.skills.enabled;
-  interactionItem.inactive = freeflowInactive;
-  skillsItem.inactive = freeflowInactive;
-  contextVirtualizationItem.inactive = freeflowInactive || !skillsEnabled;
-  conversationHistoryItem.inactive = freeflowInactive || !skillsEnabled;
-  defaultModeItem.inactive = freeflowInactive;
-  defaultModeItem.displaySuffix = coreDisplaySuffix(defaultModeItem, freeflowInactive || !skillsEnabled);
-  const sessionMode = modeState?.currentMode ?? "default";
-  const sessionModeItem: SettingsItem = {
-    id: "freeflow.sessionMode",
-    label: "Session mode",
-    description:
-      "Temporary mode override for this Pi session. Use configured default clears the override without changing either config file.",
-    kind: "enum",
-    value: sessionMode,
-    values: ["default", ...MODE_VALUES],
-    valueLabels: {
-      ...MODE_LABELS,
-      default: "Use configured default",
-    },
-    valueDescriptions: {
-      default: `${core.defaultMode} from ${sources.defaultMode}`,
-      ...MODE_DESCRIPTIONS,
-    },
-    inactive: freeflowInactive || !skillsEnabled,
-    displaySuffix: sessionModeDisplaySuffix(
-      sessionMode,
-      core.defaultMode,
-      sources.defaultMode,
-      freeflowInactive || !skillsEnabled,
-    ),
-  };
+  contextVirtualizationItem.inactive = freeflowInactive;
+  conversationHistoryItem.inactive = freeflowInactive;
 
   const cognitiveRoutingState = options.cognitiveRouting;
   const cognitiveRoutingRuntimeDisabled = !isPiFlowHost(options.hostInfo);
@@ -1113,7 +882,7 @@ function freeflowItems(
       effectiveSource: cognitiveRoutingSettingsSource(cognitiveRoutingState?.enabledSource),
       defaultValue: false,
     });
-    cognitiveRoutingEnabledItem.inactive = freeflowInactive || !skillsEnabled || cognitiveRoutingRuntimeDisabled;
+    cognitiveRoutingEnabledItem.inactive = freeflowInactive || cognitiveRoutingRuntimeDisabled;
     cognitiveRoutingEnabledItem.runtimeInactive = cognitiveRoutingRuntimeDisabled;
 
     const cognitiveRoutingProfiles = ["standard", "reasoning"].map((name) =>
@@ -1137,7 +906,7 @@ function freeflowItems(
         }),
     );
     for (const item of [...cognitiveRoutingProfiles, ...cognitiveRoutingSessionStart]) {
-      item.inactive ||= freeflowInactive || !skillsEnabled || cognitiveRoutingRuntimeDisabled;
+      item.inactive ||= freeflowInactive || cognitiveRoutingRuntimeDisabled;
       item.runtimeInactive = cognitiveRoutingRuntimeDisabled;
     }
     const cognitiveRoutingStatus = cognitiveRoutingRuntimeDisabled
@@ -1157,7 +926,7 @@ function freeflowItems(
         : "Configure the automatic standard/reasoning profiles and choose whether Freeflow may manage model state for this repository.",
       kind: "group" as const,
       value: cognitiveRoutingRuntimeDisabled ? false : (cognitiveRoutingState?.enabled ?? false),
-      inactive: freeflowInactive || !skillsEnabled,
+      inactive: freeflowInactive,
       displaySuffix: cognitiveRoutingStatus,
       children: [cognitiveRoutingEnabledItem, ...cognitiveRoutingProfiles, ...cognitiveRoutingSessionStart],
     } satisfies SettingsItem;
@@ -1165,10 +934,6 @@ function freeflowItems(
 
   return [
     freeflowItem,
-    interactionItem,
-    skillsItem,
-    sessionModeItem,
-    defaultModeItem,
     ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []),
     {
       id: "freeflow.context",
@@ -1185,8 +950,7 @@ function freeflowItems(
 function pruneKnownDefaults(config: Record<string, unknown>) {
   const defaultPaths: Array<{ path: string[]; value: unknown }> = [
     { path: ["enabled"], value: DEFAULT_FREEFLOW_ENABLED },
-    { path: ["interactionContract"], value: DEFAULT_INTERACTION_CONTRACT_ENABLED },
-    { path: ["skills", "enabled"], value: DEFAULT_SKILLS_ENABLED },
+    { path: ["contextVirtualization"], value: DEFAULT_CONTEXT_VIRTUALIZATION_ENABLED },
     { path: ["conversationHistory"], value: DEFAULT_CONVERSATION_HISTORY_ENABLED },
   ];
 
@@ -1316,34 +1080,12 @@ function findSettingsItem(items: SettingsItem[], id: string): SettingsItem | und
 function refreshSettingsDerivedState(items: SettingsItem[]) {
   const freeflowItem = findSettingsItem(items, "freeflow.enabled");
   const freeflowInactive = freeflowItem ? effectiveItemValue(freeflowItem) !== true : false;
-  const skillsItem = findSettingsItem(items, "freeflow.skills.enabled");
-  const skillsEnabled = skillsItem ? effectiveItemValue(skillsItem) === true : true;
-  const sessionModeItem = findSettingsItem(items, "freeflow.sessionMode");
-  const defaultModeItem = findSettingsItem(items, "freeflow.defaultMode");
   const cognitiveRoutingGroup = findSettingsItem(items, "freeflow.cognitiveRouting");
   const cognitiveRoutingEnabledItem = findSettingsItem(items, "freeflow.cognitiveRouting.enabled");
   const cognitiveRoutingProfiles = [
     findSettingsItem(items, "freeflow.cognitiveRouting.standard"),
     findSettingsItem(items, "freeflow.cognitiveRouting.reasoning"),
   ];
-
-  if (sessionModeItem) {
-    const defaultMode = String(
-      defaultModeItem ? effectiveItemValue(defaultModeItem) : (sessionModeItem.inheritedValue ?? "workflow"),
-    );
-    const defaultSource = defaultModeItem?.effectiveSource ?? sessionModeItem.inheritedSource ?? "builtin";
-    sessionModeItem.inactive = freeflowInactive || !skillsEnabled;
-    sessionModeItem.displaySuffix = sessionModeDisplaySuffix(
-      String(sessionModeItem.value),
-      defaultMode,
-      defaultSource,
-      freeflowInactive || !skillsEnabled,
-    );
-    sessionModeItem.valueDescriptions = {
-      default: `${defaultMode} from ${defaultSource}`,
-      ...MODE_DESCRIPTIONS,
-    };
-  }
 
   if (cognitiveRoutingGroup && cognitiveRoutingEnabledItem) {
     const enabled = effectiveItemValue(cognitiveRoutingEnabledItem) === true;
@@ -1358,7 +1100,7 @@ function refreshSettingsDerivedState(items: SettingsItem[]) {
           : "configured"
         : "not configured"
       : "disabled";
-    cognitiveRoutingGroup.inactive = freeflowInactive || !skillsEnabled;
+    cognitiveRoutingGroup.inactive = freeflowInactive;
   }
 
   const contextGroup = findSettingsItem(items, "freeflow.context");
@@ -1373,31 +1115,11 @@ function refreshSettingsDerivedState(items: SettingsItem[]) {
       candidate.inactive = false;
     } else if (candidate.configScope) {
       const inactive =
-        candidate.id === "freeflow.enabled"
-          ? false
-          : candidate.runtimeInactive === true ||
-            freeflowInactive ||
-            (!skillsEnabled &&
-              [
-                "freeflow.cognitiveRouting",
-                "freeflow.cognitiveRouting.enabled",
-                "freeflow.cognitiveRouting.standard",
-                "freeflow.cognitiveRouting.reasoning",
-                "freeflow.cognitiveRouting.sessionStart.control",
-                "freeflow.cognitiveRouting.sessionStart.profile",
-                "freeflow.contextVirtualization",
-                "freeflow.conversationHistory",
-              ].includes(candidate.id));
-      const displayInactive = candidate.id === "freeflow.defaultMode" ? freeflowInactive || !skillsEnabled : inactive;
+        candidate.id === "freeflow.enabled" ? false : candidate.runtimeInactive === true || freeflowInactive;
       candidate.inactive = inactive;
-      candidate.displaySuffix = coreDisplaySuffix(candidate, displayInactive);
-    } else if (candidate.id === "freeflow.sessionMode") {
-      candidate.inactive = candidate.runtimeInactive === true || freeflowInactive || !skillsEnabled;
+      candidate.displaySuffix = coreDisplaySuffix(candidate, inactive);
     } else {
-      candidate.inactive =
-        candidate.runtimeInactive === true ||
-        freeflowInactive ||
-        (!skillsEnabled && candidate.id === "freeflow.cognitiveRouting");
+      candidate.inactive = candidate.runtimeInactive === true || freeflowInactive;
     }
   });
 }
@@ -1529,21 +1251,13 @@ function freeflowStatusText(
   const contextEnabled = state.contextVirtualization?.effective || state.conversationHistory?.effective;
   return [
     `Freeflow: ${state.enabled ? "enabled" : "disabled"}${sessionSuffix(state.configSources.enabled as ConfigSource)}`,
-    `interaction contract: ${state.interactionContract.effective ? "enabled" : "disabled"}${sessionSuffix(
-      state.configSources.interactionContract as ConfigSource,
-    )}`,
-    `skills: ${state.skills.effective ? "enabled" : "disabled (workflow modes inactive)"}${sessionSuffix(
-      state.configSources.skillsEnabled as ConfigSource,
-    )}`,
     `context: ${contextEnabled ? "enabled" : "disabled"} (virtualization ${state.contextVirtualization?.effective ? "enabled" : "disabled"}, history ${state.conversationHistory?.effective ? "enabled" : "disabled"})`,
     ...(cognitiveRoutingStatus ? [`cognitive routing: ${cognitiveRoutingStatus}`] : []),
   ].join("; ");
 }
 
 const NON_TUI_SETTINGS_GUIDANCE =
-  "Freeflow settings require Pi TUI mode. Use /freeflow status to inspect current state; supported non-TUI changes are /freeflow enable, /freeflow disable, and /freeflow mode <conversation|workflow|strict-workflow|reset>.";
-const NON_TUI_MODE_GUIDANCE =
-  "Freeflow mode selector requires Pi TUI mode. Use /freeflow mode conversation, /freeflow mode workflow, /freeflow mode strict-workflow, or /freeflow mode reset.";
+  "Freeflow settings require Pi TUI mode. Use /freeflow status to inspect current state; supported non-TUI changes are /freeflow enable and /freeflow disable.";
 
 function ensureSettingsIdle(ctx: any): boolean {
   if (typeof ctx?.isIdle !== "function" || ctx.isIdle()) return true;
@@ -1611,9 +1325,6 @@ export async function handleFreeflowCommand(
   const [action, ...rest] = input.split(/\s+/);
   const actionValue = rest.join(" ");
   const nonTui = ctx?.mode && ctx.mode !== "tui";
-  if (nonTui && action === "mode" && !actionValue) {
-    return nonTuiGuidance(ctx, NON_TUI_MODE_GUIDANCE);
-  }
   const settingsSelector =
     action === "settings" &&
     (!actionValue || ["session", "local", "personal", "repo", "repository", "shared"].includes(actionValue));
@@ -1621,10 +1332,9 @@ export async function handleFreeflowCommand(
     return nonTuiGuidance(ctx, NON_TUI_SETTINGS_GUIDANCE);
   }
 
-  const [layers, state, modeState] = await Promise.all([
+  const [layers, state] = await Promise.all([
     readFreeflowConfigLayers(ctx.cwd),
     readCapabilityState(ctx.cwd, ctx, pi?.host),
-    readModeState(ctx.cwd),
   ]);
   const configState = layers.repository;
   const raw = configState.valid ? configState.parsed : {};
@@ -1646,45 +1356,10 @@ export async function handleFreeflowCommand(
     return { changed: false, reloaded: false, error: "invalid_local_config" };
   }
 
-  if (action === "mode") {
-    if (!ensureSettingsIdle(ctx)) return { changed: false, reloaded: false, error: "busy" };
-    if (actionValue) {
-      const result = await handleModeCommand(actionValue, ctx, pi);
-      return { changed: result.changed, reloaded: false, error: result.error };
-    }
-    if (!state.enabled || !state.skills.effective) {
-      const result = await handleModeCommand(undefined, ctx, pi);
-      return { changed: false, reloaded: false, error: result.error };
-    }
-    if (typeof ctx?.ui?.custom !== "function") {
-      const result = await handleModeCommand(undefined, ctx, pi);
-      return { changed: false, reloaded: false, error: result.error };
-    }
-
-    const item = freeflowItems(raw, modeState, {
-      scope: "local",
-      layers,
-      cognitiveRouting: state.cognitiveRouting as CognitiveRoutingCapabilityState,
-      ctx,
-      hostInfo: pi?.host,
-    }).find((candidate) => candidate.id === "freeflow.sessionMode")!;
-    const session = await openSettings({
-      title: "Freeflow Mode",
-      items: [item],
-      initialChoice: item,
-      ctx,
-      onChange: async (_item, value) => {
-        const result = await handleModeCommand(String(value), ctx, pi);
-        return { changed: result.changed, reloadRequired: false };
-      },
-    });
-    return { changed: session.changed, reloaded: false, error: session.failed ? "write_failed" : undefined };
-  }
-
   if (["enable", "on", "true", "disable", "off", "false"].includes(action)) {
     if (!ensureSettingsIdle(ctx)) return { changed: false, reloaded: false, error: "busy" };
     const enabled = ["enable", "on", "true"].includes(action);
-    const item = freeflowItems(raw, modeState, {
+    const item = freeflowItems(raw, {
       scope: "repository",
       layers,
       cognitiveRouting: state.cognitiveRouting as CognitiveRoutingCapabilityState,
@@ -1704,7 +1379,7 @@ export async function handleFreeflowCommand(
 
   if (action && action !== "settings") {
     ctx.ui.notify(
-      "Usage: /freeflow, /freeflow settings [local|repo], /freeflow status, /freeflow mode [conversation|workflow|strict-workflow|reset], /freeflow enable, or /freeflow disable",
+      "Usage: /freeflow, /freeflow settings [local|repo], /freeflow status, /freeflow enable, or /freeflow disable",
       "warning",
     );
     return { changed: false, reloaded: false, error: "invalid_action" };
@@ -1728,8 +1403,8 @@ export async function handleFreeflowCommand(
   let reconcileCognitiveRouting = settingsScope === "session";
   const items =
     settingsScope === "session"
-      ? sessionFreeflowItems(state, modeState, cognitiveRoutingController)
-      : freeflowItems(raw, modeState, {
+      ? sessionFreeflowItems(state, cognitiveRoutingController)
+      : freeflowItems(raw, {
           scope: settingsScope,
           layers,
           cognitiveRouting: state.cognitiveRouting as CognitiveRoutingCapabilityState,
@@ -1750,10 +1425,6 @@ export async function handleFreeflowCommand(
       if (!isPiFlowHost(pi?.host) && item.id.startsWith("freeflow.cognitiveRouting.")) {
         ctx.ui.notify("Cognitive Routing is available only in PiFlow.", "warning");
         return { changed: false, reloadRequired: false };
-      }
-      if (item.id === "freeflow.sessionMode") {
-        const result = await handleModeCommand(String(value), ctx, pi);
-        return { changed: result.changed, reloadRequired: false };
       }
       if (item.id === "freeflow.cognitiveRouting.profile") {
         if (!cognitiveRoutingController) {
@@ -1781,8 +1452,6 @@ export async function handleFreeflowCommand(
       if (item.configScope === "session") {
         const keyById = {
           "freeflow.enabled": "enabled",
-          "freeflow.interactionContract": "interactionContract",
-          "freeflow.skills.enabled": "skillsEnabled",
           "freeflow.contextVirtualization": "contextVirtualization",
           "freeflow.conversationHistory": "conversationHistory",
         } as const;

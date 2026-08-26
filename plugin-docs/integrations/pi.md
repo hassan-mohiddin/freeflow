@@ -1,6 +1,6 @@
 # Pi Integration
 
-Freeflow can run as a Pi package. Normal Pi provides the Freeflow extension host, prompt delivery, discoverable skills, and optional context capabilities, but it does not provide the host controls required by Cognitive Routing.
+Freeflow can run as a Pi package. Normal Pi provides the Freeflow extension host, mandatory core prompt delivery, discoverable base skills, and optional context capabilities, but it does not provide the host controls required by Cognitive Routing.
 
 ## Install
 
@@ -26,16 +26,19 @@ In the repository where Freeflow should operate, run:
 /setup-freeflow
 ```
 
-Setup creates the shared `.freeflow/config.json` activation boundary. An optional `.freeflow/local.json` provides per-checkout personal overrides; it cannot activate Freeflow by itself.
+Setup creates the shared `.freeflow/config.json` activation boundary. Minimal activation is `{}`. An optional `.freeflow/local.json` provides per-checkout personal overrides; it cannot activate Freeflow by itself.
 
-Pi stores temporary Freeflow and mode overrides in branch-aware session state. Session overrides do not replace repository activation or silently edit the shared configuration.
+Freeflow's core prompt and separately editable Interaction Contract are delivered together whenever Freeflow is enabled. The 25 base skills are exposed with that core surface. Context Virtualization and Conversation History remain independently optional capabilities.
+
+Pi stores temporary enablement and optional-context overrides in branch-aware session state. Session overrides do not replace repository activation or silently edit the shared configuration.
 
 ## What normal Pi provides
 
 When effective, the Freeflow package provides:
 
-- the shared model/contributor skill surface, including Workflow and Action Selection;
-- static prompt fragments and per-provider Runtime State;
+- the 25-skill model/contributor surface, including Workflow and Action Selection;
+- the mandatory `runtime/prompts/core.md` and `runtime/prompts/interaction-contract.md` fragments;
+- per-provider Runtime State;
 - optional Context Virtualization for archiving consumed tool results;
 - optional Conversation History for bounded current-branch recovery;
 - the `/freeflow` settings and status surface.
@@ -52,13 +55,12 @@ Use [PiFlow integration](piflow.md) when Cognitive Routing is required.
 
 ```text
 /freeflow
-/freeflow mode conversation
-/freeflow mode workflow
-/freeflow mode strict-workflow
-/freeflow mode reset
+/freeflow settings
+/freeflow settings session
+/freeflow settings repo
 ```
 
-`/freeflow settings` opens the settings surface. `/freeflow settings session` manages temporary branch-aware overrides, and `/freeflow settings repo` edits shared repository settings.
+`/freeflow settings` opens the personal override surface. `/freeflow settings session` manages temporary enablement and optional-context overrides, and `/freeflow settings repo` edits shared repository settings.
 
 Cognitive Routing profile controls and keyboard shortcuts are intentionally unavailable in normal Pi. PiFlow provides the profile controls and `Ctrl+Shift+A` / `Ctrl+Shift+R` shortcuts while idle.
 
@@ -78,4 +80,4 @@ Do not treat an uncommitted Freeflow working tree as a release or production pac
 - [Workflow](../workflow.md)
 - [Skill routing](../skill-routing.md)
 - [PiFlow integration](piflow.md)
-- [Root installation guide](../../README.md#install)
+- [Root installation guide](../../README.md#quick-start)

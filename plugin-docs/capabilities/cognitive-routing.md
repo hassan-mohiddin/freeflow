@@ -1,6 +1,6 @@
 # Cognitive Routing
 
-Cognitive Routing changes compute placement for one active agent. It does not create another agent, transfer task ownership, widen authority, change mode, or replace Workflow.
+Cognitive Routing changes compute placement for one active agent. It does not create another agent, transfer task ownership, widen authority, or replace Workflow.
 
 ## Host boundary and status
 
@@ -11,10 +11,9 @@ The implementation is an experimental PiFlow-hosted MVP. Deterministic runtime c
 Cognitive Routing is effective only when:
 
 1. Freeflow repository activation is valid;
-2. Skills is effective;
-3. Cognitive Routing is configured and enabled;
-4. both profiles resolve to available, authenticated, distinct effective model/thinking pairs;
-5. the host exposes the required PiFlow model-state controls.
+2. Cognitive Routing is configured and enabled;
+3. both profiles resolve to available, authenticated, distinct effective model/thinking pairs;
+4. the host exposes the required PiFlow model-state controls.
 
 Missing profiles, unavailable or unauthenticated models, invalid thinking levels, identical effective profiles, or host limitations leave routing unavailable rather than partially active.
 
@@ -26,7 +25,7 @@ The `standard` and `reasoning` profiles are two compute profiles for one persist
 - Workflow owner and route;
 - authority envelope and accepted intent;
 - task memory and evidence requirements;
-- review independence and mode.
+- review independence.
 
 A profile is not a task owner and a transition is not an authorization source.
 

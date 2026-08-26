@@ -19,9 +19,9 @@ Read [the activation contract](references/activation-contract.md) before changin
 
 Classify the current state before editing:
 
-- **Unconfigured:** repository config is missing or invalid, so no Freeflow mode is effective. An explicit setup request may create minimal config when it is missing. Replacing or reinterpreting invalid config still requires the specific authority described below.
-- **Configured but ineffective:** valid repository activation exists, but Freeflow is disabled, Skills are dormant, or invalid local config blocks runtime. No mode is effective. An explicit request governs the selected enablement, configuration, or repair; any dormant resolved mode does not.
-- **Effective:** Freeflow Skills report an effective mode. Obey it. Conversation remains read-only; Workflow or Strict Workflow allows agent-performed mutation only for the separately requested setup or repair.
+- **Unconfigured:** repository config is missing or invalid, so Freeflow is not effective. An explicit setup request may create minimal config when it is missing. Replacing or reinterpreting invalid config still requires the specific authority described below.
+- **Configured but ineffective:** valid repository activation exists, but Freeflow is disabled or an invalid local config blocks runtime. No Freeflow guidance is effective. An explicit request governs the selected enablement, configuration, or repair.
+- **Effective:** Freeflow core guidance, the Interaction Contract, and base skills are effective. An explicit setup or repair request may be carried out within its authority; optional capability behavior remains independently gated.
 
 User-operated host settings are direct user actions, not agent-performed config edits. Prefer them when available and do not claim their state changed until the host reports it.
 
@@ -34,21 +34,19 @@ Before editing:
 3. inspect repo instructions only when a conflict would change setup behavior;
 4. identify the host and available delivery evidence when runtime status matters.
 
-A valid repository config establishes activation. A missing local config inherits shared values. An invalid existing local config blocks effective Freeflow instead of falling back silently.
+A valid repository config establishes activation. A missing local config inherits repository settings. An invalid existing local config blocks effective Freeflow instead of falling back silently.
 
 If setup is already valid and no change was requested, preserve it and report the effective sources. Do not rewrite config merely to normalize formatting or materialize defaults.
 
 ## Configure Shared Activation
 
-For a new default setup, write:
+For a new setup, write the minimal activation boundary:
 
 ```json
-{
-  "defaultMode": "workflow"
-}
+{}
 ```
 
-During first activation, an explicitly requested `conversation` or `strict-workflow` mode becomes the shared repository default. Preserve valid existing settings and add no unrequested keys or empty sections.
+Add `enabled: false` only when the user explicitly requests Freeflow to be disabled. Add optional capability configuration only when the user explicitly requests it.
 
 If repository config is invalid or conflicts with accepted source truth, use [Decision Gate](../decision-gate/SKILL.md) before replacing or reinterpreting it.
 
@@ -56,7 +54,7 @@ Do not create or append Freeflow instructions in `AGENTS.md`, `CLAUDE.md`, `.cla
 
 ## Add Personal Overrides Only When Requested
 
-Use `.freeflow/local.json` for an explicitly selected per-checkout override of `enabled`, `interactionContract`, `skills.enabled`, or `defaultMode`. Omitted values inherit from repository config and built-in defaults.
+Use `.freeflow/local.json` for an explicitly selected per-checkout override of `enabled`, `contextVirtualization`, or `conversationHistory`. Omitted values inherit from repository config and built-in defaults. Configure optional Cognitive Routing values only through its explicit settings surface.
 
 In Pi, `/freeflow settings` edits personal overrides and `/freeflow settings repo` edits shared settings. Prefer those controls when available.
 
@@ -68,19 +66,18 @@ If local config is invalid, report that it blocks effective runtime. Repair or r
 
 After successful verification, apply newly effective context directly for the remainder of the setup turn:
 
-- read the [Interaction Contract](../../runtime/prompts/interaction-contract.md) when it is effective;
-- read [Workflow](../workflow/SKILL.md) and [Mode Contract](../mode-contract/SKILL.md) when Skills are effective.
+- read the [Interaction Contract](../../runtime/prompts/interaction-contract.md);
+- read [Workflow](../workflow/SKILL.md) when Freeflow is effective.
 
-This direct read establishes same-turn guidance; it does not prove that a lifecycle adapter ran. After first activation, use [host setup](references/host-setup.md) to name the exact host-native lifecycle action for automatic delivery and resource refresh, state what applies before that boundary, and keep delivery confirmed, unavailable, or unconfirmed from evidence.
+These direct reads establish same-turn guidance; they do not prove that a lifecycle adapter ran. After first activation, use [host setup](references/host-setup.md) to name the exact host-native lifecycle action for automatic delivery and resource refresh, state what applies before that boundary, and keep delivery confirmed, unavailable, or unconfirmed from evidence.
 
 ## Verify And Report
 
 Verify:
 
-- repository config parses and contains a valid `defaultMode`;
+- repository config parses and is the required activation boundary;
 - local config is missing or valid, personal, untracked, and ignored when applicable;
-- effective `enabled`, Interaction Contract, Skills, and configured default values have the expected sources;
-- Skills-disabled mode remains resolved but dormant;
+- effective `enabled`, core guidance, and optional capability values have the expected sources;
 - no repo-owned host instructions or unrelated files changed.
 
 After verification supports a setup result, silently self-review the final observed or changed state before accepting, reusing, or reporting it. Correct clear local issues within the existing setup authority and re-verify the affected boundary; stop on ambiguity, route change, or an out-of-envelope correction.
@@ -89,6 +86,6 @@ Report separately:
 
 1. shared repository activation;
 2. personal override state and effective sources;
-3. effective Interaction Contract, Skills, and mode state;
+3. effective Freeflow core guidance, Interaction Contract, base skills, and optional capability state;
 4. same-turn direct context reads;
 5. automatic runtime delivery as **confirmed**, **unavailable**, or **unconfirmed**.

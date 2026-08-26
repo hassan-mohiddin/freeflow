@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. This ADR supersedes the runtime-delivery details in ADR 0002; ADR 0002's evals-before-enforcement decision remains in force.
+Accepted in the original architecture. Partially superseded by [ADR 0011: Single Adaptive Workflow](0011-single-adaptive-workflow.md) for mode, core-toggle, and prompt-surface semantics. This ADR supersedes the runtime-delivery details in ADR 0002; ADR 0002's evals-before-enforcement decision remains in force.
 
 ## Decision
 
@@ -31,3 +31,7 @@ Cognitive Routing changes compute only. Its current skill body is required befor
 ## Verification Boundary
 
 The implementation must keep focused coverage for enabled, disabled, unavailable, parent-gated, startup-suppressed, missing-fragment, and mid-session state transitions, plus package and generated-artifact checks. Commit, development snapshot refresh, and behavioral evaluation remain separately controlled lifecycle boundaries.
+
+## Supersession
+
+ADR 0011 replaces the former selectable process modes, the Skills parent gate, and the independently configurable Interaction Contract. It does not replace this ADR's remaining decisions about one effective provider surface, volatile Runtime State, discoverable methods, historical bootstrap filtering, or adapter failure behavior; those decisions continue to apply wherever they do not conflict with ADR 0011.

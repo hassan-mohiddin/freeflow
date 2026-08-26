@@ -12,21 +12,9 @@ _Avoid_: Orchestra, agent framework, governance system
 The explicit coordination and evidence a task needs. Increase it only when consequence, uncertainty, interaction, or reversibility warrants it.
 _Avoid_: bureaucracy, artifact count, lifecycle completeness
 
-**Conversation Mode**:
-Discussion, explanation, critique, exploration, and passive inspection of existing evidence without exercising target behavior or intentionally changing task state.
-_Avoid_: casual mode, no-rules mode, active evidence generation
-
-**Workflow Mode**:
-The default mode for active evidence generation and consequential or mutating work. It uses the Interaction Lifecycle and scales pressure to the task.
-_Avoid_: auto mode, mandatory pipeline
-
-**Strict Workflow Mode**:
-The same adaptive Workflow with stronger decision, evidence, and checkpoint pressure at high-risk or hard-to-reverse boundaries.
-_Avoid_: locked mode, mandatory independent review after every slice
-
 **Interaction Contract**:
-The compact runtime guidance for interpreting the whole user turn, distinguishing questions and tentative ideas from authorization, and recommending discussion when collaboration has material value.
-_Avoid_: duplicate compact interaction contract, duplicate Workflow body
+The compact, mandatory runtime guidance for interpreting the whole user turn, distinguishing questions and tentative ideas from authorization, and recommending discussion when collaboration has material value.
+_Avoid_: optional capability, duplicate Workflow body
 
 **Interaction Lifecycle**:
 One directed interaction from Entry through a Feedback Loop when needed to a Supported Exit. A later user turn or new evidence begins the lifecycle again.
@@ -46,7 +34,7 @@ _Avoid_: supervised typist, infallible agent
 
 **Authority Envelope**:
 The bounded requested outcome, permitted effects, evidence boundary, and stop condition established by a direct request or still-valid approval.
-_Avoid_: permission inferred from mode, skill selection, usefulness, or new evidence
+_Avoid_: permission inferred from skills, usefulness, or new evidence
 
 **Passive Observation**:
 Inspection of existing evidence or sources without exercising target behavior or intentionally changing task state.
@@ -57,7 +45,7 @@ Exercising target behavior to produce new evidence.
 _Avoid_: automatic permission to run because the result would be informative
 
 **Mutation Or Delivery**:
-Changing repository, durable task or session, or external state. Effects are cumulative; apply the strongest relevant authority and mode boundary.
+Changing repository, durable task or session, or external state. Effects are cumulative; apply the strongest relevant authority and controlled boundary.
 _Avoid_: treating a non-file side effect or delivery step as passive because no source file changed
 
 **Route From Evidence**:
@@ -81,7 +69,7 @@ Living task memory for current context, one current slice, proposed work, decisi
 _Avoid_: progress-log Plan, transcript, second task system
 
 **Slice**:
-One coherent learning, delivery, or deepening result that can be executed and checked as a unit. Its boundary may extend write-ahead only when the intended result remains coherent and Workflow confirms that the authority envelope covers the extension.
+One coherent learning, delivery, or deepening result that can be executed and checked as a unit. It may span several bounded activities and methods.
 _Avoid_: file batch, automatic phase
 
 **Learning Slice**:
@@ -145,7 +133,7 @@ The strongest claim directly supported by the observing mechanism. Source inspec
 _Avoid_: integration passed, assumed execution
 
 **Bypass**:
-A scoped reduction of optional workflow pressure inside an already accepted action. It does not change mode, authority, safety, evidence, or selected review.
+A scoped reduction of optional pressure inside an already accepted action. It does not change authority, safety, evidence, or selected review.
 _Avoid_: permanent exception, implementation authorization
 
 **Release**:
@@ -164,16 +152,12 @@ _Avoid_: host instruction block, `.freeflow/local.json` alone
 Optional per-checkout `.freeflow/local.json` core settings layered over repository configuration. It cannot activate Freeflow by itself.
 _Avoid_: shared team config, silent fallback from invalid local state
 
-**Workflow Bootstrap**:
-The full Workflow skill loaded into session context when Skills are effective. It is separate from the Interaction Contract.
-_Avoid_: repeated Workflow injection, duplicate compact contract
-
 **Runtime Delivery**:
-Evidence that the current host adapter delivered effective Interaction Contract, Workflow, mode, and capability context. Configuration alone does not prove delivery.
+Evidence that the current host adapter delivered effective core guidance, Interaction Contract, and capability context. Configuration alone does not prove delivery.
 _Avoid_: assumed hook trust, activation equals execution
 
 **Plugin Runtime**:
-The installable skills, runtime Interaction Contract, hooks, manifests, built capability code, and Pi extension sourced from the repository root.
+The installable skills, runtime prompts, hooks, manifests, built capability code, and Pi extension sourced from the repository root.
 _Avoid_: generated package mirror
 
 **Baseline Eval**:
@@ -195,7 +179,7 @@ _Avoid_: shortness without completeness
 ## Flagged Ambiguities
 
 **Workflow**:
-Use `workflow mode` for the mode, `Interaction Lifecycle` for one directed interaction, and `Feedback Loop` for recurrence inside it.
+Use `Workflow` for the adaptive owning method, `Interaction Lifecycle` for one directed interaction, and `Feedback Loop` for recurrence inside it.
 
 **Review**:
 State `self-review` or `independent review`. Reading a review skill does not create independence.
@@ -204,4 +188,4 @@ State `self-review` or `independent review`. Reading a review skill does not cre
 Use `Working Record` for living task memory and `Handoff` for point-in-time transfer. Neither overrides live evidence or user decisions.
 
 **Authority**:
-Direct requests and still-valid explicit approvals establish the current envelope. Accepted source truth, policy, mode, task memory, and artifacts may constrain action but do not create or widen authority. Specs, Plans, Working Records, reviews, and handoffs preserve or judge state; they do not silently authorize active evidence generation, mutation, or delivery.
+Direct requests and still-valid explicit approvals establish the current envelope. Accepted source truth, policy, task memory, and artifacts may constrain action but do not create or widen authority. Specs, Plans, Working Records, reviews, and handoffs preserve or judge state; they do not silently authorize active evidence generation, mutation, or delivery.

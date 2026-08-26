@@ -2,28 +2,23 @@
 
 Freeflow is a workflow layer, not a new agent. The active agent owns understanding, routing, authorized work, verification, correction, adjudication, and completion.
 
-## Modes
+## Single Adaptive Workflow
 
-- `conversation`: discussion, critique, explanation, exploration, and passive inspection of existing evidence. Active evidence generation and mutation or delivery require switching mode plus authority.
-- `workflow`: the default for active evidence generation and consequential or mutating work. Use the adaptive lifecycle and scale pressure to risk.
-- `strict-workflow`: the same lifecycle with stronger decision, evidence, and checkpoint pressure at high-risk or hard-to-reverse boundaries.
+Freeflow always uses one adaptive Workflow. The Interaction Contract interprets the whole user turn, then Workflow chooses the narrowest owning skill and scales pressure to consequence, uncertainty, interaction, and reversibility.
 
-Mode changes do not authorize work or resolve decisions. Task type and direct skill calls do not switch mode.
+Questions, criticism, examples, hypotheses, and tentative ideas remain discussion until clear action authority exists. A direct request covers only its bounded outcome and entailed effects. High-risk or hard-to-reverse work receives stronger decisions, evidence, verification, and checkpoints through this same Workflow rather than through a separate selectable process.
 
 ## Activation And Configuration
 
-Freeflow requires a valid shared `.freeflow/config.json`. Optional `.freeflow/local.json` supplies per-checkout personal core overrides and cannot activate Freeflow by itself.
+Freeflow requires a valid shared `.freeflow/config.json`. Optional `.freeflow/local.json` supplies per-checkout personal overrides and cannot activate Freeflow by itself. The only core enablement switch is `enabled`; base Freeflow skills and the Interaction Contract are present whenever Freeflow is enabled. Context Virtualization, Conversation History, and Cognitive Routing are independently configured capabilities.
 
 ```text
-host session mode override
--> personal override
--> repository value
--> built-in default
+host session enablement -> personal override -> repository value -> built-in default
 ```
 
-A configured mode is dormant while Skills are ineffective. An invalid existing local config fails closed instead of silently inheriting shared settings. Session state cannot bypass missing or invalid repository activation.
+Configurations containing the removed `defaultMode`, `interactionContract`, or `skills` keys are invalid. An invalid existing local config fails closed instead of silently inheriting shared settings. Session state cannot bypass missing or invalid repository activation.
 
-Pi `/freeflow settings` edits personal overrides; `/freeflow settings session` edits branch-aware Pi session overrides for Freeflow, Interaction Contract, Skills, and mode; `/freeflow settings repo` edits shared configuration. Claude and Codex support mode-only session overrides through their plugin runtime hook. Session settings do not mutate either config file. A configured-default request must explicitly choose local/personal or repository/shared scope; ask once when it does not.
+Pi `/freeflow settings` edits personal overrides; `/freeflow settings session` edits temporary enablement and optional-context overrides; `/freeflow settings repo` edits shared configuration. Session settings do not mutate either config file. Cognitive Routing has separate PiFlow-owned profile controls.
 
 ## Interaction Lifecycle
 
@@ -35,7 +30,7 @@ Pi `/freeflow settings` edits personal overrides; `/freeflow settings session` e
             later user turn or evidence
 ```
 
-Entry is a user turn or new evidence interpreted through the Interaction Contract and effective mode. It may lead directly to an answer, wait, deferment, or stop. When work is needed, Workflow chooses the narrowest owning skill.
+Entry is a user turn or new evidence interpreted through the Interaction Contract. It may lead directly to an answer, wait, deferment, or stop. When work is needed, Workflow chooses the narrowest owning skill.
 
 The Feedback Loop applies to every bounded activity, including a whole task, slice, subtask, artifact revision, or small local change:
 
@@ -50,11 +45,11 @@ orient to accepted intent, task memory, and live evidence
 
 A later turn or new evidence begins another Interaction Lifecycle. Re-enter only the owning activity whose responsibility changed; preserve valid work and decisions.
 
-## Nested execution model
+## Nested Execution Model
 
 The Workflow Feedback Loop contains the current owner and, under automatic Cognitive Routing, a nested execution loop. These diagrams describe ownership and control nesting, not a mandatory phase sequence.
 
-### Runtime/control nesting
+### Runtime and compute nesting
 
 ```text
 Interaction Lifecycle
@@ -74,7 +69,7 @@ Interaction Lifecycle
       └─ close, delegate correction, or return to Workflow
 ```
 
-The Cognitive Execution Loop exists only for automatic, authorized execution-bearing work. Manual profile control runs the ordinary unsplit Workflow. A Slice may contain multiple sequential cognitive execution boundaries, but a cognitive boundary is not a new owner, task, authority source, Plan, or Working Record.
+The Cognitive Execution Loop exists only for automatic, authorized execution-bearing work. Manual Cognitive Routing control runs the ordinary unsplit Workflow. A Slice may contain multiple sequential execution boundaries, but a boundary is not a new owner, task, authority source, Plan, or Working Record.
 
 ### Workflow ownership and composition
 
@@ -97,7 +92,7 @@ Discuss owns open direction and alternatives. Track Work owns durable task memor
 
 ## Authority And Effects
 
-Each interaction carries an **authority envelope**: requested outcome, permitted effects, evidence boundary, and stop condition. Workflow establishes it from the whole user turn and any still-valid prior approval. Mode, skill selection, useful follow-on work, and new evidence do not widen it.
+Each interaction carries an **authority envelope**: requested outcome, permitted effects, evidence boundary, and stop condition. Workflow establishes it from the whole user turn and any still-valid prior approval. Skill selection, useful follow-on work, and new evidence do not widen it.
 
 Actions have different effects:
 
@@ -105,7 +100,7 @@ Actions have different effects:
 - **Active evidence generation:** exercise target behavior to produce new evidence.
 - **Mutation or delivery:** change repository, durable task or session, or external state.
 
-Effects are cumulative; apply the strongest relevant authority and mode boundary. Passive observation may support an inquiry when safe and relevant. Active evidence generation, mutation or delivery, and separately controlled actions require coverage by the current authority envelope. When uncovered, the agent states the proposed action's purpose, expected evidence or result, and stop condition, asks once, and waits. Evidence supports reporting and routing; it does not by itself authorize a correction or next lifecycle stage.
+Effects are cumulative. Passive observation may support an inquiry when safe and relevant. Active evidence generation, mutation or delivery, and separately controlled actions require coverage by the current authority envelope. When uncovered, the agent states the proposed action's purpose, expected evidence or result, and stop condition, asks once, and waits. Evidence supports reporting and routing; it does not by itself authorize a correction or next lifecycle stage.
 
 ## Conditional Artifacts
 
@@ -145,7 +140,7 @@ Routine in-slice feedback is not checkpoint history. Record state changes, accep
 
 Independent review, a local commit, a user decision, and continuity transfer are additional checkpoints only when selected. A slice ending alone does not require one.
 
-Commit, branch integration, migration, release, launch, and destructive cleanup remain separately controlled. Bypass may reduce optional pressure inside an accepted action, but it cannot change mode, create authority, erase evidence, remove selected review, or weaken a completion claim.
+Commit, branch integration, migration, release, launch, and destructive cleanup remain separately controlled. Bypass may reduce optional pressure inside an accepted action, but it cannot change authority, erase evidence, remove selected review, or weaken a completion claim.
 
 A Supported Exit may answer, wait, pause, hand off, defer, stop, preserve a controlled boundary, or complete. Completion requires fresh verification, the required self-review for every completed bounded activity, resolved selected reviews, accurate task memory, synchronized required docs, and no hidden owner decision or source conflict.
 

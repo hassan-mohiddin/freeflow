@@ -1,8 +1,5 @@
 {
   "enabled": true,
-  "defaultMode": "workflow",
-  "interactionContract": false,
-  "skills": { "enabled": true },
   "contextVirtualization": false,
   "conversationHistory": false,
   "cognitiveRouting": {

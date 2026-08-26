@@ -2,7 +2,7 @@
 
 **A feedback-based control system for coding agents.**
 
-Freeflow helps coding agents do consequential work without turning every task into a rigid ceremony. It gives the agent a clear interaction contract, evidence-driven Workflow, focused methods, durable task memory, and controlled delivery boundaries.
+Freeflow helps coding agents do consequential work without turning every task into a rigid ceremony. It gives the agent a clear Interaction Contract, adaptive Workflow, focused methods, durable task memory, and controlled delivery boundaries.
 
 The host agent still owns tools, permissions, and execution. Freeflow helps it choose the right next action—and know when to stop, ask, verify, or hand work back.
 
@@ -15,7 +15,7 @@ Coding agents commonly fail at control boundaries:
 | A question or tentative idea becomes an edit. | The Interaction Contract answers first and waits for clear action authority. |
 | A prompt conflicts with tests, policy, or accepted behavior. | Decision Gate names the conflict before mutation. |
 | New evidence invalidates the plan. | Workflow routes from evidence and preserves unaffected work. |
-| Every task receives unnecessary ceremony. | Workflow enters at the narrowest useful owner. |
+| Every task receives unnecessary ceremony. | Workflow enters at the narrowest useful owner and scales pressure to risk. |
 | A passing command becomes an unsupported completion claim. | Verify Work matches evidence to the exact claim and boundary. |
 | Compaction loses task state. | Track Work restores a Working Record and reconciles it with live state. |
 | Tool output consumes future context. | Context Virtualization can archive consumed evidence while preserving session history. |
@@ -26,7 +26,7 @@ Coding agents commonly fail at control boundaries:
 - [Host support](#host-support)
 - [Capabilities](#capabilities)
 - [Quick start](#quick-start)
-- [Modes and workflow](#modes-and-workflow)
+- [Workflow](#workflow)
 - [System prompt architecture](#system-prompt-architecture)
 - [Evidence and limits](#evidence-and-limits)
 - [Commands](#commands)
@@ -55,7 +55,7 @@ Interaction Lifecycle
       └─ close, delegate correction, or return to Workflow
 ```
 
-Under manual profile control, the Cognitive Execution Loop is not used; the held profile runs the ordinary unsplit Workflow. Cognitive Routing changes compute placement only. It never changes authority, ownership, mode, task scope, evidence requirements, or review independence.
+Under manual Cognitive Routing control, the selected compute profile runs the ordinary unsplit Workflow. Cognitive Routing changes compute placement only. It never changes authority, ownership, task scope, evidence requirements, or review independence.
 
 The Workflow owner may be Discuss, Track Work, Execute Work, Verify Work, Review Work, Review Artifact, Diagnose Failure, or another focused method. These methods compose when their conditions apply; they are not a mandatory phase pipeline.
 
@@ -68,7 +68,7 @@ Freeflow is one package with different host boundaries:
 | Codex | Shared skills and lifecycle hook | Not available; Pi-only capabilities are not delivered |
 | Claude Code | Shared skills and lifecycle hook | Not available; Pi-only capabilities are not delivered |
 | Pi | Shared skills, Pi extension, and optional context capabilities | Configuration is inspectable but execution is disabled |
-| PiFlow | Freeflow package hosted by the separate PiFlow distribution | Available when host controls, Skills, and profiles are configured |
+| PiFlow | Freeflow package hosted by the separate PiFlow distribution | Available when configured |
 
 Freeflow owns workflow policy, prompt fragments, skills, capabilities, and the Pi extension. PiFlow owns host launch, package installation, session state, updates, and the model-state control required by Cognitive Routing.
 
@@ -78,7 +78,7 @@ Freeflow owns workflow policy, prompt fragments, skills, capabilities, and the P
 
 - **Workflow** coordinates authority, owner selection, evidence-driven re-entry, and Supported Exit.
 - **Action Selection** bounds uncertain or broad Environment Interactions while preserving the current owner.
-- **Track Work** maintains one Working Record when decisions, evidence, blockers, or the next action must survive context loss.
+- **Track Work** maintains a Working Record when decisions, evidence, blockers, or the next action must survive context loss.
 - **Verify Work, Review Work, Review Artifact, and Diagnose Failure** separate factual support, judgment, artifact fitness, and unsupported causes.
 
 ### Optional host capabilities
@@ -87,11 +87,11 @@ Freeflow owns workflow policy, prompt fragments, skills, capabilities, and the P
 - **[Context Virtualization](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/context-virtualization.md)** classifies consumed tool evidence as Full, Retained, or Reference-only for future context while leaving canonical history unchanged.
 - **[Conversation History](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/conversation-history.md)** performs bounded retrieval of exact missing prior-conversation evidence from the current active branch.
 
-All three capabilities are Skills-gated and default-off or unavailable unless their configuration and host conditions are effective. None of them grants authority or replaces Workflow.
+The three capabilities are individually gated and default-off or unavailable unless their configuration and host conditions are effective. None grants authority or replaces Workflow.
 
 ## Quick start
 
-For the complete host-specific setup, see [Getting Started](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/getting-started.md).
+For complete host-specific setup, see [Getting Started](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/getting-started.md).
 
 ### Codex
 
@@ -144,19 +144,13 @@ In the target repository, run:
 /setup-freeflow
 ```
 
-Setup creates `.freeflow/config.json`, the required shared activation boundary. `.freeflow/local.json` is an optional personal override and cannot activate Freeflow by itself.
+Setup creates `.freeflow/config.json`, the required shared activation boundary. Minimal activation is `{}`. `.freeflow/local.json` is an optional personal override and cannot activate Freeflow by itself.
 
-## Modes and workflow
+## Workflow
 
-Freeflow has exactly three modes:
+Freeflow always uses one adaptive Workflow. The Interaction Contract interprets the whole user turn; Workflow then chooses the narrowest owner and scales coordination to consequence, uncertainty, interaction, and reversibility.
 
-| Mode | Use for |
-| --- | --- |
-| `conversation` | Discussion, critique, explanation, and passive inspection |
-| `workflow` | Active evidence generation and normal consequential work |
-| `strict-workflow` | High-risk or hard-to-reverse work |
-
-Mode changes do not authorize work. A direct request, still-valid approval, or accepted task contract establishes the authority envelope; mode, skill selection, usefulness, and new evidence do not widen it.
+A question or tentative idea remains discussion until clear action authority exists. A direct request covers only its bounded outcome and entailed effects. Risk-sensitive work receives stronger decisions, evidence, verification, and checkpoints through the same Workflow rather than through a separate selectable process.
 
 Every bounded activity follows the same Feedback Loop:
 
@@ -171,13 +165,14 @@ orient to accepted intent, task memory, and live evidence
 
 ## System prompt architecture
 
-Freeflow’s model-facing surface has three layers:
+Freeflow’s model-facing surface has four coordinated parts:
 
-1. **Stable prompt fragments** under `runtime/prompts/` provide compact guidance and conditional capability cues.
-2. **Runtime State** reports current mode, capability availability, and Cognitive Routing `Control`/`Profile` before every provider request.
-3. **Discoverable skills and tools** provide complete methods and operations when effective gates apply.
+1. **Core guidance** in `runtime/prompts/core.md` contains identity, shared terms, loops, Workflow, Action Selection, and Supported Exit cues.
+2. **Interaction Contract** in `runtime/prompts/interaction-contract.md` remains a separate mandatory fragment so its behavior can be revised independently.
+3. **Runtime State** reports current capability availability and Cognitive Routing `Control`/`Profile` before every provider request.
+4. **Discoverable skills and tools** provide the 25 base methods and individually gated optional capability operations.
 
-One effective-state snapshot determines all three surfaces. The Interaction Contract is prompt-only. Skills gates Cognitive Routing, Context Virtualization, and Conversation History. Missing optional capability content is omitted and reported unavailable rather than fabricated.
+The core guidance and Interaction Contract are always delivered together when Freeflow is enabled. Optional capability content is omitted and reported unavailable rather than fabricated. One effective-state snapshot determines prompt assembly, discovery, tools, and projection.
 
 Read the full [System Prompt Architecture](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/prompt-architecture.md) and [Workflow](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/workflow.md) docs for the complete contract.
 
@@ -228,25 +223,19 @@ Contributor calls:
 /evaluate-skill
 ```
 
-Mode controls:
-
-```text
-/freeflow mode conversation
-/freeflow mode workflow
-/freeflow mode strict-workflow
-/freeflow mode reset
-```
-
 Pi settings and PiFlow-only Cognitive Routing controls:
 
 ```text
 /freeflow
+/freeflow settings
+/freeflow settings session
+/freeflow settings repo
 /freeflow profile standard
 /freeflow profile reasoning
 /freeflow profile auto
 ```
 
-Pi `/freeflow settings` edits personal overrides, `/freeflow settings session` manages temporary session overrides, and `/freeflow settings repo` edits shared repository settings. Profile changes require PiFlow and an idle host.
+`/freeflow settings` edits personal overrides, `/freeflow settings session` manages temporary enablement and optional-context overrides, and `/freeflow settings repo` edits shared repository settings. Profile changes require PiFlow and an idle host.
 
 In PiFlow, while the host is idle:
 

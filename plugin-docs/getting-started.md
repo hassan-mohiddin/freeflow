@@ -74,7 +74,9 @@ Run this in the repository where Freeflow should operate:
 /setup-freeflow
 ```
 
-Setup creates the shared `.freeflow/config.json` activation boundary. An optional `.freeflow/local.json` provides personal checkout overrides but cannot activate Freeflow by itself.
+Setup creates the shared `.freeflow/config.json` activation boundary. Minimal activation is `{}`. `.freeflow/local.json` is an optional personal override and cannot activate Freeflow by itself.
+
+Freeflow's core guidance and separately editable Interaction Contract are delivered together whenever Freeflow is enabled. The 25 base skills are exposed with that core surface. Context Virtualization, Conversation History, and Cognitive Routing remain individually optional capabilities.
 
 Setup does not write Freeflow instructions into `AGENTS.md`, `CLAUDE.md`, or other repository-owned host files.
 
@@ -82,10 +84,10 @@ Setup does not write Freeflow instructions into `AGENTS.md`, `CLAUDE.md`, or oth
 
 Use the host-native surface to confirm the installation:
 
-- **Codex:** trust the hook from `/hooks`, start a new session, and confirm the Freeflow context is delivered.
+- **Codex:** trust the hook from `/hooks`, start a new session, and confirm the core Freeflow context is delivered.
 - **Claude Code:** reload plugins or start a new session, then use a namespaced Freeflow skill such as `/freeflow:discuss`.
-- **Pi:** use `/freeflow` to inspect settings/status and `/freeflow mode workflow` to select a temporary mode.
-- **PiFlow:** use `/freeflow` to enable Skills and Cognitive Routing, then configure distinct `standard` and `reasoning` profiles. While idle, use `/freeflow profile standard`, `/freeflow profile reasoning`, or `/freeflow profile auto`.
+- **Pi:** use `/freeflow` to inspect settings/status and confirm the core prompt, Interaction Contract, and base skills are available.
+- **PiFlow:** use `/freeflow` to configure Cognitive Routing, then configure distinct `standard` and `reasoning` profiles. While idle, use `/freeflow profile standard`, `/freeflow profile reasoning`, or `/freeflow profile auto`.
 
 Activation is not proof of runtime delivery. Setup reports delivery as `confirmed`, `unavailable`, or `unconfirmed`.
 

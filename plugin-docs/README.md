@@ -19,7 +19,7 @@ Start with [Getting Started](getting-started.md) for host-specific installation,
 ## Documentation
 
 - [Getting Started](getting-started.md): install, activate, and verify Freeflow on each supported host.
-- [Workflow](workflow.md): modes, entry points, loops, and the compact workflow map.
+- [Workflow](workflow.md): the adaptive Workflow, entry points, loops, and the compact workflow map.
 - [Skill routing](skill-routing.md): shipped skills, ownership, sibling routes, and reference dependencies.
 - [Architecture](architecture.md): package layout, layered configuration, runtime delivery, review topology, and task memory.
 - [System prompt architecture](prompt-architecture.md): prompt fragments, Runtime State, discoverable skills, gating, and nested execution context.

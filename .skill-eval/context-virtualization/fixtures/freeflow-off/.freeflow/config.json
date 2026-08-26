@@ -1,8 +1,5 @@
 {
-  "enabled": true,
-  "defaultMode": "workflow",
-  "interactionContract": false,
-  "skills": { "enabled": false },
+  "enabled": false,
   "contextVirtualization": false,
   "conversationHistory": false
 }

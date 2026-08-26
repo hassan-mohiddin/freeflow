@@ -7,7 +7,6 @@ const requiredFiles = [
   "pi-extension/freeflow/index.js",
   "runtime/prompts/core.md",
   "runtime/prompts/interaction-contract.md",
-  "runtime/prompts/skills.md",
   "runtime/prompts/cognitive-routing.md",
   "runtime/prompts/context-virtualization.md",
   "runtime/prompts/conversation-history.md",
