@@ -1,6 +1,8 @@
 # Diagnostic Loop Catalog
 
-Read this before choosing a diagnostic loop for a reported failure or current hypothesis. Use it to select the smallest observation that can distinguish meaningful alternatives at the required boundary.
+Read this when the exact distinguishing loop is not obvious or several loop shapes remain plausible.
+
+Use it to select the smallest observation whose possible outcomes differ between meaningful hypotheses at the required boundary.
 
 ## Common Loops
 
@@ -12,6 +14,16 @@ Read this before choosing a diagnostic loop for a reported failure or current hy
 - **Throwaway harness:** a minimal script around the real module when no test framework reaches it.
 - **Differential loop:** the same input through old and new code, configuration, dataset, dependency, or environment.
 - **Instrumented run:** targeted probes at boundaries that distinguish competing hypotheses.
+
+## Predict Before Running
+
+Record only outcomes capable of distinguishing the viable hypotheses:
+
+```text
+Observation outcome | Effect on leading hypothesis | Effect on alternative
+```
+
+If every likely outcome leaves the same hypotheses plausible, the loop is not distinguishing enough. Sharpen the observer or choose another loop before generating evidence.
 
 ## Improve The Loop
 
@@ -28,7 +40,9 @@ An observer must sit on the real path and cover the complete operation. A manual
 
 ## Boundary Examples
 
-- A UI save remains pending → exercise the browser path and inspect the request, console, and rendered state; a reducer unit test does not prove the reported boundary.
-- A registered callback allegedly never runs → invoke or observe the registered entrypoint; calling its helper directly proves only helper behavior.
-- A failure appears only in CI → compare the same input across local and CI configuration before changing timing or adding retries.
-- Two causes fit one symptom → choose an observation whose outcomes differ between them; another generic failure is not distinguishing evidence.
+- A UI save remains pending: exercise the browser path and inspect the request, console, and rendered state; a reducer unit test does not prove the reported boundary.
+- A registered callback allegedly never runs: invoke or observe the registered entrypoint; calling its helper directly proves only helper behavior.
+- A failure appears only in CI: compare the same input across local and CI configuration before changing timing or adding retries.
+- Two causes fit one symptom: choose an observation whose outcomes differ between them; another generic failure is not distinguishing evidence.
+
+Stop once one loop is selected with predicted distinguishing outcomes. Return it to the main skill; do not execute it from this reference.

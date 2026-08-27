@@ -2,247 +2,104 @@
 
 Read this when structural pressure is supported but the likely-changing decision or missing information-hiding boundary cannot yet be named.
 
-This is not a checklist to run every time. Pull the idea that changes the next route.
+Use only the principle that identifies the missing ownership. Do not produce a literature review or redesign the system by default.
 
-## Core Claim
+## Good Design Reduces Coordination
 
-Good design reduces coordination.
+Complexity is not line count. It appears as:
 
-A deep module lets callers, tests, reviewers, and future agents use a small interface to get a lot of behavior. A shallow module makes them learn almost as much as the implementation.
+- change amplification;
+- dependencies callers must understand;
+- important facts that are difficult to discover;
+- rules distributed across modules;
+- uncertainty about what must be inspected before making a safe change.
 
-Design work is worthwhile when it hides a decision that would otherwise spread.
+A large implementation can be simple to use. A small helper can be complex when every caller must know its quirks.
 
-## Ousterhout: Complexity, Deep Modules, Strategic Programming
+## Deep Modules
 
-### Complexity
+A deep module provides substantial coherent behavior through a small interface.
 
-Complexity shows up as:
+Callers should state the outcome they need. The module should own sequencing, likely-changing policy, cleanup, provider mechanics, and internal failure handling unless callers genuinely control those decisions.
 
-- too many dependencies;
-- obscurity, where important facts are hard to find;
-- change amplification, where a small behavior change touches many places;
-- cognitive load, where the user of a module must remember too much;
-- unknown unknowns, where a future agent cannot tell what it must inspect.
+A wrapper is not deep merely because it hides lines. It is deep when it removes concepts or coordination from callers.
 
-For Freeflow, complexity is not “many lines.” A single compact helper can be complex if callers must know its quirks. A large implementation can be simple to use if the interface hides the hard parts.
+## Hide Likely-Changing Decisions
 
-### Deep modules
+Organize boundaries around decisions likely to change, not merely processing steps.
 
-A deep module has a simple interface and useful behavior behind it.
-
-Deep means:
-
-- callers say what outcome they need;
-- implementation owns sequencing and policy details;
-- tests can verify behavior through the public interface;
-- future changes stay localized;
-- docs and review comments do not need to explain the hidden machinery every time.
-
-Shallow means:
-
-- the interface mirrors the implementation;
-- callers pass many flags and know ordering rules;
-- tests assert internal call sequences;
-- wrappers rename work without hiding decisions;
-- future agents still need to inspect everything to use it safely.
-
-### Strategic vs tactical programming
-
-Tactical programming makes the current patch fit, even if it spreads complexity.
-
-Strategic programming spends a little extra attention to preserve future locality.
-
-Freeflow translation:
-
-- Do not redesign everything up front.
-- Do stop when the local patch clearly makes the next slice, review, or bug fix harder.
-- Return the structural evidence to [Workflow](../../workflow/SKILL.md) when a tactical patch is becoming structural work.
-
-## Parnas: Information Hiding
-
-Parnas's key design move: modules should hide design decisions likely to change.
-
-Do not decompose only by processing steps:
+Instead of exposing:
 
 ```text
-parse -> validate -> send -> log
+parse -> validate -> retry -> send -> log -> clean up
 ```
 
-when the real likely-changing decision is:
+look for the decision those steps implement:
 
 ```text
-notification delivery policy: provider choice, retry, fallback, telemetry, failure semantics
+notification delivery policy
 ```
-
-A good module hides the unstable decision.
-
-For consequential systems, failure behavior is often the unstable decision. Hide the contract in the module before callers invent their own retries, fallbacks, state writes, escalation paths, or graceful-failure claims.
 
 Ask:
 
-- What decision would cause the most edits if it changed?
-- What can fail, who observes it, what state is written, and what must not happen?
-- Does the system fail closed, fail open, degrade, escalate, retry, or stop?
-- What recovery path and evidence prove graceful handling?
-- Which callers currently know that decision?
-- Can one module own it?
-- What interface would let callers stop knowing it?
+- What decision would cause the most surrounding edits if it changed?
+- Which callers currently know it?
+- Who should own it?
+- What outcome-level interface would let callers stop knowing it?
 
-Examples:
+Failure policy is often one of these decisions.
 
-- Billing grace period policy should not be spread across webhook handlers, email copy, UI guards, and tests.
-- Notification retry/fallback policy should not be duplicated in each route.
-- Permission semantics should not be separately encoded in frontend, backend, and test setup.
-- Cache invalidation rules should not require every caller to remember freshness knobs.
+## Use Seams For Real Leverage
 
-## Feathers: Seams And Enabling Points
+A seam is useful when behavior must vary or be observed without editing surrounding code. It needs an enabling point where an adapter, test implementation, clock, probe, provider, or migration path can be supplied.
 
-A seam is where behavior can change without editing the surrounding work.
+Good seams correspond to:
 
-A seam needs an enabling point: the place where a different adapter, test double, probe, or behavior can be supplied.
+- demonstrated provider or environment variation;
+- a known migration;
+- a dependency that must be controlled in tests;
+- required observation or fault injection.
 
-Freeflow use:
+Weak seams merely wrap one stable call, add factories without ownership, or preserve provider quirks in a generic-looking interface.
 
-- Use seams to make hard-to-test or hard-to-change behavior tractable.
-- Do not create seams merely because a pattern sounds clean.
-- Prefer seams that match real variation or observability needs.
+## Treat Observable Facts As Contracts
 
-Questions:
+Callers may depend on any observable flag, path, error, state, timing rule, fallback, or ordering behavior.
 
-- What behavior needs to vary?
-- Where can that variation enter without editing callers?
-- What enabling point supplies the adapter or behavior?
-- Does the seam protect production code and tests, or only add indirection?
+Expose a fact only when:
 
-Good seam candidates:
+- the caller owns the decision;
+- correct use requires it;
+- it is stable enough to support as a contract.
 
-- provider variation: email/SMS/payment/search/storage;
-- environment variation: prod/test/offline/fake implementations;
-- observability variation: probes, clocks, log sinks, metrics;
-- migration variation: old and new implementations behind one interface.
+Public flexibility has lasting coordination cost. Prefer one outcome-level operation over a toolkit that requires callers to reconstruct the lifecycle.
 
-Weak seam candidates:
+## Separate Required Capability From Speculation
 
-- one implementation with no likely variation;
-- a seam created only to mock internals while the real interface stays awkward;
-- a factory/registry around every function;
-- an adapter whose interface still exposes provider-specific quirks.
+Classify proposed mechanisms as:
 
-## Ports And Adapters
+- **Trust:** needed to know the outcome is valid.
+- **Safety:** prevents damage, leakage, or runaway work.
+- **Efficiency:** saves time, requests, or money.
+- **Scale:** supports concurrency or volume.
+- **Portability:** supports additional hosts or providers.
 
-Ports/adapters protects core behavior from infrastructure details.
+Required trust and safety cannot be deferred merely to simplify the design. Efficiency, scale, and portability require accepted requirements or observed pressure.
 
-Freeflow wording:
+## Name The Missing Boundary
 
-- The core owns policy.
-- The adapter owns provider mechanics.
-- The interface between them says what the core needs or provides.
-
-Use this idea when infrastructure details are leaking into product logic.
-
-Examples:
-
-- Stripe event parsing is adapter work; billing policy is core work.
-- Email provider retries are adapter work; user notification policy may be core work.
-- Database query syntax is adapter work; permission semantics are core work.
-- Browser event plumbing is adapter work; user-flow state is core work.
-
-Do not over-apply ports/adapters:
-
-- simple scripts may not need ports;
-- a single stable library call may not need an adapter;
-- wrapping an SDK without hiding policy or provider quirks is often shallow.
-
-## Public Contract Cost
-
-Hyrum's Law applies beyond public HTTP APIs: every observable flag, path, state, ordering rule, filename, error, timing behavior, and fallback can become depended upon.
-
-Expose a fact only when the caller owns it or correct use requires it. Internal protocols may remain detailed and independently tested without becoming public seams.
-
-A useful split:
-
-- **Public:** caller-owned outcome, decisions, stable invariants, and observable failure semantics.
-- **Internal:** storage layout, provider mechanics, retries, cleanup, integrity publication, temporary states, and optimization machinery.
-
-Public flexibility has permanent coordination cost. One outcome-level operation is often deeper than a toolkit that lets callers reconstruct the module's lifecycle.
-
-## Maturity And Learning
-
-Classify mechanisms before adding them:
-
-- required trust and safety cannot be deferred merely to simplify the design;
-- efficiency, scale, and portability require accepted requirements or observed pressure.
-
-When the best interface cannot be known from source inspection, use a bounded learning slice. Name the question, competing designs, evidence, cost boundary, and discard-or-promote rule. Code can answer a design question without becoming the production design automatically.
-
-## Refactoring Pressure
-
-Design pressure often appears as ordinary implementation pain:
-
-- shotgun surgery;
-- repeated review findings;
-- flaky tests around ordering;
-- many mocks for one behavior;
-- hard-to-explain correctness;
-- one bug fix causing another;
-- “just add this flag everywhere.”
-
-Do not treat all pressure as a command to refactor.
-
-Classify it:
-
-- **Real design pressure:** complexity spread blocks safe progress.
-- **Local mess:** cleanup can happen within current scope.
-- **Deferred deepening:** record the candidate, finish current work.
-- **Owner decision:** deeper change affects product/API/security/compatibility.
-
-## Applying The Philosophy In Freeflow
-
-### In discussion
-
-Use design ideas to ask better questions, not to freeze architecture.
-
-Good questions:
-
-- Which decision is most likely to change?
-- Who should know this rule?
-- What should callers stop coordinating?
-- What future variation is real, not imagined?
-- Which tests should survive a provider or implementation change?
-
-### In specs
-
-Specs name behavior and boundaries. They should not lock in unproven module shapes.
-
-Use:
+Use the evidence to state:
 
 ```text
-Tentative: notification delivery may need one policy-owning module if retries/fallbacks continue spreading.
-Open: whether provider variation is real now or deferred.
+Outcome:
+Coordination currently spread across:
+Likely-changing decision:
+Proposed owner:
+What callers would stop knowing:
+Failure unit:
+Evidence still missing:
 ```
 
-not:
+If the decision still cannot be named, propose one bounded learning question. Do not introduce a generic abstraction as a substitute for understanding.
 
-```text
-Requirement: implement NotificationDeliveryPortFactoryStrategy.
-```
-
-### In plans
-
-Use [Write Plan](../../write-plan/SKILL.md) only when the ordered strategy can be stated without guessing. When later direction remains provisional, keep it in [Track Work](../../track-work/SKILL.md) or return the evidence to [Workflow](../../workflow/SKILL.md) rather than freezing it as a Plan.
-
-For consequential systems, make failure behavior explicit before implementation choices harden. Do not leave it as an implementer guess after planning only the happy path.
-
-A good slice can be verified through the intended interface. If the slice requires broad caller choreography, revise the slice.
-
-### In review
-
-Review design depth by asking whether the diff reduces or increases caller knowledge.
-
-A diff can pass tests and still fail design review if it scatters policy or creates a shallow interface.
-
-### In diagnosis
-
-Repeated failures may indicate that the system is missing a module, seam, or source-truth decision.
-
-Do not keep fixing symptoms when every fix reveals another coordination problem.
+Stop once the hidden decision or missing boundary is named—or once evidence shows that no worthwhile boundary change is supported. Return that result to the main skill.

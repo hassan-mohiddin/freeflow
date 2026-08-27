@@ -1,314 +1,111 @@
 # Design Pressure Signals
 
-Read this when evidence suggests caller knowledge or coordination is spreading and the next route must be classified.
+Read this when observed coordination could change what the current owner should do next and an equivalent design-route classification is not already supported.
 
-The goal is not to find every smell. The goal is to notice pressure that changes the next route.
+Do not use this as a smell-counting checklist. Identify the pressure that changes the next action, or conclude that none does.
 
-## Quick Classifier
+## Classify The Evidence
 
 Ask:
 
-1. What is the module?
-2. What is the interface?
-3. What details are callers forced to know?
-4. What decision is likely to change?
-5. Where would that decision be localized?
-6. Would solving this now fit the approved scope?
+1. What outcome and interface are affected?
+2. What facts must callers know or coordinate?
+3. Did the current change add to that knowledge?
+4. What policy, state transition, or failure behavior is spreading?
+5. Can the issue be resolved within accepted scope and authority?
 
-Then classify:
+Then choose the narrowest supported classification:
 
-- **Continue:** no design pressure that changes the next action.
-- **Local fix:** improve within current module/interface.
-- **Plan revision:** slice boundary or verification path is wrong.
-- **Discuss or revise a Spec:** behavior, scope, or acceptance is unclear.
-- **Owner decision:** public API, compatibility, security, privacy, billing, data loss, permissions, migration, or hard-to-reverse architecture.
-- **Deferred deepening:** real design pressure, but not worth solving in this scope.
+- **Continue:** the interface remains sound.
+- **Local correction:** the defect stays within the current module.
+- **Diagnosis:** failure is repeated or unexplained and its cause is not supported.
+- **Spec or Plan revision:** accepted behavior or the execution boundary is incomplete.
+- **Owner decision:** resolving the pressure changes a user-owned outcome.
+- **Learning:** evidence cannot distinguish viable boundaries.
+- **Deepening:** a supported information-hiding improvement fits accepted scope.
+- **Deferred deepening:** pressure is real but not worth resolving now.
 
-## Signals And What They Usually Mean
+## Change Amplification
 
-### Shotgun Surgery
-
-Signal: one concept requires many unrelated edits.
+Pressure exists when one policy change requires unrelated edits across callers.
 
 Examples:
 
-- retry policy added to every route;
-- permission check copied into API, UI, and job worker;
-- billing grace-period logic repeated in webhook, email, and dashboard;
+- retry rules changed in every route;
+- permission semantics copied across API, UI, worker, and tests;
+- billing transitions encoded separately in webhook, email, and dashboard;
 - cache freshness flags threaded through callers.
 
-Likely issue: a likely-changing decision is not hidden behind a module.
+Name the decision causing the edits. Do not merely centralize the same choreography under a new name.
 
-Route:
+## Caller Protocol Growth
 
-- If behavior or scope is unsettled: Discuss or revise the owning Spec.
-- If behavior is settled but slice spreads edits: plan revision or refactor candidate.
-
-### Caller Choreography
-
-Signal: callers must perform steps in the right order.
-
-Examples:
+Pressure exists when callers must know or perform internal lifecycle steps:
 
 ```text
-open connection -> set retry -> register cleanup -> call provider -> translate error -> log metric
+configure -> open -> retry -> translate errors -> clean up -> publish evidence
 ```
 
-Likely issue: interface exposes implementation sequence.
+Related signals include:
 
-Better interface asks for outcome:
+- every correction adds another state or flag;
+- recovery instructions become part of ordinary use;
+- callers depend on paths, filenames, provider errors, or queue names;
+- a complete outcome becomes a public protocol of attempts and temporary states.
 
-```text
-deliverNotification(invitation)
-```
+Ask whether one operation can own the complete success and failure unit while publishing useful diagnostics separately.
 
-while the module owns retry, fallback, logging, cleanup, and provider errors.
+## Unowned Policy, State, Or Failure
 
-### Scattered Policy
+Pressure exists when no module owns:
 
-Signal: product or operational rules appear in many places.
+- a product or operational policy;
+- canonical state and its visibility point;
+- forbidden partial outcomes;
+- retry, degradation, escalation, or recovery behavior;
+- reconciliation after cancellation or partial completion.
 
-Examples:
+When choosing the behavior would affect product, security, privacy, permissions, billing, compatibility, public APIs, migration, or data loss, stop for an owner decision rather than selecting architecture around an invented answer.
 
-- billing downgrade timing in UI, webhook, worker, and tests;
-- notification fallback rules in every route;
-- authorization rules in frontend and backend separately;
-- migration compatibility gates inside individual callers.
+## Distorted Tests And Evidence
 
-Likely issue: policy is not localized.
+Pressure exists when tests:
 
-Stop if changing it would alter product, security, privacy, billing, permissions, public API, compatibility, or data-loss behavior.
+- reproduce caller choreography;
+- mock many helpers to verify one outcome;
+- depend on private lifecycle states;
+- protect machinery introduced by recent patches rather than accepted behavior;
+- prove rejection without checking forbidden writes or prior-state preservation.
 
-### Test Knows Too Much
+Do not automatically add mocks or internal seams. First ask whether the production interface owns the right behavior.
 
-Signal: tests assert implementation sequencing instead of behavior.
+An intentional internal test is not a defect merely because it observes internals. The concern is surrounding callers needing knowledge the module should hide.
 
-Examples:
+## Scope Growth
 
-- tests assert `sendEmail` then `logFailure` then `sendSms` in every route;
-- tests mock five helpers to verify one user-visible behavior;
-- tests duplicate retry counts and provider error types;
-- tests need private methods or internal state.
+Pressure exists when a bounded result unexpectedly requires a new subsystem, expands remaining work, pulls deferred capabilities into scope, or invalidates earlier verification.
 
-Likely issue: the production interface is not the right test seam.
+Return that evidence to Workflow. It may require simplifying, splitting, revising the owning artifact, deferring the deeper design, or stopping for direction.
 
-Do not automatically add mocks. Ask whether the module interface should own the behavior.
+## Common Interface Mismatches
 
-### Missing Failure Contract
+- **Pass-through wrapper:** renames a call without hiding policy or provider behavior.
+- **Leaky interface:** callers know infrastructure-specific details.
+- **God module:** unrelated decisions are collected behind one interface.
+- **Speculative seam:** indirection exists only for imagined variation.
+- **Edge-case patch stream:** related fixes repeatedly add states and caller rules.
 
-Signal: the happy path is planned, but failure modes, observers, state writes, fail-open/closed/degrade/escalate/retry behavior, recovery, or proof are left to each caller or implementer.
-
-Likely issue: failure behavior is part of the interface but has not been designed.
-
-Route:
-
-- If behavior changes product, security, privacy, billing, permissions, public API, compatibility, or data loss: owner decision.
-- If behavior is within scope but scattered: plan/spec revision or refactor candidate.
-- If proof is missing: verification gap before completion claims.
-
-### Caller-Knowledge Growth
-
-Signal: each fix adds another flag, state, path, ordering rule, retry instruction, cleanup step, or recovery fact that callers and tests must know.
-
-Likely issue: the interface is growing with the implementation instead of hiding it.
-
-Route:
-
-- stop adding contract detail;
-- inventory caller knowledge;
-- design materially different outcome-level interfaces;
-- use a learning slice if evidence cannot choose between them.
-
-### Contract-Surface Explosion
-
-Signal: an internal lifecycle becomes a public protocol of attempts, manifests, orphan states, retry links, grade modes, cache identities, or integrity steps.
-
-Likely issue: caller-owned outcome and internal protocol have been confused.
-
-Ask whether one operation can own the complete success/failure unit and publish diagnostics without exposing recovery choreography.
-
-### Tests Legitimize Machinery
-
-Signal: test count grows quickly, but most new tests protect states and mechanisms introduced by recent patches rather than accepted behavior.
-
-Likely issue: passing tests are making accidental complexity look required.
-
-Every architecture-bearing test should name its accepted requirement or measured failure. If deleting the mechanism also deletes its tests without weakening acceptance, the tests do not justify it.
-
-### Scope And Remaining-Work Growth
-
-Signal: completed slices increase the estimated remaining work, pull deferred capabilities into scope, require an unplanned subsystem, or invalidate earlier evidence.
-
-Likely issue: the milestone or plan has been invalidated even if each local change remains technically in scope.
-
-Return the evidence and options to Workflow: keep, simplify, split, defer, revise the owning Plan or Spec, or stop for owner direction.
-
-### Edge-Case Patch Stream
-
-Signal: each review pass finds another special case.
-
-Examples:
-
-- “also handle null phone”; then “also handle email bounce”; then “also handle duplicate invite”; then “also handle retry telemetry.”
-
-Likely issue: review is exposing missing behavior ownership, not isolated bugs.
-
-Route:
-
-- classify findings;
-- respect the review cap;
-- diagnose only when related findings suggest an unclear shared cause in discussion, source truth, the Spec or Plan, module shape, or reviewer context.
-
-### Pass-Through Wrapper
-
-Signal: a module mostly renames another call.
-
-Example:
-
-```ts
-function sendTeamInviteEmail(email, subject, options) {
-  return sendEmail(email, subject, options);
-}
-```
-
-Likely issue: shallow wrapper.
-
-Options:
-
-- delete it if it hides nothing;
-- deepen it by moving real policy behind it;
-- keep it only when it expresses a stable domain or compatibility interface with a source-backed reason to exist.
-
-### Leaky Interface
-
-Signal: callers know provider/database/cache internals.
-
-Examples:
-
-- callers catch Stripe-specific errors;
-- UI code knows database enum transitions;
-- API callers pass cache invalidation flags;
-- tests assert internal queue names.
-
-Likely issue: implementation detail leaked through interface.
-
-Route to design if leakage blocks safe change or verification.
-
-### God Module
-
-Signal: one file owns unrelated responsibilities.
-
-Examples:
-
-- route file validates input, applies policy, calls providers, logs metrics, and formats UI copy;
-- workflow module owns routing, vaulting, parsing, rendering, and config mutation.
-
-Likely issue: missing internal modules or seams.
-
-Do not split by file type alone. Split around hidden decisions and interfaces.
-
-### Speculative Seam
-
-Signal: interface/adapters/factory exist for only imagined future variation.
-
-Examples:
-
-- `PaymentProviderAdapterFactoryRegistry` when only Stripe exists and no migration is planned;
-- strategies for every small formatting function;
-- generic repository around a single simple query.
-
-Likely issue: indirection without leverage.
-
-Use the variation test: one adapter is hypothetical; two adapters or known upcoming variation justify a seam better.
-
-### Premature Artifact Detail
-
-Signal: spec or plan chooses exact classes, factories, tables, or algorithms before evidence exists.
-
-Likely issue: artifact is hiding uncertainty as implementation detail.
-
-Better:
-
-```text
-Tentative: likely need a policy-owning module if retry/fallback rules spread.
-Open: whether provider variation is real in this scope.
-Stop: revisit plan if slice requires touching every caller.
-```
-
-## Before / After Examples
-
-### Notification Retry
-
-Bad direction:
-
-```text
-Add retryCount to each route that sends notifications.
-```
-
-Pressure:
-
-- callers know retry policy;
-- fallback and telemetry are duplicated;
-- tests assert provider sequencing;
-- adding another provider touches every caller.
-
-Better direction:
-
-```text
-Introduce a notification delivery module whose interface accepts the notification intent and owns retry, fallback, provider errors, and telemetry.
-```
-
-Still ask owner decisions before changing user-visible delivery semantics.
-
-### Billing Grace Period
-
-Bad direction:
-
-```text
-Patch webhook to downgrade immediately, update email text, adjust dashboard copy.
-```
-
-Pressure:
-
-- billing policy spread across systems;
-- likely source-truth conflict with docs/tests;
-- user-owned billing behavior.
-
-Better direction:
-
-```text
-Stop at the decision gate. Decide billing policy first. Then localize policy behind a billing-state transition module if implementation spreads.
-```
-
-### Cache Freshness
-
-Bad direction:
-
-```text
-Thread forceRefresh through every caller.
-```
-
-Pressure:
-
-- callers know cache invalidation policy;
-- tests must set timing flags;
-- source truth may allow caching.
-
-Better direction:
-
-```text
-Discuss the expected freshness boundary. If source truth supports it, hide invalidation and freshness rules behind a cache-aware read interface.
-```
+A seam may still be justified by real variation, a known migration, or a required testing or observation boundary. The number of implementations is evidence, not a rigid rule.
 
 ## False Positives
 
-Do not overreact when:
+Do not escalate when:
 
-- a small repeated pattern is stable and local;
-- a one-off script does not need long-term depth;
-- a wrapper exists for public compatibility;
+- a stable repeated pattern remains small and local;
 - broad edits are mechanical and source-backed;
-- tests inspect internals only for an internal module whose interface is intentionally internal;
-- deeper design would expand scope beyond the user's goal.
+- a one-off script does not need long-term abstraction;
+- a wrapper preserves a real compatibility or domain contract;
+- an isolated condition is wrong but the interface remains valid;
+- resolving the pressure would exceed the user's goal without blocking it.
 
-When in doubt, classify as deferred design pressure rather than silently refactoring.
+Stop when the route is classified. Return the evidence and classification to the main skill; do not redesign automatically.

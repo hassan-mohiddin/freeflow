@@ -65,7 +65,7 @@ for expected in \
   "## Action Selection Cue" \
   "## Supported Exit" \
   "# Freeflow Interaction Contract" \
-  "Treat questions, criticism, examples, hypotheses, and tentative ideas as" \
+  "Questions, criticism, examples, hypotheses, and tentative ideas do not authorize action by themselves." \
   "Freeflow: active"; do
   assert_contains "$codex_output" "$expected" "configured core context"
 done

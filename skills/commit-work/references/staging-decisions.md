@@ -1,73 +1,106 @@
 # Staging Decisions
 
-Read this when changes or staged state are mixed, generated files or durable docs appear, existing staged ownership is unclear, broad commit/push language conflicts with diff evidence, or producing a narrow checkpoint may touch user-owned work.
+Read this when staged, unstaged, or untracked changes have mixed ownership or concerns; a path contains both included and excluded work; existing staged ownership is uncertain; generated, durable, sensitive, or suspicious files appear; or narrowing may require changing existing staged state.
 
-## Evidence First
+This reference determines what may enter the checkpoint. It does not establish commit authority, verification, review readiness, or permission to alter user-owned work.
 
-Inspect:
+## Classify The Changed Units
 
-- `git status --short`
-- `git diff --cached`
-- `git diff`
-- `git ls-files --others --exclude-standard`
+Classify at the path level only when the whole path has one role. Otherwise classify individual hunks.
 
-Diff evidence beats “staged means ready,” “commit everything,” “push all changes,” and “include every leftover.”
+- **Checkpoint content:** directly implements or proves the checkpoint claim.
+- **Required companion:** tests, documentation, schema, metadata, or generated output required for that same claim.
+- **Related but separable:** useful work that does not need to be preserved in this checkpoint.
+- **Unrelated or user-owned:** work outside the accepted outcome or whose ownership is not established.
+- **Sensitive or unsafe:** secrets, credentials, personal data, environment files, debug output, destructive state, or unexplained artifacts.
+- **Unclear:** content whose purpose, generator, ownership, or evidence relationship is not yet supported.
 
-## Classify Paths
+Only checkpoint content and required companions belong.
 
-For each changed path, classify:
+A broad request such as "commit everything" may authorize broad inclusion, but it does not remove the obligation to inspect unsafe, unclear, or unexpectedly unrelated content.
 
-- **Checkpoint:** directly implements or proves the intended slice.
-- **Required generated output:** repo convention or task requires it and its generator is known.
-- **Durable artifact:** Spec, policy, ADR, or Plan that belongs to the same accepted checkpoint while retaining its own authority and lifecycle.
-- **Durable continuation memory:** Working Record or Handoff describing the same checkpoint without becoming authority over live evidence.
-- **Related but separable:** useful work that should remain outside this checkpoint.
-- **Unrelated or user-owned:** not part of the current outcome.
-- **Sensitive or unsafe:** secrets, private data, debug output, destructive state, or unclear generated content.
+## Protect Existing Staged State
 
-Do not infer ownership from staging state.
+Existing staged changes may belong to another workflow.
 
-## Narrow Checkpoint
+Inspect them, but do not infer that they are intended merely because they are staged. Do not silently:
 
-A narrow commit is safe when:
+- absorb them into the checkpoint;
+- unstage or reset them;
+- amend them into another commit;
+- move them through a stash or temporary commit;
+- replace the index or use index tricks to bypass ownership ambiguity.
 
-- an explicit request, user-approved Plan, or explicitly approved discussion authorizes the local checkpoint;
-- its outcome and source requirement are clear;
-- every included path belongs to that outcome;
-- verification supports the claim represented by the commit;
-- selected review status is known and [Workflow](../../workflow/SKILL.md) supports the checkpoint route;
-- excluded changes can remain untouched without loss;
-- the final report names remaining dirty state.
+When intended and pre-existing staged work cannot be separated without manipulating ambiguous state, present the smallest safe options and ask which checkpoint the user wants.
 
-Plan approval does not prove that every current path belongs. Stage explicit paths or hunks. If narrowing requires unstaging, rearranging, regenerating, or modifying user-owned work, stop unless the user or repo workflow already authorized that operation.
+## Handle Partial Files Carefully
 
-## Mixed Concerns
+A file may contain both checkpoint and excluded hunks. Stage only the intended hunks when their behavior and evidence remain independently coherent.
 
-Separate changes when combining them harms review, diagnosis, or rollback, especially:
+Stop when:
 
-- behavior plus unrelated refactoring;
-- source code plus local debug output;
-- generated artifacts plus unexplained hand edits;
-- durable source-truth changes plus implementation that has not been confirmed;
-- security, privacy, billing, permissions, migration, data-loss, compatibility, or public API behavior plus unrelated work;
-- learning-slice evidence plus production changes that have not passed promotion criteria.
+- included and excluded hunks depend on each other;
+- partial staging would produce an invalid intermediate state;
+- verification ran against the combined working tree and excluded changes may have affected the result;
+- the staged version differs materially from the state that was reviewed or verified.
 
-A single coherent behavior with its tests and matching docs may belong together.
+Do not claim an isolated staged checkpoint is supported merely because the combined dirty worktree passed.
 
-## Generated Files
+## Include Generated Files Deliberately
 
-Commit generated files, snapshots, lockfiles, build outputs, or formatter changes only when the task or repo convention makes them part of the checkpoint.
+Include generated files, snapshots, lockfiles, formatter output, or build artifacts only when repository convention or the accepted outcome requires them.
 
-Name the generator or command that produced required output. Do not hand-edit generated files unless the repo explicitly expects it.
+Establish:
 
-## Durable Artifacts
+- which command or generator produced them;
+- whether their changes are expected from the accepted source change;
+- whether they are deterministic enough to review;
+- whether hand edits are prohibited;
+- whether their verification belongs to the checkpoint evidence.
 
-Specs, policies, and ADRs may govern behavior. Plans preserve approved strategy; Working Records and Handoffs preserve memory. Include any of them with code only when they belong to the same coherent checkpoint and their own maintenance rules support the change.
+Do not include generated output merely because it changed. Do not hand-edit it unless the repository explicitly expects that workflow.
 
-Do not revise a durable artifact merely to make the commit appear coherent. Return a material inconsistency to [Workflow](../../workflow/SKILL.md); use [Decision Gate](../../decision-gate/SKILL.md) when one user-owned choice or source conflict blocks the checkpoint.
+## Preserve Durable Artifacts Honestly
 
-## Existing Staged State
+A Spec, Plan, ADR, policy, public documentation file, or release artifact may have authority and maintenance rules independent of implementation.
 
-Existing staged changes may belong to another workflow. Inspect them, but do not silently unstage, amend, discard, or absorb them.
+Include it only when:
 
-When ownership remains ambiguous, present the smallest safe staging options and ask which checkpoint the user wants.
+- its change is explicitly covered;
+- it belongs to the same coherent checkpoint;
+- it describes the same accepted behavior;
+- its own maintenance policy permits the update.
+
+Do not edit a durable artifact merely to make implementation appear coherent. Return contradictions to [Workflow](../../workflow/SKILL.md).
+
+Working Records under `.freeflow/tasks/**` are ignored local memory and must never be staged or committed.
+
+## Reject Sensitive Or Suspicious Content
+
+Stop before staging:
+
+- secrets, tokens, credentials, private keys, or local environment files;
+- databases, dumps, recordings, or personal data;
+- unexplained binaries or generated archives;
+- logs, traces, screenshots, or debug output not explicitly required;
+- destructive state or files whose inclusion could expose or lose user data.
+
+Do not "clean up" suspicious files by deleting or discarding them. Preserve their state and report the exact paths.
+
+## Verify The Candidate
+
+After staging, compare all three states:
+
+```bash
+git diff --cached
+git diff
+git status --short --branch
+```
+
+The checkpoint is narrow only when:
+
+- the index contains exactly the intended checkpoint;
+- excluded work remains untouched;
+- remaining dirty state is understood;
+- verification still supports the staged version rather than only the combined worktree;
+- the final report can name everything left behind.

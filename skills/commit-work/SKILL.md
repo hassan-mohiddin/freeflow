@@ -1,106 +1,145 @@
 ---
-name: commit-work
-description: Use when committing work, including selecting and staging the intended changes, creating and verifying the commit, or explicitly pushing committed work.
+name: "commit-work"
+description: "Use when creating an explicitly requested or selected local Git commit, including staging its exact contents, verifying the resulting checkpoint, or performing a separately authorized simple push."
 ---
 
 # Commit Work
 
-Commit an intended, coherent checkpoint. A commit preserves rollback and provenance; it does not prove correctness or approve the next route.
+Preserve one supported repository state as a coherent local Git checkpoint.
 
-This skill covers commits and simple pushes, not branch integration, release, or deployment orchestration. Use [Finish Branch](../finish-branch/SKILL.md), [Release Work](../release-work/SKILL.md), or [Launch Work](../launch-work/SKILL.md) for those later jobs.
+Commit Work normally follows execution, verification, self-review, and any selected independent review. It preserves that supported state; it does not establish correctness, close the Slice, authorize another Slice, or imply push, integration, release, or launch.
 
-A local commit is authorized by an explicit user request, a checkpoint whose local-commit authority was explicitly granted through a user-approved Plan, or a checkpoint explicitly approved during discussion. A Working Record may preserve that authorization but cannot create it. Plan acceptance does not authorize push, integration, migration, deprecation, release, or launch.
+A commit is not mandatory merely because work finished. Enter only when the user explicitly requests a local commit or [Workflow](../workflow/SKILL.md) selects an authorized Local commit checkpoint.
 
-A planned checkpoint remains conditional on live state. Do not force it when its intended outcome, evidence, review status, or change boundary no longer holds; return the deviation to [Workflow](../workflow/SKILL.md).
+An explicitly requested preservation checkpoint may capture incomplete, failing, or inconclusive work. Describe that state honestly and do not treat the commit as permission to cross the unresolved boundary.
 
-A commit does not select or trigger independent review. Complete only review selected by Workflow, an approved Plan, or repository policy. Commit Work does not adjudicate findings or authorize corrections or follow-up review. Fresh verification is required for the claim the commit represents.
-
-Read [staging decisions](references/staging-decisions.md) when changes or staged state are mixed, generated files or durable docs appear, existing staged ownership is unclear, broad commit/push language conflicts with diff evidence, or producing a narrow checkpoint may touch user-owned work.
-
-## Route Check
+## Enter At The Commit Boundary
 
 Before staging, confirm:
 
-- the slice or work package has one coherent outcome;
-- source truth and owner decisions still support it;
-- fresh evidence supports the claim represented by the commit, or an explicitly requested preservation checkpoint names its incomplete claim honestly;
-- any selected review has ended, its adjudicated status is known, and Workflow supports the checkpoint route;
-- no unresolved blocker, required evidence gap, or route-changing assumption is hidden by the checkpoint claim;
-- the checkpoint remains authorized and useful for rollback, integration, handoff, or repository workflow.
+- local commit authority is explicit and still valid;
+- the checkpoint has one coherent claim;
+- the request, accepted decisions, and live changes still describe the same outcome;
+- fresh evidence supports the exact state being preserved, or this is an explicitly requested preservation checkpoint;
+- any selected independent review is complete and its material findings are adjudicated;
+- no unresolved decision, source conflict, or required evidence gap is hidden by the checkpoint claim.
 
-When review or evidence leaves unresolved work, return it to Workflow rather than deciding readiness here. If the user explicitly requests a preservation checkpoint of incomplete, unverified, blocked, or inconclusive work, label that state honestly and include only what is safe and useful to preserve. The commit does not authorize crossing the unresolved boundary.
+A Working Record may preserve checkpoint selection and authority but cannot create them. Approval to implement does not imply approval to commit.
 
-## Inspect
+Commit Work verifies fidelity between the supported state and the Git checkpoint. It does not dispatch missing review, repair implementation, or generate missing behavioral evidence. Return those needs to Workflow.
 
-Inspect before staging or committing:
+## Inspect The Candidate State
+
+Inspect before changing the index:
 
 ```bash
-git status --short
+git status --short --branch
+git status
 git diff
 git diff --cached
 git ls-files --others --exclude-standard
 ```
 
-Diff evidence beats “staged,” “commit everything,” “push all,” “exactly as-is,” or “do not leave leftovers.” Treat unrelated changes as user-owned until proven otherwise.
+Inspect submodule state when status reports a changed submodule.
 
-## Stage Narrowly
+Read [Staging Decisions](references/staging-decisions.md) when:
 
-Stage explicit paths or hunks that implement the coherent checkpoint.
+- staged, unstaged, or untracked changes have mixed ownership or concerns;
+- a path contains both intended and excluded changes;
+- existing staged ownership is uncertain;
+- generated, durable, sensitive, or suspicious files appear;
+- narrowing the checkpoint may require changing existing staged state.
 
-Avoid `git add .` and `git add -A` when unrelated, unreviewed, generated, sensitive, or user-owned changes are present.
+Read [Git State Edges](references/git-state-edges.md) when Git reports an in-progress operation, unmerged paths, detached `HEAD`, submodule ambiguity, or an empty candidate; a requested commit would amend, be empty, or bypass hooks; or any commit or hook fails.
 
-Verify existing staged changes rather than inheriting them blindly. Do not unstage, rearrange, discard, or overwrite user-owned changes merely to manufacture a clean commit without permission.
+Treat staged state as evidence of index contents, not evidence of ownership, intent, verification, or readiness.
 
-## Stop
+## Build The Exact Checkpoint
 
-Stop before commit or push when:
+Stage only paths or hunks required to make the checkpoint claim true.
 
-- included changes are unrelated, unreviewed when review is required, or outside the accepted outcome;
-- staged and unstaged edits make commit ownership ambiguous;
-- logs, debug output, secrets, generated artifacts, lockfiles, or formatter churn lack evidence they belong;
-- durable docs and implementation describe different behavior or authority;
-- verification failed or proves less than the commit message would claim;
-- the commit mixes separable concerns in a way that harms review, diagnosis, or rollback;
-- product, security, privacy, billing, permissions, data-loss, compatibility, public API, migration, or architecture behavior changed without an explicit decision.
+Broad staging commands are acceptable only when every changed path has been inspected and belongs to the same checkpoint. Otherwise stage explicit paths or hunks.
 
-Use [Decision Gate](../decision-gate/SKILL.md) when the safe commit path depends on an owner or source-truth decision. If a clean narrow commit is possible without touching unrelated work, prefer it and report what remains.
+Do not silently unstage, rearrange, discard, overwrite, or absorb user-owned work to manufacture a clean commit.
 
-## Commit Shape
+After staging, inspect the exact candidate:
 
-Keep the checkpoint independently understandable and revertible.
+```bash
+git diff --cached
+git diff --cached --check
+```
 
-Use the repo's established message style. Otherwise use a short imperative subject. Add a body only when source context, tradeoffs, residual risk, or the reason for the checkpoint would not be clear from the diff.
+Confirm:
 
-Reference specs, plans, ADRs, issues, or decisions only when they materially explain the change. Do not invent metadata conventions.
+- every staged path and hunk belongs;
+- required tests, documentation, generated outputs, or metadata are present;
+- no unrelated, sensitive, unexplained, or user-owned content is included;
+- the staged diff is non-empty unless an empty commit was explicitly requested;
+- the commit claim does not exceed available verification and review evidence;
+- excluded working-tree changes do not invalidate evidence for the staged checkpoint.
 
-A learning-slice commit must distinguish diagnostic or exploratory output from production behavior. A deepening commit should not silently change behavior. A delivery commit should name the behavior it adds or changes.
+Interpret `git diff --cached --check` against repository conventions. Unresolved conflict markers or unintended whitespace damage stop the commit; do not edit content merely to silence the command.
 
-## Push
+If producing the exact checkpoint requires source changes, additional evidence, or a user-owned staging decision, return to Workflow rather than performing that work here.
 
-Push only inspected commits when the user request and branch state make the route clear.
+## Create The Commit
 
-Before pushing, inspect branch, upstream, remote, and ahead/behind state. Stop before protected/shared branches, upstream changes, force pushes, remote-history rewrites, divergence, or release/PR decisions that were not explicitly requested.
+Use the repository's established commit-message style. Otherwise use a short imperative subject describing the actual checkpoint, not the wider task ambition.
 
-Use `--force-with-lease` only for an intended rewrite of the user's own branch with explicit approval and supporting branch evidence.
+Add a body only when the diff does not adequately explain material context, tradeoffs, residual risk, or why incomplete state is being preserved. Reference existing issues, Specs, Plans, or decisions only when they materially explain the checkpoint. Do not invent trailers or metadata conventions.
+
+Create an ordinary local commit from the inspected index.
+
+Do not use `--amend`, `--allow-empty`, or `--no-verify` by implication. Read Git State Edges when one is explicitly requested or becomes relevant.
+
+If a hook fails, changes files or the index, or makes prior evidence stale, do not bypass or blindly retry it. Inspect the resulting state through Git State Edges.
 
 ## Verify The Checkpoint
 
-After commit or push, inspect:
+After Git reports a successful commit, inspect:
 
 ```bash
-git show --stat --oneline --name-only HEAD
-git status --branch --short
+git show --stat --oneline --decorate HEAD
+git show --format= --name-status HEAD
+git status --short --branch
 ```
+
+Confirm that:
+
+- the intended commit was created;
+- its subject and contents represent the checkpoint claim;
+- no unexpected staged, unstaged, or untracked state resulted;
+- remaining changes are known and were not silently absorbed.
 
 Report:
 
 - commit SHA and subject;
-- what the checkpoint contains;
-- verification and review evidence;
-- push result when applicable;
-- remaining staged, unstaged, untracked, unpushed, or unverified work;
-- recommended next route.
+- the checkpoint claim and included scope;
+- verification and selected-review evidence;
+- whether the commit is complete or an honest preservation checkpoint;
+- remaining staged, unstaged, untracked, unverified, or unpushed work;
+- any hook, signing, identity, or repository limitation;
+- the route returned to Workflow.
 
-When a Working Record exists, use [Track Work](../track-work/SKILL.md) to record the commit SHA, checkpoint result, remaining state, and next useful action.
+Return the checkpoint result to Workflow. When a Working Record exists, Workflow may route [Track Work](../track-work/SKILL.md) to record `commit:<sha>`, settle the selected checkpoint, and reconcile the Current Slice.
 
-Do not continue to the next slice, push, or integrate merely because the commit succeeded. Return the result to [Workflow](../workflow/SKILL.md), or use [Finish Branch](../finish-branch/SKILL.md) when branch closeout is selected.
+Do not stage leftovers, begin another Slice, push, integrate, release, or clean up merely because the commit succeeded.
+
+## Push Only When Separately Authorized
+
+A local commit does not authorize push.
+
+Before any push, read [Simple Push](references/simple-push.md). Use [Finish Branch](../finish-branch/SKILL.md) instead when the request involves integration, pull-request strategy, branch cleanup, history rewriting, or choosing among branch-closeout routes.
+
+## Stop
+
+Stop and return the smallest blocking fact when:
+
+- commit authority or the checkpoint claim is unclear;
+- live changes no longer match the supported outcome;
+- selected review or required evidence remains unresolved;
+- the exact checkpoint cannot be staged without manipulating ambiguous user-owned state;
+- sensitive or unexplained content may be included;
+- Git is in a non-ordinary state whose intended outcome is unsettled;
+- creating the commit would require implementation changes, evidence generation, hook bypass, amendment, or history rewriting outside explicit authority;
+- push destination, upstream, or remote-history effect is unclear.

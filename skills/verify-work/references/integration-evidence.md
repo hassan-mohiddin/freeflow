@@ -1,6 +1,6 @@
 # Integration Evidence
 
-Read this before selecting or running evidence when a claim depends on a registered callback or executor, host lifecycle, producer invocation, fallback protocol, installed package, absence counter, or a check that may mutate shared state.
+Read this before selecting or running evidence when a claim depends on a registered callback or executor, host lifecycle, producer invocation, fallback protocol, installed package, or absence counter.
 
 ## Match The Boundary
 
@@ -27,12 +27,6 @@ A zero value proves absence only when:
 - failure did not bypass or disable observation.
 
 Prefer an adversarial disproof: bypass the producer, forge or replay the event, call the helper directly, or resolve code from the checkout instead of the installed root. The proof should fail before downstream work when the claimed boundary was not crossed.
-
-## Compare Mutation Footprints
-
-Before running checks concurrently, compare what each check may write or remove. Run checks serially when they share generated directories, caches, build outputs, package roots, fixture state, ports, databases, or intentional stale-artifact files.
-
-A concurrency-induced red signal is orchestration evidence, not automatically an implementation defect. Reproduce it under a non-overlapping or serial schedule before changing production code.
 
 ## Claim Map
 

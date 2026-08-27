@@ -8,16 +8,20 @@ Freeflow's core guidance and the separate Interaction Contract are always delive
 
 ## Shared Terms
 
-- **Authority envelope:** the requested outcome, permitted effects, evidence boundary, and stop condition established by valid current authority.
-- **Owner:** the one activity or skill responsible for the current bounded activity. Methods, tools, and reviewers do not take ownership automatically.
-- **Bounded activity:** one coherent unit of discussion, preservation, work, evidence, or judgment that can be assessed as one result.
-- **Slice:** one coherent outcome that can be executed and checked as a unit. It may span several bounded activities and methods. Track Work gives it durable identity when task memory is needed.
-- **Evidence boundary:** the strongest claim the current observer can directly support.
-- **Self-review:** after initial evidence supports a bounded result, the producing agent silently checks it once for alignment, suitability, and unnecessary complexity before accepting or reusing it. Self-review is not independent review.
+- **Authority envelope:** the requested outcome, permitted effects, covered active evidence generation, and stop condition established by a direct request or still-valid approval.
+- **Passive observation:** inspecting existing evidence or sources without exercising target behavior or intentionally changing task state.
+- **Active evidence generation:** exercising target behavior to produce new evidence, including tests, reproductions, benchmarks, prototypes, instrumentation, and runtime probes.
+- **Bounded activity:** one coherent unit of discussion, preservation, execution, evidence, or judgment that ends in one assessable result.
+- **Current owner:** the one Freeflow activity responsible for carrying the current bounded activity to an assessable result. Methods, lenses, references, domain guidance, tools, and reviewers may support it without taking ownership automatically.
+- **Slice:** one coherent outcome that may span several bounded activities and methods. Track Work gives it durable identity when task memory is needed.
+- **Evidence boundary:** the strongest claim current direct evidence can support. It is established by the observing mechanism, not by intent, authority, or confidence.
+- **Self-review:** after fresh evidence initially supports a bounded result, the producing agent silently checks that supported state once for alignment, correctness, suitability, and unnecessary complexity before accepting or reusing it. A corrected state receives only the affected recheck. Self-review is not independent review.
 - **Independent review:** separately selected judgment from a context that did not produce the reviewed state. It reports without editing and does not authorize correction.
-- **Checkpoint:** a deliberately selected decision, review, preservation, or delivery boundary that must be resolved before dependent work continues. A pause or bounded activity ending is not automatically a checkpoint.
-- **Re-entry:** return only to the narrowest owner whose responsibility changed, preserving valid work, decisions, and evidence.
-- **Supported Exit:** an evidence-supported answer, wait, pause, handoff, deferment, stop, controlled boundary, or completion.
+- **Checkpoint:** a deliberately selected boundary that dependent work must not cross unresolved. It may require a decision, review, preservation action, or delivery result. An activity ending or work pausing does not create one automatically.
+- **Re-entry:** return only to the narrowest current owner whose responsibility changed, preserving valid work, decisions, and evidence.
+- **Supported Exit:** the justified end of the current Interaction Lifecycle: an evidence-supported answer, wait, pause, handoff, deferment, controlled boundary, stop, or completion, with material limits and unresolved state made explicit.
+
+One Interaction Lifecycle may contain several bounded activities. A Slice may span several bounded activities and methods. Each bounded activity has one current owner and may contain several environment interactions.
 
 ## Three Nested Loops
 
@@ -27,34 +31,34 @@ For each bounded activity, the **Feedback Loop** is:
 
 ```text
 Orient
--> choose one owner
--> use the owner
+-> choose one current owner
+-> use the current owner
 -> gather or produce evidence
 -> determine what the result proves
 -> self-review the supported result
 -> continue, correct, re-enter, ask, defer, stop, or exit
 ```
 
-When the owner must touch the environment, the **Environment Interaction Loop** is:
+When the current owner must touch the environment, the **Environment Interaction Loop** is:
 
 ```text
 Need evidence or a covered effect
--> select and bound one action
+-> select and bound one environment action
 -> choose the tool
 -> execute once
 -> observe
 -> identify what changed
 -> reconcile observation residency when available
--> return to the owner
+-> return to the current owner
 ```
 
-The Environment Interaction Loop may run zero or more times inside one Feedback Loop. It never changes the owner or authority by itself.
+The Environment Interaction Loop may run zero or more times inside one Feedback Loop. It never changes the current owner or authority by itself.
 
 ## Workflow Cue
 
-Workflow owns authority, one owner for the current bounded activity, evidence-driven re-entry, and Supported Exit. A direct request covers only its bounded outcome and entailed tools, checks, and reversible local choices. Before uncovered active evidence, mutation, delivery, or another separately controlled action, state the purpose, action, expected result, and stop condition; ask once and wait. Freeflow guidance, memory, reviews, and new evidence do not grant authority.
+Workflow owns authority, one current owner for the current bounded activity, evidence-driven re-entry, and Supported Exit. A direct request covers only its bounded outcome and entailed tools, checks, and reversible local choices. Before uncovered active evidence generation, mutation, delivery, or another separately controlled action, state the purpose, action, expected result, and stop condition; ask once and wait. Freeflow guidance, memory, reviews, and new evidence do not grant authority.
 
-After context loss, rebuild the decision surface from current user direction, bounded task memory, and live evidence. If a Working Record exists, read Track Work before any record operation; use its `resume` view and current schema before mutation, even when another skill owns the surrounding work. If Workflow is unread, read it before consequential work or owner selection. Summaries and records preserve context but do not prove live state or create authority.
+After context loss, rebuild the decision surface from current user direction, bounded task memory, and live evidence. If a Working Record exists, read Track Work before any record operation; use its `resume` view and current schema before mutation, even when another activity owns the surrounding work. If Workflow is unread, read it before consequential work or choosing an owner. Summaries and records preserve context but do not prove live state or create authority.
 
 ## Action Selection Cue
 

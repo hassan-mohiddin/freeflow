@@ -1,6 +1,6 @@
 # Simplification Patterns
 
-Read this before choosing a simplification transformation or deciding whether deletion really reduces complexity. Use these patterns as candidates, not automatic rules. Preserve behavior and project conventions.
+Read this before selecting or materially changing a simplification transformation. Use these patterns to compare candidates for the named complexity; they do not authorize another result or guarantee that fewer constructs are simpler. Preserve behavior and project conventions.
 
 ## Control Flow
 

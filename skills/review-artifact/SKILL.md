@@ -1,128 +1,189 @@
 ---
 name: review-artifact
-description: Use when reviewing durable task memory, a spec, PRD, issue, API contract, technical design, migration contract, plan, decision record, ADR, handoff, or another durable artifact for fitness to guide its intended use.
+description: Use when judging whether a durable artifact is aligned, sufficient, and fit to guide its intended use through self-review, independent review, or adjudication of a returned artifact review.
 ---
 
 # Review Artifact
 
-Judge whether an artifact is aligned, sufficient, and fit to guide its intended use.
+Judge whether a durable artifact is aligned, sufficient, and fit to guide a named intended use.
 
-## Choose The Review Role
+Review provides judgment. [Verify Work](../../skills/verify-work/SKILL.md) establishes what direct evidence proves when factual claims require active verification. Review may find evidence insufficient, but it does not replace verification, settle owner decisions, or authorize revision.
 
-Choose the role before reviewing:
+## Select One Route
 
-- **Self-review:** you produced the artifact. Inspect it silently using the relevant boundary and lenses below. Correct clear local issues within existing authority. Create no formal review items, judgment, number, or cycle. Return unresolved material issues to [Workflow](../workflow/SKILL.md).
-- **Independent review:** you did not produce the reviewed state. Inspect and report without editing. Use the formal item, judgment, and report method below. The receiving active agent adjudicates and routes the result.
+Choose the route before reviewing:
 
-Reading this skill does not create independence. If you produced the artifact, do not present your own judgment as independent review. Read the [Independent Artifact Reviewer Contract](references/independent-artifact-reviewer-contract.md) when preparing or performing a separately selected independent review.
+- **Self-review:** you produced the reviewed artifact state.
+- **Independent review:** you did not produce the reviewed state and are reviewing from a separate context.
+- **Adjudication:** an independent reviewer returned a report and you are deciding what its findings establish and what follows.
+
+Self-review and independent review use the same artifact review kernel below. Adjudication consumes a completed review; it is not another review.
+
+Do not cross roles inside an independent reviewer context. The independent reviewer reports and stops. The receiving agent may then enter adjudication.
 
 ## Establish The Boundary
 
-Understand:
+Identify only what the judgment needs:
 
-- artifact type, current state, and intended use;
-- accepted outcome, requirements, and non-goals;
-- owner decisions and unresolved questions;
+- artifact path, type, exact reviewed state, and intended use;
+- accepted outcome, requirements, non-goals, and owner decisions;
+- unresolved questions and known evidence gaps;
+- the artifact's job and any governing schema or format contract;
 - relevant code, tests, policies, ADRs, and established behavior;
-- upstream and downstream artifacts;
-- evidence gaps and prior review when applicable.
+- upstream and downstream artifacts in dependency order;
+- risks capable of changing whether the artifact may guide its intended use.
 
-Review the complete current artifact, not only its summary, change description, or author's reasoning. Review upstream authority before dependent artifacts. If an upstream issue invalidates downstream assumptions, mark affected material contingent instead of generating exhaustive findings against an unresolved basis.
+Review the complete current artifact and source truth directly. Do not judge only its summary, change description, or producer reasoning.
 
-Review Artifact owns the intended-use boundary, lenses, and judgment. When source or dependency inspection branches among several plausible observers or is likely to be broad, use [Action Selection](../action-selection/SKILL.md) to choose and bound one environment interaction. It returns evidence to the same review role. Skip it for an obvious artifact, dependency, or source-truth read.
+Review upstream authority before dependent artifacts. When an upstream problem invalidates downstream assumptions, mark affected material contingent instead of generating exhaustive downstream findings against an unsettled basis.
 
-When reviewing a Working Record, read [Track Work](../track-work/SKILL.md), which owns its format and lifecycle.
+When reviewing a Working Record, first read [Track Work](../../skills/track-work/SKILL.md), which owns its format and lifecycle.
 
-## Judge The Artifact By Its Job
+When inspection could branch broadly among several useful sources or dependencies, use [Action Selection](../../skills/action-selection/SKILL.md). Skip it for an obvious artifact, schema, dependency, or source-truth read.
 
-- **Working Record:** living task memory with accurate current state, recoverable slices and decisions, compact evidence pointers, and one next useful action.
-- **Spec or durable content artifact:** accepted content, behavior, boundaries, evidence, and uncertainty needed for its stated use.
-- **Plan:** an inspectable ordered strategy with scope, dependencies, assumptions, checks, and stop conditions.
-- **Decision record or ADR:** decision, owner, alternatives, rationale, consequences, and revisit or supersession conditions.
-- **Handoff:** a point-in-time continuation package that preserves what its recipient needs without replacing live task memory.
-- **Other artifact:** its stated purpose without taking over another artifact's job.
+## Apply The Shared Artifact Review Kernel
 
-## Review Proportionately
-
-Apply only lenses that can materially change fitness:
+Use only lenses capable of changing fitness for the intended use:
 
 - **Source alignment:** agrees with accepted requirements, owner decisions, and live facts.
 - **Fitness and sufficiency:** contains enough for its intended use without pretending every future question is settled.
 - **Decision clarity:** required, tentative, open, deferred, and superseded information cannot be confused.
 - **Evidence and acceptance:** load-bearing claims and acceptance conditions have suitable supporting or falsifying mechanisms.
 - **Behavior and failure contract:** consequential states, forbidden outcomes, observers, and recovery are explicit where required.
-- **Dependency integrity:** upstream and downstream artifacts remain consistent; provisional work is identified honestly.
+- **Dependency integrity:** upstream and downstream artifacts remain consistent; provisional or contingent work is identified honestly.
 - **Scope and minimality:** avoids speculative design, unnecessary process, and hypothetical completeness.
 - **Clarity and continuity:** a future reader can use it without transcript memory or volatile copied context.
 
-A pass is valid. Do not invent items, require exhaustive edge cases, report wording or filename preferences, reopen intentional deferrals, or demand evidence needed only for a later boundary.
+Review the artifact's resulting state, not the producer's intention. Use a high evidence bar, not a high item count. Finding no material issue is valid.
 
-## Classify Independent Review Items
+### Judge The Artifact By Its Job
 
-- **Blocking Issue:** a supported defect, inconsistency, omission, or risk that must be resolved before the artifact guides its intended use.
-- **Non-blocking Issue:** a real issue that can be deferred safely for this boundary.
-- **Question:** material intent, requirements, or an owner decision is unclear.
-- **Needs evidence:** a load-bearing claim or condition cannot be established.
-- **Improvement:** a materially useful enhancement not required by this boundary. It does not affect judgment or authorize revision.
+- **Working Record:** accurate living task memory with recoverable slices and decisions, compact evidence pointers, and one next useful action.
+- **Spec or durable content artifact:** accepted content, behavior, boundaries, evidence, and uncertainty needed for its stated use.
+- **Plan:** an inspectable ordered strategy with scope, dependencies, assumptions, checks, and stop conditions.
+- **Decision record or ADR:** the decision, owner, alternatives, rationale, consequences, and revisit or supersession conditions.
+- **Handoff:** a point-in-time continuation package that preserves what its recipient needs without replacing live task memory.
+- **Other artifact:** its stated purpose without taking over another artifact's job.
 
-A Blocking Issue must name the exact location, violated source truth or artifact responsibility, evidence, concrete consequence for intended use, and smallest safe revision or owning activity to re-enter.
+Do not require one artifact to perform another artifact's job.
 
-1. **Blocking:** one or more Blocking Issues exist.
+### Classify Before Calling Something An Issue
+
+Ask in order:
+
+1. **Does fitness for the intended use depend on content, source truth, or an owner decision that remains unsettled?**
+   - Yes: **Question**.
+2. **Does fitness depend on a load-bearing claim or condition that available evidence cannot establish?**
+   - Yes: **Needs evidence**.
+3. **Is there a supported artifact defect that requires revision for the intended use?**
+   - Yes, and the artifact cannot safely guide that use: **Blocking Issue**.
+   - Yes, but revision can be deferred safely: **Non-blocking Issue**.
+4. **Would the change merely make the artifact more useful beyond its intended use?**
+   - Omit it by default.
+   - Use **Improvement** only when materially relevant or explicitly requested.
+
+A material **Needs evidence** observation must name the load-bearing claim or condition, required observing boundary, available evidence and its limit, why the gap affects intended-use fitness, and the smallest evidence that could disagree.
+
+Do not turn wording preferences, exhaustive edge cases, intentional deferrals, polished presentation, or hypothetical completeness into Issues.
+
+An Issue must identify:
+
+- the exact location or affected dependency;
+- the violated source truth or artifact responsibility;
+- supporting evidence;
+- the concrete consequence for the intended use.
+
+For a Blocking Issue, state why the artifact cannot safely guide its intended use. Describe revision constraints or the owning activity to re-enter. Recommend a specific revision only when source intent and dependency effects support it rather than one of several material alternatives.
+
+## Self-Review
+
+Apply the complete shared kernel to an artifact you produced. Self-review uses the same substantive scrutiny as independent review but does not create independence.
+
+When evidence supports a clear local artifact defect, the revision basis is settled, and existing authority covers the revision:
+
+1. return to the artifact's owning activity;
+2. revise the defect without changing accepted intent;
+3. reconcile affected dependencies;
+4. re-verify affected load-bearing factual claims at their required observing boundaries;
+5. re-check source alignment and the affected review lenses once.
+
+Do not create formal review items, a judgment, a review number, or a review cycle for self-review. Do not label it independent.
+
+Do not settle an owner decision, revise upstream authority, or change accepted content merely to make the artifact internally consistent. Return unresolved material issues to [Workflow](../../skills/workflow/SKILL.md). Use [Discuss](../../skills/discuss/SKILL.md) when accepted content or strategy needs reconsideration, [Decision Gate](../../skills/decision-gate/SKILL.md) for a user-owned choice or source conflict, and [Diagnose Failure](../../skills/diagnose-failure/SKILL.md) when an artifact relies on an unsupported or repeated failure cause.
+
+## Independent Review
+
+Before preparing or performing a separately selected independent review, read the [Independent Artifact Reviewer Contract](references/independent-artifact-reviewer-contract.md).
+
+Use supplied and already available evidence. Do not start a missing active check unless the review authority explicitly covers that exact check. Otherwise report **Needs evidence** with the load-bearing claim and required observing boundary. When an exact check is covered, apply Verify Work's check-result and claim-result semantics; the review still owns the intended-use fitness judgment.
+
+Inspect and report without editing. Do not:
+
+- adjudicate your own findings;
+- settle owner decisions;
+- select among materially different revisions;
+- revise the artifact or dependencies;
+- dispatch another review;
+- continue merely to obtain Pass.
+
+The independent review ends with its report.
+
+Independent judgments are:
+
+1. **Blocking:** at least one Blocking Issue exists.
 2. **Inconclusive:** no Blocking Issue exists, but a material Question or Needs evidence item prevents judgment.
 3. **Non-blocking:** only Non-blocking Issues remain.
-4. **Pass:** no Issues or material Unresolved items remain. Improvements may still be reported.
+4. **Pass:** no Issues or material unresolved items remain.
 
-Pass, Non-blocking, Inconclusive, and Blocking are all valid review exits. A review ends with its report; it does not remain active until the artifact passes.
+Improvements do not change the judgment or authorize revision.
 
-## Adjudicate Independent Review And Route
+## Adjudicate A Returned Review
 
-After independent review, the receiving active agent adjudicates each material item against the artifact, source truth, and evidence rather than forwarding the report:
+Before adjudicating an independent report, read [Adjudicate Artifact Review](references/adjudicate-artifact-review.md).
 
-- **Accepted:** supported and applicable. State the actual artifact problem, consequence for its intended use, and whether the revision basis is supported or uncertain.
-- **Rejected:** unsupported, stale, resolved, duplicate, preference-only, outside the artifact's job, or based on a source misread. State why.
-- **Open:** a question or evidence gap prevents acceptance or rejection. State the concern, potential consequence, and missing evidence or decision.
+Assess every material item against the artifact, source truth, dependencies, and available evidence:
 
-A reviewer's suggested revision may bound an item, but it does not settle source intent or select the revision. Confirm whether each accepted Issue is Blocking or Non-blocking, derive the adjudicated judgment, and do not accept the reviewer's overall judgment separately.
+- **Accepted:** supported and applicable.
+- **Rejected:** unsupported, stale, resolved, duplicate, preference-only, outside the artifact's job, or based on a source misread.
+- **Open:** missing evidence or an owner decision prevents acceptance or rejection.
+
+Do not separately accept the reviewer's overall judgment. Derive the adjudicated judgment from the dispositions.
+
+Findings are evidence, not commands or revision authority.
 
 - **Pass:** use the artifact for its intended purpose.
 - **Non-blocking:** use it with explicit deferrals.
-- **Inconclusive:** gather the missing evidence or decision.
-- **Blocking:** do not use the artifact across the blocked boundary; re-enter its narrowest owner, defer, or stop.
+- **Inconclusive:** obtain the missing evidence or decision.
+- **Blocking:** do not use the artifact across the blocked boundary; select the narrowest owning route.
 
-### Decide Whether Independent-Review Revision Is Ready
+When revision is ready, state the supported artifact problem, proposed revision, rationale, dependency impact, verification boundary, authority state, and whether focused follow-up review remains justified. Actual revision returns through [Workflow](../../skills/workflow/SKILL.md) to the artifact's owning skill.
 
-A revision is ready when the artifact's job, the problem and consequence, and enough source or decision basis support a bounded revision. When the issue and source are clear, the revision local, affected dependencies known, and no material alternative or user choice remains, include adjudication and revision in the same assistant response.
+## Limit Independent Review
 
-Use the current response for a separate problem checkpoint when findings interact, source intent or dependency effects remain uncertain, accepted content or strategy is challenged, materially different revisions remain, the artifact relies on an unsupported failure cause, or user input could change the approach:
+Treat review count as a budget, not a schedule.
 
-1. Report the adjudication, problem and consequence, revision-basis status, settled constraints, and controlling question or evidence.
-2. Name [Discuss](../discuss/SKILL.md), [Diagnose Failure](../diagnose-failure/SKILL.md), [Decision Gate](../decision-gate/SKILL.md), evidence gathering, or the artifact's affected owner as the next route, then stop and wait.
+- **Review 1:** the first selected independent review; broad by default.
+- **Review 2:** a separately selected focused follow-up when accepted revisions, new evidence, affected dependencies, or remaining risk still require independent judgment.
+- **Review 3:** exceptional, separately authorized, and final. Use it only after the revision basis and dependency boundary are understood.
 
-Continue revision selection only when a later user turn or new evidence supplies enough support. Do not request revision authority before selecting a direction or wait for the user to elicit the missing analysis. The checkpoint is not another review and creates no revision or dispatch authority.
+A review report always ends its review. Revision does not automatically authorize or require follow-up review.
 
-A revision-ready route states the proposed revision and rationale, dependency impact, verification boundary, whether focused follow-up is needed, and authority status. Findings are evidence, not commands, and do not authorize revision. Accepted revisions return to the artifact's owning skill and may remain in the same [Track Work](../track-work/SKILL.md) slice while its intended result stays coherent.
+If Review 2 remains Blocking:
 
-Use existing revision authority when it covers the result. Otherwise ask once for the revision and any warranted focused follow-up; omit follow-up when direct source evidence can settle the changed boundary. Then wait; do not revise or dispatch a follow-up from the request itself. Run follow-up only when the changed boundary or affected dependencies still need independent judgment and that dispatch is authorized. Do not revise source truth, accepted intent, or owner decisions merely to satisfy a reviewer or obtain Pass.
+- diagnose when the blocker repeats, extends, invalidates, or exposes another consequence of prior revision, or when its basis remains uncertain;
+- return an independent clear local artifact defect to its owner when diagnosis would add no useful understanding;
+- do not automatically revise and dispatch Review 3.
 
-## Limit The Review Cycle
+Do not request Review 4. A different reviewer, local revision, or renamed intended use does not reset the budget. Workflow may establish a new cycle only for a materially new artifact state and intended-use boundary.
 
-For one independently reviewed artifact state and intended-use boundary:
+Self-review does not consume this budget.
 
-1. Review 1 is the normal broad review.
-2. Review 2, when needed and authorized, focuses on accepted revisions, affected dependencies, and remaining risk.
-3. Review 3 is exceptional, separately authorized, and final.
+## Stop
 
-The budget is a cap, not dispatch authority. Do not request Review 4; return control to Workflow at the cap.
+Stop when the selected route has produced its bounded result:
 
-After Review 2 is adjudicated Blocking, stop before another revision or Review 3:
+- self-review: the supported artifact state is accepted or a material issue is routed;
+- independent review: the report is complete;
+- adjudication: material items are disposed and the next route is explicit.
 
-- If the blocker repeats, extends, invalidates, or exposes another consequence of the prior revision, or its cause remains unsupported, read [Diagnose Failure](../diagnose-failure/SKILL.md) and diagnose the shared cause first.
-- If it is an independent clear local defect with a supported cause, return to the artifact's owner and state why diagnosis is unnecessary.
-
-Diagnosis follows adjudicated evidence, not reviewer judgment alone. Review 3 is final judgment after the cause and revision boundary are understood, not another attempt to discover them through revisions. Workflow may establish a new cycle only for a materially new reviewed state and intended-use boundary; local edits, a different reviewer, or renamed scope do not reset it.
-
-## Report
-
-For self-review, report no formal result. Correct clear local issues and surface only unresolved material issues that change fitness or route.
-
-For independent review, use the [Independent Artifact Reviewer Contract](references/independent-artifact-reviewer-contract.md) and stop with its report. The receiving agent then reports the reviewer and adjudicated judgments, each material item's outcome and reason, and either the problem checkpoint or revision-ready route defined above. Omit empty groups and support the result with source or evidence rather than confidence.
+Do not review until Pass, use review to authorize revision, or turn optional improvement into unfinished work.

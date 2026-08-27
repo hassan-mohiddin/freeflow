@@ -1,128 +1,171 @@
 ---
 name: review-work
-description: Use when reviewing implementation or integrated work, whether reviewing work you produced or acting as an independent reviewer.
+description: Use when judging implementation or integrated work through self-review or independent review, or when adjudicating a returned independent review report.
 ---
 
 # Review Work
 
-Judge whether work is correct, suitable, and sufficiently evidenced for its intended boundary.
+Judge whether implementation or integrated work is correct, suitable, and sufficiently evidenced for a named boundary.
 
-Review provides judgment. [Verify Work](../verify-work/SKILL.md) establishes what direct evidence proves. Review may challenge whether that evidence is sufficient, but it does not replace verification or authorize changes.
+Review provides judgment. [Verify Work](../../skills/verify-work/SKILL.md) establishes what direct evidence proves. Review may find that evidence insufficient, but it does not replace verification or authorize changes.
 
-## Choose The Review Role
+## Select One Route
 
-Choose the role before reviewing:
+Choose the route before reviewing:
 
-- **Self-review:** you produced the work. Inspect it silently using the relevant boundary and lenses below. Correct clear local issues within existing authority and re-verify. Create no formal review items, judgment, number, or cycle. Return unresolved material issues to [Workflow](../workflow/SKILL.md).
-- **Independent review:** you did not produce the reviewed state. Inspect and report without editing. Use the formal item, judgment, and report method below. The receiving active agent adjudicates and routes the result.
+- **Self-review:** you produced the reviewed state.
+- **Independent review:** you did not produce the reviewed state and are reviewing from a separate context.
+- **Adjudication:** an independent reviewer returned a report and you are deciding what its findings establish and what follows.
 
-Reading this skill does not create independence. If you produced the work, do not present your own judgment as independent review. Before preparing or performing a separately selected independent review, read the [Independent Work Reviewer Contract](references/independent-work-reviewer-contract.md).
+Self-review and independent review use the same review kernel below. Adjudication consumes a completed review; it is not another review.
+
+Do not cross roles inside an independent reviewer context. The independent reviewer reports and stops. The receiving agent may then enter adjudication.
 
 ## Establish The Boundary
 
-Understand:
+Identify only what the judgment needs:
 
-- the accepted outcome, requirements, and non-goals;
-- the implementation, diff, or integrated work product;
+- the future action or boundary the review protects;
+- the exact implementation, diff, commit, or integrated state;
+- accepted outcome, requirements, and non-goals;
 - relevant Specs, Plans, tests, policies, ADRs, and established behavior;
 - verification evidence and known gaps;
-- risks and interactions material to the future action this review protects.
+- risks and interactions capable of changing whether the boundary may be crossed.
 
-Inspect the work and source truth directly, not only the author's summary, reasoning, or claimed result. Before reviewing work that changes trust boundaries, authentication, authorization, permissions, untrusted input, secrets, sensitive data, security-relevant dependencies or external integrations, code-execution boundaries, or failure behavior with security consequences, read the [Security Risk Lens](references/security-risk-lens.md).
+Inspect the reviewed state and source truth directly. Do not judge only the producer's summary, reasoning, or claimed result.
 
-Review Work owns the review boundary, lenses, and judgment. When source inspection branches among several plausible observers or is likely to be broad, use [Action Selection](../action-selection/SKILL.md) to choose and bound one environment interaction. It returns evidence to the same review role. Skip it for an obvious diff, file, or source-truth read.
+Before reviewing changes to trust boundaries, authentication, authorization, permissions, untrusted input, secrets, sensitive data, security-relevant dependencies, code execution, or security-sensitive failure behavior, read the [Security Risk Lens](references/security-risk-lens.md).
 
-## Review Proportionately
+When inspection could branch broadly among several useful observers, use [Action Selection](../../skills/action-selection/SKILL.md). Skip it for an obvious diff, file, test, or source-truth read.
 
-Apply only lenses that can materially change the result:
+## Apply The Shared Review Kernel
+
+Use only lenses capable of changing the boundary judgment:
 
 - **Alignment and correctness:** accepted behavior is implemented without invention or omission.
 - **Regression and integration:** affected callers, states, and components remain correct together.
-- **Failure and risk:** relevant errors, recovery, permissions, data, and compatibility behave safely.
-- **Evidence:** verification supports the claims and exercised the required boundary.
+- **Failure and risk:** material errors, recovery, permissions, data, and compatibility behave safely.
+- **Evidence:** verification supports the claims at the required observing boundary.
 - **Design and minimality:** complexity and coordination are justified by requirements or observed failures.
-- **Maintainability:** the work can be understood and changed without hidden policy or fragile coupling.
+- **Maintainability:** behavior remains understandable and changeable without hidden policy or fragile coupling.
 
-A pass is valid. Do not invent items, report preferences or hypothetical completeness, reopen intentional deferrals, or treat ordinary reversible choices as issues.
+Review the resulting state, not the producer's intention. Use a high evidence bar, not a high item count. Finding no material issue is valid.
 
-A possible edge case is not an Issue merely because it can be imagined:
+### Classify Before Calling Something An Issue
 
-```text
-Required failure path is missing -> Issue
-Unsettled expected behavior -> Question
-Plausible concern without reachability or consequence evidence -> Needs evidence
-Useful resilience outside this boundary -> Improvement or omit
-Repeated related corrections -> diagnose the shared cause
-```
+Ask in order:
 
-## Classify Independent Review Items
+1. **Is the required behavior or source truth settled?**
+   - No: **Question**.
+2. **Are reachability and material consequence supported?**
+   - No: **Needs evidence**.
+3. **Does the reviewed boundary require correction?**
+   - Yes, and the boundary cannot be crossed safely: **Blocking Issue**.
+   - Yes, but correction can be deferred safely: **Non-blocking Issue**.
+4. **Would the change merely be useful beyond this boundary?**
+   - Omit it by default.
+   - Use **Improvement** only when materially relevant or explicitly requested.
 
-- **Blocking Issue:** a supported defect, regression, omission, or risk that must be resolved before crossing the reviewed boundary.
-- **Non-blocking Issue:** a real issue that can be deferred safely for this boundary.
-- **Question:** material intent, requirements, or an owner decision is unclear.
-- **Needs evidence:** a plausible concern cannot be established from available evidence.
-- **Improvement:** a materially useful enhancement not required by this boundary. It does not affect judgment or authorize implementation.
+A material **Needs evidence** observation must name the claim, required observing boundary, available evidence and its limit, why the gap affects judgment, and the smallest evidence that could disagree.
 
-A Blocking Issue must name the exact location, violated requirement or source truth, evidence, concrete boundary consequence, and smallest safe correction or owning activity to re-enter.
+Do not turn preferences, imagined edge cases, intentional deferrals, or hypothetical completeness into Issues.
 
-Use the most consequential applicable judgment:
+An Issue must identify:
 
-1. **Blocking:** one or more Blocking Issues exist.
+- the exact location or affected path;
+- the violated requirement, source truth, or invariant;
+- supporting evidence;
+- the concrete consequence for the reviewed boundary.
+
+For a Blocking Issue, state why the boundary cannot safely be crossed. Describe correction constraints or the owning activity to re-enter. Recommend a specific correction only when it is directly supported rather than one of several material alternatives.
+
+## Self-Review
+
+Apply the complete shared kernel to your own work. Self-review uses the same technical scrutiny as independent review but does not create independence.
+
+When evidence supports a clear local defect and existing authority covers its correction:
+
+1. return to the producing activity;
+2. correct the defect;
+3. re-verify the affected boundary;
+4. repeat only the affected review lenses once.
+
+Do not create formal review items, a judgment, a review number, or a review cycle for self-review. Do not label it independent.
+
+Return unresolved material issues to [Workflow](../../skills/workflow/SKILL.md). Use [Diagnose Failure](../../skills/diagnose-failure/SKILL.md) when the cause is unclear or correction repeats. Use [Decision Gate](../../skills/decision-gate/SKILL.md) when accepted behavior or a user-owned choice is unsettled.
+
+## Independent Review
+
+Before preparing or performing a separately selected independent review, read the [Independent Work Reviewer Contract](references/independent-work-reviewer-contract.md).
+
+Use supplied and already available evidence. Do not start a missing active check unless the review authority explicitly covers that exact check. Otherwise report **Needs evidence** with the claim and required observing boundary. When an exact check is covered, apply Verify Work's check-result and claim-result semantics; the review still owns the fitness judgment.
+
+Inspect and report without editing. Do not:
+
+- adjudicate your own findings;
+- select among materially different remedies;
+- perform corrections;
+- dispatch another review;
+- continue merely to obtain Pass.
+
+The independent review ends with its report.
+
+Independent judgments are:
+
+1. **Blocking:** at least one Blocking Issue exists.
 2. **Inconclusive:** no Blocking Issue exists, but a material Question or Needs evidence item prevents judgment.
 3. **Non-blocking:** only Non-blocking Issues remain.
-4. **Pass:** no Issues or material Unresolved items remain. Improvements may still be reported.
+4. **Pass:** no Issues or material unresolved items remain.
 
-Pass, Non-blocking, Inconclusive, and Blocking are all valid review exits. A review ends with its report; it does not remain active until the work passes.
+Improvements do not change the judgment or authorize implementation.
 
-## Adjudicate Independent Review And Route
+## Adjudicate A Returned Review
 
-After independent review, the receiving active agent adjudicates each material item against the work, source truth, and evidence rather than forwarding the report:
+Before adjudicating an independent report, read [Adjudicate Work Review](references/adjudicate-work-review.md).
 
-- **Accepted:** supported and applicable. State the actual implementation problem, boundary consequence, and whether its cause is supported, unnecessary to select a bounded correction, or uncertain.
-- **Rejected:** unsupported, stale, resolved, duplicate, preference-only, out of scope, or based on a source misread. State why.
-- **Open:** a question or evidence gap prevents acceptance or rejection. State the concern, potential consequence, and missing evidence or decision.
+Assess every material item against the reviewed state, source truth, and available evidence:
 
-A reviewer's suggested correction may bound an item, but it does not establish the cause or select the remedy. Confirm whether each accepted Issue is Blocking or Non-blocking, derive the adjudicated judgment, and do not accept the reviewer's overall judgment separately.
+- **Accepted:** supported and applicable.
+- **Rejected:** unsupported, stale, resolved, duplicate, preference-only, out of scope, or based on a source misread.
+- **Open:** missing evidence or a decision prevents acceptance or rejection.
+
+Do not separately accept the reviewer's overall judgment. Derive the adjudicated judgment from the dispositions.
+
+Findings are evidence, not commands or correction authority.
 
 - **Pass:** proceed.
 - **Non-blocking:** proceed with explicit deferrals.
-- **Inconclusive:** gather the missing evidence or decision.
-- **Blocking:** do not cross the boundary; re-enter the narrowest owning activity, defer, or stop.
+- **Inconclusive:** obtain the missing evidence or decision.
+- **Blocking:** do not cross the boundary; select the narrowest owning route.
 
-### Decide Whether Independent-Review Remediation Is Ready
+When remediation is ready, state the supported problem, correction, rationale, verification boundary, authority state, and whether focused follow-up review remains justified. Actual correction returns to [Execute Work](../../skills/execute-work/SKILL.md).
 
-Remediation is ready when accepted behavior, the problem and consequence, and enough causal or decision basis support a bounded correction. When the finding is clear, the correction local, verification direct, and no material alternative or user choice remains, include adjudication and remediation in the same assistant response.
+## Limit Independent Review
 
-Use the current response for a separate problem checkpoint when findings interact, the cause matters but remains unsupported, accepted assumptions or design are challenged, materially different corrections remain, or user input could change the approach:
+Treat review count as a budget, not a schedule.
 
-1. Report the adjudication, problem and consequence, cause status, settled constraints, and controlling question or evidence.
-2. Name [Discuss](../discuss/SKILL.md), [Diagnose Failure](../diagnose-failure/SKILL.md), [Decision Gate](../decision-gate/SKILL.md), evidence gathering, or another affected owner as the next route, then stop and wait.
+- **Review 1:** the first selected independent review; broad by default.
+- **Review 2:** a separately selected focused follow-up when accepted corrections, new evidence, affected interactions, or remaining risk still require independent judgment.
+- **Review 3:** exceptional, separately authorized, and final. Use it only after the cause and correction boundary are understood.
 
-Continue remedy selection only when a later user turn or new evidence supplies enough support. Do not request implementation authority before selecting a remedy or wait for the user to elicit the missing analysis. The checkpoint is not another review and creates no correction or dispatch authority.
+A review report always ends its review. Remediation does not automatically authorize or require follow-up review.
 
-A remediation-ready route states the proposed correction and rationale, verification boundary, whether focused follow-up is needed, and authority status. Findings are evidence, not commands, and do not authorize edits. Accepted corrections return to [Execute Work](../execute-work/SKILL.md) and may remain in the same [Track Work](../track-work/SKILL.md) slice while its intended result stays coherent.
+If Review 2 remains Blocking:
 
-Use existing correction authority when it covers the result. Otherwise ask once for the correction and any warranted focused follow-up; omit follow-up when direct evidence can settle the changed boundary. Then wait; do not correct or dispatch a follow-up from the request itself. Verify authorized corrections and run follow-up only when the changed boundary still needs independent judgment and that dispatch is authorized. Do not change tests, Specs, policies, or accepted behavior merely to satisfy a reviewer or obtain Pass.
+- diagnose when the blocker repeats, extends, invalidates, or exposes another consequence of prior correction, or when its cause remains uncertain;
+- return an independent clear local defect to its owner when diagnosis would add no useful understanding;
+- do not automatically correct and dispatch Review 3.
 
-## Limit The Review Cycle
+Do not request Review 4. A different reviewer, local correction, or renamed scope does not reset the budget. Workflow may establish a new cycle only for a materially new reviewed state and boundary.
 
-For one independently reviewed work state and boundary:
+Self-review does not consume this budget.
 
-1. Review 1 is the normal broad review.
-2. Review 2, when needed and authorized, focuses on accepted corrections, affected interactions, and remaining risk.
-3. Review 3 is exceptional, separately authorized, and final.
+## Stop
 
-The budget is a cap, not dispatch authority. Do not request Review 4; return control to Workflow at the cap.
+Stop when the selected route has produced its bounded result:
 
-After Review 2 is adjudicated Blocking, stop before another correction or Review 3:
+- self-review: the supported state is accepted or a material issue is routed;
+- independent review: the report is complete;
+- adjudication: material items are disposed and the next route is explicit.
 
-- If the blocker repeats, extends, invalidates, or exposes another consequence of the prior correction, or its cause remains unsupported, read [Diagnose Failure](../diagnose-failure/SKILL.md) and diagnose the shared cause first.
-- If it is an independent clear local defect with a supported cause, return to its owner and state why diagnosis is unnecessary.
-
-Diagnosis follows adjudicated evidence, not reviewer judgment alone. Review 3 is final judgment after the cause and correction boundary are understood, not another attempt to discover them through patches. Workflow may establish a new cycle only for a materially new reviewed state and boundary; local fixes, a different reviewer, or renamed scope do not reset it.
-
-## Report
-
-For self-review, report no formal result. Correct clear local issues and surface only unresolved material issues that change the route.
-
-For independent review, use the [Independent Work Reviewer Contract](references/independent-work-reviewer-contract.md) and stop with its report. The receiving agent then reports the reviewer and adjudicated judgments, each material item's outcome and reason, and either the problem checkpoint or remediation-ready route defined above. Omit empty groups and support the result with source or evidence rather than confidence.
+Do not review until Pass, use review to authorize correction, or turn optional improvement into unfinished work.

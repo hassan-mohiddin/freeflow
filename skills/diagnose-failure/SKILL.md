@@ -1,78 +1,168 @@
 ---
 name: diagnose-failure
-description: Use when a bug, failure, regression, performance problem, or repeated unsuccessful fix lacks a supported cause.
+description: Use when a bug, failure, regression, performance problem, or repeated unsuccessful correction lacks a supported cause.
 ---
 
 # Diagnose Failure
 
 Establish what is failing and why before selecting a correction.
 
-A **diagnostic loop** is a repeatable check or observation that can reproduce, support, or contradict the failure claim or current hypothesis at the boundary where it matters. A **supported cause** is a causal explanation strong enough to distinguish meaningful alternatives and choose the next action; it does not require impossible certainty.
+A **diagnostic loop** is a repeatable observation that can support, contradict, or leave unresolved a hypothesis at the boundary where the failure matters.
 
-A requested patch, plausible code path, reviewer theory, or one favorable rerun is not a supported cause.
+A **supported cause** is a causal explanation strong enough to distinguish meaningful alternatives and bound the next action. It does not require impossible certainty.
 
-Diagnosis inherits the current authority envelope. Selecting this method authorizes neither active evidence generation nor correction.
+A requested patch, plausible code path, reviewer theory, observation consistent with one hypothesis, or one favorable rerun is not a supported cause.
 
-When diagnosis applies, before choosing its loop, read [the Diagnostic Loop Catalog](references/diagnostic-loop-catalog.md). When timing, randomness, environment variance, or resource behavior shapes the failure, also read [Flaky and Performance Diagnosis](references/flaky-and-performance-diagnosis.md) before choosing or running the observation.
+Diagnosis owns the hypothesis, causal interpretation, and correction boundary. It does not authorize active evidence generation or correction.
 
-## Follow The Diagnostic Route
+## Enter Only When Cause Is Unsettled
+
+Use diagnosis for:
+
+- an unexplained bug, failed test, regression, or runtime failure;
+- flaky, timing-dependent, environmental, or performance behavior;
+- contradictory evidence;
+- related corrections that keep failing;
+- patches that repeatedly expose additional state or coordination;
+- review findings whose shared cause remains unsupported.
+
+Do not diagnose an ordinary mistake when fresh evidence already establishes one clear local defect and accepted behavior is settled. Return that correction to [Workflow](../../skills/workflow/SKILL.md).
+
+Review count, finding count, or several bugs in one area do not by themselves prove a shared or structural cause.
+
+Diagnosis may recur inside one Slice. A new hypothesis or observation does not create a new Slice by itself. When a Working Record exists, use [Track Work](../../skills/track-work/SKILL.md) to preserve the current hypothesis, evidence, blocker, and next distinguishing action.
+
+## Establish The Failure Boundary
+
+Before generating new evidence, identify:
+
+- the failure claim;
+- accepted expected behavior and its source;
+- observed behavior and existing evidence;
+- reported input, state, environment, and reproduction path;
+- the strongest boundary currently observed;
+- differences between the reported path and available reproduction;
+- evidence that already contradicts possible explanations.
+
+Prefer the reported path, environment, and observer. A nearby failure may suggest a hypothesis but does not establish the reported failure.
+
+Reduced-fidelity reproduction remains diagnostic evidence only. State what it cannot prove.
+
+Allowed behavior is not reproduction. A cache hit does not prove a stale-read defect when caching is permitted. A possible race in source does not explain a report until timing, traces, state, or accepted behavior connects it.
+
+## State Competing Hypotheses
+
+State one falsifiable leading hypothesis and only the viable alternatives the next observation must distinguish.
+
+For each, identify:
 
 ```text
-[Failure without a supported cause]
--> [Inspect existing evidence; establish expected and observed behavior]
--> [State a falsifiable hypothesis]
--> [Choose the smallest distinguishing observation]
--> [Authority envelope covers its effects?]
-   -> no -> [Propose purpose, expected evidence, and stop condition]
-         -> [Ask once and wait]
-   -> yes -> [Run the observation]
--> [Route from evidence]
-   -> hypothesis contradicted -> refine or replace it -> choose again
-   -> evidence unavailable -> stop with the smallest missing evidence
-   -> cause supported -> return cause and correction boundary to Workflow
-   -> user-owned behavior or source conflict -> Decision Gate
-   -> structural cause -> Design for Depth
-   -> active harm before cause -> propose bounded containment
+Hypothesis:
+Predicted observation:
+Observation that would contradict it:
+Meaningful alternative:
 ```
 
-Diagnosis may recur inside one Slice. A new hypothesis, observation, or owning-skill route does not create a new Slice by itself. When durable task memory exists, [Track Work](../track-work/SKILL.md) preserves diagnosis inside the same Current Slice.
+Do not create a hypothesis around the requested patch and then use that hypothesis to prove the patch is necessary.
 
-## Enter Diagnosis Deliberately
+When accepted behavior, source truth, or a user-owned choice is unsettled, use [Decision Gate](../../skills/decision-gate/SKILL.md) rather than diagnosing an invented expectation.
 
-Use this method for unexplained bugs, failed tests, regressions, flaky behavior, performance problems, unexpected runtime behavior, or related corrections that keep failing.
+## Choose One Distinguishing Loop
 
-Use it for repeated workflow trouble only when evidence suggests an unclear shared cause: related findings keep appearing, verification contradicts successive corrections, edge-case patches expose more states, or coordination spreads through shared ownership. Reaching a review cap alone is not diagnostic evidence.
+Choose the smallest observation whose possible outcomes differ between the meaningful hypotheses at the required boundary.
 
-If fresh direct evidence already establishes one clear local defect and intended behavior is settled, return the correction to [Workflow](../workflow/SKILL.md). Do not manufacture diagnosis around an ordinary mistake.
+When the exact loop is not obvious, or several loop shapes remain plausible, read the [Diagnostic Loop Catalog](references/diagnostic-loop-catalog.md).
 
-## Establish The Failure And Loop
+When timing, randomness, environmental variance, concurrency, or resource behavior shapes the failure, also read [Flaky and Performance Diagnosis](references/flaky-and-performance-diagnosis.md) before selecting or running the loop.
 
-Start by inspecting the report, existing code, tests, logs, configuration, and artifacts. Before generating new evidence:
+When several tools or observers could execute the same selected loop, or the likely interaction is broad, use [Action Selection](../../skills/action-selection/SKILL.md). It selects the interaction; Diagnose Failure retains the hypothesis and causal question.
 
-1. establish expected and observed behavior from accepted intent, source truth, and existing evidence;
-2. state a falsifiable hypothesis and the alternatives the next observation must distinguish;
-3. choose the smallest diagnostic loop that can disagree with the hypothesis at the required boundary;
-4. run one covered observation and change one distinguishing variable at a time;
-5. trace the causal chain from trigger and state to the observed result;
-6. preserve evidence that contradicts the leading hypothesis.
+Before an active observation, confirm that the authority envelope covers:
 
-Diagnosis owns the hypothesis and distinguishing question. When several observers or tools can test that same question, or the likely diagnostic loop is broad, use [Action Selection](../action-selection/SKILL.md) to choose and bound one environment interaction. It returns the observation without redefining the hypothesis or cause. Skip it when the diagnostic loop and observer are already exact.
+- the exact path and environment;
+- mutation, repetition, instrumentation, and cost;
+- evidence collection and sensitive-data handling;
+- cleanup, rollback, or recovery.
 
-Prefer the reported path, input, environment, and observer. A nearby failure may suggest a hypothesis but does not prove the reported failure. Reduced-fidelity reproduction is diagnostic evidence only; name what it cannot establish.
+Otherwise return the loop's purpose, expected distinguishing evidence, and stop condition to Workflow and wait.
 
-Allowed behavior is not a reproduction. A cache hit does not prove a stale-read bug when caching is permitted. A possible race in source does not explain a report until timing, traces, steps, logs, or an existing expectation connect it.
+When no safe useful loop exists, stop with the smallest missing evidence: failing input, command, trace, log window, seed, timestamp, environment, permission, or isolated instrumentation.
 
-Do not invent a check around the requested patch and use that check to prove the patch was needed. Do not rewrite tests, Specs, policies, thresholds, or expected behavior merely to make the signal red or green.
+## Run And Interpret One Iteration
 
-When no safe useful loop is possible, stop and name the smallest missing evidence: a command, failing input, trace, log window, timestamped screenshot, environment boundary, or permission for isolated instrumentation. Leave the cause unresolved.
+Run one covered observation and change one distinguishing variable at a time.
+
+Apply [Verify Work](../../skills/verify-work/SKILL.md) when the observation requires its full claim-and-boundary method. Diagnosis retains ownership of causal inference after verification returns the evidence.
+
+Keep three results separate.
+
+### Check Result
+
+How did the selected observation's defined assertion execute?
+
+Use Verify Work's check-result semantics:
+
+- **Passed:** the observation executed validly and its assertion held.
+- **Failed:** the observation executed validly and its assertion did not hold.
+- **Error:** the observer or execution was invalid.
+- **Unavailable:** the observation could not be attempted safely or reliably.
+
+A target path may intentionally fail while the diagnostic check Passes. An Error or Unavailable observer says nothing about the production cause.
+
+### Hypothesis Result
+
+What does the evidence establish about the tested hypothesis?
+
+- **Supported:** direct evidence establishes the hypothesis at its stated boundary.
+- **Contradicted:** evidence shows the hypothesis is false.
+- **Inconclusive:** the observation cannot distinguish it from meaningful alternatives.
+- **Unavailable:** the required evidence cannot currently be obtained.
+
+### Cause Status
+
+- **Supported:** the evidence establishes a useful causal explanation.
+- **Unresolved:** one or more causal links or meaningful alternatives remain open.
+
+A Supported hypothesis does not automatically establish a Supported cause.
+
+A cause is Supported only when the evidence:
+
+1. establishes the relevant failure or strongest available observer;
+2. behaves as the causal explanation predicts;
+3. materially weakens meaningful alternatives;
+4. connects trigger and state through mechanism to the observed symptom;
+5. is sufficient to bound a correction or other next action without guessing.
+
+If evidence supports only the strongest remaining hypothesis, report it as such and identify the observation that would confirm or refute the missing causal link.
+
+## Route From The Iteration
+
+- **Check Error:** repair or replace the observer; do not change production code.
+- **Check Unavailable:** stop with the missing evidence or authority.
+- **Hypothesis Contradicted:** preserve the evidence, then refine or replace the hypothesis.
+- **Hypothesis Inconclusive:** choose a sharper distinguishing loop.
+- **Hypothesis Supported, cause Unresolved:** test the remaining causal link or alternative.
+- **Cause Supported:** return the causal explanation and correction boundary to Workflow.
+- **Behavior or source conflict:** use Decision Gate.
+- **Supported structural pressure:** apply [Design for Depth](../../skills/design-for-depth/SKILL.md) under the current owner.
+- **Active harm before cause:** return one bounded containment option to Workflow.
+
+Do not continue because diagnosis started. Stop when no safe observation can materially improve the route.
 
 ## Protect Diagnostic Evidence
 
-Treat logs, traces, payloads, screenshots, dumps, and production samples as potentially sensitive. Minimize and sanitize them. Do not expose credentials, tokens, unrestricted personal data, or private payloads.
+Treat logs, traces, payloads, screenshots, dumps, production samples, and browser state as potentially sensitive. Minimize and sanitize them. Do not expose credentials, tokens, unrestricted personal data, or private payloads.
 
-Bound repeated checks by time, cost, side effects, and environment safety. Do not repeatedly exercise a mutating production path without explicit authority and an understood recovery boundary.
+Bound repetition by time, cost, side effects, and environment safety. Do not repeatedly exercise mutating production behavior without explicit authority and an understood recovery boundary.
 
-Temporary instrumentation must distinguish hypotheses. Keep it isolated, identify its removal condition, and report whether it remains.
+Temporary instrumentation must distinguish hypotheses. Keep it isolated and state:
+
+- what it observes;
+- mutation or performance impact;
+- cleanup and removal condition;
+- whether it remains after diagnosis.
+
+Preserve contradictory and unfavorable evidence. Do not rerun until it disappears.
 
 ## Identify The Owning Cause
 
@@ -86,26 +176,82 @@ Classify only what evidence supports:
 - wrong result, scope, order, or execution strategy;
 - structural ownership, interface, state, or failure-unit pressure.
 
-Use [Decision Gate](../decision-gate/SKILL.md) when correction requires a user-owned behavior, risk, compatibility, security, privacy, billing, data-loss, or hard-to-reverse decision.
+Diagnosis determines whether observed pressure is causal.
 
-Use [Design for Depth](../design-for-depth/SKILL.md) only when diagnosis establishes a structural cause or direct evidence already shows caller coordination, state, ownership, interface, or failure-unit pressure. Ordinary bugs and finding count do not prove bad architecture.
+Use Design for Depth only after diagnosis establishes structural pressure, or when direct design evidence independently establishes caller coordination, distributed policy, unowned state, interface leakage, or failure-unit pressure. Design for Depth shapes the supported ownership boundary; it does not re-prove the cause.
 
-If evidence supports only the strongest remaining hypothesis, report it as such and name the observation that would confirm or refute it.
+If design work exposes an unsupported causal assumption that changes the boundary choice, re-enter diagnosis with that exact assumption and the alternatives it must distinguish.
 
 ## Contain Harm Without Claiming A Fix
 
-When harm must be limited before the cause is supported, return one bounded containment option to Workflow. Apply it only when already authorized or explicitly approved.
+When immediate harm must be limited before cause is Supported, return one bounded containment option to Workflow.
 
-Containment must reduce immediate harm without destroying evidence, remain narrower and more reversible than a guessed correction, define verification and recovery, preserve unsettled behavior, and be reported as mitigation rather than resolution.
+Containment must:
+
+- reduce immediate harm;
+- remain narrower and more reversible than a guessed correction;
+- preserve diagnostic evidence;
+- define verification and recovery;
+- avoid settling unresolved behavior;
+- be reported as mitigation, not resolution.
 
 A requested patch may instead be an authorized learning action. Its result can strengthen or weaken a hypothesis; it does not become selected production behavior automatically.
 
-## Return The Supported Result
+## Return The Correction Boundary
 
-When evidence supports a cause, return the failure boundary, diagnostic loop, causal explanation, regression signal, and smallest coherent correction to Workflow. The evidence supports the conclusion and route; it does not by itself authorize the correction. Return an authorized implementation correction to [Execute Work](../execute-work/SKILL.md); use [TDD](../tdd/SKILL.md) when the diagnostic loop provides a failing behavior check that should guide it. Use [Simplify Code](../simplify-code/SKILL.md) when the supported cause shows that obsolete, duplicated, or workaround machinery can be removed while preserving accepted behavior. Mess left by unsuccessful attempts is not enough: settle any behavior or contract change through Workflow first, and do not use cleanup in place of correcting the supported failure or while its evidence remains unresolved. The correction may remain in the same Slice while its result stays coherent; Track Work preserves that continuity when a Working Record exists.
+When cause is Supported, return:
 
-After correction, use [Verify Work](../verify-work/SKILL.md) to rerun both the minimized regression signal and the original reported path or strongest available observer. If correction fails or exposes related shared-state consequences, re-enter diagnosis before another patch.
+- failure claim and required boundary;
+- diagnostic loop and observation;
+- check result and hypothesis result;
+- causal chain;
+- alternatives weakened and uncertainty remaining;
+- owning cause;
+- smallest coherent correction boundary;
+- minimized regression signal;
+- original reported path or strongest available observer.
 
-Do not claim fixed when only containment succeeded, a minimized check passed, or the original boundary remains unavailable.
+The evidence supports the route but does not authorize correction.
 
-Report the failure claim, required boundary, diagnostic loop and observations, supported cause or strongest remaining hypothesis, active containment or instrumentation, recommended route, verification status, and missing evidence.
+Return an authorized correction to [Execute Work](../../skills/execute-work/SKILL.md). Use [TDD](../../skills/tdd/SKILL.md) when the diagnostic loop supplies a stable failing behavior check. Use [Simplify Code](../../skills/simplify-code/SKILL.md) only when the supported cause shows that obsolete or workaround machinery can be removed without changing accepted behavior. Do not use cleanup in place of correcting the supported failure or while its evidence remains unresolved.
+
+After correction, use Verify Work to check both:
+
+1. the minimized regression signal;
+2. the original reported path or strongest available observer.
+
+If correction fails, or exposes related shared-state consequences, re-enter diagnosis before another patch.
+
+Do not claim fixed when only containment succeeded, a nearby check passed, or the original boundary remains unavailable.
+
+## Report Proportionately
+
+For one unresolved iteration:
+
+```text
+Failure @ boundary:
+Diagnostic loop:
+Check result:
+Hypothesis result:
+Cause status: Unresolved
+Next distinguishing evidence:
+```
+
+For a supported cause, containment, conflicting evidence, or a route handoff:
+
+```text
+Failure claim:
+Required boundary:
+Expected / observed:
+Diagnostic loop and evidence:
+Check result:
+Hypothesis result:
+Cause status:
+Causal explanation or strongest remaining hypothesis:
+Alternatives weakened / unresolved:
+Containment or instrumentation:
+Correction boundary or next evidence:
+Post-correction verification:
+```
+
+Omit fields that do not apply. Stop when the supported route, missing evidence, containment boundary, or unresolved decision is explicit.

@@ -1,42 +1,62 @@
 # Execute Work Edges
 
-Read this after [Execute Work](../SKILL.md) when work resumes from prior state, crosses a Slice boundary, reaches a selected checkpoint, or reveals separately controlled follow-on work. Execute Work owns the normal action, evidence, method, and continuation loop; this reference covers exceptional transitions.
+Read this when execution resumes from uncertain prior state, changes the Slice boundary, reaches a selected checkpoint, or exposes separately controlled follow-on work.
+
+The main skill owns the normal bounded-action loop. This reference covers transitions that leave, resume, or constrain that loop.
 
 ## Resume Safely
 
-Reopen the source that established the work and inspect live state. When durable task memory exists, request the bounded `resume` view through [Track Work](../../track-work/SKILL.md), then retrieve exact entities only when the next decision needs them.
+Recover the source that established the accepted work and compare it with relevant live state.
 
-Re-establish authority from the current conversation and still-valid approval. A summary, Plan, Handoff, Working Record, or another conversation branch preserves context but does not create current authority or prove progress.
+When durable memory exists, enter [Track Work](../../track-work/SKILL.md) and use its required recovery route before relying on or mutating the Working Record. Memory preserves context; it does not prove live state or recreate authority.
 
-Preserve supported work and resume the same Slice only while its intended result, authority, evidence boundary, and stop condition remain coherent. Otherwise return the changed boundary to [Workflow](../../workflow/SKILL.md).
+Resume the same Slice only while its intended result, authority, evidence boundary, and stop condition remain coherent. Otherwise preserve supported work and return the changed boundary to [Workflow](../../workflow/SKILL.md).
 
-## Cross A Slice Boundary Deliberately
+Do not restart discovery, repeat supported work, or infer progress from summaries, Plans, records, handoffs, staged files, or partial artifacts.
 
-Before beginning a distinct result, independently useful evidence boundary, uncovered effect, changed strategy, or separately controlled action:
+## Distinguish Adaptation From Boundary Change
 
-1. stop the current action stream;
-2. preserve the supported result and live evidence;
-3. return the boundary change to Workflow;
-4. reconcile the current Slice through Track Work when one exists;
-5. begin another Slice only after its outcome and authority are established.
+Routine changes to local mechanics, implementation order, tools, and focused checks remain inside the current bounded action when they preserve:
 
-A verification run, self-review, review report, method change, or pause does not create or close a Slice by itself.
+- the accepted result;
+- permitted effects;
+- source truth;
+- the required observing boundary;
+- the stop condition.
+
+Return to Workflow when new evidence changes behavior, scope, persistence, compatibility, public interfaces, risk, evidence quality, or another user-owned outcome.
+
+Keep an accepted extension in the current Slice only when its result remains coherent, explicit authority covers the added effects, and the combined boundary can still be verified as one unit. When a Working Record exists, Track Work records the extension before execution.
+
+Use another Slice when the work has a distinct result, authority source, evidence boundary, independently useful outcome, or explicit abandonment of the original result.
 
 ## Route A Selected Checkpoint
 
-When an approved checkpoint becomes due, stop before dependent work, use its owner, and return the result to Workflow. If its condition no longer holds, return the deviation instead of forcing the checkpoint.
+A checkpoint is due only when Workflow, an approved Plan, repository policy, or explicit discussion selected it.
 
-A checkpoint result may support continuation, correction, another route, deferment, or stopping. It does not authorize the next lifecycle stage. Track Work preserves selected and resolved checkpoint state when durable memory exists.
+Stop before dependent work, use the checkpoint’s owner, and return its result to Workflow:
+
+- [Decision Gate](../../decision-gate/SKILL.md) for a selected user decision;
+- [Review Work](../../review-work/SKILL.md) for selected independent judgment;
+- [Commit Work](../../commit-work/SKILL.md) for an authorized local commit;
+- [Handoff](../../handoff/SKILL.md) for selected continuity transfer;
+- [Finish Branch](../../finish-branch/SKILL.md), [Release Work](../../release-work/SKILL.md), or [Launch Work](../../launch-work/SKILL.md) for their separately authorized boundaries.
+
+When durable memory exists, Track Work preserves the checkpoint’s selection, condition, result, and task effect.
+
+Do not create a checkpoint merely because an action or Slice ended. Do not force a stale checkpoint when its condition, evidence, or protected boundary no longer holds.
 
 ## Separate Follow-On Work
 
-Use the owning method only after Workflow confirms its boundary and authority:
+Useful follow-on work is not implied authority.
 
-- [Commit Work](../../commit-work/SKILL.md) for an authorized local checkpoint or simple push;
-- [Migration Work](../../migration-work/SKILL.md) for accepted consumer, state, or traffic movement;
-- [Finish Branch](../../finish-branch/SKILL.md) for integration, preservation, discard, or cleanup;
-- [Release Work](../../release-work/SKILL.md) for versioned publication;
-- [Launch Work](../../launch-work/SKILL.md) for production exposure or recovery;
-- [Handoff](../../handoff/SKILL.md) for point-in-time continuation transfer.
+Return it to Workflow before using:
 
-A useful follow-on result is not implicit authority. Return to Workflow when its scope, evidence, destination, or stop condition is not already covered.
+- Commit Work for an unselected commit or push;
+- [Migration Work](../../migration-work/SKILL.md) for consumer, state, or traffic movement;
+- Finish Branch for integration, preservation, discard, or branch cleanup;
+- Release Work for versioned publication;
+- Launch Work for production exposure, rollback, or recovery;
+- Handoff for point-in-time continuation transfer.
+
+Preserve the supported execution result before routing away. A follow-on owner does not retroactively change the completed action or Current Slice.

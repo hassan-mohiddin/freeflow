@@ -1,6 +1,6 @@
 # Code Practices
 
-Read this before an Execute Work slice writes or changes code. Follow the repository's language, style, testing, and documentation conventions before generic advice.
+Read this before a bounded action writes or changes code. Follow the repository's language, style, testing, and documentation conventions before generic advice.
 
 ## Make Intent Legible
 
@@ -55,7 +55,7 @@ Before adding behavior for an edge case, ask:
 Then act proportionately:
 
 - **Required or observed, with defined behavior:** implement the smallest complete behavior and test the relevant boundary.
-- **Material but undefined:** stop and return the missing behavior decision to Workflow.
+- **Material but undefined:** stop and return the missing behavior decision to [Workflow](../../workflow/SKILL.md).
 - **Plausible but unsupported:** gather evidence; do not add speculative handling.
 - **Useful but optional:** report or defer it as separate work.
 - **Purely hypothetical:** leave it alone.
@@ -73,6 +73,6 @@ Each correction reveals another related state or flag
 
 Prefer an explicit invariant or clear failure over invented retry, fallback, recovery, or compatibility behavior. Handling an edge case creates a contract and future maintenance cost.
 
-## Stop When The Slice Is Supported
+## Stop When The Action Is Supported
 
-Once the accepted result is supported, comments are accurate, and no material self-review issue remains, stop. Possible polish, unrelated cleanup, and imagined resilience are not unfinished work. They require new evidence or another selected slice.
+Once the accepted result is supported, comments are accurate, and no material self-review issue remains, stop. Possible polish, unrelated cleanup, and imagined resilience are not unfinished work. They require new evidence or another accepted bounded action.

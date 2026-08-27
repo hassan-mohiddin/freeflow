@@ -1,87 +1,114 @@
 ---
 name: design-for-depth
-description: Use when working with software design—especially boundaries, interfaces, ownership, state, and failure behavior.
+description: Use during coding and software design to keep boundaries, interfaces, ownership, state, and failure behavior simple and proportionate.
 ---
 
 # Design For Depth
 
-Reduce coordination by hiding internal decisions behind small, stable, outcome-level interfaces.
+Reduce coordination by hiding coherent decisions behind small, stable, outcome-level interfaces.
 
-A **module** is anything with an interface and implementation. A **caller** is anything that uses or coordinates the module through its interface, such as application code, another service, a script, a test, a tool, or an agent. Its **interface** is every fact callers must know to use it correctly: inputs, decisions, states, ordering, errors, side effects, configuration, timing, and failure behavior. **Depth** is useful behavior and hidden complexity per unit of interface knowledge.
+A **module** is anything with an interface and implementation. A **caller** is anything that uses it. The **interface** is every fact callers must know to use it correctly: operations, inputs, decisions, states, ordering, errors, side effects, configuration, timing, and recovery. **Depth** is useful behavior and hidden complexity per unit of interface knowledge.
 
-A **seam** is a boundary where behavior, dependencies, or observation can change without forcing surrounding edits. An **adapter** is a concrete implementation supplied at that seam. Add a seam for real variation or a required testing or observation boundary—not imagined flexibility.
+Use this as a compositional lens under the current owner. It is not a separate phase, authority source, or reason to refactor.
 
-Use this as a compositional lens, not a mandatory phase or permission to refactor.
+## Start Shallow
 
-## Compose The Lens Early
+For any coding or design task, establish:
 
-Use this lens during design-bearing discussion before core boundaries settle. Use it while writing a Spec or Plan when ownership, interfaces, state, or failure behavior shapes the contract. Keep it available during execution, TDD, and review when the work must preserve those decisions or exposes new coordination.
+1. the complete outcome being changed and the decisions callers genuinely own;
+2. what callers must currently know or coordinate;
+3. whether the proposed change adds caller knowledge, spreads policy, or changes state or failure ownership.
 
-Feedback may also route here after [Diagnose Failure](../diagnose-failure/SKILL.md) establishes structural ownership, interface, state, or failure-unit pressure. Ordinary bugs, failed tests, or finding count do not prove bad design.
+When the change is local, source-backed, reversible, and leaves the interface and failure unit sound, apply this lens silently and continue. Do not load references, present alternative architectures, or widen the task merely because deeper design is possible.
 
-Do not force this lens onto a local change whose interface remains sound. Do not use architecture language to hide product decisions or turn reversible implementation detail into ceremony.
+A large mechanical change may need no design escalation. A small change may require it when permissions, public behavior, canonical state, or consequential failure changes.
 
-## Start With Outcome And Failure
+## Establish The Outcome And Failure Unit
 
-Before choosing classes, services, states, or adapters, establish:
+Before choosing classes, services, states, or adapters, name:
 
-- the complete outcome callers need and the decisions they genuinely own;
-- the coordination or likely-changing policy the module can hide;
-- visible success and the **failure unit**—the smallest outcome treated as one success, failure, and recovery boundary;
-- failure observers, state or evidence written, forbidden partial outcomes, response policy (stop, fail closed/open, degrade, retry, or escalate), safe restart, recovery, and required proof.
+- the caller and complete outcome;
+- caller-visible success and failure;
+- the coordination or likely-changing policy the module could hide;
+- the **failure unit**: the coherent outcome treated as one success, failure, and recovery boundary.
 
-These form the **failure contract**. Failure behavior is part of the interface even when its mechanism remains private.
+When the boundary has side effects, can leave partial state, or makes failure materially consequential, define its **failure contract**:
 
-When the boundary changes product behavior, public interfaces, compatibility, permissions, security, privacy, billing, data loss, migration direction, or another user-owned outcome, use [Decision Gate](../decision-gate/SKILL.md). This lens surfaces the decision; it does not make it silently.
+- who observes failure;
+- state or evidence written;
+- forbidden partial outcomes;
+- whether to stop, fail closed or open, degrade, retry, or escalate;
+- safe restart and recovery;
+- evidence required to prove the outcome.
+
+Failure behavior is part of the interface even when its mechanism remains private.
+
+Depth is not breadth. A deep module owns one coherent decision or failure unit; it does not collect unrelated responsibilities merely to give callers fewer methods.
+
+Use [Decision Gate](../decision-gate/SKILL.md) when the boundary changes product behavior, public interfaces, compatibility, permissions, security, privacy, billing, data-loss behavior, migration direction, or another user-owned outcome.
 
 ## Hide Coordination
 
-Prefer interfaces where callers ask for an outcome and the module owns internal protocol.
+Prefer interfaces where callers request an outcome and the module owns its internal protocol.
 
-Before exposing a flag, state, path, filename, ordering rule, retry, timing behavior, or error, ask:
+Before exposing a flag, path, state, ordering rule, retry, timing behavior, provider detail, or recovery step, ask:
 
-- Does the caller own this choice?
+- Does the caller genuinely own this choice?
 - Does exposing it make correct use easier?
 - Is it stable enough to become a contract?
 - Could one outcome-level operation hide it?
 
-Keep caller-owned outcomes and decisions public. Keep internal sequencing, storage, cleanup, provider mechanics, integrity publication, and optimization private unless correct use requires caller control.
+Keep caller-owned outcomes, decisions, and stable observable failure semantics public. Keep internal sequencing, storage, cleanup, provider mechanics, retries, temporary states, and optimization private unless correct use requires caller control.
 
-Read [software design philosophy](references/software-design-philosophy.md) when structural pressure is supported but the likely-changing decision or missing information-hiding boundary cannot yet be named.
+A **seam** is a boundary where behavior, dependencies, or observation can change without forcing surrounding edits. An **adapter** is a concrete implementation supplied at that seam. Add a seam for demonstrated variation, a known migration, or a required testing or observation boundary—not imagined flexibility.
 
-## Recognize Structural Pressure
+## Escalate Only From Evidence
 
-Structural pressure appears when caller knowledge, duplicated policy, lifecycle choreography, test-only exposure, or unowned failure behavior spreads across a boundary, or a bounded outcome requires an unplanned subsystem because no current seam owns it.
+Structural pressure exists when evidence shows that:
 
-Read [design pressure signals](references/design-pressure-signals.md) when that evidence may change the next route. The reference owns the detailed classifier and examples; the signals justify design attention, not automatic refactoring.
+- each correction adds caller knowledge, flags, states, retries, or recovery rules;
+- one policy change requires unrelated edits across callers;
+- callers or tests reproduce lifecycle choreography;
+- correctness depends on coordinated steps or failure behavior no module owns;
+- a bounded outcome requires an unplanned subsystem because no current seam owns it.
 
-Diagnose repeated or unexplained failure before redesigning. Direct design work is appropriate when structural pressure is already observable or an important boundary must be chosen before implementation.
+Use [Diagnose Failure](../diagnose-failure/SKILL.md) when a failure or repeated correction lacks a supported cause, or when a boundary choice depends on an unsupported causal assumption. Diagnosis owns the causal investigation; this lens consumes its supported structural evidence without re-establishing it.
 
-## Shape The Interface
+When observed coordination could change what the current owner should do next, read [design pressure signals](references/design-pressure-signals.md). Skip this read only when an equivalent design-route classification is already supported.
 
-Before comparing materially different interfaces, read [the interface design loop](references/interface-design-loop.md) when structural pressure or an important pre-implementation correctness boundary makes ownership consequential, especially when authority, canonical state, atomic visibility, replay, cancellation, or post-commit recovery affects correctness.
+A supported diagnosis establishes the causal basis. It does not by itself select the design route.
 
-The reference owns the complete comparison method. Prefer the interface that removes caller knowledge, localizes likely change, makes correct use easy, preserves honest failure and recovery, and costs proportionate evidence.
+When structural pressure is supported but the likely-changing decision or missing information-hiding boundary cannot yet be named, read [software design philosophy](references/software-design-philosophy.md).
 
-Do not force multiple designs for an obvious local choice. When evidence cannot distinguish viable seams, use the reference's bounded learning route rather than quietly implementing the whole subsystem.
+Ordinary bugs, failed tests, and finding count do not prove structural pressure.
 
-## Tests And Evidence
+Read the narrowest reference whose trigger matches the current question. Read another only if its distinct condition remains afterward.
 
-The intended interface is the normal test surface. If tests must bypass it, reproduce caller choreography, or mock many owned internals, question the module shape before adding test machinery.
+## Shape A Consequential Boundary
 
-Architecture-bearing tests should protect accepted behavior, observed failure, or a settled failure contract. Tests that exist only to protect unnecessary machinery do not justify that machinery.
+Before comparing materially different interfaces—or settling an important correctness boundary where ownership is consequential—read [the interface design loop](references/interface-design-loop.md).
 
-Exploratory code may produce design evidence. It does not become production architecture without deliberate selection through [Workflow](../workflow/SKILL.md), implementation as an authorized slice, and verification at the required boundary.
+Do not manufacture alternatives for an obvious, local, reversible, source-backed choice. Compare designs only when seam placement, ownership, failure behavior, reversibility, or evidence cost could materially change the result.
 
-## Boundary Examples
+When evidence cannot distinguish viable boundaries, define a bounded learning slice rather than quietly implementing the whole subsystem.
 
-- A core operation is being discussed, but partial failure is unspecified → define the failure unit and surface any owner decision before settling the interface.
-- Every caller coordinates retry, storage, cleanup, and error translation → consider an outcome-level module that owns the protocol.
-- One isolated condition is wrong while callers and the interface remain valid → make a local correction; do not redesign.
-- Related failures repeatedly add shared states and caller rules → diagnose the common cause, then use this lens only when structural pressure is supported.
+## Test Through The Intended Interface
 
-## Return The Route
+The intended interface is the normal test surface. If callers' tests must bypass it, reproduce lifecycle choreography, or mock many internals to verify one outcome, question the module shape before adding test machinery.
 
-Return the structural evidence, affected boundary, materially different options when needed, recommendation, and unresolved owner decisions to Workflow. Recommend the narrowest route: continue, run a learning slice, revise a Spec or Plan, use Decision Gate, propose a bounded deepening slice, defer, or stop.
+Architecture-bearing tests should protect accepted behavior, observable failure, or a settled failure contract. Tests that protect only unnecessary machinery do not justify that machinery.
 
-A design recommendation does not authorize implementation. Do not expose speculative variation, broaden accepted scope, or refactor merely because a deeper design is possible. Freeze a supported design boundary instead of pursuing architectural completeness.
+Exploratory code can produce design evidence. It does not become production architecture without deliberate selection through [Workflow](../workflow/SKILL.md), authorized implementation, and verification at the required boundary.
+
+## Return The Narrowest Route
+
+Return to Workflow with:
+
+- the structural evidence;
+- the affected outcome, interface, and failure unit;
+- materially different options only when they are real;
+- the recommendation and its assumptions;
+- unresolved owner decisions;
+- the narrowest route: continue, correct locally, diagnose, revise a Spec or Plan, run a learning slice, propose bounded deepening, defer, or stop.
+
+A design recommendation does not authorize implementation. Freeze a supported boundary instead of pursuing architectural completeness.

@@ -1,6 +1,8 @@
 # Interface Design Loop
 
-Read this before comparing materially different interfaces when structural pressure or an important pre-implementation correctness boundary makes their ownership consequential, especially when evidence cannot choose or authority, canonical state, atomic visibility, replay, cancellation, or post-commit recovery affects correctness. The goal is to choose an outcome-level module shape, not add detail to the first plausible design.
+Read this before comparing materially different interfaces—or settling an important correctness boundary where ownership is consequential.
+
+Use only facts and criteria that could distinguish the viable boundaries. Do not emit a full checklist unless the artifact itself requires one.
 
 ## 1. Frame The Outcome
 
@@ -10,147 +12,126 @@ State:
 - source-backed behavior and non-goals;
 - decisions the caller genuinely owns;
 - dependencies and current constraints;
-- why the current seam is under pressure.
+- why the current seam requires attention.
 
-Do not begin from existing flags, storage paths, or lifecycle states. Those may be symptoms of the current shape.
+Do not begin from existing flags, storage paths, or temporary states. They may be symptoms of the current design.
 
-## 2. Choose The Failure Unit
+## 2. Define The Failure Unit
 
-Name the atomic unit before designing retries or resume:
+Name the coherent outcome treated as one success, failure, and recovery boundary.
 
-- operation;
-- slice;
-- comparison;
-- session;
-- published result;
-- another outcome specific to the domain.
+Define material:
 
-Define:
-
-- terminal states;
-- observers;
+- terminal states and observers;
 - state or evidence written;
 - forbidden partial outcomes;
-- safe restart unit;
-- recovery proof;
-- whether partial reuse is a requirement or only an optimization.
+- safe restart and recovery;
+- required proof;
+- whether partial reuse is required or merely an optimization.
 
-When authority, integrity, canonical persistence, or proof validity materially affects correctness, also define:
+When authority, canonical persistence, integrity, or atomic visibility affects correctness, also define:
 
-- trust anchor and which actors can replace it;
-- mutable state and canonical versus diagnostic records;
-- authority or capability binding and replay scope;
+- trust anchor and who may replace it;
+- canonical versus diagnostic state;
+- authority or capability binding;
 - commit and visibility point;
-- behavior when cancellation, integrity failure, or reconciliation failure occurs after an awaited or committed boundary.
+- replay scope;
+- behavior after cancellation, integrity failure, or post-commit reconciliation failure.
 
-Retry, resume, caching, continuation, and partial reuse are separate capabilities. Durability does not automatically require them.
+Retry, resume, caching, continuation, and partial reuse are separate capabilities. Durability does not imply all of them.
 
-## 3. Inventory Caller Knowledge
+## 3. Inventory Material Caller Knowledge
 
-List every fact a caller, test, reviewer, or future agent must know to use the module correctly:
+List only facts that callers must know and that could affect the boundary choice:
 
-```text
-commands / methods
-parameters and flags
-ordering
-states and transitions
-paths and filenames
-roles and ownership
-retries and cleanup
-configuration
-errors and failure semantics
-compatibility and migration
-cost and performance expectations
-recovery
-```
+- operations and parameters;
+- caller-owned decisions;
+- ordering and lifecycle states;
+- configuration and provider details;
+- errors and failure semantics;
+- compatibility and migration;
+- recovery, cost, or performance expectations.
 
 For each fact ask:
 
-- Does the caller own this decision?
-- Could the module own it instead?
+- Does the caller own it?
+- Could the module own it?
 - Is it stable enough to expose?
 - Would changing it force surrounding edits?
-- Did a recent fix or review add this knowledge?
 
-A growing list is direct evidence of a shallow interface.
+The goal is not zero interface knowledge. It is the smallest honest contract.
 
-## 4. Classify Maturity
+## 4. Classify Capability Maturity
 
-Classify proposed capabilities:
+Separate:
 
-- **Trust:** needed to know the outcome is valid.
-- **Safety:** prevents damage, leakage, or runaway work.
-- **Efficiency:** saves time, requests, or money.
-- **Scale:** supports concurrency or volume.
-- **Portability:** supports additional hosts, providers, or environments.
+- required trust and safety;
+- accepted efficiency or scale requirements;
+- demonstrated portability needs;
+- speculative future flexibility.
 
-Required trust and safety cannot be deferred merely to simplify the design. Efficiency, scale, and portability need accepted requirements or observed pressure.
+Do not defer required correctness to obtain a simpler-looking interface. Do not promote hypothetical efficiency, scale, or portability into present architecture.
 
-## 5. Design It Twice
+## 5. Produce Alternatives Only When Real
 
-Produce two or three materially different interfaces. Change seam placement or ownership, not only names.
+When materially different ownership choices remain viable, design two or three interfaces that change seam placement—not merely terminology.
 
-Useful design constraints:
+For each show:
 
-- **Outcome-first:** caller asks for one complete result; module owns sequencing.
-- **Minimal contract:** expose the fewest stable decisions possible.
-- **Common-case:** make the primary caller path trivial while preserving failure honesty.
-- **Real variation:** design around two concrete adapters or environments when variation actually exists.
-
-For each design show:
-
-1. interface and usage;
+1. ordinary caller usage;
 2. caller-owned decisions;
 3. hidden internal protocol;
-4. failure unit and behavior;
-5. dependency/adapters strategy;
-6. evidence needed to trust it;
-7. costs and limitations.
+4. failure unit and observable behavior;
+5. dependency and adapter strategy;
+6. evidence needed;
+7. material cost or limitation.
 
-Do not force multiple designs when the change is local, reversible, and source-backed.
+Do not manufacture alternatives for a local, reversible, source-backed choice.
 
-## 6. Compare
+## 6. Compare On Discriminating Criteria
 
-Compare designs by:
+Use only criteria that could change the recommendation:
 
-- depth: behavior gained per interface fact;
-- locality: where future changes land;
+- behavior per interface fact;
+- locality of likely change;
 - correct-use ergonomics;
 - misuse and hidden-decision risk;
-- failure behavior and recoverability;
-- contract stability when callers depend on observable details;
-- test surface quality;
+- failure honesty and recovery;
+- contract stability;
+- test surface;
 - reversibility;
 - maturity fit;
 - implementation and evidence cost.
 
-Prefer the design that removes concepts and coordination, not the one that centralizes the same choreography behind more terminology.
+Prefer the design that removes concepts and coordination, not one that merely centralizes the same protocol behind additional terminology.
 
 ## 7. Learn Before Freezing
 
-If evidence cannot distinguish the designs, define one bounded learning slice:
+When evidence cannot distinguish viable boundaries, define one bounded learning slice:
 
 ```text
 Question:
-Competing designs:
-Prototype boundary:
-Evidence to capture:
-Time / cost boundary:
+Competing boundaries:
+Smallest prototype or observation:
+Evidence required:
+Time or cost boundary:
 Discard-or-promote rule:
 Return condition:
 ```
 
-The experiment should answer the design question, not quietly implement the whole subsystem.
+The learning slice answers the design question. It does not quietly implement the whole subsystem.
 
-## 8. Return To Workflow
+## 8. Return The Supported Boundary
 
-Return the structural evidence, compared designs, recommendation, unresolved owner decisions, and one narrow route:
+Return:
 
-- continue with the selected interface;
-- discuss or ask an owner decision;
-- revise the owning Spec or Plan;
-- run the bounded learning slice;
-- propose a bounded deepening slice;
-- defer or stop because no worthwhile safe design fits the current scope.
+- structural evidence;
+- selected boundary and hidden decision;
+- caller-owned contract;
+- failure unit and material failure behavior;
+- rejected alternatives and the discriminating reason, when alternatives were real;
+- unresolved owner decisions;
+- assumptions and required evidence;
+- the narrowest next route.
 
-Do not edit merely because one design is recommended. Recommendation is direction; Workflow owns selection and approval boundaries.
+Stop once a boundary is supported or a bounded learning question is identified. Recommendation does not authorize implementation.

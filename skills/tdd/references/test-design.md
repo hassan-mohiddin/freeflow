@@ -13,7 +13,7 @@ Start from the highest stable interface used by callers, then choose the smalles
 - **End-to-end or user-path check:** the requirement is a critical flow whose value depends on the assembled system.
 - **Characterization test:** existing behavior must be observed and protected before a behavior-preserving refactor.
 
-A characterization test records current behavior; it does not make that behavior desired or authoritative. Stop when intended behavior conflicts with source truth or remains user-owned.
+A characterization test records current behavior; it does not make that behavior desired or authoritative. When characterization supports Simplify Code, protect only behavior that accepted source truth requires or that must remain unchanged for the selected simplification. Stop when intended behavior conflicts with source truth or remains user-owned.
 
 A smaller environment is not better when it mocks away the behavior being claimed. A larger environment is not better when its extra machinery adds noise without proving more.
 
