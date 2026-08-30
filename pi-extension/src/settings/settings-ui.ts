@@ -29,6 +29,12 @@ import type {
   CognitiveRoutingProfileName,
   CognitiveRoutingThinkingLevel,
 } from "../cognitive-routing/types.js";
+import {
+  CONTEXT_CONTROL_MODES,
+  CONTEXT_CONTROL_RECOVERY_SCOPES,
+  DEFAULT_CONTEXT_CONTROL_CONFIG,
+  resolveContextControlConfig,
+} from "../context-control/core/config.js";
 
 const DEFAULT_FREEFLOW_ENABLED = true;
 const DEFAULT_INTERACTION_CONTRACT_ENABLED = true;
@@ -315,6 +321,143 @@ type ScopedDefaultModeItemOptions = {
   effectiveValue: string;
   effectiveSource: ConfigSource;
 };
+
+type ContextControlSettingsState = {
+  enabled: boolean;
+  cleanupMode: "model-only" | "model-approval" | "automatic";
+  recoveryMode: "model-only" | "model-approval" | "automatic";
+  recoveryScope: "active-branch" | "current-session" | "current-project";
+  sources: {
+    enabled: ConfigSource;
+    cleanupMode: ConfigSource;
+    recoveryMode: ConfigSource;
+    recoveryScope: ConfigSource;
+  };
+};
+
+function createContextControlEnumItem(options: {
+  scope: ConfigScope;
+  rawConfig: Record<string, unknown>;
+  localConfig: Record<string, unknown>;
+  id: string;
+  label: string;
+  description: string;
+  path: string[];
+  values: string[];
+  defaultValue: string;
+  effectiveValue: string;
+  effectiveSource: ConfigSource;
+}): SettingsItem {
+  const repositoryValue = getPath(options.rawConfig, options.path);
+  const localValue = getPath(options.localConfig, options.path);
+  const inheritedValue = options.values.includes(String(repositoryValue))
+    ? String(repositoryValue)
+    : options.defaultValue;
+  const inheritedSource: ConfigSource = options.values.includes(String(repositoryValue)) ? "repository" : "builtin";
+  const item: SettingsItem =
+    options.scope === "local"
+      ? {
+          id: options.id,
+          label: options.label,
+          description: `${options.description} Choose inherit to use the repository value; use /freeflow settings repo to edit shared defaults.`,
+          path: options.path,
+          kind: "enum",
+          value: options.values.includes(String(localValue)) ? String(localValue) : LOCAL_INHERIT,
+          values: [LOCAL_INHERIT, ...options.values],
+          valueLabels: { inherit: "Inherit repository" },
+          valueDescriptions: {
+            inherit: `Use ${inheritedValue} from ${inheritedSource}.`,
+          },
+          format: (value) => String(value),
+          configScope: "local",
+          configValues: { inherit: undefined },
+          effectiveValue: options.effectiveValue,
+          effectiveSource: options.effectiveSource,
+          inheritedValue,
+          inheritedSource,
+        }
+      : {
+          id: options.id,
+          label: options.label,
+          description: `${options.description} This edits shared .freeflow/config.json.`,
+          path: options.path,
+          kind: "enum",
+          value: inheritedValue,
+          values: options.values,
+          valueLabels: Object.fromEntries(options.values.map((value) => [value, value])),
+          format: (value) => String(value),
+          configScope: "repository",
+          defaultValue: options.defaultValue,
+          effectiveValue: options.effectiveValue,
+          effectiveSource: options.effectiveSource,
+          localOverrideValue: options.values.includes(String(localValue)) ? String(localValue) : undefined,
+        };
+  item.displaySuffix = coreDisplaySuffix(item);
+  return item;
+}
+
+function contextControlSettingsItems(
+  rawConfig: Record<string, unknown>,
+  localConfig: Record<string, unknown>,
+  scope: ConfigScope,
+  state: ContextControlSettingsState,
+): SettingsItem[] {
+  const enabled = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.contextControl.enabled",
+    label: "Enabled",
+    description: "Enable Context Control as the projection and recovery coordinator.",
+    path: ["contextControl", "enabled"],
+    effectiveValue: state.enabled,
+    effectiveSource: state.sources.enabled,
+    defaultValue: DEFAULT_CONTEXT_CONTROL_CONFIG.enabled,
+  });
+  const cleanupMode = createContextControlEnumItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.contextControl.cleanupMode",
+    label: "Cleanup mode",
+    description: "Choose whether cleanup is model-requested, model-approved, or automatically applied when safe.",
+    path: ["contextControl", "cleanupMode"],
+    values: [...CONTEXT_CONTROL_MODES],
+    defaultValue: DEFAULT_CONTEXT_CONTROL_CONFIG.cleanupMode,
+    effectiveValue: state.cleanupMode,
+    effectiveSource: state.sources.cleanupMode,
+  });
+  const recoveryMode = createContextControlEnumItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.contextControl.recoveryMode",
+    label: "Recovery mode",
+    description: "Choose whether recovery is model-requested, model-approved, or automatically applied when safe.",
+    path: ["contextControl", "recoveryMode"],
+    values: [...CONTEXT_CONTROL_MODES],
+    defaultValue: DEFAULT_CONTEXT_CONTROL_CONFIG.recoveryMode,
+    effectiveValue: state.recoveryMode,
+    effectiveSource: state.sources.recoveryMode,
+  });
+  const recoveryScope = createContextControlEnumItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.contextControl.recoveryScope",
+    label: "Recovery scope",
+    description: "Choose which current-project sessions and branches may be searched for hidden evidence.",
+    path: ["contextControl", "recoveryScope"],
+    values: [...CONTEXT_CONTROL_RECOVERY_SCOPES],
+    defaultValue: DEFAULT_CONTEXT_CONTROL_CONFIG.recoveryScope,
+    effectiveValue: state.recoveryScope,
+    effectiveSource: state.sources.recoveryScope,
+  });
+  cleanupMode.inactive = !state.enabled;
+  recoveryMode.inactive = !state.enabled;
+  recoveryScope.inactive = !state.enabled;
+  return [enabled, cleanupMode, recoveryMode, recoveryScope];
+}
 
 function createScopedDefaultModeItem(options: ScopedDefaultModeItemOptions): SettingsItem {
   let item: SettingsItem;
@@ -980,6 +1123,7 @@ function freeflowItems(
     scope?: ConfigScope;
     layers?: Awaited<ReturnType<typeof readFreeflowConfigLayers>>;
     cognitiveRouting?: CognitiveRoutingCapabilityState;
+    contextControl?: ContextControlSettingsState;
     ctx?: any;
     hostInfo?: unknown;
   } = {},
@@ -987,6 +1131,26 @@ function freeflowItems(
   const scope = options.scope ?? "repository";
   const layers = options.layers;
   const { localConfig, core, sources } = resolveSettingsCoreView(rawConfig, layers);
+  const resolvedContextControl = resolveContextControlConfig(rawConfig, localConfig);
+  const contextControl = options.contextControl ?? {
+    ...resolvedContextControl.config,
+    sources: {
+      enabled: resolvedContextControl.sources.enabled as ConfigSource,
+      cleanupMode: resolvedContextControl.sources.cleanupMode as ConfigSource,
+      recoveryMode: resolvedContextControl.sources.recoveryMode as ConfigSource,
+      recoveryScope: resolvedContextControl.sources.recoveryScope as ConfigSource,
+    },
+  };
+  const contextControlItems = contextControlSettingsItems(rawConfig, localConfig, scope, contextControl);
+  const contextControlGroup = {
+    id: "freeflow.contextControl",
+    label: "Context Control",
+    description: "Coordinate model-visible cleanup and evidence recovery across the configured repository scope.",
+    kind: "group" as const,
+    value: contextControl.enabled,
+    displaySuffix: `${contextControl.enabled ? "enabled" : "disabled"} · cleanup ${contextControl.cleanupMode} · recovery ${contextControl.recoveryMode} · ${contextControl.recoveryScope}`,
+    children: contextControlItems,
+  } satisfies SettingsItem;
 
   const freeflowItem = createScopedBooleanItem({
     scope,
@@ -1179,6 +1343,7 @@ function freeflowItems(
       displaySuffix: `${[contextVirtualizationItem, conversationHistoryItem].filter((item) => item.effectiveValue === true).length}/2 enabled`,
       children: [contextVirtualizationItem, conversationHistoryItem],
     },
+    contextControlGroup,
   ];
 }
 
@@ -1188,6 +1353,10 @@ function pruneKnownDefaults(config: Record<string, unknown>) {
     { path: ["interactionContract"], value: DEFAULT_INTERACTION_CONTRACT_ENABLED },
     { path: ["skills", "enabled"], value: DEFAULT_SKILLS_ENABLED },
     { path: ["conversationHistory"], value: DEFAULT_CONVERSATION_HISTORY_ENABLED },
+    { path: ["contextControl", "enabled"], value: DEFAULT_CONTEXT_CONTROL_CONFIG.enabled },
+    { path: ["contextControl", "cleanupMode"], value: DEFAULT_CONTEXT_CONTROL_CONFIG.cleanupMode },
+    { path: ["contextControl", "recoveryMode"], value: DEFAULT_CONTEXT_CONTROL_CONFIG.recoveryMode },
+    { path: ["contextControl", "recoveryScope"], value: DEFAULT_CONTEXT_CONTROL_CONFIG.recoveryScope },
   ];
 
   for (const item of defaultPaths) {
@@ -1527,6 +1696,9 @@ function freeflowStatusText(
           : "disabled"
     : undefined;
   const contextEnabled = state.contextVirtualization?.effective || state.conversationHistory?.effective;
+  const contextControlStatus = state.contextControl?.configured
+    ? `${state.contextControl.effective ? "enabled" : "disabled"} (cleanup ${state.contextControl.cleanupMode}, recovery ${state.contextControl.recoveryMode}, scope ${state.contextControl.recoveryScope})`
+    : undefined;
   return [
     `Freeflow: ${state.enabled ? "enabled" : "disabled"}${sessionSuffix(state.configSources.enabled as ConfigSource)}`,
     `interaction contract: ${state.interactionContract.effective ? "enabled" : "disabled"}${sessionSuffix(
@@ -1536,6 +1708,7 @@ function freeflowStatusText(
       state.configSources.skillsEnabled as ConfigSource,
     )}`,
     `context: ${contextEnabled ? "enabled" : "disabled"} (virtualization ${state.contextVirtualization?.effective ? "enabled" : "disabled"}, history ${state.conversationHistory?.effective ? "enabled" : "disabled"})`,
+    ...(contextControlStatus ? [`context control: ${contextControlStatus}`] : []),
     ...(cognitiveRoutingStatus ? [`cognitive routing: ${cognitiveRoutingStatus}`] : []),
   ].join("; ");
 }
@@ -1665,6 +1838,7 @@ export async function handleFreeflowCommand(
       scope: "local",
       layers,
       cognitiveRouting: state.cognitiveRouting as CognitiveRoutingCapabilityState,
+      contextControl: state.contextControl,
       ctx,
       hostInfo: pi?.host,
     }).find((candidate) => candidate.id === "freeflow.sessionMode")!;
@@ -1688,6 +1862,7 @@ export async function handleFreeflowCommand(
       scope: "repository",
       layers,
       cognitiveRouting: state.cognitiveRouting as CognitiveRoutingCapabilityState,
+      contextControl: state.contextControl,
       ctx,
       hostInfo: pi?.host,
     }).find((candidate) => candidate.id === "freeflow.enabled")!;
@@ -1733,6 +1908,7 @@ export async function handleFreeflowCommand(
           scope: settingsScope,
           layers,
           cognitiveRouting: state.cognitiveRouting as CognitiveRoutingCapabilityState,
+          contextControl: state.contextControl,
           ctx,
           hostInfo: pi?.host,
         });

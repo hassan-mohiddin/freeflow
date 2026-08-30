@@ -385,6 +385,7 @@ test("Pi describes Freeflow argument completions", () => {
     { value: "settings", label: "settings", description: "Open personal override settings" },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
     { value: "context", label: "context", description: "Inspect Freeflow Context" },
+    { value: "context-control", label: "context-control", description: "Manage Context Control sidecar metadata" },
     { value: "mode", label: "mode", description: "Select a temporary session mode" },
     { value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" },
     { value: "enable", label: "enable", description: "Enable Freeflow for this repository" },

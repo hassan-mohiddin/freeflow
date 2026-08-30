@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveCognitiveRoutingState } from "../cognitive-routing/runtime.js";
+import { resolveContextControlConfig, validateContextControlConfig } from "../context-control/core/config.js";
 import { isPiFlowHost } from "./runtime-identity.js";
 export const VALID_MODES = new Set(["conversation", "workflow", "strict-workflow"]);
 export const WORKFLOW_COMMANDS = [
@@ -224,7 +225,7 @@ function validateCoreConfigFields(value) {
       return "skills.enabled must be a boolean";
     }
   }
-  return null;
+  return validateContextControlConfig(value.contextControl);
 }
 function validateFreeflowConfigShape(value) {
   if (!isRecord(value)) {
@@ -242,6 +243,7 @@ function validateFreeflowConfigShape(value) {
     "cognitiveRouting",
     "contextVirtualization",
     "conversationHistory",
+    "contextControl",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -270,6 +272,7 @@ function validateFreeflowLocalConfigShape(value) {
     "cognitiveRouting",
     "contextVirtualization",
     "conversationHistory",
+    "contextControl",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -346,6 +349,7 @@ function resolveCoreConfig(repository, local) {
   const repositorySkills = isRecord(repository.skills) ? repository.skills : {};
   const localSkills = isRecord(local.skills) ? local.skills : {};
   const skillsEnabled = resolveLayeredValue(repositorySkills, localSkills, "enabled", true);
+  const contextControl = resolveContextControlConfig(repository, local);
   return {
     config: {
       enabled: enabled.value,
@@ -354,6 +358,7 @@ function resolveCoreConfig(repository, local) {
       conversationHistory: conversationHistory.value,
       skills: { enabled: skillsEnabled.value },
       defaultMode: defaultMode.value,
+      ...(contextControl.configured ? { contextControl: contextControl.config } : {}),
     },
     sources: {
       enabled: enabled.source,
@@ -362,6 +367,7 @@ function resolveCoreConfig(repository, local) {
       conversationHistory: conversationHistory.source,
       skillsEnabled: skillsEnabled.source,
       defaultMode: defaultMode.source,
+      ...(contextControl.configured ? { contextControl: contextControl.sources } : {}),
     },
   };
 }
@@ -444,6 +450,9 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
     layers.local.parsed,
     hostSupportsCognitiveRouting ? host : undefined,
   );
+  const contextControlResolution = resolveContextControlConfig(layers.repository.parsed, layers.local.parsed);
+  const contextControlConfig = contextControlResolution.config;
+  const contextControlEffective = enabled && contextControlConfig.enabled;
   const disabledReason = enabled
     ? skillsEffective
       ? undefined
@@ -451,8 +460,12 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
     : { code: "disabled", message: "Freeflow is disabled" };
   const childCapability = (configuredEnabled) => ({
     enabled: configuredEnabled,
-    effective: skillsEffective && configuredEnabled,
-    ...(disabledReason ? { blockingReason: disabledReason } : {}),
+    effective: skillsEffective && configuredEnabled && !contextControlEffective,
+    ...(disabledReason
+      ? { blockingReason: disabledReason }
+      : contextControlEffective
+        ? { blockingReason: { code: "context_control_owner", message: "Context Control owns the projection" } }
+        : {}),
   });
   const cognitiveRouting = enabled
     ? skillsEffective
@@ -510,6 +523,22 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
     },
     contextVirtualization: childCapability(contextVirtualizationConfigEnabled),
     conversationHistory: childCapability(conversationHistoryConfigEnabled),
+    contextControl: {
+      configured: contextControlResolution.configured,
+      enabled: contextControlConfig.enabled,
+      effective: contextControlEffective,
+      cleanupMode: contextControlConfig.cleanupMode,
+      recoveryMode: contextControlConfig.recoveryMode,
+      recoveryScope: contextControlConfig.recoveryScope,
+      sources: contextControlResolution.sources,
+      ...(contextControlEffective
+        ? {}
+        : {
+            blockingReason: enabled
+              ? { code: "disabled", message: "Context Control is disabled" }
+              : { code: "disabled", message: "Freeflow is disabled" },
+          }),
+    },
     hostSupportsCognitiveRouting,
     cognitiveRouting,
   };
@@ -613,6 +642,14 @@ export function setModeStatus(
   if (capabilityState?.contextVirtualization?.effective || capabilityState?.conversationHistory?.effective) {
     active.push("context");
   }
+  const contextControl = capabilityState?.contextControl;
+  if (contextControl?.effective === true) {
+    active.push(
+      `context-control · cleanup ${contextControl.cleanupMode} · recovery ${contextControl.recoveryMode} · ${contextControl.recoveryScope}`,
+    );
+  } else if (contextControl?.configured === true) {
+    active.push("context-control off");
+  }
   ctx.ui.setStatus("freeflow", `freeflow: ${active.length > 0 ? active.join(" · ") : "idle"}`);
 }
 function modeSourceLabel(source) {
@@ -674,6 +711,14 @@ export function freeflowRuntimeStateMessage(modeState, capabilityState, cognitiv
       `- Context Virtualization: ${publicCapabilityStatus(capabilityState?.contextVirtualization)}`,
       `- Conversation History: ${publicCapabilityStatus(capabilityState?.conversationHistory)}`,
       `- Cognitive Routing: ${publicCapabilityStatus(capabilityState?.cognitiveRouting)}`,
+      ...(capabilityState?.contextControl?.configured === true || capabilityState?.contextControl?.effective === true
+        ? [
+            `- Context Control: ${publicCapabilityStatus(capabilityState.contextControl)}`,
+            `  Cleanup mode: \`${capabilityState.contextControl.cleanupMode}\``,
+            `  Recovery mode: \`${capabilityState.contextControl.recoveryMode}\``,
+            `  Recovery scope: \`${capabilityState.contextControl.recoveryScope}\``,
+          ]
+        : []),
       "",
       "Cognitive Routing:",
       `- Control: \`${control}\``,

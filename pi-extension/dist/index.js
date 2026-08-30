@@ -10,6 +10,12 @@ import {
 import { registerCognitiveRoutingHistoryTool, registerCognitiveRoutingTool } from "./cognitive-routing/tool.js";
 import { readCognitiveRoutingHistory } from "./cognitive-routing/history.js";
 import { ConversationHistoryRuntime } from "./conversation-history/runtime.js";
+import { createContextControlExtension } from "./context-control/adapters/extension.js";
+import {
+  CONTEXT_CONTROL_DECIDE_TOOL_NAME,
+  CONTEXT_CONTROL_TOOL_NAME,
+  CONTEXT_CONTROL_USE_EVIDENCE_TOOL_NAME,
+} from "./context-control/interfaces/tool.js";
 import { FreeflowContextRuntime } from "./freeflow-context/runtime.js";
 import { CONTEXT_VIRTUALIZATION_TOOL_NAME, registerFreeflowContextTool } from "./freeflow-context/tool.js";
 import { handleContextCommand } from "./context-virtualization/commands.js";
@@ -57,6 +63,7 @@ function modelFacingCapabilityState(
     contextVirtualization: { ...capabilityState?.contextVirtualization },
     conversationHistory: { ...capabilityState?.conversationHistory },
     cognitiveRouting: { ...capabilityState?.cognitiveRouting },
+    contextControl: { ...capabilityState?.contextControl },
   };
   if (surfaceState.enabled !== true) return surfaceState;
   const markUnavailable = (key, message) => {
@@ -196,12 +203,30 @@ async function applyCapabilityToolVisibility(
     if (routingToolActive) active.add(COGNITIVE_ROUTING_SWITCH_TOOL_NAME);
     else active.delete(COGNITIVE_ROUTING_SWITCH_TOOL_NAME);
   }
+  const contextControlActive = state.contextControl?.effective === true;
   if (allToolNameSet.has(CONTEXT_VIRTUALIZATION_TOOL_NAME)) {
-    if (state.contextVirtualization?.effective === true || state.conversationHistory?.effective === true) {
+    if (
+      !contextControlActive &&
+      (state.contextVirtualization?.effective === true || state.conversationHistory?.effective === true)
+    ) {
       active.add(CONTEXT_VIRTUALIZATION_TOOL_NAME);
     } else {
       active.delete(CONTEXT_VIRTUALIZATION_TOOL_NAME);
     }
+  }
+  if (allToolNameSet.has(CONTEXT_CONTROL_TOOL_NAME)) {
+    if (contextControlActive) active.add(CONTEXT_CONTROL_TOOL_NAME);
+    else active.delete(CONTEXT_CONTROL_TOOL_NAME);
+  }
+  if (allToolNameSet.has(CONTEXT_CONTROL_DECIDE_TOOL_NAME)) {
+    const proposalEnabled =
+      state.contextControl?.cleanupMode === "model-approval" || state.contextControl?.recoveryMode === "model-approval";
+    if (contextControlActive && proposalEnabled) active.add(CONTEXT_CONTROL_DECIDE_TOOL_NAME);
+    else active.delete(CONTEXT_CONTROL_DECIDE_TOOL_NAME);
+  }
+  if (allToolNameSet.has(CONTEXT_CONTROL_USE_EVIDENCE_TOOL_NAME)) {
+    if (contextControlActive) active.add(CONTEXT_CONTROL_USE_EVIDENCE_TOOL_NAME);
+    else active.delete(CONTEXT_CONTROL_USE_EVIDENCE_TOOL_NAME);
   }
   pi.setActiveTools([...active]);
 }
@@ -262,6 +287,12 @@ function freeflowCompletions(prefix, hostInfo = undefined) {
       .filter((item) => item.value.startsWith(modeQuery))
       .map((item) => ({ ...item, value: `mode ${item.value}` }));
   }
+  if (query.startsWith("context-control ")) {
+    const contextControlQuery = query.slice("context-control ".length);
+    return [{ value: "purge", label: "purge", description: "Delete Context Control sidecar metadata" }]
+      .filter((item) => item.value.startsWith(contextControlQuery))
+      .map((item) => ({ ...item, value: `context-control ${item.value}` }));
+  }
   if (query.startsWith("context ")) {
     const contextQuery = query.slice("context ".length);
     return [
@@ -277,6 +308,7 @@ function freeflowCompletions(prefix, hostInfo = undefined) {
     { value: "settings", label: "settings", description: "Open personal override settings" },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
     { value: "context", label: "context", description: "Inspect Freeflow Context" },
+    { value: "context-control", label: "context-control", description: "Manage Context Control sidecar metadata" },
     { value: "mode", label: "mode", description: "Select a temporary session mode" },
     ...(isPiFlowHost(hostInfo)
       ? [{ value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" }]
@@ -322,6 +354,28 @@ export default function freeflow(pi) {
   let freeflowContextRuntime;
   let contextVirtualizationRuntime;
   let conversationHistoryRuntime;
+  const contextControlExtensionState = createContextControlExtension(pi, {
+    registerLifecycle: false,
+    resolveConfig: async (ctx) => {
+      const state = await readCapabilityState(ctx?.cwd ?? process.cwd(), ctx, pi?.host);
+      return {
+        enabled: state.contextControl?.effective === true,
+        cleanupMode:
+          state.contextControl?.cleanupMode === "automatic" || state.contextControl?.cleanupMode === "model-approval"
+            ? state.contextControl.cleanupMode
+            : "model-only",
+        recoveryMode:
+          state.contextControl?.recoveryMode === "automatic" || state.contextControl?.recoveryMode === "model-approval"
+            ? state.contextControl.recoveryMode
+            : "model-only",
+        recoveryScope:
+          state.contextControl?.recoveryScope === "current-project" ||
+          state.contextControl?.recoveryScope === "current-session"
+            ? state.contextControl.recoveryScope
+            : "active-branch",
+      };
+    },
+  });
   const registerContextToolForState = (capabilityState) => {
     registerFreeflowContextTool(
       pi,
@@ -487,6 +541,7 @@ export default function freeflow(pi) {
     );
     await contextVirtualizationRuntime.recover(ctx);
     const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
+    await contextControlExtensionState.start(ctx);
     await refreshRuntimeContext(capabilityState);
     const hasSessionState = sessionHasConversationOrRoutingState(ctx);
     const snapshot = await buildProviderSurface(ctx, hasSessionState);
@@ -501,6 +556,7 @@ export default function freeflow(pi) {
     await applyCapabilityToolVisibility(pi, ctx, snapshot.capabilityState, cognitiveRoutingController);
   });
   pi.on("agent_settled", async (_event, ctx) => {
+    contextControlExtensionState.settled();
     if (!cognitiveRoutingController) return undefined;
     await applyLiveCapabilityStateForSession(ctx);
     return undefined;
@@ -512,12 +568,24 @@ export default function freeflow(pi) {
     freeflowContextRuntime = undefined;
     contextVirtualizationRuntime = undefined;
     conversationHistoryRuntime = undefined;
+    await contextControlExtensionState.shutdown(typeof event?.reason === "string" ? event.reason : "unknown");
     if (controller) await controller.shutdown(event?.reason);
   });
+  for (const eventName of [
+    "session_before_switch",
+    "session_before_fork",
+    "session_before_compact",
+    "session_before_tree",
+  ]) {
+    pi.on(eventName, async () => {
+      contextControlExtensionState.invalidate();
+    });
+  }
   pi.on("session_tree", async (_event, ctx) => {
     latestCognitiveRoutingContext = ctx;
     providerSurfaceSnapshot = undefined;
     restoreModeOverride(ctx);
+    contextControlExtensionState.invalidate();
     const controller = cognitiveRoutingController;
     if (controller) await controller.reconcileBranch();
     if (contextVirtualizationRuntime) {
@@ -530,6 +598,7 @@ export default function freeflow(pi) {
   pi.on("session_compact", async (_event, ctx) => {
     latestCognitiveRoutingContext = ctx;
     providerSurfaceSnapshot = undefined;
+    contextControlExtensionState.invalidate();
     const controller = cognitiveRoutingController;
     if (controller) await controller.reconcileBranch("session-compact");
     if (contextVirtualizationRuntime) {
@@ -548,6 +617,7 @@ export default function freeflow(pi) {
   });
   pi.on("before_agent_start", async (event, ctx) => {
     latestCognitiveRoutingContext = ctx;
+    contextControlExtensionState.setPrompt(event?.prompt);
     const snapshot = await buildProviderSurface(ctx, true);
     providerSurfaceSnapshot = { context: ctx, value: snapshot };
     registerContextToolForState(snapshot.capabilityState);
@@ -574,7 +644,8 @@ export default function freeflow(pi) {
         return filtered;
       })
       .filter((message) => message !== undefined);
-    if (contextVirtualizationRuntime) {
+    const contextControlActive = surfaceCapabilityState.contextControl?.effective === true;
+    if (contextVirtualizationRuntime && !contextControlActive) {
       contextVirtualizationRuntime.setContext(ctx);
       const projected = await contextVirtualizationRuntime.project(
         messages,
@@ -585,9 +656,20 @@ export default function freeflow(pi) {
         messages = projected.messages;
       }
     }
-    if (conversationHistoryRuntime && surfaceCapabilityState.conversationHistory?.effective === true) {
+    if (
+      conversationHistoryRuntime &&
+      !contextControlActive &&
+      surfaceCapabilityState.conversationHistory?.effective === true
+    ) {
       conversationHistoryRuntime.setContext(ctx);
       conversationHistoryRuntime.capture(surfaceCapabilityState.contextVirtualization?.effective === true);
+    }
+    if (contextControlActive) {
+      const projected = await contextControlExtensionState.project(messages, ctx);
+      if (projected?.changed) {
+        changed = true;
+        messages = projected.messages;
+      }
     }
     const nextMessages = withFreeflowRuntimeState(
       messages,
@@ -603,13 +685,23 @@ export default function freeflow(pi) {
     const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
     const toolName = typeof event?.toolName === "string" ? event.toolName : "";
     if (
-      capabilityState.contextVirtualization?.effective !== true &&
-      capabilityState.conversationHistory?.effective !== true &&
+      (capabilityState.contextControl?.effective === true ||
+        (capabilityState.contextVirtualization?.effective !== true &&
+          capabilityState.conversationHistory?.effective !== true)) &&
       toolName === CONTEXT_VIRTUALIZATION_TOOL_NAME
     ) {
       return disabledToolCall(toolName, "context");
     }
     return undefined;
+  });
+  pi.on("before_provider_request", async () => {
+    contextControlExtensionState.beforeProviderRequest();
+  });
+  pi.on("turn_end", async () => {
+    contextControlExtensionState.turnEnd();
+  });
+  pi.on("message_end", async (event) => {
+    return contextControlExtensionState.messageEnd(event?.message);
   });
   pi.on("tool_result", async (event, ctx) => {
     const toolName = typeof event?.toolName === "string" ? event.toolName : "";
@@ -640,6 +732,25 @@ export default function freeflow(pi) {
     getArgumentCompletions: (prefix) => freeflowCompletions(prefix, pi?.host),
     handler: async (args, ctx) => {
       const contextInput = (args ?? "").trim();
+      if (/^context-control(?:\s|$)/iu.test(contextInput)) {
+        const contextControlCommand = contextInput.slice("context-control".length).trim().toLocaleLowerCase();
+        if (contextControlCommand !== "purge") {
+          ctx.ui.notify("Use /freeflow context-control purge to delete private Context Control metadata.", "info");
+          return;
+        }
+        if (typeof ctx?.isIdle === "function" && !ctx.isIdle()) {
+          ctx.ui.notify("Context Control sidecar purge is available only while Pi is idle.", "warning");
+          return;
+        }
+        const purged = await contextControlExtensionState.purge(ctx);
+        if (purged.status === "ok") {
+          ctx.ui.notify("Context Control sidecar metadata purged; canonical session history was unchanged.", "info");
+        } else {
+          ctx.ui.notify(`Context Control sidecar purge failed: ${purged.reason ?? "unavailable"}.`, "warning");
+        }
+        await applyLiveCapabilityStateForSession(ctx);
+        return;
+      }
       if (contextInput === "context" || contextInput.startsWith("context ")) {
         const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
         await handleContextCommand(
@@ -675,6 +786,7 @@ export default function freeflow(pi) {
         args,
         ctx,
         async (_changed, options = {}) => {
+          await contextControlExtensionState.reload(ctx);
           await applyLiveCapabilityStateForSession(ctx, {
             reconcileCognitiveRouting: options.reconcileCognitiveRouting ?? true,
           });
