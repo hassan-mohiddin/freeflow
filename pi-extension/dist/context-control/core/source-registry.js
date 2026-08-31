@@ -300,6 +300,42 @@ function descendantOf(entryId, ancestorId, parentById) {
   }
   return false;
 }
+function logicalBranchIdForEntries(allEntries, activeBranchEntries, sessionId, leafId) {
+  const activeEntryIds = entryIdSet(activeBranchEntries);
+  const parentById = new Map();
+  const childrenById = new Map();
+  for (const entryValue of allEntries) {
+    const entry = record(entryValue);
+    const id = stringValue(entry.id);
+    const parentId = stringValue(entry.parentId);
+    if (id === undefined || parentId === undefined) continue;
+    parentById.set(id, parentId);
+    const children = childrenById.get(parentId) ?? new Set();
+    children.add(id);
+    childrenById.set(parentId, children);
+  }
+  let child = leafId !== undefined && activeEntryIds.has(leafId) ? leafId : undefined;
+  if (child === undefined) {
+    const activeIds = [...activeEntryIds];
+    child = activeIds.at(-1);
+  }
+  let anchor;
+  let rootId = child;
+  const visited = new Set();
+  while (child !== undefined && !visited.has(child)) {
+    visited.add(child);
+    const parent = parentById.get(child);
+    if (parent === undefined) {
+      rootId = child;
+      break;
+    }
+    if ((childrenById.get(parent)?.size ?? 0) > 1) anchor = child;
+    rootId = parent;
+    child = parent;
+  }
+  if (anchor !== undefined) return `branch:${anchor}`;
+  return rootId === undefined ? `branch:${sessionId}` : `branch:${rootId}`;
+}
 function branchIdForEntries(entries, activeEntryIds, activeBranchId) {
   const parentById = new Map();
   for (const entryValue of entries) {
@@ -460,11 +496,17 @@ export class ContextControlSourceRegistry {
   snapshot(consumedToolCallIds, generation) {
     const manager = this.ctx?.sessionManager;
     const sessionId = stringValue(manager?.getSessionId?.()) ?? "unknown-session";
-    const branchId = stringValue(manager?.getLeafId?.()) ?? sessionId;
     const branchEntries = Array.isArray(manager?.getBranch?.()) ? manager.getBranch() : [];
+    const allEntries = Array.isArray(manager?.getEntries?.()) ? manager.getEntries() : branchEntries;
     const activeEntries = Array.isArray(manager?.buildContextEntries?.())
       ? manager.buildContextEntries()
       : branchEntries;
+    const branchId = logicalBranchIdForEntries(
+      allEntries,
+      branchEntries,
+      sessionId,
+      stringValue(manager?.getLeafId?.()),
+    );
     const sources = buildSources(branchEntries, {
       sessionId,
       branchId,

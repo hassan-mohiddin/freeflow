@@ -180,9 +180,14 @@ export interface ContextControlPinSnapshot {
   priorRetainedMeaning?: string;
 }
 
+export interface ContextControlProposalDisposition {
+  fingerprint: string;
+  disposition: "rejected";
+}
+
 export interface ContextControlJournalDraft {
   version: 1;
-  kind: "batch" | "reset" | "pin";
+  kind: "batch" | "reset" | "pin" | "disposition";
   sessionId: string;
   branchId: string;
   checkpointId: string;
@@ -191,6 +196,7 @@ export interface ContextControlJournalDraft {
   pinRefs?: readonly string[];
   unpinRefs?: readonly string[];
   pinSnapshots?: readonly ContextControlPinSnapshot[];
+  proposalDisposition?: ContextControlProposalDisposition;
   transactionId?: string;
   previousHash?: string;
   recordHash?: string;
@@ -259,6 +265,13 @@ export interface ContextControlStatus {
   recoveryScope: ContextControlRecoveryScope;
   repositoryId?: string;
   catalogSessionCount: number;
+  catalogSourceCount: number;
+  catalogExcludedCount: number;
+  catalogProtectedCount: number;
+  reducedCount: number;
+  activeExactLeaseCount: number;
+  activeEvidenceHandleCount: number;
+  suppressedProposalCount: number;
   pendingProposal: boolean;
   pendingProposalId?: string;
   auditFailureCount: number;

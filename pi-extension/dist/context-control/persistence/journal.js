@@ -20,6 +20,7 @@ const DRAFT_FIELDS = new Set([
   "pinRefs",
   "unpinRefs",
   "pinSnapshots",
+  "proposalDisposition",
   "transactionId",
   "previousHash",
   "recordHash",
@@ -39,6 +40,7 @@ const CHANGE_FIELDS = new Set([
   "pinned",
 ]);
 const PIN_SNAPSHOT_FIELDS = new Set(["ref", "priorState", "priorSourceHash", "priorRetainedMeaning"]);
+const PROPOSAL_DISPOSITION_FIELDS = new Set(["fingerprint", "disposition"]);
 function cloneIdentity(identity) {
   return { ...identity };
 }
@@ -52,6 +54,9 @@ function cloneChange(change) {
 function clonePinSnapshot(snapshot) {
   return { ...snapshot };
 }
+function cloneProposalDisposition(disposition) {
+  return { ...disposition };
+}
 function cloneEntry(entry) {
   return {
     ...entry,
@@ -61,6 +66,9 @@ function cloneEntry(entry) {
     ...(entry.pinSnapshots === undefined
       ? {}
       : { pinSnapshots: Object.freeze(entry.pinSnapshots.map(clonePinSnapshot)) }),
+    ...(entry.proposalDisposition === undefined
+      ? {}
+      : { proposalDisposition: cloneProposalDisposition(entry.proposalDisposition) }),
   };
 }
 function validText(value, max) {
@@ -102,6 +110,16 @@ function validPinSnapshot(value) {
     (snapshot.priorRetainedMeaning === undefined || validText(snapshot.priorRetainedMeaning, 4096))
   );
 }
+function validProposalDisposition(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const disposition = value;
+  return (
+    !Object.keys(disposition).some((key) => !PROPOSAL_DISPOSITION_FIELDS.has(key)) &&
+    typeof disposition.fingerprint === "string" &&
+    HASH_PATTERN.test(disposition.fingerprint) &&
+    disposition.disposition === "rejected"
+  );
+}
 function validChange(value) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const change = value;
@@ -133,7 +151,7 @@ function validateDraft(value) {
   if (Object.keys(value).some((key) => !DRAFT_FIELDS.has(key))) {
     throw new ContextControlJournalError("definitive", "journal draft contains an unknown field");
   }
-  if (value.version !== 1 || !["batch", "reset", "pin"].includes(value.kind)) {
+  if (value.version !== 1 || !["batch", "reset", "pin", "disposition"].includes(value.kind)) {
     throw new ContextControlJournalError("definitive", "invalid journal draft version or kind");
   }
   if (
@@ -151,6 +169,12 @@ function validateDraft(value) {
     value.changes.some((change) => !validChange(change))
   ) {
     throw new ContextControlJournalError("definitive", "invalid journal draft changes");
+  }
+  if (value.kind === "disposition" && !validProposalDisposition(value.proposalDisposition)) {
+    throw new ContextControlJournalError("definitive", "invalid proposal disposition");
+  }
+  if (value.kind !== "disposition" && value.proposalDisposition !== undefined) {
+    throw new ContextControlJournalError("definitive", "proposal disposition requires disposition journal kind");
   }
   const pinRefs = value.pinRefs ?? [];
   const unpinRefs = value.unpinRefs ?? [];

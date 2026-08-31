@@ -315,6 +315,66 @@ test("Approval policy proposes proactive recovery without materializing until ap
   assert.equal(runtime.status().residency["ctx:tool-1"], "full");
 });
 
+test("rejected cleanup proposals stay suppressed without new source state", async () => {
+  const { ctx } = createSession();
+  const journal = new MemoryContextControlJournal();
+  const runtime = new ContextControlRuntime({
+    ctx,
+    mode: "active",
+    cleanupMode: "model-approval",
+    recoveryMode: "model-only",
+    journal,
+  });
+  await runtime.start();
+  await consumeTwo(runtime);
+
+  const proposalResult = await runtime.project([toolMessage("call-1"), toolMessage("call-2")]);
+  assert.equal(proposalResult.proposal?.kind, "cleanup");
+  const rejected = await runtime.decideProposal({ proposalId: proposalResult.proposal.id, action: "reject" });
+  assert.equal(rejected.status, "ok");
+
+  const afterReject = await runtime.project([toolMessage("call-1"), toolMessage("call-2")]);
+  assert.equal(afterReject.proposal, undefined);
+  assert.equal(runtime.status().pendingProposal, false);
+  assert.equal(runtime.status().suppressedProposalCount, 1);
+  assert.equal(journal.read("session-1").filter((entry) => entry.kind === "disposition").length, 1);
+
+  const restarted = new ContextControlRuntime({
+    ctx,
+    mode: "active",
+    cleanupMode: "model-approval",
+    recoveryMode: "model-only",
+    journal,
+  });
+  await restarted.start();
+  assert.equal(restarted.status().suppressedProposalCount, 1);
+  assert.equal((await restarted.project([toolMessage("call-1"), toolMessage("call-2")])).proposal, undefined);
+
+  await runtime.reset();
+  const afterReset = await runtime.project([toolMessage("call-1"), toolMessage("call-2")]);
+  assert.equal(afterReset.proposal?.kind, "cleanup");
+});
+
+test("previewing a cleanup proposal leaves it actionable", async () => {
+  const { ctx } = createSession();
+  const runtime = new ContextControlRuntime({
+    ctx,
+    mode: "active",
+    cleanupMode: "model-approval",
+    recoveryMode: "model-only",
+    journal: new MemoryContextControlJournal(),
+  });
+  await runtime.start();
+  await consumeTwo(runtime);
+
+  const proposalResult = await runtime.project([toolMessage("call-1"), toolMessage("call-2")]);
+  const preview = await runtime.decideProposal({ proposalId: proposalResult.proposal.id, action: "preview" });
+  assert.equal(preview.status, "ok");
+  const afterPreview = await runtime.project([toolMessage("call-1"), toolMessage("call-2")]);
+  assert.equal(afterPreview.proposal?.id, proposalResult.proposal.id);
+  assert.equal(runtime.status().suppressedProposalCount, 0);
+});
+
 test("approval creates a metadata-only proposal and applies only an explicit decision", async () => {
   const { ctx } = createSession();
   const journal = new MemoryContextControlJournal();
@@ -532,8 +592,11 @@ test("Context Control tools expose strict operations and execute against the bou
     tools.map((tool) => tool.name),
     ["context_control", "context_control_use_evidence", "context_control_decide"],
   );
-  assert.equal(tools[0].parameters.additionalProperties, false);
-  assert.deepEqual(tools[0].parameters.required, ["operation"]);
+  assert.deepEqual(
+    tools[0].parameters.oneOf.map((variant) => variant.properties.operation.const),
+    ["status", "list", "explain", "cleanup", "recover", "pin", "unpin", "reset"],
+  );
+  assert.ok(tools[0].parameters.oneOf.every((variant) => variant.additionalProperties === false));
   const evidenceUseTool = tools.find((tool) => tool.name === "context_control_use_evidence");
   const decisionTool = tools.find((tool) => tool.name === "context_control_decide");
   assert.equal(evidenceUseTool.parameters.additionalProperties, false);

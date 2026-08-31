@@ -471,8 +471,12 @@ export function searchTieredEvidence(
     rankedByTier.push(...top);
   }
   const ranked = rankedByTier.sort(compareGlobal);
-  const resolution = selectSet(need, ranked);
-  const candidates = Object.freeze(ranked.slice(0, maxCandidates).map(candidateCard));
+  const resolutionRanked =
+    need.exactRequired === true
+      ? ranked.filter((candidate) => candidate.matchClass === "exact" || candidate.matchClass === "strong-structured")
+      : ranked;
+  const resolution = selectSet(need, resolutionRanked);
+  const candidates = Object.freeze(resolutionRanked.slice(0, maxCandidates).map(candidateCard));
   return Object.freeze({
     version: TIERED_SEARCH_VERSION,
     need,

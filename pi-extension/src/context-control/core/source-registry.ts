@@ -346,7 +346,7 @@ function jsonlFiles(root: string, limit = 512): string[] {
     for (const name of entries.sort()) {
       if (result.length >= limit) return;
       const file = join(directory, name);
-      let info;
+      let info: ReturnType<typeof lstatSync>;
       try {
         info = lstatSync(file);
       } catch {
@@ -387,6 +387,49 @@ function descendantOf(entryId: string, ancestorId: string, parentById: ReadonlyM
     current = parentById.get(current);
   }
   return false;
+}
+
+function logicalBranchIdForEntries(
+  allEntries: readonly unknown[],
+  activeBranchEntries: readonly unknown[],
+  sessionId: string,
+  leafId: string | undefined,
+): string {
+  const activeEntryIds = entryIdSet(activeBranchEntries);
+  const parentById = new Map<string, string>();
+  const childrenById = new Map<string, Set<string>>();
+  for (const entryValue of allEntries) {
+    const entry = record(entryValue);
+    const id = stringValue(entry.id);
+    const parentId = stringValue(entry.parentId);
+    if (id === undefined || parentId === undefined) continue;
+    parentById.set(id, parentId);
+    const children = childrenById.get(parentId) ?? new Set<string>();
+    children.add(id);
+    childrenById.set(parentId, children);
+  }
+
+  let child = leafId !== undefined && activeEntryIds.has(leafId) ? leafId : undefined;
+  if (child === undefined) {
+    const activeIds = [...activeEntryIds];
+    child = activeIds.at(-1);
+  }
+  let anchor: string | undefined;
+  let rootId: string | undefined = child;
+  const visited = new Set<string>();
+  while (child !== undefined && !visited.has(child)) {
+    visited.add(child);
+    const parent = parentById.get(child);
+    if (parent === undefined) {
+      rootId = child;
+      break;
+    }
+    if ((childrenById.get(parent)?.size ?? 0) > 1) anchor = child;
+    rootId = parent;
+    child = parent;
+  }
+  if (anchor !== undefined) return `branch:${anchor}`;
+  return rootId === undefined ? `branch:${sessionId}` : `branch:${rootId}`;
 }
 
 function branchIdForEntries(
@@ -559,11 +602,17 @@ export class ContextControlSourceRegistry {
   snapshot(consumedToolCallIds: ReadonlySet<string>, generation: number): ContextControlSourceSnapshot {
     const manager = this.ctx?.sessionManager;
     const sessionId = stringValue(manager?.getSessionId?.()) ?? "unknown-session";
-    const branchId = stringValue(manager?.getLeafId?.()) ?? sessionId;
     const branchEntries = Array.isArray(manager?.getBranch?.()) ? manager.getBranch() : [];
+    const allEntries = Array.isArray(manager?.getEntries?.()) ? manager.getEntries() : branchEntries;
     const activeEntries = Array.isArray(manager?.buildContextEntries?.())
       ? manager.buildContextEntries()
       : branchEntries;
+    const branchId = logicalBranchIdForEntries(
+      allEntries,
+      branchEntries,
+      sessionId,
+      stringValue(manager?.getLeafId?.()),
+    );
     const sources = buildSources(branchEntries, {
       sessionId,
       branchId,

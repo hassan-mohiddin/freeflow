@@ -256,6 +256,214 @@ function failedSession() {
   return session;
 }
 
+test("keeps leases across ordinary descendant leaves on one logical branch", async () => {
+  const session = createSession();
+  let leafId = "tool-2";
+  session.ctx.sessionManager.getLeafId = () => leafId;
+  const runtime = new ContextControlRuntime({
+    ctx: session.ctx,
+    mode: "active",
+    cleanupMode: "model-only",
+    recoveryMode: "model-only",
+    journal: new MemoryContextControlJournal(),
+  });
+  await runtime.start();
+  const initialBranchId = runtime.status().branchId;
+
+  const unavailable = await runtime.recover({
+    text: "an exact source that does not exist",
+    exactRequired: true,
+  });
+  assert.equal(unavailable.status, "unavailable");
+  assert.match(unavailable.abstentionHandle, /^cc-h-use-/);
+
+  session.entries.push({
+    type: "message",
+    id: "user-3",
+    parentId: "tool-2",
+    timestamp: "2026-08-28T00:00:07.000Z",
+    message: { role: "user", content: "Continue on the same branch." },
+  });
+  leafId = "user-3";
+  await runtime.project([]);
+  runtime.settled();
+
+  assert.equal(runtime.status().branchId, initialBranchId);
+  const abstained = await runtime.useEvidence({
+    handle: unavailable.abstentionHandle,
+    status: "abstained",
+    reason: "No source was found.",
+  });
+  assert.equal(abstained.status, "ok");
+  assert.equal(abstained.abstained, true);
+});
+
+test("changes logical branch identity after a true fork", async () => {
+  const session = createSession();
+  let leafId = "tool-2";
+  let activeEntries = session.entries;
+  session.ctx.sessionManager.getLeafId = () => leafId;
+  session.ctx.sessionManager.getBranch = () => activeEntries;
+  session.ctx.sessionManager.buildContextEntries = () => activeEntries;
+  const runtime = new ContextControlRuntime({
+    ctx: session.ctx,
+    mode: "active",
+    cleanupMode: "model-only",
+    recoveryMode: "model-only",
+    journal: new MemoryContextControlJournal(),
+  });
+  await runtime.start();
+  const initialBranchId = runtime.status().branchId;
+
+  const forkUser = {
+    type: "message",
+    id: "fork-user",
+    parentId: "tool-1",
+    timestamp: "2026-08-28T00:00:07.000Z",
+    message: { role: "user", content: "Continue from the fork point." },
+  };
+  session.entries.push(forkUser);
+  activeEntries = [...session.entries.slice(0, 4), forkUser];
+  leafId = "fork-user";
+  await runtime.project([]);
+
+  assert.notEqual(runtime.status().branchId, initialBranchId);
+  assert.equal(runtime.status().branchId, "branch:fork-user");
+});
+
+test("keeps exact-use leases across ordinary descendant leaves", async () => {
+  const session = createSession();
+  let leafId = "tool-2";
+  session.ctx.sessionManager.getLeafId = () => leafId;
+  session.ctx.sessionManager.buildContextEntries = () =>
+    session.entries.filter((entry) => !["tool-1", "tool-2"].includes(entry.id));
+  const runtime = new ContextControlRuntime({
+    ctx: session.ctx,
+    mode: "active",
+    cleanupMode: "model-only",
+    recoveryMode: "model-only",
+    journal: new MemoryContextControlJournal(),
+  });
+  await runtime.start();
+  const recovered = await runtime.recover({
+    text: "exact source content from src/a.ts",
+    exactRequired: true,
+  });
+  assert.equal(recovered.status, "recovered");
+  assert.match(recovered.lease.handle, /^cc-h-use-/);
+
+  session.entries.push({
+    type: "message",
+    id: "user-3",
+    parentId: "tool-2",
+    timestamp: "2026-08-28T00:00:07.000Z",
+    message: { role: "user", content: "Continue on the same branch." },
+  });
+  leafId = "user-3";
+  await runtime.project([]);
+  runtime.settled();
+
+  const acknowledged = await runtime.useEvidence({
+    handle: recovered.lease.handle,
+    status: "used",
+    excerpt: recovered.envelope.content,
+  });
+  assert.equal(acknowledged.status, "ok");
+  assert.equal(acknowledged.handle, recovered.lease.handle);
+});
+
+test("keeps approval proposals across ordinary descendant leaves", async () => {
+  const session = createSession();
+  let leafId = "tool-2";
+  session.ctx.sessionManager.getLeafId = () => leafId;
+  const runtime = new ContextControlRuntime({
+    ctx: session.ctx,
+    mode: "active",
+    cleanupMode: "model-approval",
+    recoveryMode: "model-only",
+    journal: new MemoryContextControlJournal(),
+  });
+  await runtime.start();
+  runtime.observeContext([toolMessage("call-1")]);
+  runtime.beforeProviderRequest();
+  runtime.turnEnd();
+  runtime.observeContext([toolMessage("call-1"), toolMessage("call-2")]);
+  runtime.beforeProviderRequest();
+  runtime.turnEnd();
+  const initial = await runtime.project([toolMessage("call-1"), toolMessage("call-2")]);
+  assert.equal(initial.proposal?.kind, "cleanup");
+
+  session.entries.push({
+    type: "message",
+    id: "user-3",
+    parentId: "tool-2",
+    timestamp: "2026-08-28T00:00:07.000Z",
+    message: { role: "user", content: "Continue on the same branch." },
+  });
+  leafId = "user-3";
+  await runtime.project([toolMessage("call-1"), toolMessage("call-2")]);
+  runtime.settled();
+  runtime.turnEnd();
+
+  const rejected = await runtime.decideProposal({ proposalId: initial.proposal.id, action: "reject" });
+  assert.equal(rejected.status, "ok");
+  assert.equal(rejected.operation, "reject");
+});
+
+test("list exposes actionable sources and counts excluded control-plane results", async () => {
+  const session = createSession();
+  session.entries.push(
+    {
+      type: "message",
+      id: "assistant-context-control",
+      parentId: "tool-2",
+      timestamp: "2026-08-28T00:00:07.000Z",
+      message: {
+        role: "assistant",
+        content: [
+          {
+            type: "toolCall",
+            id: "call-context-control",
+            name: "context_control",
+            arguments: { operation: "status" },
+          },
+        ],
+      },
+    },
+    {
+      type: "message",
+      id: "tool-context-control",
+      parentId: "assistant-context-control",
+      timestamp: "2026-08-28T00:00:08.000Z",
+      message: {
+        role: "toolResult",
+        toolCallId: "call-context-control",
+        toolName: "context_control",
+        content: [{ type: "text", text: "Context Control: status" }],
+        isError: false,
+      },
+    },
+  );
+  const runtime = new ContextControlRuntime({
+    ctx: session.ctx,
+    mode: "active",
+    cleanupMode: "model-only",
+    recoveryMode: "model-only",
+    journal: new MemoryContextControlJournal(),
+  });
+  await runtime.start();
+
+  const listed = runtime.list();
+  assert.equal(listed.operation, "list");
+  assert.equal(listed.excludedCount, 1);
+  assert.equal(
+    listed.sources.some((source) => source.toolName === "context_control"),
+    false,
+  );
+  assert.ok(listed.sources.some((source) => source.ref === "ctx:tool-1"));
+  assert.equal(runtime.status().catalogSourceCount, listed.sourceCount);
+});
+
 test("disabled runtime leaves projection unchanged and does not create journal state", async () => {
   const { ctx } = createSession();
   const journal = new MemoryContextControlJournal();
@@ -404,6 +612,30 @@ test("pinning a reduced source restores Full and releasing it permits reevaluati
   const afterRelease = await runtime.project([first, second]);
   assert.match(afterRelease.messages[0].content[0].text, /context archived/);
   assert.equal(runtime.status().residency["ctx:tool-1"], "reference");
+});
+
+test("exact recovery refuses a weak lexical-only match", async () => {
+  const session = createSession();
+  session.ctx.sessionManager.buildContextEntries = () =>
+    session.entries.filter((entry) => !["tool-1", "tool-2"].includes(entry.id));
+  const runtime = new ContextControlRuntime({
+    ctx: session.ctx,
+    mode: "active",
+    cleanupMode: "model-only",
+    recoveryMode: "model-only",
+    journal: new MemoryContextControlJournal(),
+  });
+  await runtime.start();
+
+  const result = await runtime.recover({
+    text: "an exact historical source that does not exist in this disposable session",
+    exactRequired: true,
+    expectedEvidence: "exact source evidence",
+  });
+
+  assert.equal(result.status, "unavailable");
+  assert.equal(result.reason, "no-eligible-match");
+  assert.match(result.abstentionHandle, /^cc-h-use-/);
 });
 
 test("recovery returns canonical exact evidence and re-enters Full", async () => {
@@ -650,6 +882,8 @@ test("approval recovery proposals expose bounded candidate handles and accept pr
   assert.match(projection.proposal.sourceIndexVersion, /^[a-f0-9]{64}$/);
   assert.ok(projection.proposal.selectedHandles?.length >= 1);
   assert.ok(projection.proposal.candidates?.every((candidate) => candidate.handle.startsWith("cc-h-")));
+  runtime.settled();
+  runtime.turnEnd();
   const preview = await runtime.decideProposal({
     proposalId: projection.proposal.id,
     action: "preview",

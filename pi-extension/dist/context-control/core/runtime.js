@@ -18,6 +18,7 @@ const MAX_PROPOSAL_REFS = 32;
 const MAX_LEASE_EXCERPT = 16_000;
 const MAX_RECOVERED_EVIDENCE = 24_000;
 const MAX_DIRECT_TARGETS = 32;
+const PROPOSAL_GENERATION_WINDOW = 8;
 const RECOVERY_TIER_RANK = Object.freeze({ "active-branch": 0, "current-session": 1, lineage: 2, "cross-session": 3 });
 function cloneIdentity(identity) {
   return { ...identity };
@@ -81,6 +82,16 @@ function candidateCardFromTiered(card, handle) {
 }
 function proposalHandle(proposalId, sourceRef) {
   return `cc-h-${sha256Text(stableJson({ proposalId, sourceRef })).slice(0, 24)}`;
+}
+function proposalFingerprint(input) {
+  return sha256Text(
+    stableJson({
+      kind: input.kind,
+      refs: [...input.refs].sort(),
+      ...(input.sourceIndexVersion === undefined ? {} : { sourceIndexVersion: input.sourceIndexVersion }),
+      ...(input.kind === "recovery" && input.need !== undefined ? { need: input.need } : {}),
+    }),
+  );
 }
 function cleanupProposalSourceIndexVersion(refs, snapshot, projections) {
   return sha256Text(
@@ -184,6 +195,7 @@ export class ContextControlRuntime {
   operationQueue = Promise.resolve();
   transactionCount = 0;
   leaseCount = 0;
+  suppressedProposalFingerprints = new Set();
   constructor(options) {
     this.registry = new ContextControlSourceRegistry(options.ctx);
     this.journal = options.journal ?? new MemoryContextControlJournal();
@@ -258,12 +270,10 @@ export class ContextControlRuntime {
     this.providerToolCallIds = new Set();
   }
   settled() {
-    this.pendingProposal = undefined;
-    this.pendingProactiveRecoveryKey = undefined;
-    this.proactiveRecoveryKey = undefined;
+    // Pi settles individual agent runs while the session remains usable; pending decisions and evidence handles
+    // therefore survive until acknowledgement, reset, invalidation, or shutdown.
     this.checkpointDetector.reset();
     this.prompt = undefined;
-    this.clearLeases("agent-settled");
   }
   setPrompt(prompt) {
     const next = typeof prompt === "string" && prompt.trim() !== "" ? prompt.trim() : undefined;
@@ -335,7 +345,9 @@ export class ContextControlRuntime {
     ];
     const modelRefs = analysis.model.map((candidate) => candidate.sourceRef);
     let proposal =
-      this.pendingProposal?.kind === "recovery" && this.pendingProposal.generation === this.generation
+      this.pendingProposal !== undefined &&
+      this.pendingProposal.generation <= this.generation &&
+      this.pendingProposal.expiresAt > Date.now()
         ? this.pendingProposal
         : undefined;
     let recoveryMessage;
@@ -348,13 +360,14 @@ export class ContextControlRuntime {
         recoveryMessage = this.recoveryMessage(recovered);
       }
     } else if (proactive !== undefined && this.recoveryMode === "model-approval") {
-      proposal = this.ensureRecoveryProposal(
+      const recoveryProposal = this.ensureRecoveryProposal(
         proactive.need,
         proactive.sourceRef,
         proactive.reason,
         proactive.key,
         snapshot,
       );
+      if (recoveryProposal !== undefined) proposal = recoveryProposal;
     }
     if (this.mode !== "shadow" && this.cleanupMode === "automatic" && automaticRefs.length > 0) {
       const changes = automaticRefs.flatMap((ref) => {
@@ -368,12 +381,22 @@ export class ContextControlRuntime {
         return { ...unchanged, available: false, protectedRefs, modelRefs };
       }
     } else if (
-      proposal === undefined &&
       this.mode !== "shadow" &&
       this.cleanupMode === "model-approval" &&
-      automaticRefs.length > 0
+      automaticRefs.length > 0 &&
+      (proposal === undefined || proposal.kind === "cleanup")
     ) {
-      proposal = this.ensureProposal(automaticRefs, analysis, snapshot);
+      const proposalRefs = automaticRefs.slice(0, MAX_PROPOSAL_REFS);
+      const fingerprint = proposalFingerprint({
+        kind: "cleanup",
+        refs: proposalRefs,
+        sourceIndexVersion: cleanupProposalSourceIndexVersion(proposalRefs, snapshot, this.projections),
+      });
+      if (this.suppressedProposalFingerprints.has(fingerprint)) {
+        proposal = undefined;
+      } else {
+        proposal = this.ensureProposal(automaticRefs, analysis, snapshot);
+      }
     }
     const projected =
       this.mode === "shadow"
@@ -512,7 +535,7 @@ export class ContextControlRuntime {
     if (!proposal) return { status: "rejected", operation: "decide", reason: "proposal_unavailable" };
     if (input?.proposalId !== proposal.id)
       return { status: "rejected", operation: "decide", reason: "proposal_id_mismatch" };
-    if (proposal.generation !== this.generation || proposal.expiresAt < Date.now()) {
+    if (proposal.generation > this.generation || proposal.expiresAt < Date.now()) {
       this.pendingProposal = undefined;
       return { status: "rejected", operation: "decide", reason: "proposal_stale" };
     }
@@ -589,6 +612,13 @@ export class ContextControlRuntime {
       return { status: "ok", operation: "preview", proposal };
     }
     if (action === "reject") {
+      try {
+        await this.persistProposalDisposition(proposal);
+      } catch (error) {
+        this.state = "uncertain";
+        this.lastError = safeError(error);
+        return { status: "unavailable", operation: "decide", reason: this.lastError };
+      }
       this.pendingProposal = undefined;
       this.pendingProactiveRecoveryKey = undefined;
       await this.record({
@@ -1056,6 +1086,7 @@ export class ContextControlRuntime {
       this.projections.clear();
       this.carryForward.clear();
       this.pinPriorStates.clear();
+      this.suppressedProposalFingerprints.clear();
       this.pendingProposal = undefined;
       this.pendingProactiveRecoveryKey = undefined;
       this.clearLeases("reset");
@@ -1224,6 +1255,7 @@ export class ContextControlRuntime {
     if (!source) return { status: "unavailable", reason: "reference_unresolved" };
     const candidate = this.lastAnalysis?.candidates.find((item) => item.sourceRef === ref);
     return {
+      operation: "explain",
       status: "ok",
       ref,
       source: {
@@ -1250,13 +1282,27 @@ export class ContextControlRuntime {
     const catalog =
       this.lastCatalog ?? this.registry.recoveryCatalog(this.recoveryScope, this.consumedToolCallIds, this.generation);
     this.lastCatalog = catalog;
+    const allSources = catalog.sources;
+    const sources = allSources.filter((source) => !isContextControlGeneratedTool(source.toolName));
+    const protectedRefs = new Set([
+      ...(this.lastAnalysis?.protected.map((candidate) => candidate.sourceRef) ?? []),
+      ...sources.filter((source) => !source.consumed).map((source) => source.ref),
+    ]);
+    const reducedCount = [...this.projections.values()].filter((projection) => projection.state !== "full").length;
     return {
+      operation: "list",
       status: "ok",
       scope: this.recoveryScope,
       repositoryId: catalog.repositoryId,
       sessions: catalog.sessions.map((session) => ({ ...session })),
       skippedSessions: catalog.skippedSessions,
-      sources: catalog.sources.map((source) => {
+      sourceCount: sources.length,
+      catalogSourceCount: allSources.length,
+      protectedCount: sources.filter((source) => protectedRefs.has(source.ref)).length,
+      excludedCount: allSources.length - sources.length,
+      reducedCount,
+      suppressedProposalCount: this.suppressedProposalFingerprints.size,
+      sources: sources.map((source) => {
         const projection = this.projections.get(source.ref);
         const carryForwardIds = this.carryForward
           .active()
@@ -1273,12 +1319,23 @@ export class ContextControlRuntime {
           toolName: source.toolName,
           path: source.path,
           commandKind: source.commandKind,
+          role: source.role,
+          temporal: source.temporal,
+          category: source.category,
+          completeness: source.completeness,
+          freshness: source.freshness,
+          privacy: source.privacy,
+          integrity: source.integrity,
           characters: source.characters,
           contentHash: source.contentHash,
           consumed: source.consumed,
+          consumptionEvidence: source.consumptionEvidence,
+          metadataComplete: source.metadataComplete,
+          metadataIssues: source.metadataIssues,
           activeContext: source.activeContext,
           residency: projection?.state ?? "full",
           pinned: projection?.pinned === true,
+          protected: protectedRefs.has(source.ref),
           ...(projection?.retainedMeaning === undefined ? {} : { retainedMeaning: projection.retainedMeaning }),
           ...(carryForwardIds.length === 0 ? {} : { carryForwardIds }),
         };
@@ -1332,6 +1389,7 @@ export class ContextControlRuntime {
       this.projections.clear();
       this.carryForward.clear();
       this.pinPriorStates.clear();
+      this.suppressedProposalFingerprints.clear();
       this.pendingProposal = undefined;
       this.pendingProactiveRecoveryKey = undefined;
       this.proactiveRecoveryKey = undefined;
@@ -1349,6 +1407,13 @@ export class ContextControlRuntime {
   status() {
     const residency = {};
     for (const [ref, projection] of this.projections) residency[ref] = projection.state;
+    const catalogSources = this.lastCatalog?.sources ?? [];
+    const visibleCatalogSources = catalogSources.filter((source) => !isContextControlGeneratedTool(source.toolName));
+    const protectedRefs = new Set([
+      ...(this.lastAnalysis?.protected.map((candidate) => candidate.sourceRef) ?? []),
+      ...visibleCatalogSources.filter((source) => !source.consumed).map((source) => source.ref),
+    ]);
+    const leases = [...this.leases.values()].filter((lease) => lease.active);
     return Object.freeze({
       version: "0.1",
       mode: this.mode,
@@ -1373,6 +1438,13 @@ export class ContextControlRuntime {
       recoveryScope: this.recoveryScope,
       ...(this.lastCatalog?.repositoryId === undefined ? {} : { repositoryId: this.lastCatalog.repositoryId }),
       catalogSessionCount: this.lastCatalog?.sessions.length ?? 1,
+      catalogSourceCount: visibleCatalogSources.length,
+      catalogExcludedCount: catalogSources.length - visibleCatalogSources.length,
+      catalogProtectedCount: visibleCatalogSources.filter((source) => protectedRefs.has(source.ref)).length,
+      reducedCount: Object.values(residency).filter((state) => state !== "full").length,
+      activeExactLeaseCount: leases.filter((lease) => lease.exactRequired === true).length,
+      activeEvidenceHandleCount: leases.length,
+      suppressedProposalCount: this.suppressedProposalFingerprints.size,
       pendingProposal: this.pendingProposal !== undefined,
       ...(this.pendingProposal === undefined ? {} : { pendingProposalId: this.pendingProposal.id }),
       auditFailureCount: this.auditFailureCount,
@@ -1434,6 +1506,41 @@ export class ContextControlRuntime {
     const lease = this.createEvidenceLease("", contentHash, "", need, true, resolution);
     this.leases.set(lease.handle, lease);
     return lease.handle;
+  }
+  proposalFingerprintFor(proposal) {
+    return proposalFingerprint({
+      kind: proposal.kind,
+      refs: proposal.refs,
+      sourceIndexVersion: proposal.sourceIndexVersion,
+      need: proposal.need,
+    });
+  }
+  async persistProposalDisposition(proposal) {
+    const fingerprint = this.proposalFingerprintFor(proposal);
+    if (this.suppressedProposalFingerprints.has(fingerprint)) return;
+    const sessionId = this.sessionId;
+    const branchId = this.branchId;
+    if (sessionId === undefined || branchId === undefined) throw new Error("runtime-not-bound");
+    const transactionId = `context-control-disposition-${fingerprint}`;
+    const entry = await this.journal.append({
+      version: 1,
+      kind: "disposition",
+      sessionId,
+      branchId,
+      checkpointId: proposal.checkpointId,
+      policy: "approval",
+      changes: [],
+      proposalDisposition: { fingerprint, disposition: "rejected" },
+      transactionId,
+    });
+    if (
+      entry.sequence <= 0 ||
+      entry.kind !== "disposition" ||
+      stableJson(entry.proposalDisposition ?? {}) !== stableJson({ fingerprint, disposition: "rejected" })
+    ) {
+      throw new Error("journal-acknowledgement-mismatch");
+    }
+    this.suppressedProposalFingerprints.add(fingerprint);
   }
   recoveryUnavailable(need, reason) {
     return {
@@ -1555,6 +1662,7 @@ export class ContextControlRuntime {
     this.projections.clear();
     this.carryForward.clear();
     this.pinPriorStates.clear();
+    this.suppressedProposalFingerprints.clear();
     const entries = this.journal.read(snapshot.sessionId);
     const activeBranchIds = new Set([snapshot.branchId, ...(snapshot.branchIds ?? [])]);
     let previousSequence = 0;
@@ -1567,6 +1675,13 @@ export class ContextControlRuntime {
         this.projections.clear();
         this.carryForward.clear();
         this.pinPriorStates.clear();
+        this.suppressedProposalFingerprints.clear();
+        continue;
+      }
+      if (entry.kind === "disposition") {
+        const disposition = entry.proposalDisposition;
+        if (disposition === undefined) throw new Error("context-control-disposition-missing");
+        this.suppressedProposalFingerprints.add(disposition.fingerprint);
         continue;
       }
       if (entry.kind === "pin") {
@@ -1699,7 +1814,8 @@ export class ContextControlRuntime {
   ensureRecoveryProposal(need, sourceRef, reason, proactiveKey, snapshot) {
     if (
       this.pendingProposal?.kind === "recovery" &&
-      this.pendingProposal.generation === this.generation &&
+      this.pendingProposal.generation <= this.generation &&
+      this.pendingProposal.expiresAt > Date.now() &&
       this.pendingProposal.refs.length === 1 &&
       this.pendingProposal.refs[0] === sourceRef
     ) {
@@ -1739,6 +1855,7 @@ export class ContextControlRuntime {
             candidates: candidateCards,
           }),
     };
+    if (this.suppressedProposalFingerprints.has(proposalFingerprint(proposal))) return undefined;
     this.pendingProposal = proposal;
     this.pendingProactiveRecoveryKey = proactiveKey;
     void this.record({
@@ -1802,7 +1919,7 @@ export class ContextControlRuntime {
         id: proposal.id,
         checkpointId: proposal.checkpointId,
         generation: proposal.generation,
-        expiresAtGeneration: proposal.generation,
+        expiresAtGeneration: proposal.generation + PROPOSAL_GENERATION_WINDOW,
         sourceIndexVersion: proposal.sourceIndexVersion,
         maxTier: maxTierForScope(this.recoveryScope),
         searchedTiers: proposal.searchedTiers,
@@ -1836,8 +1953,9 @@ export class ContextControlRuntime {
   }
   ensureProposal(refs, analysis, snapshot) {
     if (
-      this.pendingProposal !== undefined &&
-      this.pendingProposal.generation === this.generation &&
+      this.pendingProposal?.kind === "cleanup" &&
+      this.pendingProposal.generation <= this.generation &&
+      this.pendingProposal.expiresAt > Date.now() &&
       stableJson(this.pendingProposal.refs) === stableJson(refs)
     ) {
       return this.pendingProposal;
@@ -2138,6 +2256,7 @@ export class ContextControlRuntime {
     this.projections.clear();
     this.carryForward.clear();
     this.pinPriorStates.clear();
+    this.suppressedProposalFingerprints.clear();
     this.pendingProposal = undefined;
     this.pendingProactiveRecoveryKey = undefined;
     this.clearLeases("runtime-fail-closed");

@@ -488,8 +488,8 @@ function freshnessFailure(
     return "scope-widening";
   if (context.currentGeneration !== undefined) {
     if (!Number.isSafeInteger(context.currentGeneration) || context.currentGeneration < 1) return "proposal-stale";
+    if (context.currentGeneration < proposal.generation) return "proposal-stale";
     if (context.currentGeneration > proposal.expiresAtGeneration) return "proposal-expired";
-    if (context.currentGeneration !== proposal.generation) return "proposal-stale";
   }
   return undefined;
 }

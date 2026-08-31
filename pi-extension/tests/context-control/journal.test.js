@@ -63,6 +63,29 @@ test("file journal appends, acknowledges, and rereads metadata without canonical
   }
 });
 
+test("file journal persists metadata-only proposal dispositions", async () => {
+  const root = await mkdtemp(join(tmpdir(), "context-control-journal-disposition-"));
+  const path = join(root, "journal.jsonl");
+  try {
+    const journal = new FileContextControlJournal(path);
+    const fingerprint = "a".repeat(64);
+    const entry = await journal.append({
+      ...draft("disposition", []),
+      policy: "approval",
+      proposalDisposition: { fingerprint, disposition: "rejected" },
+      transactionId: "disposition-test",
+    });
+    const reread = journal.read("session-1");
+    const raw = await readFile(path, "utf8");
+
+    assert.equal(entry.kind, "disposition");
+    assert.deepEqual(reread[0].proposalDisposition, { fingerprint, disposition: "rejected" });
+    assert.doesNotMatch(raw, /export const VALUE/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("file journal appends a hash chain and serializes concurrent writes", async () => {
   const root = await mkdtemp(join(tmpdir(), "context-control-journal-chain-"));
   const path = join(root, "journal.jsonl");

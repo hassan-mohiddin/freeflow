@@ -74,28 +74,68 @@ const evidenceNeedSchema = {
   },
   required: ["text"],
 };
+function contextOperationSchema(operation, properties = {}, required = [], description) {
+  return {
+    type: "object",
+    additionalProperties: false,
+    ...(description === undefined ? {} : { description }),
+    properties: { operation: { const: operation }, ...properties },
+    required: ["operation", ...required],
+  };
+}
 const contextControlParameters = {
   type: "object",
-  additionalProperties: false,
-  properties: {
-    operation: {
-      type: "string",
-      enum: ["status", "list", "explain", "cleanup", "recover", "pin", "unpin", "reset"],
-    },
-    ref: { type: "string", minLength: 1, maxLength: 512 },
-    refs: {
-      type: "array",
-      minItems: 1,
-      maxItems: 32,
-      uniqueItems: true,
-      items: { type: "string", minLength: 1, maxLength: 512 },
-    },
-    targets: { type: "array", minItems: 1, maxItems: 32, items: targetSchema },
-    need: evidenceNeedSchema,
-    handle: { type: "string", minLength: 1, maxLength: 256 },
-    excerpt: { type: "string", minLength: 1, maxLength: 16000 },
-  },
-  required: ["operation"],
+  oneOf: [
+    contextOperationSchema("status", {}, [], "Show runtime state and residency counts."),
+    contextOperationSchema("list", {}, [], "List actionable metadata-only context sources."),
+    contextOperationSchema(
+      "explain",
+      { ref: { type: "string", minLength: 1, maxLength: 512 } },
+      ["ref"],
+      "Explain one context source without returning its content.",
+    ),
+    contextOperationSchema(
+      "cleanup",
+      { targets: { type: "array", minItems: 1, maxItems: 32, items: targetSchema } },
+      ["targets"],
+      "Request cleanup for explicitly selected context sources.",
+    ),
+    contextOperationSchema(
+      "recover",
+      { need: evidenceNeedSchema },
+      ["need"],
+      "Recover evidence from a semantic, bounded evidence need.",
+    ),
+    contextOperationSchema(
+      "pin",
+      {
+        refs: {
+          type: "array",
+          minItems: 1,
+          maxItems: 32,
+          uniqueItems: true,
+          items: { type: "string", minLength: 1, maxLength: 512 },
+        },
+      },
+      ["refs"],
+      "Keep selected sources at full residency.",
+    ),
+    contextOperationSchema(
+      "unpin",
+      {
+        refs: {
+          type: "array",
+          minItems: 1,
+          maxItems: 32,
+          uniqueItems: true,
+          items: { type: "string", minLength: 1, maxLength: 512 },
+        },
+      },
+      ["refs"],
+      "Release selected pins for reevaluation.",
+    ),
+    contextOperationSchema("reset", {}, [], "Clear derived Context Control state."),
+  ],
 };
 const evidenceUseParameters = {
   type: "object",
@@ -210,17 +250,71 @@ const decisionParameters = {
     }),
   ],
 };
-function renderCall(args, theme) {
-  const operation = typeof args?.operation === "string" ? args.operation : "context";
-  const title = typeof theme?.bold === "function" ? theme.bold("Context Control") : "Context Control";
-  return new Text(`${title} · ${operation}`, 0, 0);
-}
 function display(value, limit = 160) {
   const text = typeof value === "string" ? value : JSON.stringify(value ?? "");
   return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
 }
-function resultText(result) {
+function shortIdentifier(value, limit = 40) {
+  const text = typeof value === "string" ? value : String(value ?? "");
+  return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
+}
+function countLabel(value, singular, plural = `${singular}s`) {
+  const count = Number.isSafeInteger(value) && value >= 0 ? value : 0;
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+function operationFor(result, args = {}) {
+  if (typeof result?.operation === "string") return result.operation;
+  if (typeof args?.operation === "string") return args.operation;
+  if (result?.scope !== undefined && Array.isArray(result?.sources)) return "list";
+  return "context";
+}
+function displayLabel(value) {
+  const text = typeof value === "string" ? value.replace(/[-_]+/gu, " ") : String(value ?? "unknown");
+  return text.length === 0 ? "Unknown" : `${text[0].toLocaleUpperCase()}${text.slice(1)}`;
+}
+function listSources(result) {
+  return Array.isArray(result?.sources) ? result.sources : [];
+}
+function reducedCount(residency) {
+  if (residency === null || typeof residency !== "object" || Array.isArray(residency)) return 0;
+  return Object.values(residency).filter((state) => state !== "full").length;
+}
+function paint(theme, color, text) {
+  return typeof theme?.fg === "function" ? theme.fg(color, text) : text;
+}
+function callTitle(theme, title) {
+  return paint(theme, "toolTitle", typeof theme?.bold === "function" ? theme.bold(title) : title);
+}
+function renderCall(args, theme) {
+  const operation = typeof args?.operation === "string" ? args.operation : "context";
+  let detail = "";
+  if (operation === "recover") {
+    const need = args?.need;
+    const text = typeof need?.text === "string" ? ` · "${display(need.text, 96)}"` : "";
+    detail = `${need?.exactRequired === true ? " · exact" : ""}${text}`;
+  } else if (operation === "cleanup") {
+    detail = ` · ${countLabel(Array.isArray(args?.targets) ? args.targets.length : undefined, "target")}`;
+  } else if (operation === "explain") {
+    detail = ` · ${shortIdentifier(args?.ref)}`;
+  } else if (operation === "pin" || operation === "unpin") {
+    detail = ` · ${countLabel(Array.isArray(args?.refs) ? args.refs.length : undefined, "ref")}`;
+  }
+  return new Text(`${callTitle(theme, "Context Control")} · ${operation}${detail}`, 0, 0);
+}
+function renderDecisionCall(args, theme) {
+  const action = typeof args?.action === "string" ? args.action : "decide";
+  const proposal = shortIdentifier(args?.proposalId, 32);
+  const detail = proposal ? ` · ${proposal}` : "";
+  return new Text(`${callTitle(theme, "Context Control Decision")} · ${action}${detail}`, 0, 0);
+}
+function renderEvidenceCall(args, theme) {
+  const status = typeof args?.status === "string" ? args.status : "acknowledge";
+  const handle = shortIdentifier(args?.handle, 32);
+  return new Text(`${callTitle(theme, "Context Control Evidence")} · ${status}${handle ? ` · ${handle}` : ""}`, 0, 0);
+}
+function resultText(result, args = {}) {
   if (!result || typeof result !== "object") return "Context Control: unavailable";
+  const operation = operationFor(result, args);
   if (result.status === "recovered") {
     const lines = [
       "Context Control: recovered",
@@ -280,48 +374,124 @@ function resultText(result) {
   }
   if (result.status === "rejected")
     return `Context Control: rejected · ${display(result.reason ?? result.message, 240)}`;
-  if (result.operation === "status") {
+  if (operation === "status") {
+    const sources = result.catalogSourceCount ?? result.sourceCount ?? 0;
     return [
       "Context Control: status",
-      `State: ${result.state} · cleanup=${result.cleanupMode} · recovery=${result.recoveryMode} · scope=${result.recoveryScope}`,
+      `State: ${result.state ?? result.status ?? "unknown"} · cleanup=${result.cleanupMode ?? "unknown"} · recovery=${result.recoveryMode ?? "unknown"} · scope=${result.recoveryScope ?? "unknown"}`,
       `Session: ${result.sessionId ?? "unbound"}`,
       `Branch: ${result.branchId ?? "unbound"}`,
+      `Sources: ${sources}`,
+      `Reduced: ${reducedCount(result.residency)}`,
       `Residency: ${JSON.stringify(result.residency ?? {})}`,
       `Pinned: ${(result.pinnedRefs ?? []).join(", ") || "none"}`,
       `Catalog sessions: ${result.catalogSessionCount ?? 0}`,
-      `Active exact leases: ${result.activeLeaseCount ?? 0}`,
+      `Active exact leases: ${result.activeExactLeaseCount ?? result.activeLeaseCount ?? 0}`,
+      `Active evidence handles: ${result.activeEvidenceHandleCount ?? result.activeLeaseCount ?? 0}`,
+      `Pending proposal: ${result.pendingProposal === true ? "yes" : "no"}`,
+      `Suppressed proposals: ${result.suppressedProposalCount ?? 0}`,
       result.lastError ? `Last error: ${display(result.lastError, 240)}` : "",
     ]
       .filter(Boolean)
       .join("\n");
   }
-  if (result.operation === "use") {
+  if (operation === "use") {
     return result.status === "ok"
-      ? `Context Control: evidence ${result.abstained ? "abstained" : "acknowledged"}`
-      : `Context Control: evidence use ${result.status ?? "unavailable"} · ${display(result.reason, 240)}`;
+      ? `Evidence use: ${result.abstained ? "abstained" : "acknowledged"}${result.handle ? ` · ${result.handle}` : ""}`
+      : `Evidence use: ${result.status ?? "unavailable"} · ${display(result.reason, 240)}`;
   }
-  if (result.operation === "list") {
+  if (operation === "list") {
+    const sources = listSources(result);
     const lines = [
-      `Context Control: ${result.scope ?? "unknown"} catalog`,
-      `Sessions: ${result.sessions?.length ?? 0}`,
+      `Context Control: ${displayLabel(result.scope)} catalog`,
+      `Sessions: ${countLabel(result.sessions?.length, "session")}`,
+      `Sources: ${sources.length}`,
+      `Protected: ${result.protectedCount ?? 0}`,
+      `Excluded: ${result.excludedCount ?? 0}`,
+      `Suppressed proposals: ${result.suppressedProposalCount ?? 0}`,
     ];
-    for (const source of result.sources ?? []) {
+    for (const source of sources) {
       lines.push(
-        `- ${source.ref} · ${source.toolName ?? "unknown"} · ${source.residency} · ${source.activeContext ? "active" : "history"} · ${source.characters} chars`,
+        `- ${source.ref} · ${source.toolName ?? "unknown"} · ${source.residency ?? "full"} · ${source.activeContext ? "active" : "history"} · ${source.characters ?? 0} chars${source.consumed === true ? " · consumed" : " · protected"}${source.pinned === true ? " · pinned" : ""}`,
       );
     }
     return lines.join("\n");
   }
-  if (result.operation === "decide" && result.proposal) return `Context Control: proposal ${result.proposal.id}`;
-  return `Context Control: ${result.operation ?? "operation"} · ${result.status ?? "ok"}${Array.isArray(result.changed) ? ` · ${result.changed.length} changed` : ""}`;
+  if (operation === "explain") {
+    const source = result.source ?? {};
+    return [
+      "Context Control: explain",
+      `Ref: ${result.ref ?? "unknown"}`,
+      `Source: ${source.sessionId ?? "unknown"}/${source.entryId ?? "unknown"}`,
+      `Tool: ${source.toolName ?? "unknown"}${source.path ? ` · ${source.path}` : ""}`,
+      `Residency: ${result.residency ?? "full"} · ${result.pinned === true ? "pinned" : "unpinned"}`,
+      `Visibility: ${source.activeContext ? "active" : "history"} · ${source.consumed ? "consumed" : "unconsumed"}`,
+      `Lane: ${result.lane ?? "none"}${result.rule ? ` · ${result.rule}` : ""}`,
+      `Characters: ${source.characters ?? 0}`,
+      `Content hash: ${source.contentHash ?? "unknown"}`,
+      result.reason ? `Reason: ${display(result.reason, 240)}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+  if (result.proposal) {
+    return [
+      `Context Control: ${operation} proposal`,
+      `Proposal: ${result.proposal.id ?? "unknown"}`,
+      `Candidates: ${result.proposal.candidates?.length ?? result.proposal.refs?.length ?? 0}`,
+      result.proposal.need?.text ? `Need: ${display(result.proposal.need.text, 240)}` : "",
+      "No content was materialized.",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+  const changed = Array.isArray(result.changed) ? result.changed : [];
+  if (result.status === "ok" || result.status === undefined) {
+    return [
+      `Context Control: ${operation}`,
+      `Status: ${result.status ?? "ok"}`,
+      ...(changed.length === 0 ? [] : [`Changed: ${changed.join(", ")}`]),
+      ...(result.reason ? [`Reason: ${display(result.reason, 240)}`] : []),
+    ].join("\n");
+  }
+  return `Context Control: ${operation} · ${result.status}${changed.length === 0 ? "" : ` · ${changed.length} changed`}${result.reason ? ` · ${display(result.reason, 240)}` : ""}`;
 }
-function renderResult(result, options, theme) {
-  if (options.isPartial) return new Text("Processing…", 0, 0);
-  const text = resultText(result?.details?.result ?? result);
-  const painted =
-    typeof theme?.fg === "function" && (result?.details?.result ?? result)?.status === "rejected"
-      ? theme.fg("error", text)
-      : text;
+function compactResultText(result, args = {}) {
+  const details = result?.details?.result ?? result ?? {};
+  const operation = operationFor(details, args);
+  if (details.status === "recovered") {
+    const exact = details.lease?.exactRequired === true || args?.need?.exactRequired === true ? " · exact" : "";
+    return `recover · recovered · ${details.materialization?.mode ?? "unknown"} · ${details.materialization?.completeness ?? "unknown"}${exact}`;
+  }
+  if (details.status === "recovered-set") {
+    return `recover · recovered · ${details.materialization?.mode ?? "unknown"} · ${details.envelopes?.length ?? 0} sources`;
+  }
+  if (details.status === "ambiguous" || details.status === "unavailable" || details.status === "rejected") {
+    const reason = details.reason ?? details.message;
+    return `${operation} · ${details.status}${reason ? ` · ${display(reason, 120)}` : ""}`;
+  }
+  if (operation === "status") {
+    const sources = details.catalogSourceCount ?? details.sourceCount ?? 0;
+    return `${details.state ?? details.status ?? "unknown"} · cleanup ${details.cleanupMode ?? "unknown"} · recovery ${details.recoveryMode ?? "unknown"} · ${details.recoveryScope ?? "unknown"} · ${sources} sources · ${reducedCount(details.residency)} reduced`;
+  }
+  if (operation === "list") {
+    const sources = listSources(details);
+    return `list · ${countLabel(sources.length, "source")} · ${countLabel(details.sessions?.length, "session")} · ${details.protectedCount ?? 0} protected · ${details.excludedCount ?? 0} excluded · ${details.suppressedProposalCount ?? 0} suppressed`;
+  }
+  if (operation === "use") {
+    return `evidence · ${details.status === "ok" ? (details.abstained ? "abstained" : "acknowledged") : (details.status ?? "unavailable")}`;
+  }
+  if (details.proposal) {
+    return `${operation} · proposal · ${countLabel(details.proposal.candidates?.length ?? details.proposal.refs?.length, "candidate")}`;
+  }
+  const changed = Array.isArray(details.changed) ? ` · ${details.changed.length} changed` : "";
+  return `${operation} · ${details.status ?? "ok"}${changed}${details.reason ? ` · ${display(details.reason, 120)}` : ""}`;
+}
+function renderResult(result, options, theme, context = {}) {
+  if (options.isPartial) return new Text(paint(theme, "warning", "Processing…"), 0, 0);
+  const details = result?.details?.result ?? result;
+  const text = options.expanded ? resultText(details, context.args) : compactResultText(details, context.args);
+  const painted = details?.status === "rejected" ? paint(theme, "error", text) : text;
   return new Text(painted, 0, 0);
 }
 async function executeContextControl(runtime, params) {
@@ -354,11 +524,13 @@ export function registerContextControlTools(pi, getRuntime) {
     name: CONTEXT_CONTROL_TOOL_NAME,
     label: "Context Control",
     description:
-      "Inspect, clean up, recover, pin, and reset model-visible context through validated Context Control operations.",
+      "Inspect, clean up, recover, pin, and reset model-visible context through validated Context Control operations. Listing is metadata-only; recovery is the only operation that can materialize evidence.",
     promptSnippet: "Use Context Control for bounded context cleanup and exact evidence recovery.",
     promptGuidelines: [
-      "Use status or list before choosing a context source.",
-      "Use recover with semantic evidence need; do not guess a source identity.",
+      "Use status or list before choosing a context source; list returns actionable metadata-only refs.",
+      "An empty residency map means nothing has been reduced, not that the catalog is empty.",
+      "Use cleanup only with explicit targets from list or explain; control-plane results are protected.",
+      "Use recover with a semantic evidence need; do not guess a source identity.",
       "Treat ambiguous or unavailable results as no evidence and continue safely.",
       "Use the returned exact-use lease and context_control_use_evidence when exact evidence is required.",
     ],
@@ -373,10 +545,15 @@ export function registerContextControlTools(pi, getRuntime) {
   pi.registerTool({
     name: CONTEXT_CONTROL_USE_EVIDENCE_TOOL_NAME,
     label: "Use Context Control Evidence",
-    description: "Acknowledge bounded recovered evidence or safely abstain from using it.",
+    description:
+      "Acknowledge bounded recovered evidence or safely abstain from using it. Handles are scoped to the current logical branch and expire on reset or settlement.",
     promptSnippet: "Acknowledge or abstain from using recovered Context Control evidence.",
+    promptGuidelines: [
+      "Use status=used only with the exact returned excerpt when exact evidence is required.",
+      "Use status=abstained with a concrete reason when evidence cannot be used.",
+    ],
     parameters: evidenceUseParameters,
-    renderCall,
+    renderCall: renderEvidenceCall,
     renderResult,
     async execute(_toolCallId, params) {
       const runtime = getRuntime();
@@ -389,10 +566,15 @@ export function registerContextControlTools(pi, getRuntime) {
   pi.registerTool({
     name: CONTEXT_CONTROL_DECIDE_TOOL_NAME,
     label: "Decide Context Control Proposal",
-    description: "Approve, preview, reject, or narrowly modify a pending Context Control proposal.",
+    description:
+      "Approve, preview, reject, or narrowly modify a pending Context Control proposal. Decisions must use the current proposal ID and bounded candidate handles.",
     promptSnippet: "Decide a pending Context Control proposal.",
+    promptGuidelines: [
+      "Use preview before approval when candidate metadata is weak or conflicting.",
+      "Use only handles and scopes present in the current proposal; stale proposals are rejected.",
+    ],
     parameters: decisionParameters,
-    renderCall,
+    renderCall: renderDecisionCall,
     renderResult,
     async execute(_toolCallId, params) {
       const runtime = getRuntime();
