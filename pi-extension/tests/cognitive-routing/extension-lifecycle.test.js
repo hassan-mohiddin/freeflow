@@ -921,6 +921,65 @@ test("Pi delivers stable Cognitive Routing cues and refreshes runtime state only
   }
 });
 
+test("Pi preserves runtime state after a no-op profile switch", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-no-op-state-"));
+  await mkdir(join(cwd, ".freeflow"));
+  await writeFile(
+    join(cwd, ".freeflow", "config.json"),
+    JSON.stringify({
+      cognitiveRouting: {
+        enabled: true,
+        profiles: {
+          standard: { provider: "faux", model: "standard", thinkingLevel: "high" },
+          reasoning: { provider: "faux", model: "reasoning", thinkingLevel: "max" },
+        },
+      },
+    }),
+  );
+  const host = createExtensionHost();
+  const ctx = createContext(cwd, host);
+  try {
+    await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    await host.handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+
+    const contextHandler = host.handlers.get("context");
+    const reasoningContext = await contextHandler({ messages: [] }, ctx);
+    const runtimeStateMessages = reasoningContext.messages.filter(
+      (message) =>
+        message.customType === "freeflow-runtime-state" ||
+        message.customType === "freeflow-cognitive-routing-runtime-state",
+    );
+    assert.equal(runtimeStateMessages.length, 1);
+    assert.equal(runtimeStateMessages[0].customType, "freeflow-runtime-state");
+
+    const switchTool = host.tools.find((tool) => tool.name === "freeflow_switch_profile");
+    const result = await switchTool.execute(
+      "call-no-op-volatile-state",
+      { target: "reasoning", reason: "Remain on Reasoning for this check." },
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(result.details.result.status, "active");
+    assert.equal(result.details.result.changed, false);
+
+    await host.handlers.get("tool_result")({ type: "tool_result", toolName: "freeflow_switch_profile" }, ctx);
+    const unchangedContext = await contextHandler({ messages: reasoningContext.messages }, ctx);
+    assert.equal(unchangedContext, undefined);
+    assert.equal(
+      reasoningContext.messages.filter(
+        (message) =>
+          message.customType === "freeflow-runtime-state" ||
+          message.customType === "freeflow-cognitive-routing-runtime-state",
+      ).length,
+      1,
+    );
+  } finally {
+    await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("Pi refreshes volatile Cognitive Routing state after a profile switch", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-volatile-state-"));
   await mkdir(join(cwd, ".freeflow"));

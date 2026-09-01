@@ -2,7 +2,7 @@
 
 Freeflow is a workflow layer for one active coding agent. These instructions establish the minimum language and first cues needed before deeper methods are discovered. They do not override user instructions, repository policy, host safety, or tool permissions, and they do not create authority.
 
-Use the latest extension-generated Freeflow Runtime State snapshot. At session start, after context reconstruction or loss, and when its displayed state changes, a fresh snapshot is supplied. When state is unchanged and the previous snapshot remains in continuous context, no replacement is needed; treat the last confirmed snapshot as current. Earlier capability, control, and profile state is history. Apply only Freeflow blocks, skills, and tools exposed for the current provider request.
+Use the latest extension-generated Runtime State. It refreshes at session start, after context loss, or when displayed state changes; otherwise the existing snapshot may remain visible without re-emission. Treat earlier state as history and use only the Freeflow guidance, skills, and tools exposed for this request.
 
 Freeflow's core guidance and the separate Interaction Contract are always delivered together whenever Freeflow is enabled. The Interaction Contract remains a separately editable prompt fragment; it is not an optional capability.
 

@@ -35,9 +35,9 @@ Boundary operation: NEW | REOPEN | CLOSE
 
 `REOPEN` is an operation, not a lasting state. It changes a closed boundary back to `OPEN`. `CLOSED` is historical; after `CLOSE`, no active boundary remains. `RETURN` transfers execution evidence to Reasoning while leaving the boundary `OPEN`. Reasoning owns the Cognitive Routing boundary and its transitions; the current owner owns the bounded activity.
 
-A **decision-complete contract** is the smallest model-written instruction that leaves Standard with no unresolved material judgment. Its shape is adaptive: it may be one line, a short brief, or a detailed set of sections. Include only the outcome, constraints or invariants, scope, evidence, ordering, and return conditions needed for the current result. Detail is proportional to residual judgment; it is not a fixed schema or a command-by-command plan.
+A **decision-complete contract** is the smallest model-written instruction that leaves Standard with no unresolved material judgment. Its shape is adaptive: it may be one line, a short brief, or a detailed set of sections. Include only the outcome, constraints or invariants, scope, evidence, ordering, and return conditions needed for the current result. Detail is proportional to residual judgment; it is not a fixed schema or a command-by-command plan. Contract detail is adaptive; route and transition markers remain explicit.
 
-**Task Act** is direct Reasoning action for a narrow scope when judgment and action are materially inseparable. It includes `OBSERVE` and `ACT_BOUNDED`, such as a focused source inspection, diagnostic, test, build, runtime probe, interactive probe, or narrow artifact action. Profile switching and compact transition contracts are control operations, not Task Act. Task Act does not create an execution boundary.
+**Task Act** is direct Reasoning action for a narrow scope. Use `OBSERVE` for one narrow, discriminating observation and `ACT_BOUNDED` when judgment and action are materially inseparable. Profile switching and compact transition contracts are control operations, not Task Act. Task Act does not create an execution boundary.
 
 For Cognitive Routing, the extension-generated Runtime State establishes `Control` and `Profile`. It keeps one complete state message visible, refreshing it at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in continuous context. It does not establish the model-written boundary or route. After context loss or uncertainty, recover a fresh state before Task Act and never infer boundary state from the Runtime State block.
 
@@ -194,10 +194,12 @@ Route the returned result as follows:
 
 A clear correction does not require a separate remediation contract or a new boundary. Reasoning may adapt the existing contract for the next delegation while preserving its original result and evidence.
 
+Before reporting completion or choosing another automatic route, explicitly write `CLOSE` and `Boundary state: NONE`; otherwise the boundary remains `OPEN`.
+
 When the result is supported, verified at the required boundary, and self-reviewed without an unresolved material issue:
 
 ```text
-Boundary operation: CLOSE
+CLOSE
 Boundary state: NONE
 Boundary lifecycle: CLOSED
 Current owner: unchanged
@@ -215,7 +217,9 @@ Do not close an unsupported, inconclusive, blocked, or route-changing result mer
 
 ## Task Act From Reasoning
 
-Task Act is available whenever Reasoning has control, including:
+Task Act is available whenever Reasoning has control. Before any direct Reasoning tool call, explicitly write `OBSERVE` or `ACT_BOUNDED` with its scope and stop condition; otherwise use `YIELD` or `DELEGATE`.
+
+Task Act may be selected:
 
 - before any boundary is open;
 - while assessing an open boundary after Standard returns;
@@ -227,7 +231,7 @@ It is not available while Standard is actively executing a Yield or Delegation; 
 Use `OBSERVE` when one narrow, discriminating observation is cheaper and clearer than delegation:
 
 ```text
-Reasoning observation:
+OBSERVE
 Question:
 Scope:
 Stop when:
@@ -236,7 +240,7 @@ Stop when:
 Use `ACT_BOUNDED` only when judgment and action are materially inseparable:
 
 ```text
-Reasoning Act
+ACT_BOUNDED
 Why judgment and action are inseparable:
 Scope:
 Authority:
