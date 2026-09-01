@@ -419,6 +419,24 @@ function selectPreciseEntity(data, target, path) {
   return matches[0];
 }
 
+function assertHistoricalEntityMutable(selected, edit, path) {
+  if (selected.label === "history.slices")
+    fail("immutable-history", "Historical Slices are immutable through generic edits", { path });
+  if (selected.label !== "history.checkpoints") return;
+  const protectedFields = new Set(["type", "selectedBy", "condition", "result"]);
+  const attemptedFields = [
+    ...(edit.set && typeof edit.set === "object" && !Array.isArray(edit.set) ? Object.keys(edit.set) : []),
+    ...(Array.isArray(edit.clear) ? edit.clear : []),
+    ...(edit.replaceText && typeof edit.replaceText === "object" && !Array.isArray(edit.replaceText)
+      ? Object.keys(edit.replaceText)
+      : []),
+  ];
+  if (edit.rename !== undefined || attemptedFields.some((field) => protectedFields.has(field)))
+    fail("immutable-history", "Terminal Checkpoint identity and lifecycle fields are immutable through generic edits", {
+      path,
+    });
+}
+
 function fieldPathTarget(data, target, path) {
   if (typeof target !== "string") return null;
   const parts = target.split(".");
@@ -524,6 +542,7 @@ function applyPreciseEntityEdit(data, edit, path) {
   for (const key of Object.keys(edit))
     if (!allowed.has(key)) fail("unknown-edit-operation", `Unknown edit operation: ${key}`, { path });
   const selected = selectPreciseEntity(data, edit.target, `${path}.target`);
+  assertHistoricalEntityMutable(selected, edit, path);
   const entity = selected.entity;
   if (!entity) fail("missing-entity", "There is no Current Slice to edit", { path });
   if (edit.clear !== undefined && !Array.isArray(edit.clear))
@@ -640,6 +659,8 @@ function applyPreciseCollectionEdit(data, edit, path) {
   if (edit.removeEntity !== undefined) {
     if (collectionName === "decisions")
       fail("decision-removal-requires-lifecycle", "Retire or supersede decisions through the decision operation");
+    if (collectionName === "checkpoints")
+      fail("immutable-history", "Terminal Checkpoints cannot be removed through generic edits");
     const selector = edit.removeEntity;
     if (!selector || typeof selector !== "object")
       fail("invalid-edit-target", "removeEntity requires an id or title selector", { path });

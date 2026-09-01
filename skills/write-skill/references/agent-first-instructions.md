@@ -1,6 +1,6 @@
 # Agent-First Instructions
 
-Read this when a concrete first-read failure involves wording, placement, undeclared context, or author explanation.
+Read this when a concrete first-read or retained-use failure involves wording, placement, undeclared context, author explanation, or competing instructions.
 
 ## Reconstruct The Reader’s Context
 
@@ -9,8 +9,9 @@ Assume the agent is seeing the skill for the first time.
 - State the job before local vocabulary.
 - Define terms before relying on them.
 - Assume only guaranteed runtime or declared base context.
-- Do not rely on an optional sibling, reference, or accidental earlier read.
+- Do not rely on an optional sibling, reference, common route, or accidental earlier read.
 - Make required reads explicit before their content is used.
+- Do not assume the skill will be reread before later use.
 
 Dependency direction remains:
 
@@ -29,19 +30,28 @@ Keep a sentence only when it:
 
 - changes an action or judgment;
 - defines required language;
-- protects a likely failure boundary;
-- states an evidence, exit, or stop condition;
-- provides a compact example that resolves a likely misclassification.
+- protects a likely or observed failure boundary;
+- states an evidence, return, or stop condition;
+- makes a dependency executable;
+- provides a compact example resolving likely misclassification.
 
-Translate rationale into a direct rule plus only the why needed to generalize. Translate debate into the selected boundary and stop condition. Omit rejected drafts, conversation history, and explanation whose only audience is the author.
+Translate rationale into a direct rule plus only the why needed to generalize.
+
+Translate debate into the selected boundary and stop condition.
+
+Translate a measured failure into the smallest transferable guard that prevents it.
+
+Omit rejected drafts, conversation history, fixture narration, evaluation status, and explanation whose only audience is the author.
 
 ## Strengthen Rules
 
 A useful rule names:
 
-- the observable trigger or pressure;
-- the required or forbidden action;
-- the evidence, exit, or stop condition.
+```text
+observable trigger or pressure
+-> required or forbidden action
+-> evidence, return, or stop condition
+```
 
 Prefer:
 
@@ -51,37 +61,61 @@ Over:
 
 > Keep evaluation efficient and aligned with best practices.
 
+Concrete rules reduce the judgment the agent must reconstruct.
+
 ## Pair Negative Rules With The Route
 
-```text
 Bad:
-Do not recreate the old worker/verifier architecture.
+
+> Do not recreate the old worker/verifier architecture.
 
 Better:
-The active agent owns implementation and verification.
-Workflow selects optional independent review.
-```
 
-```text
+> The producing activity handles implementation and verification. The surrounding workflow may select independent review.
+
 Bad:
-Do not implement the recommendation.
+
+> Do not implement the recommendation.
 
 Better:
-Return the recommendation to Workflow.
-Implementation requires authorized execution.
-```
 
-A negative rule may preserve an invariant directly:
+> Return the recommendation to the owning workflow. Implementation requires separate authorization.
 
-```text
-Preserve the accepted scope.
-Do not split it into MVP or roadmap phases without approval.
-```
+A negative rule may preserve an invariant directly when the positive route is already clear:
+
+> Preserve the accepted scope. Do not split it into MVP or roadmap phases without approval.
 
 ## Fix Placement Before Adding Prose
 
-Put a rule where the agent first makes the affected choice. A late caveat rarely defeats an early command. Move or sharpen the controlling sentence before adding another section.
+Put a rule where the agent first makes the affected choice.
 
-Repeat shared policy only where a short local reminder prevents a real failure. Do not copy an owning workflow into a method skill.
+A late caveat rarely defeats an early command. Move or sharpen the controlling sentence before adding another section.
 
-After editing, rerun the same first-read pressure while keeping unrelated rules stable.
+When an early rule and later exception conflict, restructure the route rather than adding another disclaimer.
+
+## Repeat Local Guards Deliberately
+
+Repeat a shared rule only when local presence protects:
+
+- an independently activated path;
+- a distinct decision point;
+- retained behavior;
+- context-loss recovery;
+- a dangerous literal interpretation;
+- a measured failure.
+
+Keep one canonical owner for the full definition or method. Repeat only the compact local guard needed at the choice.
+
+> Repeat the behavioral invariant, not the owning method.
+
+Do not copy complete orchestration, authority, review, or task-memory sections into every consumer.
+
+## End The Skill’s Influence
+
+A skill body may remain in context after its immediate method ends.
+
+State stop, return, or exit conditions clearly enough that retained instructions do not continue claiming ownership or broadening later work.
+
+A first-turn exit is insufficient when later turns still show method hijacking.
+
+After editing, rerun the same first-read and retained-use pressure while keeping unrelated rules stable.

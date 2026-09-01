@@ -57,7 +57,7 @@ Freeflow has four coordinated model-facing parts:
 
 1. **Core guidance:** `runtime/prompts/core.md` owns stable identity, shared terms, the Interaction Lifecycle, Feedback Loop, Workflow, Action Selection, and Supported Exit cues.
 2. **Interaction Contract:** `runtime/prompts/interaction-contract.md` is a separate mandatory fragment so its turn-interpretation behavior can be changed independently.
-3. **Runtime State:** the extension appends current capability availability and Cognitive Routing Control/Profile to every provider invocation. It is not system-prompt policy.
+3. **Runtime State:** the extension supplies current capability availability and Cognitive Routing Control/Profile at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the current provider context. It is not system-prompt policy.
 4. **Discoverable skills:** 25 base skills under `skills/` are exposed with the core surface; child capability skills under `capabilities/` are exposed only when their own gates are effective.
 
 The Interaction Contract is prompt-only and not discoverable. Full skill and capability bodies are discoverable methods, not persistent bootstrap content. Context loading does not enforce policy, block tools, grant permissions, or replace repository instructions. See [System Prompt Architecture](prompt-architecture.md) for the canonical assembly and gating contract, and [Capabilities](capabilities/README.md) for detailed capability contracts.
@@ -76,7 +76,7 @@ The Pi extension:
 
 - reads both config layers before agent turns;
 - composes the mandatory core prompt and Interaction Contract plus effective optional capability prompts in `before_agent_start`;
-- appends one unified volatile `Freeflow Runtime State` message before every provider request with effective capabilities and Cognitive Routing Control/Profile;
+- supplies one unified volatile `Freeflow Runtime State` message at session start, after context reconstruction or loss, and when displayed state changes, preserving it when unchanged;
 - restores only remaining branch-aware session overrides for enablement and optional context capabilities;
 - dynamically exposes 25 base model/contributor skills plus effective child capability skills;
 - registers canonical direct commands;
@@ -89,7 +89,7 @@ Pi source lives under `pi-extension/src/`; the package executes built output und
 
 ## Skill Architecture
 
-Workflow owns routing and the current authority envelope. Leaf skills own focused methods and return evidence, decisions, or route changes rather than redefining the lifecycle or widening authority. Selecting a leaf method never authorizes active evidence generation, mutation, or delivery.
+Workflow owns authority interpretation and enforcement, current-owner selection, and routing. Leaf skills own focused methods and return evidence, decisions, or route changes rather than redefining the lifecycle or widening authority. Selecting a leaf method never authorizes active evidence generation, mutation, or delivery.
 
 A skill body establishes the first-read job and normal route from guaranteed context. Separately owned required depth and conditional branch depth live in linked references whose read points are declared by the body; deterministic repeated work may live in scripts. Cross-skill links are project dependencies, not bundled local resources.
 
@@ -118,7 +118,7 @@ After compaction, summarization, clear, resume, or session navigation, Workflow 
 
 The Pi-only Context Virtualization capability owns projection-only archive and restore of consumed tool-result content while preserving canonical session history.
 
-The Pi-only Cognitive Routing capability owns exactly two configured compute profiles, complete model-and-thinking transitions through Pi's lease, deterministic `/freeflow profile standard|reasoning|auto` controls, the guarded `freeflow_switch_profile(target, reason)` request, and one volatile model-facing Control/Profile state record per provider request. Transition history is evidence, not current-state authority. Its discoverable skill is exposed only while Freeflow and Cognitive Routing are effective; it shares authority, tools, workflow, context, and evidence requirements with the active agent and does not authorize work. The current implementation remains an experimental PiFlow-hosted MVP until behavioral acceptance evidence is complete; normal Pi keeps the configuration inspectable but runtime-disabled.
+The Pi-only Cognitive Routing capability owns exactly two configured compute profiles, complete model-and-thinking transitions through Pi's lease, deterministic `/freeflow profile standard|reasoning|auto` controls, the guarded `freeflow_switch_profile(target, reason)` request, and one volatile model-facing Control/Profile state record when the state is initially supplied, rebuilt, or changed. Transition history is evidence, not current-state authority. Its discoverable skill is exposed only while Freeflow and Cognitive Routing are effective; it shares authority, tools, workflow, context, and evidence requirements with the active agent and does not authorize work. The current implementation remains an experimental PiFlow-hosted MVP until behavioral acceptance evidence is complete; normal Pi keeps the configuration inspectable but runtime-disabled.
 
 Delegation Harness is retired from the live package. Its implementation and historical evidence remain under `.deprecated/delegation-harness/`.
 

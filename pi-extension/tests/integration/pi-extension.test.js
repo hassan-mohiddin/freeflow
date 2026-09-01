@@ -278,7 +278,7 @@ test("PiFlow empty configured sessions show a pending profile before first promp
     const ctx = context(cwd);
     ctx.modelRegistry = cognitiveRoutingModelRegistry();
     await handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
-    assert.equal(ctx.statuses.at(-1).value, "freeflow: standard · pending");
+    assert.equal(ctx.statuses.at(-1).value, "freeflow: reasoning · pending");
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

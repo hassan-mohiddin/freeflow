@@ -58,7 +58,7 @@ Rules:
 - `schema_version` is `1`.
 - `kind` is `group`.
 - `id` starts with a lowercase letter, contains lowercase letters, numbers, or single hyphens, and is at most 64 characters.
-- `type` is `description`, `body`, or reserved `end-to-end`. The current runner rejects `end-to-end` before subject execution.
+- `type` is `description` or `body`.
 - `input` contains exactly one of:
   - `prompt`: one non-empty string;
   - `turns`: a non-empty ordered array of non-empty strings. Repeated natural turns are allowed.
@@ -252,7 +252,7 @@ Each environment has exactly:
   "source": { "kind": "git", "ref": "v1.2.3" },
   "skills": ["skills/target", "skills/support"],
   "target": 0,
-  "context": ["runtime/prompts/interaction-contract.md"]
+  "context": ["context/base-guidance.md"]
 }
 ```
 

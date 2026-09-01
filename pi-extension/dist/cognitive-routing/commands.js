@@ -9,7 +9,7 @@ export function cognitiveRoutingProfileCompletions(prefix) {
       label: value,
       description:
         value === "auto"
-          ? "Release the manual hold without changing the model"
+          ? "Release the manual hold and use the Reasoning profile"
           : value === "history"
             ? "Show Cognitive Routing transition history"
             : value === "history active"
@@ -80,7 +80,7 @@ export async function handleCognitiveRoutingProfileCommand(args, ctx, controller
   if (value === "auto") {
     const result = await controller.setAutomaticControl();
     if (result.status === "automatic") {
-      ctx.ui?.notify?.("Cognitive Routing manual hold released; automatic control is active.", "info");
+      ctx.ui?.notify?.("Cognitive Routing manual hold released; automatic Reasoning control is active.", "info");
     } else {
       ctx.ui?.notify?.(`Cognitive Routing could not release the manual hold: ${result.reason}.`, "warning");
     }

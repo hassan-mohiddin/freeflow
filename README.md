@@ -41,21 +41,16 @@ Freeflow uses one active agent, one shared context, and nested feedback loops:
 Interaction Lifecycle
 └─ Workflow Feedback Loop
    ├─ establishes authority, owner, and slice
-   └─ Cognitive Execution Loop — automatic control only
-      ├─ Reasoning establishes the governing execution contract
-      ├─ DELEGATE to Standard
-      │  └─ Environment Interaction Loop
-      │     ├─ select and bound the next action
-      │     ├─ use Action Selection when uncertain or broad
-      │     ├─ take the obvious fast path when mechanical
-      │     ├─ execute and observe
-      │     └─ repeat within the delegation contract
-      ├─ RETURN evidence to Reasoning
-      ├─ Reasoning self-reviews
-      └─ close, delegate correction, or return to Workflow
+   └─ Cognitive Execution Routes — automatic control only
+      ├─ Reasoning chooses one route
+      │  ├─ YIELD → Standard leads ordinary work → YIELD HANDOFF → Reasoning
+      │  ├─ DELEGATE → open model-written boundary → Standard executes
+      │  │  └─ RETURN → Reasoning assesses; boundary remains open until CLOSE
+      │  └─ TASK ACT → Reasoning performs narrow direct OBSERVE or ACT_BOUNDED
+      └─ Action Selection guides uncertain environment interactions
 ```
 
-Under manual Cognitive Routing control, the selected compute profile runs the ordinary unsplit Workflow. Cognitive Routing changes compute placement only. It never changes authority, ownership, task scope, evidence requirements, or review independence.
+Under automatic Cognitive Routing control, each new user interaction begins in Reasoning. Under manual control, the selected compute profile runs the ordinary unsplit Workflow. Cognitive Routing changes compute placement only. It never changes authority, ownership, task scope, evidence requirements, or review independence.
 
 The Workflow owner may be Discuss, Track Work, Execute Work, Verify Work, Review Work, Review Artifact, Diagnose Failure, or another focused method. These methods compose when their conditions apply; they are not a mandatory phase pipeline.
 
@@ -169,7 +164,7 @@ Freeflow’s model-facing surface has four coordinated parts:
 
 1. **Core guidance** in `runtime/prompts/core.md` contains identity, shared terms, loops, Workflow, Action Selection, and Supported Exit cues.
 2. **Interaction Contract** in `runtime/prompts/interaction-contract.md` remains a separate mandatory fragment so its behavior can be revised independently.
-3. **Runtime State** reports current capability availability and Cognitive Routing `Control`/`Profile` before every provider request.
+3. **Runtime State** reports current capability availability and Cognitive Routing `Control`/`Profile` at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the current provider context.
 4. **Discoverable skills and tools** provide the 25 base methods and individually gated optional capability operations.
 
 The core guidance and Interaction Contract are always delivered together when Freeflow is enabled. Optional capability content is omitted and reported unavailable rather than fabricated. One effective-state snapshot determines prompt assembly, discovery, tools, and projection.
@@ -240,7 +235,7 @@ Pi settings and PiFlow-only Cognitive Routing controls:
 In PiFlow, while the host is idle:
 
 - `Ctrl+Shift+R` cycles the manual standard/reasoning hold.
-- `Ctrl+Shift+A` cycles the automatic standard/reasoning profile; from a manual hold, its first press returns to automatic control without forcing a profile transition.
+- `Ctrl+Shift+A` sets automatic Reasoning control; from a manual hold, it releases the hold and moves to Reasoning when necessary.
 
 Normal Pi does not register these Cognitive Routing shortcuts.
 

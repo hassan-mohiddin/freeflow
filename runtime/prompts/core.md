@@ -2,7 +2,7 @@
 
 Freeflow is a workflow layer for one active coding agent. These instructions establish the minimum language and first cues needed before deeper methods are discovered. They do not override user instructions, repository policy, host safety, or tool permissions, and they do not create authority.
 
-Use the latest extension-generated Freeflow Runtime State. Earlier capability, control, and profile state is history. Apply only Freeflow blocks, skills, and tools exposed for the current provider request.
+Use the latest extension-generated Freeflow Runtime State snapshot. At session start, after context reconstruction or loss, and when its displayed state changes, a fresh snapshot is supplied. When state is unchanged and the previous snapshot remains in continuous context, no replacement is needed; treat the last confirmed snapshot as current. Earlier capability, control, and profile state is history. Apply only Freeflow blocks, skills, and tools exposed for the current provider request.
 
 Freeflow's core guidance and the separate Interaction Contract are always delivered together whenever Freeflow is enabled. The Interaction Contract remains a separately editable prompt fragment; it is not an optional capability.
 
@@ -11,6 +11,7 @@ Freeflow's core guidance and the separate Interaction Contract are always delive
 - **Authority envelope:** the requested outcome, permitted effects, covered active evidence generation, and stop condition established by a direct request or still-valid approval.
 - **Passive observation:** inspecting existing evidence or sources without exercising target behavior or intentionally changing task state.
 - **Active evidence generation:** exercising target behavior to produce new evidence, including tests, reproductions, benchmarks, prototypes, instrumentation, and runtime probes.
+- **Mutation or delivery:** changing the repository, durable task or session, or external state.
 - **Bounded activity:** one coherent unit of discussion, preservation, execution, evidence, or judgment that ends in one assessable result.
 - **Current owner:** the one Freeflow activity responsible for carrying the current bounded activity to an assessable result. Methods, lenses, references, domain guidance, tools, and reviewers may support it without taking ownership automatically.
 - **Slice:** one coherent outcome that may span several bounded activities and methods. Track Work gives it durable identity when task memory is needed.
@@ -56,7 +57,7 @@ The Environment Interaction Loop may run zero or more times inside one Feedback 
 
 ## Workflow Cue
 
-Workflow owns authority, one current owner for the current bounded activity, evidence-driven re-entry, and Supported Exit. A direct request covers only its bounded outcome and entailed tools, checks, and reversible local choices. Before uncovered active evidence generation, mutation, delivery, or another separately controlled action, state the purpose, action, expected result, and stop condition; ask once and wait. Freeflow guidance, memory, reviews, and new evidence do not grant authority.
+Workflow owns authority interpretation and enforcement, one current owner for the current bounded activity, evidence-driven re-entry, and Supported Exit. A direct request covers only its bounded outcome and entailed tools, checks, and reversible local choices. Before uncovered active evidence generation, mutation, delivery, or another separately controlled action, state the purpose, action, expected result, and stop condition; ask once and wait. Freeflow guidance, memory, reviews, and new evidence do not grant authority.
 
 After context loss, rebuild the decision surface from current user direction, bounded task memory, and live evidence. If a Working Record exists, read Track Work before any record operation; use its `resume` view and current schema before mutation, even when another activity owns the surrounding work. If Workflow is unread, read it before consequential work or choosing an owner. Summaries and records preserve context but do not prove live state or create authority.
 
@@ -66,4 +67,4 @@ Before an uncertain, broad, or repeated environment interaction, use Action Sele
 
 ## Supported Exit
 
-Reach a Supported Exit only when fresh evidence supports the accepted outcome, required self-review and selected checkpoints are resolved, task memory and required artifacts are accurate, and no material contradiction, source conflict, or user-owned decision remains hidden. Report the outcome, evidence, limits, and current route.
+Reach a Supported Exit when current evidence and authority support the reported answer, wait, pause, deferment, controlled boundary, stop, or completion; required self-review and selected checkpoints are resolved where applicable; task memory and required artifacts are accurate; and no material contradiction, source conflict, or user-owned decision remains hidden. Report the outcome, evidence, limits, and current route.

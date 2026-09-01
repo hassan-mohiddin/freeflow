@@ -137,7 +137,7 @@ function createContext(cwd, host) {
   };
 }
 
-test("registered shortcuts cycle manual holds and automatic profiles", async () => {
+test("registered shortcuts cycle manual holds and set automatic Reasoning", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-shortcuts-"));
   await mkdir(join(cwd, ".freeflow"));
   await writeFile(
@@ -163,32 +163,22 @@ test("registered shortcuts cycle manual holds and automatic profiles", async () 
     assert.ok(automatic);
 
     await cycle.definition.handler(ctx);
-    assert.equal(host.entries.at(-1).modelId, "reasoning");
+    assert.equal(host.entries.filter((entry) => entry.modelId).at(-1).modelId, "standard");
+
     await automatic.definition.handler(ctx);
-    assert.equal(host.entries.at(-1).customType, "freeflow-cognitive-routing-control");
     assert.equal(host.entries.filter((entry) => entry.modelId).at(-1).modelId, "reasoning");
+    const modelEntriesAfterAutomatic = host.entries.filter((entry) => entry.modelId).length;
+
     await automatic.definition.handler(ctx);
-    assert.equal(host.entries.at(-1).modelId, "standard");
-    await automatic.definition.handler(ctx);
-    assert.equal(host.entries.at(-1).modelId, "reasoning");
+    assert.equal(host.entries.filter((entry) => entry.modelId).at(-1).modelId, "reasoning");
+    assert.equal(host.entries.filter((entry) => entry.modelId).length, modelEntriesAfterAutomatic);
+
     const automaticIntent = host.entries
       .filter((entry) => entry.customType === "freeflow-cognitive-routing-intent")
       .at(-1);
     assert.equal(automaticIntent.data.source, "user");
     assert.equal(automaticIntent.data.mechanism, "profile-shortcut");
-    assert.equal(automaticIntent.data.reason, "Cycle automatic profile to reasoning.");
-    assert.deepEqual(host.operations, [
-      "prepare",
-      "acquire",
-      "setState",
-      "prepare",
-      "setState",
-      "prepare",
-      "prepare",
-      "setState",
-      "prepare",
-      "setState",
-    ]);
+    assert.equal(automaticIntent.data.reason, "automatic control selects the Reasoning profile");
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -295,7 +285,7 @@ test("Cognitive Routing retries activation after a transient failure", async () 
     const providerContext = await host.handlers.get("context")({ messages: [] }, ctx);
     assert.match(providerContext.messages.at(-1).content, /Cognitive Routing: active/);
     assert.match(providerContext.messages.at(-1).content, /Control: `automatic`/);
-    assert.match(providerContext.messages.at(-1).content, /Profile: `standard`/);
+    assert.match(providerContext.messages.at(-1).content, /Profile: `reasoning`/);
     assert.ok(host.operations.includes("setState"));
   } finally {
     await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
@@ -385,13 +375,13 @@ test("new empty sessions do not persist Cognitive Routing state until the first 
 
 test("new sessions honor each configured Cognitive Routing startup combination", async () => {
   const combinations = [
-    ["automatic", "standard"],
-    ["automatic", "reasoning"],
-    ["manual", "standard"],
-    ["manual", "reasoning"],
+    ["automatic", "standard", "reasoning"],
+    ["automatic", "reasoning", "reasoning"],
+    ["manual", "standard", "standard"],
+    ["manual", "reasoning", "reasoning"],
   ];
 
-  for (const [control, profile] of combinations) {
+  for (const [control, profile, expectedProfile] of combinations) {
     const cwd = await mkdtemp(join(tmpdir(), `freeflow-cognitive-routing-start-${control}-${profile}-`));
     await mkdir(join(cwd, ".freeflow"));
     await writeFile(
@@ -414,11 +404,11 @@ test("new sessions honor each configured Cognitive Routing startup combination",
       await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
       await host.handlers.get("before_agent_start")({ prompt: "hello", systemPrompt: "base prompt" }, ctx);
 
-      assert.equal(host.entries.filter((entry) => entry.modelId).at(-1).modelId, profile);
+      assert.equal(host.entries.filter((entry) => entry.modelId).at(-1).modelId, expectedProfile);
       const activation = host.entries.find(
         (entry) => entry.customType === "freeflow-cognitive-routing-intent" && entry.data.kind === "activation",
       );
-      assert.equal(activation.data.profile, profile);
+      assert.equal(activation.data.profile, expectedProfile);
       assert.equal(activation.data.control, control);
     } finally {
       await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
@@ -513,11 +503,11 @@ test("child extension activation does not deactivate the parent routing controll
   try {
     await parent.handlers.get("session_start")({ type: "session_start", reason: "startup" }, parentContext);
     await parent.handlers.get("before_agent_start")({ prompt: "hello", systemPrompt: "base prompt" }, parentContext);
-    assert.deepEqual(parent.state, { model: { provider: "faux", id: "standard" }, thinkingLevel: "high" });
+    assert.deepEqual(parent.state, { model: { provider: "faux", id: "reasoning" }, thinkingLevel: "max" });
 
     await child.handlers.get("session_start")({ type: "session_start", reason: "startup" }, childContext);
 
-    assert.deepEqual(parent.state, { model: { provider: "faux", id: "standard" }, thinkingLevel: "high" });
+    assert.deepEqual(parent.state, { model: { provider: "faux", id: "reasoning" }, thinkingLevel: "max" });
     assert.equal(
       parent.entries.some((entry) => entry.kind === "closing"),
       false,
@@ -748,7 +738,7 @@ test("compaction reconciles without changing an active routing pair", async () =
     await host.handlers.get("session_compact")({ type: "session_compact" }, ctx);
 
     assert.deepEqual(host.operations, operationsBeforeCompaction);
-    assert.deepEqual(host.state, { model: { provider: "faux", id: "standard" }, thinkingLevel: "high" });
+    assert.deepEqual(host.state, { model: { provider: "faux", id: "reasoning" }, thinkingLevel: "max" });
     assert.ok(host.activeToolNames().includes("freeflow_switch_profile"));
   } finally {
     await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
@@ -865,7 +855,7 @@ test("reload recovery stays inactive after an unmatched closing intent", async (
   }
 });
 
-test("Pi delivers a compact Cognitive Routing cue and volatile state per turn", async () => {
+test("Pi delivers stable Cognitive Routing cues and refreshes runtime state only when needed", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-compact-delivery-"));
   await mkdir(join(cwd, ".freeflow"));
   await writeFile(
@@ -889,14 +879,10 @@ test("Pi delivers a compact Cognitive Routing cue and volatile state per turn", 
 
     assert.equal(first.message, undefined);
     assert.match(first.systemPrompt, /## Cognitive Routing Cue/);
-    assert.match(
-      first.systemPrompt,
-      /governs compute placement across Freeflow methods.*skill has not been read in the current context.*read it before applying another Freeflow skill or taking task Act/s,
-    );
-    assert.match(
-      first.systemPrompt,
-      /every authorized execution-bearing bounded activity is Reasoning-led.*Standard takes task Act only inside delegation/s,
-    );
+    assert.match(first.systemPrompt, /each new user interaction begins in Reasoning/);
+    assert.match(first.systemPrompt, /YIELD/);
+    assert.match(first.systemPrompt, /DELEGATE/);
+    assert.match(first.systemPrompt, /TASK ACT/);
     assert.ok(
       first.systemPrompt.indexOf("## Action Selection Cue") < first.systemPrompt.indexOf("## Cognitive Routing Cue"),
     );
@@ -909,7 +895,22 @@ test("Pi delivers a compact Cognitive Routing cue and volatile state per turn", 
     assert.equal(firstContext.messages[0].customType, "freeflow-runtime-state");
     assert.match(firstContext.messages[0].content, /Cognitive Routing: active/);
     assert.match(firstContext.messages[0].content, /Control: `automatic`/);
-    assert.match(firstContext.messages[0].content, /Profile: `standard`/);
+    assert.match(firstContext.messages[0].content, /Profile: `reasoning`/);
+
+    const unchangedContext = await contextHandler({ messages: firstContext.messages }, ctx);
+    assert.equal(unchangedContext, undefined);
+
+    await host.handlers.get("session_tree")({ type: "session_tree", reason: "branch" }, ctx);
+    const branchContext = await contextHandler({ messages: firstContext.messages }, ctx);
+    assert.ok(branchContext);
+    assert.equal(branchContext.messages.length, 1);
+    assert.match(branchContext.messages[0].content, /Profile: `reasoning`/);
+
+    await host.handlers.get("session_compact")({ type: "session_compact", reason: "compaction" }, ctx);
+    const compactContext = await contextHandler({ messages: branchContext.messages }, ctx);
+    assert.ok(compactContext);
+    assert.equal(compactContext.messages.length, 1);
+    assert.match(compactContext.messages[0].content, /Profile: `reasoning`/);
 
     const second = await beforeAgentStart({ systemPrompt: "base prompt" }, ctx);
     assert.equal(second.message, undefined);
@@ -942,24 +943,24 @@ test("Pi refreshes volatile Cognitive Routing state after a profile switch", asy
     await host.handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
 
     const contextHandler = host.handlers.get("context");
-    const standardContext = await contextHandler({ messages: [] }, ctx);
-    assert.match(standardContext.messages[0].content, /Profile: `standard`/);
+    const reasoningContext = await contextHandler({ messages: [] }, ctx);
+    assert.match(reasoningContext.messages[0].content, /Profile: `reasoning`/);
 
     const switchTool = host.tools.find((tool) => tool.name === "freeflow_switch_profile");
     const result = await switchTool.execute(
       "call-volatile-state",
-      { target: "reasoning", reason: "Need a deeper analysis." },
+      { target: "standard", reason: "Use Standard for bounded execution." },
       undefined,
       undefined,
       ctx,
     );
-    assert.equal(result.details.result.to, "reasoning");
+    assert.equal(result.details.result.to, "standard");
 
-    const reasoningContext = await contextHandler({ messages: standardContext.messages }, ctx);
-    assert.equal(reasoningContext.messages.length, 1);
-    assert.match(reasoningContext.messages[0].content, /Control: `automatic`/);
-    assert.match(reasoningContext.messages[0].content, /Profile: `reasoning`/);
-    assert.doesNotMatch(reasoningContext.messages[0].content, /Profile: `standard`/);
+    const standardContext = await contextHandler({ messages: reasoningContext.messages }, ctx);
+    assert.equal(standardContext.messages.length, 1);
+    assert.match(standardContext.messages[0].content, /Control: `automatic`/);
+    assert.match(standardContext.messages[0].content, /Profile: `standard`/);
+    assert.doesNotMatch(standardContext.messages[0].content, /Profile: `reasoning`/);
   } finally {
     await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
     await rm(cwd, { recursive: true, force: true });
@@ -1026,7 +1027,7 @@ test("Pi lifecycle prepares, activates, restores, and releases Cognitive Routing
       ctx,
     );
     assert.deepEqual(host.operations.slice(0, 3), ["prepare", "acquire", "setState"]);
-    assert.deepEqual(host.state, { model: { provider: "faux", id: "standard" }, thinkingLevel: "high" });
+    assert.deepEqual(host.state, { model: { provider: "faux", id: "reasoning" }, thinkingLevel: "max" });
     assert.equal(host.entries[0].customType, "freeflow-cognitive-routing-intent");
     assert.ok(host.activeToolNames().includes("freeflow_switch_profile"));
     assert.match(beforeAgentStart.systemPrompt, /## Cognitive Routing Cue/);
@@ -1037,12 +1038,12 @@ test("Pi lifecycle prepares, activates, restores, and releases Cognitive Routing
     const switchTool = host.tools.find((tool) => tool.name === "freeflow_switch_profile");
     await switchTool.execute(
       "call-1",
-      { target: "reasoning", reason: "Continue the unresolved architecture decision." },
+      { target: "standard", reason: "Use Standard for the bounded execution pass." },
       undefined,
       undefined,
       ctx,
     );
-    assert.deepEqual(host.state, { model: { provider: "faux", id: "reasoning" }, thinkingLevel: "max" });
+    assert.deepEqual(host.state, { model: { provider: "faux", id: "standard" }, thinkingLevel: "high" });
 
     await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "reload" }, ctx);
 

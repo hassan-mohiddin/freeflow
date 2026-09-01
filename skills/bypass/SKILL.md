@@ -42,7 +42,7 @@ A valid bypass may remove:
 
 Do not infer that a named artifact, review, check, or checkpoint is optional. Inspect what it protects before removing it.
 
-Freeflow should already avoid unnecessary ceremony. Bypass is an explicit user override when optional pressure was proposed, selected provisionally, or would otherwise remain in the route.
+Freeflow should already avoid unnecessary ceremony. Bypass is an explicit user override when optional pressure was proposed or recommended but was not selected as a required boundary, or would otherwise remain in the route.
 
 ## Preserve Non-Bypassable Boundaries
 

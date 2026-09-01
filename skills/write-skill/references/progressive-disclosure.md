@@ -1,77 +1,127 @@
 # Progressive Disclosure
 
-Read this before adding or reorganizing references and scripts.
+Read this before adding or reorganizing references, assets, or scripts.
 
-Make the first-read route understandable, then move only separately owned or conditional depth out of the active body.
+Progressive disclosure should change when content enters context, preserve one canonical owner, or isolate a real lifecycle boundary. Splitting files without one of those benefits adds dependency cost without reducing context.
 
-## Dependency Direction
+## Preserve Dependency Direction
 
 ```text
 description
 -> SKILL.md
--> required or conditional reference or script
+-> required or conditional resource
 ```
 
-The description routes the first useful skill read. `SKILL.md` establishes the job, normal method, necessary terms, and stop conditions, then explicitly directs any reference read. References do not activate independently, and an introduction inside an unread reference cannot activate itself.
+`SKILL.md` establishes:
 
-Do not hide a definition, rule, or step needed to recognize the normal route in an unannounced reference. That is progressive reconstruction, not disclosure.
+- the job;
+- normal route;
+- necessary terms;
+- stop and return conditions;
+- observable resource read points.
 
-## State The Read Point
+A reference cannot activate itself. Do not hide the rule needed to recognize a reference inside that reference.
 
-Use one of three explicit read points:
+That is progressive reconstruction, not disclosure.
 
-- **Entry-required:** read before following the skill's normal route.
-- **Activity-required:** read before performing a named activity on the normal route.
-- **Conditional:** read only when an observable branch occurs.
+## Classify The Read Point
 
-Entry-required and activity-required resources are required references. Conditional resources are conditional references. The word “when” does not determine the class: “When designing a test, read Test Design” is activity-required because test design is normal TDD work.
+### Entry-required
 
-Do not call a required read recommended or optional. If skipping it preserves correct normal execution, it is not required. Avoid “read when unclear” when the reference teaches how to recognize or make the underlying decision; either make the read activity-required or keep enough recognition guidance in `SKILL.md`.
+Read before the skill can follow or reject its normal route.
 
-The body instruction and reference introduction must describe the same read point. An introduction may explain purpose, but must not narrow or widen the condition established by `SKILL.md`.
+Entry-required references are exceptional. Use one only when separation provides independent value, such as:
 
-## Add A Required Reference When
+- canonical reuse across packages;
+- separate ownership or lifecycle;
+- generated schemas or contracts;
+- compatibility or host constraints;
+- independently versioned external policy.
 
-- normal execution genuinely needs separately owned depth;
-- the body can identify and require the read before using that depth;
-- keeping the material inline would obscure the skill’s controlling rules;
-- the dependency is delivered and validated with the skill package.
+If every useful activation reads the resource and it has no separate ownership or lifecycle value, inline it even when `SKILL.md` becomes substantially longer.
 
-Required does not mean implicit or merely recommended. The body must command the read at entry or before the named normal activity and must not act as if unread content were already known.
+### Activity-required
 
-## Add A Conditional Reference When
+Read before performing one named normal activity.
 
-- the material is needed only for a distinct branch of work;
-- loading it every time would obscure higher-priority behavior;
-- the active body can name an observable condition for reading it;
-- the reference has one clear job and does not restate the full skill or Workflow.
+The skill may first:
 
-The condition must be observable before the read. Keep compact examples that teach the normal boundary in `SKILL.md`. Move a larger example set only when it serves a conditional branch and would obscure the normal route.
+- exit;
+- defer;
+- choose another route;
+- determine that the activity does not apply.
+
+Activity-required references provide real loading value even when the activity is common.
+
+### Conditional
+
+Read only when an observable branch occurs.
+
+The body must teach the agent enough to recognize the branch before loading the reference.
+
+Do not use “when unclear” if the reference contains the method for recognizing the underlying condition.
+
+## Keep The Normal Route Contiguous
+
+Start with one `SKILL.md`.
+
+Keep inline:
+
+- the first-read job;
+- normal route;
+- controlling definitions;
+- rules needed to select resources;
+- stop and return behavior.
+
+Move depth only when keeping it inline would obscure the normal route and the read point is executable.
+
+Do not split a file to satisfy a line count.
+
+## Add A Reference When
+
+- one named normal activity needs separately owned depth;
+- one observable conditional branch needs depth;
+- one canonical resource is shared without duplication;
+- one resource has a real independent lifecycle;
+- the body can name and require the read before use.
+
+The body instruction and reference introduction must state the same read condition.
+
+Required means necessary. Do not call a required reference recommended or optional.
+
+If skipping the reference preserves correct execution, either make its concrete optional value explicit or remove it.
 
 ## Add A Script When
 
-- the skill owns a deterministic feature or repeated operation;
-- retyping it is error-prone, unsafe, or materially wasteful;
-- its interface and failure behavior can be tested.
+- the skill owns a deterministic repeated operation;
+- model-generated execution would be error-prone, unsafe, or materially wasteful;
+- the interface and failure behavior can be tested;
+- the script’s output has a clear evidence boundary.
 
-A script does not require an earlier failure. Do not script ordinary shell commands merely to look complete.
+Do not script ordinary commands merely to make the package appear complete.
 
 ## Link At The Decision Point
 
-A resource link should tell the agent when it becomes useful:
+Link every agent-facing reference, asset, package dependency, and executable entrypoint from `SKILL.md` at the first useful choice.
 
-> Read the integration-evidence reference when the claim depends on host dispatch or an installed artifact.
+Avoid vague resource lists such as:
 
-Avoid vague resource lists such as “See references for more information.”
+> See references for more information.
 
-## Resource Test
+Prefer:
 
-For every extra file, answer:
+> Read Test Design before designing or materially changing the behavior check.
 
-1. What normal dependency or conditional branch requires it?
-2. When can the agent recognize that read or run condition?
-3. What prior language does the resource assume, and where is it established?
-4. Why cannot the active body or a direct command do the job clearly?
-5. How will the resource be validated and kept consistent?
+## Apply The Resource Test
 
-If those answers are weak, remove the resource.
+For every extra file, ask:
+
+1. What activity, conditional branch, shared ownership, or lifecycle requires it?
+2. When can the agent recognize the read or run condition?
+3. What prior language does it assume?
+4. Where is that language guaranteed?
+5. What context or ownership value does separation provide?
+6. Why is inline content worse?
+7. How will links, containment, and behavior be verified?
+
+If separation changes neither loading nor ownership, inline the content or remove it.

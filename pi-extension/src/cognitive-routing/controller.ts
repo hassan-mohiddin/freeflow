@@ -480,21 +480,20 @@ export class CognitiveRoutingController {
     const branchId = this.currentBranchId();
     const sessionStart = this.capabilityState.sessionStart ?? {
       control: "automatic" as const,
-      profile: "standard" as const,
+      profile: "reasoning" as const,
     };
-    const profileName: CognitiveRoutingProfileName = preservedReload
-      ? lifecycleIntent.resumeProfile
-      : sessionStart.profile;
+    const startControl = preservedReload ? lifecycleIntent.resumeControl : sessionStart.control;
+    const profileName: CognitiveRoutingProfileName =
+      startControl === "automatic"
+        ? "reasoning"
+        : preservedReload
+          ? lifecycleIntent.resumeProfile
+          : sessionStart.profile;
     const profile = this.capabilityState.resolvedProfiles[profileName];
     if (!profile) {
       return { status: "inactive", reason: preservedReload ? "resume_profile_unavailable" : "profile_unavailable" };
     }
-    let controlMode: CognitiveRoutingControlMode;
-    if (preservedReload) {
-      controlMode = lifecycleIntent.resumeControl === "manual" ? `manual-${profileName}` : "automatic";
-    } else {
-      controlMode = sessionStart.control === "manual" ? `manual-${profileName}` : "automatic";
-    }
+    const controlMode: CognitiveRoutingControlMode = startControl === "manual" ? `manual-${profileName}` : "automatic";
     const target = {
       provider: profile.provider,
       modelId: profile.model,
@@ -963,6 +962,21 @@ export class CognitiveRoutingController {
     if (!this.lease || !this.epoch) {
       return { status: "rejected", reason: "not_active" };
     }
+    const current = this.state();
+    if (!current.activeProfile) {
+      return { status: "rejected", reason: "profile_unknown" };
+    }
+    if (current.activeProfile !== "reasoning") {
+      const transition = await this._setProfile("reasoning", {
+        controlMode: "automatic",
+        source: "user",
+        mechanism,
+        reason: "automatic control selects the Reasoning profile",
+      });
+      if (transition.status !== "active") return { status: "rejected", reason: transition.reason };
+      return { status: "automatic" };
+    }
+    if (this.controlMode === "automatic") return { status: "automatic" };
     try {
       this.pi.appendEntryDurable(COGNITIVE_ROUTING_CONTROL_ENTRY, {
         version: 2,

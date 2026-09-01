@@ -551,18 +551,18 @@ function cognitiveRoutingProfileItem(options) {
 }
 function cognitiveRoutingSessionStartItem(options) {
   const path = ["cognitiveRouting", "sessionStart", options.setting];
-  const defaultValue = options.setting === "control" ? "automatic" : "standard";
+  const defaultValue = options.setting === "control" ? "automatic" : "reasoning";
   const values = options.setting === "control" ? ["automatic", "manual"] : ["standard", "reasoning"];
   const labels = Object.fromEntries(values.map((value) => [value, value]));
   const descriptions =
     options.setting === "control"
       ? {
-          automatic: "Let Cognitive Routing manage profile transitions for the new session.",
+          automatic: "Start the new session in Reasoning; automatic delegation may use Standard during execution.",
           manual: "Hold the selected profile for the new session until the user changes it.",
         }
       : {
-          standard: "Start a new session with the configured Standard preset.",
-          reasoning: "Start a new session with the configured Reasoning preset.",
+          standard: "Start a new manual session with the configured Standard preset.",
+          reasoning: "Start a new manual session with the configured Reasoning preset.",
         };
   const repositoryValue = getPath(options.rawConfig, path);
   const localValue = getPath(options.localConfig, path);
@@ -573,13 +573,21 @@ function cognitiveRoutingSessionStartItem(options) {
   const inheritedSource = repositorySetting ? "repository" : "builtin";
   const configuredSource =
     options.capabilityState?.sessionStartSources?.[options.setting] ?? (repositorySetting ? "repository" : undefined);
-  const effectiveValue = options.capabilityState?.sessionStart?.[options.setting] ?? inheritedValue;
+  const effectiveSessionStartControl =
+    options.capabilityState?.sessionStart?.control ??
+    getPath(options.localConfig, ["cognitiveRouting", "sessionStart", "control"]) ??
+    getPath(options.rawConfig, ["cognitiveRouting", "sessionStart", "control"]) ??
+    "automatic";
+  const effectiveValue =
+    options.setting === "profile" && effectiveSessionStartControl === "automatic"
+      ? "reasoning"
+      : (options.capabilityState?.sessionStart?.[options.setting] ?? inheritedValue);
   const effectiveSource = cognitiveRoutingSettingsSource(configuredSource);
-  const label = options.setting === "control" ? "Session start control" : "Session start profile";
+  const label = options.setting === "control" ? "Session start control" : "Manual session-start profile";
   const description =
     options.setting === "control"
       ? "Choose automatic or manual control for new sessions only; changing this does not alter the active session."
-      : "Choose the initial profile for new sessions only; changing this does not alter the active session.";
+      : "Choose the profile for manual session starts; automatic sessions always start in Reasoning.";
   const item =
     options.scope === "local"
       ? {
@@ -722,7 +730,7 @@ function freeflowItems(rawConfig, options = {}) {
       label: "Cognitive Routing",
       description: cognitiveRoutingRuntimeDisabled
         ? "Cognitive Routing configuration is visible for inspection but can only run in PiFlow."
-        : "Configure the automatic standard/reasoning profiles and choose whether Freeflow may manage model state for this repository.",
+        : "Configure the Standard and Reasoning profiles and choose whether Freeflow may manage model state for this repository.",
       kind: "group",
       value: cognitiveRoutingRuntimeDisabled ? false : (cognitiveRoutingState?.enabled ?? false),
       inactive: freeflowInactive,

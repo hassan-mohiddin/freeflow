@@ -197,29 +197,25 @@ export function resolveCognitiveRoutingConfig(repositoryConfig, personalConfig) 
   let enabledSource = "default";
   if (repository.enabled !== undefined) enabledSource = "repository";
   if (personal.enabled !== undefined) enabledSource = "personal";
+  const sessionStartControl =
+    personal.sessionStart.control ?? repository.sessionStart.control ?? DEFAULT_COGNITIVE_ROUTING_SESSION_START.control;
+  const configuredSessionStartProfile =
+    personal.sessionStart.profile ?? repository.sessionStart.profile ?? DEFAULT_COGNITIVE_ROUTING_SESSION_START.profile;
   const sessionStart = {
-    control:
-      personal.sessionStart.control ??
-      repository.sessionStart.control ??
-      DEFAULT_COGNITIVE_ROUTING_SESSION_START.control,
-    profile:
-      personal.sessionStart.profile ??
-      repository.sessionStart.profile ??
-      DEFAULT_COGNITIVE_ROUTING_SESSION_START.profile,
+    control: sessionStartControl,
+    profile: sessionStartControl === "automatic" ? "reasoning" : configuredSessionStartProfile,
   };
+  let sessionStartControlSource = "default";
+  if (repository.sessionStart.control !== undefined) sessionStartControlSource = "repository";
+  if (personal.sessionStart.control !== undefined) sessionStartControlSource = "personal";
+  let sessionStartProfileSource = "default";
+  if (sessionStartControl === "manual") {
+    if (repository.sessionStart.profile !== undefined) sessionStartProfileSource = "repository";
+    if (personal.sessionStart.profile !== undefined) sessionStartProfileSource = "personal";
+  }
   const sessionStartSources = {
-    control:
-      personal.sessionStart.control !== undefined
-        ? "personal"
-        : repository.sessionStart.control !== undefined
-          ? "repository"
-          : "default",
-    profile:
-      personal.sessionStart.profile !== undefined
-        ? "personal"
-        : repository.sessionStart.profile !== undefined
-          ? "repository"
-          : "default",
+    control: sessionStartControlSource,
+    profile: sessionStartProfileSource,
   };
   const error = repository.error ?? personal.error;
   return {

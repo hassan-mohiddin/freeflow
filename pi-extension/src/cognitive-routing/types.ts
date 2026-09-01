@@ -13,7 +13,7 @@ export interface CognitiveRoutingSessionStart {
 
 export const DEFAULT_COGNITIVE_ROUTING_SESSION_START = {
   control: "automatic",
-  profile: "standard",
+  profile: "reasoning",
 } as const satisfies CognitiveRoutingSessionStart;
 
 export interface CognitiveRoutingProfile {

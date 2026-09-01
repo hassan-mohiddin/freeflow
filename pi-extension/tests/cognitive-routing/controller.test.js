@@ -103,21 +103,21 @@ test("prepares activation before acquiring and applying the host pair", async ()
   });
   assert.deepEqual(host.calls[0][2].target, {
     provider: "faux",
-    modelId: "standard",
-    thinkingLevel: "high",
+    modelId: "reasoning",
+    thinkingLevel: "max",
   });
-  assert.equal(controller.state().activeProfile, "standard");
+  assert.equal(controller.state().activeProfile, "reasoning");
 });
 
 test("activates each configured session-start control and profile combination", async () => {
   const combinations = [
-    ["automatic", "standard", "automatic"],
-    ["automatic", "reasoning", "automatic"],
-    ["manual", "standard", "manual-standard"],
-    ["manual", "reasoning", "manual-reasoning"],
+    ["automatic", "standard", "automatic", "reasoning"],
+    ["automatic", "reasoning", "automatic", "reasoning"],
+    ["manual", "standard", "manual-standard", "standard"],
+    ["manual", "reasoning", "manual-reasoning", "reasoning"],
   ];
 
-  for (const [control, profile, expectedControlMode] of combinations) {
+  for (const [control, profile, expectedControlMode, expectedProfile] of combinations) {
     const host = createHost({ onAcquire: appliedLease });
     const controller = new CognitiveRoutingController({
       capabilityState: {
@@ -136,9 +136,9 @@ test("activates each configured session-start control and profile combination", 
     const result = await controller.activate();
 
     assert.equal(result.status, "active");
-    assert.equal(controller.state().activeProfile, profile);
+    assert.equal(controller.state().activeProfile, expectedProfile);
     assert.equal(controller.state().controlMode, expectedControlMode);
-    assert.equal(host.calls[2][1].modelId, profile);
+    assert.equal(host.calls[2][1].modelId, expectedProfile);
   }
 });
 
@@ -201,14 +201,14 @@ test("does not persist or reapply an automatic request for the active profile", 
   await controller.activate();
   const callsBefore = host.calls.length;
 
-  const result = await controller.switchAutomaticProfile("standard", "Keep the current profile.");
+  const result = await controller.switchAutomaticProfile("reasoning", "Keep the current profile.");
 
   assert.deepEqual(result, {
     status: "active",
     changed: false,
-    from: "standard",
-    to: "standard",
-    profile: "standard",
+    from: "reasoning",
+    to: "reasoning",
+    profile: "reasoning",
   });
   assert.equal(host.calls.length, callsBefore);
 });
@@ -226,19 +226,19 @@ test("switches profiles through the automatic owner with bounded agent evidence"
   });
   await controller.activate();
 
-  const result = await controller.switchAutomaticProfile("reasoning", "Need a deeper analysis.");
+  const result = await controller.switchAutomaticProfile("standard", "Need a lighter execution pass.");
 
   assert.deepEqual(result, {
     status: "active",
     changed: true,
-    from: "standard",
-    to: "reasoning",
-    profile: "reasoning",
+    from: "reasoning",
+    to: "standard",
+    profile: "standard",
   });
   assert.equal(controller.state().controlMode, "automatic");
   assert.equal(host.calls.at(-1)[0], "setState");
   assert.equal(host.calls[3][2].source, "agent");
-  assert.equal(host.calls[3][2].reason, "Need a deeper analysis.");
+  assert.equal(host.calls[3][2].reason, "Need a lighter execution pass.");
 });
 
 test("blocks an automatic switch while a manual hold owns the controller", async () => {
@@ -283,6 +283,21 @@ test("releases manual control as a durable control-only entry without switching 
     host.calls.map(([kind]) => kind),
     ["prepare", "acquire", "setState", "prepare", "setState", "prepare"],
   );
+});
+
+test("releases a manual Standard hold by switching to automatic Reasoning", async () => {
+  const host = createHost({ onAcquire: appliedLease });
+  const controller = new CognitiveRoutingController({ capabilityState, pi: host.pi, ctx: host.ctx });
+  await controller.activate();
+  await controller.setManualProfile("standard");
+
+  const result = await controller.setAutomaticControl("profile-command");
+
+  assert.deepEqual(result, { status: "automatic" });
+  assert.equal(controller.state().activeProfile, "reasoning");
+  assert.equal(controller.state().controlMode, "automatic");
+  assert.equal(host.calls.at(-1)[0], "setState");
+  assert.equal(host.calls.at(-1)[1].modelId, "reasoning");
 });
 
 test("does not acquire or switch when durable activation preparation fails", async () => {
@@ -422,7 +437,7 @@ test("serializes deactivation behind an in-flight activation", async () => {
       lease: {
         async setState(request) {
           calls.push(["setState", request]);
-          if (request.modelId === "standard") {
+          if (request.modelId === "reasoning") {
             resolveTransition();
             await new Promise((resolve) => {
               releaseTransition = resolve;
@@ -1003,14 +1018,14 @@ test("writes v2 mechanism, causal, and baseline metadata before transitions", as
     pi: host.pi,
     ctx: host.ctx,
     idFactory: (() => {
-      const ids = ["epoch-1", "activation-correlation", "profile-correlation"];
+      const ids = ["epoch-1", "activation-correlation", "standard-correlation", "automatic-reasoning-correlation"];
       return () => ids.shift();
     })(),
   });
 
   await controller.activate();
-  await controller.switchAutomaticProfile("reasoning", "Need a deeper analysis.");
-  await controller.setAutomaticControl();
+  await controller.switchAutomaticProfile("standard", "Need a lighter execution pass.");
+  await controller.setAutomaticControl("profile-command");
 
   const intents = host.sessionEntries.filter(
     (entry) => entry.type === "custom" && entry.customType === COGNITIVE_ROUTING_INTENT_ENTRY,
@@ -1025,10 +1040,10 @@ test("writes v2 mechanism, causal, and baseline metadata before transitions", as
     branchId: null,
     epoch: "epoch-1",
     correlationId: "activation-correlation",
-    target: { provider: "faux", modelId: "standard", thinkingLevel: "high" },
+    target: { provider: "faux", modelId: "reasoning", thinkingLevel: "max" },
     returnTarget: { provider: "faux", modelId: "return", thinkingLevel: "medium" },
     fromPair: { provider: "faux", modelId: "return", thinkingLevel: "medium" },
-    profile: "standard",
+    profile: "reasoning",
   });
   assert.deepEqual(intents[1].data, {
     version: 2,
@@ -1037,30 +1052,42 @@ test("writes v2 mechanism, causal, and baseline metadata before transitions", as
     control: "automatic",
     source: "agent",
     mechanism: "agent-tool",
-    decisionCorrelationId: "profile-correlation",
+    decisionCorrelationId: "standard-correlation",
     branchId: null,
     epoch: "epoch-1",
-    correlationId: "profile-correlation",
+    correlationId: "standard-correlation",
+    profile: "standard",
+    target: { provider: "faux", modelId: "standard", thinkingLevel: "high" },
+    returnTarget: { provider: "faux", modelId: "return", thinkingLevel: "medium" },
+    fromPair: { provider: "faux", modelId: "reasoning", thinkingLevel: "max" },
+    fromProfile: "reasoning",
+    reason: "Need a lighter execution pass.",
+  });
+  assert.deepEqual(intents[2].data, {
+    version: 2,
+    phase: "prepared",
+    kind: "profile",
+    control: "automatic",
+    source: "user",
+    mechanism: "profile-command",
+    decisionCorrelationId: "automatic-reasoning-correlation",
+    branchId: null,
+    epoch: "epoch-1",
+    correlationId: "automatic-reasoning-correlation",
     profile: "reasoning",
     target: { provider: "faux", modelId: "reasoning", thinkingLevel: "max" },
     returnTarget: { provider: "faux", modelId: "return", thinkingLevel: "medium" },
     fromPair: { provider: "faux", modelId: "standard", thinkingLevel: "high" },
     fromProfile: "standard",
-    reason: "Need a deeper analysis.",
+    reason: "automatic control selects the Reasoning profile",
   });
 
-  const control = host.sessionEntries.find(
-    (entry) => entry.type === "custom" && entry.customType === COGNITIVE_ROUTING_CONTROL_ENTRY,
+  assert.equal(
+    host.sessionEntries.some(
+      (entry) => entry.type === "custom" && entry.customType === COGNITIVE_ROUTING_CONTROL_ENTRY,
+    ),
+    false,
   );
-  assert.deepEqual(control.data, {
-    version: 2,
-    control: "automatic",
-    source: "user",
-    mechanism: "profile-command",
-    reason: "manual hold release",
-    branchId: null,
-    epoch: "epoch-1",
-  });
 });
 
 test("fails closed before a profile transition when no current baseline is observable", async () => {
@@ -1072,7 +1099,7 @@ test("fails closed before a profile transition when no current baseline is obser
   host.ctx.model = undefined;
   host.ctx.thinkingLevel = undefined;
 
-  const result = await controller.switchAutomaticProfile("reasoning", "Need a deeper analysis.");
+  const result = await controller.switchAutomaticProfile("standard", "Need a deeper analysis.");
 
   assert.deepEqual(result, { status: "inactive", reason: "current_state_unavailable" });
   assert.equal(host.calls.length, callsBefore);
@@ -1094,6 +1121,6 @@ test("restores the return target without guessing a missing closing baseline", a
     (entry) => entry.type === "custom" && entry.customType === COGNITIVE_ROUTING_INTENT_ENTRY,
   );
   assert.equal(closingIntent.data.fromPair, undefined);
-  assert.equal(closingIntent.data.fromProfile, "standard");
+  assert.equal(closingIntent.data.fromProfile, "reasoning");
   assert.equal(host.sessionEntries.at(-1).type, "model_state_change");
 });

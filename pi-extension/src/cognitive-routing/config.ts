@@ -267,29 +267,25 @@ export function resolveCognitiveRoutingConfig(
   if (repository.enabled !== undefined) enabledSource = "repository";
   if (personal.enabled !== undefined) enabledSource = "personal";
 
+  const sessionStartControl =
+    personal.sessionStart.control ?? repository.sessionStart.control ?? DEFAULT_COGNITIVE_ROUTING_SESSION_START.control;
+  const configuredSessionStartProfile =
+    personal.sessionStart.profile ?? repository.sessionStart.profile ?? DEFAULT_COGNITIVE_ROUTING_SESSION_START.profile;
   const sessionStart: CognitiveRoutingSessionStart = {
-    control:
-      personal.sessionStart.control ??
-      repository.sessionStart.control ??
-      DEFAULT_COGNITIVE_ROUTING_SESSION_START.control,
-    profile:
-      personal.sessionStart.profile ??
-      repository.sessionStart.profile ??
-      DEFAULT_COGNITIVE_ROUTING_SESSION_START.profile,
+    control: sessionStartControl,
+    profile: sessionStartControl === "automatic" ? "reasoning" : configuredSessionStartProfile,
   };
+  let sessionStartControlSource: CognitiveRoutingConfigSource = "default";
+  if (repository.sessionStart.control !== undefined) sessionStartControlSource = "repository";
+  if (personal.sessionStart.control !== undefined) sessionStartControlSource = "personal";
+  let sessionStartProfileSource: CognitiveRoutingConfigSource = "default";
+  if (sessionStartControl === "manual") {
+    if (repository.sessionStart.profile !== undefined) sessionStartProfileSource = "repository";
+    if (personal.sessionStart.profile !== undefined) sessionStartProfileSource = "personal";
+  }
   const sessionStartSources = {
-    control:
-      personal.sessionStart.control !== undefined
-        ? ("personal" as const)
-        : repository.sessionStart.control !== undefined
-          ? ("repository" as const)
-          : ("default" as const),
-    profile:
-      personal.sessionStart.profile !== undefined
-        ? ("personal" as const)
-        : repository.sessionStart.profile !== undefined
-          ? ("repository" as const)
-          : ("default" as const),
+    control: sessionStartControlSource,
+    profile: sessionStartProfileSource,
   };
   const error = repository.error ?? personal.error;
 

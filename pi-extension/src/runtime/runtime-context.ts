@@ -540,7 +540,10 @@ export function setFreeflowStatus(
       options.cognitiveRoutingStartupPending === true &&
       !startupSelectionSuppressesCognitiveRouting
     ) {
-      const startupProfile = cognitiveRouting.sessionStart?.profile ?? "standard";
+      const startupProfile =
+        cognitiveRouting.sessionStart?.control === "manual"
+          ? (cognitiveRouting.sessionStart.profile ?? "reasoning")
+          : "reasoning";
       active.push(`${startupProfile} · pending`);
     } else {
       const reason =
@@ -651,11 +654,22 @@ export function withFreeflowRuntimeState(
   capabilityState,
   cognitiveRoutingRuntime: CognitiveRoutingRuntimeSnapshot | undefined = undefined,
   freeflowContext = undefined,
+  options: { force?: boolean } = {},
 ) {
-  return [
-    ...withoutFreeflowRuntimeState(messages),
-    freeflowRuntimeStateMessage(capabilityState, cognitiveRoutingRuntime, freeflowContext),
-  ];
+  const source = Array.isArray(messages) ? messages : [];
+  const runtimeState = freeflowRuntimeStateMessage(capabilityState, cognitiveRoutingRuntime, freeflowContext);
+  const runtimeStateMessages = source.filter(
+    (message) =>
+      message?.customType === FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE ||
+      message?.customType === COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE,
+  );
+  const unchanged =
+    options.force !== true &&
+    runtimeStateMessages.length === 1 &&
+    runtimeStateMessages[0]?.customType === FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE &&
+    runtimeStateMessages[0]?.content === runtimeState.content;
+  if (unchanged) return source;
+  return [...withoutFreeflowRuntimeState(source), runtimeState];
 }
 
 export function runtimeContext(freeflowContext, capabilityState) {

@@ -58,7 +58,7 @@ Profile changes are available while PiFlow is idle:
 ```
 
 - `standard` and `reasoning` place a manual hold on the selected profile.
-- `auto` releases the manual hold and returns to automatic control.
+- `auto` releases the manual hold and returns to automatic Reasoning control.
 - `history` commands inspect transition evidence without changing routing state.
 
 ### Keyboard shortcuts
@@ -66,11 +66,11 @@ Profile changes are available while PiFlow is idle:
 While PiFlow is idle:
 
 - `Ctrl+Shift+R` cycles the manual standard/reasoning hold.
-- `Ctrl+Shift+A` cycles the automatic standard/reasoning profile. When a manual hold is active, its first press releases the hold and returns to automatic control without forcing a profile transition.
+- `Ctrl+Shift+A` sets automatic Reasoning control. When a manual hold is active, it releases the hold and moves to Reasoning when necessary; pressing it again is idempotent.
 
 These shortcuts are available only in PiFlow. Normal Pi does not register Cognitive Routing shortcuts.
 
-Under automatic control, Cognitive Routing changes compute placement only. It does not change the current Workflow owner, authority envelope, task scope, or verification requirements.
+Under automatic control, each new user interaction begins in Reasoning. For authorized execution, Reasoning chooses Yield for a small exact result, Delegate for Standard execution under an open model-written boundary, or Task Act for a narrow direct scope. Yield hands back to Reasoning; Delegate returns evidence while its boundary remains open until Reasoning closes it. Cognitive Routing changes compute placement only and does not change the current Workflow owner, authority envelope, task scope, or verification requirements.
 
 ## Ownership boundary
 

@@ -37,33 +37,41 @@ A manual hold lets the user keep `standard` or `reasoning` active. The held prof
 
 ### Automatic control
 
-Automatic control lets Cognitive Routing choose compute placement. Reasoning leads material execution boundaries; Standard executes decision-complete delegated contracts when no material judgment remains.
+Automatic control lets Cognitive Routing choose compute placement. Each new user interaction begins in Reasoning, and internal profile transitions are not user-selected cycles. For an authorized execution-bearing activity, Reasoning chooses one route:
+
+- **Yield:** Standard temporarily leads a small, exact, directly verifiable result and hands it back when complete.
+- **Delegate:** Reasoning remains responsible for the governing result while Standard executes an adaptive contract inside an open model-written boundary.
+- **Task Act:** Reasoning performs a narrow direct observation or action when judgment and action are materially inseparable.
+
+Automatic control always begins and returns to the Reasoning profile between routes. Standard is used automatically only through Yield or Delegate.
 
 The target is cost-sensitive quality, not a claim of equivalence between profiles.
 
-## Cognitive Execution Loop
+## Cognitive Execution Routes
 
 ```text
 Workflow establishes authority, owner, and slice
--> material execution boundary appears
--> Reasoning establishes the governing contract
--> DELEGATE bounded execution to Standard
--> Standard uses the Environment Interaction Loop
--> RETURN evidence to Reasoning
--> Reasoning self-reviews and closes, corrects, delegates again, or returns to Workflow
+-> Reasoning receives an authorized execution-bearing activity
+   ├─ YIELD
+   │  └─ switch to Standard; ordinary work; YIELD HANDOFF → Reasoning
+   ├─ DELEGATE
+   │  └─ open a model-written boundary; Standard executes
+   │     └─ RETURN → Reasoning assessment; boundary remains open
+   └─ TASK ACT
+      └─ narrow direct OBSERVE or ACT_BOUNDED scope → Reasoning
 ```
 
-Under automatic control, the boundary may be opened with `NEW`, invalidated with `REOPEN`, returned to with `RETURN`, or closed with `CLOSE + HANDOFF`. `YIELD` moves routine work to Standard only when no boundary is open.
+Under automatic control, Yield has no Cognitive Routing execution boundary. Delegate opens one with `NEW` or `REOPEN`; `RETURN` leaves it open and only Reasoning closes it. Task Act creates no boundary. A closed boundary may be reopened only for the same authorized outcome.
 
 Delegation transfers bounded execution, not the cognitive boundary. Standard must not reinterpret the governing judgment, expand scope, hide contradictory evidence, or continue after the return condition.
 
 ## Reasoning action gate
 
-Reasoning Thinks by default. Direct task Act is gated under automatic control:
+Reasoning Thinks by default. Under automatic control, it may choose Yield, Delegate, or direct Task Act for an authorized execution-bearing activity. Direct Task Act remains gated:
 
 - `OBSERVE` is one narrow, discriminating evidence scope when direct observation is cheaper and clearer than delegation;
 - `ACT_BOUNDED` is rare work where judgment and action are materially inseparable and delegation would create greater expected loss;
-- `DELEGATE` is not Reasoning Act; it is the transfer of a decision-complete execution contract to Standard.
+- direct Task Act may occur whenever Reasoning controls the activity, including while assessing an open delegated boundary, but not while Standard is actively executing.
 
 Each Act scope expires at its stop condition and never authorizes adjacent work. Missing authority or a user-owned decision returns to Workflow outside the gate.
 
@@ -81,7 +89,7 @@ While PiFlow is idle, use:
 ```
 
 - `standard` and `reasoning` create manual holds;
-- `auto` releases the hold;
+- `auto` releases the hold and returns automatic control to the Reasoning profile;
 - history commands expose read-only transition evidence.
 
 ### PiFlow keyboard shortcuts
@@ -89,7 +97,7 @@ While PiFlow is idle, use:
 While PiFlow is idle:
 
 - `Ctrl+Shift+R` cycles the manual standard/reasoning hold. It switches to the other active profile and keeps manual control.
-- `Ctrl+Shift+A` cycles the automatic standard/reasoning profile. If a manual hold is active, the first press releases the hold and returns to automatic control without forcing a profile transition.
+- `Ctrl+Shift+A` sets automatic Reasoning control. If a manual hold is active, it releases the hold and moves to the Reasoning profile when necessary; pressing it again is idempotent.
 
 These shortcuts are PiFlow-only; normal Pi does not register them. Profile changes remain unavailable while the host is running.
 
@@ -107,7 +115,9 @@ The request changes compute only and never authorizes a task action.
 
 - Missing current state is unavailable; do not infer it from model identity or old transitions.
 - A failed switch does not silently expand Reasoning or Standard’s role.
+- A Yield handoff transfers the profile back to Reasoning without creating an execution boundary.
 - A delegated return resumes the same open boundary; it is not a new boundary.
+- Closing a delegated boundary leaves Reasoning active; it does not hand leadership to Standard.
 - A closed boundary is reopened only by material new evidence, changed intent, or an invalidated assumption.
 - Transition history reports unresolved or anomalous evidence instead of fabricating a cause.
 

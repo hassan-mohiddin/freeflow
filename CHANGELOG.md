@@ -7,6 +7,12 @@
 - Removes Freeflow's selectable modes, mode commands, session mode state, and `defaultMode` configuration; all work now uses one adaptive Workflow.
 - Removes the `interactionContract` and `skills` configuration toggles. The separately editable Interaction Contract and 25 base skills are always present whenever Freeflow is enabled, while optional capabilities remain independently gated.
 
+### Changed
+
+- Refines core runtime prompts and workflow guidance with explicit authority and evidence boundaries, current-owner routing, bounded environment interactions, peer execution methods, and expanded design and skill-authoring references.
+- Changes Cognitive Routing automatic control to start and return in Reasoning, adds Yield/Delegate/Task Act routing with model-written execution boundaries, makes user automatic controls select Reasoning, and refreshes Runtime State only after context reconstruction or displayed-state changes.
+- Reconciles the shipped skill-routing map with current direct routes and resource dependencies.
+
 ## 0.6.0 - 2026-08-25
 
 ### Added

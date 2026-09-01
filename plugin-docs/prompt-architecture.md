@@ -23,7 +23,7 @@ Keeping this file separate lets its behavior change without changing the rest of
 
 ### 3. Runtime State
 
-The extension supplies one compact volatile Runtime State record before every provider request, including when Freeflow is disabled or unconfigured. It reports current facts such as:
+The extension supplies one compact volatile Runtime State record at session start, after context reconstruction or loss, and when its displayed state changes, including when Freeflow is disabled or unconfigured. When state is unchanged and the previous record remains in continuous provider context, the extension preserves it rather than appending a replacement. It reports current facts such as:
 
 - whether Freeflow is active, inactive, unavailable, or awaiting setup;
 - optional capability availability;
@@ -80,21 +80,16 @@ Prompt delivery describes what the model sees. Workflow and Cognitive Routing de
 Interaction Lifecycle
 └─ Workflow Feedback Loop
    ├─ establishes authority, owner, and slice
-   └─ Cognitive Execution Loop — automatic control only
-      ├─ Reasoning establishes the governing execution contract
-      ├─ DELEGATE to Standard
-      │  └─ Environment Interaction Loop
-      │     ├─ select and bound the next action
-      │     ├─ use Action Selection when uncertain or broad
-      │     ├─ take the obvious fast path when mechanical
-      │     ├─ execute and observe
-      │     └─ repeat within the delegation contract
-      ├─ RETURN evidence to Reasoning
-      ├─ Reasoning self-reviews
-      └─ close, delegate correction, or return to Workflow
+   └─ Cognitive Execution Routes — automatic control only
+      ├─ Reasoning chooses one route
+      │  ├─ YIELD → Standard leads ordinary work → YIELD HANDOFF → Reasoning
+      │  ├─ DELEGATE → open model-written boundary → Standard executes
+      │  │  └─ RETURN → Reasoning assesses; boundary remains open until CLOSE
+      │  └─ TASK ACT → Reasoning performs narrow direct OBSERVE or ACT_BOUNDED
+      └─ Action Selection guides uncertain environment interactions
 ```
 
-Manual Cognitive Routing control runs the ordinary unsplit Workflow. Cognitive Routing changes compute placement only and never changes authority, owner, task scope, evidence requirements, or review independence.
+Manual Cognitive Routing control runs the ordinary unsplit Workflow. Under automatic control, Yield has no execution boundary, Delegate keeps one model-written boundary open until Reasoning closes it, and Task Act creates no boundary. Cognitive Routing changes compute placement only and never changes authority, owner, task scope, evidence requirements, or review independence.
 
 ## Failure and recovery boundaries
 

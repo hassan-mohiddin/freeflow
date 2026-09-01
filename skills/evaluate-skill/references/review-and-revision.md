@@ -1,51 +1,92 @@
 # Review And Revision
 
-Read this after canonical evidence and deterministic grades exist, when evidence conflicts, meaning still needs judgment, or a revision/rerun boundary must be chosen.
+Read this after canonical evidence and deterministic grades exist, when evidence conflicts, meaning remains unresolved, the failed boundary must be classified, or revision and rerun scope must be chosen.
 
 ## Use The Strongest Evidence
 
-1. Filesystem state, typed workspace manifests, diffs, and changed paths.
-2. Structured events, tool activity, usage, process results, logs, and saved reports.
-3. Final response.
-4. Full transcript when earlier surfaces cannot answer the question.
-5. Subject self-assessment.
+Prefer, in order:
 
-Lower-priority evidence cannot repair a contradiction above it. If the response claims success but a required file is absent, preserve both facts and grade the file observation.
+1. filesystem state, typed workspace manifests, diffs, and changed paths;
+2. structured events, tool activity, usage, process results, logs, and saved reports;
+3. final response;
+4. full transcript when stronger surfaces cannot answer the question;
+5. subject self-assessment.
+
+Lower-priority evidence cannot repair a contradiction above it.
+
+If a response claims success but a required file is absent, preserve both facts and judge from the stronger artifact evidence.
 
 ## Keep Deterministic Facts Separate
 
-Built-in checks cover exact reads, typed paths, changed paths, file or response text, JSON states, valid turn scope, and factual transitions. Missing evidence remains unavailable. A failed check remains behavioral evidence; it does not relabel a complete run as infrastructure failure.
+Built-in checks establish exact observable facts. Missing evidence remains unavailable. A failed check remains behavioral evidence and does not relabel a complete run as infrastructure failure.
 
-The active agent or user may judge reasoning quality, authority preservation, architectural fitness, recommendation quality, or semantic completeness. Record cited evidence, uncertainty, and limits outside the canonical run and deterministic grade. Do not turn that judgment into evaluator-owned readiness state.
+The active agent or user may judge:
 
-## Diagnose Before Editing
+- reasoning quality;
+- authority preservation;
+- architectural fitness;
+- recommendation quality;
+- semantic completeness.
 
-Classify the failed boundary:
+Keep semantic judgment, cited evidence, uncertainty, and limits outside canonical run and deterministic grade state.
+
+Do not turn semantic judgment into evaluator-owned readiness or promotion status.
+
+## Diagnose The Failed Boundary
+
+Classify before revising:
 
 - activation timing;
 - description language unavailable before body read;
 - first-read body comprehension;
 - undeclared, undelivered, unread, or ambient-only dependency;
-- normal guidance hidden behind an unclear resource boundary;
+- normal guidance hidden behind the wrong resource boundary;
 - nearby behavior that hijacks the task;
 - retained-use or multi-turn failure;
-- wording, placement, example, or stop-condition pressure;
-- fixture, environment, isolation, host, or deterministic-check failure.
+- wording, placement, example, repetition, or stop-condition pressure;
+- fixture, environment, isolation, host, runner, or deterministic-check failure.
 
-Do not add broad prose before identifying the failed boundary.
+Do not add broad prose before identifying which boundary failed.
 
-## Revise One Pressure Point
+## Return Revision To Write Skill
 
-Change one measured point when possible: description cues, first-read wording, rule placement, dependency declaration, resource boundary, example, stop condition, or the group when evidence proves the evaluation is wrong.
+When evidence supports a skill change:
 
-Keep unrelated instructions and fixed criteria stable. If the criterion changes, the old result no longer answers the same question.
+1. name the exact failed boundary;
+2. cite the canonical evidence;
+3. identify one measured pressure point;
+4. preserve unrelated instructions and fixed criteria;
+5. return the revision target to [Write Skill](../../write-skill/SKILL.md).
+
+Write Skill owns package revision.
+
+Evaluate Skill does not edit the skill or replace its baseline while evaluating it.
+
+When evidence proves the group, fixture, or criterion is wrong, revise the evaluation instead. Preserve the old result and state that it no longer answers the revised question.
 
 ## Rerun The Complete Group
 
-After a measured skill change or resolved infrastructure cause, run the complete fixed group with both variants. Do not rerun only the preferred variant, reuse a settled control as a new sample, adopt partial evidence as comparable, or rerun merely to erase a failure.
+After a measured skill revision or resolved infrastructure cause:
 
-For variance, use independent complete invocations and keep every result visible.
+- rerun the complete fixed group;
+- run both baseline and candidate;
+- keep every result visible;
+- do not reuse an earlier baseline run as a fresh counterpart;
+- do not rerun only the preferred variant;
+- do not use partial evidence as a comparable full result;
+- do not rerun merely to erase failure.
+
+For variance, use independent complete invocations rather than repeated preferred variants.
 
 ## Report
 
-Report the failed boundary and evidence, exact revision or evaluation correction, criteria that stayed fixed, old and new result paths, and remaining unsupported claims. The user decides the next authoring or use action.
+Report:
+
+- failed boundary and evidence;
+- exact skill revision or evaluation correction;
+- criteria that remained fixed;
+- old and new result paths;
+- deterministic transitions;
+- remaining unsupported claims.
+
+The user decides whether to revise further, use, publish, or reject the skill.

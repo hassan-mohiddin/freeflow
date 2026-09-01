@@ -55,18 +55,13 @@ The Workflow Feedback Loop contains the current owner and, under automatic Cogni
 Interaction Lifecycle
 └─ Workflow Feedback Loop
    ├─ establishes authority, owner, and slice
-   └─ Cognitive Execution Loop — automatic control only
-      ├─ Reasoning establishes the governing execution contract
-      ├─ DELEGATE to Standard
-      │  └─ Environment Interaction Loop
-      │     ├─ select and bound the next action
-      │     ├─ use Action Selection when uncertain or broad
-      │     ├─ take the obvious fast path when mechanical
-      │     ├─ execute and observe
-      │     └─ repeat within the delegation contract
-      ├─ RETURN evidence to Reasoning
-      ├─ Reasoning self-reviews
-      └─ close, delegate correction, or return to Workflow
+   └─ Cognitive Execution Routes — automatic control only
+      ├─ Reasoning chooses one route
+      │  ├─ YIELD → Standard leads ordinary work → YIELD HANDOFF → Reasoning
+      │  ├─ DELEGATE → open model-written boundary → Standard executes
+      │  │  └─ RETURN → Reasoning assesses; boundary remains open until CLOSE
+      │  └─ TASK ACT → Reasoning performs narrow direct OBSERVE or ACT_BOUNDED
+      └─ Action Selection guides uncertain environment interactions
 ```
 
 The Cognitive Execution Loop exists only for automatic, authorized execution-bearing work. Manual Cognitive Routing control runs the ordinary unsplit Workflow. A Slice may contain multiple sequential execution boundaries, but a boundary is not a new owner, task, authority source, Plan, or Working Record.
@@ -92,7 +87,7 @@ Discuss owns open direction and alternatives. Track Work owns durable task memor
 
 ## Authority And Effects
 
-Each interaction carries an **authority envelope**: requested outcome, permitted effects, evidence boundary, and stop condition. Workflow establishes it from the whole user turn and any still-valid prior approval. Skill selection, useful follow-on work, and new evidence do not widen it.
+Each interaction carries an **authority envelope**: requested outcome, permitted effects, covered active evidence generation, and stop condition. The observing mechanism establishes the evidence boundary; Workflow interprets and enforces the envelope from the whole user turn and any still-valid prior approval. Skill selection, useful follow-on work, and new evidence do not widen it.
 
 Actions have different effects:
 
@@ -100,7 +95,7 @@ Actions have different effects:
 - **Active evidence generation:** exercise target behavior to produce new evidence.
 - **Mutation or delivery:** change repository, durable task or session, or external state.
 
-Effects are cumulative. Passive observation may support an inquiry when safe and relevant. Active evidence generation, mutation or delivery, and separately controlled actions require coverage by the current authority envelope. When uncovered, the agent states the proposed action's purpose, expected evidence or result, and stop condition, asks once, and waits. Evidence supports reporting and routing; it does not by itself authorize a correction or next lifecycle stage.
+Effects are cumulative. Passive observation may support an inquiry when safe and relevant. Active evidence generation, mutation or delivery, and separately controlled actions require coverage by the current authority envelope. When an active evidence, mutation, delivery, or separately controlled action is not covered, the agent explains why it is needed, exactly what will happen, what it should produce, and where it will stop; asks once, and waits. Evidence supports reporting and routing; it does not by itself authorize a correction or next lifecycle stage.
 
 ## Conditional Artifacts
 

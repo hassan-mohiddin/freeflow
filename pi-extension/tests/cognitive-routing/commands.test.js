@@ -89,7 +89,7 @@ test("releases manual ownership through auto without a model transition", async 
 
   assert.equal(await handleCognitiveRoutingProfileCommand("profile auto", context, controller), true);
   assert.equal(calls, 1);
-  assert.match(context.notifications[0].message, /automatic control is active/);
+  assert.match(context.notifications[0].message, /automatic Reasoning control is active/);
 });
 
 test("rejects manual profile changes while Pi is running", async () => {

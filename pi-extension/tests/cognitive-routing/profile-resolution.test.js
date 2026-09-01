@@ -60,11 +60,21 @@ test("resolves two complete repository profiles", () => {
   assert.deepEqual(result.profileSources, { standard: "repository", reasoning: "repository" });
 });
 
-test("defaults new-session Cognitive Routing to automatic standard control", () => {
+test("defaults new-session Cognitive Routing to automatic Reasoning control", () => {
   const result = resolveCognitiveRoutingConfig(configuredRepository(), {});
 
-  assert.deepEqual(result.sessionStart, { control: "automatic", profile: "standard" });
+  assert.deepEqual(result.sessionStart, { control: "automatic", profile: "reasoning" });
   assert.deepEqual(result.sessionStartSources, { control: "default", profile: "default" });
+});
+
+test("canonicalizes automatic session starts to Reasoning", () => {
+  const result = resolveCognitiveRoutingConfig(
+    configuredRepository({ sessionStart: { control: "automatic", profile: "standard" } }),
+    {},
+  );
+
+  assert.deepEqual(result.sessionStart, { control: "automatic", profile: "reasoning" });
+  assert.deepEqual(result.sessionStartSources, { control: "repository", profile: "default" });
 });
 
 test("layers session-start control and profile independently", () => {

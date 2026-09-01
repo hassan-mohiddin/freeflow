@@ -299,6 +299,7 @@ export default function freeflow(pi) {
   let cognitiveRoutingController;
   let latestCognitiveRoutingContext;
   let providerSurfaceSnapshot;
+  let runtimeStateRefreshRequired = true;
   let freeflowContextRuntime;
   let contextVirtualizationRuntime;
   let conversationHistoryRuntime;
@@ -400,7 +401,7 @@ export default function freeflow(pi) {
       },
     });
     pi.registerShortcut("ctrl+shift+a", {
-      description: "Cycle the Cognitive Routing automatic standard/reasoning profile",
+      description: "Set Cognitive Routing to automatic Reasoning control",
       handler: async (ctx) => {
         if (typeof ctx?.isIdle === "function" && !ctx.isIdle()) {
           ctx.ui?.notify?.("Freeflow settings and profile changes are available only while Pi is idle.", "warning");
@@ -414,23 +415,11 @@ export default function freeflow(pi) {
           ctx.ui?.notify?.("Cognitive Routing is unavailable for this session.", "warning");
           return;
         }
-        const state = controller.state();
-        const target = state.activeProfile === "reasoning" ? "standard" : "reasoning";
-        const result =
-          state.controlMode === "automatic" && state.activeProfile
-            ? await controller.switchAutomaticProfile(
-                target,
-                `Cycle automatic profile to ${target}.`,
-                "user",
-                "profile-shortcut",
-              )
-            : await controller.setAutomaticControl("profile-shortcut");
+        const result = await controller.setAutomaticControl("profile-shortcut");
         if (result.status === "automatic") {
-          ctx.ui?.notify?.("Cognitive Routing automatic control active.", "info");
-        } else if (result.status === "active") {
-          ctx.ui?.notify?.(`Cognitive Routing automatic profile set to ${result.profile}.`, "info");
+          ctx.ui?.notify?.("Cognitive Routing automatic Reasoning control active.", "info");
         } else {
-          ctx.ui?.notify?.(`Cognitive Routing could not cycle the automatic profile: ${result.reason}.`, "warning");
+          ctx.ui?.notify?.(`Cognitive Routing could not set automatic Reasoning control: ${result.reason}.`, "warning");
         }
         await applyLiveCapabilityStateForSession(ctx);
       },
@@ -454,6 +443,7 @@ export default function freeflow(pi) {
   pi.on("session_start", async (_event, ctx) => {
     latestCognitiveRoutingContext = ctx;
     providerSurfaceSnapshot = undefined;
+    runtimeStateRefreshRequired = true;
     restoreSessionOverrides(ctx);
     freeflowContextRuntime = new FreeflowContextRuntime(ctx);
     contextVirtualizationRuntime = new ContextVirtualizationRuntime(pi, ctx, freeflowContextRuntime);
@@ -494,6 +484,7 @@ export default function freeflow(pi) {
   pi.on("session_tree", async (_event, ctx) => {
     latestCognitiveRoutingContext = ctx;
     providerSurfaceSnapshot = undefined;
+    runtimeStateRefreshRequired = true;
     restoreSessionOverrides(ctx);
     const controller = cognitiveRoutingController;
     if (controller) await controller.reconcileBranch();
@@ -507,6 +498,7 @@ export default function freeflow(pi) {
   pi.on("session_compact", async (_event, ctx) => {
     latestCognitiveRoutingContext = ctx;
     providerSurfaceSnapshot = undefined;
+    runtimeStateRefreshRequired = true;
     const controller = cognitiveRoutingController;
     if (controller) await controller.reconcileBranch("session-compact");
     if (contextVirtualizationRuntime) {
@@ -558,14 +550,19 @@ export default function freeflow(pi) {
       conversationHistoryRuntime.setContext(ctx);
       conversationHistoryRuntime.capture(surfaceCapabilityState.contextVirtualization?.effective === true);
     }
+    const forceRuntimeStateRefresh = runtimeStateRefreshRequired;
     const nextMessages = withFreeflowRuntimeState(
       messages,
       surfaceCapabilityState,
       cognitiveRoutingRuntime,
       snapshot.freeflowContext,
+      { force: forceRuntimeStateRefresh },
     );
-    changed = true;
-    messages = nextMessages;
+    if (nextMessages !== messages) {
+      changed = true;
+      messages = nextMessages;
+    }
+    if (forceRuntimeStateRefresh) runtimeStateRefreshRequired = false;
     return changed ? { messages } : undefined;
   });
   pi.on("tool_call", async (event, ctx) => {
