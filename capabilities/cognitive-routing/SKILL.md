@@ -25,15 +25,14 @@ A **Reasoning execution boundary** is the model-written protocol for one delegat
 
 A Slice may contain zero, one, or many sequential Reasoning execution boundaries. When durable task memory is needed, [Track Work](../../skills/track-work/SKILL.md) records the wider Slice. At most one Reasoning execution boundary is `OPEN` at a time. One open boundary may contain several Standard delegations and returns; only the first delegated entry uses `NEW`, and `REOPEN` is reserved for a closed boundary. Opening, returning through, reopening, or closing an execution boundary never selects, extends, settles, or closes that Slice by itself.
 
-Keep active state, lifecycle, and transition separate:
+Keep active state and transition separate:
 
 ```text
 Boundary state: NONE | OPEN
-Boundary lifecycle: OPEN | CLOSED
 Boundary operation: NEW | REOPEN | CLOSE
 ```
 
-`REOPEN` is an operation, not a lasting state. It changes a closed boundary back to `OPEN`. `CLOSED` is historical; after `CLOSE`, no active boundary remains. `RETURN` transfers execution evidence to Reasoning while leaving the boundary `OPEN`. Reasoning owns the Cognitive Routing boundary and its transitions; the current owner owns the bounded activity.
+`REOPEN` is an operation, not a lasting state. It changes a historical closed boundary back to `OPEN`. After `CLOSE`, no active boundary remains. `RETURN` transfers execution evidence to Reasoning while leaving the boundary `OPEN`. Reasoning owns the Cognitive Routing boundary and its transitions; the current owner owns the bounded activity.
 
 A **decision-complete contract** is the smallest model-written instruction that leaves Standard with no unresolved material judgment. Its shape is adaptive: it may be one line, a short brief, or a detailed set of sections. Include only the outcome, constraints or invariants, scope, evidence, ordering, and return conditions needed for the current result. Detail is proportional to residual judgment; it is not a fixed schema or a command-by-command plan. Contract detail is adaptive; route and transition markers remain explicit.
 
@@ -74,7 +73,7 @@ Use **YIELD** only when the result is small, exact, local, reversible, low-risk,
 
 Use **DELEGATE** for substantial work, work that needs local execution choices, work with several interactions, or work where Reasoning should remain responsible for the governing direction and evidence.
 
-Use **TASK ACT** only when judgment and action are materially inseparable and delegation would lose more than the direct action costs. Better performance alone is not enough. Use the narrowest direct scope and return to Reasoning when its stop condition is reached.
+Use **TASK ACT** only for a narrow `OBSERVE` when direct inspection is cheaper and clearer than transfer, or `ACT_BOUNDED` when judgment and action are materially inseparable. Better performance alone is not enough. Use the narrowest direct scope and return to Reasoning when its stop condition is reached.
 
 A route choice does not widen authority. If the outcome, scope, authority, evidence boundary, or stop condition is unsettled, return to [Workflow](../../skills/workflow/SKILL.md) or [Decision Gate](../../skills/decision-gate/SKILL.md) before execution.
 
@@ -82,7 +81,7 @@ A route choice does not widen authority. If the outcome, scope, authority, evide
 
 Yield is a one-off leadership transfer for one bounded result. It is not a persistent Standard mode and does not create a Reasoning execution boundary.
 
-Before yielding, Reasoning gives Standard an adaptive handoff brief. A one-line brief is sufficient when the result is obvious; add detail when scope, verification, or handoff conditions need it. The brief must make clear what Standard is taking over and when it must hand back.
+Before yielding, Reasoning gives Standard an adaptive handoff brief beginning with literal `YIELD`. A one-line brief is sufficient when the result is obvious; add detail when scope, verification, or handoff conditions need it. The brief must make clear what Standard is taking over and when it must hand back.
 
 Then switch to Standard with the existing profile-switch tool:
 
@@ -129,14 +128,15 @@ This is not a required schema; include only the information needed to transfer t
 
 Use **NEW** when an execution-bearing bounded activity first becomes delegated. Use **REOPEN** only when fresh authority and invalidating evidence or changed intent return the same closed outcome to execution.
 
-Before switching, Reasoning writes the adaptive contract and marks:
+Before switching, Reasoning writes the adaptive contract beginning with literal `DELEGATE` and marks:
 
 ```text
+DELEGATE
 Boundary operation: NEW | REOPEN
 Boundary state: OPEN
 ```
 
-If the boundary is already `OPEN` after a prior `RETURN`, delegate another iteration without `NEW` or `REOPEN`. The contract may be one line or detailed, but it must be sufficient for Standard to execute without rederiving material direction. Include as applicable:
+If the boundary is already `OPEN` after a prior `RETURN`, begin the next transfer with `DELEGATE` but omit `NEW` or `REOPEN`. The contract may be one line or detailed, but it must be sufficient for Standard to execute without rederiving material direction. Include as applicable:
 
 - the bounded outcome;
 - supported judgment, constraints, and invariants;
@@ -201,7 +201,6 @@ When the result is supported, verified at the required boundary, and self-review
 ```text
 CLOSE
 Boundary state: NONE
-Boundary lifecycle: CLOSED
 Current owner: unchanged
 Supported bounded result:
 Important evidence, assumptions, and limits:
