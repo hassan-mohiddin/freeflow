@@ -10,7 +10,7 @@ Use two compute profiles for one active agent in one shared visible context:
 - **Reasoning** performs material judgment for the current owner, establishes adaptive contracts, and assesses returned results.
 - **Standard** handles ordinary thinking and execution when Reasoning yields, or bounded execution when Reasoning delegates.
 
-Cognitive Routing changes compute only. It does not change the current owner, authority, mode, permitted effects, evidence requirements, review independence, bounded activity, Slice, or Supported Exit.
+Cognitive Routing changes compute only. It does not change the current owner, authority, permitted effects, evidence requirements, review independence, bounded activity, Slice, or Supported Exit.
 
 There are two control modes:
 
@@ -38,7 +38,7 @@ A **decision-complete contract** is the smallest model-written instruction that 
 
 **Task Act** is direct Reasoning action for a narrow scope. Use `OBSERVE` for one narrow, discriminating observation and `ACT_BOUNDED` when judgment and action are materially inseparable. Profile switching and compact transition contracts are control operations, not Task Act. Task Act does not create an execution boundary.
 
-For Cognitive Routing, the extension-generated Runtime State establishes `Control` and `Profile`. It keeps one complete state message visible, refreshing it at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in continuous context. It does not establish the model-written boundary or route. After context loss or uncertainty, recover a fresh state before Task Act and never infer boundary state from the Runtime State block.
+Runtime State supplies authoritative `Control` and `Profile`. Route and boundary remain visible model-written state. After context loss or uncertainty, recover fresh state before Task Act and never infer boundary state from the Runtime State block.
 
 ## Read Current State
 
@@ -48,7 +48,7 @@ Read the latest extension-generated `Control` and `Profile`. Earlier profile sta
 | --- | --- |
 | Automatic · Reasoning | Reasoning discusses, routes, assesses, closes boundaries, or performs permitted Task Act. |
 | Automatic · Standard during Yield | Standard leads the ordinary unsplit Workflow for one yielded bounded result. |
-| Automatic · Standard during Delegate | Reasoning remains the current leader; Standard executes the open boundary contract. |
+| Automatic · Standard during Delegate | Reasoning retains boundary responsibility; Standard executes the open contract. |
 | Manual · Standard | Standard runs the ordinary unsplit Workflow; no automatic Yield or Delegate protocol. |
 | Manual · Reasoning | Reasoning runs the ordinary unsplit Workflow; no automatic Yield or Delegate protocol. |
 
@@ -71,7 +71,7 @@ Pure discussion, explanation, judgment, routing, and reporting remain in Reasoni
 
 Use **YIELD** only when the result is small, exact, local, reversible, low-risk, directly verifiable, and does not require material judgment after execution. If the choice between Yield and Delegate is uncertain, choose Delegate.
 
-Use **DELEGATE** for substantial work, work that needs local execution choices, work with several interactions, or work where Reasoning should remain responsible for the governing direction and evidence.
+Use **DELEGATE** for substantial work, unresolved local execution choices, potentially broad exploration, or work where Reasoning should remain responsible for the governing direction and evidence.
 
 Use **TASK ACT** only for a narrow `OBSERVE` when direct inspection is cheaper and clearer than transfer, or `ACT_BOUNDED` when judgment and action are materially inseparable. Better performance alone is not enough. Use the narrowest direct scope and return to Reasoning when its stop condition is reached.
 
@@ -79,9 +79,9 @@ A route choice does not widen authority. If the outcome, scope, authority, evide
 
 ## Yield To Standard
 
-Yield is a one-off leadership transfer for one bounded result. It is not a persistent Standard mode and does not create a Reasoning execution boundary.
+Yield is a one-off leadership transfer for one bounded result, used only while `Boundary state: NONE`. It is not a persistent Standard mode and does not create a Reasoning execution boundary.
 
-Before yielding, Reasoning gives Standard an adaptive handoff brief beginning with literal `YIELD`. A one-line brief is sufficient when the result is obvious; add detail when scope, verification, or handoff conditions need it. The brief must make clear what Standard is taking over and when it must hand back.
+Before yielding, Reasoning gives Standard an adaptive Yield brief beginning with literal `YIELD`. A one-line brief is sufficient when the result is obvious; add detail when scope, verification, or handoff conditions need it. The brief must make clear what Standard is taking over and when it must hand back.
 
 Then switch to Standard with the existing profile-switch tool:
 
@@ -98,7 +98,7 @@ While Yield is active, Standard runs the ordinary unsplit Workflow for the yield
 
 - think through local execution;
 - choose an appropriate method such as [TDD](../../skills/tdd/SKILL.md) or [Simplify Code](../../skills/simplify-code/SKILL.md);
-- use Action Selection when an environment interaction is uncertain or broad;
+- use Action Selection for local uncertainty; broad exploration requires `YIELD HANDOFF`;
 - verify the result;
 - perform ordinary self-review through [Review Work](../../skills/review-work/SKILL.md);
 - continue while the original result and authority remain coherent.
@@ -108,6 +108,7 @@ Standard must hand back rather than silently turning Yield into delegated execut
 - the result is no longer exact or local;
 - a user-owned choice or source conflict appears;
 - verification fails or is inconclusive;
+- the user interrupts, cancels, or changes direction;
 - the work needs a material scope, architecture, policy, or evidence decision;
 - the outcome becomes substantial or another activity would own it;
 - the yielded result is supported and complete.
@@ -147,7 +148,7 @@ If the boundary is already `OPEN` after a prior `RETURN`, begin the next transfe
 
 Then switch to Standard using the existing tool. The switch must be the only tool call in that assistant response.
 
-Standard executes the current owner's method under the open contract. It may use direct fast-path interactions or [Action Selection](../../skills/action-selection/SKILL.md) for local uncertainty. Action Selection returns to the current method inside the delegation; it does not return directly to Reasoning and does not create a nested boundary.
+Standard executes the current owner's method under the open contract. It may use direct fast-path interactions or [Action Selection](../../skills/action-selection/SKILL.md) for local uncertainty. Action Selection returns to the current owner inside the delegation; it does not return directly to Reasoning and does not create a nested boundary.
 
 Standard may choose repository-consistent mechanics and reversible local details. It must use `RETURN` rather than continue when the next step would materially change the outcome, architecture, policy, failure behavior, scope, evidence boundary, or authority.
 
@@ -155,6 +156,7 @@ Return when:
 
 - required evidence is available;
 - the scoped execution or verification ends;
+- the user interrupts, cancels, or changes direction;
 - execution, verification, or evidence fails or becomes inconclusive;
 - a contradiction or material judgment appears;
 - the contract's stop condition is reached;
@@ -183,7 +185,7 @@ Route the returned result as follows:
 
 | Result | Reasoning route | Boundary |
 | --- | --- | --- |
-| Supported and complete | Use Review Work for self-review, then `CLOSE` and report or continue through Workflow | Closed |
+| Supported and complete | Use Review Work for self-review, then `CLOSE` and report or continue through Workflow | `NONE` after `CLOSE` |
 | Supported with more accepted work | Delegate the next unit | Same boundary remains open |
 | One clear local defect | Delegate more work using the same boundary; no separate remediation boundary | Same boundary remains open |
 | Missing mechanical evidence | Use Task Act or delegate the smallest additional check | Remains open |
@@ -216,7 +218,7 @@ Do not close an unsupported, inconclusive, blocked, or route-changing result mer
 
 ## Task Act From Reasoning
 
-Task Act is available whenever Reasoning has control. Before any direct Reasoning tool call, explicitly write `OBSERVE` or `ACT_BOUNDED` with its scope and stop condition; otherwise use `YIELD` or `DELEGATE`.
+Task Act is available whenever Reasoning has control. Before the first tool call in a direct Reasoning scope, explicitly write `OBSERVE` or `ACT_BOUNDED` with its scope and stop condition. That marker covers the tightly related interactions required to reach the stop; do not repeat it tool by tool. A materially different scope requires another marker or `YIELD`/`DELEGATE`.
 
 Task Act may be selected:
 
@@ -246,7 +248,7 @@ Authority:
 Stop and reassess when:
 ```
 
-A Task Act scope expires at its stop condition and returns Reasoning to Think or boundary assessment. It never covers the whole execution boundary, broad exploration, adjacent cleanup, or another action by implication.
+A Task Act scope expires at its stop condition and returns Reasoning to Think or boundary assessment. At the stop, state its conclusion before another Task Act or route. Task Act scopes expire on interruption or context loss; after recovery, select a fresh route. A scope never covers the whole execution boundary, broad exploration, adjacent cleanup, or another action by implication.
 
 When a Task Act result is direct evidence for an open boundary, keep the boundary `OPEN`. When it changes authority, scope, ownership, accepted direction, evidence boundary, or stop conditions, route to Workflow. When it exposes an unclear or repeated failure, use Diagnose Failure. When it exposes a user-owned choice, use Decision Gate.
 
@@ -254,7 +256,7 @@ If the action could be executed safely by Standard without losing material judgm
 
 ## Manual Control
 
-The user owns Manual versus Automatic control and the held profile. A manual hold survives turns, compaction, session resume, and reload until the user changes or releases it.
+The user owns Manual versus Automatic control and the held profile. A manual hold survives turns, compaction, session resume, and reload until the user changes or releases it. If the held profile cannot continue reliably, state the blocker and exact user control needed; do not switch automatically.
 
 Under Manual · Standard:
 
@@ -293,6 +295,8 @@ Failed transitions preserve the supported boundary and do not authorize a workar
 - failed Delegate `RETURN` switch to Reasoning: Standard stops and cannot resolve or close the open boundary;
 - failed switch from Manual to Automatic: remain under the held manual profile until the control state changes successfully.
 
+User interruption is a handoff or return condition. At the next safe point, Standard sends `YIELD HANDOFF` or `RETURN` with partial effects and unverified work. If interruption prevents that marker and Reasoning regains control, treat Yield as incomplete and Delegate as still `OPEN`; never infer completion from a profile change. Do not switch during an atomic environment interaction when avoidable. If cancellation may have left partial effects, inspect them before retrying or continuing.
+
 After interruption, compaction, context loss, or resume, recover:
 
 - latest extension-generated Control and Profile;
@@ -324,7 +328,6 @@ Do not:
 - turn Reasoning or Standard into a new owner merely because the profile changed;
 - treat Yield as an open boundary;
 - treat `RETURN` as boundary closure;
-- use Yield inside an open delegated boundary;
 - create a new boundary for every tool call, correction, or self-review;
 - close an unsupported boundary to avoid resolving it;
 - delegate unresolved material judgment to Standard;
