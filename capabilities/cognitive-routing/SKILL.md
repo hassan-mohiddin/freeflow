@@ -40,7 +40,7 @@ A **decision-complete contract** is the smallest model-written instruction that 
 
 **Think** means analyze, discuss, decide, diagnose, review, assess, ask, or report in conversation, including compact routing and transfer text. Reasoning may Think without a Task Act marker for as long as material judgment requires.
 
-**Task Act** means a Reasoning environment tool call, active evidence generation, mutation, test, diagnostic, build, interactive probe, or substantive artifact production. Under Automatic · Reasoning, every direct Task Act uses `OBSERVE` or `ACT_BOUNDED`. Profile switching and compact routing or transfer text are control operations, not Task Act. Task Act does not create an execution boundary.
+**Task Act** means a Reasoning environment tool call, active evidence generation, mutation, test, diagnostic, build, interactive probe, or substantive artifact production. Under Automatic · Reasoning, direct Task Act must qualify for `OBSERVE` or `ACT_BOUNDED`; otherwise use Yield or Delegate. Profile switching and compact routing or transfer text are control operations, not Task Act. Task Act does not create an execution boundary.
 
 Runtime State supplies authoritative `Control` and `Profile`. Route and boundary remain visible model-written state. After context loss or uncertainty, recover fresh state before Task Act and never infer boundary state from the Runtime State block. A Runtime State refresh is host context, not a user interruption, and does not end a route or Task Act scope unless the reported state contradicts it.
 
@@ -77,69 +77,11 @@ Do not use Think to perform Task Act.
 
 Use **YIELD** only when the result is small, exact, local, reversible, low-risk, directly verifiable, and does not require material judgment after execution. If the choice between Yield and Delegate is uncertain, choose Delegate.
 
-Use **DELEGATE** for substantial work, unresolved local execution choices, potentially broad exploration, or work where Reasoning should remain responsible for the governing judgment and returned evidence.
+Use **DELEGATE** for substantial work, unresolved local choices, broad exploration, or work whose returned evidence Reasoning must judge. For exploration, bound the question, scope, evidence, and return condition; Reasoning decides what follows after `RETURN`.
 
-Use direct **TASK ACT** only when `OBSERVE` or `ACT_BOUNDED` meets its gate below. Better performance, convenience, fewer transitions, or preference for Reasoning do not qualify.
+Use direct **TASK ACT** only for a qualifying `OBSERVE` or `ACT_BOUNDED` scope. Better performance, convenience, fewer transitions, or preference for Reasoning do not qualify.
 
 A route choice does not widen authority. If the outcome, scope, authority, evidence boundary, or stop condition is unsettled, return to [Workflow](../../skills/workflow/SKILL.md) or [Decision Gate](../../skills/decision-gate/SKILL.md) before execution.
-
-## Task Act From Reasoning
-
-Under Automatic · Reasoning, Task Act is available:
-
-- before any boundary is open;
-- while assessing an open boundary after Standard returns;
-- after a `YIELD HANDOFF`;
-- after a completed Task Act scope.
-
-It is unavailable while Standard is actively executing a Yield or Delegation; Reasoning waits for `YIELD HANDOFF` or `RETURN`.
-
-Before the first Task Act in a direct Reasoning scope, explicitly write `OBSERVE` or `ACT_BOUNDED` with its scope and stop condition. Write the marker once for the complete scope; do not repeat it for each tool call, tool result, response boundary, or Runtime State refresh.
-
-### Observe Narrowly
-
-Use `OBSERVE` for one narrow, discriminating evidence scope. It may contain a few tightly related tool calls or one focused diagnostic when every call serves the same question and stop condition.
-
-```text
-OBSERVE
-Question:
-Scope:
-Stop when:
-```
-
-Continue inside that scope until its evidence boundary or stop condition is reached. Broad exploration, logs, matrices, builds, repetitive inspection, and ordinary verification belong to Standard through Yield or Delegate.
-
-### Act Only When Judgment Cannot Be Separated
-
-Use `ACT_BOUNDED` only when both conditions hold:
-
-1. judgment and action are materially inseparable; and
-2. expected delegation loss materially exceeds premium execution cost.
-
-Because Standard inherits shared context, recap cost, transition avoidance, or belief that Reasoning would perform ordinary work better is not delegation loss.
-
-```text
-ACT_BOUNDED
-Scope and expected result:
-Why judgment and action are inseparable:
-Why shared-context delegation would materially lose:
-Authority:
-Stop and reassess when:
-```
-
-Suitable cases include difficult synthesis that is itself the artifact, a consequential intervention whose next action depends on interpreting each prior effect, or sensitive work whose governing judgment evolves during execution.
-
-Ordinary edits, known fixes, dependency updates, routine tests or builds, documentation after direction is settled, broad verification, and cleanup do not qualify when Standard can execute a decision-complete contract.
-
-### End Direct Task Act
-
-An `OBSERVE` or `ACT_BOUNDED` scope ends at its stop condition, a user interruption that stops or materially changes it, context loss, or a material change to its question or action. After context loss, select a fresh scope only after recovery. A tool result, response boundary, or Runtime State refresh alone does not end it.
-
-The scope returns Reasoning to Think or boundary assessment. Task Act never changes boundary state or profile responsibility and never covers broad verification, adjacent cleanup, the whole execution boundary, or another action by implication. State the supported conclusion before another Task Act or route.
-
-When a Task Act result is direct evidence for an open boundary, keep the boundary `OPEN`. When it changes authority, scope, ownership, accepted direction, evidence boundary, or stop conditions, return to Workflow. Use [Diagnose Failure](../../skills/diagnose-failure/SKILL.md) for an unclear or repeated cause and Decision Gate for a user-owned choice.
-
-If Standard can execute safely from shared context and a decision-complete contract, use Yield or Delegate. Do not use Task Act to bypass the split or perform broad routine work in Reasoning.
 
 ## Yield To Standard
 
@@ -252,7 +194,7 @@ Route the returned result as follows:
 | Supported and complete | Use Review Work for self-review, then `CLOSE` and report or continue through Workflow | `NONE` after `CLOSE` |
 | Supported with more accepted work | Delegate the next unit | Same boundary remains open |
 | One clear local defect | Delegate more work using the same boundary; no separate remediation boundary | Same boundary remains open |
-| Missing mechanical evidence | Use Task Act or delegate the smallest additional check | Remains open |
+| Missing mechanical evidence | Delegate the smallest additional check; use Task Act only if its gate is met | Remains open |
 | Unclear or repeated failure | [Diagnose Failure](../../skills/diagnose-failure/SKILL.md) or Workflow | Open and suspended while routed |
 | User-owned choice or source conflict | [Decision Gate](../../skills/decision-gate/SKILL.md) | Open and suspended while blocked |
 | Changed intent, scope, authority, or source truth | Workflow | Open and suspended until reconciled |
@@ -279,6 +221,64 @@ Closing a delegated boundary leaves Reasoning active. It does not hand leadershi
 A closed boundary may be reopened only for authorized continuation of the same original outcome, with a reason, scope, expected evidence, and stop condition. A distinct result requires a new bounded activity and a new `NEW` boundary when delegated.
 
 Do not close an unsupported, inconclusive, blocked, or route-changing result merely to remove the boundary. Do not create an automatic review-fix-review loop. If correction fails, repeats, or exposes related shared-state consequences, return to Diagnose Failure or Workflow.
+
+## Task Act From Reasoning
+
+Under Automatic · Reasoning, Task Act is available:
+
+- before any boundary is open;
+- while assessing an open boundary after Standard returns;
+- after a `YIELD HANDOFF`;
+- after a completed Task Act scope.
+
+It is unavailable while Standard is actively executing a Yield or Delegation; Reasoning waits for `YIELD HANDOFF` or `RETURN`.
+
+Before the first Task Act in a direct Reasoning scope, explicitly write `OBSERVE` or `ACT_BOUNDED` with its scope and stop condition. Write the marker once for the complete scope; do not repeat it for each tool call, tool result, response boundary, or Runtime State refresh.
+
+### Observe Narrowly
+
+Use `OBSERVE` only for one narrow, discriminating fact Reasoning needs before judging or transferring work, and only when direct inspection is cheaper and clearer than transfer. A few tightly related calls may serve that fact; otherwise use Yield or Delegate.
+
+```text
+OBSERVE
+Question:
+Scope:
+Stop when:
+```
+
+Stop when the fact is known. Broad exploration, builds, repetitive inspection, and ordinary verification belong to Standard.
+
+### Act Only When Judgment Cannot Be Separated
+
+Use `ACT_BOUNDED` only when both conditions hold:
+
+1. judgment and action are materially inseparable; and
+2. expected delegation loss materially exceeds premium execution cost.
+
+Because Standard inherits shared context, recap cost, transition avoidance, or belief that Reasoning would perform ordinary work better is not delegation loss.
+
+```text
+ACT_BOUNDED
+Scope and expected result:
+Why judgment and action are inseparable:
+Why shared-context delegation would materially lose:
+Authority:
+Stop and reassess when:
+```
+
+Suitable cases include difficult synthesis that is itself the artifact, a consequential intervention whose next action depends on interpreting each prior effect, or sensitive work whose governing judgment evolves during execution.
+
+Ordinary edits, known fixes, dependency updates, routine tests or builds, documentation after direction is settled, broad verification, and cleanup do not qualify when Standard can execute a decision-complete contract.
+
+### End Direct Task Act
+
+An `OBSERVE` or `ACT_BOUNDED` scope ends at its stop condition, a user interruption that stops or materially changes it, context loss, or a material change to its question or action. After context loss, select a fresh scope only after recovery. A tool result, response boundary, or Runtime State refresh alone does not end it.
+
+The scope returns Reasoning to Think or boundary assessment. Task Act never changes boundary state or profile responsibility and never covers broad verification, adjacent cleanup, the whole execution boundary, or another action by implication. State the supported conclusion before another Task Act or route.
+
+When a Task Act result is direct evidence for an open boundary, keep the boundary `OPEN`. When it changes authority, scope, ownership, accepted direction, evidence boundary, or stop conditions, return to Workflow. Use [Diagnose Failure](../../skills/diagnose-failure/SKILL.md) for an unclear or repeated cause and Decision Gate for a user-owned choice.
+
+Do not use Task Act to bypass the split or perform broad routine work in Reasoning.
 
 ## Manual Control
 
