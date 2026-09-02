@@ -5,9 +5,9 @@ description: Use when ongoing work needs durable task memory, or existing task m
 
 # Track Work
 
-Maintain living task memory without turning it into a transcript, fixed Plan, or authority over live evidence and user decisions.
+Maintain one living Working Record without turning it into a transcript, fixed Plan, or authority over live evidence and user decisions.
 
-A **Working Record** is ignored local Markdown that preserves current task state across execution, feedback, pauses, and context loss. A **Current Slice** is the durable representation of the active Slice when task memory is needed. A **Proposed Slice** is an unselected future Slice with no ID, execution state, or authority. `block`, `resume`, and `reopen` preserve one Slice's identity across different continuation conditions.
+A **Working Record** is ignored local Markdown that preserves task state across execution, feedback, pauses, and context loss. A **Proposed Slice** is an unselected future outcome with stable identity but no execution state or authority. A **Current Slice** is the one selected outcome whose state must survive ongoing work. `block`, `resume`, `park`, and `reopen` preserve that Slice's identity across different continuation conditions.
 
 Track Work owns the Working Record and its lifecycle. It does not decide whether durable memory is needed, authorize implementation, settle product intent, judge review findings, complete the task, commit, publish, or promote local artifacts.
 
@@ -15,7 +15,9 @@ A Working Record is memory, not authority. Current user direction, live evidence
 
 ## Enter With A Record Need
 
-Enter when [Workflow](../workflow/SKILL.md) routes a durable-memory need established by current context or [Discuss](../discuss/SKILL.md), the user explicitly requests a record operation, or an existing record needs recovery, reconciliation, or a lifecycle transition.
+Enter when [Workflow](../workflow/SKILL.md) routes a durable-memory need, [Discuss](../discuss/SKILL.md) establishes state worth preserving, the user explicitly requests a record operation, or an existing record needs recovery, reconciliation, or a lifecycle transition.
+
+Use a Working Record when losing current context, decisions, authority boundaries, one active outcome, future outcomes, evidence, blockers, checkpoints, or the next useful action could cause later misalignment. Do not create one for a short disposable result merely because work occurred.
 
 If record need, task ownership, or mutation authority is unresolved, return to Workflow or Discuss. Reading this skill never authorizes record creation or mutation.
 
@@ -25,7 +27,7 @@ Use one ignored local directory per task:
 .freeflow/tasks/task-NNN-<short-name>/record.md
 ```
 
-Everything under `.freeflow/tasks/**` is local task memory. Track Work never stages, commits, publishes, promotes, or synchronizes it. [Write Spec](../write-spec/SKILL.md) and [Write Plan](../write-plan/SKILL.md) separately own tracked artifacts.
+Everything under `.freeflow/tasks/**` is local task memory. Track Work never stages, commits, publishes, promotes, or synchronizes it. [Write Spec](../write-spec/SKILL.md) and [Write Plan](../write-plan/SKILL.md) separately own tracked durable artifacts.
 
 ## Follow The Lifecycle
 
@@ -33,277 +35,355 @@ Everything under `.freeflow/tasks/**` is local task memory. Track Work never sta
 Record need established
 -> create or recover the record
 -> reconcile memory with conversation and live evidence
--> preserve material state changes in their canonical owners
+-> preserve material state in its canonical owner
 -> select one authorized outcome or wait
 -> maintain one coherent Current Slice through feedback and checkpoints
--> settle the outcome and reconcile affected current state
+-> settle the outcome and reconcile present state
 -> return to Workflow or the owning route
 ```
 
-Do not reduce this lifecycle to `start -> close`. Decisions, proposals, checkpoints, evidence, blockers, Notes, Current Context, and the next action remain part of record maintenance whenever their underlying state materially changes.
+Do not reduce this to `start -> close`. Decisions, Proposals, Checkpoints, Evidence, Blockers, Notes, Current Context, and the next action remain part of maintenance whenever their underlying state materially changes.
 
-## Preserve One Living Record
+## Preserve One Canonical Markdown Record
 
-Schema-v2 `record.md` is readable Markdown and the only canonical task state. Its semantic owners are:
+Schema-v3 `record.md` is the sole canonical semantic state. JSON may carry command input and structured results; semantic state is readable Markdown and never a serialized JSON object or escaped lifecycle event. Canonical rendering omits empty optional fields, null optional references, empty optional collections, and empty view sections; it retains required structure and meaningful state such as `Current Slice: None`. The parser accepts existing verbose `[empty]` and `[none]` markers so `compress canonical-markdown` can normalize them without semantic change.
 
-1. **Current Context:** what remains necessary to understand the task now.
-2. **Current Work:** route, one Current Slice or `None`, blockers, selected upcoming boundaries, and one next useful action.
-3. **Proposed Slices:** ordered, revisable outcomes that have not started.
-4. **History:** decision records, resolved checkpoint outcomes, and completed, parked, or abandoned Slices.
+The record has one ordered top-level structure:
+
+```text
+# Working Record: <task name>
+
+Task ID: T-NNN
+Schema: 3
+State: active | paused | completed | abandoned
+State source: <user direction or source pointer>
+Created at: <UTC timestamp>
+Last updated: <UTC timestamp>
+
+## Current Context
+## Current Work
+## Proposed Slices
+## History
+## Notes
+```
+
+Its semantic owners are:
+
+1. **Current Context:** present understanding needed to interpret or route the task.
+2. **Current Work:** recorded route, one Current Slice or none, upcoming Checkpoints, and one next useful action.
+3. **Proposed Slices:** ordered future outcomes that have not started.
+4. **History:** Decision lifecycle, terminal Checkpoints, Evidence, Blockers, corrections, and completed, parked, or abandoned Slices.
 5. **Notes:** inert retained context with no active task effect.
 
-Omit optional content when it carries no useful state. Preserve detail when forgetting it could cause a later reader to choose the wrong route. Compactness removes repetition, transcripts, and raw output—not continuity.
+Give each detailed fact one owner. Other sections use stable references or derived views rather than copies. Omit optional content when it carries no useful state. Compactness removes repetition, transcripts, and raw output—not continuity.
 
-Give each detailed fact one owner. Other sections use a compact pointer or derived view rather than copying it.
+Never edit `record.md` directly. Use the executable boundary so parsing, identity, invariants, SHA concurrency, and recovery remain enforceable.
 
-Only the user changes task state: `Active`, `Paused`, `Completed`, or `Abandoned`. Paused tasks reject `start` and `resume`. Completed and Abandoned tasks require `Current Slice: None`.
+### Preserve Stable Identity
 
-## Create Or Recover
+The script assigns IDs and returns them in affected results:
 
-### Start Honestly
+- `T-NNN`: task record;
+- `CTX-NNN`: settled, tentative, or open context statement;
+- `BND-NNN`: active task boundary;
+- `P-NNN`: Proposal;
+- `S-NNN`: Slice;
+- `X-NNN`: accepted Slice extension;
+- `D-NNN`: Decision;
+- `C-NNN`: Checkpoint;
+- `E-NNN`: Evidence;
+- `B-NNN`: Blocker;
+- `N-NNN`: Note.
+
+Creation commands never accept caller-chosen IDs. Supply an ID only where the current command schema declares a selector or reference. Titles remain human-readable labels; they do not replace identity.
+
+The validator rejects unknown fields, duplicate identities, dangling or wrong-kind references, stale reciprocal links, impossible states, and more than one active Slice.
+
+## Create Or Recover Honestly
+
+### Start A Minimal Record
 
 A minimal record contains:
 
-- user-owned task state;
-- goal or central question;
+- user-owned task state and its source;
+- the goal or central question;
 - supported current understanding;
 - important route-changing open questions;
-- `Current Slice: None` when no work is selected;
+- `Current Slice: none` when no work is selected;
 - one next useful action.
 
-A record may begin without decisions, proposals, checkpoints, Notes, or a Current Slice. Do not invent content to fill sections.
+A record may begin without Decisions, Proposals, Checkpoints, Evidence, Blockers, Notes, or a Current Slice. Do not invent content to fill sections.
 
-If discussion already produced decisions, proposals, checkpoint selections, or explicitly retained Notes, create the minimal record and preserve those related facts in the first authorized atomic update before returning to Discuss or execution. Do not let `init` erase state that justified creating the record.
+If discussion already produced Decisions, future outcomes, selected Checkpoints, or explicitly retained Notes, create the minimal record and preserve those facts through their canonical operations before returning to discussion or execution. Do not let initialization erase the state that justified creating the record.
 
 If context is too thin, return to Discuss. If the user still requests a record, create an honest minimal one and wait.
 
-### Recover From Current Evidence
+### Reconstruct After Context Loss
 
-After compaction, summarization, clear, resume, session navigation, or ownership transfer:
+After compaction, summarization, clear, resume, session navigation, handoff, or uncertain continuity:
 
 1. run `view --view resume`;
-2. confirm task identity, task state, Current Slice, route, next action, and record SHA;
-3. compare memory with the current conversation and live repository or environment;
-4. retrieve an exact entity only when its rationale, lineage, authority, chronology, or evidence affects the next decision;
+2. confirm task identity, task state, Current Slice, recorded route, next action, and record SHA;
+3. compare that memory with the current conversation, latest runtime state, and live repository or environment;
+4. retrieve an exact entity by stable ID only when rationale, lineage, authority, chronology, supersession, or Evidence affects the next decision;
 5. reconcile only state contradicted or changed by supported current evidence;
-6. return to the route that owns the next activity.
+6. identify the current owner and return to the route that actually continues.
 
-A record from another conversation branch is memory, not authority. Do not import branch-local approval merely because it is recorded.
+A record from another conversation branch remains memory. Do not import branch-local approval merely because it is recorded.
 
-Before an expected compaction, pause, clear, or transfer, reconcile the record only when material task state changed. The boundary itself is not an event, checkpoint result, or reason to append a status update.
+Before an expected pause or transfer, reconcile the record only when material task state changed. The boundary itself is not an event, Evidence item, Checkpoint result, or reason to append status prose.
 
-## Maintain Current Context
+## Maintain Current Context As Present State
 
-Current Context is present state, not chronology:
+Current Context owns:
 
-- **Goal:** the durable outcome or central question.
-- **What defines this task:** accepted source pointers or governing artifacts.
-- **Settled:** supported understanding that still affects interpretation or action.
-- **Tentative:** live hypotheses that remain provisional.
-- **Open:** unresolved questions capable of changing the route.
-- **Current direction:** remaining strategy, not completed phases.
-- **Boundaries:** accepted scope, exclusions, evidence limits, and stop conditions that remain relevant.
+- **Goal:** durable outcome or central question;
+- **Source references:** accepted artifacts or evidence that define interpretation;
+- **Settled:** supported understanding still affecting action;
+- **Tentative:** live hypotheses that remain provisional;
+- **Open:** unresolved questions capable of changing the route;
+- **Direction:** remaining strategy, not completed chronology;
+- **Boundaries:** active scope, exclusions, evidence limits, and stop conditions.
 
-Replace a summary when its meaning changes. Do not append update paragraphs, discussion turns, completed-Slice narration, test inventories, hashes, review findings, or live-run detail.
+Schema-v3 gives context statements `CTX-NNN` IDs and task boundaries `BND-NNN` IDs so targeted edits, moves, and removal do not reconstruct whole collections. Preserve basis references when they explain why a statement is supported.
 
-Decision rationale and lineage belong in History. Active decision summaries in views are derived from History; do not store a second decision summary in Current Context.
+Use `update` only for the target and action declared by its current schema: Current Context, recorded route or next action, context statements, boundaries, source references, and Note maintenance. Preserve unspecified state.
 
-When a Slice settles, rewrite Current Context from what remains true. Remove event detail now owned by History while preserving consequences that still affect later work.
+Replace a summary when its meaning changes. Do not append discussion turns, completed-Slice narration, command logs, test inventories, hashes, or raw findings. Decision rationale belongs to the Decision entity; active Decision summaries in views are derived from History.
+
+When a Slice settles, rewrite Current Context from what remains true. Remove event detail now owned by History while preserving consequences still needed to interpret later work.
 
 ## Preserve Discussion Without Taking It Over
 
-Discuss owns exploration, alternatives, assumptions, and direction:
+Discuss owns exploration, assumptions, alternatives, and direction:
 
 ```text
-Discuss -> material accepted state -> Track Work update -> Discuss
+Discuss -> accepted material state -> Track Work update -> Discuss
 ```
 
-Persist only supported changes that could affect later interpretation or action. One atomic update may reconcile related context, decisions, proposals, checkpoint selections, Notes, blockers, or next action.
+Persist only supported changes that could affect later interpretation or action. Batch related edits only when one current command schema accepts them atomically. Decision, Proposal, Slice, Evidence, Blocker, Checkpoint, correction, and task-state lifecycle remain in their dedicated operations.
 
-A record update does not end discussion, authorize implementation, select a proposal, choose a checkpoint, settle a user-owned decision, or claim evidence or readiness. Return to Discuss after preservation unless Workflow established another route.
+A record update does not end discussion, authorize implementation, select a Proposal, choose a Checkpoint, settle a user-owned decision, or claim readiness. Return to Discuss after preservation unless Workflow established another route.
 
-## Propose, Select, Or Wait
+## Propose, Select, Or Start Directly
 
 ### Preserve Future Outcomes
 
-Create a Proposed Slice when an unselected future outcome, evidence boundary, dependency, or ordering must survive context loss.
+Use `propose` when an unselected future outcome, evidence boundary, dependency, ordering constraint, or selected Checkpoint must survive context loss.
 
-A proposal:
+A Proposal:
 
-- remains unnumbered and has no execution state;
-- carries no authority;
-- names one Learning, Delivery, or Deepening result;
-- states intended result and expected evidence;
-- records real dependencies and selected checkpoints when they exist;
-- remains revisable until selected.
+- receives a script-assigned `P-NNN` ID and state `proposed`;
+- carries no execution authority;
+- names one `learning`, `delivery`, or `deepening` result;
+- states intended result and expected Evidence;
+- references existing entity IDs for dependencies and selected Checkpoints;
+- remains revisable through `proposal.update` or `proposal.move` while state is `proposed`;
+- keeps state `selected` with reciprocal Slice lineage after selection;
+- may become `withdrawn` without execution through `proposal.withdraw`, preserving authority and reason.
 
-Use exact proposal titles rather than ordinal references such as “proposal 2.” Preserve an external Plan phase or identifier only when one exists.
+Use the stable ID for command selectors and the exact title for human continuity. Never use ordinal references such as “proposal 2.” Keep external Plan phases or source pointers in their proper fields rather than inventing entity references.
 
-Do not create a proposal merely to start it immediately when one already-authorized direct result is clear and no future queue needs preservation. When several outcomes, dependencies, or ordering constraints matter, preserve them first and select one by exact title.
+When several future outcomes are known, preserve the complete ordered queue before starting one. Do not leave later work only in Current Context, a Plan, or the next action.
 
 ### Select With Write-Ahead Authority
 
-Select a Slice only when its concrete work is requested or approved. If only record creation is approved, keep `Current Slice: None`, preserve proposals when needed, set the next useful action, and wait.
+Proposal creation and execution authorization are separate. Select a Proposal only when its concrete work is requested or approved.
 
-Before [Execute Work](../execute-work/SKILL.md) begins, record:
+Use `start` in exactly one declared form:
 
-- assigned Slice ID and type;
+- **Proposal start:** pass the stable `proposalId` plus fresh authority, reason and scope, stop condition, and starting state. The script preserves Proposal type, intended result, Evidence boundary, dependencies, selected Checkpoints, and reciprocal origin lineage.
+- **Direct start:** provide the complete immediate outcome declaration when that outcome does not need a Proposal for future ordering or authorization recovery.
+
+Never mix the two forms. A direct start must not consume or alter existing future Proposals. When the immediate outcome is one of several known outcomes, preserve and select it as a Proposal rather than bypassing the queue.
+
+Before [Execute Work](../execute-work/SKILL.md) begins, the Current Slice must preserve:
+
+- assigned `S-NNN` ID and type;
 - intended result;
 - authority source;
 - reason and scope;
-- expected evidence;
+- expected Evidence;
 - stop condition;
-- relevant starting state;
+- starting state;
 - dependencies;
-- selected checkpoints and pending boundaries.
+- selected Checkpoint IDs;
+- pending boundaries.
 
-Save this write-ahead state before execution. It preserves intent; it does not claim execution occurred.
-
-Approval cadence and reporting cadence are separate. A decision approval, tentative proposal, nearby instruction, or permission to discuss does not authorize implementation.
+Save write-ahead state before execution. It preserves intent; it does not claim the work occurred.
 
 ## Maintain One Current Slice
 
 ### Keep The Outcome Coherent
 
-Current Slice states are:
+A Current Slice has one of two active states:
 
-- `In progress`: active work, including in-scope discussion, implementation, feedback, verification, self-review, selected review, correction, and checkpoints.
-- `Blocked`: safe continuation is unavailable because a required decision, dependency, capability, evidence source, stop condition, or other condition is missing.
+- `in_progress`: active work, including in-scope discussion, implementation, verification, self-review, selected review, correction, and Checkpoints;
+- `blocked`: safe continuation is unavailable and at least one Blocker records why.
 
-Waiting for ordinary feedback, discussing, reviewing, correcting, or gathering in-scope evidence does not make a Slice Blocked.
+Historical Slice states are:
+
+- `completed`: intended result and required evidence boundary are settled;
+- `parked`: the unresolved blocked attempt was deliberately removed from Current Work;
+- `abandoned`: the outcome is no longer pursued under explicit authority.
+
+Failure is Evidence or outcome, not a Slice state by itself.
 
 Keep the same Slice while intended result, authority boundary, evidence boundary, and useful outcome remain coherent. Do not create activity-shaped Slices for implementation, tests, review, corrections, documentation, or commits that belong to the same result.
 
-### Reconcile Steering And Extensions
+### Record Accepted Extensions Before Execution
 
-Do not log every edit, command, implementation choice, correction, or conversation.
+When feedback adds work but the result remains coherent, use `extend` before executing the addition. The script assigns an `X-NNN` ID and preserves:
 
-When feedback remains inside the accepted result and authority, apply it and preserve its meaningful final effect. When feedback changes intended result, scope, authority, evidence boundary, or stop condition, classify and record the change before acting.
+- current activation sequence;
+- authority source and reason;
+- added scope;
+- added Evidence boundary;
+- stop-condition change when applicable;
+- extension starting state;
+- acceptance time.
 
-Keep an extension in the Current Slice when the intended result remains coherent, current or new explicit authority covers it, the combined result can still be verified as one unit, and no stop condition or owner decision requires another route.
+An extension preserves the original activation; it does not rewrite history to imply the added scope was always planned.
 
-Record an accepted extension before execution with its authority source, reason and added scope, added evidence boundary, changed stop condition when applicable, and extension starting state. Preserve the original boundary; do not rewrite it to imply the extension was always planned.
+Use a new Slice when work needs a distinct result, authority source, evidence boundary, independently useful outcome, or explicit abandonment of the original result. First settle or park the Current Slice; never silently replace it.
 
-Use a new Slice when work needs a distinct result, authority source, evidence boundary, independently useful outcome, or explicit abandonment of the original result. First settle or park the Current Slice; do not silently replace it.
+Questions, criticism, review findings, and useful suggestions do not authorize extensions.
 
-Questions, criticism, review findings, and useful suggestions do not authorize changes.
-
-### Block, Resume, Or Reopen
+### Block, Resolve, Resume, Or Park
 
 When safe continuation becomes unavailable:
 
-1. keep the Current Slice current;
-2. record what blocks continuation, why it is unsafe, and what resolution is required;
-3. set the resume condition;
+1. use `block` for the Current Slice;
+2. preserve why continuation is unsafe, required resolution, and the resume condition;
+3. retain the script-assigned `B-NNN` Blocker;
 4. stop.
 
-Use `resume` when that current blocker resolves and the same outcome remains coherent. Preserve the blocker incident and resolution source. A resolution that expands scope follows the extension rule before execution.
+When the blocking condition is actually resolved, use `blocker.resolve` with the real resolution source. Then use `resume` with the same Slice ID. All active Blockers for that Slice must resolve before resumption.
 
-Park the Slice as historical `Blocked` only when the attempt is deliberately removed from Current Work while its blocker remains unresolved.
+A resolved blocker does not authorize added scope. Record an extension first when the resolution expands the accepted result or evidence boundary.
 
-Use `reopen` when later authorized work still belongs to a historical Slice's original outcome. Reopening keeps the same ID, preserves prior outcomes through compact reopen history, and requires fresh authority, reason and scope, expected evidence, and stop condition.
+Use `park` only when the Current Slice is blocked and the unresolved attempt should leave Current Work. Preserve its active Blocker, required Evidence IDs, review summary, task effect, and current activation resolution. Parking does not delete the outcome or free its identity for reuse.
 
-Failure belongs in evidence or outcome; it is not itself a Slice state.
+### Reopen Historical Work
+
+Use `reopen` only when later authorized work still belongs to a historical Slice's original outcome. It retains the same `S-NNN` ID and appends a fresh activation with:
+
+- authority source;
+- reason and scope;
+- expected Evidence;
+- stop condition;
+- starting state;
+- opening time.
+
+Prior activations, outcomes, Evidence, Blockers, review conclusions, and task effects remain immutable and readable. Reopening never restores a mutable copy of an old state.
 
 ### Keep Review And Correction Inside The Result
 
 Implementation, verification, self-review, or an independent review report does not settle the Slice by itself. Review may support continuation, correction, more evidence, deferment, a route change, or stopping; it need not Pass.
 
-Keep accepted in-scope correction and its verification inside the Current Slice. Do not invent review or correction Slices.
+Keep accepted in-scope correction and its verification inside the same Slice. Do not invent review or remediation Slices when the intended result remains coherent.
 
 ## Preserve Record-Worthy Entities
 
 ### Decisions
 
-Record a task-local Decision when an accepted choice affects later interpretation, implementation, acceptance, or recovery and losing its rationale could cause misalignment.
+Use `decision.add` for an accepted task-local choice whose rationale could affect later interpretation, implementation, acceptance, or recovery. The script assigns `D-NNN`.
 
-Preserve what was decided, who decided or what established it, rationale and sources, consequences, and a revisit condition when useful.
+Preserve what was decided, who or what established it, rationale, source references, consequences, and a revisit condition when useful.
 
 Decision states are:
 
-- `Active`: currently affects later work;
-- `Superseded`: replaced or narrowed by another decision, with reciprocal links;
-- `Retired`: historically valid but no longer active.
+- `active`: currently affects later work;
+- `superseded`: replaced or narrowed by another Decision through reciprocal one-to-one links;
+- `retired`: historically valid but no longer active, with retirement authority and reason.
 
-Retire or supersede decisions through their lifecycle. Do not delete durable decision history. A changed understanding is not automatically a decision; a tentative direction remains Tentative until accepted.
+Use `decision.update` only for an active Decision. Use `decision.supersede` or `decision.retire` for lifecycle changes. Never delete durable Decision history. A changed understanding is not automatically a Decision; keep it Tentative until accepted.
 
 ### Checkpoints
 
-A checkpoint is an additional boundary selected by Workflow from an approved Plan or explicit discussion before dependent work. Types are Independent review, Local commit, User decision, and Continuity.
+A Checkpoint is a deliberately selected `independent_review`, `local_commit`, `user_decision`, or `continuity` boundary. Ordinary feedback, self-review, a nearby question, status pause, or Slice ending is not a Checkpoint.
 
-Ordinary feedback, self-review, a nearby question, a status pause, or temporal proximity is not a checkpoint.
+Use `checkpoint.select`; the script assigns `C-NNN` and preserves title, type, selected-by source, condition, target, and state `upcoming`.
 
-When a checkpoint is selected before or during a Slice:
+- For a Current Slice, select the Checkpoint with that Slice as `appliesTo`; the operation links the ID to the Slice.
+- For a future Proposal, select a task-level Checkpoint first, then reference its ID through `propose` or `proposal.update`.
+- A task-level Checkpoint may remain upcoming while there is no Current Slice.
 
-1. use one stable single-line title;
-2. add that exact title to the affected proposal or Current Slice's selected checkpoints;
-3. add a compact upcoming entry under Current Work that preserves the title, selection source, and condition;
-4. keep the Current Slice `In progress` while the checkpoint belongs to its result.
+Use `checkpoint.resolve` with the stable ID to transition the same entity to `completed`, `deferred`, `cancelled`, or `replaced`. Preserve judgment, decision, Evidence IDs, task effect, reason, and replacement linkage when applicable. Resolution removes only that Checkpoint's upcoming reference.
 
-When the checkpoint reaches `Completed`, `Deferred`, `Cancelled`, or `Replaced`:
+A `completed` Slice cannot close until every selected Checkpoint is terminal. A Local commit Checkpoint never authorizes push or integration.
 
-1. add one History checkpoint with the exact selected title;
-2. preserve type, selected-by source, condition, terminal result, judgment or decision, evidence pointer, and task effect when applicable;
-3. remove its upcoming Current Work entry in the same atomic update;
-4. return its outcome to Workflow.
+### Evidence
 
-A Completed Slice cannot close until each selected checkpoint title has a terminal History checkpoint with the exact same title and all other pending boundaries are reconciled.
+Use `evidence.add` only when an observation matters to recovery, closure, a Decision, a Checkpoint, or later interpretation. The script assigns `E-NNN`.
 
-When a task-, phase-, or continuity-level checkpoint follows a settled Slice, leave `Current Slice: None`, keep the checkpoint as upcoming, and make it the next useful action. A Local commit checkpoint never authorizes push or integration.
+Preserve:
 
-### Evidence And History
+- claim and required observing boundary;
+- observer;
+- check result: `passed`, `failed`, `error`, or `unavailable`;
+- claim result: `supported`, `contradicted`, `inconclusive`, or `unavailable`;
+- what the result proves and does not prove;
+- one real pointer;
+- affected entity IDs.
 
-Keep detailed evidence with the Slice or checkpoint that produced or used it. When two History entities refer to the same event, one owns the detailed findings and the other stores a concise result and pointer.
+Evidence is append-only. When fresh observation changes an earlier result, use `evidence.supersede`; preserve reciprocal lineage instead of rewriting the prior observation.
 
-Preserve what was checked, what the result supports and does not support, which state or artifact was observed, selected independent-review judgment and adjudication, completed checkpoint results, and where exact evidence can be found.
+Use real pointers such as `file:<path>#<section>`, `commit:<sha>`, `output:<id>`, `review:<reference>`, or `session:<id>/turn:<id>`. Do not copy large raw output or create Evidence for routine self-review.
 
-Use only real pointers such as `file:<path>#<section>`, `commit:<sha>`, `output:<id>`, `review:<reference>`, or `session:<id>/turn:<id>`. Do not copy large raw output or create History for routine self-review.
+### Auditable Historical Corrections
+
+Terminal Slices, terminal Checkpoints, and settled Decisions are immutable through ordinary update operations.
+
+Use `history.correct` only for an established clerical correction to a field allowed by its current schema. The target must already be historical. Preserve exact prior and corrected values, reason, authority source, and supporting Evidence IDs.
+
+Correction changes the current displayed value while appending an audit record. It does not erase history, change lifecycle state, settle a new decision, or authorize another outcome.
 
 ### Notes
 
-A Note preserves task-adjacent context with no active task effect. Add one when the user explicitly asks to note, remember, retain, or defer something that has no structured owner.
+Use `update` with target `note` to add or edit task-adjacent context with no active task effect. The script assigns `N-NNN`. Notes cannot be deleted through ordinary maintenance.
 
-During authorized maintenance, add an agent-originated Note only when the information is concrete, worth preserving across context loss, not already represented, and has no effect on current scope, priority, completion, blockers, or next action. Ask when authorship or retention intent matters.
+Add a Note when the user explicitly asks to note, remember, retain, or defer something that has no structured owner. During authorized maintenance, add an agent-originated Note only when it is concrete, worth preserving across context loss, not already represented, and has no effect on current scope, priority, completion, blockers, or next action.
 
-Notes do not authorize, prioritize, schedule, block, unblock, prove, or require follow-up. Do not periodically triage them or create decisions, Slices, Specs, Plans, issues, or artifacts from them by default.
-
-If later user direction independently makes Note content active, create the appropriate structured state from that new direction. Preserve the original user-authored Note unless the user requests its change.
+Notes do not authorize, prioritize, schedule, block, unblock, prove, or require follow-up. If later user direction independently makes Note content active, create the appropriate structured state from that new direction. Preserve the original user-authored Note unless the user requests its change.
 
 ## Close And Reconcile
 
-Historical Slice states are:
+Before closing a Slice:
 
-- `Completed`: the intended result and required in-scope methods, evidence, corrections, and checkpoints are settled;
-- `Blocked`: the unresolved attempt was deliberately parked;
-- `Abandoned`: the intended result is no longer pursued under explicit authority.
+- obtain the Workflow-established outcome;
+- add the required durable Evidence and use its IDs;
+- resolve or deliberately route every selected Checkpoint and pending boundary;
+- confirm there is no active Blocker;
+- confirm accepted corrections are verified;
+- confirm required in-scope work is settled.
 
-Before closing, obtain the Workflow-established outcome, gather strongest evidence and proof limits, resolve or deliberately route every selected checkpoint and pending boundary, confirm accepted corrections are verified, and confirm required in-scope work is settled.
+Use `close` only for an `in_progress` Current Slice, with final state `completed` or `abandoned`. Preserve summary, Evidence IDs, review summary, and task effect. Abandonment additionally preserves authority, reason, and residual effects. Use `park`, not `close`, for a blocked attempt.
 
-When closing:
+After settlement:
 
-1. settle the Current Slice with its intended result, outcome, authority, accepted extensions, strongest evidence, review conclusion and task effect when applicable, and state-specific blocker or abandonment reason;
-2. rewrite Current Context from what remains true;
-3. reconcile decisions, tentative hypotheses, open questions, proposals, blockers, route, and next useful action only where the outcome changed them;
-4. clear Current Work blockers that belonged to the settled Slice;
-5. set `Current Slice: None`;
-6. do not select or start another Slice automatically.
+1. rewrite Current Context from what remains true;
+2. reconcile Decisions, hypotheses, open questions, Proposals, Blockers, route, and next action only where the outcome changed them;
+3. remove event detail now owned by History;
+4. leave `Current Slice: none`;
+5. do not select or start another Slice automatically.
 
-A Learning Slice may complete by disproving its hypothesis. A green test or finished implementation alone does not establish closure.
+Only explicit user direction changes task state through `task.set-state`: `active`, `paused`, `completed`, or `abandoned`. Preserve the authority source. A paused task rejects `start`, `extend`, `block`, `resume`, and `reopen`; settle or park any existing Current Slice only when current authority covers that effect. Completed and abandoned task states require no Current Slice. Reconcile misleading future Proposals and the next action before applying a terminal task state.
 
-Before applying a user-directed task-state change, reconcile Current Context, Current Work, important History, and the next action; then apply exactly the chosen state.
+A green check or completed implementation alone does not establish closure. A Learning Slice may complete by disproving its hypothesis when the intended question and evidence boundary are settled.
 
 ## Read Through Purpose-Owned Views
 
-After context loss, begin with `view --view resume`, compare the confirmed projection with conversation and live evidence, and retrieve an exact entity only when rationale, authority, chronology, supersession, or evidence is material.
+Views are direct Markdown with task identity, task state, schema version, record SHA, and Current Slice summary. They omit empty optional fields and sections, retain active state needed by their purpose, do not mutate state, and do not fetch external pointers.
 
-- `resume`: complete active state needed to continue safely;
-- `discuss`: Current Context, proposals, and a Current Slice summary;
-- `execute`: the full Current Slice and only context needed for that outcome;
-- `recent`: bounded recent settled Slices;
-- `entity`: one exact proposal, Slice, Decision, checkpoint, or Note;
-- `full`: complete record audit.
+- `resume`: complete Current Context, active Decisions, Current Work, and ordered Proposals needed after context loss;
+- `discuss`: Current Context, active Decisions, Proposals, and a compact Current Slice summary;
+- `execute`: the complete Current Slice declaration plus relevant Decisions, Checkpoints, Evidence, Blockers, route, next action, and needed context;
+- `recent`: a bounded number of settled Slices ordered deterministically by update time;
+- `entity`: one exact Proposal, Slice, Decision, Checkpoint, Evidence, Blocker, or Note by stable ID;
+- `full`: the complete canonical Markdown record for audit.
 
-Views emit direct Markdown with task identity and SHA metadata. There are no public `current` or `work` storage-section views. Do not normally read complete History.
+Do not normally read complete History. Retrieve the narrowest view or entity that can answer the current ownership or continuity question.
 
 ## Use The Deterministic Boundary
 
@@ -313,76 +393,80 @@ The executable entrypoint is:
 skills/track-work/scripts/working-record.mjs
 ```
 
-This skill decides whether a Decision, proposal, checkpoint, Note, extension, or closure is semantically warranted. The command schema never makes that judgment; it only defines how to express the selected operation.
+The skill decides whether a record operation is semantically warranted. The command schema defines only how to express that selected operation.
 
-Once the semantic operation is selected, and before the first use of its mutation command in the active context, after context loss, or after any failed operation, run:
+Before the first use of a mutation command in the active context, after context loss, or after any failed operation, run:
 
 ```text
 node skills/track-work/scripts/working-record.mjs schema --command <name>
 ```
 
-Use only the returned fields, selectors, operations, and conditional requirements. Do not inspect internal modules or reconstruct inputs from memory.
+Use only returned fields, selectors, operations, enums, references, CLI options, and conditional requirements. Do not inspect internal modules or reconstruct input from memory. The schema's `x-cli` metadata is the source for transport flags as well as its JSON input schema. In particular, `init` requires both `--name <short-name>` and `--input <json|->`; the JSON `name` field does not replace the CLI `--name` option. Its `--root`, `--dry-run`, and `--help` options are distinct transport controls.
 
-Supply semantic JSON with `--input <json-file>` or `--input -`. Existing-record mutations require the exact SHA-256 from a confirmed view or prior confirmed result.
+Supply semantic JSON as the literal `--input` value or through stdin with `--input -`. JSON is transport, not canonical task state. Existing-record semantic mutations require `--record`, the exact `--expected-sha` from a confirmed view or result, and the command's current input. `migrate`, `compress`, and recovery commands have dedicated public shapes; do not force them through ordinary mutation options.
 
-Use `update` for precise state and entity edits. Choose one accepted input mode; do not mix `edits` with direct semantic fields. Within `edits`, use exactly one operation per field, entity, or collection edit and batch related edits for one atomic write. Use dedicated commands for Slice transitions and the direct Decision lifecycle form for Decision state transitions.
+The public command surface is:
 
-Wrong types, unknown fields, mixed forms, multiple operations, malformed titles, multiline list members, ambiguous selectors, and missing or non-unique text matches fail closed. `replaceText` compares normalized line endings and still requires one exact semantic match.
+- creation and observation: `init`, `view`, `schema`, `validate`, `inspect`;
+- targeted maintenance: `update`, `task.set-state`;
+- Proposal lifecycle: `propose`, `proposal.update`, `proposal.move`, `proposal.withdraw`;
+- Slice lifecycle: `start`, `extend`, `block`, `resume`, `park`, `close`, `reopen`;
+- Decision lifecycle: `decision.add`, `decision.update`, `decision.retire`, `decision.supersede`;
+- durable entities and correction: `evidence.add`, `evidence.supersede`, `blocker.resolve`, `checkpoint.select`, `checkpoint.resolve`, `history.correct`;
+- recovery: `reconcile`, `unlock`;
+- representation rewrites: `migrate`, `compress`.
 
-The command families are:
+Views emit direct Markdown. Schemas, validation, inspection, recovery, and mutation results use structured JSON transport. Successful initialization and ordinary mutation results may include full candidate Markdown for confirmation; treat it as sensitive local state, not a sanitized export or second canonical store. Migration, compression, and error envelopes remain bounded. Read the status and exit code; never infer success from output shape alone.
 
-- `init`, `view`, `validate`, and `inspect` for creation and observation;
-- `update` for precise context, work, proposal, Decision, checkpoint, Note, and task-state maintenance;
-- `start`, `block`, `resume`, `reopen`, and `close` for Slice lifecycle;
-- `unlock` for explicitly authorized stale-lock recovery;
-- `migrate` and `compress` for explicit representation rewrites.
+Unknown commands, CLI options, input fields, mixed forms, malformed values, invalid IDs or references, incompatible targets, ambiguous text matches, stale SHAs, unsafe paths, and invalid transitions fail closed.
 
-Dry runs validate the same candidate structure and round trip as applied operations but do not persist, create snapshots, consume IDs, or change timestamps. Structural validity never proves semantic truth, readiness, migration effectiveness, or task completion.
+A dry run validates the same candidate and round trip as application but does not persist, create locks or rewrite artifacts, consume IDs, or change timestamps. A no-op likewise preserves bytes and identity. Structural validity never proves semantic truth, readiness, migration effectiveness, or task completion.
 
 ## Recover Without Guessing
 
-A failed, dry-run, read-only, or no-op operation does not change record bytes, SHA, or `Last updated` and does not consume IDs.
+Ordinary context-loss reconstruction uses `view --view resume` and the reconciliation method above.
 
-After `committed-unconfirmed`, discard held SHAs, fresh-read the actual record, run `validate` and `inspect` when available, establish a confirmed projection, and only then discuss or mutate again.
+Before handling `committed-unconfirmed`, recovery evidence, a stale or invalid lock, a legacy or unsupported record, or an explicitly authorized migration or compression, read [Recovery And Representation](references/recovery-and-representation.md).
 
-Never delete a lock manually. Use `unlock` only after the script reports a stale lock, the user authorizes recovery, and the exact observed lock selectors are available. Live, malformed, changed, replaced, or concurrently removed locks fail closed. Recovery never confirms record content; fresh-read afterward.
+A failed, read-only, dry-run, or no-op operation does not change canonical bytes, SHA, timestamp, or allocated IDs. Preserve the exact failure evidence and use a fresh confirmed SHA after any uncertainty.
 
-Legacy and unsupported records remain read-only until explicit migration. Migration begins from exact `inspect.sourceUnits` and may not summarize, consolidate, drop, retitle, reorder, or move semantic entities to incompatible owners. Compression is a separate authorized operation with explicit scope and preservation declarations. Use each command's current schema; do not infer rewrite coverage.
-
-For malformed, stale, locked, or conflicting state, preserve the exact evidence. Do not force-write, guess repair, bypass the script, silently change scope, or continue with a stale SHA.
+Never force-write, hand-edit, delete a lock, guess repair, bypass the script, silently change rewrite scope, or continue with stale state.
 
 ## Check Consistency
 
-Before relying on or finishing a record mutation, confirm:
+Before relying on or finishing a mutation, confirm:
 
 - Current Context describes present state rather than accumulated events.
 - Detailed facts have one canonical owner.
-- Current Work names no more than one Slice with a clear authority source.
-- Every current or historical Slice keeps one stable ID.
-- Proposed Slices remain unnumbered, unselected, and ordered by real dependencies.
-- Accepted extensions preserve the original boundary and were recorded before execution.
-- Discussion, review, correction, and checkpoints did not replace a coherent Current Slice.
-- `Blocked` means safe continuation is unavailable, not that feedback is pending.
-- active Decisions remain recoverable through History and lifecycle links are consistent.
-- upcoming checkpoints retain their selection source and condition.
-- resolved checkpoint titles exactly match their selected references.
+- Current Work identifies at most one active Slice with a clear authority source.
+- Every entity retains the correct stable ID and every reference resolves to the right kind.
+- Proposed Slices remain unselected, carry no authority, and preserve real order and dependencies.
+- Proposal selection and Slice origin linkage are reciprocal.
+- Accepted extensions preserve the original activation and were recorded before added execution.
+- Discussion, review, correction, and Checkpoints did not replace a coherent Current Slice.
+- `blocked` means safe continuation is unavailable, not that feedback is pending.
+- active Blockers resolve through their actual source before resume.
+- Decision and Evidence supersession links are reciprocal and acyclic.
+- upcoming Checkpoints retain selection source, condition, target, and stable identity.
+- terminal Checkpoints have no stale upcoming reference.
+- terminal history changes only through auditable correction or its dedicated lifecycle.
 - Notes remain inert and user-authored Notes preserve their meaning.
 - settled evidence and event detail are not duplicated in Current Context.
 - one next useful action exists and belongs only to Current Work.
 - live evidence and current user direction override contradictory memory.
 
-Correct a clear clerical inconsistency inside current authority or return a material conflict to Workflow or Discuss. Do not force the next lifecycle transition.
+Correct a clear clerical inconsistency inside current authority through the proper operation. Return a material conflict to Workflow or Discuss. Do not force the next lifecycle transition.
 
 ## Return To The Owner
 
 - unchanged discussion state: return to Discuss or wait;
 - material accepted memory: update, then return to its owner;
-- authorized execution: start, then Execute Work;
+- authorized execution: start or reopen, then Execute Work;
 - unavailable continuation: block and stop;
-- resolved current blocker: resume, then Execute Work;
-- authorized continuation of a settled outcome: reopen;
-- settled outcome: close, reconcile affected state, then return to Workflow;
-- malformed, stale, locked, or conflicting state: preserve evidence and return to Workflow or Discuss;
+- resolved current Blocker: resolve, resume, then Execute Work;
+- deliberately parked work: leave Current Slice empty and return the effect to Workflow;
+- settled outcome: close, reconcile present state, then return to Workflow;
+- malformed, stale, locked, conflicting, or uncertain state: preserve evidence and return to Workflow or Discuss;
 - point-in-time transfer: [Handoff](../handoff/SKILL.md).
 
-Track Work ends when the record accurately preserves supported state and one next useful action. It does not claim implementation, review, migration effectiveness, commit, release, or publication is complete.
+Track Work ends when the record accurately preserves supported state and one next useful action. It does not claim implementation, review, migration, promotion, commit, release, or publication is complete.
