@@ -919,18 +919,8 @@ test("Pi delivers stable Cognitive Routing cues and refreshes runtime state only
     await host.handlers.get("session_compact")({ type: "session_compact", reason: "compaction" }, ctx);
     const compactContext = await contextHandler({ messages: branchContext.messages }, ctx);
     assert.ok(compactContext);
-    assert.equal(
-      compactContext.messages.filter((message) => message.customType === "freeflow-runtime-state").length,
-      1,
-    );
-    assert.equal(
-      compactContext.messages.filter((message) => message.customType === "freeflow-context-recovery").length,
-      1,
-    );
-    assert.match(
-      compactContext.messages.findLast((message) => message.customType === "freeflow-runtime-state").content,
-      /Profile: `reasoning`/,
-    );
+    assert.equal(compactContext.messages.length, 1);
+    assert.match(compactContext.messages[0].content, /Profile: `reasoning`/);
 
     const second = await beforeAgentStart({ systemPrompt: "base prompt" }, ctx);
     assert.equal(second.message, undefined);

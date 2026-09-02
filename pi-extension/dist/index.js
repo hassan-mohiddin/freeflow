@@ -33,7 +33,6 @@ import {
   filterBootstrapMessage,
   setFreeflowStatus,
   skillPrompt,
-  withFreeflowContextRecoveryMessage,
   withFreeflowRuntimeState,
 } from "./runtime/runtime-context.js";
 function unavailableCapability(capability, code, message) {
@@ -117,38 +116,29 @@ function modelFacingCapabilityState(
   }
   return surfaceState;
 }
-function sessionEntries(ctx) {
+function sessionHasConversationOrRoutingState(ctx) {
   try {
     const entries = ctx?.sessionManager?.getBranch?.() ?? ctx?.sessionManager?.getEntries?.() ?? [];
-    return Array.isArray(entries) ? entries : [];
-  } catch {
-    return [];
-  }
-}
-function sessionHasConversationState(ctx) {
-  return sessionEntries(ctx).some((entry) => {
-    if (!entry || typeof entry !== "object") return false;
-    const record = entry;
-    return (
-      typeof record.type === "string" &&
-      ["message", "custom_message", "compaction", "branch_summary"].includes(record.type)
-    );
-  });
-}
-function sessionHasConversationOrRoutingState(ctx) {
-  return (
-    sessionHasConversationState(ctx) ||
-    sessionEntries(ctx).some((entry) => {
+    if (!Array.isArray(entries)) return false;
+    return entries.some((entry) => {
       if (!entry || typeof entry !== "object") return false;
       const record = entry;
+      if (
+        typeof record.type === "string" &&
+        ["message", "custom_message", "compaction", "branch_summary"].includes(record.type)
+      ) {
+        return true;
+      }
       return (
         record.type === "custom" &&
         (record.customType === COGNITIVE_ROUTING_INTENT_ENTRY ||
           record.customType === COGNITIVE_ROUTING_CONTROL_ENTRY ||
           record.customType === COGNITIVE_ROUTING_INACTIVE_ENTRY)
       );
-    })
-  );
+    });
+  } catch {
+    return false;
+  }
 }
 async function applyCapabilityToolVisibility(
   pi,
@@ -274,9 +264,6 @@ export default function freeflow(pi) {
   let latestCognitiveRoutingContext;
   let providerSurfaceSnapshot;
   let runtimeStateRefreshRequired = true;
-  let contextRecoveryGeneration = 0;
-  let contextRecoverySettledGeneration = 0;
-  let contextRecoveryProjectedGeneration;
   let freeflowContextRuntime;
   let contextVirtualizationRuntime;
   let conversationHistoryRuntime;
@@ -290,11 +277,6 @@ export default function freeflow(pi) {
         conversationHistory: capabilityState?.conversationHistory?.effective === true,
       },
     );
-  };
-  const canRecoverContext = (capabilityState, freeflowContext) =>
-    capabilityState?.enabled === true && hasUsableMandatoryPrompts(freeflowContext);
-  const queueContextRecovery = () => {
-    contextRecoveryGeneration += 1;
   };
   const buildProviderSurface = async (ctx, activateCognitiveRouting = false) => {
     const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
@@ -355,7 +337,6 @@ export default function freeflow(pi) {
     });
     await applyCapabilityToolVisibility(pi, ctx, surfaceCapabilityState, routingSnapshot);
     registerContextToolForState(surfaceCapabilityState);
-    return { capabilityState: surfaceCapabilityState, freeflowContext };
   };
   if (routingSession.supportsCognitiveRoutingRuntime()) {
     registerCognitiveRoutingTool(toolRegistrar, () => routingSession.controllerForTool());
@@ -496,9 +477,6 @@ export default function freeflow(pi) {
     latestCognitiveRoutingContext = ctx;
     providerSurfaceSnapshot = undefined;
     runtimeStateRefreshRequired = true;
-    contextRecoveryGeneration = 0;
-    contextRecoverySettledGeneration = 0;
-    contextRecoveryProjectedGeneration = undefined;
     restoreSessionOverrides(ctx);
     freeflowContextRuntime = new FreeflowContextRuntime(ctx);
     contextVirtualizationRuntime = new ContextVirtualizationRuntime(pi, ctx, freeflowContextRuntime);
@@ -523,12 +501,6 @@ export default function freeflow(pi) {
     } else {
       routingSession.clearArmed();
     }
-    if (
-      (event?.reason === "resume" || (event?.reason === "startup" && sessionHasConversationState(ctx))) &&
-      canRecoverContext(snapshot.capabilityState, snapshot.freeflowContext)
-    ) {
-      queueContextRecovery();
-    }
     registerContextToolForState(snapshot.capabilityState);
     const routingSnapshot = routingSession.snapshot();
     setFreeflowStatus(
@@ -541,10 +513,6 @@ export default function freeflow(pi) {
     await applyCapabilityToolVisibility(pi, ctx, snapshot.capabilityState, routingSnapshot);
   });
   pi.on("agent_settled", async (_event, ctx) => {
-    if (contextRecoveryProjectedGeneration === contextRecoveryGeneration) {
-      contextRecoverySettledGeneration = contextRecoveryGeneration;
-      contextRecoveryProjectedGeneration = undefined;
-    }
     if (!routingSession.hasController()) return undefined;
     await applyLiveCapabilityStateForSession(ctx);
     return undefined;
@@ -556,7 +524,7 @@ export default function freeflow(pi) {
     contextVirtualizationRuntime = undefined;
     conversationHistoryRuntime = undefined;
   });
-  pi.on("session_tree", async (event, ctx) => {
+  pi.on("session_tree", async (_event, ctx) => {
     latestCognitiveRoutingContext = ctx;
     providerSurfaceSnapshot = undefined;
     runtimeStateRefreshRequired = true;
@@ -567,10 +535,7 @@ export default function freeflow(pi) {
       await contextVirtualizationRuntime.recover(ctx);
     }
     conversationHistoryRuntime?.setContext(ctx);
-    const surface = await applyLiveCapabilityStateForSession(ctx);
-    if (event?.summaryEntry && canRecoverContext(surface.capabilityState, surface.freeflowContext)) {
-      queueContextRecovery();
-    }
+    await applyLiveCapabilityStateForSession(ctx);
   });
   pi.on("session_compact", async (_event, ctx) => {
     latestCognitiveRoutingContext = ctx;
@@ -582,8 +547,7 @@ export default function freeflow(pi) {
       await contextVirtualizationRuntime.recover(ctx);
     }
     conversationHistoryRuntime?.setContext(ctx);
-    const surface = await applyLiveCapabilityStateForSession(ctx);
-    if (canRecoverContext(surface.capabilityState, surface.freeflowContext)) queueContextRecovery();
+    await applyLiveCapabilityStateForSession(ctx);
   });
   pi.on("before_agent_start", async (event, ctx) => {
     latestCognitiveRoutingContext = ctx;
@@ -643,15 +607,6 @@ export default function freeflow(pi) {
       messages = nextMessages;
     }
     if (forceRuntimeStateRefresh) runtimeStateRefreshRequired = false;
-    const recoveryRequired = contextRecoveryGeneration > contextRecoverySettledGeneration;
-    const injectRecoveryMessage =
-      recoveryRequired && canRecoverContext(surfaceCapabilityState, snapshot.freeflowContext);
-    const messagesWithRecovery = withFreeflowContextRecoveryMessage(messages, injectRecoveryMessage);
-    if (messagesWithRecovery !== messages) {
-      changed = true;
-      messages = messagesWithRecovery;
-    }
-    if (injectRecoveryMessage) contextRecoveryProjectedGeneration = contextRecoveryGeneration;
     return changed ? { messages } : undefined;
   });
   pi.on("tool_call", async (event, ctx) => {

@@ -742,7 +742,7 @@ test("disabled Context Virtualization hides the tool and leaves tool results unc
     );
     assert.ok(contextResult);
     assert.deepEqual(contextResult.messages[0], harness.entries[0].message);
-    assert.ok(contextResult.messages.some((message) => message.customType === "freeflow-runtime-state"));
+    assert.equal(contextResult.messages.at(-1).customType, "freeflow-runtime-state");
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

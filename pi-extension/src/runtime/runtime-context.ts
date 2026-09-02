@@ -90,9 +90,6 @@ const SESSION_CORE_KEYS = new Set<SessionCoreKey>(["enabled", "contextVirtualiza
 export const COGNITIVE_ROUTING_SWITCH_TOOL_NAME = "freeflow_switch_profile";
 export const FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-runtime-state";
 export const COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-cognitive-routing-runtime-state";
-export const FREEFLOW_CONTEXT_RECOVERY_MESSAGE_TYPE = "freeflow-context-recovery";
-export const FREEFLOW_CONTEXT_RECOVERY_MESSAGE =
-  'Freeflow context recovery required: context continuity changed. Follow "Recover After Context Loss" in the system prompt before continuing.';
 export const WORKFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-workflow-bootstrap";
 export const COGNITIVE_ROUTING_BOOTSTRAP_MESSAGE_TYPE = "freeflow-cognitive-routing-bootstrap";
 export const FREEFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-bootstrap";
@@ -680,25 +677,6 @@ export function withFreeflowRuntimeState(
     runtimeStateMessages[0]?.content === runtimeState.content;
   if (unchanged) return source;
   return [...withoutFreeflowRuntimeState(source), runtimeState];
-}
-
-export function withFreeflowContextRecoveryMessage(
-  messages: readonly FreeflowContextMessage[] | undefined,
-  required: boolean,
-) {
-  const source = Array.isArray(messages) ? messages : [];
-  const withoutRecovery = source.filter((message) => message?.customType !== FREEFLOW_CONTEXT_RECOVERY_MESSAGE_TYPE);
-  if (!required) return withoutRecovery.length === source.length ? source : withoutRecovery;
-  return [
-    ...withoutRecovery,
-    {
-      role: "custom",
-      customType: FREEFLOW_CONTEXT_RECOVERY_MESSAGE_TYPE,
-      content: FREEFLOW_CONTEXT_RECOVERY_MESSAGE,
-      display: false,
-      details: { source: "provider-request-context-recovery" },
-    },
-  ];
 }
 
 export function runtimeContext(freeflowContext, capabilityState) {

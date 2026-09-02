@@ -221,7 +221,7 @@ test("missing child prompt removes only that capability from every model-facing 
     assert.ok(!activeToolNames().includes("freeflow_context"));
 
     const providerContext = await handlers.get("context")({ messages: [] }, ctx);
-    assert.match(lastRuntimeState(providerContext.messages).content, /Context Virtualization: unavailable/);
+    assert.match(providerContext.messages.at(-1).content, /Context Virtualization: unavailable/);
 
     await writeFile(join(root, "runtime", "prompts", "context-virtualization.md"), " \n\t", "utf8");
     const whitespaceBefore = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
@@ -232,7 +232,7 @@ test("missing child prompt removes only that capability from every model-facing 
     );
     assert.ok(!activeToolNames().includes("freeflow_context"));
     const whitespaceContext = await handlers.get("context")({ messages: [] }, ctx);
-    assert.match(lastRuntimeState(whitespaceContext.messages).content, /Context Virtualization: unavailable/);
+    assert.match(whitespaceContext.messages.at(-1).content, /Context Virtualization: unavailable/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
     await rm(root, { recursive: true, force: true });

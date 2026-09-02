@@ -31,8 +31,6 @@ The extension supplies one compact volatile Runtime State record at session star
 
 Runtime State is current-state data, not stable policy. It does not replace the prompt fragments, contain hidden reasoning, authorize a tool call, or reconstruct state from earlier transition history.
 
-When Freeflow is active, Pi separately injects one hidden, transient recovery marker after successful compaction, branch navigation with a summary, session resume, or startup with an existing conversation. The marker tells the model to follow `Recover After Context Loss`; it is not Runtime State and is not persisted in canonical session history. Deliberate unsummarized rewinds, fresh/new/reload/fork sessions, and failed or cancelled operations do not trigger it.
-
 ### 4. Discoverable skills and tools
 
 Complete methods live in discoverable packages:

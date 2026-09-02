@@ -43,7 +43,6 @@ When effective, the Freeflow package provides:
 - the 25-skill model/contributor surface, including Workflow and Action Selection;
 - the mandatory `runtime/prompts/core.md` and `runtime/prompts/interaction-contract.md` fragments;
 - refresh-aware Runtime State at session start, context reconstruction, and displayed state changes;
-- a transient context-recovery marker after successful context boundaries that require the system-prompt recovery procedure;
 - optional Context Virtualization for archiving consumed tool results;
 - optional Conversation History for bounded current-branch recovery;
 - Cognitive Routing through the shared Control/Profile skill, profile tool, controls, and transition history;
