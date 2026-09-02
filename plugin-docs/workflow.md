@@ -64,7 +64,7 @@ Interaction Lifecycle
       └─ Action Selection guides uncertain environment interactions
 ```
 
-The Cognitive Execution Loop exists only for automatic, authorized execution-bearing work. Conversational Reasoning is the default; Yield, Delegate, and Act Bounded govern how execution reaches the environment. Manual Cognitive Routing control runs the ordinary unsplit Workflow. A Slice may contain multiple sequential execution boundaries, but a boundary is not a new owner, task, authority source, Plan, or Working Record.
+The Cognitive Execution Loop exists only for automatic, authorized execution-bearing work. Conversational Reasoning is the default and owns user-facing interpretation and reporting; Yield, Delegate, and Act Bounded govern how execution reaches the environment. Automatic Standard only executes active Yield or Delegate contracts and never conducts substantive user-facing interaction; at every return condition it transfers state to Reasoning. Manual Cognitive Routing control runs the ordinary unsplit Workflow. A Slice may contain multiple sequential execution boundaries, but a boundary is not a new owner, task, authority source, Plan, or Working Record.
 
 ### Workflow ownership and composition
 

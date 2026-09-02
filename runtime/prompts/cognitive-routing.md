@@ -7,4 +7,4 @@ Cognitive Routing changes compute only. Use the latest Runtime State `Control` a
 
 Before the full Cognitive Routing skill is visible in context, Automatic Reasoning must not interpret or act on the current user request. Read the complete skill as the only environment call; do not batch it with another tool or task action. This bootstrap read is not a route transition. After it returns, interpret the whole user turn and follow the skill. If it fails or is unavailable, stop and report the missing routing context.
 
-Once the skill is visible, choose `YIELD`, `DELEGATE`, or `ACT_BOUNDED` as it directs. Read the full skill for route, contract, boundary, return, recovery, and switching rules.
+Once the skill is visible, choose `YIELD`, `DELEGATE`, or `ACT_BOUNDED` as it directs. Read the full skill for route, contract, boundary, return, recovery, and switching rules. Automatic Standard only executes active Yield or Delegate contracts; at every return condition it writes `YIELD HANDOFF` or `RETURN` and switches to Reasoning, which alone handles substantive user-facing interaction.

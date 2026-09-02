@@ -45,9 +45,11 @@ Runtime State establishes current control and profile, not the model-written Yie
 | Manual · Standard | Standard runs the ordinary unsplit Workflow; no automatic routing protocol applies. |
 | Manual · Reasoning | Reasoning runs the ordinary unsplit Workflow; no automatic routing protocol applies. |
 
-Reasoning's conversational work is the Automatic default and needs no route marker.
+Reasoning's conversational work is the Automatic default and needs no route marker. All substantive user-facing interpretation, discussion, decisions, questions, assessment, progress, and final reporting belong to Reasoning.
 
-In Automatic, begin every new user interaction in Reasoning, even if the preceding automatic route used Standard. If Standard is still executing, complete only the current safe interaction before handing back; do not interrupt an atomic environment action to satisfy the profile default.
+Automatic Standard never conducts user-facing interaction. It only executes an active Yield or Delegate contract, writes the compact `YIELD HANDOFF` or `RETURN` needed to transfer state, and switches to Reasoning. It must not interpret or answer user messages, ask questions, discuss decisions, assess the result, or give progress or final reports. The visible transfer record is control text, not substantive user interaction.
+
+In Automatic, begin every new user interaction in Reasoning, even if the preceding route used Standard. At any return condition—including completion, available evidence, a blocker or material question, the contract's stop condition, or a fresh user message—Standard finishes only the current atomic environment interaction, preserves partial effects and evidence, writes the transfer record for the active route, and switches. Reasoning then interprets, assesses, asks, discusses, or reports.
 
 The current owner remains unchanged across profile transitions. A transition never authorizes action, creates task memory, resolves a user decision, or proves a result. Workflow owns authority, the active method, checkpoints, and Supported Exit. Track Work owns durable task memory. Cognitive Routing owns none of them.
 
@@ -147,7 +149,7 @@ Standard must hand back when:
 - broad exploration or material Reasoning judgment becomes necessary;
 - a user-owned choice or source conflict appears;
 - verification fails or is inconclusive;
-- the user interrupts, cancels, or changes direction;
+- any fresh user message arrives, including an interruption, cancellation, or direction change;
 - scope, architecture, policy, failure behavior, or evidence requirements materially change;
 - the result is supported and complete;
 - no covered action can advance it.
@@ -201,7 +203,7 @@ Return when:
 
 - required evidence is available;
 - scoped execution or verification ends;
-- the user interrupts, cancels, or changes direction;
+- any fresh user message arrives, including an interruption, cancellation, or direction change;
 - execution, verification, or evidence fails or becomes inconclusive;
 - a contradiction or material judgment appears;
 - the contract's stop condition is reached;
@@ -297,7 +299,7 @@ The user owns Manual versus Automatic control and the held profile. A manual hol
 
 Under Manual · Standard:
 
-- Standard runs the ordinary unsplit Workflow;
+- Standard runs the ordinary unsplit Workflow, including user-facing interaction;
 - Action Selection, TDD, Simplify Code, verification, review, diagnosis, and domain guidance remain available normally;
 - do not request or simulate automatic routing.
 
@@ -336,7 +338,7 @@ Failed transitions preserve the supported route and never authorize a workaround
 
 Reasoning must not perform direct execution to bypass a failed transition. A fresh `ACT_BOUNDED` scope still requires its independent eligibility conditions.
 
-User interruption is a handoff or return condition. At the next safe point, Standard sends `YIELD HANDOFF` or `RETURN` with partial effects and unverified work. If interruption prevents that marker and Reasoning regains control, treat Yield as incomplete and Delegate as still `OPEN`; never infer completion from a profile change.
+Every Yield or Delegate return condition is a transfer condition for Automatic Standard, including completion, available evidence, a blocker or material question, the contract's stop condition, and any fresh user message. Standard must not conduct substantive user-facing interaction. At the next safe point, preserve partial effects and unverified work, write `YIELD HANDOFF` or `RETURN`, and switch to Reasoning. If interruption prevents that marker and Reasoning regains control, treat Yield as incomplete and Delegate as still `OPEN`; never infer completion from a profile change.
 
 Do not switch during an atomic environment interaction when avoidable. If cancellation may have left partial effects, route inspection through Standard unless a fresh `ACT_BOUNDED` scope independently qualifies.
 
@@ -373,6 +375,7 @@ Do not:
 
 - let Automatic · Reasoning perform direct execution outside `ACT_BOUNDED`;
 - let Automatic · Standard begin untracked execution;
+- let Automatic · Standard conduct substantive user-facing interaction outside `YIELD HANDOFF` or `RETURN` control text;
 - let Standard decide whether Reasoning is needed;
 - turn Reasoning or Standard into a new owner because the profile changed;
 - treat Yield as an open boundary;

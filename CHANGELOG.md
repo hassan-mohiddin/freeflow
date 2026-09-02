@@ -14,7 +14,7 @@
 ### Changed
 
 - Refines core runtime prompts and workflow guidance with explicit authority and evidence boundaries, current-owner routing, bounded environment interactions, peer execution methods, and expanded design and skill-authoring references.
-- Changes Cognitive Routing automatic control to start and return in Reasoning, adds Yield/Delegate/Act Bounded routing with model-written execution boundaries, and refreshes Runtime State only after context reconstruction or displayed-state changes.
+- Changes Cognitive Routing automatic control to start and return in Reasoning, keeps all substantive user-facing interaction in Reasoning while Standard transfers execution state at return conditions, adds Yield/Delegate/Act Bounded routing with model-written execution boundaries, and refreshes Runtime State only after context reconstruction or displayed-state changes.
 - Reconciles the shipped skill-routing map with current direct routes and resource dependencies.
 - Documents the Pi 0.84.3+ support floor and Pi 0.84.4 integration test target.
 - Rewrites Cognitive Routing guidance around shared context, reasoning-led execution, evidence-first delegation, Reasoning-owned self-review, and explicitly bounded Act Bounded execution while preserving execution-boundary lifecycle semantics.

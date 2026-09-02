@@ -37,7 +37,7 @@ A manual hold lets the user keep `standard` or `reasoning` active. The held prof
 
 ### Automatic control
 
-Automatic control lets Cognitive Routing choose compute placement. Each new user interaction begins in Reasoning, and internal profile transitions are not user-selected cycles. Conversational Reasoning is the default and needs no route marker.
+Automatic control lets Cognitive Routing choose compute placement. Each new user interaction begins in Reasoning, and internal profile transitions are not user-selected cycles. Conversational Reasoning is the default and needs no route marker. All user-facing interpretation, discussion, decisions, questions, assessment, and reporting belong to Reasoning.
 
 Before the full Cognitive Routing skill is visible, Automatic Reasoning reads that skill as its only environment action and stops. It does not interpret the current user request or perform task/evidence work until the read returns. If the read fails or is unavailable, routing stops and reports missing context.
 
@@ -47,7 +47,7 @@ For an authorized execution-bearing activity, Reasoning chooses one route:
 - **Delegate:** Reasoning remains responsible for the governing result while Standard executes a decision-complete contract inside an open model-written boundary.
 - **Act Bounded:** Reasoning performs a bounded direct execution only when judgment and action are materially inseparable and delegation would cause material loss.
 
-Standard is used automatically only through Yield or Delegate. The target is cost-sensitive quality, not a claim of equivalence between profiles.
+Standard is used automatically only through Yield or Delegate. It never conducts substantive user-facing interaction; at every return condition it transfers state with `YIELD HANDOFF` or `RETURN` to Reasoning, which handles interpretation, questions, discussion, assessment, and reporting. The transfer records are control text, not user interaction. The target is cost-sensitive quality, not a claim of equivalence between profiles.
 
 ## Cognitive Execution Routes
 

@@ -889,6 +889,9 @@ test("Pi delivers stable Cognitive Routing cues and refreshes runtime state only
     assert.match(first.systemPrompt, /YIELD/);
     assert.match(first.systemPrompt, /DELEGATE/);
     assert.match(first.systemPrompt, /ACT_BOUNDED/);
+    assert.match(first.systemPrompt, /Automatic Standard only executes active Yield or Delegate contracts/);
+    assert.match(first.systemPrompt, /writes `YIELD HANDOFF` or `RETURN` and switches to Reasoning/);
+    assert.match(first.systemPrompt, /which alone handles substantive user-facing interaction/);
     assert.doesNotMatch(first.systemPrompt, /TASK ACT|OBSERVE/);
     assert.ok(
       first.systemPrompt.indexOf("## Action Selection Cue") < first.systemPrompt.indexOf("## Cognitive Routing Cue"),
