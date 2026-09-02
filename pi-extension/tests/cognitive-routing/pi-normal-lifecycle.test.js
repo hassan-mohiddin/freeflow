@@ -420,7 +420,7 @@ test("normal Pi preserves Cognitive Routing skill and runtime surface without Co
     await configure(cwd);
     const before = await start(host);
     assert.match(before.systemPrompt, /## Cognitive Routing Cue/);
-    assert.doesNotMatch(before.systemPrompt, /Conversation/);
+    assert.doesNotMatch(before.systemPrompt, /Conversation(?: Route| profile| selects)/);
     const resources = await host.handlers.get("resources_discover")({}, host.ctx);
     const routingSkillPath = resources.skillPaths.find((path) => path.endsWith("cognitive-routing/SKILL.md"));
     assert.ok(routingSkillPath);

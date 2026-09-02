@@ -60,11 +60,11 @@ Interaction Lifecycle
       │  ├─ YIELD → Standard leads ordinary work → YIELD HANDOFF → Reasoning
       │  ├─ DELEGATE → open model-written boundary → Standard executes
       │  │  └─ RETURN → Reasoning assesses; boundary remains open until CLOSE
-      │  └─ TASK ACT → Reasoning performs narrow direct OBSERVE or ACT_BOUNDED
+      │  └─ ACT_BOUNDED → Reasoning performs bounded direct execution
       └─ Action Selection guides uncertain environment interactions
 ```
 
-The Cognitive Execution Loop exists only for automatic, authorized execution-bearing work. Manual Cognitive Routing control runs the ordinary unsplit Workflow. A Slice may contain multiple sequential execution boundaries, but a boundary is not a new owner, task, authority source, Plan, or Working Record.
+The Cognitive Execution Loop exists only for automatic, authorized execution-bearing work. Conversational Reasoning is the default; Yield, Delegate, and Act Bounded govern how execution reaches the environment. Manual Cognitive Routing control runs the ordinary unsplit Workflow. A Slice may contain multiple sequential execution boundaries, but a boundary is not a new owner, task, authority source, Plan, or Working Record.
 
 ### Workflow ownership and composition
 

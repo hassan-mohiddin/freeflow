@@ -68,7 +68,7 @@ While either host is idle:
 
 Both hosts use the same Cognitive Routing skill, profile tool, controls, and transition history. A host without the required model-state APIs leaves routing unavailable.
 
-Under automatic control, each new user interaction begins in Reasoning. For authorized execution, Reasoning chooses Yield for a small exact result, Delegate for Standard execution under an open model-written boundary, or Task Act for a narrow direct scope. Yield hands back to Reasoning; Delegate returns evidence while its boundary remains open until Reasoning closes it. Cognitive Routing changes compute placement only and does not change the current Workflow owner, authority envelope, task scope, or verification requirements.
+Under automatic control, each new user interaction begins in Reasoning. Conversational Reasoning is the default and needs no route marker. For authorized execution, Reasoning chooses Yield for a complete ordinary result, Delegate for Standard execution under an open model-written boundary, or Act Bounded for exceptional direct execution when judgment and action are materially inseparable. Yield hands back to Reasoning; Delegate returns evidence while its boundary remains open until Reasoning closes it. Cognitive Routing changes compute placement only and does not change the current Workflow owner, authority envelope, task scope, or verification requirements.
 
 ## Ownership boundary
 

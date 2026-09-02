@@ -37,15 +37,17 @@ A manual hold lets the user keep `standard` or `reasoning` active. The held prof
 
 ### Automatic control
 
-Automatic control lets Cognitive Routing choose compute placement. Each new user interaction begins in Reasoning, and internal profile transitions are not user-selected cycles. For an authorized execution-bearing activity, Reasoning chooses one route:
+Automatic control lets Cognitive Routing choose compute placement. Each new user interaction begins in Reasoning, and internal profile transitions are not user-selected cycles. Conversational Reasoning is the default and needs no route marker.
+
+Before the full Cognitive Routing skill is visible, Automatic Reasoning reads that skill as its only environment action and stops. It does not interpret the current user request or perform task/evidence work until the read returns. If the read fails or is unavailable, routing stops and reports missing context.
+
+For an authorized execution-bearing activity, Reasoning chooses one route:
 
 - **Yield:** Standard temporarily leads a small, exact, directly verifiable result and hands it back when complete.
-- **Delegate:** Reasoning remains responsible for the governing result while Standard executes an adaptive contract inside an open model-written boundary.
-- **Task Act:** Reasoning performs a narrow direct observation or action when judgment and action are materially inseparable.
+- **Delegate:** Reasoning remains responsible for the governing result while Standard executes a decision-complete contract inside an open model-written boundary.
+- **Act Bounded:** Reasoning performs a bounded direct execution only when judgment and action are materially inseparable and delegation would cause material loss.
 
-Automatic control always begins and returns to the Reasoning profile between routes. Standard is used automatically only through Yield or Delegate.
-
-The target is cost-sensitive quality, not a claim of equivalence between profiles.
+Standard is used automatically only through Yield or Delegate. The target is cost-sensitive quality, not a claim of equivalence between profiles.
 
 ## Cognitive Execution Routes
 
@@ -57,23 +59,21 @@ Workflow establishes authority, owner, and slice
    ├─ DELEGATE
    │  └─ open a model-written boundary; Standard executes
    │     └─ RETURN → Reasoning assessment; boundary remains open
-   └─ TASK ACT
-      └─ narrow direct OBSERVE or ACT_BOUNDED scope → Reasoning
+   └─ ACT_BOUNDED
+      └─ Reasoning performs bounded direct execution; no boundary is created
 ```
 
-Under automatic control, Yield has no Cognitive Routing execution boundary. Delegate opens one with `NEW` or `REOPEN`; `RETURN` leaves it open and only Reasoning closes it. Task Act creates no boundary. A closed boundary may be reopened only for the same authorized outcome.
+Under automatic control, Yield has no Cognitive Routing execution boundary. Delegate opens one with `NEW` or `REOPEN`; `RETURN` leaves it open and only Reasoning closes it. `ACT_BOUNDED` creates no execution boundary and may contribute evidence to an open one. A closed boundary may be reopened only for the same authorized outcome.
 
 Delegation transfers bounded execution, not the cognitive boundary. Standard must not reinterpret the governing judgment, expand scope, hide contradictory evidence, or continue after the return condition.
 
-## Reasoning action gate
+## Direct Reasoning execution
 
-Reasoning Thinks by default. Under automatic control, it may choose Yield, Delegate, or direct Task Act for an authorized execution-bearing activity. Direct Task Act remains gated:
+Reasoning's conversational work is the default and needs no route marker. Outside an explicit `ACT_BOUNDED` scope, Automatic Reasoning performs no environment interaction, active evidence generation, mutation, tests, diagnostics, builds, probes, or substantive artifact production. Use Yield for a complete ordinary result and Delegate when Reasoning must assess evidence or retain cognitive leadership.
 
-- `OBSERVE` is one narrow, discriminating evidence scope when direct observation is cheaper and clearer than delegation;
-- `ACT_BOUNDED` is rare work where judgment and action are materially inseparable and delegation would create greater expected loss;
-- direct Task Act may occur whenever Reasoning controls the activity, including while assessing an open delegated boundary, but not while Standard is actively executing.
+`ACT_BOUNDED` is the only direct execution route for Automatic Reasoning. It requires judgment and environment action to be materially inseparable and shared-context delegation to cause material loss beyond premium execution cost. The named scope may contain the related environment tools and execution needed for its result, but it creates no boundary, changes no owner, and grants no authority. It may contribute evidence to an open Delegate boundary but cannot close it.
 
-Each Act scope expires at its stop condition and never authorizes adjacent work. Missing authority or a user-owned decision returns to Workflow outside the gate.
+The scope ends at its stop condition, interruption, context loss, or material scope change. Recover before selecting a fresh route after context loss. Ordinary inspection, research, edits, tests, builds, verification, documentation, and cleanup belong to Standard through Yield or Delegate.
 
 ## Controls and history
 

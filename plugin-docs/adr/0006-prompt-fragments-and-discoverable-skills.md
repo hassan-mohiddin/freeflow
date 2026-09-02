@@ -18,7 +18,7 @@ Workflow and Cognitive Routing are no longer delivered as one-time bootstrap mes
 
 If a prompt fragment or optional capability cannot be loaded or exposed reliably, the affected capability is marked unavailable, its cue, skill, and tools are omitted, and the host's base prompt and ordinary operation are preserved. A missing core prompt makes Freeflow model-facing guidance unavailable without fabricating active capability state.
 
-Cognitive Routing changes compute only. Its current skill body is required before applying another Freeflow skill or task Act when the capability is active and the body is absent; this significance does not change mode, authority, or Workflow ownership.
+Cognitive Routing changes compute only. Its current skill body is required before applying another Freeflow skill or performing task/evidence work when the capability is active and the body is absent. The body-only bootstrap read must be isolated from user-prompt interpretation and other task actions; this significance does not change mode, authority, or Workflow ownership.
 
 ## Consequences
 

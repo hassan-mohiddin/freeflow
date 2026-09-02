@@ -883,10 +883,13 @@ test("Pi delivers stable Cognitive Routing cues and refreshes runtime state only
 
     assert.equal(first.message, undefined);
     assert.match(first.systemPrompt, /## Cognitive Routing Cue/);
-    assert.match(first.systemPrompt, /each new user interaction begins in Reasoning/);
+    assert.match(first.systemPrompt, /each new interaction begins in Reasoning/);
+    assert.match(first.systemPrompt, /Read the complete skill as the only environment call/);
+    assert.match(first.systemPrompt, /do not batch it with another tool or task action/);
     assert.match(first.systemPrompt, /YIELD/);
     assert.match(first.systemPrompt, /DELEGATE/);
-    assert.match(first.systemPrompt, /TASK ACT/);
+    assert.match(first.systemPrompt, /ACT_BOUNDED/);
+    assert.doesNotMatch(first.systemPrompt, /TASK ACT|OBSERVE/);
     assert.ok(
       first.systemPrompt.indexOf("## Action Selection Cue") < first.systemPrompt.indexOf("## Cognitive Routing Cue"),
     );

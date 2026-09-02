@@ -85,11 +85,11 @@ Interaction Lifecycle
       │  ├─ YIELD → Standard leads ordinary work → YIELD HANDOFF → Reasoning
       │  ├─ DELEGATE → open model-written boundary → Standard executes
       │  │  └─ RETURN → Reasoning assesses; boundary remains open until CLOSE
-      │  └─ TASK ACT → Reasoning performs narrow direct OBSERVE or ACT_BOUNDED
+      │  └─ ACT_BOUNDED → Reasoning performs bounded direct execution
       └─ Action Selection guides uncertain environment interactions
 ```
 
-Manual Cognitive Routing control runs the ordinary unsplit Workflow. Under automatic control, Yield has no execution boundary, Delegate keeps one model-written boundary open until Reasoning closes it, and Task Act creates no boundary. Cognitive Routing changes compute placement only and never changes authority, owner, task scope, evidence requirements, or review independence.
+Manual Cognitive Routing control runs the ordinary unsplit Workflow. Under automatic control, conversational Reasoning is the default; Yield has no execution boundary, Delegate keeps one model-written boundary open until Reasoning closes it, and Act Bounded creates no boundary. Cognitive Routing changes compute placement only and never changes authority, owner, task scope, evidence requirements, or review independence.
 
 ## Failure and recovery boundaries
 
