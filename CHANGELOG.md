@@ -10,6 +10,7 @@
 ### Added
 
 - Adds Cognitive Routing support to normal Pi through its official model, thinking-level, model-registry, and session-entry APIs while preserving the existing PiFlow host path, transition recovery, native-override handling, and rollback evidence.
+- Adds a transient Pi context-recovery marker after successful compaction, summarized tree navigation, session resume, or startup with an existing conversation; it remains through the post-boundary run without being persisted.
 
 ### Changed
 

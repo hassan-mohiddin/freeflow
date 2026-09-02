@@ -26,7 +26,7 @@ One Interaction Lifecycle may contain several bounded activities. A Slice may sp
 
 ## Recover After Context Loss
 
-After compaction, summarization, clear, resume, session navigation, handoff, or uncertain continuity, pause task-directed work. Until recovery is complete, use the environment only for bounded reads needed to recover current state.
+After a successful compaction, branch navigation with a summary, resuming a session, startup with an existing conversation, or an explicitly reported context discontinuity, pause task-directed work. Until recovery is complete, use the environment only for bounded reads needed to recover current state.
 
 Treat summaries, records, prior skill reads, transition results, and historical messages as memory. They may preserve still-valid context and authority, but they do not create or widen authority, prove live state, keep a method active, or settle current ownership. Current user direction, live source truth, and the latest Freeflow Runtime State take precedence when they conflict.
 

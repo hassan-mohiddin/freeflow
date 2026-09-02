@@ -143,6 +143,128 @@ function lastRuntimeState(messages) {
   return messages.findLast((message) => message.customType === "freeflow-runtime-state");
 }
 
+function recoveryMarkers(messages) {
+  return messages.filter((message) => message.customType === "freeflow-context-recovery");
+}
+
+const CONTEXT_RECOVERY_MARKER =
+  'Freeflow context recovery required: context continuity changed. Follow "Recover After Context Loss" in the system prompt before continuing.';
+
+test("injects one recovery marker after successful compaction until the run settles", async () => {
+  const cwd = await configuredRepo();
+  try {
+    const { handlers, entries } = loadExtension();
+    const ctx = context(cwd);
+    await handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    await handlers.get("session_compact")({ type: "session_compact", reason: "threshold", willRetry: false }, ctx);
+
+    const first = await handlers.get("context")({ messages: [] }, ctx);
+    const firstMarkers = recoveryMarkers(first.messages);
+    assert.equal(firstMarkers.length, 1);
+    assert.equal(firstMarkers[0].display, false);
+    assert.equal(firstMarkers[0].content, CONTEXT_RECOVERY_MARKER);
+    assert.ok(lastRuntimeState(first.messages));
+    assert.equal(
+      entries.some((entry) => entry.customType === "freeflow-context-recovery"),
+      false,
+    );
+
+    const duringRun = await handlers.get("context")({ messages: first.messages }, ctx);
+    assert.equal(recoveryMarkers(duringRun.messages).length, 1);
+
+    await handlers.get("agent_settled")({ type: "agent_settled" }, ctx);
+    const settled = await handlers.get("context")({ messages: duringRun.messages }, ctx);
+    assert.equal(recoveryMarkers(settled.messages).length, 0);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("keeps recovery pending when a newer boundary occurs or no request followed compaction", async () => {
+  const cwd = await configuredRepo();
+  try {
+    const { handlers } = loadExtension();
+    const ctx = context(cwd);
+    await handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+
+    await handlers.get("session_compact")({ type: "session_compact", reason: "threshold", willRetry: false }, ctx);
+    const first = await handlers.get("context")({ messages: [] }, ctx);
+    await handlers.get("session_compact")({ type: "session_compact", reason: "overflow", willRetry: true }, ctx);
+    await handlers.get("agent_settled")({ type: "agent_settled" }, ctx);
+
+    const afterNewerBoundary = await handlers.get("context")({ messages: first.messages }, ctx);
+    assert.equal(recoveryMarkers(afterNewerBoundary.messages).length, 1);
+
+    await handlers.get("agent_settled")({ type: "agent_settled" }, ctx);
+    const settled = await handlers.get("context")({ messages: afterNewerBoundary.messages }, ctx);
+    assert.equal(recoveryMarkers(settled.messages).length, 0);
+
+    await handlers.get("session_compact")({ type: "session_compact", reason: "threshold", willRetry: false }, ctx);
+    await handlers.get("agent_settled")({ type: "agent_settled" }, ctx);
+    const nextInteraction = await handlers.get("context")({ messages: [] }, ctx);
+    assert.equal(recoveryMarkers(nextInteraction.messages).length, 1);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("requires recovery for reconstructed startup and summarized tree navigation only", async () => {
+  const cwd = await configuredRepo();
+  const existingConversation = [{ type: "message", id: "user-1", message: { role: "user", content: "continue" } }];
+  try {
+    const { handlers } = loadExtension();
+    const ctx = context(cwd, existingConversation);
+    await handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    const startup = await handlers.get("context")({ messages: [] }, ctx);
+    assert.equal(recoveryMarkers(startup.messages).length, 1);
+
+    await handlers.get("agent_settled")({ type: "agent_settled" }, ctx);
+    await handlers.get("session_tree")({ type: "session_tree", summaryEntry: { id: "summary-1" } }, ctx);
+    const summarizedTree = await handlers.get("context")({ messages: [] }, ctx);
+    assert.equal(recoveryMarkers(summarizedTree.messages).length, 1);
+
+    await handlers.get("agent_settled")({ type: "agent_settled" }, ctx);
+    await handlers.get("session_tree")({ type: "session_tree" }, ctx);
+    const unsummarizedTree = await handlers.get("context")({ messages: [] }, ctx);
+    assert.equal(recoveryMarkers(unsummarizedTree.messages).length, 0);
+
+    await handlers.get("session_start")({ type: "session_start", reason: "resume" }, ctx);
+    const resumed = await handlers.get("context")({ messages: [] }, ctx);
+    assert.equal(recoveryMarkers(resumed.messages).length, 1);
+
+    await handlers.get("agent_settled")({ type: "agent_settled" }, ctx);
+    for (const reason of ["new", "reload", "fork"]) {
+      await handlers.get("session_start")({ type: "session_start", reason }, ctx);
+      const replacement = await handlers.get("context")({ messages: [] }, ctx);
+      assert.equal(recoveryMarkers(replacement.messages).length, 0, reason);
+    }
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("does not inject recovery when Freeflow is disabled or a session is fresh", async () => {
+  const disabledCwd = await configuredRepo({ enabled: false });
+  const freshCwd = await configuredRepo();
+  try {
+    const disabled = loadExtension();
+    const disabledCtx = context(disabledCwd);
+    await disabled.handlers.get("session_start")({ type: "session_start", reason: "startup" }, disabledCtx);
+    await disabled.handlers.get("session_compact")({ type: "session_compact", reason: "manual" }, disabledCtx);
+    const disabledContext = await disabled.handlers.get("context")({ messages: [] }, disabledCtx);
+    assert.equal(recoveryMarkers(disabledContext.messages).length, 0);
+
+    const fresh = loadExtension();
+    const freshCtx = context(freshCwd);
+    await fresh.handlers.get("session_start")({ type: "session_start", reason: "new" }, freshCtx);
+    const freshContext = await fresh.handlers.get("context")({ messages: [] }, freshCtx);
+    assert.equal(recoveryMarkers(freshContext.messages).length, 0);
+  } finally {
+    await rm(disabledCwd, { recursive: true, force: true });
+    await rm(freshCwd, { recursive: true, force: true });
+  }
+});
+
 test("Pi registers the remaining Freeflow commands without mode controls or retired router tools", () => {
   const { commands, shortcuts, tools } = loadExtension();
   const commandNames = commands.map((command) => command.name);
