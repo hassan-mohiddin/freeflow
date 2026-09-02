@@ -18,7 +18,7 @@ host session enablement -> personal override -> repository value -> built-in def
 
 Configurations containing the removed `defaultMode`, `interactionContract`, or `skills` keys are invalid. An invalid existing local config fails closed instead of silently inheriting shared settings. Session state cannot bypass missing or invalid repository activation.
 
-Pi `/freeflow settings` edits personal overrides; `/freeflow settings session` edits temporary enablement and optional-context overrides; `/freeflow settings repo` edits shared configuration. Session settings do not mutate either config file. Cognitive Routing has separate PiFlow-owned profile controls.
+Pi and PiFlow `/freeflow settings` edit personal overrides; `/freeflow settings session` edits temporary enablement and optional-context overrides; `/freeflow settings repo` edits shared configuration. Session settings do not mutate either config file. Cognitive Routing exposes the same profile controls on either host when its model-state APIs are available.
 
 ## Interaction Lifecycle
 

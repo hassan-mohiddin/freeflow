@@ -60,6 +60,7 @@ for expected in \
   '"hookEventName":"SessionStart"' \
   "# Freeflow Stable Guidance" \
   "## Shared Terms" \
+  "## Recover After Context Loss" \
   "## Three Nested Loops" \
   "## Workflow Cue" \
   "## Action Selection Cue" \

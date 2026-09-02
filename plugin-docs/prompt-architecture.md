@@ -60,7 +60,7 @@ The `enabled` setting is the only Freeflow core switch. Context Virtualization, 
 
 ### Codex and Claude Code
 
-The shared hook loads the mandatory core fragments at `SessionStart` for startup, resume, clear, and compact boundaries. It does not process ordinary submitted prompts, persist session controls, or create clear-transfer state. Codex and Claude do not receive Pi-only capability delivery.
+The shared hook loads the mandatory core fragments at `SessionStart` for startup, resume, clear, and compact boundaries. It does not process ordinary submitted prompts, persist session controls, or create clear-transfer state. Codex and Claude do not receive Pi/PiFlow capability delivery.
 
 Hook delivery does not enforce Workflow policy, block tools, grant permissions, or replace repository instructions. Hook trust and registration are host concerns; Setup reports delivery as confirmed, unavailable, or unconfirmed.
 
@@ -68,7 +68,7 @@ Hook delivery does not enforce Workflow policy, block tools, grant permissions, 
 
 The Pi extension composes the mandatory core fragments, Runtime State, discoverable skills, and tools before provider requests. It filters historical one-time Workflow or Cognitive Routing bootstrap entries rather than creating new persistent bootstrap messages.
 
-Pi provides the optional context capabilities. Cognitive Routing requires the PiFlow host contract because it needs host-owned session model-state control. Normal Pi can expose its configuration for inspection but keeps its runtime disabled.
+Pi and PiFlow provide the optional context capabilities. Cognitive Routing runs on either host when its model registry, model/thinking controls, and session-entry APIs are available; PiFlow continues to provide its host-owned lease path.
 
 See [Pi integration](integrations/pi.md) and [PiFlow integration](integrations/piflow.md) for host-specific installation and behavior.
 

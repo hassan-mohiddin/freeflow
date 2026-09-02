@@ -19,13 +19,14 @@ import { PIFLOW_HOST } from "../cognitive-routing/host-fixture.js";
 
 const execFileAsync = promisify(execFile);
 
-function loadExtension(extension = freeflowExtension, host = PIFLOW_HOST) {
+function loadExtension(extension = freeflowExtension, host = PIFLOW_HOST, runtimeApi = {}) {
   const handlers = new Map();
   const tools = [];
   const commands = [];
   const shortcuts = [];
   const entries = [];
   const sentMessages = [];
+  const sentMessageOptions = [];
   let activeToolNames;
   const pi = {
     host,
@@ -46,8 +47,9 @@ function loadExtension(extension = freeflowExtension, host = PIFLOW_HOST) {
     appendEntry(customType, data) {
       entries.push({ customType, data });
     },
-    sendUserMessage(message) {
+    sendUserMessage(message, options) {
       sentMessages.push(message);
+      sentMessageOptions.push(options);
     },
     getAllTools() {
       return tools.map((tool) => ({ name: tool.name, sourceInfo: { source: "extension" } }));
@@ -59,6 +61,7 @@ function loadExtension(extension = freeflowExtension, host = PIFLOW_HOST) {
       activeToolNames = [...names];
     },
   };
+  Object.assign(pi, runtimeApi);
 
   extension(pi);
   return {
@@ -69,6 +72,7 @@ function loadExtension(extension = freeflowExtension, host = PIFLOW_HOST) {
     shortcuts,
     entries,
     sentMessages,
+    sentMessageOptions,
     activeToolNames: () => activeToolNames ?? tools.map((tool) => tool.name),
   };
 }
@@ -165,7 +169,7 @@ test("Pi registers the remaining Freeflow commands without mode controls or reti
   );
 });
 
-test("normal Pi keeps Cognitive Routing disabled while exposing its configuration", async () => {
+test("unsupported Pi hosts keep Cognitive Routing unavailable while exposing its configuration", async () => {
   const cwd = await configuredRepo({
     cognitiveRouting: {
       enabled: true,
@@ -182,20 +186,55 @@ test("normal Pi keeps Cognitive Routing disabled while exposing its configuratio
     assert.deepEqual(shortcuts, []);
     assert.ok(!tools.some((tool) => tool.name === "freeflow_switch_profile"));
     assert.ok(!freeflowCommand.definition.getArgumentCompletions("").some((item) => item.value === "profile"));
-    const capabilityState = await readCapabilityState(
-      cwd,
-      { modelRegistry: cognitiveRoutingModelRegistry() },
-      undefined,
-    );
+    const capabilityState = await readCapabilityState(cwd, undefined, undefined);
     assert.equal(capabilityState.cognitiveRouting.enabled, true);
     assert.equal(capabilityState.cognitiveRouting.effective, false);
-    assert.equal(capabilityState.cognitiveRouting.blockingReason.code, "runtime_disabled");
+    assert.equal(capabilityState.cognitiveRouting.blockingReason.code, "host_unsupported");
 
     const ctx = context(cwd);
     await handlers.get("session_start")({ type: "session_start" }, ctx);
-    assert.match(ctx.statuses.at(-1).value, /cognitive disabled · PiFlow only/);
+    assert.match(ctx.statuses.at(-1).value, /cognitive blocked · host_unsupported/);
     const before = await handlers.get("before_agent_start")({ systemPrompt: "base" }, ctx);
     assert.doesNotMatch(before.systemPrompt, /Cognitive Routing/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("normal Pi settings expose active Cognitive Routing configuration", async () => {
+  const cwd = await configuredRepo({
+    cognitiveRouting: {
+      enabled: true,
+      profiles: {
+        standard: { provider: "test", model: "model-a", thinkingLevel: "low" },
+        reasoning: { provider: "test", model: "model-b", thinkingLevel: "high" },
+      },
+    },
+  });
+  try {
+    const { commands } = loadExtension(freeflowExtension, null, {
+      appendEntry() {},
+      async setModel() {
+        return true;
+      },
+      setThinkingLevel() {},
+    });
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    assert.ok(freeflowCommand);
+    const settingsCtx = context(cwd);
+    settingsCtx.mode = "tui";
+    settingsCtx.hasUI = true;
+    settingsCtx.isIdle = () => true;
+    settingsCtx.modelRegistry = cognitiveRoutingModelRegistry();
+    settingsCtx.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+      const rootText = renderText(component);
+      assert.match(rootText, /Cognitive Routing\s+enabled \(5\) active/);
+      assert.doesNotMatch(rootText, /PiFlow only/);
+      return undefined;
+    };
+
+    await freeflowCommand.definition.handler("settings", settingsCtx);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -278,7 +317,7 @@ test("PiFlow empty configured sessions show a pending profile before first promp
     const ctx = context(cwd);
     ctx.modelRegistry = cognitiveRoutingModelRegistry();
     await handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
-    assert.equal(ctx.statuses.at(-1).value, "freeflow: reasoning · pending");
+    assert.equal(ctx.statuses.at(-1).value, "freeflow: reasoning · automatic");
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -318,7 +357,7 @@ test("Pi describes the mode-free Freeflow argument surface", () => {
 test("Pi exposes 25 base skills without a mode skill or compatibility aliases", async () => {
   const cwd = await configuredRepo();
   try {
-    const { handlers, commands, sentMessages } = loadExtension();
+    const { handlers, commands, sentMessages, sentMessageOptions } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
     const skillNames = resources.skillPaths.map((path) => {
       const match = path.match(/[\\/]skills[\\/]([^\\/]+)\/SKILL\.md$/);
@@ -341,7 +380,24 @@ test("Pi exposes 25 base skills without a mode skill or compatibility aliases", 
       assert.ok(command);
       await command.definition.handler(undefined, context(cwd));
       assert.equal(sentMessages.at(-1), `/skill:${expectedSkill}`);
+      assert.deepEqual(sentMessageOptions.at(-1), { expandPromptTemplates: true });
     }
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi expands setup-freeflow when dispatching its unconfigured skill command", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-setup-dispatch-"));
+  try {
+    const { commands, sentMessages, sentMessageOptions } = loadExtension();
+    const setup = commands.find((command) => command.name === "setup-freeflow");
+    assert.ok(setup);
+
+    await setup.definition.handler(undefined, context(cwd));
+
+    assert.equal(sentMessages.at(-1), "/skill:setup-freeflow");
+    assert.deepEqual(sentMessageOptions.at(-1), { expandPromptTemplates: true });
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

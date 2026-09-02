@@ -137,7 +137,7 @@ function createContext(cwd, host) {
   };
 }
 
-test("registered shortcuts cycle manual holds and set automatic Reasoning", async () => {
+test("registered shortcuts cycle manual holds and establish automatic Reasoning", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-shortcuts-"));
   await mkdir(join(cwd, ".freeflow"));
   await writeFile(
@@ -157,6 +157,7 @@ test("registered shortcuts cycle manual holds and set automatic Reasoning", asyn
   ctx.isIdle = () => true;
   try {
     await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    await host.handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
     const cycle = host.shortcuts.find(({ shortcut }) => shortcut === "ctrl+shift+r");
     const automatic = host.shortcuts.find(({ shortcut }) => shortcut === "ctrl+shift+a");
     assert.ok(cycle);
@@ -538,6 +539,7 @@ test("registered profile commands create manual holds and release them without a
   const ctx = createContext(cwd, host);
   try {
     await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    await host.handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
     const command = host.commands.find(({ name }) => name === "freeflow");
     assert.ok(command);
     assert.deepEqual(
@@ -655,6 +657,7 @@ test("reload preserves a manual reasoning hold after lease rotation", async () =
   ctx.isIdle = () => true;
   try {
     await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    await host.handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
     await host.commands.find(({ name }) => name === "freeflow").definition.handler("profile reasoning", ctx);
     await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "reload" }, ctx);
 
@@ -695,6 +698,7 @@ test("tree navigation retains the current profile without a supported branch cho
   const ctx = createContext(cwd, host);
   try {
     await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    await host.handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
     const standardBranch = [...host.entries];
     const command = host.commands.find(({ name }) => name === "freeflow");
     await command.definition.handler("profile reasoning", ctx);
@@ -1122,7 +1126,7 @@ test("Pi lifecycle prepares, activates, restores, and releases Cognitive Routing
 
     await host.handlers.get("session_start")({ type: "session_start", reason: "reload" }, ctx);
     assert.deepEqual(host.operations.slice(-3), ["prepare", "acquire", "setState"]);
-    assert.deepEqual(host.state, { model: { provider: "faux", id: "reasoning" }, thinkingLevel: "max" });
+    assert.deepEqual(host.state, { model: { provider: "faux", id: "standard" }, thinkingLevel: "high" });
     assert.ok(host.activeToolNames().includes("freeflow_switch_profile"));
     await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
   } finally {

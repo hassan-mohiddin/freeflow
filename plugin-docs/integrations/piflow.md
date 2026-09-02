@@ -1,12 +1,10 @@
 # PiFlow Integration
 
-PiFlow is a separate coding-agent distribution and host repository. Freeflow supplies workflow policy, prompt fragments, skills, capabilities, and its Pi extension. PiFlow owns host launch, session state, package installation, import, updates, and the model-state controls used by Cognitive Routing.
+PiFlow is a separate coding-agent distribution and host repository. Freeflow supplies workflow policy, prompt fragments, skills, capabilities, and its Pi extension. PiFlow owns its host launch, session state, package installation, import, updates, and native model-state controls; normal Pi supplies the corresponding official APIs directly.
 
-## When PiFlow is required
+## When to use PiFlow
 
-Use normal Pi for Freeflow’s shared skills, prompt delivery, Context Virtualization, and Conversation History.
-
-Use PiFlow when you need Cognitive Routing. The Freeflow extension checks for the PiFlow host contract before activating routing. Installing Freeflow into normal Pi does not enable it.
+Use either Pi or PiFlow for Freeflow’s shared skills, prompt delivery, Context Virtualization, Conversation History, and Cognitive Routing. PiFlow remains a supported host when its host-owned lifecycle and model-state controls are preferred.
 
 ## Install PiFlow and Freeflow
 
@@ -42,11 +40,11 @@ In the target repository, run:
 
 Then open `/freeflow` and enable Cognitive Routing. Configure distinct `standard` and `reasoning` profiles with authenticated provider/model pairs. Profiles may be supplied through the shared repository configuration or the personal checkout layer according to the normal Freeflow configuration precedence.
 
-A Cognitive Routing profile must resolve to an available and authenticated model with a supported thinking level. Identical effective profiles, missing profiles, unavailable models, failed authentication, or weakened thinking levels leave routing unavailable rather than partially active.
+A Cognitive Routing profile must resolve to an available and authenticated model with a supported thinking level. Identical effective profiles, missing profiles, unavailable models, failed authentication, or weakened thinking levels leave routing unavailable rather than partially active on either host.
 
 ## Profile controls
 
-Profile changes are available while PiFlow is idle:
+Profile changes are available while Pi or PiFlow is idle:
 
 ```text
 /freeflow profile standard
@@ -63,12 +61,12 @@ Profile changes are available while PiFlow is idle:
 
 ### Keyboard shortcuts
 
-While PiFlow is idle:
+While either host is idle:
 
 - `Ctrl+Shift+R` cycles the manual standard/reasoning hold.
 - `Ctrl+Shift+A` sets automatic Reasoning control. When a manual hold is active, it releases the hold and moves to Reasoning when necessary; pressing it again is idempotent.
 
-These shortcuts are available only in PiFlow. Normal Pi does not register Cognitive Routing shortcuts.
+Both hosts use the same Cognitive Routing skill, profile tool, controls, and transition history. A host without the required model-state APIs leaves routing unavailable.
 
 Under automatic control, each new user interaction begins in Reasoning. For authorized execution, Reasoning chooses Yield for a small exact result, Delegate for Standard execution under an open model-written boundary, or Task Act for a narrow direct scope. Yield hands back to Reasoning; Delegate returns evidence while its boundary remains open until Reasoning closes it. Cognitive Routing changes compute placement only and does not change the current Workflow owner, authority envelope, task scope, or verification requirements.
 
@@ -77,7 +75,7 @@ Under automatic control, each new user interaction begins in Reasoning. For auth
 | Responsibility | Owner |
 | --- | --- |
 | Workflow policy, skills, prompt fragments, capability behavior, and Freeflow package snapshots | Freeflow |
-| Host launch, package installation, session state, import, updates, and model-state lease/control | PiFlow |
+| Host launch, package installation, session state, import, updates, and native model-state control | The active Pi or PiFlow host |
 | Repository activation and personal overrides | The Freeflow configuration in the target repository |
 
 PiFlow development and released PiFlow are separate invocations. Freeflow development snapshots are not production releases and do not establish package version precedence.
@@ -95,11 +93,10 @@ Use the PiFlow development launcher or a released PiFlow host with temporary sta
 
 ## Troubleshooting
 
-- **Cognitive Routing says PiFlow only:** the package is running in normal Pi; install and run it through PiFlow.
-- **Cognitive Routing is inactive:** confirm Freeflow is enabled and its own configuration, profiles, authentication, and host controls are valid.
+- **Cognitive Routing is unavailable:** confirm Freeflow is enabled, profiles and authentication are valid, and the host exposes its required model-state APIs.
 - **Profiles are unavailable:** check provider authentication, model identifiers, thinking levels, and whether the two profiles resolve to distinct effective pairs.
-- **Profile changes are rejected:** PiFlow must be idle before settings or profile changes are applied.
-- **A package update is not visible:** use PiFlow’s package update/reload behavior or restart the host at its native lifecycle boundary.
+- **Profile changes are rejected:** the active Pi or PiFlow host must be idle before settings or profile changes are applied.
+- **A package update is not visible:** use the active host’s package update/reload behavior or restart it at its native lifecycle boundary.
 
 ## Related documentation
 

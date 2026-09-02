@@ -66,9 +66,9 @@ The Interaction Contract is prompt-only and not discoverable. Full skill and cap
 
 ### Codex And Claude
 
-One packaged runtime script serves the `SessionStart` lifecycle boundary. It reads repository and personal layers and delivers the mandatory core fragments after startup, resume, clear, or compact. The hook does not process submitted prompts, persist session controls, or create clear-transfer state. Codex and Claude do not receive Pi-only capability delivery.
+One packaged runtime script serves the `SessionStart` lifecycle boundary. It reads repository and personal layers and delivers the mandatory core fragments after startup, resume, clear, or compact. The hook does not process submitted prompts, persist session controls, or create clear-transfer state. Codex and Claude do not receive Pi/PiFlow capability delivery.
 
-The hook stays inert without valid repository activation, fails closed on invalid personal core config, and never inspects or exposes Pi-only capabilities. Host trust or hook registration may still be required. Setup reports delivery as confirmed, unavailable, or unconfirmed.
+The hook stays inert without valid repository activation, fails closed on invalid personal core config, and never inspects or exposes Pi/PiFlow capabilities. Host trust or hook registration may still be required. Setup reports delivery as confirmed, unavailable, or unconfirmed.
 
 ### Pi
 
@@ -81,7 +81,7 @@ The Pi extension:
 - dynamically exposes 25 base model/contributor skills plus effective child capability skills;
 - registers canonical direct commands;
 - activates capability tools and discoverable capability skills only when their individual gates are effective;
-- when hosted by PiFlow, owns the Pi-only Cognitive Routing lease, prepared profile intents, profile controls, reload state restoration, automatic switch tool, and session status.
+- when hosted by Pi or PiFlow, runs Cognitive Routing through the active host's model-state controls, with prepared profile intents, profile controls, reload state restoration, the automatic switch tool, and session status.
 
 `/freeflow settings` edits personal core overrides. `/freeflow settings session` manages temporary enablement and optional-context overrides without changing config files. `/freeflow settings repo` edits shared repository settings.
 
@@ -95,7 +95,7 @@ A skill body establishes the first-read job and normal route from guaranteed con
 
 See [Skill routing](skill-routing.md) for the typed owner, route, and reference adjacency map.
 
-The active cross-host model/contributor surface has 25 skills under `skills/`, including Action Selection and Workflow. Cognitive Routing, Context Virtualization, and Conversation History are separately packaged Pi-only capability skills under `capabilities/`, outside Codex and Claude discovery. Retired Output Router material is preserved under `.deprecated/output-router/`. Removed Mode Contract material is preserved under `.deprecated/modes/` and is not an active package surface.
+The active cross-host model/contributor surface has 25 skills under `skills/`, including Action Selection and Workflow. Cognitive Routing, Context Virtualization, and Conversation History are separately packaged Pi/PiFlow capability skills under `capabilities/`, outside Codex and Claude discovery. Retired Output Router material is preserved under `.deprecated/output-router/`. Removed Mode Contract material is preserved under `.deprecated/modes/` and is not an active package surface.
 
 ## Review And Verification Topology
 
@@ -116,9 +116,9 @@ After compaction, summarization, clear, resume, or session navigation, Workflow 
 
 ## Capabilities
 
-The Pi-only Context Virtualization capability owns projection-only archive and restore of consumed tool-result content while preserving canonical session history.
+The Pi/PiFlow Context Virtualization capability owns projection-only archive and restore of consumed tool-result content while preserving canonical session history.
 
-The Pi-only Cognitive Routing capability owns exactly two configured compute profiles, complete model-and-thinking transitions through Pi's lease, deterministic `/freeflow profile standard|reasoning|auto` controls, the guarded `freeflow_switch_profile(target, reason)` request, and one volatile model-facing Control/Profile state record when the state is initially supplied, rebuilt, or changed. Transition history is evidence, not current-state authority. Its discoverable skill is exposed only while Freeflow and Cognitive Routing are effective; it shares authority, tools, workflow, context, and evidence requirements with the active agent and does not authorize work. The current implementation remains an experimental PiFlow-hosted MVP until behavioral acceptance evidence is complete; normal Pi keeps the configuration inspectable but runtime-disabled.
+The Pi/PiFlow Cognitive Routing capability owns exactly two configured compute profiles, complete model-and-thinking transitions through the active host's native control boundary, deterministic `/freeflow profile standard|reasoning|auto` controls, the guarded `freeflow_switch_profile(target, reason)` request, and one volatile model-facing Control/Profile state record when the state is initially supplied, rebuilt, or changed. Transition history is evidence, not current-state authority. Its discoverable skill is exposed only while Freeflow and Cognitive Routing are effective; it shares authority, tools, workflow, context, and evidence requirements with the active agent and does not authorize work. The current implementation remains experimental pending behavioral acceptance evidence.
 
 Delegation Harness is retired from the live package. Its implementation and historical evidence remain under `.deprecated/delegation-harness/`.
 

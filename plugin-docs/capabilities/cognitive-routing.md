@@ -4,16 +4,16 @@ Cognitive Routing changes compute placement for one active agent. It does not cr
 
 ## Host boundary and status
 
-Cognitive Routing requires the PiFlow host contract because it owns session model-state control and the model lease used for profile transitions. Normal Pi can display the configuration for inspection but keeps routing runtime-disabled.
+Cognitive Routing works in Pi and PiFlow when the host exposes the required model-state controls. Normal Pi uses its official model registry, model, thinking-level, and session-entry APIs; PiFlow uses its host-owned model-state lease.
 
-The implementation is an experimental PiFlow-hosted MVP. Deterministic runtime checks prove assembly, gating, host capability detection, persistence, and transition mechanics; behavioral model acceptance remains separate.
+The implementation is an experimental Pi/PiFlow capability. Deterministic runtime checks prove assembly, gating, host capability detection, persistence, and transition mechanics; behavioral model acceptance remains separate.
 
 Cognitive Routing is effective only when:
 
 1. Freeflow repository activation is valid;
 2. Cognitive Routing is configured and enabled;
 3. both profiles resolve to available, authenticated, distinct effective model/thinking pairs;
-4. the host exposes the required PiFlow model-state controls.
+4. the host exposes the required model-state controls for its runtime.
 
 Missing profiles, unavailable or unauthenticated models, invalid thinking levels, identical effective profiles, or host limitations leave routing unavailable rather than partially active.
 
@@ -77,7 +77,7 @@ Each Act scope expires at its stop condition and never authorizes adjacent work.
 
 ## Controls and history
 
-While PiFlow is idle, use:
+While Pi or PiFlow is idle, use:
 
 ```text
 /freeflow profile standard
@@ -92,14 +92,14 @@ While PiFlow is idle, use:
 - `auto` releases the hold and returns automatic control to the Reasoning profile;
 - history commands expose read-only transition evidence.
 
-### PiFlow keyboard shortcuts
+### Pi and PiFlow keyboard shortcuts
 
-While PiFlow is idle:
+While either host is idle:
 
 - `Ctrl+Shift+R` cycles the manual standard/reasoning hold. It switches to the other active profile and keeps manual control.
-- `Ctrl+Shift+A` sets automatic Reasoning control. If a manual hold is active, it releases the hold and moves to the Reasoning profile when necessary; pressing it again is idempotent.
+- `Ctrl+Shift+A` sets automatic control. It releases a manual hold and moves to Reasoning when necessary; repeating it while already automatic is idempotent.
 
-These shortcuts are PiFlow-only; normal Pi does not register them. Profile changes remain unavailable while the host is running.
+Both hosts expose these controls when their required model-state APIs are available. Profile changes remain unavailable while the host is running.
 
 The model-facing Runtime State contains only current `Control` and `Profile`. Provider/model/lease details remain internal. Transition history is evidence, not current-state authority.
 
@@ -120,6 +120,7 @@ The request changes compute only and never authorizes a task action.
 - Closing a delegated boundary leaves Reasoning active; it does not hand leadership to Standard.
 - A closed boundary is reopened only by material new evidence, changed intent, or an invalidated assumption.
 - Transition history reports unresolved or anomalous evidence instead of fabricating a cause.
+- A native Pi model or thinking-level selection suspends routing until explicit reactivation; partial transitions roll back or remain blocked with persisted evidence.
 
 ## Evidence boundary
 
@@ -130,5 +131,6 @@ Cognitive Routing documentation and deterministic tests establish contracts and 
 - [Capabilities](README.md)
 - [System prompt architecture](../prompt-architecture.md)
 - [Workflow](../workflow.md)
+- [Pi integration](../integrations/pi.md)
 - [PiFlow integration](../integrations/piflow.md)
 - [Release evidence](../release-evidence/README.md)

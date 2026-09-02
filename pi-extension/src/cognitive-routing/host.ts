@@ -18,26 +18,120 @@ const THINKING_LEVEL_ORDER: CognitiveRoutingThinkingLevel[] = [
 ];
 const THINKING_LEVELS = new Set(THINKING_LEVEL_ORDER);
 
+type CognitiveRoutingModel = {
+  [key: string]: unknown;
+  provider: string;
+  id: string;
+  reasoning?: boolean;
+  thinkingLevelMap?: Record<string, string | null | undefined>;
+};
+
+type AnyFunction = (...args: any[]) => any;
+
 interface ModelRegistryHost {
-  find(provider: string, modelId: string): unknown;
-  getApiKeyAndHeaders(model: unknown): Promise<{ ok: boolean; error?: string }>;
-  clampThinkingLevel(model: unknown, level: CognitiveRoutingThinkingLevel): CognitiveRoutingThinkingLevel;
+  find(provider: string, modelId: string): CognitiveRoutingModel | undefined;
+  getApiKeyAndHeaders(model: CognitiveRoutingModel): Promise<{ ok: boolean; error?: string }>;
+  clampThinkingLevel?: (
+    model: CognitiveRoutingModel,
+    level: CognitiveRoutingThinkingLevel,
+  ) => CognitiveRoutingThinkingLevel;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isFunction(value: unknown): value is AnyFunction {
+  return typeof value === "function";
+}
+
+function parseThinkingLevelMap(value: unknown): Record<string, string | null | undefined> | undefined {
+  if (!isRecord(value)) return undefined;
+  const map: Record<string, string | null | undefined> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (entry === null) map[key] = null;
+    else if (entry === undefined) map[key] = undefined;
+    else if (typeof entry === "string") map[key] = entry;
+  }
+  return map;
+}
+
+function parseModel(value: unknown): CognitiveRoutingModel | undefined {
+  if (!isRecord(value) || typeof value.provider !== "string" || typeof value.id !== "string") return undefined;
+  const thinkingLevelMap = parseThinkingLevelMap(value.thinkingLevelMap);
+  return {
+    ...value,
+    provider: value.provider,
+    id: value.id,
+    reasoning: typeof value.reasoning === "boolean" ? value.reasoning : undefined,
+    ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
+  };
 }
 
 function modelRegistry(host: unknown): ModelRegistryHost | undefined {
-  if (!host || typeof host !== "object") return undefined;
-  const hostRecord = host as Record<string, unknown>;
-  const candidateValue = hostRecord.modelRegistry ?? hostRecord;
-  if (!candidateValue || typeof candidateValue !== "object") return undefined;
-  const candidate = candidateValue as Record<string, unknown>;
-  if (
-    typeof candidate.find !== "function" ||
-    typeof candidate.getApiKeyAndHeaders !== "function" ||
-    typeof candidate.clampThinkingLevel !== "function"
-  ) {
-    return undefined;
+  if (!isRecord(host)) return undefined;
+  const candidateValue = host.modelRegistry ?? host;
+  if (!isRecord(candidateValue)) return undefined;
+  const candidate = candidateValue;
+  if (!isFunction(candidate.find) || !isFunction(candidate.getApiKeyAndHeaders)) return undefined;
+
+  const find = candidate.find;
+  const getApiKeyAndHeaders = candidate.getApiKeyAndHeaders;
+  const clamp = isFunction(candidate.clampThinkingLevel) ? candidate.clampThinkingLevel : undefined;
+  return {
+    find: (provider, modelId) => parseModel(find.call(candidate, provider, modelId)),
+    getApiKeyAndHeaders: (model) => getApiKeyAndHeaders.call(candidate, model),
+    ...(clamp
+      ? {
+          clampThinkingLevel: (model, level) => clamp.call(candidate, model, level) as CognitiveRoutingThinkingLevel,
+        }
+      : {}),
+  };
+}
+
+export function supportsCognitiveRoutingModelRegistry(host: unknown): boolean {
+  return modelRegistry(host) !== undefined;
+}
+
+function supportedThinkingLevels(model: CognitiveRoutingModel): CognitiveRoutingThinkingLevel[] {
+  if (!model.reasoning) return ["off"];
+
+  return THINKING_LEVEL_ORDER.filter((level) => {
+    const mapped = model.thinkingLevelMap?.[level];
+    if (mapped === null) return false;
+    if (level === "xhigh" || level === "max") return mapped !== undefined;
+    return true;
+  });
+}
+
+function clampThinkingLevel(
+  model: CognitiveRoutingModel,
+  requested: CognitiveRoutingThinkingLevel,
+): CognitiveRoutingThinkingLevel {
+  const availableLevels = supportedThinkingLevels(model);
+  if (availableLevels.includes(requested)) return requested;
+
+  const requestedIndex = THINKING_LEVEL_ORDER.indexOf(requested);
+  if (requestedIndex < 0) return availableLevels[0] ?? "off";
+
+  for (let index = requestedIndex; index < THINKING_LEVEL_ORDER.length; index += 1) {
+    const candidate = THINKING_LEVEL_ORDER[index];
+    if (availableLevels.includes(candidate)) return candidate;
   }
-  return candidate as unknown as ModelRegistryHost;
+  for (let index = requestedIndex - 1; index >= 0; index -= 1) {
+    const candidate = THINKING_LEVEL_ORDER[index];
+    if (availableLevels.includes(candidate)) return candidate;
+  }
+  return availableLevels[0] ?? "off";
+}
+
+function resolveEffectiveThinkingLevel(
+  registry: ModelRegistryHost,
+  model: CognitiveRoutingModel,
+  requested: CognitiveRoutingThinkingLevel,
+): CognitiveRoutingThinkingLevel {
+  if (registry.clampThinkingLevel) return registry.clampThinkingLevel(model, requested);
+  return clampThinkingLevel(model, requested);
 }
 
 function blocking(
@@ -122,7 +216,7 @@ export async function preflightCognitiveRoutingProfiles(
       };
     }
 
-    const effectiveThinkingLevel = registry.clampThinkingLevel(model, profile.thinkingLevel);
+    const effectiveThinkingLevel = resolveEffectiveThinkingLevel(registry, model, profile.thinkingLevel);
     if (!THINKING_LEVELS.has(effectiveThinkingLevel)) {
       return {
         effective: false,

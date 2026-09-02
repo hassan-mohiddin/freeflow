@@ -5,14 +5,17 @@ import {
   type CognitiveRoutingHistoryOptions,
   type CognitiveRoutingHistoryResult,
 } from "./history.js";
+import { PI_SESSION_MODEL_STATE_ENTRY, parsePiSessionModelStateCommit } from "./pi-session-control.js";
 import type {
   CognitiveRoutingCapabilityState,
   CognitiveRoutingProfileName,
+  CognitiveRoutingSessionStart,
   CognitiveRoutingThinkingLevel,
 } from "./types.js";
 
 export const COGNITIVE_ROUTING_INTENT_ENTRY = "freeflow-cognitive-routing-intent";
 export const COGNITIVE_ROUTING_CONTROL_ENTRY = "freeflow-cognitive-routing-control";
+export const COGNITIVE_ROUTING_INACTIVE_ENTRY = "freeflow-cognitive-routing-inactive";
 
 export type CognitiveRoutingMechanism =
   | "agent-tool"
@@ -46,6 +49,7 @@ type CognitiveRoutingIntent = {
   decisionCorrelationId?: string;
   fromPair?: CognitiveRoutingPair;
   fromProfile?: CognitiveRoutingProfileName;
+  fromControl?: "automatic" | "manual";
   profile?: CognitiveRoutingProfileName;
   resumeProfile?: CognitiveRoutingProfileName;
   resumeControl?: "automatic" | "manual";
@@ -64,7 +68,16 @@ type CognitiveRoutingControlEntry = {
   epoch: string;
 };
 
-type CognitiveRoutingPersistedData = CognitiveRoutingIntent | CognitiveRoutingControlEntry;
+type CognitiveRoutingInactiveEntry = {
+  version: 1;
+  source: "user";
+  reason: string;
+  branchId?: string | null;
+  pair: CognitiveRoutingPair;
+};
+
+type CognitiveRoutingPersistedData =
+  CognitiveRoutingIntent | CognitiveRoutingControlEntry | CognitiveRoutingInactiveEntry;
 
 type ModelStateLease = {
   setState(request: CognitiveRoutingPair & { correlationId: string }): Promise<{ status: string }>;
@@ -77,6 +90,11 @@ type ModelStateAcquisition =
 type ControllerPi = {
   appendEntryDurable(customType: string, data: CognitiveRoutingPersistedData): void;
   acquireModelStateControl(options: { label: string }): Promise<ModelStateAcquisition>;
+  recoverPreparedModelState?: (request: {
+    fromPair: CognitiveRoutingPair;
+    target: CognitiveRoutingPair;
+    correlationId: string;
+  }) => Promise<{ status: "restored" | "rollback-failed" | "rejected" }>;
 };
 
 type ControllerContext = {
@@ -93,15 +111,24 @@ type ControllerOptions = {
   capabilityState: CognitiveRoutingCapabilityState;
   pi: ControllerPi;
   ctx: ControllerContext;
+  initialSessionStart?: CognitiveRoutingSessionStart;
   label?: string;
   idFactory?: () => string;
+  liveStateAuthoritative?: boolean;
 };
 
 export type CognitiveRoutingControlMode = "automatic" | "manual-standard" | "manual-reasoning";
 
+export type CognitiveRoutingRuntimeStatus = "active" | "inactive" | "blocked";
+
+export type CognitiveRoutingNativeChangeResult =
+  { status: "ignored" } | { status: "inactive"; reason: string } | { status: "blocked"; reason: string };
+
 export type CognitiveRoutingControllerState = {
   effective: boolean;
   controlMode: CognitiveRoutingControlMode;
+  runtimeStatus?: CognitiveRoutingRuntimeStatus;
+  runtimeReason?: string;
   activeProfile?: CognitiveRoutingProfileName;
   epoch?: string;
   returnTarget?: CognitiveRoutingPair;
@@ -187,18 +214,47 @@ function asPair(value: unknown): CognitiveRoutingPair | undefined {
   };
 }
 
+function hostPairFromEntry(entry: Record<string, unknown>): CognitiveRoutingPair | undefined {
+  if (entry.type === "model_state_change") {
+    return asPair({
+      provider: entry.provider,
+      modelId: entry.modelId,
+      thinkingLevel: entry.thinkingLevel,
+    });
+  }
+  if (entry.type !== "custom" || entry.customType !== PI_SESSION_MODEL_STATE_ENTRY) return undefined;
+  const commit = parsePiSessionModelStateCommit(entry.data);
+  if (!commit || commit.phase !== "committed" || commit.status !== "applied") return undefined;
+  return commit.target;
+}
+
+function hostCorrelationIdFromEntry(entry: Record<string, unknown>): string | undefined {
+  if (entry.type === "model_state_change") {
+    return typeof entry.correlationId === "string" ? entry.correlationId : undefined;
+  }
+  if (entry.type !== "custom" || entry.customType !== PI_SESSION_MODEL_STATE_ENTRY) return undefined;
+  const commit = parsePiSessionModelStateCommit(entry.data);
+  return commit?.phase === "committed" && commit.status === "applied" ? commit.correlationId : undefined;
+}
+
+function latestPiSessionCommit(entries: readonly unknown[], correlationId: string) {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (!entry || typeof entry !== "object") continue;
+    const candidate = entry as Record<string, unknown>;
+    if (candidate.type !== "custom" || candidate.customType !== PI_SESSION_MODEL_STATE_ENTRY) continue;
+    const commit = parsePiSessionModelStateCommit(candidate.data);
+    if (commit?.correlationId === correlationId) return commit;
+  }
+  return undefined;
+}
+
 function latestHostPair(context: ControllerContext): CognitiveRoutingPair | undefined {
   const entries = branchEntriesFrom(context);
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index];
     if (!entry || typeof entry !== "object") continue;
-    const candidate = entry as Record<string, unknown>;
-    if (candidate.type !== "model_state_change") continue;
-    const pair = asPair({
-      provider: candidate.provider,
-      modelId: candidate.modelId,
-      thinkingLevel: candidate.thinkingLevel,
-    });
+    const pair = hostPairFromEntry(entry as Record<string, unknown>);
     if (pair) return pair;
   }
   return undefined;
@@ -222,6 +278,22 @@ function profileNameForPair(
     }
   }
   return undefined;
+}
+
+function pairMatchesProfile(
+  capabilityState: CognitiveRoutingCapabilityState,
+  pair: CognitiveRoutingPair,
+  profileName: CognitiveRoutingProfileName,
+): boolean {
+  const profile = capabilityState.resolvedProfiles[profileName];
+  return Boolean(
+    profile &&
+    pairEquals(pair, {
+      provider: profile.provider,
+      modelId: profile.model,
+      thinkingLevel: profile.effectiveThinkingLevel,
+    }),
+  );
 }
 
 function asIntent(value: unknown): CognitiveRoutingIntent | undefined {
@@ -252,6 +324,9 @@ function asIntent(value: unknown): CognitiveRoutingIntent | undefined {
       : {}),
     ...(fromPair ? { fromPair } : {}),
     ...(isProfileName(candidate.fromProfile) ? { fromProfile: candidate.fromProfile } : {}),
+    ...(candidate.fromControl === "automatic" || candidate.fromControl === "manual"
+      ? { fromControl: candidate.fromControl }
+      : {}),
     ...(typeof candidate.reason === "string" ? { reason: candidate.reason } : {}),
     ...(typeof candidate.branchId === "string" || candidate.branchId === null
       ? { branchId: candidate.branchId as string | null }
@@ -267,6 +342,44 @@ function asIntent(value: unknown): CognitiveRoutingIntent | undefined {
     target,
     returnTarget,
   };
+}
+
+function asInactiveEntry(value: unknown): CognitiveRoutingInactiveEntry | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const candidate = value as Record<string, unknown>;
+  const pair = asPair(candidate.pair);
+  if (
+    candidate.version !== 1 ||
+    candidate.source !== "user" ||
+    typeof candidate.reason !== "string" ||
+    candidate.reason.length === 0 ||
+    !pair
+  ) {
+    return undefined;
+  }
+  return {
+    version: 1,
+    source: "user",
+    reason: candidate.reason,
+    ...(typeof candidate.branchId === "string" || candidate.branchId === null
+      ? { branchId: candidate.branchId as string | null }
+      : {}),
+    pair,
+  };
+}
+
+function latestInactiveEntry(
+  entries: readonly unknown[],
+): { entry: CognitiveRoutingInactiveEntry; position: number } | undefined {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const candidate = entries[index];
+    if (!candidate || typeof candidate !== "object") continue;
+    const record = candidate as Record<string, unknown>;
+    if (record.type !== "custom" || record.customType !== COGNITIVE_ROUTING_INACTIVE_ENTRY) continue;
+    const entry = asInactiveEntry(record.data);
+    if (entry) return { entry, position: index };
+  }
+  return undefined;
 }
 
 function entriesFrom(context: ControllerContext): readonly unknown[] {
@@ -338,7 +451,14 @@ function latestControlMode(entries: readonly unknown[], intent: CognitiveRouting
     }
     if (candidate.customType !== COGNITIVE_ROUTING_INTENT_ENTRY) continue;
     const candidateIntent = asIntent(candidate.data);
-    if (!candidateIntent || candidateIntent.phase !== "prepared" || candidateIntent.epoch !== intent.epoch) continue;
+    if (!candidateIntent || candidateIntent.epoch !== intent.epoch) continue;
+    if (candidateIntent.phase === "abandoned") {
+      if (candidateIntent.fromControl === "manual" && candidateIntent.fromProfile) {
+        return `manual-${candidateIntent.fromProfile}` as CognitiveRoutingControlMode;
+      }
+      if (candidateIntent.fromControl === "automatic") return "automatic";
+      continue;
+    }
     if (candidateIntent.kind === "profile" || candidateIntent.kind === "activation") {
       return controlModeForIntent(candidateIntent);
     }
@@ -346,14 +466,86 @@ function latestControlMode(entries: readonly unknown[], intent: CognitiveRouting
   return "automatic";
 }
 
+function intentEntryIndex(entries: readonly unknown[], intent: CognitiveRoutingIntent): number {
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    if (!entry || typeof entry !== "object") continue;
+    const candidate = entry as Record<string, unknown>;
+    if (candidate.type !== "custom" || candidate.customType !== COGNITIVE_ROUTING_INTENT_ENTRY) continue;
+    const parsed = asIntent(candidate.data);
+    if (parsed?.correlationId === intent.correlationId && parsed.phase === "prepared") return index;
+  }
+  return entries.length;
+}
+
+function matchesBaseline(candidate: CognitiveRoutingIntent, failed: CognitiveRoutingIntent): boolean {
+  if (failed.fromPair && !pairEquals(candidate.target, failed.fromPair)) return false;
+  if (failed.fromProfile && candidate.profile !== failed.fromProfile) return false;
+  return true;
+}
+
+export function resolveControlBeforeIntent(
+  entries: readonly unknown[],
+  intent: CognitiveRoutingIntent,
+): CognitiveRoutingControlMode | undefined {
+  if (intent.fromControl === "automatic") return "automatic";
+  if (intent.fromControl === "manual") {
+    return intent.fromProfile ? (`manual-${intent.fromProfile}` as CognitiveRoutingControlMode) : undefined;
+  }
+
+  const priorEntries = entries.slice(0, intentEntryIndex(entries, intent));
+  const abandonedCorrelations = new Set<string>();
+  for (const entry of priorEntries) {
+    if (!entry || typeof entry !== "object") continue;
+    const candidate = entry as Record<string, unknown>;
+    if (candidate.type !== "custom" || candidate.customType !== COGNITIVE_ROUTING_INTENT_ENTRY) continue;
+    const parsed = asIntent(candidate.data);
+    if (parsed?.phase === "abandoned") abandonedCorrelations.add(parsed.correlationId);
+  }
+
+  let resolved: CognitiveRoutingControlMode | undefined;
+  for (const entry of priorEntries) {
+    if (!entry || typeof entry !== "object") continue;
+    const candidate = entry as Record<string, unknown>;
+    if (candidate.type !== "custom") continue;
+    if (candidate.customType === COGNITIVE_ROUTING_CONTROL_ENTRY) {
+      const data = candidate.data;
+      if (
+        data &&
+        typeof data === "object" &&
+        ((data as Record<string, unknown>).version === 1 || (data as Record<string, unknown>).version === 2) &&
+        (data as Record<string, unknown>).epoch === intent.epoch &&
+        (data as Record<string, unknown>).control === "automatic"
+      ) {
+        resolved = "automatic";
+      }
+      continue;
+    }
+    if (candidate.customType !== COGNITIVE_ROUTING_INTENT_ENTRY) continue;
+    const parsed = asIntent(candidate.data);
+    if (
+      !parsed ||
+      parsed.phase !== "prepared" ||
+      parsed.epoch !== intent.epoch ||
+      abandonedCorrelations.has(parsed.correlationId) ||
+      (parsed.kind !== "profile" && parsed.kind !== "activation") ||
+      !hasMatchingHostEntry(priorEntries, parsed) ||
+      !matchesBaseline(parsed, intent)
+    ) {
+      continue;
+    }
+    resolved = controlModeForIntent(parsed);
+  }
+  return resolved;
+}
+
 function hasMatchingHostEntry(entries: readonly unknown[], intent: CognitiveRoutingIntent): boolean {
   return entries.some((entry) => {
     if (!entry || typeof entry !== "object") return false;
     const candidate = entry as Record<string, unknown>;
     return (
-      candidate.type === "model_state_change" &&
-      candidate.correlationId === intent.correlationId &&
-      pairEquals(asPair(candidate), intent.target)
+      hostCorrelationIdFromEntry(candidate) === intent.correlationId &&
+      pairEquals(hostPairFromEntry(candidate), intent.target)
     );
   });
 }
@@ -362,13 +554,18 @@ export class CognitiveRoutingController {
   private readonly capabilityState: CognitiveRoutingCapabilityState;
   private readonly pi: ControllerPi;
   private readonly ctx: ControllerContext;
+  private readonly initialSessionStart: CognitiveRoutingSessionStart | undefined;
   private readonly label: string;
   private readonly idFactory: () => string;
+  private readonly liveStateAuthoritative: boolean;
   private lease: ModelStateLease | undefined;
   private activeProfile: CognitiveRoutingProfileName | undefined;
   private epoch: string | undefined;
   private returnTarget: CognitiveRoutingPair | undefined;
   private controlMode: CognitiveRoutingControlMode = "automatic";
+  private nativeInactiveReason: string | undefined;
+  private nativeBlockedReason: string | undefined;
+  private transitionInFlight = false;
   private branchPending = false;
   private operation: Promise<unknown> = Promise.resolve();
 
@@ -376,18 +573,32 @@ export class CognitiveRoutingController {
     this.capabilityState = options.capabilityState;
     this.pi = options.pi;
     this.ctx = options.ctx;
+    this.initialSessionStart = options.initialSessionStart;
     this.label = options.label ?? "Cognitive Routing";
     this.idFactory = options.idFactory ?? randomUUID;
+    this.liveStateAuthoritative = options.liveStateAuthoritative === true;
   }
 
   state(): CognitiveRoutingControllerState {
-    const hostPair = latestHostPair(this.ctx);
-    const observedPair = hostPair ?? this.currentPair();
+    const hostPair = this.liveStateAuthoritative ? undefined : latestHostPair(this.ctx);
+    const observedPair = this.liveStateAuthoritative ? this.currentPair() : (hostPair ?? this.currentPair());
     const observedProfile = this.activeProfile ? profileNameForPair(this.capabilityState, observedPair) : undefined;
-    const activeProfile = hostPair ? observedProfile : (observedProfile ?? this.activeProfile);
+    const activeProfile = this.liveStateAuthoritative
+      ? observedProfile
+      : hostPair
+        ? observedProfile
+        : (observedProfile ?? this.activeProfile);
+    const effective = this.lease !== undefined && activeProfile !== undefined && !this.branchPending;
     return {
-      effective: this.lease !== undefined && activeProfile !== undefined && !this.branchPending,
+      effective,
       controlMode: this.controlMode,
+      ...(this.nativeBlockedReason
+        ? { runtimeStatus: "blocked" as const, runtimeReason: this.nativeBlockedReason }
+        : this.nativeInactiveReason
+          ? { runtimeStatus: "inactive" as const, runtimeReason: this.nativeInactiveReason }
+          : effective
+            ? { runtimeStatus: "active" as const }
+            : {}),
       ...(activeProfile ? { activeProfile } : {}),
       ...(this.epoch ? { epoch: this.epoch } : {}),
       ...(this.returnTarget ? { returnTarget: { ...this.returnTarget } } : {}),
@@ -449,12 +660,85 @@ export class CognitiveRoutingController {
     return this.enqueue(() => this._reconcileBranch(mechanism));
   }
 
-  private async _activate(): Promise<CognitiveRoutingActivationResult> {
+  async observeNativeChange(
+    reason: string,
+    source: "set" | "cycle" | "restore" | undefined = undefined,
+  ): Promise<CognitiveRoutingNativeChangeResult> {
+    if (this.transitionInFlight || source === "restore") return { status: "ignored" };
+    return this.enqueue(() => this._observeNativeChange(reason, source));
+  }
+
+  async reconcileLiveState(reason = "Pi model state diverged"): Promise<CognitiveRoutingNativeChangeResult> {
+    if (this.transitionInFlight) return { status: "ignored" };
+    return this.enqueue(() => this._observeNativeChange(reason));
+  }
+
+  private recordNativeInactive(reason: string, pair: CognitiveRoutingPair): CognitiveRoutingNativeChangeResult {
+    try {
+      this.pi.appendEntryDurable(COGNITIVE_ROUTING_INACTIVE_ENTRY, {
+        version: 1,
+        source: "user",
+        reason,
+        branchId: this.currentBranchId(),
+        pair,
+      });
+    } catch {
+      this.nativeInactiveReason = undefined;
+      this.nativeBlockedReason = "inactive_state_persistence_failed";
+      return { status: "blocked", reason: this.nativeBlockedReason };
+    }
+
+    this.nativeInactiveReason = reason;
+    this.nativeBlockedReason = undefined;
+    return { status: "inactive", reason };
+  }
+
+  private async _observeNativeChange(
+    reason: string,
+    source: "set" | "cycle" | "restore" | undefined = undefined,
+  ): Promise<CognitiveRoutingNativeChangeResult> {
+    if (!this.lease || !this.activeProfile) return { status: "ignored" };
+
+    const profile = this.capabilityState.resolvedProfiles[this.activeProfile];
+    const current = this.currentPair();
+    const expected = profile
+      ? {
+          provider: profile.provider,
+          modelId: profile.model,
+          thinkingLevel: profile.effectiveThinkingLevel,
+        }
+      : undefined;
+    if (current && expected && pairEquals(current, expected) && source !== "set") return { status: "ignored" };
+    const lease = this.lease;
+    if (!current) {
+      await this.releaseLease(lease);
+      this.clearActiveState();
+      this.nativeBlockedReason = "native_state_unavailable";
+      return { status: "blocked", reason: this.nativeBlockedReason };
+    }
+
+    const result = this.recordNativeInactive(reason, current);
+    await this.releaseLease(lease);
+    this.clearActiveState();
+    return result;
+  }
+
+  private async _activate(
+    allowInactive = false,
+    requestedProfile?: CognitiveRoutingProfileName,
+    requestedControlMode?: CognitiveRoutingControlMode,
+  ): Promise<CognitiveRoutingActivationResult> {
     if (this.state().effective && this.activeProfile) {
       return { status: "active", profile: this.activeProfile };
     }
     if (!this.capabilityState.effective) {
       return { status: "inactive", reason: "not_effective" };
+    }
+    if ((this.nativeInactiveReason || this.nativeBlockedReason) && !allowInactive) {
+      return {
+        status: "inactive",
+        reason: this.nativeBlockedReason ? "runtime_blocked" : "native_override",
+      };
     }
 
     const sessionEntries = entriesFrom(this.ctx);
@@ -465,7 +749,10 @@ export class CognitiveRoutingController {
     if (lifecycleIntent && !hasMatchingHostEntry(sessionEntries, lifecycleIntent)) {
       return { status: "inactive", reason: "pending_intent" };
     }
-    if (lifecycleIntent?.kind === "activation") {
+    if (
+      lifecycleIntent?.kind === "activation" &&
+      !(allowInactive && (this.nativeInactiveReason || this.nativeBlockedReason))
+    ) {
       return { status: "inactive", reason: "recover_required" };
     }
     const preservedReload = lifecycleIntent?.kind === "closing" && lifecycleIntent.resumeProfile !== undefined;
@@ -478,22 +765,33 @@ export class CognitiveRoutingController {
     }
     const epoch = this.epoch ?? this.idFactory();
     const branchId = this.currentBranchId();
-    const sessionStart = this.capabilityState.sessionStart ?? {
-      control: "automatic" as const,
-      profile: "reasoning" as const,
-    };
-    const startControl = preservedReload ? lifecycleIntent.resumeControl : sessionStart.control;
-    const profileName: CognitiveRoutingProfileName =
-      startControl === "automatic"
-        ? "reasoning"
-        : preservedReload
-          ? lifecycleIntent.resumeProfile
-          : sessionStart.profile;
+    const sessionStart = this.initialSessionStart ??
+      this.capabilityState.sessionStart ?? {
+        control: "automatic" as const,
+        profile: "reasoning" as const,
+      };
+    let profileName: CognitiveRoutingProfileName;
+    if (requestedProfile) {
+      profileName = requestedProfile;
+    } else if (preservedReload) {
+      profileName = lifecycleIntent.resumeProfile;
+    } else if (sessionStart.control === "automatic") {
+      profileName = "reasoning";
+    } else {
+      profileName = sessionStart.profile;
+    }
     const profile = this.capabilityState.resolvedProfiles[profileName];
     if (!profile) {
       return { status: "inactive", reason: preservedReload ? "resume_profile_unavailable" : "profile_unavailable" };
     }
-    const controlMode: CognitiveRoutingControlMode = startControl === "manual" ? `manual-${profileName}` : "automatic";
+    let controlMode: CognitiveRoutingControlMode;
+    if (requestedControlMode) {
+      controlMode = requestedControlMode;
+    } else if (preservedReload) {
+      controlMode = lifecycleIntent.resumeControl === "manual" ? `manual-${profileName}` : "automatic";
+    } else {
+      controlMode = sessionStart.control === "manual" ? `manual-${profileName}` : "automatic";
+    }
     const target = {
       provider: profile.provider,
       modelId: profile.model,
@@ -546,7 +844,7 @@ export class CognitiveRoutingController {
           (candidate) => candidate.kind === "profile" && candidate.epoch === this.epoch,
         )
       : undefined;
-    const fromPair = latestHostPair(this.ctx) ?? this.currentPair();
+    const fromPair = this.observedHostPair();
     const fromProfile = this.activeProfile ?? profileNameForPair(this.capabilityState, fromPair);
     const intent = this.prepareIntent({
       kind: "closing",
@@ -574,7 +872,7 @@ export class CognitiveRoutingController {
 
     this.clearActiveState(false);
     try {
-      const result = await lease.setState({ ...returnTarget, correlationId: intent.correlationId });
+      const result = await this.setState(lease, { ...returnTarget, correlationId: intent.correlationId });
       if (result.status !== "applied" && result.status !== "unchanged") {
         return { status: "inactive", reason: "restore_rejected" };
       }
@@ -586,15 +884,143 @@ export class CognitiveRoutingController {
     }
   }
 
+  private async recoverTerminalIntent(
+    intent: CognitiveRoutingIntent,
+  ): Promise<CognitiveRoutingRecoveryResult | undefined> {
+    const commit = latestPiSessionCommit(branchEntriesFrom(this.ctx), intent.correlationId);
+    if (!commit) return undefined;
+    if (commit.phase === "prepared") {
+      if (!this.pi.recoverPreparedModelState) {
+        return { status: "pending", reason: "prepared_recovery_unsupported" };
+      }
+      let recovery: { status: "restored" | "rollback-failed" | "rejected" };
+      try {
+        recovery = await this.pi.recoverPreparedModelState({
+          fromPair: commit.fromPair,
+          target: commit.target,
+          correlationId: commit.correlationId,
+        });
+      } catch {
+        return { status: "pending", reason: "prepared_recovery_failed" };
+      }
+      if (recovery.status === "rollback-failed") {
+        return { status: "pending", reason: "rollback_failed" };
+      }
+      if (recovery.status !== "restored") {
+        return { status: "pending", reason: "prepared_recovery_failed" };
+      }
+      try {
+        this.abandonPreparedIntent(intent, "Pi session transition interrupted.");
+      } catch {
+        return { status: "pending", reason: "intent_abandon_failed" };
+      }
+      const recovered = await this._recover();
+      return recovered.status === "inactive" && recovered.reason === "no_pending_intent"
+        ? { status: "inactive", reason: "intent_abandoned" }
+        : recovered;
+    }
+    if (commit.phase !== "aborted") return undefined;
+    if (commit.status === "rollback-failed") {
+      return { status: "pending", reason: "rollback_failed" };
+    }
+
+    try {
+      this.abandonPreparedIntent(intent, "Pi session transition rolled back.");
+    } catch {
+      return { status: "pending", reason: "intent_abandon_failed" };
+    }
+    return this._recover();
+  }
+
+  private async recoverTerminalProfileIntent(
+    intent: CognitiveRoutingIntent,
+  ): Promise<CognitiveRoutingRecoveryResult | undefined> {
+    const commit = latestPiSessionCommit(branchEntriesFrom(this.ctx), intent.correlationId);
+    if (!commit || commit.phase === "committed") return undefined;
+    if (commit.phase === "aborted" && commit.status === "rollback-failed") {
+      return { status: "pending", reason: "rollback_failed" };
+    }
+
+    const controlMode = resolveControlBeforeIntent(branchEntriesFrom(this.ctx), intent);
+    if (
+      !controlMode ||
+      !intent.fromPair ||
+      !intent.fromProfile ||
+      !pairMatchesProfile(this.capabilityState, intent.fromPair, intent.fromProfile)
+    ) {
+      return { status: "pending", reason: "baseline_control_unknown" };
+    }
+
+    if (commit.phase === "prepared") {
+      if (!this.pi.recoverPreparedModelState) {
+        return { status: "pending", reason: "prepared_recovery_unsupported" };
+      }
+      let recovery: { status: "restored" | "rollback-failed" | "rejected" };
+      try {
+        recovery = await this.pi.recoverPreparedModelState({
+          fromPair: commit.fromPair,
+          target: commit.target,
+          correlationId: commit.correlationId,
+        });
+      } catch {
+        return { status: "pending", reason: "prepared_recovery_failed" };
+      }
+      if (recovery.status === "rollback-failed") {
+        return { status: "pending", reason: "rollback_failed" };
+      }
+      if (recovery.status !== "restored") {
+        return { status: "pending", reason: "prepared_recovery_failed" };
+      }
+    }
+
+    try {
+      this.abandonPreparedIntent(intent, "Pi session transition interrupted or rolled back.");
+    } catch {
+      return { status: "pending", reason: "intent_abandon_failed" };
+    }
+
+    const recovered = await this.activatePrepared({
+      kind: "profile",
+      controlMode,
+      source: "system",
+      mechanism: "recovery",
+      ...(decisionCorrelationForIntent(intent) ? { decisionCorrelationId: decisionCorrelationForIntent(intent) } : {}),
+      branchId: this.currentBranchId(),
+      epoch: intent.epoch,
+      returnTarget: intent.returnTarget,
+      target: intent.fromPair,
+      profile: intent.fromProfile,
+    });
+    return recovered.status === "active" ? recovered : { status: "pending", reason: "baseline_recovery_failed" };
+  }
+
   private async _recover(): Promise<CognitiveRoutingRecoveryResult> {
     const sessionEntries = entriesFrom(this.ctx);
     const branchEntries = branchEntriesFrom(this.ctx);
+    const inactive = latestInactiveEntry(branchEntries);
+    const branchLifecycleIntent = latestIntent(
+      branchEntries,
+      (intent) => intent.kind === "activation" || intent.kind === "closing",
+    );
+    if (
+      inactive &&
+      (!branchLifecycleIntent || intentEntryIndex(branchEntries, branchLifecycleIntent) <= inactive.position)
+    ) {
+      this.nativeInactiveReason = inactive.entry.reason;
+      this.nativeBlockedReason = undefined;
+      this.clearActiveState();
+      return { status: "inactive", reason: "native_override" };
+    }
     const lifecycleIntent = latestIntent(
       sessionEntries,
       (intent) => intent.kind === "activation" || intent.kind === "closing",
     );
     if (!lifecycleIntent) {
       return { status: "inactive", reason: "no_pending_intent" };
+    }
+    if (lifecycleIntent.kind === "activation") {
+      const lifecycleTerminal = await this.recoverTerminalIntent(lifecycleIntent);
+      if (lifecycleTerminal) return lifecycleTerminal;
     }
     if (lifecycleIntent.kind === "closing") {
       return hasMatchingHostEntry(sessionEntries, lifecycleIntent)
@@ -617,6 +1043,19 @@ export class CognitiveRoutingController {
       thinkingLevel: currentActivationProfile.effectiveThinkingLevel,
     };
     const activationMatched = hasMatchingHostEntry(sessionEntries, lifecycleIntent);
+    if (this.liveStateAuthoritative && activationMatched) {
+      const livePair = this.currentPair();
+      if (!livePair) {
+        this.clearActiveState();
+        this.nativeBlockedReason = "native_state_unavailable";
+        return { status: "inactive", reason: "native_override" };
+      }
+      if (!pairEquals(livePair, activationTarget)) {
+        this.recordNativeInactive("Pi model state diverged during recovery", livePair);
+        this.clearActiveState();
+        return { status: "inactive", reason: "native_override" };
+      }
+    }
     if (activationMatched && !pairEquals(activationTarget, lifecycleIntent.target)) {
       return { status: "pending", reason: "applied_target_changed" };
     }
@@ -626,7 +1065,7 @@ export class CognitiveRoutingController {
     if (!activationMatched) {
       const retried = await this.activatePrepared({
         kind: "activation",
-        controlMode: "automatic",
+        controlMode: latestControlMode(branchEntries, lifecycleIntent),
         source: "system",
         mechanism: "recovery",
         branchId: this.currentBranchId(),
@@ -643,6 +1082,8 @@ export class CognitiveRoutingController {
       (intent) => intent.kind === "profile" && intent.epoch === lifecycleIntent.epoch,
     );
     if (profileIntent) {
+      const terminal = await this.recoverTerminalProfileIntent(profileIntent);
+      if (terminal) return terminal;
       const currentProfile = this.capabilityState.resolvedProfiles[profileIntent.profile ?? "standard"];
       if (!currentProfile) {
         return this.abandonIntent(profileIntent, "Prepared profile is unavailable.");
@@ -677,7 +1118,7 @@ export class CognitiveRoutingController {
 
     return this.activatePrepared({
       kind: "activation",
-      controlMode: "automatic",
+      controlMode: latestControlMode(branchEntries, lifecycleIntent),
       source: "system",
       mechanism: "recovery",
       branchId: this.currentBranchId(),
@@ -689,7 +1130,7 @@ export class CognitiveRoutingController {
   }
 
   private async recoverClosingIntent(intent: CognitiveRoutingIntent): Promise<CognitiveRoutingRecoveryResult> {
-    const fromPair = latestHostPair(this.ctx) ?? this.currentPair();
+    const fromPair = this.observedHostPair();
     const fromProfile = intent.fromProfile ?? profileNameForPair(this.capabilityState, fromPair);
     const retryIntent = this.prepareIntent({
       kind: "closing",
@@ -725,7 +1166,10 @@ export class CognitiveRoutingController {
     }
 
     try {
-      const result = await acquisition.lease.setState({ ...intent.target, correlationId: retryIntent.correlationId });
+      const result = await this.setState(acquisition.lease, {
+        ...intent.target,
+        correlationId: retryIntent.correlationId,
+      });
       return result.status === "applied" || result.status === "unchanged"
         ? { status: "inactive", reason: "restored" }
         : { status: "pending", reason: "closing_recovery_rejected" };
@@ -736,20 +1180,24 @@ export class CognitiveRoutingController {
     }
   }
 
+  private abandonPreparedIntent(intent: CognitiveRoutingIntent, reason: string): void {
+    const fromPair = intent.fromPair ?? this.observedHostPair();
+    const fromProfile = intent.fromProfile ?? profileNameForPair(this.capabilityState, fromPair);
+    this.pi.appendEntryDurable(COGNITIVE_ROUTING_INTENT_ENTRY, {
+      ...intent,
+      version: 2,
+      phase: "abandoned",
+      source: "system",
+      mechanism: intent.mechanism ?? "recovery",
+      ...(fromPair ? { fromPair } : {}),
+      ...(fromProfile ? { fromProfile } : {}),
+      reason,
+    });
+  }
+
   private async abandonIntent(intent: CognitiveRoutingIntent, reason: string): Promise<CognitiveRoutingRecoveryResult> {
     try {
-      const fromPair = intent.fromPair ?? latestHostPair(this.ctx) ?? this.currentPair();
-      const fromProfile = intent.fromProfile ?? profileNameForPair(this.capabilityState, fromPair);
-      this.pi.appendEntryDurable(COGNITIVE_ROUTING_INTENT_ENTRY, {
-        ...intent,
-        version: 2,
-        phase: "abandoned",
-        source: "system",
-        mechanism: intent.mechanism ?? "recovery",
-        ...(fromPair ? { fromPair } : {}),
-        ...(fromProfile ? { fromProfile } : {}),
-        reason,
-      });
+      this.abandonPreparedIntent(intent, reason);
       const recovered = await this._recover();
       return recovered.status === "inactive" && recovered.reason === "no_pending_intent"
         ? { status: "inactive", reason: "intent_abandoned" }
@@ -852,8 +1300,9 @@ export class CognitiveRoutingController {
       return { status: "inactive", reason: "not_effective" };
     }
 
-    const activation = this.state().effective ? { status: "active" as const } : await this._activate();
-    if (activation.status !== "active") return activation;
+    if (!this.state().effective) {
+      return this._activate(true, profile, `manual-${profile}`);
+    }
     return this._setProfile(profile, {
       controlMode: `manual-${profile}`,
       source: "user",
@@ -901,7 +1350,7 @@ export class CognitiveRoutingController {
       modelId: resolvedProfile.model,
       thinkingLevel: resolvedProfile.effectiveThinkingLevel,
     };
-    const fromPair = latestHostPair(this.ctx) ?? this.currentPair();
+    const fromPair = this.observedHostPair();
     if (!fromPair) return { status: "inactive", reason: "current_state_unavailable" };
     const fromProfile = this.activeProfile ?? profileNameForPair(this.capabilityState, fromPair);
     const correlationId = this.idFactory();
@@ -916,6 +1365,7 @@ export class CognitiveRoutingController {
       ...(decisionCorrelationId ? { decisionCorrelationId } : {}),
       ...(fromPair ? { fromPair } : {}),
       ...(fromProfile ? { fromProfile } : {}),
+      fromControl: options.controlMode === "automatic" ? "automatic" : "manual",
       reason: options.reason,
       branchId: this.currentBranchId(),
       epoch: this.epoch,
@@ -945,8 +1395,27 @@ export class CognitiveRoutingController {
     }
 
     try {
-      const result = await lease.setState({ ...target, correlationId: intent.correlationId });
+      const result = await this.setState(lease, { ...target, correlationId: intent.correlationId });
       if (result.status !== "applied" && result.status !== "unchanged") {
+        const commit = latestPiSessionCommit(branchEntriesFrom(this.ctx), intent.correlationId);
+        if (result.status === "rejected" && commit?.phase === "aborted" && commit.status === "rollback-failed") {
+          try {
+            this.abandonPreparedIntent(intent, "Pi session rollback failed.");
+          } catch {
+            // Fail closed even when the terminal abandonment cannot be persisted.
+          }
+          await this.releaseLease(lease);
+          this.clearActiveState();
+          return { status: "inactive", reason: "rollback_failed" };
+        }
+        if (result.status === "rejected" && commit?.phase === "aborted" && commit.status === "rolled-back") {
+          try {
+            this.abandonPreparedIntent(intent, "Pi session transition rolled back.");
+            this.branchPending = false;
+          } catch {
+            // Preserve the pending boundary when the terminal abandonment cannot be persisted.
+          }
+        }
         return { status: "inactive", reason: "transition_rejected" };
       }
       this.activeProfile = profile;
@@ -960,7 +1429,11 @@ export class CognitiveRoutingController {
 
   private async _setAutomaticControl(mechanism: CognitiveRoutingMechanism): Promise<CognitiveRoutingAutomaticResult> {
     if (!this.lease || !this.epoch) {
-      return { status: "rejected", reason: "not_active" };
+      if (!this.nativeInactiveReason && !this.nativeBlockedReason) return { status: "rejected", reason: "not_active" };
+      const activation = await this._activate(true, this.profileForCurrentPair(), "automatic");
+      return activation.status === "active"
+        ? { status: "automatic" }
+        : { status: "rejected", reason: activation.reason };
     }
     const current = this.state();
     if (!current.activeProfile) {
@@ -1008,6 +1481,15 @@ export class CognitiveRoutingController {
     }
   }
 
+  private observedHostPair(): CognitiveRoutingPair | undefined {
+    const livePair = this.currentPair();
+    return this.liveStateAuthoritative ? livePair : (latestHostPair(this.ctx) ?? livePair);
+  }
+
+  private profileForCurrentPair(): CognitiveRoutingProfileName | undefined {
+    return profileNameForPair(this.capabilityState, this.currentPair());
+  }
+
   private currentPair(): CognitiveRoutingPair | undefined {
     const model = this.ctx.model;
     if (
@@ -1042,7 +1524,7 @@ export class CognitiveRoutingController {
     target: CognitiveRoutingPair;
     profile: CognitiveRoutingProfileName;
   }): Promise<CognitiveRoutingActivationResult> {
-    const fromPair = latestHostPair(this.ctx) ?? this.currentPair();
+    const fromPair = this.observedHostPair();
     if (!fromPair) return { status: "inactive", reason: "current_state_unavailable" };
     const fromProfile = profileNameForPair(this.capabilityState, fromPair);
     const correlationId = this.idFactory();
@@ -1083,7 +1565,7 @@ export class CognitiveRoutingController {
 
     this.lease = acquisition.lease;
     try {
-      const result = await acquisition.lease.setState({ ...options.target, correlationId: intent.correlationId });
+      const result = await this.setState(acquisition.lease, { ...options.target, correlationId: intent.correlationId });
       if (result.status !== "applied" && result.status !== "unchanged") {
         await this.releaseLease(acquisition.lease);
         this.clearActiveState();
@@ -1093,6 +1575,8 @@ export class CognitiveRoutingController {
       this.returnTarget = options.returnTarget;
       this.activeProfile = options.profile;
       this.controlMode = options.controlMode;
+      this.nativeInactiveReason = undefined;
+      this.nativeBlockedReason = undefined;
       return { status: "active", profile: options.profile };
     } catch {
       await this.releaseLease(acquisition.lease);
@@ -1108,6 +1592,18 @@ export class CognitiveRoutingController {
       () => undefined,
     );
     return next;
+  }
+
+  private async setState(
+    lease: ModelStateLease,
+    request: CognitiveRoutingPair & { correlationId: string },
+  ): Promise<{ status: string }> {
+    this.transitionInFlight = true;
+    try {
+      return await lease.setState(request);
+    } finally {
+      this.transitionInFlight = false;
+    }
   }
 
   private async releaseLease(lease: ModelStateLease): Promise<void> {

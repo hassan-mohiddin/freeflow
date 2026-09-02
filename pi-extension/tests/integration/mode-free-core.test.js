@@ -114,6 +114,7 @@ test("core and the separately editable Interaction Contract are mandatory prompt
     const state = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
     const loaded = await getRuntimeContext(state);
     assert.match(loaded.corePrompt, /# Freeflow Stable Guidance/);
+    assert.match(loaded.corePrompt, /## Recover After Context Loss/);
     assert.match(loaded.corePrompt, /## Shared Terms/);
     assert.match(loaded.corePrompt, /Report the outcome, evidence, limits, and current route\./);
     assert.equal(loaded.skillsPrompt, undefined);

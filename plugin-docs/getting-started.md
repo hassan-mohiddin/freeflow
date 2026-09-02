@@ -8,10 +8,10 @@ Freeflow is a portable workflow layer for coding agents. Choose the host that ma
 | --- | --- | --- |
 | Codex | Shared Freeflow skills and lifecycle hook delivery | Not available |
 | Claude Code | Shared Freeflow skills and lifecycle hook delivery | Not available |
-| Pi | Shared skills, Pi extension, and optional Context Virtualization and Conversation History | Configuration is inspectable but execution is disabled |
+| Pi | Shared skills, Pi extension, optional context capabilities, and Cognitive Routing | Available when configured and the official model-state APIs are present |
 | PiFlow | PiFlow-hosted Freeflow, including model-state control | Available when configured |
 
-Cognitive Routing requires the separate PiFlow distribution. Installing Freeflow into normal Pi does not enable it.
+Cognitive Routing works in either Pi or PiFlow when the active host exposes the required model-state APIs.
 
 ## Install Freeflow
 
@@ -48,6 +48,8 @@ pi install git:github.com/hassan-mohiddin/freeflow
 ```
 
 Restart Pi or use `/reload` after installing or updating the package.
+
+The full normal-Pi integration targets Pi 0.84.3 or newer. Pi 0.84.4 is the current integration test target for Cognitive Routing.
 
 ### PiFlow
 
@@ -86,8 +88,8 @@ Use the host-native surface to confirm the installation:
 
 - **Codex:** trust the hook from `/hooks`, start a new session, and confirm the core Freeflow context is delivered.
 - **Claude Code:** reload plugins or start a new session, then use a namespaced Freeflow skill such as `/freeflow:discuss`.
-- **Pi:** use `/freeflow` to inspect settings/status and confirm the core prompt, Interaction Contract, and base skills are available.
-- **PiFlow:** use `/freeflow` to configure Cognitive Routing, then configure distinct `standard` and `reasoning` profiles. While idle, use `/freeflow profile standard`, `/freeflow profile reasoning`, or `/freeflow profile auto`.
+- **Pi:** use `/freeflow` to inspect settings/status, confirm the core prompt, Interaction Contract, and base skills, then configure distinct Cognitive Routing profiles when the official model-state APIs are available.
+- **PiFlow:** use `/freeflow` to configure Cognitive Routing and distinct `standard` and `reasoning` profiles. While idle, either host supports `/freeflow profile standard`, `/freeflow profile reasoning`, and `/freeflow profile auto`.
 
 Activation is not proof of runtime delivery. Setup reports delivery as `confirmed`, `unavailable`, or `unconfirmed`.
 

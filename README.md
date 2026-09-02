@@ -60,12 +60,12 @@ Freeflow is one package with different host boundaries:
 
 | Host | Freeflow support | Cognitive Routing |
 | --- | --- | --- |
-| Codex | Shared skills and lifecycle hook | Not available; Pi-only capabilities are not delivered |
-| Claude Code | Shared skills and lifecycle hook | Not available; Pi-only capabilities are not delivered |
-| Pi | Shared skills, Pi extension, and optional context capabilities | Configuration is inspectable but execution is disabled |
+| Codex | Shared skills and lifecycle hook | Not available; Pi/PiFlow capabilities are not delivered |
+| Claude Code | Shared skills and lifecycle hook | Not available; Pi/PiFlow capabilities are not delivered |
+| Pi | Shared skills, Pi extension, optional context capabilities, and native host controls | Available when configured and the official model-state APIs are present |
 | PiFlow | Freeflow package hosted by the separate PiFlow distribution | Available when configured |
 
-Freeflow owns workflow policy, prompt fragments, skills, capabilities, and the Pi extension. PiFlow owns host launch, package installation, session state, updates, and the model-state control required by Cognitive Routing.
+Freeflow owns workflow policy, prompt fragments, skills, capabilities, and the Pi extension. Each host owns its launch, package installation, session state, updates, and native model-state control; PiFlow remains a supported host integration.
 
 ## Capabilities
 
@@ -78,7 +78,7 @@ Freeflow owns workflow policy, prompt fragments, skills, capabilities, and the P
 
 ### Optional host capabilities
 
-- **[Cognitive Routing](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/cognitive-routing.md)** places compute between Reasoning and Standard under automatic control. It is PiFlow-only and experimental.
+- **[Cognitive Routing](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/cognitive-routing.md)** places compute between Reasoning and Standard under automatic control in Pi and PiFlow. It remains experimental.
 - **[Context Virtualization](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/context-virtualization.md)** classifies consumed tool evidence as Full, Retained, or Reference-only for future context while leaving canonical history unchanged.
 - **[Conversation History](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/conversation-history.md)** performs bounded retrieval of exact missing prior-conversation evidence from the current active branch.
 
@@ -117,6 +117,8 @@ Or:
 ```bash
 pi install git:github.com/hassan-mohiddin/freeflow
 ```
+
+The full normal-Pi integration targets Pi 0.84.3 or newer; Pi 0.84.4 is the current Cognitive Routing test target.
 
 ### PiFlow
 
@@ -218,7 +220,7 @@ Contributor calls:
 /evaluate-skill
 ```
 
-Pi settings and PiFlow-only Cognitive Routing controls:
+Pi and PiFlow Cognitive Routing controls:
 
 ```text
 /freeflow
@@ -230,14 +232,12 @@ Pi settings and PiFlow-only Cognitive Routing controls:
 /freeflow profile auto
 ```
 
-`/freeflow settings` edits personal overrides, `/freeflow settings session` manages temporary enablement and optional-context overrides, and `/freeflow settings repo` edits shared repository settings. Profile changes require PiFlow and an idle host.
+`/freeflow settings` edits personal overrides, `/freeflow settings session` manages temporary enablement and optional-context overrides, and `/freeflow settings repo` edits shared repository settings. Profile changes require an idle host with the required model-state APIs.
 
-In PiFlow, while the host is idle:
+In Pi or PiFlow, while the host is idle:
 
 - `Ctrl+Shift+R` cycles the manual standard/reasoning hold.
-- `Ctrl+Shift+A` sets automatic Reasoning control; from a manual hold, it releases the hold and moves to Reasoning when necessary.
-
-Normal Pi does not register these Cognitive Routing shortcuts.
+- `Ctrl+Shift+A` sets automatic control; from a manual hold, it releases the hold and moves to Reasoning when necessary. Repeating it while already automatic is idempotent.
 
 ## Documentation and development
 

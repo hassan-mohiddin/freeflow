@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolveCognitiveRoutingState } from "../cognitive-routing/runtime.js";
-import { isPiFlowHost } from "./runtime-identity.js";
+import { supportsCognitiveRoutingModelRegistry } from "../cognitive-routing/host.js";
 
 export const WORKFLOW_COMMANDS = [
   { command: "discuss", skill: "discuss" },
@@ -432,7 +432,7 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
   const enabled = layers.configured && effectiveCore.config.enabled;
   const contextVirtualizationConfigEnabled = effectiveCore.config.contextVirtualization;
   const conversationHistoryConfigEnabled = effectiveCore.config.conversationHistory;
-  const hostSupportsCognitiveRouting = isPiFlowHost(extensionHost);
+  const hostSupportsCognitiveRouting = supportsCognitiveRoutingModelRegistry(host);
   const configuredCognitiveRouting = await resolveCognitiveRoutingState(
     layers.repository.parsed,
     layers.local.parsed,
@@ -445,16 +445,7 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
     ...(disabledReason ? { blockingReason: disabledReason } : {}),
   });
   const cognitiveRouting = enabled
-    ? !hostSupportsCognitiveRouting && configuredCognitiveRouting.configValid
-      ? {
-          ...configuredCognitiveRouting,
-          effective: false,
-          blockingReason: {
-            code: "runtime_disabled" as const,
-            message: "Cognitive Routing is disabled outside the PiFlow runtime",
-          },
-        }
-      : configuredCognitiveRouting
+    ? configuredCognitiveRouting
     : {
         ...configuredCognitiveRouting,
         enabled: false,
@@ -502,7 +493,7 @@ export function setFreeflowStatus(
   capabilityState = undefined,
   cognitiveRoutingRuntime = undefined,
   freeflowContext = undefined,
-  options: { cognitiveRoutingStartupPending?: boolean } = {},
+  options: { cognitiveRoutingStartupPending?: boolean; startupSelectionSuppressed?: boolean } = {},
 ) {
   if (capabilityState && !capabilityState.configured) {
     ctx.ui.setStatus("freeflow", capabilityState.configExists ? "freeflow: config error" : "freeflow: setup needed");
@@ -520,10 +511,19 @@ export function setFreeflowStatus(
 
   const active: string[] = [];
   const cognitiveRouting = capabilityState?.cognitiveRouting;
+  const cognitiveRoutingInactive =
+    cognitiveRouting?.enabled === true && cognitiveRoutingRuntime?.runtimeStatus === "inactive";
+  const cognitiveRoutingBlocked =
+    cognitiveRouting?.enabled === true &&
+    (cognitiveRouting?.blockingReason?.code === "runtime_blocked" ||
+      cognitiveRoutingRuntime?.runtimeStatus === "blocked");
   const cognitiveRoutingActive = cognitiveRouting?.effective === true && cognitiveRoutingRuntime?.effective === true;
-  const startupSelectionSuppressesCognitiveRouting =
-    ctx?.modelStateProvenance?.explicitModel === true || ctx?.modelStateProvenance?.explicitThinking === true;
-  if (cognitiveRoutingActive) {
+  const startupSelectionSuppressesCognitiveRouting = options.startupSelectionSuppressed === true;
+  if (cognitiveRoutingInactive) {
+    active.push("cognitive inactive");
+  } else if (cognitiveRoutingBlocked) {
+    active.push(`cognitive blocked · ${cognitiveRoutingRuntime?.runtimeReason ?? "runtime_blocked"}`);
+  } else if (cognitiveRoutingActive) {
     const profile = cognitiveRoutingRuntime.activeProfile;
     const control =
       cognitiveRoutingRuntime.controlMode === "manual-standard" ||
@@ -533,7 +533,7 @@ export function setFreeflowStatus(
     active.push(`${profile} · ${control}`);
   } else if (cognitiveRouting?.enabled === true) {
     if (cognitiveRouting.blockingReason?.code === "runtime_disabled") {
-      active.push("cognitive disabled · PiFlow only");
+      active.push("cognitive blocked · runtime_disabled");
     } else if (
       cognitiveRouting.effective === true &&
       cognitiveRoutingRuntime === undefined &&
@@ -566,6 +566,8 @@ export function skillPrompt(skill, args) {
 
 type CognitiveRoutingRuntimeSnapshot = {
   effective?: boolean;
+  runtimeStatus?: "active" | "inactive" | "blocked";
+  runtimeReason?: unknown;
   activeProfile?: unknown;
   controlMode?: unknown;
 };
@@ -592,6 +594,11 @@ function publicCapabilityStatus(capability) {
   const blockingCode = capability.blockingReason?.code;
   if (blockingCode && blockingCode !== "disabled") return "unavailable";
   return "inactive";
+}
+
+function publicCognitiveRoutingStatus(capability, runtime) {
+  if (runtime?.runtimeStatus === "inactive") return "inactive";
+  return publicCapabilityStatus(capability);
 }
 
 export function freeflowRuntimeStateMessage(
@@ -630,7 +637,7 @@ export function freeflowRuntimeStateMessage(
       "Capabilities:",
       `- Context Virtualization: ${publicCapabilityStatus(capabilityState?.contextVirtualization)}`,
       `- Conversation History: ${publicCapabilityStatus(capabilityState?.conversationHistory)}`,
-      `- Cognitive Routing: ${publicCapabilityStatus(capabilityState?.cognitiveRouting)}`,
+      `- Cognitive Routing: ${publicCognitiveRoutingStatus(capabilityState?.cognitiveRouting, cognitiveRoutingRuntime)}`,
       "",
       "Cognitive Routing:",
       `- Control: \`${control}\``,

@@ -168,6 +168,40 @@ test("preflights exact identities, authentication, and effective thinking levels
   });
 });
 
+test("normal Pi preflight resolves thinking levels from model metadata without a registry clamp", async () => {
+  const models = [
+    {
+      provider: standard.provider,
+      id: standard.model,
+      reasoning: true,
+      thinkingLevelMap: { xhigh: "xhigh", max: "max" },
+    },
+    {
+      provider: reasoning.provider,
+      id: reasoning.model,
+      reasoning: true,
+      thinkingLevelMap: { xhigh: "xhigh", max: "max" },
+    },
+  ];
+  const modelMap = new Map(models.map((model) => [`${model.provider}/${model.id}`, model]));
+  const host = {
+    modelRegistry: {
+      find(provider, modelId) {
+        return modelMap.get(`${provider}/${modelId}`);
+      },
+      async getApiKeyAndHeaders() {
+        return { ok: true };
+      },
+    },
+  };
+
+  const result = await resolveCognitiveRoutingState(configuredRepository(), {}, host);
+
+  assert.equal(result.effective, true);
+  assert.equal(result.resolvedProfiles.standard.effectiveThinkingLevel, "high");
+  assert.equal(result.resolvedProfiles.reasoning.effectiveThinkingLevel, "max");
+});
+
 test("runtime context isolates invalid Cognitive Routing from core Freeflow state", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-"));
   await mkdir(join(cwd, ".freeflow"));

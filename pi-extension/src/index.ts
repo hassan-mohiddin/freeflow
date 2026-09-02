@@ -1,8 +1,11 @@
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+
 import {
   COGNITIVE_ROUTING_CONTROL_ENTRY,
+  COGNITIVE_ROUTING_INACTIVE_ENTRY,
   COGNITIVE_ROUTING_INTENT_ENTRY,
-  CognitiveRoutingController,
 } from "./cognitive-routing/controller.js";
+import { PiRoutingSession, type PiRoutingSessionSnapshot } from "./cognitive-routing/pi-routing-session.js";
 import {
   cognitiveRoutingProfileCompletions,
   handleCognitiveRoutingProfileCommand,
@@ -35,10 +38,6 @@ import {
   withFreeflowRuntimeState,
 } from "./runtime/runtime-context.js";
 
-function startupSelectionSuppressesCognitiveRouting(ctx: any): boolean {
-  return ctx?.modelStateProvenance?.explicitModel === true || ctx?.modelStateProvenance?.explicitThinking === true;
-}
-
 function unavailableCapability(capability: any, code: string, message: string): any {
   return {
     ...capability,
@@ -49,9 +48,8 @@ function unavailableCapability(capability: any, code: string, message: string): 
 
 function modelFacingCapabilityState(
   capabilityState: any,
-  ctx: any,
   freeflowContext: any,
-  cognitiveRoutingController: CognitiveRoutingController | undefined,
+  routingSnapshot: PiRoutingSessionSnapshot,
   cognitiveRoutingActivationFailed = false,
 ): any {
   const surfaceState = {
@@ -89,13 +87,32 @@ function modelFacingCapabilityState(
   }
 
   if (surfaceState.cognitiveRouting?.effective === true) {
-    if (startupSelectionSuppressesCognitiveRouting(ctx)) {
+    const controllerState = routingSnapshot.runtimeState;
+    if (routingSnapshot.disposition === "blocked") {
+      surfaceState.cognitiveRouting = unavailableCapability(
+        surfaceState.cognitiveRouting,
+        "runtime_blocked",
+        routingSnapshot.reason ?? "Cognitive Routing is blocked because its inactive state could not be persisted.",
+      );
+    } else if (routingSnapshot.startupSelectionSuppressed || routingSnapshot.disposition === "inactive") {
       surfaceState.cognitiveRouting = unavailableCapability(
         surfaceState.cognitiveRouting,
         "runtime_inactive",
-        "Cognitive Routing is inactive because the host selected the startup model or thinking level.",
+        "Cognitive Routing is inactive because Pi owns the startup model or thinking level.",
       );
-    } else if (cognitiveRoutingActivationFailed || cognitiveRoutingController?.state()?.effective === false) {
+    } else if (controllerState?.runtimeStatus === "inactive") {
+      surfaceState.cognitiveRouting = unavailableCapability(
+        surfaceState.cognitiveRouting,
+        "runtime_inactive",
+        controllerState.runtimeReason ?? "Cognitive Routing is inactive because Pi owns the current model state.",
+      );
+    } else if (controllerState?.runtimeStatus === "blocked") {
+      surfaceState.cognitiveRouting = unavailableCapability(
+        surfaceState.cognitiveRouting,
+        "runtime_blocked",
+        controllerState.runtimeReason ?? "Cognitive Routing is blocked because its state is not proven.",
+      );
+    } else if (cognitiveRoutingActivationFailed || controllerState?.effective === false) {
       surfaceState.cognitiveRouting = unavailableCapability(
         surfaceState.cognitiveRouting,
         "unavailable",
@@ -131,7 +148,9 @@ function sessionHasConversationOrRoutingState(ctx: SessionEntriesContext | undef
       }
       return (
         record.type === "custom" &&
-        (record.customType === COGNITIVE_ROUTING_INTENT_ENTRY || record.customType === COGNITIVE_ROUTING_CONTROL_ENTRY)
+        (record.customType === COGNITIVE_ROUTING_INTENT_ENTRY ||
+          record.customType === COGNITIVE_ROUTING_CONTROL_ENTRY ||
+          record.customType === COGNITIVE_ROUTING_INACTIVE_ENTRY)
       );
     });
   } catch {
@@ -139,51 +158,17 @@ function sessionHasConversationOrRoutingState(ctx: SessionEntriesContext | undef
   }
 }
 
-function hasCognitiveRoutingHost(pi: any, ctx: any): boolean {
-  return (
-    isPiFlowHost(pi?.host) &&
-    typeof pi?.appendEntryDurable === "function" &&
-    typeof pi?.acquireModelStateControl === "function" &&
-    typeof ctx?.modelRegistry?.getApiKeyAndHeaders === "function"
-  );
-}
-
-async function reconcileCognitiveRoutingController(
-  pi: any,
-  ctx: any,
-  capabilityState: any,
-  previous: CognitiveRoutingController | undefined,
-): Promise<CognitiveRoutingController | undefined> {
-  const cognitiveRouting = capabilityState?.cognitiveRouting;
-  if (
-    !isPiFlowHost(pi?.host) ||
-    !cognitiveRouting?.effective ||
-    startupSelectionSuppressesCognitiveRouting(ctx) ||
-    !hasCognitiveRoutingHost(pi, ctx)
-  ) {
-    if (previous) await previous.deactivate();
-    return undefined;
-  }
-
-  const controller = new CognitiveRoutingController({ capabilityState: cognitiveRouting, pi, ctx });
-  const recovered = await controller.recover();
-  if (recovered.status === "pending") return controller;
-  if (recovered.status !== "active") {
-    const activated = await controller.activate();
-    return activated.status === "active" ? controller : undefined;
-  }
-  return controller;
-}
-
 async function applyCapabilityToolVisibility(
   pi: any,
   ctx: any,
   capabilityState = undefined,
-  cognitiveRoutingController: CognitiveRoutingController | undefined = undefined,
+  routingSnapshot: PiRoutingSessionSnapshot = {
+    status: "available",
+    disposition: "available",
+    startupSelectionSuppressed: false,
+  },
 ): Promise<void> {
-  if (typeof pi?.setActiveTools !== "function" || typeof pi?.getAllTools !== "function") {
-    return;
-  }
+  if (typeof pi?.setActiveTools !== "function" || typeof pi?.getAllTools !== "function") return;
 
   const state = capabilityState ?? (await readCapabilityState(ctx.cwd, ctx, pi?.host));
   const allToolNames = pi
@@ -197,12 +182,11 @@ async function applyCapabilityToolVisibility(
   );
 
   if (allToolNameSet.has(COGNITIVE_ROUTING_SWITCH_TOOL_NAME)) {
-    const controllerState = cognitiveRoutingController?.state();
+    const controllerState = routingSnapshot.runtimeState;
     const routingToolActive =
       state.cognitiveRouting?.effective === true &&
       controllerState?.effective === true &&
-      controllerState.controlMode === "automatic" &&
-      !startupSelectionSuppressesCognitiveRouting(ctx);
+      controllerState.controlMode === "automatic";
     if (routingToolActive) active.add(COGNITIVE_ROUTING_SWITCH_TOOL_NAME);
     else active.delete(COGNITIVE_ROUTING_SWITCH_TOOL_NAME);
   }
@@ -218,45 +202,6 @@ async function applyCapabilityToolVisibility(
   pi.setActiveTools([...active]);
 }
 
-async function applyLiveCapabilityState(
-  pi: any,
-  ctx: any,
-  cognitiveRoutingController: CognitiveRoutingController | undefined,
-  options: { reconcileCognitiveRouting?: boolean } = {},
-): Promise<{
-  controller: CognitiveRoutingController | undefined;
-  capabilityState: any;
-  freeflowContext: any;
-}> {
-  const configuredCapabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
-  const freeflowContext = await refreshRuntimeContext(configuredCapabilityState);
-  let nextController = cognitiveRoutingController;
-  let surfaceCapabilityState = modelFacingCapabilityState(
-    configuredCapabilityState,
-    ctx,
-    freeflowContext,
-    nextController,
-  );
-  const surfaceWasEffective = surfaceCapabilityState.cognitiveRouting?.effective === true;
-  const shouldReconcile =
-    (nextController !== undefined && !surfaceWasEffective) ||
-    (options.reconcileCognitiveRouting &&
-      (nextController === undefined || configuredCapabilityState.cognitiveRouting?.effective !== true));
-  if (shouldReconcile) {
-    try {
-      nextController = await reconcileCognitiveRoutingController(pi, ctx, surfaceCapabilityState, nextController);
-    } catch {
-      nextController = undefined;
-    }
-    surfaceCapabilityState = surfaceWasEffective
-      ? modelFacingCapabilityState(configuredCapabilityState, ctx, freeflowContext, nextController, !nextController)
-      : modelFacingCapabilityState(surfaceCapabilityState, ctx, freeflowContext, nextController);
-  }
-  setFreeflowStatus(ctx, surfaceCapabilityState, nextController?.state(), freeflowContext);
-  await applyCapabilityToolVisibility(pi, ctx, surfaceCapabilityState, nextController);
-  return { controller: nextController, capabilityState: surfaceCapabilityState, freeflowContext };
-}
-
 function disabledToolCall(toolName: string, capability: string) {
   const command = capability === "freeflow" ? "/freeflow settings" : `/${capability} settings`;
   return {
@@ -265,7 +210,7 @@ function disabledToolCall(toolName: string, capability: string) {
   };
 }
 
-function freeflowCompletions(prefix: string | undefined, hostInfo = undefined) {
+function freeflowCompletions(prefix: string | undefined, cognitiveRoutingAvailable = false) {
   const query = prefix ?? "";
   if (query.startsWith("settings ")) {
     const settingsQuery = query.slice("settings ".length);
@@ -277,7 +222,7 @@ function freeflowCompletions(prefix: string | undefined, hostInfo = undefined) {
       .filter((item) => item.value.startsWith(settingsQuery))
       .map((item) => ({ ...item, value: `settings ${item.value}` }));
   }
-  if (isPiFlowHost(hostInfo) && query.startsWith("profile ")) {
+  if (cognitiveRoutingAvailable && query.startsWith("profile ")) {
     return cognitiveRoutingProfileCompletions(query.slice("profile ".length)).map((item) => ({
       ...item,
       value: `profile ${item.value}`,
@@ -298,7 +243,7 @@ function freeflowCompletions(prefix: string | undefined, hostInfo = undefined) {
     { value: "settings", label: "settings", description: "Open personal override settings" },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
     { value: "context", label: "context", description: "Inspect Freeflow Context" },
-    ...(isPiFlowHost(hostInfo)
+    ...(cognitiveRoutingAvailable
       ? [{ value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" }]
       : []),
     { value: "enable", label: "enable", description: "Enable Freeflow for this repository" },
@@ -314,10 +259,17 @@ function bypassCompletions(prefix: string | undefined) {
   ].filter((item) => item.value.startsWith(query));
 }
 
-async function sendSkillCommand(pi: any, ctx: any, skill: string, args: string | undefined) {
+type FreeflowExtensionAPI = ExtensionAPI & { host?: unknown };
+
+async function sendSkillCommand(
+  pi: FreeflowExtensionAPI,
+  ctx: ExtensionCommandContext,
+  skill: string,
+  args: string | undefined,
+) {
   const state = await readCapabilityState(ctx.cwd, ctx, pi?.host);
   if (skill === "setup-freeflow" && !state.configured) {
-    await pi.sendUserMessage(skillPrompt(skill, args));
+    await pi.sendUserMessage(skillPrompt(skill, args), { expandPromptTemplates: true });
     return;
   }
   if (!state.configured) {
@@ -336,11 +288,13 @@ async function sendSkillCommand(pi: any, ctx: any, skill: string, args: string |
     ctx.ui.notify("Freeflow core prompts are unavailable; the requested skill cannot be dispatched.", "warning");
     return;
   }
-  await pi.sendUserMessage(skillPrompt(skill, args));
+  await pi.sendUserMessage(skillPrompt(skill, args), { expandPromptTemplates: true });
 }
 
-export default function freeflow(pi) {
-  let cognitiveRoutingController: CognitiveRoutingController | undefined;
+export default function freeflow(pi: FreeflowExtensionAPI) {
+  // SAFETY: These helpers register complete Pi tool definitions but retain legacy structural typing for PiFlow compatibility.
+  const toolRegistrar = pi as unknown as { registerTool(tool: Record<string, unknown>): void };
+  const routingSession = new PiRoutingSession({ pi, stockPi: !isPiFlowHost(pi?.host) });
   let latestCognitiveRoutingContext: any;
   let providerSurfaceSnapshot: { context: any; value: any } | undefined;
   let runtimeStateRefreshRequired = true;
@@ -349,7 +303,7 @@ export default function freeflow(pi) {
   let conversationHistoryRuntime: ConversationHistoryRuntime | undefined;
   const registerContextToolForState = (capabilityState: any) => {
     registerFreeflowContextTool(
-      pi,
+      toolRegistrar,
       () => contextVirtualizationRuntime,
       () => conversationHistoryRuntime,
       {
@@ -363,66 +317,82 @@ export default function freeflow(pi) {
     const freeflowContext = await getRuntimeContext(capabilityState);
     const promptCapabilityState = modelFacingCapabilityState(
       capabilityState,
-      ctx,
       freeflowContext,
-      cognitiveRoutingController,
+      routingSession.snapshot(),
     );
     let activationAttempted = false;
     if (
       activateCognitiveRouting &&
-      (cognitiveRoutingController === undefined || promptCapabilityState.cognitiveRouting?.effective !== true)
+      routingSession.canAutoActivate() &&
+      (!routingSession.hasController() || promptCapabilityState.cognitiveRouting?.effective !== true)
     ) {
-      activationAttempted =
-        promptCapabilityState.cognitiveRouting?.effective === true && !startupSelectionSuppressesCognitiveRouting(ctx);
+      activationAttempted = promptCapabilityState.cognitiveRouting?.effective === true;
       try {
-        cognitiveRoutingController = await reconcileCognitiveRoutingController(
-          pi,
+        await routingSession.reconcileController(
           ctx,
           promptCapabilityState,
-          cognitiveRoutingController,
+          routingSession.armed ? { ...routingSession.armed } : undefined,
         );
+        if (routingSession.hasController()) {
+          routingSession.clearArmed();
+          if (routingSession.snapshot().status === "active") routingSession.markActive();
+        }
       } catch {
-        cognitiveRoutingController = undefined;
+        routingSession.clearController();
       }
     }
     const surfaceCapabilityState = modelFacingCapabilityState(
       promptCapabilityState,
-      ctx,
       freeflowContext,
-      cognitiveRoutingController,
-      activationAttempted && !cognitiveRoutingController,
+      routingSession.snapshot(),
+      activationAttempted && !routingSession.hasController(),
     );
+    const routingSnapshot = routingSession.snapshot();
     return {
       capabilityState: surfaceCapabilityState,
       freeflowContext,
-      cognitiveRoutingRuntime: cognitiveRoutingController?.state(),
+      cognitiveRoutingRuntime: routingSnapshot.runtimeState,
       configuredCapabilityState: capabilityState,
     };
   };
   const applyLiveCapabilityStateForSession = async (
     ctx: any,
-    options: { reconcileCognitiveRouting?: boolean } = {},
+    options: { reconcileCognitiveRouting?: boolean; materializeCognitiveRouting?: boolean } = {},
   ): Promise<void> => {
-    const liveSurface = await applyLiveCapabilityState(pi, ctx, cognitiveRoutingController, options);
-    cognitiveRoutingController = liveSurface.controller;
-    registerContextToolForState(liveSurface.capabilityState);
+    providerSurfaceSnapshot = undefined;
+    await routingSession.applyLiveCapabilityState(ctx, options);
+    const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
+    const freeflowContext = await getRuntimeContext(capabilityState);
+    const surfaceCapabilityState = modelFacingCapabilityState(
+      capabilityState,
+      freeflowContext,
+      routingSession.snapshot(),
+    );
+    const routingSnapshot = routingSession.snapshot();
+    setFreeflowStatus(ctx, surfaceCapabilityState, routingSnapshot.runtimeState, freeflowContext, {
+      startupSelectionSuppressed: routingSnapshot.startupSelectionSuppressed,
+    });
+    await applyCapabilityToolVisibility(pi, ctx, surfaceCapabilityState, routingSnapshot);
+    registerContextToolForState(surfaceCapabilityState);
   };
 
-  if (isPiFlowHost(pi?.host)) {
-    registerCognitiveRoutingTool(pi, () => cognitiveRoutingController);
-    registerCognitiveRoutingHistoryTool(pi, (options, context) => {
-      if (cognitiveRoutingController) return cognitiveRoutingController.history(options);
-      return readCognitiveRoutingHistory(context ?? latestCognitiveRoutingContext, options);
+  if (routingSession.supportsCognitiveRoutingRuntime()) {
+    registerCognitiveRoutingTool(toolRegistrar, () => routingSession.controllerForTool());
+    registerCognitiveRoutingHistoryTool(toolRegistrar, (options, context) => {
+      return (
+        routingSession.history(options) ??
+        readCognitiveRoutingHistory(context ?? latestCognitiveRoutingContext, options)
+      );
     });
   }
   registerFreeflowContextTool(
-    pi,
+    toolRegistrar,
     () => contextVirtualizationRuntime,
     () => conversationHistoryRuntime,
     { contextVirtualization: false, conversationHistory: false },
   );
 
-  if (isPiFlowHost(pi?.host) && typeof pi.registerShortcut === "function") {
+  if (routingSession.supportsCognitiveRoutingRuntime() && typeof pi.registerShortcut === "function") {
     pi.registerShortcut("ctrl+shift+r", {
       description: "Cycle the Cognitive Routing manual standard/reasoning hold",
       handler: async (ctx) => {
@@ -430,17 +400,27 @@ export default function freeflow(pi) {
           ctx.ui?.notify?.("Freeflow settings and profile changes are available only while Pi is idle.", "warning");
           return;
         }
-        if (!cognitiveRoutingController) {
+        const armedCycle = routingSession.hasController() ? undefined : routingSession.cycleArmedManual();
+        if (armedCycle) {
+          routingSession.beginExplicitReactivation();
+          ctx.ui?.notify?.(`Cognitive Routing manual hold set to ${armedCycle.target}.`, "info");
+          await applyLiveCapabilityStateForSession(ctx, {
+            reconcileCognitiveRouting: true,
+            materializeCognitiveRouting: !isPiFlowHost(pi?.host),
+          });
+          return;
+        }
+        if (!routingSession.hasController()) {
+          routingSession.beginExplicitReactivation();
           await applyLiveCapabilityStateForSession(ctx, { reconcileCognitiveRouting: true });
         }
-        const controller = cognitiveRoutingController;
-        if (!controller) {
+        const state = routingSession.snapshot().runtimeState;
+        if (!state) {
           ctx.ui?.notify?.("Cognitive Routing is unavailable for this session.", "warning");
           return;
         }
-        const current = controller.state().activeProfile;
-        const target = current === "reasoning" ? "standard" : "reasoning";
-        const result = await controller.setManualProfile(target, "profile-shortcut");
+        const target = state.activeProfile === "reasoning" ? "standard" : "reasoning";
+        const result = await routingSession.setManualProfile(target, "profile-shortcut");
         if (result.status === "active") {
           ctx.ui?.notify?.(`Cognitive Routing manual hold set to ${target}.`, "info");
         } else {
@@ -456,22 +436,65 @@ export default function freeflow(pi) {
           ctx.ui?.notify?.("Freeflow settings and profile changes are available only while Pi is idle.", "warning");
           return;
         }
-        if (!cognitiveRoutingController) {
-          await applyLiveCapabilityStateForSession(ctx, { reconcileCognitiveRouting: true });
-        }
-        const controller = cognitiveRoutingController;
-        if (!controller) {
-          ctx.ui?.notify?.("Cognitive Routing is unavailable for this session.", "warning");
+        const armedCycle = routingSession.hasController() ? undefined : routingSession.cycleArmedAutomatic();
+        if (armedCycle) {
+          if (!armedCycle.changed) {
+            ctx.ui?.notify?.("Cognitive Routing automatic control active.", "info");
+            return;
+          }
+          ctx.ui?.notify?.("Cognitive Routing automatic control active.", "info");
+          routingSession.beginExplicitReactivation();
+          await applyLiveCapabilityStateForSession(ctx, {
+            reconcileCognitiveRouting: true,
+            materializeCognitiveRouting: !isPiFlowHost(pi?.host),
+          });
           return;
         }
-        const result = await controller.setAutomaticControl("profile-shortcut");
+        if (!routingSession.hasController()) {
+          routingSession.beginExplicitReactivation();
+          await applyLiveCapabilityStateForSession(ctx, { reconcileCognitiveRouting: true });
+        }
+        const result = await routingSession.setAutomaticControl("profile-shortcut");
         if (result.status === "automatic") {
-          ctx.ui?.notify?.("Cognitive Routing automatic Reasoning control active.", "info");
+          ctx.ui?.notify?.("Cognitive Routing automatic control active.", "info");
         } else {
-          ctx.ui?.notify?.(`Cognitive Routing could not set automatic Reasoning control: ${result.reason}.`, "warning");
+          ctx.ui?.notify?.(`Cognitive Routing could not change control: ${result.reason}.`, "warning");
         }
         await applyLiveCapabilityStateForSession(ctx);
       },
+    });
+  }
+
+  if (!isPiFlowHost(pi?.host) && routingSession.supportsCognitiveRoutingRuntime()) {
+    pi.on("model_select", async (event, ctx) => {
+      if (!routingSession.hasController()) {
+        if (!routingSession.armed) return;
+        routingSession.clearArmed();
+        routingSession.observeArmedNativeChange(ctx, "Pi model selection");
+        await applyLiveCapabilityStateForSession(ctx);
+        return;
+      }
+      const result = await routingSession.observeNativeChange("Pi model selection", event?.source);
+      if (result.status !== "ignored") {
+        latestCognitiveRoutingContext = ctx;
+        providerSurfaceSnapshot = undefined;
+        await applyLiveCapabilityStateForSession(ctx);
+      }
+    });
+    pi.on("thinking_level_select", async (_event, ctx) => {
+      if (!routingSession.hasController()) {
+        if (!routingSession.armed) return;
+        routingSession.clearArmed();
+        routingSession.observeArmedNativeChange(ctx, "Pi thinking-level selection");
+        await applyLiveCapabilityStateForSession(ctx);
+        return;
+      }
+      const result = await routingSession.observeNativeChange("Pi thinking-level selection");
+      if (result.status !== "ignored") {
+        latestCognitiveRoutingContext = ctx;
+        providerSurfaceSnapshot = undefined;
+        await applyLiveCapabilityStateForSession(ctx);
+      }
     });
   }
 
@@ -491,7 +514,8 @@ export default function freeflow(pi) {
     return { skillPaths: freeflowModelSkillPaths(state) };
   });
 
-  pi.on("session_start", async (_event, ctx) => {
+  pi.on("session_start", async (event, ctx) => {
+    routingSession.resetForSession(ctx, event);
     latestCognitiveRoutingContext = ctx;
     providerSurfaceSnapshot = undefined;
     runtimeStateRefreshRequired = true;
@@ -506,33 +530,43 @@ export default function freeflow(pi) {
     await contextVirtualizationRuntime.recover(ctx);
     const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
     await refreshRuntimeContext(capabilityState);
+    routingSession.ensureStartupInactive(ctx, capabilityState.cognitiveRouting?.effective === true);
+    routingSession.reconcileNativeEntries(ctx);
     const hasSessionState = sessionHasConversationOrRoutingState(ctx);
     const snapshot = await buildProviderSurface(ctx, hasSessionState);
-    const cognitiveRoutingStartupPending =
-      snapshot.capabilityState?.cognitiveRouting?.effective === true &&
+    if (
       !hasSessionState &&
-      !startupSelectionSuppressesCognitiveRouting(ctx);
+      snapshot.capabilityState?.cognitiveRouting?.effective === true &&
+      routingSession.canAutoActivate()
+    ) {
+      routingSession.armFromCapability(snapshot.capabilityState.cognitiveRouting);
+    } else {
+      routingSession.clearArmed();
+    }
     registerContextToolForState(snapshot.capabilityState);
-    setFreeflowStatus(ctx, snapshot.capabilityState, snapshot.cognitiveRoutingRuntime, snapshot.freeflowContext, {
-      cognitiveRoutingStartupPending,
-    });
-    await applyCapabilityToolVisibility(pi, ctx, snapshot.capabilityState, cognitiveRoutingController);
+    const routingSnapshot = routingSession.snapshot();
+    setFreeflowStatus(
+      ctx,
+      snapshot.capabilityState,
+      snapshot.cognitiveRoutingRuntime ?? routingSnapshot.runtimeState,
+      snapshot.freeflowContext,
+      { startupSelectionSuppressed: routingSnapshot.startupSelectionSuppressed },
+    );
+    await applyCapabilityToolVisibility(pi, ctx, snapshot.capabilityState, routingSnapshot);
   });
 
   pi.on("agent_settled", async (_event, ctx) => {
-    if (!cognitiveRoutingController) return undefined;
+    if (!routingSession.hasController()) return undefined;
     await applyLiveCapabilityStateForSession(ctx);
     return undefined;
   });
 
   pi.on("session_shutdown", async (event) => {
+    await routingSession.shutdown(event?.reason);
     providerSurfaceSnapshot = undefined;
-    const controller = cognitiveRoutingController;
-    cognitiveRoutingController = undefined;
     freeflowContextRuntime = undefined;
     contextVirtualizationRuntime = undefined;
     conversationHistoryRuntime = undefined;
-    if (controller) await controller.shutdown(event?.reason);
   });
 
   pi.on("session_tree", async (_event, ctx) => {
@@ -540,8 +574,7 @@ export default function freeflow(pi) {
     providerSurfaceSnapshot = undefined;
     runtimeStateRefreshRequired = true;
     restoreSessionOverrides(ctx);
-    const controller = cognitiveRoutingController;
-    if (controller) await controller.reconcileBranch();
+    await routingSession.reconcileBranch();
     if (contextVirtualizationRuntime) {
       contextVirtualizationRuntime.setContext(ctx);
       await contextVirtualizationRuntime.recover(ctx);
@@ -554,8 +587,7 @@ export default function freeflow(pi) {
     latestCognitiveRoutingContext = ctx;
     providerSurfaceSnapshot = undefined;
     runtimeStateRefreshRequired = true;
-    const controller = cognitiveRoutingController;
-    if (controller) await controller.reconcileBranch("session-compact");
+    await routingSession.reconcileBranch("session-compact");
     if (contextVirtualizationRuntime) {
       contextVirtualizationRuntime.setContext(ctx);
       await contextVirtualizationRuntime.recover(ctx);
@@ -569,8 +601,11 @@ export default function freeflow(pi) {
     const snapshot = await buildProviderSurface(ctx, true);
     providerSurfaceSnapshot = { context: ctx, value: snapshot };
     registerContextToolForState(snapshot.capabilityState);
-    setFreeflowStatus(ctx, snapshot.capabilityState, snapshot.cognitiveRoutingRuntime, snapshot.freeflowContext);
-    await applyCapabilityToolVisibility(pi, ctx, snapshot.capabilityState, cognitiveRoutingController);
+    const routingSnapshot = routingSession.snapshot();
+    setFreeflowStatus(ctx, snapshot.capabilityState, snapshot.cognitiveRoutingRuntime, snapshot.freeflowContext, {
+      startupSelectionSuppressed: routingSnapshot.startupSelectionSuppressed,
+    });
+    await applyCapabilityToolVisibility(pi, ctx, snapshot.capabilityState, routingSnapshot);
     const freeflowRuntimeContext = runtimeContext(snapshot.freeflowContext, snapshot.capabilityState);
     const systemPrompt = freeflowRuntimeContext
       ? `${event.systemPrompt}\n\n${freeflowRuntimeContext}`
@@ -638,7 +673,7 @@ export default function freeflow(pi) {
 
   pi.on("tool_result", async (event, ctx) => {
     const toolName = typeof event?.toolName === "string" ? event.toolName : "";
-    if (isPiFlowHost(pi?.host) && toolName === COGNITIVE_ROUTING_SWITCH_TOOL_NAME) {
+    if (routingSession.supportsCognitiveRoutingRuntime() && toolName === COGNITIVE_ROUTING_SWITCH_TOOL_NAME) {
       await applyLiveCapabilityStateForSession(ctx);
     }
     return undefined;
@@ -665,7 +700,7 @@ export default function freeflow(pi) {
 
   pi.registerCommand("freeflow", {
     description: "Open unified Freeflow settings or print compact status",
-    getArgumentCompletions: (prefix) => freeflowCompletions(prefix, pi?.host),
+    getArgumentCompletions: (prefix) => freeflowCompletions(prefix, routingSession.supportsCognitiveRoutingRuntime()),
     handler: async (args, ctx) => {
       const contextInput = (args ?? "").trim();
       if (contextInput === "context" || contextInput.startsWith("context ")) {
@@ -679,23 +714,30 @@ export default function freeflow(pi) {
         );
         return;
       }
-      if (isPiFlowHost(pi?.host) && /^profile(?:\s|$)/i.test((args ?? "").trim())) {
+      if (routingSession.supportsCognitiveRoutingRuntime() && /^profile(?:\s|$)/i.test((args ?? "").trim())) {
         const profileCommandContext = {
           isIdle: ctx?.isIdle,
           ui: ctx?.ui,
-          history: (options) =>
-            cognitiveRoutingController?.history(options) ?? readCognitiveRoutingHistory(ctx, options),
+          history: (options) => routingSession.history(options) ?? readCognitiveRoutingHistory(ctx, options),
         };
         const historyCommand = /^profile\s+history(?:\s|$)/i.test((args ?? "").trim());
         if (historyCommand) {
-          await handleCognitiveRoutingProfileCommand(args, profileCommandContext, cognitiveRoutingController);
+          await handleCognitiveRoutingProfileCommand(args, profileCommandContext, routingSession.commandController());
           return;
         }
-        if (!cognitiveRoutingController) {
+        if (!routingSession.hasController() && !routingSession.armed) {
+          routingSession.beginExplicitReactivation();
           await applyLiveCapabilityStateForSession(ctx, { reconcileCognitiveRouting: true });
         }
-        if (await handleCognitiveRoutingProfileCommand(args, profileCommandContext, cognitiveRoutingController)) {
-          await applyLiveCapabilityStateForSession(ctx);
+        const profileController = routingSession.commandController();
+        if (await handleCognitiveRoutingProfileCommand(args, profileCommandContext, profileController)) {
+          if (profileController) {
+            routingSession.beginExplicitReactivation();
+            await applyLiveCapabilityStateForSession(ctx, {
+              reconcileCognitiveRouting: routingSession.armed !== undefined,
+              materializeCognitiveRouting: routingSession.armed !== undefined && !isPiFlowHost(pi?.host),
+            });
+          }
           return;
         }
       }
@@ -708,7 +750,7 @@ export default function freeflow(pi) {
           });
         },
         pi,
-        cognitiveRoutingController,
+        routingSession.commandController(),
       );
     },
   });

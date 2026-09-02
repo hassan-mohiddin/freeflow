@@ -6,13 +6,13 @@ Start with [Getting Started](getting-started.md) for host-specific installation,
 
 ## Integrations
 
-- [Pi integration](integrations/pi.md): normal Pi installation, activation, capabilities, and host limits.
+- [Pi integration](integrations/pi.md): normal Pi installation, activation, capabilities, and native host controls.
 - [PiFlow integration](integrations/piflow.md): separate PiFlow installation, ownership boundaries, and Cognitive Routing.
 
 ## Capabilities
 
 - [Capability overview](capabilities/README.md): gates, host support, composition, and evidence limits.
-- [Cognitive Routing](capabilities/cognitive-routing.md): Reasoning/Standard compute placement and PiFlow boundary.
+- [Cognitive Routing](capabilities/cognitive-routing.md): Reasoning/Standard compute placement across Pi and PiFlow.
 - [Context Virtualization](capabilities/context-virtualization.md): archive/restore of consumed evidence projections.
 - [Conversation History](capabilities/conversation-history.md): bounded current-branch evidence recovery.
 

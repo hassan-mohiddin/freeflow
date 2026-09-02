@@ -50,7 +50,7 @@ export async function handleCognitiveRoutingProfileCommand(args, ctx, controller
     const result = ctx.history
       ? await ctx.history(historyView)
       : controller?.history
-        ? controller.history(historyView)
+        ? await controller.history(historyView)
         : undefined;
     if (result) {
       ctx.ui?.notify?.(formatHistory(result), "info");

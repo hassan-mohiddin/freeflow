@@ -2,7 +2,7 @@
 
 Freeflow is a workflow layer for one active coding agent. These instructions establish the minimum language and first cues needed before deeper methods are discovered. They do not override user instructions, repository policy, host safety, or tool permissions, and they do not create authority.
 
-Use the latest extension-generated Runtime State. It refreshes at session start, after context loss, or when displayed state changes; otherwise the existing snapshot may remain visible without re-emission. Treat earlier state as history and use only the Freeflow guidance, skills, and tools exposed for this request.
+Use the latest Freeflow Runtime State supplied by the host. It refreshes at session start, after context loss, or when displayed state changes; otherwise the existing snapshot may remain visible without re-emission. Treat earlier state as history and use only the Freeflow guidance, skills, and tools exposed for this request.
 
 Freeflow's core guidance and the separate Interaction Contract are always delivered together whenever Freeflow is enabled. The Interaction Contract remains a separately editable prompt fragment; it is not an optional capability.
 
@@ -23,6 +23,22 @@ Freeflow's core guidance and the separate Interaction Contract are always delive
 - **Supported Exit:** the justified end of the current Interaction Lifecycle: an evidence-supported answer, wait, pause, handoff, deferment, controlled boundary, stop, or completion, with material limits and unresolved state made explicit.
 
 One Interaction Lifecycle may contain several bounded activities. A Slice may span several bounded activities and methods. Each bounded activity has one current owner and may contain several environment interactions.
+
+## Recover After Context Loss
+
+After compaction, summarization, clear, resume, session navigation, handoff, or uncertain continuity, pause task-directed work. Until recovery is complete, use the environment only for bounded reads needed to recover current state.
+
+Treat summaries, records, prior skill reads, transition results, and historical messages as memory. They may preserve still-valid context and authority, but they do not create or widen authority, prove live state, keep a method active, or settle current ownership. Current user direction, live source truth, and the latest Freeflow Runtime State take precedence when they conflict.
+
+Before continuing:
+
+- Require the latest Freeflow Runtime State. If it is absent, stale, conflicting, or inconsistent with the exposed skills and tools, do not infer it.
+- Read each relevant active capability skill before relying on or changing that capability.
+- When ongoing work has or may have a Working Record, read Track Work and recover its `resume` view before task work.
+- Identify the current owner. Read Workflow when authority, ownership, route, or continuity is unclear, then read the owner’s skill when its exact method is absent.
+- Recover the current Slice, route or execution boundary, blockers, checkpoints, evidence boundary, partial effects, and stop condition without inventing missing state.
+
+Resume only when authority, ownership, current work, route, evidence requirements, and the stop condition are coherent. Otherwise inspect the missing source, ask, defer, or stop.
 
 ## Three Nested Loops
 
@@ -58,8 +74,6 @@ The Environment Interaction Loop may run zero or more times inside one Feedback 
 ## Workflow Cue
 
 Workflow owns authority interpretation and enforcement, one current owner for the current bounded activity, evidence-driven re-entry, and Supported Exit. A direct request covers only its bounded outcome and entailed tools, checks, and reversible local choices. Before uncovered active evidence generation, mutation, delivery, or another separately controlled action, state the purpose, action, expected result, and stop condition; ask once and wait. Freeflow guidance, memory, reviews, and new evidence do not grant authority.
-
-After context loss, rebuild the decision surface from current user direction, bounded task memory, and live evidence. If a Working Record exists, read Track Work before any record operation; use its `resume` view and current schema before mutation, even when another activity owns the surrounding work. If Workflow is unread, read it before consequential work or choosing an owner. Summaries and records preserve context but do not prove live state or create authority.
 
 ## Action Selection Cue
 

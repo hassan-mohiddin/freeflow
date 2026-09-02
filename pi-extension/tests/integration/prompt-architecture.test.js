@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { cp, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
@@ -64,6 +64,22 @@ function lastRuntimeState(messages) {
   return messages.findLast((message) => message.customType === "freeflow-runtime-state");
 }
 
+test("re-entry recovery is stable and capability-neutral", async () => {
+  const [core, cognitiveRouting, conversationHistory] = await Promise.all([
+    readFile(join(process.cwd(), "runtime", "prompts", "core.md"), "utf8"),
+    readFile(join(process.cwd(), "runtime", "prompts", "cognitive-routing.md"), "utf8"),
+    readFile(join(process.cwd(), "runtime", "prompts", "conversation-history.md"), "utf8"),
+  ]);
+
+  assert.match(core, /## Recover After Context Loss/);
+  assert.match(core, /latest Freeflow Runtime State/);
+  assert.doesNotMatch(cognitiveRouting, /When Cognitive Routing is active and its skill is absent/);
+  assert.doesNotMatch(
+    conversationHistory,
+    /Current user direction, live source truth, and present runtime state remain authoritative/,
+  );
+});
+
 test("composes the mandatory core fragments, optional capabilities, discovery, and runtime state", async () => {
   const cwd = await configuredRepo({ contextVirtualization: true, conversationHistory: true });
   try {
@@ -77,6 +93,7 @@ test("composes the mandatory core fragments, optional capabilities, discovery, a
     const order = [
       "# Freeflow Stable Guidance",
       "## Shared Terms",
+      "## Recover After Context Loss",
       "## Three Nested Loops",
       "## Workflow Cue",
       "## Action Selection Cue",

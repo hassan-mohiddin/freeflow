@@ -194,6 +194,7 @@ export function registerCognitiveRoutingTool(
       "Do not call this tool while a deterministic manual profile hold is active.",
     ],
     parameters: COGNITIVE_ROUTING_SWITCH_PARAMETERS,
+    executionMode: "sequential",
     async execute(_toolCallId: string, params: SwitchToolParams, _signal: unknown, _onUpdate: unknown, _ctx: unknown) {
       const controller = getController();
       const input = validateParams(params ?? {});
