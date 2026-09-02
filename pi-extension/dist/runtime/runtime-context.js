@@ -577,6 +577,17 @@ export function withoutFreeflowRuntimeState(messages) {
       message?.customType !== COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE,
   );
 }
+function lastUserMessageIndex(messages) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === "user") return index;
+  }
+  return -1;
+}
+function insertRuntimeStateBeforeLatestUser(messages, runtimeState) {
+  const latestUserIndex = lastUserMessageIndex(messages);
+  if (latestUserIndex < 0) return [...messages, runtimeState];
+  return [...messages.slice(0, latestUserIndex), runtimeState, ...messages.slice(latestUserIndex)];
+}
 export function withFreeflowRuntimeState(
   messages,
   capabilityState,
@@ -591,13 +602,17 @@ export function withFreeflowRuntimeState(
       message?.customType === FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE ||
       message?.customType === COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE,
   );
+  const withoutRuntimeState = withoutFreeflowRuntimeState(source);
+  const expectedRuntimeStateIndex = lastUserMessageIndex(withoutRuntimeState);
+  const runtimeStateIndex = source.findIndex((message) => message?.customType === FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE);
   const unchanged =
     options.force !== true &&
     runtimeStateMessages.length === 1 &&
     runtimeStateMessages[0]?.customType === FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE &&
-    runtimeStateMessages[0]?.content === runtimeState.content;
+    runtimeStateMessages[0]?.content === runtimeState.content &&
+    runtimeStateIndex === (expectedRuntimeStateIndex < 0 ? withoutRuntimeState.length : expectedRuntimeStateIndex);
   if (unchanged) return source;
-  return [...withoutFreeflowRuntimeState(source), runtimeState];
+  return insertRuntimeStateBeforeLatestUser(withoutRuntimeState, runtimeState);
 }
 export function runtimeContext(freeflowContext, capabilityState) {
   if (

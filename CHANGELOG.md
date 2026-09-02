@@ -21,6 +21,7 @@
 
 ### Fixed
 
+- Keeps extension-generated Runtime State before the latest genuine user message so automatic profile refreshes cannot masquerade as user interruptions and prematurely return delegated work.
 - Prevents stock-Pi model and thinking events emitted by Freeflow-owned profile transitions from being treated as native user overrides.
 - Expands direct Pi skill commands through Pi’s `sendUserMessage` API before dispatching them to the model.
 

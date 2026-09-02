@@ -143,6 +143,50 @@ function lastRuntimeState(messages) {
   return messages.findLast((message) => message.customType === "freeflow-runtime-state");
 }
 
+test("keeps Runtime State before the latest user message during context refreshes", async () => {
+  const cwd = await configuredRepo();
+  try {
+    const { handlers } = loadExtension();
+    const ctx = context(cwd);
+    await handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+
+    const conversation = [
+      { role: "user", content: "release 0.6.1" },
+      { role: "assistant", content: "delegating" },
+      { role: "toolResult", toolName: "freeflow_switch_profile", content: [] },
+    ];
+    const first = await handlers.get("context")({ messages: conversation }, ctx);
+    const firstUserIndex = first.messages.findIndex((message) => message.role === "user");
+    const firstRuntimeIndex = first.messages.findIndex((message) => message.customType === "freeflow-runtime-state");
+    assert.equal(firstRuntimeIndex, firstUserIndex - 1);
+    assert.equal(first.messages.at(-1).role, "toolResult");
+
+    await handlers.get("session_compact")({ type: "session_compact", reason: "threshold" }, ctx);
+    const refreshed = await handlers.get("context")({ messages: first.messages }, ctx);
+    const refreshedUserIndex = refreshed.messages.findIndex((message) => message.role === "user");
+    const refreshedRuntimeIndex = refreshed.messages.findIndex(
+      (message) => message.customType === "freeflow-runtime-state",
+    );
+    assert.equal(refreshedRuntimeIndex, refreshedUserIndex - 1);
+    assert.equal(refreshed.messages.at(-1).role, "toolResult");
+
+    const interrupted = await handlers.get("context")(
+      {
+        messages: [...refreshed.messages, { role: "user", content: "stop" }],
+      },
+      ctx,
+    );
+    const latestUserIndex = interrupted.messages.findLastIndex((message) => message.role === "user");
+    const latestRuntimeIndex = interrupted.messages.findIndex(
+      (message) => message.customType === "freeflow-runtime-state",
+    );
+    assert.equal(latestRuntimeIndex, latestUserIndex - 1);
+    assert.equal(interrupted.messages.at(-1).content, "stop");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("Pi registers the remaining Freeflow commands without mode controls or retired router tools", () => {
   const { commands, shortcuts, tools } = loadExtension();
   const commandNames = commands.map((command) => command.name);
@@ -751,7 +795,8 @@ test("Pi filters persisted Workflow and Cognitive Routing bootstrap entries with
       result.messages.filter((message) => message.customType !== "freeflow-runtime-state"),
       [userMessage],
     );
-    assert.equal(result.messages.at(-1).customType, "freeflow-runtime-state");
+    const runtimeStateIndex = result.messages.findIndex((message) => message.customType === "freeflow-runtime-state");
+    assert.equal(runtimeStateIndex, result.messages.findIndex((message) => message.role === "user") - 1);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
