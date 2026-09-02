@@ -16,11 +16,11 @@ function hiddenRefs(sources, projections, includeVisible) {
       .map((source) => source.ref),
   );
 }
-function temporalForSource(source, analysis, currentSessionId) {
+function temporalForSource(source, analysis, currentSessionId, activeBranchId) {
   const rules = (analysis?.candidates ?? [])
     .filter((candidate) => candidate.sourceRef === source.ref)
     .map((candidate) => candidate.rule);
-  if (source.identity.sessionId !== currentSessionId) return ["historical"];
+  if (source.identity.sessionId !== currentSessionId || source.branchId !== activeBranchId) return ["historical"];
   if (rules.includes("mutation-receipt")) return ["after-change"];
   if (
     rules.includes("resolved-failure") ||
@@ -31,7 +31,7 @@ function temporalForSource(source, analysis, currentSessionId) {
   }
   return source.temporal ?? ["current"];
 }
-function sourceRecord(source, analysis, currentSessionId) {
+function sourceRecord(source, analysis, currentSessionId, activeBranchId) {
   const category = source.category ?? "ordinary";
   const privacy = source.privacy ?? (category === "ordinary" ? "allowed" : "unknown");
   const integrity = source.integrity ?? "unknown";
@@ -44,7 +44,7 @@ function sourceRecord(source, analysis, currentSessionId) {
     toolName: source.toolName,
     ...(source.path === undefined ? {} : { locator: source.path }),
     role: source.role,
-    temporal: temporalForSource(source, analysis, currentSessionId),
+    temporal: temporalForSource(source, analysis, currentSessionId, activeBranchId),
     contentHash: source.contentHash,
     characters: source.characters,
     completeness: source.completeness ?? "unknown",
@@ -98,7 +98,7 @@ export function buildRuntimeScopeCatalog(
 ) {
   if (projectId === undefined || projectId.trim() === "") return undefined;
   const currentSources = catalog.sources;
-  const records = currentSources.map((source) => sourceRecord(source, analysis, snapshot.sessionId));
+  const records = currentSources.map((source) => sourceRecord(source, analysis, snapshot.sessionId, snapshot.branchId));
   const sessions = sessionDescriptors(snapshot, catalog, projectId);
   const enabledSessionIds = catalog.sessions.filter((session) => !session.current).map((session) => session.sessionId);
   const built = buildScopeCatalog(records, {

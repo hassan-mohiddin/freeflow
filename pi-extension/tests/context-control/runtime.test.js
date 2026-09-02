@@ -410,7 +410,7 @@ test("keeps approval proposals across ordinary descendant leaves", async () => {
   assert.equal(rejected.operation, "reject");
 });
 
-test("list exposes actionable sources and counts excluded control-plane results", async () => {
+test("list exposes direct sources and separates control-plane automation", async () => {
   const session = createSession();
   session.entries.push(
     {
@@ -455,13 +455,195 @@ test("list exposes actionable sources and counts excluded control-plane results"
 
   const listed = runtime.list();
   assert.equal(listed.operation, "list");
-  assert.equal(listed.excludedCount, 1);
-  assert.equal(
-    listed.sources.some((source) => source.toolName === "context_control"),
-    false,
-  );
+  assert.equal(listed.excludedCount, 2);
+  const controlResult = listed.sources.find((source) => source.ref === "ctx:tool-context-control");
+  assert.equal(controlResult.kind, "toolResult");
+  assert.equal(controlResult.directEligible, true);
+  assert.equal(controlResult.automationEligible, false);
+  assert.equal(controlResult.automationProtected, true);
   assert.ok(listed.sources.some((source) => source.ref === "ctx:tool-1"));
   assert.equal(runtime.status().catalogSourceCount, listed.sourceCount);
+});
+
+test("list and explain separate direct generic eligibility from harness protection", async () => {
+  const { ctx } = createSession();
+  const runtime = new ContextControlRuntime({
+    ctx,
+    mode: "active",
+    cleanupMode: "model-only",
+    recoveryMode: "model-only",
+    journal: new MemoryContextControlJournal(),
+  });
+  await runtime.start();
+
+  const listed = runtime.list();
+  const userSource = listed.sources.find((source) => source.ref === "ctx:user-1");
+  assert.equal(userSource.directEligible, true);
+  assert.equal(userSource.automationEligible, false);
+  assert.equal(userSource.automationProtected, true);
+  const unconsumedTool = listed.sources.find((source) => source.ref === "ctx:tool-2");
+  assert.equal(unconsumedTool.automationEligible, false);
+  assert.equal(unconsumedTool.automationProtected, true);
+
+  const explained = runtime.explain("ctx:user-1");
+  assert.equal(explained.directEligible, true);
+  assert.equal(explained.automationEligible, false);
+  assert.equal(explained.automationProtected, true);
+});
+
+test("cleanup proposals remain limited to ordinary consumed tool results", async () => {
+  const session = createSession();
+  session.entries.push(
+    {
+      type: "message",
+      id: "assistant-s016-control",
+      parentId: "tool-2",
+      timestamp: "2026-08-28T00:00:07.000Z",
+      message: {
+        role: "assistant",
+        content: [
+          {
+            type: "toolCall",
+            id: "call-s016-control",
+            name: "context_control",
+            arguments: { operation: "status" },
+          },
+        ],
+      },
+    },
+    {
+      type: "message",
+      id: "tool-s016-control",
+      parentId: "assistant-s016-control",
+      timestamp: "2026-08-28T00:00:08.000Z",
+      message: {
+        role: "toolResult",
+        toolCallId: "call-s016-control",
+        toolName: "context_control",
+        content: [{ type: "text", text: "control output" }],
+        isError: false,
+      },
+    },
+    {
+      type: "message",
+      id: "assistant-s016-thinking",
+      parentId: "tool-s016-control",
+      timestamp: "2026-08-28T00:00:09.000Z",
+      message: {
+        role: "assistant",
+        content: [
+          {
+            type: "toolCall",
+            id: "call-s016-thinking",
+            name: "thinking",
+            arguments: {},
+          },
+        ],
+      },
+    },
+    {
+      type: "message",
+      id: "tool-s016-thinking",
+      parentId: "assistant-s016-thinking",
+      timestamp: "2026-08-28T00:00:10.000Z",
+      message: {
+        role: "toolResult",
+        toolCallId: "call-s016-thinking",
+        toolName: "thinking",
+        content: [{ type: "text", text: "sensitive output" }],
+        isError: false,
+      },
+    },
+  );
+  const runtime = new ContextControlRuntime({
+    ctx: session.ctx,
+    mode: "active",
+    cleanupMode: "model-approval",
+    recoveryMode: "model-only",
+    journal: new MemoryContextControlJournal(),
+  });
+  await runtime.start();
+  runtime.observeContext([toolMessage("call-1")]);
+  runtime.beforeProviderRequest();
+  runtime.turnEnd();
+  runtime.observeContext([toolMessage("call-1"), toolMessage("call-2")]);
+  runtime.beforeProviderRequest();
+  runtime.turnEnd();
+
+  const result = await runtime.project([toolMessage("call-1"), toolMessage("call-2")]);
+  assert.equal(result.proposal?.kind, "cleanup");
+  assert.ok(result.proposal.refs.length > 0);
+  assert.ok(result.proposal.refs.every((ref) => /^ctx:tool-\d+$/u.test(ref)));
+  assert.doesNotMatch(result.proposal.refs.join(" "), /control|thinking|user|assistant|summary/iu);
+  assert.doesNotMatch(JSON.stringify(result.proposal), /control output|sensitive output/iu);
+});
+
+test("cleanup proposals become stale when lifecycle precedence changes", async () => {
+  const session = createSession();
+  const runtime = new ContextControlRuntime({
+    ctx: session.ctx,
+    mode: "active",
+    cleanupMode: "model-approval",
+    recoveryMode: "model-only",
+    journal: new MemoryContextControlJournal(),
+  });
+  await runtime.start();
+  runtime.observeContext([toolMessage("call-1")]);
+  runtime.beforeProviderRequest();
+  runtime.turnEnd();
+  runtime.observeContext([toolMessage("call-1"), toolMessage("call-2")]);
+  runtime.beforeProviderRequest();
+  runtime.turnEnd();
+  const proposalResult = await runtime.project([toolMessage("call-1"), toolMessage("call-2")]);
+  assert.equal(proposalResult.proposal?.kind, "cleanup");
+
+  session.entries.push(
+    {
+      type: "message",
+      id: "assistant-s016-later-read",
+      parentId: "tool-2",
+      timestamp: "2026-08-28T00:00:07.000Z",
+      message: {
+        role: "assistant",
+        content: [
+          {
+            type: "toolCall",
+            id: "call-s016-later-read",
+            name: "read",
+            arguments: { path: "src/a.ts" },
+          },
+        ],
+      },
+    },
+    {
+      type: "message",
+      id: "tool-s016-later-read",
+      parentId: "assistant-s016-later-read",
+      timestamp: "2026-08-28T00:00:08.000Z",
+      message: {
+        role: "toolResult",
+        toolCallId: "call-s016-later-read",
+        toolName: "read",
+        content: [{ type: "text", text: "export const VALUE = 2;" }],
+        isError: false,
+      },
+    },
+    {
+      type: "message",
+      id: "assistant-s016-later-followup",
+      parentId: "tool-s016-later-read",
+      timestamp: "2026-08-28T00:00:09.000Z",
+      message: { role: "assistant", content: [{ type: "text", text: "The later read was consumed." }] },
+    },
+  );
+
+  const result = await runtime.decideProposal({
+    proposalId: proposalResult.proposal.id,
+    action: "approve",
+  });
+  assert.equal(result.status, "rejected");
+  assert.equal(result.reason, "proposal-stale");
+  assert.deepEqual(runtime.status().residency, {});
 });
 
 test("disabled runtime leaves projection unchanged and does not create journal state", async () => {
@@ -549,7 +731,7 @@ test("unresolved failures remain Full", async () => {
   assert.match(runtime.status().protectedRefs.join(" "), /ctx:tool-fail/);
 });
 
-test("direct cleanup cannot reduce an unresolved failure", async () => {
+test("direct cleanup can reduce an unresolved failure despite the harness Keep Full lane", async () => {
   const session = failedSession();
   const runtime = new ContextControlRuntime({
     ctx: session.ctx,
@@ -573,9 +755,242 @@ test("direct cleanup cannot reduce an unresolved failure", async () => {
 
   const result = await runtime.cleanup([{ ref: "ctx:tool-fail" }]);
 
-  assert.equal(result.status, "rejected");
-  assert.match(result.reason, /protected|failure/i);
-  assert.deepEqual(runtime.status().residency, {});
+  assert.equal(result.status, "ok");
+  assert.deepEqual(result.changed, ["ctx:tool-fail"]);
+  assert.equal(runtime.status().residency["ctx:tool-fail"], "reference");
+});
+
+test("direct cleanup can reduce all visible generic source kinds independently of automation lanes", async () => {
+  const entries = [
+    {
+      type: "session",
+      version: 3,
+      id: "session-generic-direct",
+      timestamp: "2026-09-02T00:00:00.000Z",
+      cwd: "/repo",
+    },
+    {
+      type: "message",
+      id: "direct-user",
+      parentId: null,
+      timestamp: "2026-09-02T00:00:01.000Z",
+      message: { role: "user", content: [{ type: "text", text: "Inspect the project." }] },
+    },
+    {
+      type: "message",
+      id: "direct-assistant",
+      parentId: "direct-user",
+      timestamp: "2026-09-02T00:00:02.000Z",
+      message: { role: "assistant", content: [{ type: "text", text: "The project is ready." }] },
+    },
+    {
+      type: "message",
+      id: "direct-tool",
+      parentId: "direct-assistant",
+      timestamp: "2026-09-02T00:00:03.000Z",
+      message: {
+        role: "toolResult",
+        toolCallId: "direct-call",
+        toolName: "bash",
+        content: [{ type: "text", text: "FAIL but model may clean this output" }],
+        isError: true,
+      },
+    },
+    {
+      type: "message",
+      id: "direct-control-assistant",
+      parentId: "direct-tool",
+      timestamp: "2026-09-02T00:00:04.000Z",
+      message: {
+        role: "assistant",
+        content: [
+          { type: "toolCall", id: "direct-control-call", name: "context_control", arguments: { operation: "status" } },
+        ],
+      },
+    },
+    {
+      type: "message",
+      id: "direct-control-result",
+      parentId: "direct-control-assistant",
+      timestamp: "2026-09-02T00:00:05.000Z",
+      message: {
+        role: "toolResult",
+        toolCallId: "direct-control-call",
+        toolName: "context_control",
+        content: [{ type: "text", text: "Context Control status result" }],
+        isError: false,
+      },
+    },
+    {
+      type: "branch_summary",
+      id: "direct-summary",
+      parentId: "direct-control-result",
+      timestamp: "2026-09-02T00:00:06.000Z",
+      summary: "The project is ready for the next task.",
+    },
+  ];
+  const originalEntries = structuredClone(entries);
+  const ctx = {
+    cwd: "/repo",
+    sessionManager: {
+      getSessionId: () => "session-generic-direct",
+      getLeafId: () => "direct-summary",
+      getBranch: () => entries,
+      getEntries: () => entries,
+      buildContextEntries: () => entries,
+    },
+  };
+  const runtime = new ContextControlRuntime({
+    ctx,
+    mode: "active",
+    cleanupMode: "model-only",
+    recoveryMode: "model-only",
+    journal: new MemoryContextControlJournal(),
+  });
+  await runtime.start();
+
+  const messages = [
+    { role: "user", content: [{ type: "text", text: "Inspect the project." }] },
+    { role: "assistant", content: [{ type: "text", text: "The project is ready." }] },
+    {
+      role: "toolResult",
+      toolCallId: "direct-call",
+      toolName: "bash",
+      content: [{ type: "text", text: "FAIL but model may clean this output" }],
+      isError: true,
+    },
+    {
+      role: "toolResult",
+      toolCallId: "direct-control-call",
+      toolName: "context_control",
+      content: [{ type: "text", text: "Context Control status result" }],
+      isError: false,
+    },
+    { summary: "The project is ready for the next task." },
+  ];
+  await runtime.project(messages);
+  const listed = runtime.list();
+  assert.equal(listed.sources.find((source) => source.ref === "ctx:direct-user").kind, "user");
+  assert.equal(listed.sources.find((source) => source.ref === "ctx:direct-assistant").kind, "assistant");
+  assert.equal(listed.sources.find((source) => source.ref === "ctx:direct-summary").kind, "summary");
+  assert.equal(listed.sources.find((source) => source.ref === "ctx:direct-control-result").kind, "toolResult");
+
+  const cleaned = await runtime.cleanup([
+    { ref: "ctx:direct-user", retained: "The user asked for project inspection." },
+    { ref: "ctx:direct-assistant" },
+    { ref: "ctx:direct-tool" },
+    { ref: "ctx:direct-control-result" },
+    { ref: "ctx:direct-summary" },
+  ]);
+  assert.equal(cleaned.status, "ok");
+  assert.deepEqual(cleaned.changed, [
+    "ctx:direct-user",
+    "ctx:direct-assistant",
+    "ctx:direct-tool",
+    "ctx:direct-control-result",
+    "ctx:direct-summary",
+  ]);
+
+  const projected = await runtime.project(messages);
+  assert.match(projected.messages[0].content[0].text, /context archived/);
+  assert.match(projected.messages[1].content[0].text, /context archived/);
+  assert.match(projected.messages[2].content[0].text, /context archived/);
+  assert.match(projected.messages[3].content[0].text, /context archived/);
+  assert.match(projected.messages[4].summary, /context archived/);
+  assert.deepEqual(entries, originalEntries);
+});
+
+test("user restore returns a reduced source to Full without an evidence lease", async () => {
+  const { ctx } = createSession();
+  const journal = new MemoryContextControlJournal();
+  const runtime = new ContextControlRuntime({
+    ctx,
+    mode: "active",
+    cleanupMode: "model-only",
+    recoveryMode: "model-only",
+    journal,
+  });
+  await runtime.start();
+
+  const reduced = await runtime.cleanup([{ ref: "ctx:tool-1" }]);
+  assert.equal(reduced.status, "ok");
+  assert.equal(runtime.status().residency["ctx:tool-1"], "reference");
+
+  const invalid = await runtime.restore(["ctx:tool-1", "ctx:missing"]);
+  assert.equal(invalid.status, "rejected");
+  assert.equal(runtime.status().residency["ctx:tool-1"], "reference");
+
+  const restored = await runtime.restore(["ctx:tool-1"]);
+  assert.equal(restored.status, "ok");
+  assert.deepEqual(restored.changed, ["ctx:tool-1"]);
+  assert.equal(runtime.status().residency["ctx:tool-1"], "full");
+  assert.equal(runtime.status().activeLeaseCount, 0);
+  assert.equal(journal.read("session-1").at(-1).changes[0].to, "full");
+});
+
+test("generic direct pins protect cleanup and survive replay", async () => {
+  const { ctx } = createSession();
+  const journal = new MemoryContextControlJournal();
+  const runtime = new ContextControlRuntime({
+    ctx,
+    mode: "active",
+    cleanupMode: "model-only",
+    recoveryMode: "model-only",
+    journal,
+  });
+  await runtime.start();
+  await runtime.project([
+    { role: "user", content: [{ type: "text", text: "Inspect the file." }] },
+    toolMessage("call-1"),
+    toolMessage("call-2"),
+  ]);
+
+  const pinned = await runtime.pin(["ctx:user-1"]);
+  assert.equal(pinned.status, "ok");
+  assert.deepEqual(runtime.status().pinnedRefs, ["ctx:user-1"]);
+  const blocked = await runtime.cleanup([{ ref: "ctx:user-1" }]);
+  assert.equal(blocked.status, "rejected");
+  assert.match(blocked.reason, /pinned/);
+
+  const restarted = new ContextControlRuntime({
+    ctx,
+    mode: "active",
+    cleanupMode: "model-only",
+    recoveryMode: "model-only",
+    journal,
+  });
+  assert.equal((await restarted.start()).status, "ready");
+  assert.deepEqual(restarted.status().pinnedRefs, ["ctx:user-1"]);
+});
+
+test("generic residency cleanup replays without copying canonical content", async () => {
+  const { ctx } = createSession();
+  const journal = new MemoryContextControlJournal();
+  const runtime = new ContextControlRuntime({
+    ctx,
+    mode: "active",
+    cleanupMode: "model-only",
+    recoveryMode: "model-only",
+    journal,
+  });
+  await runtime.start();
+  const userMessage = { role: "user", content: [{ type: "text", text: "Inspect the file." }] };
+  await runtime.project([userMessage, toolMessage("call-1")]);
+  const cleaned = await runtime.cleanup([{ ref: "ctx:user-1", retained: "The user requested inspection." }]);
+  assert.equal(cleaned.status, "ok");
+
+  const restarted = new ContextControlRuntime({
+    ctx,
+    mode: "active",
+    cleanupMode: "model-only",
+    recoveryMode: "model-only",
+    journal,
+  });
+  assert.equal((await restarted.start()).status, "ready");
+  const projected = await restarted.project([userMessage, toolMessage("call-1")]);
+  assert.match(projected.messages[0].content[0].text, /context archived/);
+  assert.match(projected.messages[0].content[0].text, /The user requested inspection/);
+  assert.equal(restarted.status().canonicalPayloadsInJournal, 0);
 });
 
 test("pinning a reduced source restores Full and releasing it permits reevaluation", async () => {
@@ -838,6 +1253,263 @@ test("recovered working evidence can be acknowledged and unavailable recovery ac
     reason: "No verified source matched the request.",
   });
   assert.equal(abstained.status, "ok");
+});
+
+test("proactive recovery does not use generic or excluded sources", async () => {
+  const entries = [
+    {
+      type: "session",
+      version: 3,
+      id: "session-recovery-isolation",
+      timestamp: "2026-09-02T00:00:00.000Z",
+      cwd: "/repo",
+    },
+    {
+      type: "message",
+      id: "recovery-isolation-user",
+      parentId: null,
+      timestamp: "2026-09-02T00:00:01.000Z",
+      message: { role: "user", content: "Generic user evidence must stay direct-only." },
+    },
+    {
+      type: "message",
+      id: "recovery-isolation-assistant",
+      parentId: "recovery-isolation-user",
+      timestamp: "2026-09-02T00:00:02.000Z",
+      message: { role: "assistant", content: [{ type: "text", text: "Generic assistant context." }] },
+    },
+    {
+      type: "branch_summary",
+      id: "recovery-isolation-summary",
+      parentId: "recovery-isolation-assistant",
+      timestamp: "2026-09-02T00:00:03.000Z",
+      summary: "Generic summary context.",
+    },
+    {
+      type: "message",
+      id: "recovery-isolation-control-call",
+      parentId: "recovery-isolation-summary",
+      timestamp: "2026-09-02T00:00:04.000Z",
+      message: {
+        role: "assistant",
+        content: [
+          {
+            type: "toolCall",
+            id: "recovery-isolation-control",
+            name: "context_control",
+            arguments: { operation: "status" },
+          },
+        ],
+      },
+    },
+    {
+      type: "message",
+      id: "recovery-isolation-control-result",
+      parentId: "recovery-isolation-control-call",
+      timestamp: "2026-09-02T00:00:05.000Z",
+      message: {
+        role: "toolResult",
+        toolCallId: "recovery-isolation-control",
+        toolName: "context_control",
+        content: [{ type: "text", text: "control output" }],
+        isError: false,
+      },
+    },
+    {
+      type: "message",
+      id: "recovery-isolation-thinking-call",
+      parentId: "recovery-isolation-control-result",
+      timestamp: "2026-09-02T00:00:06.000Z",
+      message: {
+        role: "assistant",
+        content: [{ type: "toolCall", id: "recovery-isolation-thinking", name: "thinking", arguments: {} }],
+      },
+    },
+    {
+      type: "message",
+      id: "recovery-isolation-thinking-result",
+      parentId: "recovery-isolation-thinking-call",
+      timestamp: "2026-09-02T00:00:07.000Z",
+      message: {
+        role: "toolResult",
+        toolCallId: "recovery-isolation-thinking",
+        toolName: "thinking",
+        content: [{ type: "text", text: "sensitive output" }],
+        isError: false,
+      },
+    },
+    {
+      type: "message",
+      id: "recovery-isolation-incomplete-call",
+      parentId: "recovery-isolation-thinking-result",
+      timestamp: "2026-09-02T00:00:08.000Z",
+      message: {
+        role: "assistant",
+        content: [{ type: "toolCall", id: "recovery-isolation-incomplete", name: "read", arguments: {} }],
+      },
+    },
+    {
+      type: "message",
+      id: "recovery-isolation-incomplete-result",
+      parentId: "recovery-isolation-incomplete-call",
+      timestamp: "2026-09-02T00:00:09.000Z",
+      message: {
+        role: "toolResult",
+        toolCallId: "recovery-isolation-incomplete",
+        toolName: "read",
+        content: [{ type: "text", text: "partial output" }],
+        isError: false,
+        details: { truncated: true },
+      },
+    },
+    {
+      type: "message",
+      id: "recovery-isolation-unconsumed-call",
+      parentId: "recovery-isolation-incomplete-result",
+      timestamp: "2026-09-02T00:00:10.000Z",
+      message: {
+        role: "assistant",
+        content: [{ type: "toolCall", id: "recovery-isolation-unconsumed", name: "read", arguments: {} }],
+      },
+    },
+    {
+      type: "message",
+      id: "recovery-isolation-unconsumed-result",
+      parentId: "recovery-isolation-unconsumed-call",
+      timestamp: "2026-09-02T00:00:11.000Z",
+      message: {
+        role: "toolResult",
+        toolCallId: "recovery-isolation-unconsumed",
+        toolName: "read",
+        content: [{ type: "text", text: "unconsumed output" }],
+        isError: false,
+      },
+    },
+  ];
+  const ctx = {
+    cwd: "/repo",
+    sessionManager: {
+      getSessionId: () => "session-recovery-isolation",
+      getLeafId: () => "recovery-isolation-unconsumed-result",
+      getBranch: () => entries,
+      getEntries: () => entries,
+      buildContextEntries: () => entries.filter((entry) => entry.type === "message"),
+    },
+  };
+  const runtime = new ContextControlRuntime({
+    ctx,
+    mode: "active",
+    cleanupMode: "model-only",
+    recoveryMode: "automatic",
+    recoveryScope: "current-session",
+    journal: new MemoryContextControlJournal(),
+  });
+  await runtime.start();
+  runtime.setPrompt("Please recover the exact historical source declaration in src/a.ts.");
+
+  const result = await runtime.project([]);
+  assert.deepEqual(result.messages, []);
+  assert.equal(result.proposal, undefined);
+  assert.equal(
+    runtime.audit().some((event) => event.type === "recovery"),
+    false,
+  );
+});
+
+test("proactive recovery can use a consumed ordinary tool result from a sibling branch", async () => {
+  const header = {
+    type: "session",
+    version: 3,
+    id: "session-recovery-sibling",
+    timestamp: "2026-09-02T00:00:00.000Z",
+    cwd: "/repo",
+  };
+  const rootUser = {
+    type: "message",
+    id: "recovery-sibling-root",
+    parentId: null,
+    timestamp: "2026-09-02T00:00:01.000Z",
+    message: { role: "user", content: "Start the sibling branch." },
+  };
+  const activeAssistant = {
+    type: "message",
+    id: "recovery-sibling-active",
+    parentId: "recovery-sibling-root",
+    timestamp: "2026-09-02T00:00:02.000Z",
+    message: { role: "assistant", content: [{ type: "text", text: "Waiting on the active branch." }] },
+  };
+  const siblingUser = {
+    type: "message",
+    id: "recovery-sibling-user",
+    parentId: "recovery-sibling-root",
+    timestamp: "2026-09-02T00:00:03.000Z",
+    message: { role: "user", content: "Inspect the sibling source." },
+  };
+  const siblingAssistant = {
+    type: "message",
+    id: "recovery-sibling-assistant",
+    parentId: "recovery-sibling-user",
+    timestamp: "2026-09-02T00:00:04.000Z",
+    message: {
+      role: "assistant",
+      content: [
+        {
+          type: "toolCall",
+          id: "recovery-sibling-call",
+          name: "read",
+          arguments: { path: "src/sibling.ts" },
+        },
+      ],
+    },
+  };
+  const siblingTool = {
+    type: "message",
+    id: "recovery-sibling-tool",
+    parentId: "recovery-sibling-assistant",
+    timestamp: "2026-09-02T00:00:05.000Z",
+    message: {
+      role: "toolResult",
+      toolCallId: "recovery-sibling-call",
+      toolName: "read",
+      content: [{ type: "text", text: "sibling tool output marker from src/sibling.ts" }],
+      isError: false,
+    },
+  };
+  const siblingFollowup = {
+    type: "message",
+    id: "recovery-sibling-followup",
+    parentId: "recovery-sibling-tool",
+    timestamp: "2026-09-02T00:00:06.000Z",
+    message: { role: "assistant", content: [{ type: "text", text: "The sibling result was consumed." }] },
+  };
+  const entries = [header, rootUser, activeAssistant, siblingUser, siblingAssistant, siblingTool, siblingFollowup];
+  const activeEntries = [header, rootUser, activeAssistant];
+  const ctx = {
+    cwd: "/repo",
+    sessionManager: {
+      getSessionId: () => "session-recovery-sibling",
+      getLeafId: () => "recovery-sibling-active",
+      getBranch: () => activeEntries,
+      getEntries: () => entries,
+      buildContextEntries: () => activeEntries,
+    },
+  };
+  const runtime = new ContextControlRuntime({
+    ctx,
+    mode: "active",
+    cleanupMode: "model-only",
+    recoveryMode: "automatic",
+    recoveryScope: "current-session",
+    journal: new MemoryContextControlJournal(),
+  });
+  await runtime.start();
+  runtime.setPrompt("Please recover the exact historical declaration in src/sibling.ts.");
+
+  const result = await runtime.project([]);
+  const recovery = result.messages.find((message) => message.customType === "context-control-recovery");
+  assert.ok(recovery);
+  assert.match(recovery.content, /sibling tool output marker/);
+  assert.equal(result.proposal, undefined);
 });
 
 test("automatic recovery detects a hidden exact historical source at the checkpoint", async () => {

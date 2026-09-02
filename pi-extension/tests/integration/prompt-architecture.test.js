@@ -64,11 +64,119 @@ function lastRuntimeState(messages) {
   return messages.findLast((message) => message.customType === "freeflow-runtime-state");
 }
 
+test("Context Control owns its prompt, skill, and tool surface when effective", async () => {
+  const cwd = await configuredRepo({
+    defaultMode: "workflow",
+    contextControl: {
+      enabled: true,
+      cleanupMode: "model-only",
+      recoveryMode: "model-only",
+      recoveryScope: "active-branch",
+    },
+  });
+  try {
+    const { handlers, activeToolNames } = loadExtension();
+    const ctx = context(cwd);
+    await handlers.get("session_start")({ type: "session_start" }, ctx);
+
+    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+    assert.match(before.systemPrompt, /## Context Control Cue/);
+    assert.doesNotMatch(before.systemPrompt, /freeflow_context/);
+    assert.doesNotMatch(before.systemPrompt, /## Context Virtualization Cue/);
+    assert.doesNotMatch(before.systemPrompt, /## Conversation History Cue/);
+
+    const providerContext = await handlers.get("context")({ messages: [] }, ctx);
+    const runtimeState = lastRuntimeState(providerContext.messages);
+    assert.match(runtimeState.content, /Context Control: active/);
+    assert.doesNotMatch(runtimeState.content, /Context Virtualization|Conversation History/);
+
+    const resources = await handlers.get("resources_discover")({ cwd }, ctx);
+    assert.ok(resources.skillPaths.some((path) => path.endsWith("/capabilities/context-control/SKILL.md")));
+    assert.ok(!resources.skillPaths.some((path) => path.endsWith("/capabilities/context-virtualization/SKILL.md")));
+    assert.ok(!resources.skillPaths.some((path) => path.endsWith("/capabilities/conversation-history/SKILL.md")));
+    assert.ok(activeToolNames().includes("context_control"));
+    assert.ok(!activeToolNames().includes("freeflow_context"));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Context Control remains behind the Skills gate", async () => {
+  const cwd = await configuredRepo({
+    defaultMode: "workflow",
+    skills: { enabled: false },
+    contextControl: {
+      enabled: true,
+      cleanupMode: "model-only",
+      recoveryMode: "model-only",
+      recoveryScope: "active-branch",
+    },
+  });
+  try {
+    const { handlers, activeToolNames } = loadExtension();
+    const ctx = context(cwd);
+    await handlers.get("session_start")({ type: "session_start" }, ctx);
+
+    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+    assert.doesNotMatch(before.systemPrompt, /## Context Control Cue/);
+    const providerContext = await handlers.get("context")({ messages: [] }, ctx);
+    assert.match(lastRuntimeState(providerContext.messages).content, /Context Control: inactive/);
+    const resources = await handlers.get("resources_discover")({ cwd }, ctx);
+    assert.deepEqual(resources.skillPaths, []);
+    assert.ok(!activeToolNames().includes("context_control"));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("missing Context Control prompt isolates that capability", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-context-control-prompt-failure-"));
+  const cwd = await configuredRepo({
+    defaultMode: "workflow",
+    contextControl: {
+      enabled: true,
+      cleanupMode: "model-only",
+      recoveryMode: "model-only",
+      recoveryScope: "active-branch",
+    },
+  });
+  try {
+    await cp(join(process.cwd(), "pi-extension", "dist"), join(root, "pi-extension", "dist"), { recursive: true });
+    await cp(join(process.cwd(), "runtime", "prompts"), join(root, "runtime", "prompts"), { recursive: true });
+    await symlink(join(process.cwd(), "node_modules"), join(root, "node_modules"), "dir");
+    await rm(join(root, "runtime", "prompts", "context-control.md"));
+
+    const extension = (
+      await import(
+        `${pathToFileURL(join(root, "pi-extension", "dist", "index.js")).href}?missing-context-control=${Date.now()}`
+      )
+    ).default;
+    const { handlers, activeToolNames } = loadExtension(extension);
+    const ctx = context(cwd);
+    await handlers.get("session_start")({ type: "session_start" }, ctx);
+
+    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+    assert.doesNotMatch(before.systemPrompt, /## Context Control Cue/);
+    const resources = await handlers.get("resources_discover")({ cwd }, ctx);
+    assert.ok(!resources.skillPaths.some((path) => path.endsWith("/capabilities/context-control/SKILL.md")));
+    assert.ok(!activeToolNames().includes("context_control"));
+    const providerContext = await handlers.get("context")({ messages: [] }, ctx);
+    assert.match(lastRuntimeState(providerContext.messages).content, /Context Control: unavailable/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("composes conditional prompt fragments, discoverable capabilities, and runtime state", async () => {
   const cwd = await configuredRepo({
     defaultMode: "workflow",
-    contextVirtualization: true,
-    conversationHistory: true,
+    contextControl: {
+      enabled: true,
+      cleanupMode: "model-only",
+      recoveryMode: "model-only",
+      recoveryScope: "active-branch",
+    },
   });
   try {
     const { handlers, activeToolNames } = loadExtension();
@@ -86,8 +194,7 @@ test("composes conditional prompt fragments, discoverable capabilities, and runt
       "## Workflow Cue",
       "## Action Selection Cue",
       "## Supported Exit",
-      "## Context Virtualization Cue",
-      "## Conversation History Cue",
+      "## Context Control Cue",
     ].map((marker) => prompt.indexOf(marker));
     assert.ok(order.every((index) => index >= 0));
     assert.match(
@@ -110,43 +217,63 @@ test("composes conditional prompt fragments, discoverable capabilities, and runt
     const runtimeState = lastRuntimeState(providerContext.messages);
     assert.ok(runtimeState);
     assert.match(runtimeState.content, /Skills: active/);
-    assert.match(runtimeState.content, /Context Virtualization: active/);
-    assert.match(runtimeState.content, /Conversation History: active/);
+    assert.match(runtimeState.content, /Context Control: active/);
     assert.match(runtimeState.content, /Cognitive Routing: inactive/);
 
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/action-selection/SKILL.md")));
-    assert.ok(resources.skillPaths.some((path) => path.endsWith("/capabilities/context-virtualization/SKILL.md")));
-    assert.ok(resources.skillPaths.some((path) => path.endsWith("/capabilities/conversation-history/SKILL.md")));
+    assert.ok(resources.skillPaths.some((path) => path.endsWith("/capabilities/context-control/SKILL.md")));
+    assert.ok(!resources.skillPaths.some((path) => /context-virtualization|conversation-history/.test(path)));
     assert.ok(!resources.skillPaths.some((path) => path.endsWith("/capabilities/cognitive-routing/SKILL.md")));
-    assert.ok(activeToolNames().includes("freeflow_context"));
+    assert.ok(activeToolNames().includes("context_control"));
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
 });
 
 test("provider context reuses the before-agent surface until the next provider turn", async () => {
-  const cwd = await configuredRepo({ defaultMode: "workflow", contextVirtualization: true });
+  const cwd = await configuredRepo({
+    defaultMode: "workflow",
+    contextControl: {
+      enabled: true,
+      cleanupMode: "model-only",
+      recoveryMode: "model-only",
+      recoveryScope: "active-branch",
+    },
+  });
   try {
     const { handlers } = loadExtension();
     const ctx = context(cwd);
     await handlers.get("session_start")({ type: "session_start" }, ctx);
 
     const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.match(before.systemPrompt, /## Context Virtualization Cue/);
+    assert.match(before.systemPrompt, /## Context Control Cue/);
 
     await writeFile(
       join(cwd, ".freeflow/config.json"),
-      JSON.stringify({ defaultMode: "workflow", skills: { enabled: false }, contextVirtualization: true }),
+      JSON.stringify(
+        {
+          defaultMode: "workflow",
+          skills: { enabled: false },
+          contextControl: {
+            enabled: true,
+            cleanupMode: "model-only",
+            recoveryMode: "model-only",
+            recoveryScope: "active-branch",
+          },
+        },
+        null,
+        2,
+      ),
       "utf8",
     );
     const sameTurn = await handlers.get("context")({ messages: [] }, ctx);
     assert.match(lastRuntimeState(sameTurn.messages).content, /Skills: active/);
-    assert.match(lastRuntimeState(sameTurn.messages).content, /Context Virtualization: active/);
+    assert.match(lastRuntimeState(sameTurn.messages).content, /Context Control: active/);
 
     const next = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
     assert.doesNotMatch(next.systemPrompt, /## Shared Terms/);
-    assert.doesNotMatch(next.systemPrompt, /## Context Virtualization Cue/);
+    assert.doesNotMatch(next.systemPrompt, /## Context Control Cue/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -156,8 +283,12 @@ test("Skills is the parent gate for capability prompt, discovery, and tools", as
   const cwd = await configuredRepo({
     defaultMode: "workflow",
     skills: { enabled: false },
-    contextVirtualization: true,
-    conversationHistory: true,
+    contextControl: {
+      enabled: true,
+      cleanupMode: "model-only",
+      recoveryMode: "model-only",
+      recoveryScope: "active-branch",
+    },
   });
   try {
     const { handlers, activeToolNames } = loadExtension();
@@ -176,8 +307,7 @@ test("Skills is the parent gate for capability prompt, discovery, and tools", as
     const providerContext = await handlers.get("context")({ messages: [] }, ctx);
     const runtimeState = lastRuntimeState(providerContext.messages);
     assert.match(runtimeState.content, /Skills: inactive/);
-    assert.match(runtimeState.content, /Context Virtualization: inactive/);
-    assert.match(runtimeState.content, /Conversation History: inactive/);
+    assert.match(runtimeState.content, /Context Control: inactive/);
 
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.deepEqual(resources.skillPaths, []);
@@ -203,8 +333,6 @@ test("missing optional prompt fragments preserve runtime context loading", async
       interactionContract: { effective: true },
       skills: { effective: true },
       cognitiveRouting: { effective: true },
-      contextVirtualization: { effective: false },
-      conversationHistory: { effective: false },
     };
 
     const loaded = await runtime.getRuntimeContext(state);
@@ -224,12 +352,20 @@ test("missing optional prompt fragments preserve runtime context loading", async
 
 test("missing child prompt removes that capability from every model-facing surface", async () => {
   const root = await mkdtemp(join(tmpdir(), "freeflow-child-prompt-failure-"));
-  const cwd = await configuredRepo({ defaultMode: "workflow", contextVirtualization: true });
+  const cwd = await configuredRepo({
+    defaultMode: "workflow",
+    contextControl: {
+      enabled: true,
+      cleanupMode: "model-only",
+      recoveryMode: "model-only",
+      recoveryScope: "active-branch",
+    },
+  });
   try {
     await cp(join(process.cwd(), "pi-extension", "dist"), join(root, "pi-extension", "dist"), { recursive: true });
     await cp(join(process.cwd(), "runtime", "prompts"), join(root, "runtime", "prompts"), { recursive: true });
     await symlink(join(process.cwd(), "node_modules"), join(root, "node_modules"), "dir");
-    await rm(join(root, "runtime", "prompts", "context-virtualization.md"));
+    await rm(join(root, "runtime", "prompts", "context-control.md"));
 
     const extension = (
       await import(`${pathToFileURL(join(root, "pi-extension", "dist", "index.js")).href}?missing-child=${Date.now()}`)
@@ -239,12 +375,12 @@ test("missing child prompt removes that capability from every model-facing surfa
     await handlers.get("session_start")({ type: "session_start" }, ctx);
 
     const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.doesNotMatch(before.systemPrompt, /## Context Virtualization Cue/);
+    assert.doesNotMatch(before.systemPrompt, /## Context Control Cue/);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.ok(!resources.skillPaths.some((path) => path.endsWith("/capabilities/context-virtualization/SKILL.md")));
-    assert.ok(!activeToolNames().includes("freeflow_context"));
+    assert.ok(!resources.skillPaths.some((path) => path.endsWith("/capabilities/context-control/SKILL.md")));
+    assert.ok(!activeToolNames().includes("context_control"));
     const providerContext = await handlers.get("context")({ messages: [] }, ctx);
-    assert.match(providerContext.messages.at(-1).content, /Context Virtualization: unavailable/);
+    assert.match(providerContext.messages.at(-1).content, /Context Control: unavailable/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
     await rm(root, { recursive: true, force: true });

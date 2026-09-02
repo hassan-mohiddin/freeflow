@@ -9,13 +9,11 @@ const requiredFiles = [
   "runtime/prompts/interaction-contract.md",
   "runtime/prompts/skills.md",
   "runtime/prompts/cognitive-routing.md",
-  "runtime/prompts/context-virtualization.md",
-  "runtime/prompts/conversation-history.md",
+  "runtime/prompts/context-control.md",
   "skills/action-selection/SKILL.md",
   "skills/workflow/SKILL.md",
   "capabilities/cognitive-routing/SKILL.md",
-  "capabilities/context-virtualization/SKILL.md",
-  "capabilities/conversation-history/SKILL.md",
+  "capabilities/context-control/SKILL.md",
 ];
 const excludedPrefixes = ["plugin-docs/", ".skill-eval/", ".deprecated/"];
 const forbiddenPrefixes = ["router/", "capabilities/output-router/"];

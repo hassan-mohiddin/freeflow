@@ -2,13 +2,20 @@ import { execFileSync } from "node:child_process";
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, sep } from "node:path";
-import { contextRefForEntry } from "../../freeflow-context/types.js";
+import { ContextSourceRuntime } from "../sources/runtime.js";
+import { contextRefForEntry } from "../sources/types.js";
 import { sha256Text, stableJson } from "./stable-json.js";
 function record(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
 function stringValue(value) {
   return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
+}
+function throwIfGenericSearchAborted(signal) {
+  if (!signal?.aborted) return;
+  const error = new Error("context_control_search_cancelled");
+  error.name = "AbortError";
+  throw error;
 }
 function integerValue(value) {
   if (Number.isSafeInteger(value)) return value;
@@ -290,6 +297,65 @@ function refFor(entryId, sessionId, includeSessionInRef) {
   if (!includeSessionInRef) return contextRefForEntry(entryId);
   return `ctx:${sessionId}:${entryId}`;
 }
+function captureGenericSnapshot(entries, activeEntries, sessionId, cwd, leafId, projections) {
+  const runtime = new ContextSourceRuntime({
+    cwd,
+    sessionManager: {
+      getSessionId: () => sessionId,
+      getLeafId: () => leafId,
+      getBranch: () => entries,
+      getEntries: () => entries,
+      buildContextEntries: () => activeEntries,
+    },
+  });
+  return runtime.captureSnapshot({
+    contextControlEnabled: true,
+    contextVirtualizationEnabled: true,
+    includeContextControlResults: true,
+    isSourceFullyProjected: (entryId) => {
+      const projection = projections.get(contextRefForEntry(entryId));
+      return projection?.state === undefined || projection.state === "full";
+    },
+  });
+}
+function genericToolMetadata(
+  entries,
+  sessionId,
+  branchId,
+  cwd,
+  generation,
+  activeEntryIds,
+  scope,
+  repositoryId,
+  includeSessionInRef = false,
+  sessionFile,
+  branchIdForEntry,
+) {
+  const sources = buildSources(entries, {
+    sessionId,
+    branchId,
+    cwd,
+    generation,
+    consumedToolCallIds: new Set(),
+    activeEntryIds,
+    historical: true,
+    includeSessionInRef,
+    scope,
+    ...(repositoryId === undefined ? {} : { repositoryId }),
+    ...(sessionFile === undefined ? {} : { sessionFile }),
+    ...(branchIdForEntry === undefined ? {} : { branchIdForEntry }),
+  });
+  return new Map(sources.map((source) => [source.identity.entryId, source]));
+}
+function rekeyProjectedSource(source, sessionId, currentSessionId) {
+  const entryId = source.source.source.entryId;
+  const identity = { ...source.source.source, sessionId };
+  return {
+    ...source,
+    ref: sessionId === currentSessionId ? contextRefForEntry(entryId) : `ctx:${sessionId}:${entryId}`,
+    source: { ...source.source, source: identity },
+  };
+}
 function descendantOf(entryId, ancestorId, parentById) {
   const visited = new Set();
   let current = entryId;
@@ -469,6 +535,45 @@ function buildSources(entries, options) {
   }
   return sources;
 }
+function automationRefDisposition(source, requiredScope = "active-branch") {
+  if (isContextControlGeneratedTool(source.toolName)) {
+    return { lane: "excluded", reason: "context-control-source" };
+  }
+  if (isSensitiveRecoverySource(source)) {
+    return { lane: "excluded", reason: "sensitive-source" };
+  }
+  if (source.category !== "ordinary") {
+    return { lane: "excluded", reason: `source-category-${source.category ?? "unknown"}` };
+  }
+  if (source.identity.toolCallId === undefined) {
+    return { lane: "protected", reason: "tool-call-identity-incomplete" };
+  }
+  if (!source.consumed) {
+    return { lane: "protected", reason: "unconsumed-result" };
+  }
+  if (source.consumptionEvidence !== "confirmed") {
+    return { lane: "protected", reason: "consumption-unconfirmed" };
+  }
+  if (!source.metadataComplete || source.metadataIssues.length > 0) {
+    return { lane: "protected", reason: "incomplete-source-metadata" };
+  }
+  if (source.completeness !== "complete") {
+    return { lane: "protected", reason: "incomplete-source-content" };
+  }
+  if (source.freshness !== "current") {
+    return { lane: "protected", reason: "stale-source" };
+  }
+  if (source.privacy !== "allowed") {
+    return { lane: "protected", reason: "source-privacy-not-allowed" };
+  }
+  if (source.integrity !== "valid") {
+    return { lane: "protected", reason: "source-integrity-invalid" };
+  }
+  if (source.scope !== requiredScope) {
+    return { lane: "protected", reason: "automation-scope-invalid" };
+  }
+  return undefined;
+}
 function deduplicateSources(sources) {
   const byIdentity = new Map();
   for (const source of sources) {
@@ -534,6 +639,63 @@ export class ContextControlSourceRegistry {
       branchIds: Object.freeze([...entryIdSet(branchEntries)]),
       byRef,
       byToolCallId,
+    };
+  }
+  automationView(snapshot) {
+    const sources = [];
+    const protectedRefs = [];
+    const excludedRefs = [];
+    for (const source of snapshot.sources) {
+      const disposition = automationRefDisposition(source);
+      if (disposition === undefined) {
+        sources.push(source);
+        continue;
+      }
+      const item = Object.freeze({ ref: source.ref, reason: disposition.reason });
+      if (disposition.lane === "protected") protectedRefs.push(item);
+      else excludedRefs.push(item);
+    }
+    return {
+      sessionId: snapshot.sessionId,
+      branchId: snapshot.branchId,
+      generation: snapshot.generation,
+      sources: Object.freeze(sources),
+      protected: Object.freeze(protectedRefs),
+      excluded: Object.freeze(excludedRefs),
+    };
+  }
+  automationCatalog(scope, consumedToolCallIds, generation) {
+    const catalog = this.recoveryCatalog(scope, consumedToolCallIds, generation);
+    const sources = [];
+    const protectedRefs = [];
+    const excludedRefs = [];
+    for (const source of catalog.sources) {
+      const disposition = automationRefDisposition(source, scope);
+      if (disposition === undefined) {
+        sources.push(source);
+        continue;
+      }
+      const item = Object.freeze({ ref: source.ref, reason: disposition.reason });
+      if (disposition.lane === "protected") protectedRefs.push(item);
+      else excludedRefs.push(item);
+    }
+    const eligibleCounts = new Map();
+    for (const source of sources) {
+      eligibleCounts.set(source.identity.sessionId, (eligibleCounts.get(source.identity.sessionId) ?? 0) + 1);
+    }
+    return {
+      scope: catalog.scope,
+      ...(catalog.repositoryId === undefined ? {} : { repositoryId: catalog.repositoryId }),
+      sources: Object.freeze(sources),
+      sessions: Object.freeze(
+        catalog.sessions.map((session) => ({
+          ...session,
+          sourceCount: eligibleCounts.get(session.sessionId) ?? 0,
+        })),
+      ),
+      skippedSessions: catalog.skippedSessions,
+      protected: Object.freeze(protectedRefs),
+      excluded: Object.freeze(excludedRefs),
     };
   }
   recoveryCatalog(scope, consumedToolCallIds, generation) {
@@ -645,6 +807,188 @@ export class ContextControlSourceRegistry {
     };
     this.lastCatalog = catalog;
     return catalog;
+  }
+  genericSearchCatalog(scope, projections, generation, signal) {
+    throwIfGenericSearchAborted(signal);
+    const current = this.snapshot(new Set(), generation);
+    const manager = this.ctx?.sessionManager;
+    const branchEntries = Array.isArray(manager?.getBranch?.()) ? manager.getBranch() : [];
+    const allEntries = Array.isArray(manager?.getEntries?.()) ? manager.getEntries() : branchEntries;
+    const activeEntries = Array.isArray(manager?.buildContextEntries?.())
+      ? manager.buildContextEntries()
+      : branchEntries;
+    const cwd = stringValue(this.ctx?.cwd) ?? stringValue(sessionHeader(branchEntries).cwd) ?? null;
+    const repositoryId = repositoryIdentity(cwd ?? undefined);
+    const branchIds = entryIdSet(branchEntries);
+    const branchForEntry = branchIdForEntries(allEntries, branchIds, current.branchId);
+    const currentEntries = scope === "active-branch" ? branchEntries : allEntries;
+    throwIfGenericSearchAborted(signal);
+    const currentSnapshot = captureGenericSnapshot(
+      currentEntries,
+      activeEntries,
+      current.sessionId,
+      cwd,
+      stringValue(manager?.getLeafId?.()),
+      projections,
+    );
+    throwIfGenericSearchAborted(signal);
+    const sources = [];
+    let skippedSources = currentSnapshot.skippedEntries;
+    const addSources = (snapshot, sessionId, tier, relation, branchIdForSource, toolMetadata) => {
+      for (const projected of snapshot.entries.values()) {
+        throwIfGenericSearchAborted(signal);
+        const entryId = projected.source.source.entryId;
+        const source = rekeyProjectedSource(projected, sessionId, current.sessionId);
+        const metadata = toolMetadata.get(entryId);
+        const isToolResult = source.kind === "toolResult";
+        sources.push({
+          source,
+          sessionId,
+          branchId: branchIdForSource(entryId),
+          tier,
+          relation,
+          activeContext: snapshot.activeEntryIds.has(entryId),
+          visible: snapshot.visibleSourceIds.has(entryId),
+          materialized: snapshot.materializedSourceIds.has(entryId),
+          role: isToolResult ? (metadata?.role ?? "source-content") : "source-content",
+          temporal: tier === "active-branch" ? ["current"] : ["historical"],
+          completeness: isToolResult ? (metadata?.completeness ?? "unknown") : "complete",
+          privacy: isToolResult ? (metadata?.privacy ?? "unknown") : "allowed",
+          integrity: isToolResult ? (metadata?.integrity ?? "unknown") : "valid",
+          freshness: isToolResult ? (metadata?.freshness ?? "unknown") : "current",
+        });
+      }
+      skippedSources += snapshot.skippedEntries;
+    };
+    const currentToolMetadata = genericToolMetadata(
+      currentEntries,
+      current.sessionId,
+      current.branchId,
+      cwd,
+      generation,
+      entryIdSet(activeEntries),
+      scope,
+      repositoryId,
+      false,
+      stringValue(manager?.getSessionFile?.()),
+      branchForEntry,
+    );
+    addSources(
+      currentSnapshot,
+      current.sessionId,
+      "active-branch",
+      "active-branch",
+      branchForEntry,
+      currentToolMetadata,
+    );
+    if (scope === "active-branch") {
+      const activeSources = sources.filter((candidate) => candidate.branchId === current.branchId);
+      sources.splice(0, sources.length, ...activeSources);
+    } else {
+      for (const candidate of sources) {
+        if (candidate.branchId !== current.branchId) {
+          Object.assign(candidate, {
+            tier: "current-session",
+            relation: "sibling-branch",
+            temporal: ["historical"],
+          });
+        }
+      }
+    }
+    const sessions = [
+      {
+        sessionId: current.sessionId,
+        sourceCount: sources.filter((source) => source.sessionId === current.sessionId).length,
+        ...(repositoryId === undefined ? {} : { repositoryId }),
+        current: true,
+      },
+    ];
+    let skippedSessions = 0;
+    if (scope === "current-project" && repositoryId !== undefined) {
+      const currentFile = stringValue(manager?.getSessionFile?.());
+      let normalizedCurrentFile;
+      if (currentFile) {
+        try {
+          normalizedCurrentFile = realpathSync(currentFile);
+        } catch {
+          normalizedCurrentFile = resolve(currentFile);
+        }
+      }
+      const seenFiles = new Set();
+      for (const root of sessionFileCandidates(this.ctx)) {
+        throwIfGenericSearchAborted(signal);
+        for (const file of jsonlFiles(root)) {
+          throwIfGenericSearchAborted(signal);
+          let normalizedFile;
+          try {
+            normalizedFile = realpathSync(file);
+          } catch {
+            normalizedFile = resolve(file);
+          }
+          if (seenFiles.has(normalizedFile) || normalizedFile === normalizedCurrentFile) continue;
+          seenFiles.add(normalizedFile);
+          const parsed = parseSessionFile(normalizedFile);
+          const header = parsed?.header;
+          const sessionId = stringValue(header?.id);
+          const sessionCwd = stringValue(header?.cwd);
+          if (!parsed || !sessionId || !sessionCwd || sessionId === current.sessionId) {
+            skippedSessions += 1;
+            continue;
+          }
+          const candidateRepositoryId = repositoryIdentity(sessionCwd);
+          if (candidateRepositoryId === undefined || candidateRepositoryId !== repositoryId) {
+            skippedSessions += 1;
+            continue;
+          }
+          throwIfGenericSearchAborted(signal);
+          const externalSnapshot = captureGenericSnapshot(
+            parsed.entries,
+            [],
+            sessionId,
+            sessionCwd,
+            undefined,
+            new Map(),
+          );
+          throwIfGenericSearchAborted(signal);
+          const externalToolMetadata = genericToolMetadata(
+            parsed.entries,
+            sessionId,
+            `${sessionId}:root`,
+            sessionCwd,
+            generation,
+            new Set(),
+            "current-project",
+            candidateRepositoryId,
+            true,
+            normalizedFile,
+          );
+          const before = sources.length;
+          addSources(
+            externalSnapshot,
+            sessionId,
+            "cross-session",
+            "cross-session",
+            () => `${sessionId}:root`,
+            externalToolMetadata,
+          );
+          sessions.push({
+            sessionId,
+            sourceCount: sources.length - before,
+            repositoryId: candidateRepositoryId,
+            current: false,
+          });
+        }
+      }
+    } else if (scope === "current-project") {
+      skippedSessions += 1;
+    }
+    return {
+      ...(repositoryId === undefined ? {} : { repositoryId }),
+      sources: Object.freeze(sources),
+      sessions: Object.freeze(sessions),
+      skippedSessions,
+      skippedSources,
+    };
   }
   latestCatalog() {
     return this.lastCatalog;

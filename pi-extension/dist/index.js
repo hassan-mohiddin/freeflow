@@ -9,17 +9,12 @@ import {
 } from "./cognitive-routing/commands.js";
 import { registerCognitiveRoutingHistoryTool, registerCognitiveRoutingTool } from "./cognitive-routing/tool.js";
 import { readCognitiveRoutingHistory } from "./cognitive-routing/history.js";
-import { ConversationHistoryRuntime } from "./conversation-history/runtime.js";
 import { createContextControlExtension } from "./context-control/adapters/extension.js";
 import {
   CONTEXT_CONTROL_DECIDE_TOOL_NAME,
   CONTEXT_CONTROL_TOOL_NAME,
   CONTEXT_CONTROL_USE_EVIDENCE_TOOL_NAME,
 } from "./context-control/interfaces/tool.js";
-import { FreeflowContextRuntime } from "./freeflow-context/runtime.js";
-import { CONTEXT_VIRTUALIZATION_TOOL_NAME, registerFreeflowContextTool } from "./freeflow-context/tool.js";
-import { handleContextCommand } from "./context-virtualization/commands.js";
-import { ContextVirtualizationRuntime } from "./context-virtualization/runtime.js";
 import { handleFreeflowCommand } from "./settings/settings-ui.js";
 import { isPiFlowHost } from "./runtime/runtime-identity.js";
 import {
@@ -60,8 +55,6 @@ function modelFacingCapabilityState(
     ...capabilityState,
     interactionContract: { ...capabilityState?.interactionContract },
     skills: { ...capabilityState?.skills },
-    contextVirtualization: { ...capabilityState?.contextVirtualization },
-    conversationHistory: { ...capabilityState?.conversationHistory },
     cognitiveRouting: { ...capabilityState?.cognitiveRouting },
     contextControl: { ...capabilityState?.contextControl },
   };
@@ -72,13 +65,7 @@ function modelFacingCapabilityState(
     }
   };
   if (!freeflowContext?.corePrompt) {
-    for (const key of [
-      "interactionContract",
-      "skills",
-      "contextVirtualization",
-      "conversationHistory",
-      "cognitiveRouting",
-    ]) {
+    for (const key of ["interactionContract", "skills", "contextControl", "cognitiveRouting"]) {
       markUnavailable(key, "Freeflow core prompt is unavailable.");
     }
     return surfaceState;
@@ -90,14 +77,11 @@ function modelFacingCapabilityState(
     markUnavailable("skills", "Skills prompt is unavailable.");
   }
   if (surfaceState.skills?.effective === true) {
-    if (surfaceState.contextVirtualization?.effective === true && !freeflowContext.contextVirtualizationPrompt) {
-      markUnavailable("contextVirtualization", "Context Virtualization prompt is unavailable.");
-    }
-    if (surfaceState.conversationHistory?.effective === true && !freeflowContext.conversationHistoryPrompt) {
-      markUnavailable("conversationHistory", "Conversation History prompt is unavailable.");
+    if (surfaceState.contextControl?.effective === true && !freeflowContext.contextControlPrompt) {
+      markUnavailable("contextControl", "Context Control prompt is unavailable.");
     }
   } else {
-    for (const key of ["contextVirtualization", "conversationHistory", "cognitiveRouting"]) {
+    for (const key of ["contextControl", "cognitiveRouting"]) {
       markUnavailable(key, "Skills prompt is unavailable.");
     }
   }
@@ -204,16 +188,6 @@ async function applyCapabilityToolVisibility(
     else active.delete(COGNITIVE_ROUTING_SWITCH_TOOL_NAME);
   }
   const contextControlActive = state.contextControl?.effective === true;
-  if (allToolNameSet.has(CONTEXT_VIRTUALIZATION_TOOL_NAME)) {
-    if (
-      !contextControlActive &&
-      (state.contextVirtualization?.effective === true || state.conversationHistory?.effective === true)
-    ) {
-      active.add(CONTEXT_VIRTUALIZATION_TOOL_NAME);
-    } else {
-      active.delete(CONTEXT_VIRTUALIZATION_TOOL_NAME);
-    }
-  }
   if (allToolNameSet.has(CONTEXT_CONTROL_TOOL_NAME)) {
     if (contextControlActive) active.add(CONTEXT_CONTROL_TOOL_NAME);
     else active.delete(CONTEXT_CONTROL_TOOL_NAME);
@@ -243,16 +217,46 @@ async function applyLiveCapabilityState(pi, ctx, cognitiveRoutingController, opt
   ) {
     nextController = await reconcileCognitiveRoutingController(pi, ctx, capabilityState, nextController);
   }
-  setModeStatus(ctx, modeState, capabilityState, nextController?.state());
-  await applyCapabilityToolVisibility(pi, ctx, capabilityState, nextController);
+  const surfaceCapabilityState = modelFacingCapabilityState(
+    capabilityState,
+    ctx,
+    await getRuntimeContext(capabilityState),
+    nextController,
+  );
+  setModeStatus(ctx, modeState, surfaceCapabilityState, nextController?.state());
+  await applyCapabilityToolVisibility(pi, ctx, surfaceCapabilityState, nextController);
   return nextController;
 }
-function disabledToolCall(toolName, capability) {
-  const command = capability === "freeflow" ? "/freeflow settings" : `/${capability} settings`;
-  return {
-    block: true,
-    reason: `${toolName} is disabled by Freeflow config. Configure ${capability} with ${command}.`,
-  };
+function contextControlAdminMessage(operation, result) {
+  if (result?.status === "unavailable" || result?.status === "rejected") {
+    return `Context Control ${operation}: ${result.status} · ${result.reason ?? "unavailable"}`;
+  }
+  if (operation === "status") {
+    const reduced =
+      result?.residency && typeof result.residency === "object"
+        ? Object.values(result.residency).filter((state) => state !== "full").length
+        : 0;
+    return [
+      "Context Control status",
+      `state=${result?.state ?? "unknown"}`,
+      `sources=${result?.catalogSourceCount ?? 0}`,
+      `reduced=${reduced}`,
+      `protected=${Array.isArray(result?.protectedRefs) ? result.protectedRefs.length : 0}`,
+      `leases=${result?.activeEvidenceHandleCount ?? 0}`,
+      `pending=${result?.pendingProposal === true ? "yes" : "no"}`,
+    ].join(" · ");
+  }
+  if (operation === "list") {
+    const sources = Array.isArray(result?.sources) ? result.sources : [];
+    const refs = sources
+      .slice(0, 32)
+      .map((source) => source?.ref)
+      .filter((ref) => typeof ref === "string" && ref.length > 0);
+    const suffix = refs.length > 0 ? ` · ${refs.join(", ")}${sources.length > refs.length ? ", …" : ""}` : "";
+    return `Context Control list · sources=${sources.length} · protected=${result?.protectedCount ?? 0} · excluded=${result?.excludedCount ?? 0}${suffix}`;
+  }
+  const changed = Array.isArray(result?.changed) ? result.changed.length : 0;
+  return `Context Control ${operation}: ${result?.status ?? "ok"}${changed > 0 ? ` · changed=${changed}` : ""}`;
 }
 function freeflowCompletions(prefix, hostInfo = undefined) {
   const query = prefix ?? "";
@@ -289,25 +293,19 @@ function freeflowCompletions(prefix, hostInfo = undefined) {
   }
   if (query.startsWith("context-control ")) {
     const contextControlQuery = query.slice("context-control ".length);
-    return [{ value: "purge", label: "purge", description: "Delete Context Control sidecar metadata" }]
+    return [
+      { value: "status", label: "status", description: "Show Context Control state" },
+      { value: "list", label: "list", description: "List Context Control sources" },
+      { value: "restore", label: "restore", description: "Restore Context Control references" },
+      { value: "reset all", label: "reset all", description: "Reset Context Control state" },
+      { value: "purge", label: "purge", description: "Delete Context Control sidecar metadata" },
+    ]
       .filter((item) => item.value.startsWith(contextControlQuery))
       .map((item) => ({ ...item, value: `context-control ${item.value}` }));
-  }
-  if (query.startsWith("context ")) {
-    const contextQuery = query.slice("context ".length);
-    return [
-      { value: "status", label: "status", description: "Show Freeflow Context state" },
-      { value: "list", label: "list", description: "List archived context projections" },
-      { value: "restore", label: "restore", description: "Restore one or more context references" },
-      { value: "reset all", label: "reset all", description: "Reset projection decisions on the active branch" },
-    ]
-      .filter((item) => item.value.startsWith(contextQuery))
-      .map((item) => ({ ...item, value: `context ${item.value}` }));
   }
   return [
     { value: "settings", label: "settings", description: "Open personal override settings" },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
-    { value: "context", label: "context", description: "Inspect Freeflow Context" },
     { value: "context-control", label: "context-control", description: "Manage Context Control sidecar metadata" },
     { value: "mode", label: "mode", description: "Select a temporary session mode" },
     ...(isPiFlowHost(hostInfo)
@@ -351,9 +349,6 @@ export default function freeflow(pi) {
   let cognitiveRoutingController;
   let latestCognitiveRoutingContext;
   let providerSurfaceSnapshot;
-  let freeflowContextRuntime;
-  let contextVirtualizationRuntime;
-  let conversationHistoryRuntime;
   const contextControlExtensionState = createContextControlExtension(pi, {
     registerLifecycle: false,
     resolveConfig: async (ctx) => {
@@ -376,17 +371,6 @@ export default function freeflow(pi) {
       };
     },
   });
-  const registerContextToolForState = (capabilityState) => {
-    registerFreeflowContextTool(
-      pi,
-      () => contextVirtualizationRuntime,
-      () => conversationHistoryRuntime,
-      {
-        contextVirtualization: capabilityState?.contextVirtualization?.effective === true,
-        conversationHistory: capabilityState?.conversationHistory?.effective === true,
-      },
-    );
-  };
   const buildProviderSurface = async (ctx, activateCognitiveRouting = false) => {
     const [modeState, capabilityState] = await Promise.all([
       readModeState(ctx.cwd),
@@ -434,7 +418,6 @@ export default function freeflow(pi) {
   };
   const applyLiveCapabilityStateForSession = async (ctx, options = {}) => {
     cognitiveRoutingController = await applyLiveCapabilityState(pi, ctx, cognitiveRoutingController, options);
-    registerContextToolForState(await readCapabilityState(ctx.cwd, ctx, pi?.host));
   };
   if (isPiFlowHost(pi?.host)) {
     registerCognitiveRoutingTool(pi, () => cognitiveRoutingController);
@@ -443,12 +426,6 @@ export default function freeflow(pi) {
       return readCognitiveRoutingHistory(context ?? latestCognitiveRoutingContext, options);
     });
   }
-  registerFreeflowContextTool(
-    pi,
-    () => contextVirtualizationRuntime,
-    () => conversationHistoryRuntime,
-    { contextVirtualization: false, conversationHistory: false },
-  );
   if (isPiFlowHost(pi?.host) && typeof pi.registerShortcut === "function") {
     pi.registerShortcut("ctrl+shift+r", {
       description: "Cycle the Cognitive Routing manual standard/reasoning hold",
@@ -532,14 +509,6 @@ export default function freeflow(pi) {
     latestCognitiveRoutingContext = ctx;
     providerSurfaceSnapshot = undefined;
     restoreModeOverride(ctx);
-    freeflowContextRuntime = new FreeflowContextRuntime(ctx);
-    contextVirtualizationRuntime = new ContextVirtualizationRuntime(pi, ctx, freeflowContextRuntime);
-    conversationHistoryRuntime = new ConversationHistoryRuntime(
-      ctx,
-      (entryId) => contextVirtualizationRuntime?.isSourceFullyProjected(entryId) ?? true,
-      freeflowContextRuntime,
-    );
-    await contextVirtualizationRuntime.recover(ctx);
     const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
     await contextControlExtensionState.start(ctx);
     await refreshRuntimeContext(capabilityState);
@@ -549,7 +518,6 @@ export default function freeflow(pi) {
       snapshot.capabilityState?.cognitiveRouting?.effective === true &&
       !hasSessionState &&
       !startupSelectionSuppressesCognitiveRouting(ctx);
-    registerContextToolForState(snapshot.capabilityState);
     setModeStatus(ctx, snapshot.modeState, snapshot.capabilityState, snapshot.cognitiveRoutingRuntime, {
       cognitiveRoutingStartupPending,
     });
@@ -565,9 +533,6 @@ export default function freeflow(pi) {
     providerSurfaceSnapshot = undefined;
     const controller = cognitiveRoutingController;
     cognitiveRoutingController = undefined;
-    freeflowContextRuntime = undefined;
-    contextVirtualizationRuntime = undefined;
-    conversationHistoryRuntime = undefined;
     await contextControlExtensionState.shutdown(typeof event?.reason === "string" ? event.reason : "unknown");
     if (controller) await controller.shutdown(event?.reason);
   });
@@ -588,11 +553,6 @@ export default function freeflow(pi) {
     contextControlExtensionState.invalidate();
     const controller = cognitiveRoutingController;
     if (controller) await controller.reconcileBranch();
-    if (contextVirtualizationRuntime) {
-      contextVirtualizationRuntime.setContext(ctx);
-      await contextVirtualizationRuntime.recover(ctx);
-    }
-    conversationHistoryRuntime?.setContext(ctx);
     await applyLiveCapabilityStateForSession(ctx);
   });
   pi.on("session_compact", async (_event, ctx) => {
@@ -601,26 +561,13 @@ export default function freeflow(pi) {
     contextControlExtensionState.invalidate();
     const controller = cognitiveRoutingController;
     if (controller) await controller.reconcileBranch("session-compact");
-    if (contextVirtualizationRuntime) {
-      contextVirtualizationRuntime.setContext(ctx);
-      await contextVirtualizationRuntime.recover(ctx);
-    }
-    conversationHistoryRuntime?.setContext(ctx);
-    const [modeState, capabilityState] = await Promise.all([
-      readModeState(ctx.cwd),
-      readCapabilityState(ctx.cwd, ctx, pi?.host),
-    ]);
-    await refreshRuntimeContext(capabilityState);
-    registerContextToolForState(capabilityState);
-    setModeStatus(ctx, modeState, capabilityState, cognitiveRoutingController?.state());
-    await applyCapabilityToolVisibility(pi, ctx, capabilityState, cognitiveRoutingController);
+    await applyLiveCapabilityStateForSession(ctx);
   });
   pi.on("before_agent_start", async (event, ctx) => {
     latestCognitiveRoutingContext = ctx;
     contextControlExtensionState.setPrompt(event?.prompt);
     const snapshot = await buildProviderSurface(ctx, true);
     providerSurfaceSnapshot = { context: ctx, value: snapshot };
-    registerContextToolForState(snapshot.capabilityState);
     setModeStatus(ctx, snapshot.modeState, snapshot.capabilityState, snapshot.cognitiveRoutingRuntime);
     await applyCapabilityToolVisibility(pi, ctx, snapshot.capabilityState, cognitiveRoutingController);
     const freeflowRuntimeContext = runtimeContext(snapshot.freeflowContext, snapshot.capabilityState);
@@ -644,27 +591,7 @@ export default function freeflow(pi) {
         return filtered;
       })
       .filter((message) => message !== undefined);
-    const contextControlActive = surfaceCapabilityState.contextControl?.effective === true;
-    if (contextVirtualizationRuntime && !contextControlActive) {
-      contextVirtualizationRuntime.setContext(ctx);
-      const projected = await contextVirtualizationRuntime.project(
-        messages,
-        surfaceCapabilityState.contextVirtualization?.effective === true,
-      );
-      if (projected.changed) {
-        changed = true;
-        messages = projected.messages;
-      }
-    }
-    if (
-      conversationHistoryRuntime &&
-      !contextControlActive &&
-      surfaceCapabilityState.conversationHistory?.effective === true
-    ) {
-      conversationHistoryRuntime.setContext(ctx);
-      conversationHistoryRuntime.capture(surfaceCapabilityState.contextVirtualization?.effective === true);
-    }
-    if (contextControlActive) {
+    if (surfaceCapabilityState.contextControl?.effective === true) {
       const projected = await contextControlExtensionState.project(messages, ctx);
       if (projected?.changed) {
         changed = true;
@@ -680,19 +607,6 @@ export default function freeflow(pi) {
     changed = true;
     messages = nextMessages;
     return changed ? { messages } : undefined;
-  });
-  pi.on("tool_call", async (event, ctx) => {
-    const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
-    const toolName = typeof event?.toolName === "string" ? event.toolName : "";
-    if (
-      (capabilityState.contextControl?.effective === true ||
-        (capabilityState.contextVirtualization?.effective !== true &&
-          capabilityState.conversationHistory?.effective !== true)) &&
-      toolName === CONTEXT_VIRTUALIZATION_TOOL_NAME
-    ) {
-      return disabledToolCall(toolName, "context");
-    }
-    return undefined;
   });
   pi.on("before_provider_request", async () => {
     contextControlExtensionState.beforeProviderRequest();
@@ -733,34 +647,70 @@ export default function freeflow(pi) {
     handler: async (args, ctx) => {
       const contextInput = (args ?? "").trim();
       if (/^context-control(?:\s|$)/iu.test(contextInput)) {
-        const contextControlCommand = contextInput.slice("context-control".length).trim().toLocaleLowerCase();
-        if (contextControlCommand !== "purge") {
-          ctx.ui.notify("Use /freeflow context-control purge to delete private Context Control metadata.", "info");
-          return;
+        const contextControlArguments = contextInput
+          .slice("context-control".length)
+          .trim()
+          .split(/\s+/u)
+          .filter(Boolean);
+        const [rawOperation = "", ...argumentsList] = contextControlArguments;
+        const operation = rawOperation.toLocaleLowerCase();
+        if (operation === "status" && argumentsList.length === 0) {
+          const status = contextControlExtensionState.status();
+          ctx.ui.notify(
+            contextControlAdminMessage("status", status),
+            "state" in status && status.state === "ready" ? "info" : "warning",
+          );
+          return { changed: false, reloaded: false };
         }
-        if (typeof ctx?.isIdle === "function" && !ctx.isIdle()) {
-          ctx.ui.notify("Context Control sidecar purge is available only while Pi is idle.", "warning");
-          return;
+        if (operation === "list" && argumentsList.length === 0) {
+          const list = contextControlExtensionState.list();
+          ctx.ui.notify(contextControlAdminMessage("list", list), list.status === "ok" ? "info" : "warning");
+          return { changed: false, reloaded: false };
         }
-        const purged = await contextControlExtensionState.purge(ctx);
-        if (purged.status === "ok") {
-          ctx.ui.notify("Context Control sidecar metadata purged; canonical session history was unchanged.", "info");
-        } else {
-          ctx.ui.notify(`Context Control sidecar purge failed: ${purged.reason ?? "unavailable"}.`, "warning");
+        if (operation === "restore") {
+          if (argumentsList.length === 0) {
+            ctx.ui.notify("Usage: /freeflow context-control restore <ctx refs>", "warning");
+            return { changed: false, reloaded: false, error: "invalid_context_control_command" };
+          }
+          if (typeof ctx?.isIdle === "function" && !ctx.isIdle()) {
+            ctx.ui.notify("Context Control restore is available only while Pi is idle.", "warning");
+            return { changed: false, reloaded: false, error: "busy" };
+          }
+          const restored = await contextControlExtensionState.restore(argumentsList);
+          ctx.ui.notify(contextControlAdminMessage("restore", restored), restored.status === "ok" ? "info" : "warning");
+          return {
+            changed: restored.status === "ok" && Array.isArray(restored.changed) && restored.changed.length > 0,
+            reloaded: false,
+          };
         }
-        await applyLiveCapabilityStateForSession(ctx);
-        return;
-      }
-      if (contextInput === "context" || contextInput.startsWith("context ")) {
-        const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
-        await handleContextCommand(
-          contextInput.slice("context".length).trim(),
-          ctx,
-          contextVirtualizationRuntime,
-          capabilityState.contextVirtualization?.effective === true,
-          capabilityState.conversationHistory?.effective === true,
+        if (operation === "reset" && argumentsList.length === 1 && argumentsList[0] === "all") {
+          if (typeof ctx?.isIdle === "function" && !ctx.isIdle()) {
+            ctx.ui.notify("Context Control reset is available only while Pi is idle.", "warning");
+            return { changed: false, reloaded: false, error: "busy" };
+          }
+          const reset = await contextControlExtensionState.reset();
+          ctx.ui.notify(contextControlAdminMessage("reset", reset), reset.status === "ok" ? "info" : "warning");
+          return { changed: reset.status === "ok", reloaded: false };
+        }
+        if (operation === "purge" && argumentsList.length === 0) {
+          if (typeof ctx?.isIdle === "function" && !ctx.isIdle()) {
+            ctx.ui.notify("Context Control sidecar purge is available only while Pi is idle.", "warning");
+            return { changed: false, reloaded: false, error: "busy" };
+          }
+          const purged = await contextControlExtensionState.purge(ctx);
+          if (purged.status === "ok") {
+            ctx.ui.notify("Context Control sidecar metadata purged; canonical session history was unchanged.", "info");
+          } else {
+            ctx.ui.notify(`Context Control sidecar purge failed: ${purged.reason ?? "unavailable"}.`, "warning");
+          }
+          await applyLiveCapabilityStateForSession(ctx);
+          return { changed: purged.status === "ok", reloaded: false };
+        }
+        ctx.ui.notify(
+          "Usage: /freeflow context-control status, list, restore <ctx refs>, reset all, or purge",
+          "warning",
         );
-        return;
+        return { changed: false, reloaded: false, error: "invalid_context_control_command" };
       }
       if (isPiFlowHost(pi?.host) && /^profile(?:\s|$)/i.test((args ?? "").trim())) {
         const profileCommandContext = {

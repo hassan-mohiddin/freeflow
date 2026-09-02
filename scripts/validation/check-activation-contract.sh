@@ -11,8 +11,7 @@ skills_prompt="$repo_root/runtime/prompts/skills.md"
 workflow_skill="$repo_root/skills/workflow/SKILL.md"
 action_selection_skill="$repo_root/skills/action-selection/SKILL.md"
 cognitive_routing_prompt="$repo_root/runtime/prompts/cognitive-routing.md"
-context_virtualization_prompt="$repo_root/runtime/prompts/context-virtualization.md"
-conversation_history_prompt="$repo_root/runtime/prompts/conversation-history.md"
+context_control_prompt="$repo_root/runtime/prompts/context-control.md"
 mode_skill="$repo_root/skills/mode-contract/SKILL.md"
 agents_file="$repo_root/AGENTS.md"
 runtime_doc="$repo_root/plugin-docs/architecture.md"
@@ -51,8 +50,7 @@ for file in \
 	"$workflow_skill" \
 	"$action_selection_skill" \
 	"$cognitive_routing_prompt" \
-	"$context_virtualization_prompt" \
-	"$conversation_history_prompt" \
+	"$context_control_prompt" \
 	"$mode_skill" \
 	"$agents_file" \
 	"$runtime_doc" \
@@ -88,8 +86,7 @@ require_text "$pi_runtime" '../../../runtime/prompts/core.md'
 require_text "$pi_runtime" '../../../runtime/prompts/interaction-contract.md'
 require_text "$pi_runtime" '../../../runtime/prompts/skills.md'
 require_text "$pi_runtime" '../../../runtime/prompts/cognitive-routing.md'
-require_text "$pi_runtime" '../../../runtime/prompts/context-virtualization.md'
-require_text "$pi_runtime" '../../../runtime/prompts/conversation-history.md'
+require_text "$pi_runtime" '../../../runtime/prompts/context-control.md'
 require_text "$shared_hook" '"runtime", "prompts", "interaction-contract.md"'
 require_text "$shared_hook" '"runtime", "prompts", "skills.md"'
 require_text "$shared_hook" 'eventName === "SessionStart" || eventName === "UserPromptSubmit"'

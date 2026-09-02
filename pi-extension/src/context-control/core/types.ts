@@ -1,7 +1,7 @@
-import type { ContextSourceIdentity } from "../../freeflow-context/types.js";
+import type { ContextSourceIdentity, ContextSourceKind, ResolvedContextEntry } from "../sources/types.js";
 import type { ContextControlMode as ContextControlPolicyMode, ContextControlRecoveryScope } from "./config.js";
 export type { ContextControlMode as ContextControlPolicyMode, ContextControlRecoveryScope } from "./config.js";
-export type { ContextSourceIdentity } from "../../freeflow-context/types.js";
+export type { ContextSourceIdentity } from "../sources/types.js";
 export type SourceIdentity = ContextSourceIdentity;
 
 export const CONTEXT_CONTROL_RUNTIME_VERSION = "0.1" as const;
@@ -46,7 +46,8 @@ type EvidenceScopeTier = (typeof EVIDENCE_SCOPE_TIERS)[number];
 export type HarnessPolicy = "disabled" | "shadow" | "automatic" | "approval";
 export type CommandKind = "broad-search" | "observation" | "verification" | "other";
 export type ConsumptionEvidence = "confirmed" | "inferred" | "unconfirmed";
-export type ContextControlOperation = "cleanup" | "recover" | "pin" | "unpin" | "reset" | "status" | "list" | "explain";
+export type ContextControlOperation =
+  "cleanup" | "recover" | "search" | "retrieve" | "pin" | "unpin" | "reset" | "status" | "list" | "explain";
 export type SourceRelation =
   | "active-branch"
   | "sibling-branch"
@@ -113,6 +114,18 @@ export interface ContextControlSource {
   equivalentRefs?: readonly string[];
   sessionFile?: string;
   repositoryId?: string;
+}
+
+export interface ContextControlDirectSource {
+  ref: string;
+  identity: ContextSourceIdentity;
+  kind: Exclude<ContextSourceKind, "custom">;
+  content: string;
+  contentHash: string;
+  characters: number;
+  activeContext: boolean;
+  visible: boolean;
+  source: ResolvedContextEntry;
 }
 
 export interface LifecycleCandidate {
@@ -212,6 +225,35 @@ export interface ContextControlJournal {
   acquire?(): Promise<void>;
   release?(): Promise<void>;
   purge?(): Promise<void>;
+}
+
+export interface ContextControlAutomationRef {
+  ref: string;
+  reason: string;
+}
+
+export interface ContextControlAutomationView {
+  sessionId: string;
+  branchId: string;
+  generation: number;
+  sources: readonly ContextControlSource[];
+  protected: readonly ContextControlAutomationRef[];
+  excluded: readonly ContextControlAutomationRef[];
+}
+
+export interface ContextControlAutomationCatalog {
+  scope: ContextControlRecoveryScope;
+  repositoryId?: string;
+  sources: readonly ContextControlSource[];
+  sessions: readonly {
+    sessionId: string;
+    sourceCount: number;
+    repositoryId?: string;
+    current: boolean;
+  }[];
+  skippedSessions: number;
+  protected: readonly ContextControlAutomationRef[];
+  excluded: readonly ContextControlAutomationRef[];
 }
 
 export interface ContextControlSourceSnapshot {

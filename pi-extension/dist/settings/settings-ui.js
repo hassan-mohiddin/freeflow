@@ -24,8 +24,6 @@ import {
 const DEFAULT_FREEFLOW_ENABLED = true;
 const DEFAULT_INTERACTION_CONTRACT_ENABLED = true;
 const DEFAULT_SKILLS_ENABLED = true;
-const DEFAULT_CONTEXT_VIRTUALIZATION_ENABLED = false;
-const DEFAULT_CONVERSATION_HISTORY_ENABLED = false;
 const MODE_VALUES = ["conversation", "workflow", "strict-workflow"];
 const MODE_LABELS = {
   default: "Use configured default",
@@ -383,17 +381,12 @@ function resolveSettingsCoreView(rawConfig, layers) {
   const fallbackCore = {
     enabled: getPath(rawConfig, ["enabled"]) !== false,
     interactionContract: getPath(rawConfig, ["interactionContract"]) !== false,
-    contextVirtualization: getPath(rawConfig, ["contextVirtualization"]) === true,
-    conversationHistory: getPath(rawConfig, ["conversationHistory"]) === true,
     skills: { enabled: getPath(repositorySkills, ["enabled"]) !== false },
     defaultMode: validModeOrUndefined(rawConfig.defaultMode) ?? "workflow",
   };
   const fallbackSources = {
     enabled: typeof getPath(rawConfig, ["enabled"]) === "boolean" ? "repository" : "builtin",
     interactionContract: typeof getPath(rawConfig, ["interactionContract"]) === "boolean" ? "repository" : "builtin",
-    contextVirtualization:
-      typeof getPath(rawConfig, ["contextVirtualization"]) === "boolean" ? "repository" : "builtin",
-    conversationHistory: typeof getPath(rawConfig, ["conversationHistory"]) === "boolean" ? "repository" : "builtin",
     skillsEnabled: typeof getPath(repositorySkills, ["enabled"]) === "boolean" ? "repository" : "builtin",
     defaultMode: validModeOrUndefined(rawConfig.defaultMode) === undefined ? "builtin" : "repository",
   };
@@ -478,34 +471,10 @@ function sessionFreeflowItems(state, modeState, cognitiveRoutingController) {
     effectiveSource: effectiveSources.skillsEnabled,
     sessionOverrides,
   });
-  const contextVirtualizationItem = createSessionBooleanItem({
-    id: "freeflow.contextVirtualization",
-    label: "Context Virtualization",
-    description: "Temporary Context Virtualization override for this Pi session.",
-    key: "contextVirtualization",
-    inheritedValue: configured.contextVirtualization,
-    inheritedSource: configuredSources.contextVirtualization,
-    effectiveValue: state.contextVirtualization.enabled,
-    effectiveSource: effectiveSources.contextVirtualization,
-    sessionOverrides,
-  });
-  const conversationHistoryItem = createSessionBooleanItem({
-    id: "freeflow.conversationHistory",
-    label: "Conversation History",
-    description: "Temporary Conversation History override for this Pi session.",
-    key: "conversationHistory",
-    inheritedValue: configured.conversationHistory,
-    inheritedSource: configuredSources.conversationHistory,
-    effectiveValue: state.conversationHistory.enabled,
-    effectiveSource: effectiveSources.conversationHistory,
-    sessionOverrides,
-  });
   const freeflowInactive = !state.enabled;
   const skillsEnabled = state.skills.enabled;
   interactionItem.inactive = freeflowInactive;
   skillsItem.inactive = freeflowInactive;
-  contextVirtualizationItem.inactive = freeflowInactive || !skillsEnabled;
-  conversationHistoryItem.inactive = freeflowInactive || !skillsEnabled;
   const sessionMode = modeState.currentMode ?? "default";
   const sessionModeItem = {
     id: "freeflow.sessionMode",
@@ -571,8 +540,7 @@ function sessionFreeflowItems(state, modeState, cognitiveRoutingController) {
     {
       id: "freeflow.session.reset",
       label: "Reset session overrides",
-      description:
-        "Clear Freeflow, Interaction Contract, Skills, Context Virtualization, Conversation History, and mode overrides for this Pi session.",
+      description: "Clear Freeflow, Interaction Contract, Skills, and mode overrides for this Pi session.",
       kind: "enum",
       value: "available",
       values: ["reset"],
@@ -580,15 +548,6 @@ function sessionFreeflowItems(state, modeState, cognitiveRoutingController) {
       valueDescriptions: { reset: "Return every session setting to its configured value." },
       format: () => "available",
       transient: true,
-    },
-    {
-      id: "freeflow.context",
-      label: "Freeflow Context",
-      description: "Choose which context projection and conversation-history operations are available to the model.",
-      kind: "group",
-      value: contextVirtualizationItem.effectiveValue === true || conversationHistoryItem.effectiveValue === true,
-      displaySuffix: `${[contextVirtualizationItem, conversationHistoryItem].filter((item) => item.effectiveValue === true).length}/2 enabled`,
-      children: [contextVirtualizationItem, conversationHistoryItem],
     },
   ];
 }
@@ -931,30 +890,6 @@ function freeflowItems(rawConfig, modeState, options = {}) {
     effectiveSource: sources.skillsEnabled,
     defaultValue: DEFAULT_SKILLS_ENABLED,
   });
-  const contextVirtualizationItem = createScopedBooleanItem({
-    scope,
-    rawConfig,
-    localConfig,
-    id: "freeflow.contextVirtualization",
-    label: "Context Virtualization",
-    description: "Let the model archive consumed tool results from future context while preserving session history.",
-    path: ["contextVirtualization"],
-    effectiveValue: core.contextVirtualization,
-    effectiveSource: sources.contextVirtualization,
-    defaultValue: DEFAULT_CONTEXT_VIRTUALIZATION_ENABLED,
-  });
-  const conversationHistoryItem = createScopedBooleanItem({
-    scope,
-    rawConfig,
-    localConfig,
-    id: "freeflow.conversationHistory",
-    label: "Conversation History",
-    description: "Let the model search and retrieve hidden conversation history on the active branch.",
-    path: ["conversationHistory"],
-    effectiveValue: core.conversationHistory,
-    effectiveSource: sources.conversationHistory,
-    defaultValue: DEFAULT_CONVERSATION_HISTORY_ENABLED,
-  });
   const repositoryModeValue = validModeOrUndefined(rawConfig.defaultMode);
   const repositoryDefaultMode = repositoryModeValue ?? "workflow";
   const repositoryDefaultSource = repositoryModeValue ? "repository" : "builtin";
@@ -971,8 +906,6 @@ function freeflowItems(rawConfig, modeState, options = {}) {
   const skillsEnabled = core.skills.enabled;
   interactionItem.inactive = freeflowInactive;
   skillsItem.inactive = freeflowInactive;
-  contextVirtualizationItem.inactive = freeflowInactive || !skillsEnabled;
-  conversationHistoryItem.inactive = freeflowInactive || !skillsEnabled;
   defaultModeItem.inactive = freeflowInactive;
   defaultModeItem.displaySuffix = coreDisplaySuffix(defaultModeItem, freeflowInactive || !skillsEnabled);
   const sessionMode = modeState?.currentMode ?? "default";
@@ -1071,15 +1004,6 @@ function freeflowItems(rawConfig, modeState, options = {}) {
     sessionModeItem,
     defaultModeItem,
     ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []),
-    {
-      id: "freeflow.context",
-      label: "Freeflow Context",
-      description: "Choose which context projection and conversation-history operations are available to the model.",
-      kind: "group",
-      value: contextVirtualizationItem.effectiveValue === true || conversationHistoryItem.effectiveValue === true,
-      displaySuffix: `${[contextVirtualizationItem, conversationHistoryItem].filter((item) => item.effectiveValue === true).length}/2 enabled`,
-      children: [contextVirtualizationItem, conversationHistoryItem],
-    },
     contextControlGroup,
   ];
 }
@@ -1088,7 +1012,6 @@ function pruneKnownDefaults(config) {
     { path: ["enabled"], value: DEFAULT_FREEFLOW_ENABLED },
     { path: ["interactionContract"], value: DEFAULT_INTERACTION_CONTRACT_ENABLED },
     { path: ["skills", "enabled"], value: DEFAULT_SKILLS_ENABLED },
-    { path: ["conversationHistory"], value: DEFAULT_CONVERSATION_HISTORY_ENABLED },
     { path: ["contextControl", "enabled"], value: DEFAULT_CONTEXT_CONTROL_CONFIG.enabled },
     { path: ["contextControl", "cleanupMode"], value: DEFAULT_CONTEXT_CONTROL_CONFIG.cleanupMode },
     { path: ["contextControl", "recoveryMode"], value: DEFAULT_CONTEXT_CONTROL_CONFIG.recoveryMode },
@@ -1246,12 +1169,6 @@ function refreshSettingsDerivedState(items) {
       : "disabled";
     cognitiveRoutingGroup.inactive = freeflowInactive || !skillsEnabled;
   }
-  const contextGroup = findSettingsItem(items, "freeflow.context");
-  if (contextGroup?.children?.length) {
-    const enabledCount = contextGroup.children.filter((item) => effectiveItemValue(item) === true).length;
-    contextGroup.value = enabledCount > 0;
-    contextGroup.displaySuffix = `${enabledCount}/${contextGroup.children.length} enabled`;
-  }
   walkSettingsItems(items, (candidate) => {
     if (candidate.id === "freeflow.session.reset") {
       candidate.inactive = false;
@@ -1269,8 +1186,6 @@ function refreshSettingsDerivedState(items) {
                 "freeflow.cognitiveRouting.reasoning",
                 "freeflow.cognitiveRouting.sessionStart.control",
                 "freeflow.cognitiveRouting.sessionStart.profile",
-                "freeflow.contextVirtualization",
-                "freeflow.conversationHistory",
               ].includes(candidate.id));
       const displayInactive = candidate.id === "freeflow.defaultMode" ? freeflowInactive || !skillsEnabled : inactive;
       candidate.inactive = inactive;
@@ -1396,7 +1311,6 @@ function freeflowStatusText(state, cognitiveRoutingController) {
           ? `blocked (${cognitiveRouting.blockingReason.code})`
           : "disabled"
     : undefined;
-  const contextEnabled = state.contextVirtualization?.effective || state.conversationHistory?.effective;
   const contextControlStatus = state.contextControl?.configured
     ? `${state.contextControl.effective ? "enabled" : "disabled"} (cleanup ${state.contextControl.cleanupMode}, recovery ${state.contextControl.recoveryMode}, scope ${state.contextControl.recoveryScope})`
     : undefined;
@@ -1404,7 +1318,6 @@ function freeflowStatusText(state, cognitiveRoutingController) {
     `Freeflow: ${state.enabled ? "enabled" : "disabled"}${sessionSuffix(state.configSources.enabled)}`,
     `interaction contract: ${state.interactionContract.effective ? "enabled" : "disabled"}${sessionSuffix(state.configSources.interactionContract)}`,
     `skills: ${state.skills.effective ? "enabled" : "disabled (workflow modes inactive)"}${sessionSuffix(state.configSources.skillsEnabled)}`,
-    `context: ${contextEnabled ? "enabled" : "disabled"} (virtualization ${state.contextVirtualization?.effective ? "enabled" : "disabled"}, history ${state.conversationHistory?.effective ? "enabled" : "disabled"})`,
     ...(contextControlStatus ? [`context control: ${contextControlStatus}`] : []),
     ...(cognitiveRoutingStatus ? [`cognitive routing: ${cognitiveRoutingStatus}`] : []),
   ].join("; ");
@@ -1628,8 +1541,6 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiv
           "freeflow.enabled": "enabled",
           "freeflow.interactionContract": "interactionContract",
           "freeflow.skills.enabled": "skillsEnabled",
-          "freeflow.contextVirtualization": "contextVirtualization",
-          "freeflow.conversationHistory": "conversationHistory",
         };
         const key = keyById[item.id];
         const override = value === LOCAL_INHERIT ? null : value === "true";

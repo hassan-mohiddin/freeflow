@@ -79,6 +79,10 @@ export function createContextControlExtension(pi, options = {}) {
     start: async () => undefined,
     reload: async () => undefined,
     purge: async () => ({ status: "unavailable", operation: "purge", reason: "runtime-unbound" }),
+    status: () => ({ status: "unavailable", operation: "status", reason: "runtime-unbound" }),
+    list: () => ({ status: "unavailable", operation: "list", reason: "runtime-unbound", sources: [] }),
+    restore: async () => ({ status: "unavailable", operation: "restore", changed: [], reason: "runtime-unbound" }),
+    reset: async () => ({ status: "unavailable", operation: "reset", changed: [], reason: "runtime-unbound" }),
     shutdown: async () => undefined,
     invalidate: () => undefined,
     beforeProviderRequest: () => undefined,
@@ -140,6 +144,13 @@ export function createContextControlExtension(pi, options = {}) {
       return { status: "unavailable", operation: "purge", reason };
     }
   };
+  state.status = () => runtime?.status() ?? { status: "unavailable", operation: "status", reason: "runtime-unbound" };
+  state.list = () =>
+    runtime?.list() ?? { status: "unavailable", operation: "list", reason: "runtime-unbound", sources: [] };
+  state.restore = async (refs) =>
+    runtime?.restore(refs) ?? { status: "unavailable", operation: "restore", changed: [], reason: "runtime-unbound" };
+  state.reset = async () =>
+    runtime?.reset() ?? { status: "unavailable", operation: "reset", changed: [], reason: "runtime-unbound" };
   state.shutdown = async (reason = "unknown") => {
     if (runtime !== undefined) await runtime.shutdown(reason);
     runtime = undefined;

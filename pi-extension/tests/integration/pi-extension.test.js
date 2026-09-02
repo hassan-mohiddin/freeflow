@@ -7,6 +7,7 @@ import test from "node:test";
 import { promisify } from "node:util";
 
 import freeflowExtension from "../../dist/index.js";
+import { ContextControlRuntime } from "../../dist/context-control/core/runtime.js";
 import {
   readCapabilityState,
   readFreeflowConfigLayers,
@@ -112,6 +113,45 @@ function context(cwd = process.cwd(), sessionEntries = [], activeSessionEntries 
   };
 }
 
+test("Context Control owns context lifecycle callbacks when effective", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-context-control-lifecycle-"));
+  await mkdir(join(cwd, ".freeflow"));
+  await writeFile(
+    join(cwd, ".freeflow/config.json"),
+    JSON.stringify({
+      defaultMode: "workflow",
+      contextControl: {
+        enabled: true,
+        cleanupMode: "model-only",
+        recoveryMode: "model-only",
+        recoveryScope: "active-branch",
+      },
+    }),
+    "utf8",
+  );
+  const originalContextControlProject = ContextControlRuntime.prototype.project;
+  let contextControlProjectCalls = 0;
+  ContextControlRuntime.prototype.project = async function (...args) {
+    contextControlProjectCalls += 1;
+    return originalContextControlProject.apply(this, args);
+  };
+  try {
+    const { handlers, activeToolNames } = loadExtension();
+    const ctx = context(cwd);
+    await handlers.get("session_start")({}, ctx);
+    await handlers.get("session_tree")({}, ctx);
+    await handlers.get("session_compact")({}, ctx);
+    await handlers.get("context")({ messages: [] }, ctx);
+
+    assert.equal(contextControlProjectCalls, 1);
+    assert.ok(activeToolNames().includes("context_control"));
+    assert.ok(!activeToolNames().includes("freeflow_context"));
+  } finally {
+    ContextControlRuntime.prototype.project = originalContextControlProject;
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 const testTheme = {
   fg(_color, text) {
     return text;
@@ -145,8 +185,8 @@ test("Pi registers Freeflow commands without retired router tools", () => {
     shortcuts.map(({ shortcut }) => shortcut),
     ["ctrl+shift+r", "ctrl+shift+a"],
   );
-  assert.ok(toolNames.includes("freeflow_context"));
-  assert.deepEqual(tools.find((tool) => tool.name === "freeflow_context").parameters.oneOf, []);
+  assert.ok(!toolNames.includes("freeflow_context"));
+  assert.ok(toolNames.includes("context_control"));
   assert.ok(toolNames.includes("freeflow_switch_profile"));
   assert.ok(
     !toolNames.some((name) => ["freeflow_status", "freeflow_search", "freeflow_run", "freeflow_batch"].includes(name)),
@@ -384,7 +424,6 @@ test("Pi describes Freeflow argument completions", () => {
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions(""), [
     { value: "settings", label: "settings", description: "Open personal override settings" },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
-    { value: "context", label: "context", description: "Inspect Freeflow Context" },
     { value: "context-control", label: "context-control", description: "Manage Context Control sidecar metadata" },
     { value: "mode", label: "mode", description: "Select a temporary session mode" },
     { value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" },
@@ -442,12 +481,55 @@ test("Pi describes Freeflow argument completions", () => {
       description: "Clear the session override and use the configured default",
     },
   ]);
-  assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("context "), [
-    { value: "context status", label: "status", description: "Show Freeflow Context state" },
-    { value: "context list", label: "list", description: "List archived context projections" },
-    { value: "context restore", label: "restore", description: "Restore one or more context references" },
-    { value: "context reset all", label: "reset all", description: "Reset projection decisions on the active branch" },
+  assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("context "), []);
+  assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("context-control "), [
+    { value: "context-control status", label: "status", description: "Show Context Control state" },
+    { value: "context-control list", label: "list", description: "List Context Control sources" },
+    { value: "context-control restore", label: "restore", description: "Restore Context Control references" },
+    { value: "context-control reset all", label: "reset all", description: "Reset Context Control state" },
+    { value: "context-control purge", label: "purge", description: "Delete Context Control sidecar metadata" },
   ]);
+});
+
+test("Pi exposes only the Context Control runtime surface when context control is disabled", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-context-control-only-surface-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify(
+        {
+          defaultMode: "workflow",
+          contextControl: {
+            enabled: false,
+            cleanupMode: "model-only",
+            recoveryMode: "model-only",
+            recoveryScope: "active-branch",
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const { handlers, commands, activeToolNames } = loadExtension();
+    const ctx = context(cwd);
+    await handlers.get("session_start")({}, ctx);
+    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+    assert.doesNotMatch(before.systemPrompt, /Context Virtualization|Conversation History/);
+    const providerContext = await handlers.get("context")({ messages: [] }, ctx);
+    const runtimeState = providerContext.messages.at(-1).content;
+    assert.match(runtimeState, /Context Control: inactive/);
+    assert.doesNotMatch(runtimeState, /Context Virtualization|Conversation History/);
+    assert.ok(!activeToolNames().includes("freeflow_context"));
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    assert.ok(freeflowCommand);
+    assert.ok(!freeflowCommand.definition.getArgumentCompletions("").some((item) => item.value === "context"));
+    assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("context "), []);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });
 
 test("Pi exposes canonical model skills without compatibility aliases", async () => {
@@ -568,6 +650,174 @@ test("Pi rejects unsupported nested skills keys in repository and local config",
   }
 });
 
+test("Pi rejects legacy context keys at every config layer without activation or writes", async () => {
+  const cases = [
+    {
+      name: "repository virtualization",
+      repository: { contextVirtualization: true },
+      expectedKeys: ["contextVirtualization"],
+      expectedLayer: "repository",
+    },
+    {
+      name: "personal history",
+      repository: { defaultMode: "workflow" },
+      local: { conversationHistory: true },
+      expectedKeys: ["conversationHistory"],
+      expectedLayer: "personal",
+    },
+    {
+      name: "combined repository legacy and replacement",
+      repository: {
+        contextVirtualization: true,
+        conversationHistory: true,
+        contextControl: {
+          enabled: true,
+          cleanupMode: "model-only",
+          recoveryMode: "model-only",
+          recoveryScope: "active-branch",
+        },
+      },
+      expectedKeys: ["contextVirtualization", "conversationHistory"],
+      expectedLayer: "repository",
+    },
+    {
+      name: "mixed repository replacement and personal legacy",
+      repository: {
+        contextControl: {
+          enabled: true,
+          cleanupMode: "model-only",
+          recoveryMode: "model-only",
+          recoveryScope: "active-branch",
+        },
+      },
+      local: { conversationHistory: true },
+      expectedKeys: ["conversationHistory"],
+      expectedLayer: "personal",
+    },
+  ];
+
+  for (const testCase of cases) {
+    const cwd = await mkdtemp(join(tmpdir(), `freeflow-pi-legacy-config-${testCase.name.replaceAll(" ", "-")}-`));
+    try {
+      await mkdir(join(cwd, ".freeflow"));
+      const repositoryPath = join(cwd, ".freeflow/config.json");
+      const localPath = join(cwd, ".freeflow/local.json");
+      const repositoryText = JSON.stringify(testCase.repository, null, 2);
+      const localText = testCase.local === undefined ? undefined : JSON.stringify(testCase.local, null, 2);
+      await writeFile(repositoryPath, repositoryText, "utf8");
+      if (localText !== undefined) await writeFile(localPath, localText, "utf8");
+
+      const layers = await readFreeflowConfigLayers(cwd);
+      const invalidLayer = testCase.expectedLayer === "repository" ? layers.repository : layers.local;
+      assert.equal(invalidLayer.valid, false, `${testCase.name} should reject its legacy layer`);
+      assert.equal(layers.configured, false, `${testCase.name} should fail closed`);
+      assert.match(invalidLayer.parseError, /legacy context configuration rejected/i);
+      assert.match(
+        invalidLayer.parseError,
+        new RegExp(`${testCase.expectedLayer}.*\\.freeflow/(?:config|local)\\.json`, "i"),
+      );
+      for (const key of testCase.expectedKeys) assert.match(invalidLayer.parseError, new RegExp(key));
+      assert.match(invalidLayer.parseError, /contextControl\.enabled/);
+      assert.match(invalidLayer.parseError, /contextControl\.cleanupMode/);
+      assert.match(invalidLayer.parseError, /contextControl\.recoveryMode/);
+      assert.match(invalidLayer.parseError, /contextControl\.recoveryScope/);
+
+      const capabilityState = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
+      assert.equal(capabilityState.configured, false);
+      assert.equal(capabilityState.enabled, false);
+      assert.equal(capabilityState.contextControl.effective, false);
+      assert.equal("contextVirtualization" in capabilityState, false);
+      assert.equal("conversationHistory" in capabilityState, false);
+      assert.match(capabilityState.parseError, /legacy context configuration rejected/i);
+
+      const { handlers, commands, activeToolNames } = loadExtension();
+      const ctx = context(cwd);
+      await handlers.get("session_start")({}, ctx);
+      assert.ok(!activeToolNames().includes("context_control"));
+      assert.ok(!activeToolNames().includes("freeflow_context"));
+      const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+      assert.equal(before.systemPrompt, "base prompt");
+      const freeflowCommand = commands.find((command) => command.name === "freeflow");
+      const statusCtx = context(cwd);
+      await freeflowCommand.definition.handler("status", statusCtx);
+      assert.match(statusCtx.notifications.at(-1).message, /invalid config/i);
+      assert.match(statusCtx.notifications.at(-1).message, /legacy context configuration rejected/i);
+
+      assert.equal(await readFile(repositoryPath, "utf8"), repositoryText);
+      if (localText !== undefined) assert.equal(await readFile(localPath, "utf8"), localText);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  }
+});
+
+test("Pi ignores persisted legacy context overrides without reactivating retired context", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-legacy-session-state-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify(
+        {
+          contextControl: {
+            enabled: false,
+            cleanupMode: "model-only",
+            recoveryMode: "model-only",
+            recoveryScope: "active-branch",
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    const legacyEntries = [
+      {
+        type: "custom",
+        customType: "freeflow-context-projection",
+        data: {
+          version: 1,
+          actor: "model",
+          changes: [
+            {
+              source: { sessionId: "session-legacy", entryId: "legacy-tool" },
+              projection: { mode: "archived", retained: "LEGACY_STATE_PAYLOAD" },
+            },
+          ],
+        },
+      },
+      {
+        type: "custom",
+        customType: "freeflow-session-overrides",
+        data: { overrides: { contextVirtualization: true, conversationHistory: true } },
+      },
+    ];
+    const legacySnapshot = structuredClone(legacyEntries);
+    const { handlers, activeToolNames } = loadExtension();
+    const ctx = context(cwd, legacyEntries, legacyEntries);
+    await handlers.get("session_start")({}, ctx);
+
+    const capabilityState = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
+    assert.deepEqual(capabilityState.sessionOverrides, {});
+    assert.equal("contextVirtualization" in capabilityState, false);
+    assert.equal("conversationHistory" in capabilityState, false);
+    assert.equal(capabilityState.contextControl.effective, false);
+    assert.ok(!activeToolNames().includes("freeflow_context"));
+
+    const message = {
+      role: "toolResult",
+      toolCallId: "legacy-call",
+      toolName: "read",
+      content: [{ type: "text", text: "current" }],
+    };
+    const projected = await handlers.get("context")({ messages: [message] }, ctx);
+    assert.deepEqual(projected.messages[0], message);
+    assert.deepEqual(legacyEntries, legacySnapshot);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("Pi layers local core overrides over repository defaults with source evidence", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-layered-core-"));
   try {
@@ -607,16 +857,12 @@ test("Pi layers local core overrides over repository defaults with source eviden
     assert.deepEqual(layers.coreConfig, {
       enabled: true,
       interactionContract: false,
-      contextVirtualization: false,
-      conversationHistory: false,
       skills: { enabled: false },
       defaultMode: "strict-workflow",
     });
     assert.deepEqual(layers.sources, {
       enabled: "local",
       interactionContract: "repository",
-      contextVirtualization: "builtin",
-      conversationHistory: "builtin",
       skillsEnabled: "local",
       defaultMode: "local",
     });
@@ -1023,16 +1269,12 @@ test("Pi layered core config inherits omitted values and built-in defaults", asy
     assert.deepEqual(layers.coreConfig, {
       enabled: true,
       interactionContract: false,
-      contextVirtualization: false,
-      conversationHistory: false,
       skills: { enabled: true },
       defaultMode: "workflow",
     });
     assert.deepEqual(layers.sources, {
       enabled: "builtin",
       interactionContract: "local",
-      contextVirtualization: "builtin",
-      conversationHistory: "builtin",
       skillsEnabled: "builtin",
       defaultMode: "builtin",
     });
@@ -1654,7 +1896,7 @@ test("Pi /freeflow command toggles master switch and blocks inactive settings ro
       assert.doesNotMatch(rootText, /Output Router|Native safety net/);
       assert.match(rootText, /\[dim\]Interaction Contract/);
       assert.match(rootText, /\[dim\]Skills/);
-      assert.match(rootText, /Freeflow Context/);
+      assert.match(rootText, /Context Control/);
       component.handleInput("\u001b[B"); // Interaction Contract row is inactive while Freeflow is off.
       component.handleInput("\r");
       component.handleInput("\u001b");
@@ -1681,20 +1923,74 @@ test("Pi /freeflow command toggles master switch and blocks inactive settings ro
   }
 });
 
-test("Pi statusline uses one umbrella context label for either enabled context feature", async () => {
+test("Context Control settings hide the duplicate legacy context group", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-context-control-settings-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify(
+        {
+          contextControl: {
+            enabled: true,
+            cleanupMode: "model-only",
+            recoveryMode: "model-only",
+            recoveryScope: "active-branch",
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    const { commands } = loadExtension();
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    assert.ok(freeflowCommand);
+    const settingsCtx = context(cwd);
+    settingsCtx.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => undefined);
+      const rootText = renderText(component);
+      assert.match(rootText, /Context Control/);
+      assert.doesNotMatch(rootText, /Freeflow Context/);
+      return { changed: false, configChanged: false, failed: false };
+    };
+
+    await freeflowCommand.definition.handler("settings", settingsCtx);
+    await freeflowCommand.definition.handler("status", settingsCtx);
+    const statusMessage = settingsCtx.notifications.at(-1).message;
+    assert.match(statusMessage, /context control:/);
+    assert.doesNotMatch(statusMessage, /context: (?:enabled|disabled)/);
+    assert.equal(settingsCtx.reloads.length, 0);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi statusline reports the Context Control policy for the replacement capability", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-context-status-"));
   try {
     await mkdir(join(cwd, ".freeflow"));
     await writeFile(
       join(cwd, ".freeflow/config.json"),
-      JSON.stringify({ contextVirtualization: true, conversationHistory: true }, null, 2),
+      JSON.stringify(
+        {
+          contextControl: {
+            enabled: true,
+            cleanupMode: "model-only",
+            recoveryMode: "model-only",
+            recoveryScope: "active-branch",
+          },
+        },
+        null,
+        2,
+      ),
       "utf8",
     );
     const { handlers } = loadExtension();
     const ctx = context(cwd);
     await handlers.get("session_start")({ reason: "startup" }, ctx);
     const status = ctx.statuses.at(-1).value;
-    assert.match(status, /context/);
+    assert.match(status, /context-control/);
     assert.doesNotMatch(status, /context virtualization|conversation history/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -2194,50 +2490,6 @@ test("PiFlow settings refresh the Cognitive Routing group after enabling it", as
   }
 });
 
-test("Pi Freeflow Context parent summary refreshes after a child feature changes", async () => {
-  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-context-settings-hot-reload-"));
-  try {
-    await mkdir(join(cwd, ".freeflow"));
-    await writeFile(
-      join(cwd, ".freeflow/config.json"),
-      JSON.stringify({ contextVirtualization: true }, null, 2),
-      "utf8",
-    );
-
-    const { commands } = loadExtension();
-    const freeflowCommand = commands.find((command) => command.name === "freeflow");
-    assert.ok(freeflowCommand);
-    const settingsCtx = context(cwd);
-    settingsCtx.ui.custom = async (factory) => {
-      let result;
-      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
-        result = value;
-      });
-      assert.match(renderText(component), /Freeflow Context\s+enabled \(2\) 1\/2 enabled/);
-
-      for (let index = 0; index < 6; index += 1) component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      component.handleInput("\r");
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      await component.waitForWrites();
-      component.handleInput("\u001b");
-
-      assert.match(renderText(component), /Freeflow Context\s+disabled \(2\) 0\/2 enabled/);
-      component.handleInput("\u001b");
-      return result;
-    };
-
-    await freeflowCommand.definition.handler("settings", settingsCtx);
-    const local = JSON.parse(await readFile(join(cwd, ".freeflow/local.json"), "utf8"));
-    assert.equal(local.contextVirtualization, false);
-    assert.equal(settingsCtx.reloads.length, 1);
-  } finally {
-    await rm(cwd, { recursive: true, force: true });
-  }
-});
-
 function cognitiveRoutingModelRegistry() {
   const models = [
     { provider: "test", id: "model-a", name: "Model A", reasoning: true },
@@ -2680,7 +2932,19 @@ test("Pi before_agent_start injects the Freeflow interaction contract on every t
     await mkdir(join(cwd, ".freeflow"));
     await writeFile(
       join(cwd, ".freeflow/config.json"),
-      JSON.stringify({ defaultMode: "workflow", contextVirtualization: true, conversationHistory: true }, null, 2),
+      JSON.stringify(
+        {
+          defaultMode: "workflow",
+          contextControl: {
+            enabled: true,
+            cleanupMode: "model-only",
+            recoveryMode: "model-only",
+            recoveryScope: "active-branch",
+          },
+        },
+        null,
+        2,
+      ),
       "utf8",
     );
 
@@ -2694,8 +2958,8 @@ test("Pi before_agent_start injects the Freeflow interaction contract on every t
     for (const result of [first, second]) {
       assert.match(result.systemPrompt, /# Freeflow Stable Guidance/);
       assert.match(result.systemPrompt, /## Shared Terms/);
-      assert.match(result.systemPrompt, /## Context Virtualization Cue/);
-      assert.match(result.systemPrompt, /## Conversation History Cue/);
+      assert.match(result.systemPrompt, /## Context Control Cue/);
+      assert.doesNotMatch(result.systemPrompt, /## Context Virtualization Cue|## Conversation History Cue/);
       assert.match(result.systemPrompt, /# Freeflow Interaction Contract/);
       assert.doesNotMatch(result.systemPrompt, /# Freeflow Runtime Kernel/);
       assert.match(result.systemPrompt, /Treat questions, criticism, examples, hypotheses, and tentative ideas as/);
@@ -2721,8 +2985,12 @@ test("Pi separates stable Freeflow guidance from volatile provider runtime state
       JSON.stringify(
         {
           defaultMode: "workflow",
-          contextVirtualization: true,
-          conversationHistory: true,
+          contextControl: {
+            enabled: true,
+            cleanupMode: "model-only",
+            recoveryMode: "model-only",
+            recoveryScope: "active-branch",
+          },
         },
         null,
         2,
@@ -2738,8 +3006,8 @@ test("Pi separates stable Freeflow guidance from volatile provider runtime state
 
     assert.match(before.systemPrompt, /## Mode/);
     assert.match(before.systemPrompt, /Use the latest extension-generated Freeflow Runtime State/);
-    assert.match(before.systemPrompt, /## Context Virtualization Cue/);
-    assert.match(before.systemPrompt, /## Conversation History Cue/);
+    assert.match(before.systemPrompt, /## Context Control Cue/);
+    assert.doesNotMatch(before.systemPrompt, /## Context Virtualization Cue|## Conversation History Cue/);
     assert.doesNotMatch(before.systemPrompt, /# Automatic Routing Kernel/);
     assert.doesNotMatch(before.systemPrompt, /Repository default mode:/);
     assert.doesNotMatch(before.systemPrompt, /Configured default mode:/);
@@ -2764,9 +3032,11 @@ test("Pi separates stable Freeflow guidance from volatile provider runtime state
         "Capabilities:",
         "- Interaction Contract: active",
         "- Skills: active",
-        "- Context Virtualization: active",
-        "- Conversation History: active",
         "- Cognitive Routing: inactive",
+        "- Context Control: active",
+        "  Cleanup mode: `model-only`",
+        "  Recovery mode: `model-only`",
+        "  Recovery scope: `active-branch`",
         "",
         "Cognitive Routing:",
         "- Control: `unavailable`",

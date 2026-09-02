@@ -7,6 +7,7 @@ export {
 } from "./interfaces/tool.js";
 export { detectExplicitEvidenceNeed, isHistoricalEvidencePrompt } from "./recovery/detector.js";
 export { ContextControlRuntime } from "./core/runtime.js";
+export * from "./sources/index.js";
 export * from "./recovery/evidence-need.js";
 export * from "./recovery/sufficiency.js";
 export * from "./recovery/checkpoint-detector.js";

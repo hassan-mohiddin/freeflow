@@ -31,9 +31,14 @@ export interface ContextControlExtensionState {
   recoveryScope: "active-branch" | "current-session" | "current-project";
   enabled: boolean;
   runtime?: ContextControlRuntime;
+  status():
+    ReturnType<ContextControlRuntime["status"]> | { status: "unavailable"; operation: "status"; reason: string };
+  list(): any;
   start(ctx: any): Promise<ContextControlRuntime | undefined>;
   reload(ctx: any): Promise<ContextControlRuntime | undefined>;
   purge(ctx?: any): Promise<{ status: "ok" | "unavailable"; operation: "purge"; reason?: string }>;
+  restore(refs: unknown): Promise<any>;
+  reset(): Promise<any>;
   shutdown(reason?: string): Promise<void>;
   invalidate(): void;
   beforeProviderRequest(): void;
@@ -129,6 +134,10 @@ export function createContextControlExtension(
     start: async () => undefined,
     reload: async () => undefined,
     purge: async () => ({ status: "unavailable", operation: "purge", reason: "runtime-unbound" }),
+    status: () => ({ status: "unavailable", operation: "status", reason: "runtime-unbound" }),
+    list: () => ({ status: "unavailable", operation: "list", reason: "runtime-unbound", sources: [] }),
+    restore: async () => ({ status: "unavailable", operation: "restore", changed: [], reason: "runtime-unbound" }),
+    reset: async () => ({ status: "unavailable", operation: "reset", changed: [], reason: "runtime-unbound" }),
     shutdown: async () => undefined,
     invalidate: () => undefined,
     beforeProviderRequest: () => undefined,
@@ -193,6 +202,13 @@ export function createContextControlExtension(
       return { status: "unavailable", operation: "purge", reason };
     }
   };
+  state.status = () => runtime?.status() ?? { status: "unavailable", operation: "status", reason: "runtime-unbound" };
+  state.list = () =>
+    runtime?.list() ?? { status: "unavailable", operation: "list", reason: "runtime-unbound", sources: [] };
+  state.restore = async (refs: unknown) =>
+    runtime?.restore(refs) ?? { status: "unavailable", operation: "restore", changed: [], reason: "runtime-unbound" };
+  state.reset = async () =>
+    runtime?.reset() ?? { status: "unavailable", operation: "reset", changed: [], reason: "runtime-unbound" };
   state.shutdown = async (reason = "unknown") => {
     if (runtime !== undefined) await runtime.shutdown(reason);
     runtime = undefined;

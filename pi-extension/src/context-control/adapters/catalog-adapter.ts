@@ -41,11 +41,12 @@ function temporalForSource(
   source: ContextControlSource,
   analysis: LifecycleAnalysis | undefined,
   currentSessionId: string,
+  activeBranchId: string,
 ): readonly ("current" | "historical" | "before-change" | "after-change")[] {
   const rules = (analysis?.candidates ?? [])
     .filter((candidate) => candidate.sourceRef === source.ref)
     .map((candidate) => candidate.rule);
-  if (source.identity.sessionId !== currentSessionId) return ["historical"];
+  if (source.identity.sessionId !== currentSessionId || source.branchId !== activeBranchId) return ["historical"];
   if (rules.includes("mutation-receipt")) return ["after-change"];
   if (
     rules.includes("resolved-failure") ||
@@ -61,6 +62,7 @@ function sourceRecord(
   source: ContextControlSource,
   analysis: LifecycleAnalysis | undefined,
   currentSessionId: string,
+  activeBranchId: string,
 ): ScopeCatalogSourceRecord {
   const category = source.category ?? "ordinary";
   const privacy = source.privacy ?? (category === "ordinary" ? "allowed" : "unknown");
@@ -74,7 +76,7 @@ function sourceRecord(
     toolName: source.toolName,
     ...(source.path === undefined ? {} : { locator: source.path }),
     role: source.role,
-    temporal: temporalForSource(source, analysis, currentSessionId),
+    temporal: temporalForSource(source, analysis, currentSessionId, activeBranchId),
     contentHash: source.contentHash,
     characters: source.characters,
     completeness: source.completeness ?? "unknown",
@@ -135,7 +137,7 @@ export function buildRuntimeScopeCatalog(
 ): RuntimeCatalogSnapshot | undefined {
   if (projectId === undefined || projectId.trim() === "") return undefined;
   const currentSources = catalog.sources;
-  const records = currentSources.map((source) => sourceRecord(source, analysis, snapshot.sessionId));
+  const records = currentSources.map((source) => sourceRecord(source, analysis, snapshot.sessionId, snapshot.branchId));
   const sessions = sessionDescriptors(snapshot, catalog, projectId);
   const enabledSessionIds = catalog.sessions.filter((session) => !session.current).map((session) => session.sessionId);
   const built = buildScopeCatalog(records, {

@@ -1,5 +1,7 @@
-import { projectToolResultMessage } from "../../context-virtualization/projector.js";
-import type { ContextProjection } from "../../context-virtualization/types.js";
+import { projectResolvedMessage } from "../residency/projector.js";
+import type { ContextProjection } from "../residency/types.js";
+import { ContextSourceRuntime } from "../sources/runtime.js";
+import { contextRefForEntry, isContextControlToolName, type FreeflowContextSnapshot } from "../sources/types.js";
 import { analyzeLifecycle, CONTEXT_CONTROL_RULE_VERSION } from "./lifecycle-analyzer.js";
 import { CheckpointEvidenceNeedDetector, requirementFromPrompt } from "../recovery/checkpoint-detector.js";
 import { FileContextControlJournal, MemoryContextControlJournal } from "../persistence/journal.js";
@@ -8,13 +10,18 @@ import {
   isContextControlGeneratedTool,
   isSensitiveRecoverySource,
   type ContextControlCatalog,
+  type ContextControlGenericSearchTier,
 } from "./source-registry.js";
 import { sha256Text, stableJson } from "./stable-json.js";
 import { buildRuntimeScopeCatalog, type RuntimeCatalogSnapshot } from "../adapters/catalog-adapter.js";
 import { normalizeEvidenceNeed } from "../recovery/evidence-need.js";
+import { resolveGenericRecovery } from "../recovery/generic-recovery.js";
 import { CarryForwardRegistry, type CarryForwardRecord } from "../residency/carry-forward.js";
+import { focusedWindow } from "../search/ranking.js";
+import { searchContextSources, validateContextSearchRequest, type ContextSearchHit } from "../search/search.js";
 import {
   searchTieredEvidence,
+  TIERED_SEARCH_SCOPE_PRIORS,
   type TieredSearchCandidateCard,
   type TieredSearchResolution,
 } from "../recovery/tiered-search.js";
@@ -27,7 +34,10 @@ import type {
   CanonicalEvidenceEnvelope,
   ContextControlAuditEvent,
   ContextControlAuditSink,
+  ContextControlAutomationCatalog,
+  ContextControlAutomationView,
   ContextControlCandidateCard,
+  ContextControlDirectSource,
   ContextControlCarryForwardDescriptor,
   ContextControlEvidenceLease,
   ContextControlJournal,
@@ -57,6 +67,25 @@ const MAX_DIRECT_TARGETS = 32;
 const PROPOSAL_GENERATION_WINDOW = 8;
 const RECOVERY_TIER_RANK: Readonly<Record<"active-branch" | "current-session" | "lineage" | "cross-session", number>> =
   Object.freeze({ "active-branch": 0, "current-session": 1, lineage: 2, "cross-session": 3 });
+const MAX_SEARCH_HANDLES = 64;
+const MAX_RETRIEVE_HANDLES = 3;
+const MAX_RETRIEVE_FOCUS_CHARACTERS = 500;
+const MAX_RETRIEVE_SOURCE_CHARACTERS = 8_000;
+const MAX_TOTAL_RETRIEVED_CHARACTERS = 24_000;
+
+type ContextSearchHandleRecord = {
+  sourceRef: string;
+  sourceHash: string;
+  generation: number;
+  sessionId: string;
+  branchId: string;
+  tier: ContextControlGenericSearchTier;
+  maxTier: ContextControlGenericSearchTier;
+  includeVisible: boolean;
+  session?: "current";
+  branch?: "active";
+  temporal?: "current" | "historical" | "before-change" | "after-change";
+};
 
 function cloneIdentity(identity: ContextSourceIdentity): ContextSourceIdentity {
   return { ...identity };
@@ -167,12 +196,22 @@ function cleanupProposalSourceIndexVersion(
               ? undefined
               : {
                   identity: source.identity,
+                  toolName: source.toolName,
+                  commandKind: source.commandKind,
                   contentHash: source.contentHash,
                   characters: source.characters,
                   completeness: source.completeness,
                   consumed: source.consumed,
+                  consumptionEvidence: source.consumptionEvidence,
                   metadataComplete: source.metadataComplete,
+                  metadataIssues: source.metadataIssues,
                   activeContext: source.activeContext,
+                  scope: source.scope,
+                  category: source.category,
+                  privacy: source.privacy,
+                  integrity: source.integrity,
+                  freshness: source.freshness,
+                  isError: source.isError,
                 },
           projection:
             projection === undefined
@@ -232,6 +271,7 @@ class NullAuditSink implements ContextControlAuditSink {
 
 export class ContextControlRuntime {
   private readonly registry: ContextControlSourceRegistry;
+  private readonly sourceRuntime: ContextSourceRuntime;
   private readonly journal: ContextControlJournal;
   private readonly auditSink: ContextControlAuditSink;
   private readonly maxSources: number;
@@ -260,15 +300,20 @@ export class ContextControlRuntime {
   private providerToolCallIds = new Set<string>();
   private consumedToolCallIds = new Set<string>();
   private lastAnalysis: LifecycleAnalysis | undefined;
+  private lastAutomationView: ContextControlAutomationView | undefined;
+  private lastAutomationCatalog: ContextControlAutomationCatalog | undefined;
+  private lastContextSnapshot: FreeflowContextSnapshot | undefined;
   private lastCatalog: ContextControlCatalog | undefined;
   private lastScopeCatalog: RuntimeCatalogSnapshot | undefined;
   private operationQueue: Promise<void> = Promise.resolve();
   private transactionCount = 0;
   private leaseCount = 0;
   private readonly suppressedProposalFingerprints = new Set<string>();
+  private readonly searchHandles = new Map<string, ContextSearchHandleRecord>();
 
   constructor(options: ContextControlRuntimeOptions) {
     this.registry = new ContextControlSourceRegistry(options.ctx);
+    this.sourceRuntime = new ContextSourceRuntime(options.ctx);
     this.journal = options.journal ?? new MemoryContextControlJournal();
     this.auditSink = options.audit ?? new NullAuditSink();
     this.maxSources = options.maxSources ?? DEFAULT_MAX_SOURCES;
@@ -278,7 +323,10 @@ export class ContextControlRuntime {
     this.mode = options.mode;
     this.carryForward = new CarryForwardRegistry((identity) => {
       const snapshot = this.registry.snapshot(this.consumedToolCallIds, this.generation);
-      return snapshot.sources.some((source) => sourceKey(source.identity) === sourceKey(identity));
+      if (snapshot.sources.some((source) => sourceKey(source.identity) === sourceKey(identity))) return true;
+      return [...(this.lastContextSnapshot?.entries.values() ?? [])].some(
+        (source) => sourceKey(source.source.source) === sourceKey(identity),
+      );
     });
   }
 
@@ -297,6 +345,7 @@ export class ContextControlRuntime {
       const snapshot = this.snapshot();
       this.sessionId = snapshot.sessionId;
       this.branchId = snapshot.branchId;
+      this.captureContextSnapshot();
       this.replay(snapshot);
       this.state = "ready";
       await this.record({
@@ -327,6 +376,7 @@ export class ContextControlRuntime {
 
   setContext(ctx: any): void {
     this.registry.setContext(ctx);
+    this.sourceRuntime.setContext(ctx);
   }
 
   observeContext(messages: readonly any[]): void {
@@ -381,9 +431,11 @@ export class ContextControlRuntime {
     if (this.state !== "ready") return { ...unchanged, available: false };
 
     let snapshot: ContextControlSourceSnapshot;
+    let automationView: ContextControlAutomationView;
     try {
       snapshot = this.snapshot();
       this.rebindIfNeeded(snapshot);
+      this.captureContextSnapshot();
       if (snapshot.sources.length > this.maxSources) {
         this.lastError = "source-limit-exceeded";
         await this.record({
@@ -397,16 +449,19 @@ export class ContextControlRuntime {
         });
         return { ...unchanged, available: true, protectedRefs: snapshot.sources.map((source) => source.ref) };
       }
-      this.lastAnalysis = analyzeLifecycle(snapshot.sources);
+      automationView = this.analyzeAutomation(snapshot);
     } catch (error) {
+      this.lastContextSnapshot = undefined;
       this.failClosed(safeError(error));
       await this.record({ type: "checkpoint", mode: this.mode, status: "disabled", reason: this.lastError });
       return { ...unchanged, available: false };
     }
 
     const analysis = this.lastAnalysis;
+    const automationRefs = new Set(automationView.sources.map((source) => source.ref));
     const automaticRefs = analysis.automatic
       .filter((candidate) => {
+        if (!automationRefs.has(candidate.sourceRef)) return false;
         const source = snapshot.byRef.get(candidate.sourceRef);
         return (
           source !== undefined &&
@@ -422,7 +477,8 @@ export class ContextControlRuntime {
     const protectedRefs = [
       ...new Set([
         ...analysis.protected.map((candidate) => candidate.sourceRef),
-        ...snapshot.sources.filter((source) => !source.consumed).map((source) => source.ref),
+        ...automationView.protected.map((item) => item.ref),
+        ...automationView.excluded.map((item) => item.ref),
       ]),
     ];
     const modelRefs = analysis.model.map((candidate) => candidate.sourceRef);
@@ -432,6 +488,14 @@ export class ContextControlRuntime {
       this.pendingProposal.expiresAt > Date.now()
         ? this.pendingProposal
         : undefined;
+    const automaticRefSet = new Set(automaticRefs);
+    if (
+      proposal?.kind === "cleanup" &&
+      proposal.refs.some((ref) => !automationRefs.has(ref) || !automaticRefSet.has(ref))
+    ) {
+      proposal = undefined;
+      this.pendingProposal = undefined;
+    }
     let recoveryMessage: any;
     this.checkpointId = `context-checkpoint-${this.generation}`;
     const proactive = this.proactiveRecovery(snapshot);
@@ -455,7 +519,7 @@ export class ContextControlRuntime {
 
     if (this.mode !== "shadow" && this.cleanupMode === "automatic" && automaticRefs.length > 0) {
       const changes = automaticRefs.flatMap((ref) => {
-        const source = snapshot.byRef.get(ref);
+        const source = automationView.sources.find((item) => item.ref === ref);
         const candidate = analysis.automatic.find((item) => item.sourceRef === ref);
         if (source === undefined || candidate === undefined) return [];
         return [this.changeFor(source, "reference", candidate.rule, "automatic-cleanup")];
@@ -487,12 +551,12 @@ export class ContextControlRuntime {
       this.mode === "shadow"
         ? messages
         : messages.map((message) => {
-            if (message?.role !== "toolResult" || typeof message.toolCallId !== "string") return message;
-            const source = snapshot.byToolCallId.get(message.toolCallId);
+            if (this.lastContextSnapshot === undefined) return message;
+            const source = this.sourceRuntime.sourceForProviderMessage(message, this.lastContextSnapshot);
             if (source === undefined) return message;
             const projection = this.projections.get(source.ref);
             if (projection === undefined || projection.state === "full") return message;
-            return projectToolResultMessage(message, source.identity, currentProjection(projection));
+            return projectResolvedMessage(message, source.source, currentProjection(projection));
           });
     let nextMessages = projected;
     if (recoveryMessage !== undefined) {
@@ -550,41 +614,34 @@ export class ContextControlRuntime {
     if (!Array.isArray(targets) || targets.length === 0 || targets.length > MAX_DIRECT_TARGETS) {
       return { status: "rejected", operation: "cleanup", changed: [], reason: "targets_invalid" };
     }
-    const snapshot = this.snapshot();
-    this.rebindIfNeeded(snapshot);
-    const analysis = analyzeLifecycle(snapshot.sources);
-    this.lastAnalysis = analysis;
+
+    let snapshot: ContextControlSourceSnapshot;
+    let direct: ReadonlyMap<string, ContextControlDirectSource>;
+    try {
+      snapshot = this.snapshot();
+      this.rebindIfNeeded(snapshot);
+      this.analyzeAutomation(snapshot);
+      this.captureContextSnapshot();
+      direct = this.directSources(snapshot);
+    } catch (error) {
+      this.lastError = safeError(error);
+      this.failClosed(this.lastError);
+      return { status: "unavailable", operation: "cleanup", changed: [], reason: this.lastError };
+    }
+
     const changes: ContextControlJournalChange[] = [];
     for (const [index, target] of targets.entries()) {
       if (!target || typeof target !== "object" || !validRef((target as any).ref)) {
         return { status: "rejected", operation: "cleanup", changed: [], reason: `target_${index}_invalid` };
       }
       const ref = (target as any).ref.trim();
-      const source = snapshot.byRef.get(ref);
-      if (!source || !source.activeContext) {
-        return { status: "rejected", operation: "cleanup", changed: [], reason: `target_not_active:${ref}` };
+      const source = direct.get(ref);
+      if (source === undefined) {
+        return { status: "rejected", operation: "cleanup", changed: [], reason: `target_unresolved:${ref}` };
       }
-      if (!source.consumed || !source.metadataComplete) {
-        return { status: "rejected", operation: "cleanup", changed: [], reason: `target_protected:${ref}` };
-      }
-      if (
-        isContextControlGeneratedTool(source.toolName) ||
-        isSensitiveRecoverySource(source) ||
-        (source.completeness !== undefined && source.completeness !== "complete") ||
-        (source.freshness !== undefined && source.freshness !== "current") ||
-        (source.privacy !== undefined && source.privacy !== "allowed") ||
-        (source.integrity !== undefined && source.integrity !== "valid")
-      ) {
-        return { status: "rejected", operation: "cleanup", changed: [], reason: `target_protected:${ref}` };
-      }
-      if (analysis.protected.some((candidate) => candidate.sourceRef === ref)) {
-        return { status: "rejected", operation: "cleanup", changed: [], reason: `target_protected:${ref}` };
-      }
-      if (this.activeLeaseForSource(ref)) {
-        return { status: "rejected", operation: "cleanup", changed: [], reason: `target_protected_lease:${ref}` };
-      }
-      if (this.projections.get(ref)?.pinned === true) {
-        return { status: "rejected", operation: "cleanup", changed: [], reason: `target_pinned:${ref}` };
+      const protection = this.directCleanupReason(source);
+      if (protection !== undefined) {
+        return { status: "rejected", operation: "cleanup", changed: [], reason: `${protection}:${ref}` };
       }
       const retained = (target as any).retained;
       if (
@@ -615,6 +672,76 @@ export class ContextControlRuntime {
       : { status: "unavailable", operation: "cleanup", changed: [], reason: this.lastError ?? "persistence_failed" };
   }
 
+  async restore(refs: unknown): Promise<any> {
+    if (this.mode === "shadow") {
+      return { status: "unavailable", operation: "restore", changed: [], reason: "shadow-mode" };
+    }
+    if (!this.availableForOperation()) {
+      return {
+        status: "unavailable",
+        operation: "restore",
+        changed: [],
+        reason: this.lastError ?? "runtime-unavailable",
+      };
+    }
+    if (
+      !Array.isArray(refs) ||
+      refs.length === 0 ||
+      refs.length > MAX_DIRECT_TARGETS ||
+      refs.some((ref) => !validRef(ref))
+    ) {
+      return { status: "rejected", operation: "restore", changed: [], reason: "refs_invalid" };
+    }
+    const normalized = refs.map((ref) => ref.trim());
+    if (!uniqueRefs(normalized)) {
+      return { status: "rejected", operation: "restore", changed: [], reason: "duplicate_reference" };
+    }
+
+    let snapshot: ContextControlSourceSnapshot;
+    let direct: ReadonlyMap<string, ContextControlDirectSource>;
+    try {
+      snapshot = this.snapshot();
+      this.rebindIfNeeded(snapshot);
+      this.captureContextSnapshot();
+      direct = this.directSources(snapshot);
+    } catch (error) {
+      this.lastError = safeError(error);
+      this.failClosed(this.lastError);
+      return { status: "unavailable", operation: "restore", changed: [], reason: this.lastError };
+    }
+
+    const changes: ContextControlJournalChange[] = [];
+    for (const ref of normalized) {
+      const source = direct.get(ref);
+      if (source === undefined) {
+        return { status: "rejected", operation: "restore", changed: [], reason: `reference_unresolved:${ref}` };
+      }
+      const projection = this.projections.get(ref);
+      if (projection !== undefined && projection.state !== "full") {
+        changes.push(this.changeFor(source, "full", "user-restore", "restore"));
+      }
+    }
+    const applied = await this.commit(changes, "approval");
+    if (!applied) {
+      return {
+        status: "unavailable",
+        operation: "restore",
+        changed: [],
+        reason: this.lastError ?? "persistence_failed",
+      };
+    }
+    await this.record({
+      type: "restore",
+      mode: this.mode,
+      status: "applied",
+      sessionId: this.sessionId,
+      branchId: this.branchId,
+      generation: this.generation,
+      sourceRefs: changes.map((change) => change.sourceRef),
+    });
+    return { status: "ok", operation: "restore", changed: changes.map((change) => change.sourceRef) };
+  }
+
   async decideProposal(input: any): Promise<any> {
     if (this.mode === "shadow") return { status: "unavailable", operation: "decide", reason: "shadow-mode" };
     if (!this.availableForOperation()) return { status: "unavailable", operation: "decide", reason: this.lastError };
@@ -635,6 +762,13 @@ export class ContextControlRuntime {
       cleanupSnapshot = this.snapshot();
       this.rebindIfNeeded(cleanupSnapshot);
       if (this.pendingProposal?.id !== proposal.id) {
+        return { status: "rejected", operation: "decide", reason: "proposal-stale" };
+      }
+      const cleanupAutomationView = this.analyzeAutomation(cleanupSnapshot);
+      const automationRefs = new Set(cleanupAutomationView.sources.map((source) => source.ref));
+      const automaticRefs = new Set(this.lastAnalysis?.automatic.map((candidate) => candidate.sourceRef) ?? []);
+      if (proposal.refs.some((ref) => !automationRefs.has(ref) || !automaticRefs.has(ref))) {
+        this.pendingProposal = undefined;
         return { status: "rejected", operation: "decide", reason: "proposal-stale" };
       }
       if (
@@ -1039,6 +1173,681 @@ export class ContextControlRuntime {
     };
   }
 
+  async recoverDirect(need: EvidenceNeed, signal?: AbortSignal): Promise<any> {
+    if (this.mode === "shadow") return { status: "unavailable", operation: "recover", reason: "shadow-mode" };
+    if (signal?.aborted) return { status: "unavailable", operation: "recover", reason: "recover_cancelled" };
+    if (!this.availableForOperation()) {
+      return { status: "unavailable", operation: "recover", reason: this.lastError ?? "runtime-unavailable" };
+    }
+
+    let runtimeSnapshot: ContextControlSourceSnapshot;
+    let resolved: ReturnType<typeof resolveGenericRecovery>;
+    let genericCatalog: ReturnType<ContextControlSourceRegistry["genericSearchCatalog"]>;
+    try {
+      runtimeSnapshot = this.snapshot();
+      this.rebindIfNeeded(runtimeSnapshot);
+      const normalizedNeed = normalizeEvidenceNeed(need) as EvidenceNeed;
+      const configuredMaxTier = maxTierForScope(this.recoveryScope);
+      const requestedMaxTier = normalizedNeed.scope?.maxTier ?? configuredMaxTier;
+      if (RECOVERY_TIER_RANK[requestedMaxTier] > RECOVERY_TIER_RANK[configuredMaxTier]) {
+        return { status: "unavailable", operation: "recover", reason: "scope-outside-config" };
+      }
+      genericCatalog = this.registry.genericSearchCatalog(
+        this.recoveryScope,
+        this.projections,
+        this.generation,
+        signal,
+      );
+      resolved = resolveGenericRecovery(
+        normalizedNeed,
+        genericCatalog.sources,
+        runtimeSnapshot.sessionId,
+        runtimeSnapshot.branchId,
+        configuredMaxTier,
+      );
+    } catch (error) {
+      if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) {
+        return { status: "unavailable", operation: "recover", reason: "recover_cancelled" };
+      }
+      this.lastError = safeError(error);
+      return { status: "unavailable", operation: "recover", reason: this.lastError };
+    }
+
+    const resolution = resolved.resolution;
+    const abstain = async (status: "ambiguous" | "unavailable", reason: string, candidates?: readonly any[]) => {
+      const abstentionHandle = this.createAbstentionHandle(resolved.need, status);
+      await this.record({
+        type: "recovery",
+        mode: this.mode,
+        status,
+        sessionId: runtimeSnapshot.sessionId,
+        branchId: runtimeSnapshot.branchId,
+        reason,
+        details: {
+          scope: this.recoveryScope,
+          candidateCount: candidates?.length ?? 0,
+          abstentionHandle,
+          generic: true,
+        },
+      });
+      return {
+        status,
+        reason,
+        ...(candidates === undefined ? {} : { candidates }),
+        abstentionHandle,
+      };
+    };
+    const publicIdentity = (candidate: any): ContextSourceIdentity => {
+      const descriptor = candidate.descriptor;
+      const identity = descriptor.source.source.source;
+      return descriptor.sessionId === runtimeSnapshot.sessionId
+        ? cloneIdentity(identity)
+        : { sessionId: "historical", entryId: "redacted" };
+    };
+    const candidateCard = (candidate: any) => {
+      const descriptor = candidate.descriptor;
+      const currentSession = descriptor.sessionId === runtimeSnapshot.sessionId;
+      return {
+        ...(currentSession ? { ref: descriptor.source.ref } : {}),
+        kind: descriptor.source.kind,
+        tier: descriptor.tier,
+        relation: descriptor.relation,
+        role: descriptor.role,
+        temporal: descriptor.temporal,
+        characters: descriptor.source.text.length,
+        completeness: descriptor.completeness,
+        confidence:
+          candidate.matchClass === "exact" || candidate.matchClass === "strong-structured" ? "high" : "medium",
+        matchClass: candidate.matchClass,
+        signals: [`content-match:${candidate.passage.matchedTerms.length}`],
+      };
+    };
+
+    if (resolution.status === "unavailable") return abstain("unavailable", resolution.reason);
+    if (resolution.status === "ambiguous") {
+      return abstain("ambiguous", "ambiguous-resolution", resolution.candidates.map(candidateCard));
+    }
+
+    const selected = resolution.status === "selected" ? [resolution.candidate] : [...resolution.candidates];
+    const materialized: Array<{
+      candidate: any;
+      content: string;
+      completeness: "complete" | "partial";
+      limitation?: string;
+      mode: "none" | "restore" | "retrieve";
+    }> = [];
+    let totalCharacters = 0;
+    for (const candidate of selected) {
+      if (signal?.aborted) return { status: "unavailable", operation: "recover", reason: "recover_cancelled" };
+      const descriptor = candidate.descriptor;
+      let content = descriptor.source.text;
+      let completeness: "complete" | "partial" = descriptor.completeness === "partial" ? "partial" : "complete";
+      let limitation: string | undefined;
+      if (completeness === "partial") {
+        limitation = "The canonical source was already partial and cannot establish exact evidence.";
+      }
+      if (resolved.need.exactRequired === true && completeness !== "complete") {
+        return abstain("unavailable", "partial-exact-evidence");
+      }
+      if (content.length > MAX_RECOVERED_EVIDENCE) {
+        if (resolved.need.exactRequired === true) return abstain("unavailable", "exact-evidence-too-large");
+        content = content.slice(0, MAX_RECOVERED_EVIDENCE);
+        completeness = "partial";
+        limitation =
+          limitation === undefined
+            ? "Canonical evidence exceeded the bounded recovery size and was truncated."
+            : `${limitation} Canonical evidence also exceeded the bounded recovery size and was truncated.`;
+      }
+      if (resolved.need.exactRequired === true && content.length > MAX_LEASE_EXCERPT) {
+        return abstain("unavailable", "exact-evidence-too-large");
+      }
+      if (totalCharacters + content.length > MAX_RECOVERED_EVIDENCE) {
+        return abstain("unavailable", "recovery-budget-exceeded");
+      }
+      totalCharacters += content.length;
+      const activeCurrent =
+        descriptor.tier === "active-branch" &&
+        descriptor.activeContext &&
+        descriptor.sessionId === runtimeSnapshot.sessionId &&
+        descriptor.branchId === runtimeSnapshot.branchId;
+      const priorState = this.projections.get(descriptor.source.ref)?.state ?? "full";
+      const mode = activeCurrent ? (priorState === "full" ? "none" : "restore") : "retrieve";
+      materialized.push({ candidate, content, completeness, limitation, mode });
+    }
+
+    const changes = new Map<string, ContextControlJournalChange>();
+    for (const item of materialized) {
+      const descriptor = item.candidate.descriptor;
+      const activeCurrent =
+        descriptor.tier === "active-branch" &&
+        descriptor.activeContext &&
+        descriptor.sessionId === runtimeSnapshot.sessionId &&
+        descriptor.branchId === runtimeSnapshot.branchId;
+      if (!activeCurrent || item.mode !== "restore") continue;
+      changes.set(
+        descriptor.source.ref,
+        this.changeFor(
+          {
+            ref: descriptor.source.ref,
+            identity: descriptor.source.source.source,
+            contentHash: sha256Text(descriptor.source.text),
+          },
+          "full",
+          "generic-evidence-recovery-reentry",
+          "recovery",
+        ),
+      );
+    }
+    if (changes.size > 0) {
+      const applied = await this.commit(
+        [...changes.values()],
+        this.recoveryMode === "automatic" ? "automatic" : "approval",
+      );
+      if (!applied || this.state !== "ready")
+        return { status: "unavailable", operation: "recover", reason: "residency-reentry-failed" };
+    }
+
+    const leases = materialized.map((item) => {
+      const descriptor = item.candidate.descriptor;
+      const lease = this.createEvidenceLease(
+        descriptor.source.ref,
+        sha256Text(descriptor.source.text),
+        item.content,
+        resolved.need,
+      );
+      this.leases.set(lease.handle, lease);
+      return lease;
+    });
+    const envelopeFor = (item: (typeof materialized)[number]) => {
+      const descriptor = item.candidate.descriptor;
+      const source = descriptor.source;
+      const identity = source.source.source;
+      const currentSession = descriptor.sessionId === runtimeSnapshot.sessionId;
+      return {
+        version: 1,
+        source: publicIdentity(item.candidate),
+        kind: source.kind,
+        tier: descriptor.tier,
+        relation: descriptor.relation,
+        temporal: descriptor.temporal,
+        status: "current",
+        completeness: item.completeness,
+        integrity: "verified",
+        provenance: currentSession
+          ? {
+              sessionId: identity.sessionId,
+              branchId: descriptor.branchId,
+              entryId: identity.entryId,
+              ...(identity.toolCallId === undefined ? {} : { toolCallId: identity.toolCallId }),
+            }
+          : { tier: descriptor.tier, relation: descriptor.relation },
+        content: item.content,
+        ...(item.limitation === undefined ? {} : { limitation: item.limitation }),
+      };
+    };
+    const envelopes = materialized.map(envelopeFor);
+    const modes = materialized.map((item) => item.mode);
+    const mode = modes.every((value) => value === "none")
+      ? "none"
+      : modes.every((value) => value === "none" || value === "restore")
+        ? "restore"
+        : "retrieve";
+    const publicLeases = leases.map((lease) => ({ handle: lease.handle, exactRequired: lease.exactRequired }));
+    const publicCoverage =
+      resolution.status === "selected-set"
+        ? resolution.coverage.map((item, index) => {
+            const candidate = selected[index];
+            const lease = publicLeases[index];
+            const currentSession = candidate.descriptor.sessionId === runtimeSnapshot.sessionId;
+            const reference = currentSession
+              ? { sourceRef: candidate.descriptor.source.ref }
+              : { handle: lease.handle };
+            return "key" in item ? { key: item.key, ...reference } : { key: item.side, ...reference };
+          })
+        : [];
+    const score = selected.reduce((total, candidate) => total + candidate.combinedScore, 0);
+    const partialCoverage = genericCatalog.skippedSessions > 0 || genericCatalog.skippedSources > 0;
+    await this.record({
+      type: "recovery",
+      mode: this.mode,
+      status: "recovered",
+      sessionId: runtimeSnapshot.sessionId,
+      branchId: runtimeSnapshot.branchId,
+      sourceRefs: selected
+        .filter((candidate) => candidate.descriptor.sessionId === runtimeSnapshot.sessionId)
+        .map((candidate) => candidate.descriptor.source.ref),
+      details: {
+        scope: this.recoveryScope,
+        materializationMode: mode,
+        completeness: envelopes.every((envelope) => envelope.completeness === "complete") ? "complete" : "partial",
+        sourceCount: envelopes.length,
+        totalCharacters,
+        contentHash: sha256Text(stableJson(envelopes.map((envelope) => envelope.content))),
+        leaseHandles: leases.map((lease) => lease.handle),
+        exactRequired: resolved.need.exactRequired === true,
+        generic: true,
+        partialCoverage,
+        score,
+      },
+    });
+
+    if (resolution.status === "selected") {
+      return {
+        status: "recovered",
+        resolution: { status: "selected", source: publicIdentity(resolution.candidate), score },
+        materialization: {
+          mode,
+          completeness: envelopes[0].completeness,
+        },
+        envelope: envelopes[0],
+        lease: publicLeases[0],
+        ...(partialCoverage ? { coverage: "partial" } : {}),
+      };
+    }
+    return {
+      status: "recovered-set",
+      resolution: {
+        status: "selected-set",
+        sources: selected.map((candidate) => publicIdentity(candidate)),
+        score,
+      },
+      materialization: {
+        mode,
+        completeness: envelopes.every((envelope) => envelope.completeness === "complete") ? "complete" : "partial",
+      },
+      envelopes,
+      coverage: publicCoverage,
+      leases: publicLeases,
+      ...(partialCoverage ? { searchCoverage: "partial" } : {}),
+    };
+  }
+
+  async search(params: Record<string, unknown>, signal?: AbortSignal): Promise<any> {
+    if (signal?.aborted) return { status: "unavailable", operation: "search", reason: "search_cancelled" };
+    if (!this.availableForOperation()) {
+      return { status: "unavailable", operation: "search", reason: this.lastError ?? "runtime-unavailable" };
+    }
+    const validated = validateContextSearchRequest(params);
+    if ("error" in validated) return { status: "rejected", operation: "search", reason: validated.error };
+
+    const configuredMaxTier = maxTierForScope(this.recoveryScope);
+    const requestedMaxTier = validated.options.maxTier ?? configuredMaxTier;
+    if (RECOVERY_TIER_RANK[requestedMaxTier] > RECOVERY_TIER_RANK[configuredMaxTier]) {
+      return { status: "rejected", operation: "search", reason: "scope_outside_config" };
+    }
+
+    let runtimeSnapshot: ContextControlSourceSnapshot;
+    let genericCatalog: ReturnType<ContextControlSourceRegistry["genericSearchCatalog"]>;
+    try {
+      runtimeSnapshot = this.snapshot();
+      this.rebindIfNeeded(runtimeSnapshot);
+      genericCatalog = this.registry.genericSearchCatalog(
+        this.recoveryScope,
+        this.projections,
+        this.generation,
+        signal,
+      );
+    } catch (error) {
+      if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) {
+        return { status: "unavailable", operation: "search", reason: "search_cancelled" };
+      }
+      this.lastError = safeError(error);
+      return { status: "unavailable", operation: "search", reason: this.lastError };
+    }
+
+    const candidates = genericCatalog.sources.filter((candidate) => {
+      if (RECOVERY_TIER_RANK[candidate.tier] > RECOVERY_TIER_RANK[requestedMaxTier]) return false;
+      if (validated.options.session === "current" && candidate.sessionId !== runtimeSnapshot.sessionId) return false;
+      if (validated.options.branch === "active" && candidate.branchId !== runtimeSnapshot.branchId) return false;
+      if (validated.options.temporal !== undefined && !candidate.temporal.includes(validated.options.temporal)) {
+        return false;
+      }
+      if (!validated.includeVisible && (candidate.visible || candidate.materialized)) return false;
+      if (candidate.privacy !== "allowed" || candidate.integrity !== "valid" || candidate.freshness !== "current") {
+        return false;
+      }
+      if (candidate.source.kind !== "toolResult") return true;
+      const toolName =
+        candidate.source.source.message?.toolName ?? candidate.source.source.source.toolName ?? "unknown";
+      return (
+        !isContextControlToolName(toolName) && !isSensitiveRecoverySource({ toolName, content: candidate.source.text })
+      );
+    });
+
+    const candidatesByRef = new Map(genericCatalog.sources.map((candidate) => [candidate.source.ref, candidate]));
+    const searchOptions = {
+      ...validated.options,
+      priorForSource: (source: Parameters<NonNullable<typeof searchContextSources>>[0][number]) =>
+        TIERED_SEARCH_SCOPE_PRIORS[candidatesByRef.get(source.ref)?.tier ?? "active-branch"],
+    };
+    let searchResult: ReturnType<typeof searchContextSources>;
+    try {
+      searchResult = searchContextSources(
+        candidates.map((candidate) => candidate.source),
+        searchOptions,
+        signal,
+      );
+    } catch (error) {
+      if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) {
+        return { status: "unavailable", operation: "search", reason: "search_cancelled" };
+      }
+      this.lastError = safeError(error);
+      return { status: "unavailable", operation: "search", reason: this.lastError };
+    }
+
+    const hits = searchResult.hits
+      .map((hit: ContextSearchHit) => {
+        const candidate = candidatesByRef.get(hit.source.ref);
+        if (candidate === undefined) return undefined;
+        const source = hit.source;
+        const identity = source.source.source;
+        const currentSession = candidate.sessionId === runtimeSnapshot.sessionId;
+        const handle = `cc-h-search-${sha256Text(
+          stableJson({
+            sessionId: candidate.sessionId,
+            branchId: candidate.branchId,
+            generation: this.generation,
+            query: validated.options.query,
+            includeVisible: validated.includeVisible,
+            maxTier: requestedMaxTier,
+            session: validated.options.session,
+            branch: validated.options.branch,
+            temporal: validated.options.temporal,
+            ref: source.ref,
+          }),
+        ).slice(0, 24)}`;
+        this.searchHandles.set(handle, {
+          sourceRef: source.ref,
+          sourceHash: sha256Text(source.text),
+          generation: this.generation,
+          sessionId: candidate.sessionId,
+          branchId: candidate.branchId,
+          tier: candidate.tier,
+          maxTier: requestedMaxTier,
+          includeVisible: validated.includeVisible,
+          ...(validated.options.session === undefined ? {} : { session: validated.options.session }),
+          ...(validated.options.branch === undefined ? {} : { branch: validated.options.branch }),
+          ...(validated.options.temporal === undefined ? {} : { temporal: validated.options.temporal }),
+        });
+        while (this.searchHandles.size > MAX_SEARCH_HANDLES) {
+          const oldest = this.searchHandles.keys().next().value;
+          if (typeof oldest !== "string") break;
+          this.searchHandles.delete(oldest);
+        }
+        return {
+          handle,
+          ...(currentSession ? { ref: source.ref } : {}),
+          kind: source.kind,
+          tier: candidate.tier,
+          relation: candidate.relation,
+          timestamp: source.timestamp,
+          characters: source.text.length,
+          completeness: candidate.completeness,
+          freshness: candidate.freshness,
+          temporal: candidate.temporal,
+          provenance: currentSession
+            ? {
+                sessionId: identity.sessionId,
+                branchId: candidate.branchId,
+                entryId: identity.entryId,
+                ...(identity.toolCallId === undefined ? {} : { toolCallId: identity.toolCallId }),
+              }
+            : { tier: candidate.tier, relation: candidate.relation },
+          ...(source.toolNames === undefined ? {} : { toolNames: [...source.toolNames] }),
+          ...(source.isError === undefined ? {} : { isError: source.isError }),
+          snippet: hit.snippet,
+          match: hit.match,
+        };
+      })
+      .filter((hit): hit is NonNullable<typeof hit> => hit !== undefined);
+
+    const partial = genericCatalog.skippedSessions > 0 || genericCatalog.skippedSources > 0;
+    return {
+      status: "ok",
+      operation: "search",
+      query: validated.options.query,
+      kinds: validated.options.kinds,
+      ...(validated.options.toolNames === undefined ? {} : { toolNames: validated.options.toolNames }),
+      includeVisible: validated.includeVisible,
+      coverage: partial ? "partial" : "complete",
+      ...(genericCatalog.skippedSessions > 0 ? { skippedSessions: genericCatalog.skippedSessions } : {}),
+      ...(genericCatalog.skippedSources > 0 ? { skippedSources: genericCatalog.skippedSources } : {}),
+      returned: searchResult.returned,
+      truncated: searchResult.truncated,
+      hits,
+    };
+  }
+
+  async retrieve(params: Record<string, unknown>, signal?: AbortSignal): Promise<any> {
+    if (signal?.aborted) return { status: "unavailable", operation: "retrieve", reason: "retrieve_cancelled" };
+    if (!this.availableForOperation()) {
+      return { status: "unavailable", operation: "retrieve", reason: this.lastError ?? "runtime-unavailable" };
+    }
+    const handles = params?.handles;
+    if (
+      !Array.isArray(handles) ||
+      handles.length < 1 ||
+      handles.length > MAX_RETRIEVE_HANDLES ||
+      handles.some(
+        (handle) => typeof handle !== "string" || handle.length > 96 || !/^cc-h-search-[a-z0-9_-]+$/u.test(handle),
+      )
+    ) {
+      return { status: "rejected", operation: "retrieve", reason: "handles_invalid" };
+    }
+    if (new Set(handles).size !== handles.length) {
+      return { status: "rejected", operation: "retrieve", reason: "duplicate_handle" };
+    }
+    const focus = params?.focus;
+    if (
+      focus !== undefined &&
+      (typeof focus !== "string" || focus.trim().length === 0 || focus.length > MAX_RETRIEVE_FOCUS_CHARACTERS)
+    ) {
+      return { status: "rejected", operation: "retrieve", reason: "focus_invalid" };
+    }
+
+    const records = handles.map((handle) => this.searchHandles.get(handle));
+    if (records.some((record) => record === undefined)) {
+      return { status: "rejected", operation: "retrieve", reason: "handle_unavailable" };
+    }
+    const handleRecords = records as ContextSearchHandleRecord[];
+    const configuredMaxTier = maxTierForScope(this.recoveryScope);
+    let runtimeSnapshot: ContextControlSourceSnapshot;
+    let genericCatalog: ReturnType<ContextControlSourceRegistry["genericSearchCatalog"]>;
+    try {
+      runtimeSnapshot = this.snapshot();
+      this.rebindIfNeeded(runtimeSnapshot);
+      genericCatalog = this.registry.genericSearchCatalog(
+        this.recoveryScope,
+        this.projections,
+        this.generation,
+        signal,
+      );
+    } catch (error) {
+      if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) {
+        return { status: "unavailable", operation: "retrieve", reason: "retrieve_cancelled" };
+      }
+      this.lastError = safeError(error);
+      return { status: "unavailable", operation: "retrieve", reason: this.lastError };
+    }
+
+    const candidatesByRef = new Map(genericCatalog.sources.map((candidate) => [candidate.source.ref, candidate]));
+    const selected: Array<{
+      handle: string;
+      record: ContextSearchHandleRecord;
+      candidate: (typeof genericCatalog.sources)[number];
+      content: string;
+      completeness: "complete" | "partial";
+      limitation?: string;
+    }> = [];
+    let totalCharacters = 0;
+
+    for (const [index, record] of handleRecords.entries()) {
+      if (signal?.aborted) return { status: "unavailable", operation: "retrieve", reason: "retrieve_cancelled" };
+      if (
+        RECOVERY_TIER_RANK[record.tier] > RECOVERY_TIER_RANK[configuredMaxTier] ||
+        RECOVERY_TIER_RANK[record.maxTier] > RECOVERY_TIER_RANK[configuredMaxTier]
+      ) {
+        return { status: "rejected", operation: "retrieve", reason: `scope_changed:${handles[index]}` };
+      }
+      const candidate = candidatesByRef.get(record.sourceRef);
+      if (candidate === undefined) {
+        return { status: "rejected", operation: "retrieve", reason: `handle_stale:${handles[index]}` };
+      }
+      if (
+        candidate.sessionId !== record.sessionId ||
+        candidate.branchId !== record.branchId ||
+        candidate.tier !== record.tier
+      ) {
+        return { status: "rejected", operation: "retrieve", reason: `source_changed:${handles[index]}` };
+      }
+      if (sha256Text(candidate.source.text) !== record.sourceHash) {
+        return { status: "rejected", operation: "retrieve", reason: `source_changed:${handles[index]}` };
+      }
+      if (candidate.privacy !== "allowed" || candidate.integrity !== "valid" || candidate.freshness !== "current") {
+        return { status: "rejected", operation: "retrieve", reason: `source_not_recovery_ready:${handles[index]}` };
+      }
+      if (record.session === "current" && candidate.sessionId !== runtimeSnapshot.sessionId) {
+        return { status: "rejected", operation: "retrieve", reason: `scope_changed:${handles[index]}` };
+      }
+      if (record.branch === "active" && candidate.branchId !== runtimeSnapshot.branchId) {
+        return { status: "rejected", operation: "retrieve", reason: `scope_changed:${handles[index]}` };
+      }
+      if (record.temporal !== undefined && !candidate.temporal.includes(record.temporal)) {
+        return { status: "rejected", operation: "retrieve", reason: `scope_changed:${handles[index]}` };
+      }
+      if (!record.includeVisible && (candidate.visible || candidate.materialized)) {
+        return { status: "rejected", operation: "retrieve", reason: `source_visible:${handles[index]}` };
+      }
+      if (candidate.source.kind === "toolResult") {
+        const toolName =
+          candidate.source.source.message?.toolName ?? candidate.source.source.source.toolName ?? "unknown";
+        if (
+          isContextControlToolName(toolName) ||
+          isSensitiveRecoverySource({ toolName, content: candidate.source.text })
+        ) {
+          return { status: "rejected", operation: "retrieve", reason: `source_not_recovery_ready:${handles[index]}` };
+        }
+      }
+      if (candidate.completeness === "unknown") {
+        return { status: "rejected", operation: "retrieve", reason: `source_completeness_unknown:${handles[index]}` };
+      }
+
+      let content = candidate.source.text;
+      let completeness: "complete" | "partial" = candidate.completeness === "partial" ? "partial" : "complete";
+      let limitation: string | undefined;
+      if (completeness === "partial") {
+        limitation = "The canonical source was already partial and cannot establish exact evidence.";
+      }
+      if (content.length > MAX_RETRIEVE_SOURCE_CHARACTERS) {
+        if (typeof focus !== "string") {
+          return { status: "rejected", operation: "retrieve", reason: "focus_required_for_oversized_source" };
+        }
+        const focused = focusedWindow(content, focus.trim(), MAX_RETRIEVE_SOURCE_CHARACTERS);
+        if (focused === undefined) return { status: "rejected", operation: "retrieve", reason: "focus_no_match" };
+        content = focused;
+        completeness = "partial";
+        limitation =
+          limitation === undefined
+            ? "The source exceeded the per-source retrieval bound; this focused window is partial evidence."
+            : `${limitation} The source also exceeded the per-source retrieval bound; this focused window is partial evidence.`;
+      }
+      if (totalCharacters + content.length > MAX_TOTAL_RETRIEVED_CHARACTERS) {
+        return { status: "rejected", operation: "retrieve", reason: "retrieval_budget_exceeded" };
+      }
+      totalCharacters += content.length;
+      selected.push({ handle: handles[index], record, candidate, content, completeness, limitation });
+    }
+
+    const changes = new Map<string, ContextControlJournalChange>();
+    for (const item of selected) {
+      const candidate = item.candidate;
+      const activeReduced =
+        candidate.tier === "active-branch" &&
+        candidate.activeContext &&
+        candidate.sessionId === runtimeSnapshot.sessionId &&
+        candidate.branchId === runtimeSnapshot.branchId &&
+        this.projections.get(candidate.source.ref)?.state !== undefined &&
+        this.projections.get(candidate.source.ref)?.state !== "full";
+      if (!activeReduced) continue;
+      changes.set(
+        candidate.source.ref,
+        this.changeFor(
+          {
+            ref: candidate.source.ref,
+            identity: candidate.source.source.source,
+            contentHash: sha256Text(candidate.source.text),
+          },
+          "full",
+          "search-retrieve-reentry",
+          "retrieve",
+        ),
+      );
+    }
+    if (changes.size > 0) {
+      const applied = await this.commit(
+        [...changes.values()],
+        this.recoveryMode === "automatic" ? "automatic" : "approval",
+      );
+      if (!applied || this.state !== "ready") {
+        return { status: "unavailable", operation: "retrieve", reason: "residency-reentry-failed" };
+      }
+    }
+
+    const need: EvidenceNeed = { text: typeof focus === "string" ? focus.trim() : "direct Context Control retrieval" };
+    const leases = selected.map((item) =>
+      this.createEvidenceLease(item.candidate.source.ref, sha256Text(item.candidate.source.text), item.content, need),
+    );
+    for (const lease of leases) this.leases.set(lease.handle, lease);
+
+    const items = selected.map((item, index) => {
+      const candidate = item.candidate;
+      const source = candidate.source;
+      const identity = source.source.source;
+      const currentSession = candidate.sessionId === runtimeSnapshot.sessionId;
+      return {
+        handle: item.handle,
+        ...(currentSession ? { ref: source.ref } : {}),
+        kind: source.kind,
+        tier: candidate.tier,
+        relation: candidate.relation,
+        timestamp: source.timestamp,
+        temporal: candidate.temporal,
+        sourceCharacters: source.text.length,
+        returnedCharacters: item.content.length,
+        completeness: item.completeness,
+        freshness: candidate.freshness,
+        provenance: currentSession
+          ? {
+              sessionId: identity.sessionId,
+              branchId: candidate.branchId,
+              entryId: identity.entryId,
+              ...(identity.toolCallId === undefined ? {} : { toolCallId: identity.toolCallId }),
+            }
+          : { tier: candidate.tier, relation: candidate.relation },
+        ...(source.toolNames === undefined ? {} : { toolNames: [...source.toolNames] }),
+        ...(source.isError === undefined ? {} : { isError: source.isError }),
+        content: item.content,
+        ...(item.limitation === undefined ? {} : { limitation: item.limitation }),
+        leaseHandle: leases[index]?.handle,
+      };
+    });
+
+    return {
+      status: "ok",
+      operation: "retrieve",
+      ...(typeof focus === "string" ? { focus: focus.trim() } : {}),
+      coverage: genericCatalog.skippedSessions > 0 || genericCatalog.skippedSources > 0 ? "partial" : "complete",
+      ...(genericCatalog.skippedSessions > 0 ? { skippedSessions: genericCatalog.skippedSessions } : {}),
+      ...(genericCatalog.skippedSources > 0 ? { skippedSources: genericCatalog.skippedSources } : {}),
+      returned: items.length,
+      totalCharacters,
+      reenteredCount: changes.size,
+      trust: "untrusted-historical-data",
+      leaseHandles: leases.map((lease) => lease.handle),
+      items,
+    };
+  }
+
   private async recoverSelectedSet(
     need: EvidenceNeed,
     snapshot: ContextControlSourceSnapshot,
@@ -1196,6 +2005,7 @@ export class ContextControlRuntime {
       if (entry.sequence <= 0) throw new Error("journal-acknowledgement-mismatch");
       this.projections.clear();
       this.carryForward.clear();
+      this.searchHandles.clear();
       this.pinPriorStates.clear();
       this.suppressedProposalFingerprints.clear();
       this.pendingProposal = undefined;
@@ -1361,33 +2171,97 @@ export class ContextControlRuntime {
 
   explain(ref: unknown): any {
     if (typeof ref !== "string") return { status: "rejected", reason: "ref_invalid" };
+    const normalizedRef = ref.trim();
+    let snapshot: ContextControlSourceSnapshot;
+    try {
+      snapshot = this.snapshot();
+      this.rebindIfNeeded(snapshot);
+      const automationView = this.analyzeAutomation(snapshot);
+      this.captureContextSnapshot();
+      const direct = this.directSources(snapshot);
+      const source = direct.get(normalizedRef);
+      if (source !== undefined) {
+        const automation = snapshot.byRef.get(normalizedRef);
+        const candidate = this.lastAnalysis.candidates.find((item) => item.sourceRef === normalizedRef);
+        const directReason = this.directCleanupReason(source);
+        const automationRefs = new Set(automationView.sources.map((item) => item.ref));
+        const automationProtectedRefs = new Set([
+          ...automationView.protected.map((item) => item.ref),
+          ...automationView.excluded.map((item) => item.ref),
+          ...(this.lastAnalysis?.protected.map((item) => item.sourceRef) ?? []),
+        ]);
+        return {
+          operation: "explain",
+          status: "ok",
+          ref: normalizedRef,
+          source: {
+            sessionId: source.identity.sessionId,
+            entryId: source.identity.entryId,
+            toolCallId: source.identity.toolCallId,
+            kind: source.kind,
+            ...(automation?.toolName === undefined ? {} : { toolName: automation.toolName }),
+            ...(automation?.path === undefined ? {} : { path: automation.path }),
+            ...(automation?.commandKind === undefined ? {} : { commandKind: automation.commandKind }),
+            ...(automation?.role === undefined ? {} : { role: automation.role }),
+            ...(automation?.temporal === undefined ? {} : { temporal: automation.temporal }),
+            ...(automation?.category === undefined ? {} : { category: automation.category }),
+            consumed: automation?.consumed ?? source.visible,
+            activeContext: source.activeContext,
+            visible: source.visible,
+            scope: automation?.scope,
+            characters: source.characters,
+            contentHash: source.contentHash,
+          },
+          residency: this.projections.get(normalizedRef)?.state ?? "full",
+          pinned: this.projections.get(normalizedRef)?.pinned === true,
+          directEligible: directReason === undefined,
+          ...(directReason === undefined ? {} : { directEligibilityReason: directReason }),
+          automationEligible: automationRefs.has(normalizedRef),
+          automationProtected: !automationRefs.has(normalizedRef) || automationProtectedRefs.has(normalizedRef),
+          automationLane: candidate?.lane ?? "none",
+          lane: candidate?.lane ?? "none",
+          rule: candidate?.rule,
+          reason: candidate?.reason,
+        };
+      }
+    } catch (error) {
+      return { status: "unavailable", reason: safeError(error) };
+    }
+
     let catalog = this.lastCatalog;
-    if (!catalog || !catalog.sources.some((source) => source.ref === ref)) {
+    if (!catalog || !catalog.sources.some((source) => source.ref === normalizedRef)) {
       catalog = this.registry.recoveryCatalog(this.recoveryScope, this.consumedToolCallIds, this.generation);
       this.lastCatalog = catalog;
     }
-    const source = catalog.sources.find((candidate) => candidate.ref === ref);
+    const source = catalog.sources.find((candidate) => candidate.ref === normalizedRef);
     if (!source) return { status: "unavailable", reason: "reference_unresolved" };
-    const candidate = this.lastAnalysis?.candidates.find((item) => item.sourceRef === ref);
+    const candidate = this.lastAnalysis?.candidates.find((item) => item.sourceRef === normalizedRef);
     return {
       operation: "explain",
       status: "ok",
-      ref,
+      ref: normalizedRef,
       source: {
         sessionId: source.identity.sessionId,
         entryId: source.identity.entryId,
         toolCallId: source.identity.toolCallId,
+        kind: "toolResult",
         toolName: source.toolName,
         path: source.path,
         commandKind: source.commandKind,
         consumed: source.consumed,
         activeContext: source.activeContext,
+        visible: false,
         scope: source.scope,
         characters: source.characters,
         contentHash: source.contentHash,
       },
-      residency: this.projections.get(ref)?.state ?? "full",
-      pinned: this.projections.get(ref)?.pinned === true,
+      residency: this.projections.get(normalizedRef)?.state ?? "full",
+      pinned: this.projections.get(normalizedRef)?.pinned === true,
+      directEligible: false,
+      directEligibilityReason: "source_not_projectable",
+      automationEligible: false,
+      automationProtected: true,
+      automationLane: candidate?.lane ?? "none",
       lane: candidate?.lane ?? "none",
       rule: candidate?.rule,
       reason: candidate?.reason,
@@ -1395,16 +2269,94 @@ export class ContextControlRuntime {
   }
 
   list(): any {
-    const catalog =
-      this.lastCatalog ?? this.registry.recoveryCatalog(this.recoveryScope, this.consumedToolCallIds, this.generation);
-    this.lastCatalog = catalog;
-    const allSources = catalog.sources;
-    const sources = allSources.filter((source) => !isContextControlGeneratedTool(source.toolName));
-    const protectedRefs = new Set([
+    let snapshot: ContextControlSourceSnapshot;
+    let direct: ReadonlyMap<string, ContextControlDirectSource>;
+    let catalog: ContextControlCatalog;
+    let automationView: ContextControlAutomationView;
+    try {
+      snapshot = this.snapshot();
+      this.rebindIfNeeded(snapshot);
+      automationView = this.analyzeAutomation(snapshot);
+      this.captureContextSnapshot();
+      direct = this.directSources(snapshot);
+      catalog = this.registry.recoveryCatalog(this.recoveryScope, this.consumedToolCallIds, this.generation);
+      this.lastCatalog = catalog;
+    } catch (error) {
+      const reason = safeError(error);
+      this.lastError = reason;
+      return {
+        operation: "list",
+        status: "unavailable",
+        scope: this.recoveryScope,
+        sourceCount: 0,
+        catalogSourceCount: 0,
+        protectedCount: 0,
+        excludedCount: 0,
+        reducedCount: [...this.projections.values()].filter((projection) => projection.state !== "full").length,
+        reason,
+        sources: [],
+      };
+    }
+
+    const automationRefs = new Set(automationView.sources.map((source) => source.ref));
+    const automationProtectedRefs = new Set([
+      ...automationView.protected.map((item) => item.ref),
+      ...automationView.excluded.map((item) => item.ref),
       ...(this.lastAnalysis?.protected.map((candidate) => candidate.sourceRef) ?? []),
-      ...sources.filter((source) => !source.consumed).map((source) => source.ref),
     ]);
-    const reducedCount = [...this.projections.values()].filter((projection) => projection.state !== "full").length;
+    const sources = [...direct.values()].map((source) => {
+      const automation = snapshot.byRef.get(source.ref);
+      const projection = this.projections.get(source.ref);
+      const candidate = this.lastAnalysis?.candidates.find((item) => item.sourceRef === source.ref);
+      const directReason = this.directCleanupReason(source);
+      const automationEligible = automationRefs.has(source.ref);
+      const carryForwardIds = this.carryForward
+        .active()
+        .filter((record) => {
+          const [identity] = record.sources;
+          return identity !== undefined && sourceKey(identity) === sourceKey(source.identity);
+        })
+        .map((record) => record.id);
+      return {
+        ref: source.ref,
+        kind: source.kind,
+        sessionId: source.identity.sessionId,
+        entryId: source.identity.entryId,
+        toolCallId: source.identity.toolCallId,
+        ...(automation?.toolName === undefined ? {} : { toolName: automation.toolName }),
+        ...(automation?.path === undefined ? {} : { path: automation.path }),
+        commandKind: automation?.commandKind ?? "other",
+        role: automation?.role ?? (source.kind === "toolResult" ? undefined : "source-content"),
+        temporal: automation?.temporal ?? ["current"],
+        category: automation?.category ?? "ordinary",
+        completeness: automation?.completeness ?? "complete",
+        freshness: automation?.freshness ?? "current",
+        privacy: automation?.privacy ?? "allowed",
+        integrity: automation?.integrity ?? "valid",
+        characters: source.characters,
+        contentHash: source.contentHash,
+        consumed: automation?.consumed ?? source.visible,
+        consumptionEvidence: automation?.consumptionEvidence ?? "confirmed",
+        metadataComplete: automation?.metadataComplete ?? true,
+        metadataIssues: automation?.metadataIssues ?? [],
+        activeContext: source.activeContext,
+        visible: source.visible,
+        residency: projection?.state ?? "full",
+        pinned: projection?.pinned === true,
+        protected: directReason !== undefined,
+        directEligible: directReason === undefined,
+        ...(directReason === undefined ? {} : { directEligibilityReason: directReason }),
+        automationEligible,
+        automationProtected: !automationEligible || automationProtectedRefs.has(source.ref),
+        automationLane: candidate?.lane ?? "none",
+        ...(projection?.retainedMeaning === undefined ? {} : { retainedMeaning: projection.retainedMeaning }),
+        ...(carryForwardIds.length === 0 ? {} : { carryForwardIds }),
+      };
+    });
+    const branchEntries = this.sourceRuntime.branchEntries();
+    const excludedCount = branchEntries.filter(
+      (entry) => typeof entry?.id === "string" && !direct.has(contextRefForEntry(entry.id)),
+    ).length;
     return {
       operation: "list",
       status: "ok",
@@ -1413,54 +2365,22 @@ export class ContextControlRuntime {
       sessions: catalog.sessions.map((session) => ({ ...session })),
       skippedSessions: catalog.skippedSessions,
       sourceCount: sources.length,
-      catalogSourceCount: allSources.length,
-      protectedCount: sources.filter((source) => protectedRefs.has(source.ref)).length,
-      excludedCount: allSources.length - sources.length,
-      reducedCount,
+      catalogSourceCount: sources.length,
+      protectedCount: sources.filter((source) => source.protected).length,
+      excludedCount,
+      reducedCount: [...this.projections.values()].filter((projection) => projection.state !== "full").length,
       suppressedProposalCount: this.suppressedProposalFingerprints.size,
-      sources: sources.map((source) => {
-        const projection = this.projections.get(source.ref);
-        const carryForwardIds = this.carryForward
-          .active()
-          .filter((record) => {
-            const [identity] = record.sources;
-            return identity !== undefined && sourceKey(identity) === sourceKey(source.identity);
-          })
-          .map((record) => record.id);
-        return {
-          ref: source.ref,
-          sessionId: source.identity.sessionId,
-          entryId: source.identity.entryId,
-          toolCallId: source.identity.toolCallId,
-          toolName: source.toolName,
-          path: source.path,
-          commandKind: source.commandKind,
-          role: source.role,
-          temporal: source.temporal,
-          category: source.category,
-          completeness: source.completeness,
-          freshness: source.freshness,
-          privacy: source.privacy,
-          integrity: source.integrity,
-          characters: source.characters,
-          contentHash: source.contentHash,
-          consumed: source.consumed,
-          consumptionEvidence: source.consumptionEvidence,
-          metadataComplete: source.metadataComplete,
-          metadataIssues: source.metadataIssues,
-          activeContext: source.activeContext,
-          residency: projection?.state ?? "full",
-          pinned: projection?.pinned === true,
-          protected: protectedRefs.has(source.ref),
-          ...(projection?.retainedMeaning === undefined ? {} : { retainedMeaning: projection.retainedMeaning }),
-          ...(carryForwardIds.length === 0 ? {} : { carryForwardIds }),
-        };
-      }),
+      sources,
     };
   }
 
   invalidate(): void {
     this.lastAnalysis = undefined;
+    this.lastAutomationView = undefined;
+    this.lastAutomationCatalog = undefined;
+    this.lastContextSnapshot = undefined;
+    this.searchHandles.clear();
+    this.sourceRuntime.clearRequest();
     this.lastCatalog = undefined;
     this.pendingProposal = undefined;
     this.pendingProactiveRecoveryKey = undefined;
@@ -1489,6 +2409,11 @@ export class ContextControlRuntime {
     this.pendingProactiveRecoveryKey = undefined;
     this.proactiveRecoveryKey = undefined;
     this.checkpointDetector.reset();
+    this.searchHandles.clear();
+    this.lastAutomationView = undefined;
+    this.lastAutomationCatalog = undefined;
+    this.lastContextSnapshot = undefined;
+    this.sourceRuntime.clearRequest();
     try {
       await this.journal.release?.();
     } catch {
@@ -1507,11 +2432,16 @@ export class ContextControlRuntime {
       await this.auditSink.purge?.();
       this.projections.clear();
       this.carryForward.clear();
+      this.searchHandles.clear();
       this.pinPriorStates.clear();
       this.suppressedProposalFingerprints.clear();
       this.pendingProposal = undefined;
       this.pendingProactiveRecoveryKey = undefined;
       this.proactiveRecoveryKey = undefined;
+      this.lastAutomationView = undefined;
+      this.lastAutomationCatalog = undefined;
+      this.lastAnalysis = undefined;
+      this.lastContextSnapshot = undefined;
       this.lastCatalog = undefined;
       this.lastScopeCatalog = undefined;
       this.state = "disabled";
@@ -1529,10 +2459,22 @@ export class ContextControlRuntime {
     for (const [ref, projection] of this.projections) residency[ref] = projection.state;
     const catalogSources = this.lastCatalog?.sources ?? [];
     const visibleCatalogSources = catalogSources.filter((source) => !isContextControlGeneratedTool(source.toolName));
+    const directSourceCount = this.lastContextSnapshot?.entries.size ?? visibleCatalogSources.length;
     const protectedRefs = new Set([
       ...(this.lastAnalysis?.protected.map((candidate) => candidate.sourceRef) ?? []),
+      ...(this.lastAutomationView?.protected.map((item) => item.ref) ?? []),
+      ...(this.lastAutomationView?.excluded.map((item) => item.ref) ?? []),
+      ...(this.lastAutomationCatalog?.protected.map((item) => item.ref) ?? []),
+      ...(this.lastAutomationCatalog?.excluded.map((item) => item.ref) ?? []),
       ...visibleCatalogSources.filter((source) => !source.consumed).map((source) => source.ref),
     ]);
+    const catalogExcludedCount =
+      this.lastAutomationCatalog?.excluded.length ?? catalogSources.length - visibleCatalogSources.length;
+    const catalogProtectedCount =
+      this.lastAutomationCatalog === undefined
+        ? visibleCatalogSources.filter((source) => protectedRefs.has(source.ref)).length
+        : this.lastAutomationCatalog.protected.length +
+          this.lastAutomationCatalog.sources.filter((source) => protectedRefs.has(source.ref)).length;
     const leases = [...this.leases.values()].filter((lease) => lease.active);
     return Object.freeze({
       version: "0.1",
@@ -1543,7 +2485,7 @@ export class ContextControlRuntime {
       generation: this.generation,
       ...(this.checkpointId === undefined ? {} : { checkpointId: this.checkpointId }),
       automaticRefs: Object.freeze(this.lastAnalysis?.automatic.map((candidate) => candidate.sourceRef) ?? []),
-      protectedRefs: Object.freeze(this.lastAnalysis?.protected.map((candidate) => candidate.sourceRef) ?? []),
+      protectedRefs: Object.freeze([...protectedRefs]),
       modelRefs: Object.freeze(this.lastAnalysis?.model.map((candidate) => candidate.sourceRef) ?? []),
       residency: Object.freeze(residency),
       pinnedRefs: Object.freeze(
@@ -1558,9 +2500,9 @@ export class ContextControlRuntime {
       recoveryScope: this.recoveryScope,
       ...(this.lastCatalog?.repositoryId === undefined ? {} : { repositoryId: this.lastCatalog.repositoryId }),
       catalogSessionCount: this.lastCatalog?.sessions.length ?? 1,
-      catalogSourceCount: visibleCatalogSources.length,
-      catalogExcludedCount: catalogSources.length - visibleCatalogSources.length,
-      catalogProtectedCount: visibleCatalogSources.filter((source) => protectedRefs.has(source.ref)).length,
+      catalogSourceCount: directSourceCount,
+      catalogExcludedCount,
+      catalogProtectedCount,
       reducedCount: Object.values(residency).filter((state) => state !== "full").length,
       activeExactLeaseCount: leases.filter((lease) => lease.exactRequired === true).length,
       activeEvidenceHandleCount: leases.length,
@@ -1771,11 +2713,81 @@ export class ContextControlRuntime {
     return this.registry.snapshot(this.consumedToolCallIds, this.generation);
   }
 
+  private analyzeAutomation(snapshot: ContextControlSourceSnapshot): ContextControlAutomationView {
+    const view = this.registry.automationView(snapshot);
+    this.lastAutomationView = view;
+    this.lastAutomationCatalog = undefined;
+    this.lastAnalysis = analyzeLifecycle(view.sources);
+    return view;
+  }
+
+  private captureContextSnapshot(): FreeflowContextSnapshot {
+    const snapshot = this.sourceRuntime.captureSnapshot({
+      contextControlEnabled: true,
+      contextVirtualizationEnabled: true,
+      includeContextControlResults: true,
+      isSourceFullyProjected: (entryId) => {
+        const projection = this.projections.get(contextRefForEntry(entryId));
+        return projection?.state === undefined || projection.state === "full";
+      },
+    });
+    this.lastContextSnapshot = snapshot;
+    return snapshot;
+  }
+
+  private directSources(snapshot: ContextControlSourceSnapshot): ReadonlyMap<string, ContextControlDirectSource> {
+    const contextSnapshot = this.lastContextSnapshot ?? this.captureContextSnapshot();
+    const direct = new Map<string, ContextControlDirectSource>();
+    for (const projected of contextSnapshot.entries.values()) {
+      const automation = snapshot.byRef.get(projected.ref);
+      const identity = cloneIdentity(projected.source.source);
+      direct.set(projected.ref, {
+        ref: projected.ref,
+        identity,
+        kind: projected.kind,
+        content: automation?.content ?? projected.text,
+        contentHash: automation?.contentHash ?? sha256Text(projected.text),
+        characters: automation?.characters ?? projected.text.length,
+        activeContext: contextSnapshot.activeEntryIds.has(identity.entryId),
+        visible: contextSnapshot.visibleSourceIds.has(identity.entryId),
+        source: projected.source,
+      });
+    }
+    return direct;
+  }
+
+  private sourceStateForRef(
+    snapshot: ContextControlSourceSnapshot,
+    ref: string,
+  ): { identity: ContextSourceIdentity; contentHash: string } | undefined {
+    const automation = snapshot.byRef.get(ref);
+    if (automation !== undefined) {
+      return { identity: cloneIdentity(automation.identity), contentHash: automation.contentHash };
+    }
+    const generic = this.lastContextSnapshot?.entries.get(ref);
+    if (generic === undefined) return undefined;
+    return { identity: cloneIdentity(generic.source.source), contentHash: sha256Text(generic.text) };
+  }
+
+  private directCleanupReason(source: ContextControlDirectSource): string | undefined {
+    if (!source.activeContext) return "target_not_active";
+    if (!source.visible) return "target_not_visible";
+    const projection = this.projections.get(source.ref);
+    if (projection !== undefined && projection.state !== "full") return "target_already_reduced";
+    if (this.activeLeaseForSource(source.ref)) return "target_protected_lease";
+    if (projection?.pinned === true) return "target_pinned";
+    return undefined;
+  }
+
   private scopeCatalogFor(
     snapshot: ContextControlSourceSnapshot,
     includeVisible = false,
+    existingCatalog?: ContextControlAutomationCatalog,
   ): RuntimeCatalogSnapshot | undefined {
-    this.lastCatalog = this.registry.recoveryCatalog(this.recoveryScope, this.consumedToolCallIds, this.generation);
+    const catalog =
+      existingCatalog ?? this.registry.automationCatalog(this.recoveryScope, this.consumedToolCallIds, this.generation);
+    this.lastAutomationCatalog = catalog;
+    this.lastCatalog = catalog;
     const projectId =
       this.lastCatalog.repositoryId ??
       (this.recoveryScope === "current-project" ? undefined : `session:${snapshot.sessionId}`);
@@ -1805,7 +2817,13 @@ export class ContextControlRuntime {
     this.pendingProactiveRecoveryKey = undefined;
     this.proactiveRecoveryKey = undefined;
     this.pinPriorStates.clear();
+    this.searchHandles.clear();
     this.clearLeases("context-rebound");
+    this.lastAutomationView = undefined;
+    this.lastAutomationCatalog = undefined;
+    this.lastAnalysis = undefined;
+    this.lastContextSnapshot = undefined;
+    this.captureContextSnapshot();
     this.replay(snapshot);
   }
 
@@ -1840,7 +2858,7 @@ export class ContextControlRuntime {
           (entry.pinSnapshots ?? []).map((snapshotValue) => [snapshotValue.ref, snapshotValue]),
         );
         for (const ref of entry.pinRefs ?? []) {
-          const source = snapshot.byRef.get(ref);
+          const source = this.sourceStateForRef(snapshot, ref);
           const pinSnapshot = snapshots.get(ref);
           if (!source || pinSnapshot === undefined) throw new Error("context-control-pin-source-missing");
           if (pinSnapshot.priorSourceHash !== undefined && pinSnapshot.priorSourceHash !== source.contentHash) {
@@ -1857,7 +2875,7 @@ export class ContextControlRuntime {
           });
         }
         for (const ref of entry.unpinRefs ?? []) {
-          const source = snapshot.byRef.get(ref);
+          const source = this.sourceStateForRef(snapshot, ref);
           const pinSnapshot = snapshots.get(ref);
           const current = this.projections.get(ref);
           if (!source || pinSnapshot === undefined || current?.pinned !== true) {
@@ -1885,7 +2903,7 @@ export class ContextControlRuntime {
         continue;
       }
       for (const change of entry.changes) {
-        const source = snapshot.byRef.get(change.sourceRef);
+        const source = this.sourceStateForRef(snapshot, change.sourceRef);
         const current = this.projections.get(change.sourceRef)?.state ?? "full";
         if (
           source === undefined ||
@@ -1909,7 +2927,7 @@ export class ContextControlRuntime {
   }
 
   private changeFor(
-    source: ContextControlSource,
+    source: Pick<ContextControlSource, "ref" | "identity" | "contentHash">,
     to: ResidencyState,
     rule: string,
     checkpointPrefix: string,
@@ -1937,18 +2955,10 @@ export class ContextControlRuntime {
       }
     | undefined {
     if (this.mode === "shadow" || this.recoveryMode === "model-only") return undefined;
-    const catalog =
-      this.recoveryScope === "active-branch"
-        ? {
-            scope: this.recoveryScope,
-            repositoryId: undefined,
-            sources: snapshot.sources,
-            sessions: [{ sessionId: snapshot.sessionId, sourceCount: snapshot.sources.length, current: true }],
-            skippedSessions: 0,
-          }
-        : this.registry.recoveryCatalog(this.recoveryScope, this.consumedToolCallIds, this.generation);
+    const catalog = this.registry.automationCatalog(this.recoveryScope, this.consumedToolCallIds, this.generation);
+    this.lastAutomationCatalog = catalog;
     this.lastCatalog = catalog;
-    this.lastScopeCatalog = this.scopeCatalogFor(snapshot);
+    this.lastScopeCatalog = this.scopeCatalogFor(snapshot, false, catalog);
     if (this.lastScopeCatalog === undefined) return undefined;
     const requirement = requirementFromPrompt(this.prompt, `context-checkpoint-${this.generation}`, this.generation);
     const detection = this.checkpointDetector.detect(requirement, {
@@ -2131,16 +3141,18 @@ export class ContextControlRuntime {
     analysis: LifecycleAnalysis,
     snapshot: ContextControlSourceSnapshot,
   ): ContextControlProposal {
+    const automationView = this.registry.automationView(snapshot);
+    const automationByRef = new Map(automationView.sources.map((source) => [source.ref, source]));
+    const proposalRefs = Object.freeze([...refs].filter((ref) => automationByRef.has(ref)).slice(0, MAX_PROPOSAL_REFS));
     if (
       this.pendingProposal?.kind === "cleanup" &&
       this.pendingProposal.generation <= this.generation &&
       this.pendingProposal.expiresAt > Date.now() &&
-      stableJson(this.pendingProposal.refs) === stableJson(refs)
+      stableJson(this.pendingProposal.refs) === stableJson(proposalRefs)
     ) {
       return this.pendingProposal;
     }
     const reasons: Record<string, string> = {};
-    const proposalRefs = Object.freeze([...refs].slice(0, MAX_PROPOSAL_REFS));
     for (const ref of proposalRefs) {
       const candidate = analysis.automatic.find((item) => item.sourceRef === ref);
       if (candidate) reasons[ref] = candidate.reason;
@@ -2148,7 +3160,7 @@ export class ContextControlRuntime {
     const id = `cc-proposal-${snapshot.sessionId}-${this.generation}-${++this.transactionCount}`;
     const candidates = Object.freeze(
       proposalRefs.flatMap((ref) => {
-        const source = snapshot.byRef.get(ref);
+        const source = automationByRef.get(ref);
         if (source === undefined) return [];
         const candidate = analysis.automatic.find((item) => item.sourceRef === ref);
         return [
@@ -2253,9 +3265,11 @@ export class ContextControlRuntime {
       return { status: "rejected", operation: pin ? "pin" : "unpin", reason: "duplicate_reference" };
     const snapshot = this.snapshot();
     this.rebindIfNeeded(snapshot);
+    this.captureContextSnapshot();
+    const direct = this.directSources(snapshot);
     const pinSnapshots: ContextControlPinSnapshot[] = [];
     for (const ref of normalized) {
-      const source = snapshot.byRef.get(ref);
+      const source = direct.get(ref);
       if (source === undefined) {
         return { status: "rejected", operation: pin ? "pin" : "unpin", reason: "reference_unresolved" };
       }
@@ -2306,7 +3320,7 @@ export class ContextControlRuntime {
         throw new Error("journal-acknowledgement-mismatch");
       }
       for (const ref of normalized) {
-        const source = snapshot.byRef.get(ref)!;
+        const source = direct.get(ref)!;
         const pinSnapshot = pinSnapshots.find((value) => value.ref === ref)!;
         if (pin) {
           this.pinPriorStates.set(ref, { ...pinSnapshot });
@@ -2439,6 +3453,9 @@ export class ContextControlRuntime {
   private failClosed(reason: string): void {
     this.state = "uncertain";
     this.lastError = reason;
+    this.lastAutomationView = undefined;
+    this.lastAutomationCatalog = undefined;
+    this.lastAnalysis = undefined;
     this.projections.clear();
     this.carryForward.clear();
     this.pinPriorStates.clear();

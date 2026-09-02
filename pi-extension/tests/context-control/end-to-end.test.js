@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -12,6 +13,7 @@ import {
   FileContextControlJournal,
   MemoryContextControlJournal,
 } from "../../dist/context-control/persistence/journal.js";
+import { readCapabilityState } from "../../dist/runtime/runtime-context.js";
 
 function createSession() {
   const entries = [
@@ -106,6 +108,26 @@ function toolMessage(callId, text = "export const VALUE = 1;") {
     content: [{ type: "text", text }],
     isError: false,
   };
+}
+
+async function filesUnder(root) {
+  const files = [];
+  async function visit(directory) {
+    let entries;
+    try {
+      entries = await readdir(directory, { withFileTypes: true });
+    } catch (error) {
+      if (error?.code === "ENOENT") return;
+      throw error;
+    }
+    for (const entry of entries) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) await visit(path);
+      else files.push(path);
+    }
+  }
+  await visit(root);
+  return files;
 }
 
 async function consumeTwo(runtime) {
@@ -594,7 +616,7 @@ test("Context Control tools expose strict operations and execute against the bou
   );
   assert.deepEqual(
     tools[0].parameters.oneOf.map((variant) => variant.properties.operation.const),
-    ["status", "list", "explain", "cleanup", "recover", "pin", "unpin", "reset"],
+    ["status", "list", "search", "retrieve", "explain", "cleanup", "recover", "pin", "unpin", "reset"],
   );
   assert.ok(tools[0].parameters.oneOf.every((variant) => variant.additionalProperties === false));
   const evidenceUseTool = tools.find((tool) => tool.name === "context_control_use_evidence");
@@ -765,6 +787,15 @@ test("main Pi extension exposes user-only Context Control sidecar purge", async 
     };
     freeflowExtension(pi);
     await commands.get("event:session_start")({}, ctx);
+    await commands.get("freeflow").handler("context-control status", ctx);
+    assert.match(notifications.at(-1).message, /Context Control status/);
+    await commands.get("freeflow").handler("context-control list", ctx);
+    assert.match(notifications.at(-1).message, /Context Control list/);
+    const restoreResult = await commands.get("freeflow").handler("context-control restore ctx:tool-1", ctx);
+    assert.equal(restoreResult.changed, false);
+    assert.match(notifications.at(-1).message, /Context Control restore: ok/);
+    await commands.get("freeflow").handler("context-control reset all", ctx);
+    assert.match(notifications.at(-1).message, /Context Control reset: ok/);
     const before = structuredClone(entries);
     await commands.get("freeflow").handler("context-control purge", ctx);
     assert.match(notifications.at(-1).message, /sidecar metadata purged/);
@@ -781,8 +812,6 @@ test("main Pi extension activates Context Control from exactly four config setti
     await writeFile(
       join(cwd, ".freeflow/config.json"),
       JSON.stringify({
-        contextVirtualization: true,
-        conversationHistory: true,
         contextControl: {
           enabled: true,
           cleanupMode: "automatic",
@@ -850,6 +879,323 @@ test("main Pi extension activates Context Control from exactly four config setti
     assert.equal(notifications.length, 0);
     assert.ok(statuses.length > 0);
   } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("main Pi extension proves replacement-only Context Control activation without legacy configuration", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "context-control-replacement-only-"));
+  const previousHome = process.env.HOME;
+  const handlers = new Map();
+  const commands = new Map();
+  const tools = [];
+  let activeTools = [];
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify(
+        {
+          contextControl: {
+            enabled: true,
+            cleanupMode: "model-only",
+            recoveryMode: "model-only",
+            recoveryScope: "active-branch",
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    const { entries, ctx: base } = createSession();
+    process.env.HOME = cwd;
+    execFileSync("git", ["-C", cwd, "init", "-q"]);
+    const canonicalEntries = structuredClone(entries);
+    const activeUser = entries.find((entry) => entry.id === "user-2");
+    const ctx = {
+      ...base,
+      cwd,
+      isIdle: () => true,
+      ui: {
+        notifications: [],
+        statuses: [],
+        notify(message, level) {
+          this.notifications.push({ message, level });
+        },
+        setStatus(_name, value) {
+          this.statuses.push(value);
+        },
+      },
+      sessionManager: {
+        ...base.sessionManager,
+        getSessionId: () => "session-1",
+        getLeafId: () => "user-2",
+        getBranch: () => entries,
+        getEntries: () => entries,
+        buildContextEntries: () => (activeUser ? [activeUser] : []),
+      },
+    };
+    const pi = {
+      registerTool(tool) {
+        const index = tools.findIndex((existing) => existing.name === tool.name);
+        if (index >= 0) tools[index] = tool;
+        else tools.push(tool);
+      },
+      registerCommand(name, definition) {
+        commands.set(name, definition);
+      },
+      registerShortcut() {},
+      on(event, handler) {
+        handlers.set(event, handler);
+      },
+      getAllTools() {
+        return tools.map((tool) => ({ name: tool.name }));
+      },
+      getActiveTools() {
+        return activeTools;
+      },
+      setActiveTools(names) {
+        activeTools = [...names];
+      },
+    };
+
+    freeflowExtension(pi);
+    await handlers.get("session_start")({}, ctx);
+    assert.ok(activeTools.includes("context_control"));
+    assert.ok(activeTools.includes("context_control_use_evidence"));
+    assert.ok(!activeTools.includes("context_control_decide"));
+    assert.ok(!activeTools.includes("freeflow_context"));
+
+    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+    assert.match(before.systemPrompt, /## Context Control Cue/);
+    assert.doesNotMatch(before.systemPrompt, /## Context Virtualization Cue|## Conversation History Cue/);
+
+    const provider = await handlers.get("context")({ messages: activeUser ? [activeUser.message] : [] }, ctx);
+    const runtimeState = provider.messages.findLast((message) => message.customType === "freeflow-runtime-state");
+    assert.match(runtimeState.content, /Context Control: active/);
+    assert.doesNotMatch(runtimeState.content, /Context Virtualization|Conversation History|Freeflow Context/);
+
+    const resources = await handlers.get("resources_discover")({ cwd }, ctx);
+    assert.ok(resources.skillPaths.some((path) => path.endsWith("/capabilities/context-control/SKILL.md")));
+    assert.ok(!resources.skillPaths.some((path) => /context-virtualization|conversation-history/.test(path)));
+
+    await commands.get("freeflow").handler("status", ctx);
+    const statusMessage = ctx.ui.notifications.at(-1).message;
+    assert.match(statusMessage, /context control:/i);
+    assert.doesNotMatch(statusMessage, /context: .*virtualization|history/i);
+
+    const contextTool = tools.find((tool) => tool.name === "context_control");
+    const search = await contextTool.execute("search", {
+      operation: "search",
+      query: "Inspect the file.",
+      kinds: ["user"],
+      includeVisible: true,
+    });
+    assert.equal(search.details.result.status, "ok");
+    assert.equal(search.details.result.hits[0].kind, "user");
+
+    const retrieved = await contextTool.execute("retrieve", {
+      operation: "retrieve",
+      handles: [search.details.result.hits[0].handle],
+    });
+    assert.equal(retrieved.details.result.status, "ok");
+    assert.equal(retrieved.details.result.items[0].kind, "user");
+    assert.match(retrieved.details.result.items[0].content, /Inspect the file/);
+
+    const cleaned = await contextTool.execute("cleanup", {
+      operation: "cleanup",
+      targets: [{ ref: "ctx:user-2", retained: "The user continued the task." }],
+    });
+    assert.equal(cleaned.details.result.status, "ok");
+    assert.deepEqual(cleaned.details.result.changed, ["ctx:user-2"]);
+
+    const recovered = await contextTool.execute("recover", {
+      operation: "recover",
+      need: { text: "Continue.", exactRequired: true, scope: { kinds: ["user"] } },
+    });
+    assert.equal(recovered.details.result.status, "recovered");
+    assert.equal(recovered.details.result.envelope.kind, "user");
+
+    await handlers.get("session_shutdown")({ reason: "test" });
+    assert.deepEqual(entries, canonicalEntries);
+    const sidecarFiles = await filesUnder(join(cwd, ".freeflow", "context-control"));
+    assert.ok(sidecarFiles.some((path) => path.endsWith("journal.jsonl")));
+    assert.ok(sidecarFiles.some((path) => path.endsWith("audit.jsonl")));
+    const persisted = (await Promise.all(sidecarFiles.map((path) => readFile(path, "utf8")))).join("\n");
+    assert.doesNotMatch(persisted, /export const VALUE = 1;/);
+    assert.doesNotMatch(persisted, /src\/a\.ts/);
+  } finally {
+    const shutdown = handlers.get("session_shutdown");
+    if (shutdown) await shutdown({ reason: "test" });
+    if (previousHome === undefined) delete process.env.HOME;
+    else process.env.HOME = previousHome;
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("main Pi extension leaves legacy context state inert and canonical", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "context-control-legacy-state-"));
+  const previousHome = process.env.HOME;
+  const handlers = new Map();
+  const tools = [];
+  let activeTools = [];
+  let currentBranch;
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify(
+        {
+          contextControl: {
+            enabled: true,
+            cleanupMode: "model-only",
+            recoveryMode: "model-only",
+            recoveryScope: "active-branch",
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    process.env.HOME = cwd;
+    execFileSync("git", ["-C", cwd, "init", "-q"]);
+
+    const { entries: baseEntries } = createSession();
+    const legacyProjection = {
+      type: "custom",
+      id: "legacy-projection",
+      parentId: "tool-2",
+      customType: "freeflow-context-projection",
+      data: {
+        version: 1,
+        actor: "model",
+        changes: [
+          {
+            source: { sessionId: "session-1", entryId: "tool-1", toolCallId: "call-1", toolName: "read" },
+            projection: {
+              mode: "archived",
+              retained: "LEGACY_CANONICAL_PAYLOAD_SHOULD_NOT_BE_COPIED",
+            },
+          },
+        ],
+      },
+    };
+    const legacyReset = {
+      type: "custom",
+      id: "legacy-reset",
+      parentId: "legacy-projection",
+      customType: "freeflow-context-projection",
+      data: { version: 1, actor: "user", reset: "all" },
+    };
+    const legacyOverrides = {
+      type: "custom",
+      id: "legacy-overrides",
+      parentId: "legacy-reset",
+      customType: "freeflow-session-overrides",
+      data: { overrides: { contextVirtualization: true, conversationHistory: true } },
+    };
+    const legacyCompaction = {
+      type: "compaction",
+      id: "legacy-compaction",
+      parentId: "legacy-overrides",
+      summary: "LEGACY_COMPACTION_PAYLOAD_SHOULD_NOT_BE_COPIED",
+      timestamp: "2026-09-02T00:01:00.000Z",
+    };
+    const activeBranch = [...baseEntries, legacyProjection, legacyReset, legacyOverrides, legacyCompaction];
+    const siblingBranch = [
+      baseEntries[0],
+      {
+        type: "message",
+        id: "legacy-sibling-user",
+        parentId: null,
+        timestamp: "2026-09-02T00:02:00.000Z",
+        message: { role: "user", content: "The divergent branch remains historical." },
+      },
+      {
+        type: "branch_summary",
+        id: "legacy-sibling-summary",
+        parentId: "legacy-sibling-user",
+        timestamp: "2026-09-02T00:02:01.000Z",
+        summary: "LEGACY_BRANCH_SUMMARY_PAYLOAD_SHOULD_NOT_BE_COPIED",
+      },
+    ];
+    const allEntries = [...activeBranch, ...siblingBranch.slice(1)];
+    const canonicalEntries = structuredClone(allEntries);
+    currentBranch = activeBranch;
+    const ctx = {
+      cwd,
+      ui: { notify() {}, setStatus() {} },
+      sessionManager: {
+        getSessionId: () => "session-1",
+        getLeafId: () => currentBranch.at(-1)?.id ?? null,
+        getBranch: () => currentBranch,
+        getEntries: () => allEntries,
+        buildContextEntries: () => currentBranch.filter((entry) => entry.type === "message"),
+      },
+    };
+    const pi = {
+      registerTool(tool) {
+        const index = tools.findIndex((existing) => existing.name === tool.name);
+        if (index >= 0) tools[index] = tool;
+        else tools.push(tool);
+      },
+      registerCommand() {},
+      registerShortcut() {},
+      on(event, handler) {
+        handlers.set(event, handler);
+      },
+      getAllTools: () => tools.map((tool) => ({ name: tool.name })),
+      getActiveTools: () => activeTools,
+      setActiveTools: (names) => {
+        activeTools = [...names];
+      },
+    };
+
+    freeflowExtension(pi);
+    await handlers.get("session_start")({}, ctx);
+    const capabilityState = await readCapabilityState(cwd);
+    assert.equal("contextVirtualization" in capabilityState, false);
+    assert.equal("conversationHistory" in capabilityState, false);
+    assert.equal(capabilityState.contextControl.effective, true);
+    assert.ok(activeTools.includes("context_control"));
+    assert.ok(!activeTools.includes("freeflow_context"));
+
+    const contextTool = tools.find((tool) => tool.name === "context_control");
+    const originalUser = activeBranch.find((entry) => entry.id === "user-2").message;
+    const originalTool = activeBranch.find((entry) => entry.id === "tool-1").message;
+    const firstContext = await handlers.get("context")({ messages: [originalUser, originalTool] }, ctx);
+    assert.deepEqual(firstContext.messages.slice(0, 2), [originalUser, originalTool]);
+    const initialStatus = await contextTool.execute("status", { operation: "status" });
+    assert.deepEqual(initialStatus.details.result.residency, {});
+
+    const cleaned = await contextTool.execute("cleanup", {
+      operation: "cleanup",
+      targets: [{ ref: "ctx:user-2", retained: "The current user continuation." }],
+    });
+    assert.equal(cleaned.details.result.status, "ok");
+
+    currentBranch = siblingBranch;
+    await handlers.get("session_tree")({}, ctx);
+    await handlers.get("session_compact")({}, ctx);
+    const siblingContext = await handlers.get("context")({ messages: [siblingBranch[1].message] }, ctx);
+    assert.deepEqual(siblingContext.messages[0], siblingBranch[1].message);
+    await handlers.get("session_shutdown")({ reason: "test" }, ctx);
+
+    assert.deepEqual(allEntries, canonicalEntries);
+    const sidecarFiles = await filesUnder(join(cwd, ".freeflow", "context-control"));
+    assert.ok(sidecarFiles.some((path) => path.endsWith("journal.jsonl")));
+    assert.ok(sidecarFiles.some((path) => path.endsWith("audit.jsonl")));
+    const persisted = (await Promise.all(sidecarFiles.map((path) => readFile(path, "utf8")))).join("\n");
+    assert.doesNotMatch(persisted, /LEGACY_CANONICAL_PAYLOAD_SHOULD_NOT_BE_COPIED/);
+    assert.doesNotMatch(persisted, /LEGACY_COMPACTION_PAYLOAD_SHOULD_NOT_BE_COPIED/);
+    assert.doesNotMatch(persisted, /LEGACY_BRANCH_SUMMARY_PAYLOAD_SHOULD_NOT_BE_COPIED/);
+  } finally {
+    const shutdown = handlers.get("session_shutdown");
+    if (shutdown) await shutdown({ reason: "test" });
+    if (previousHome === undefined) delete process.env.HOME;
+    else process.env.HOME = previousHome;
     await rm(cwd, { recursive: true, force: true });
   }
 });
