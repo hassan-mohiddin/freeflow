@@ -75,7 +75,10 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   assert.match(core, /latest Freeflow Runtime State/);
   assert.doesNotMatch(cognitiveRouting, /When Cognitive Routing is active and its skill is absent/);
   assert.match(cognitiveRouting, /A Runtime State refresh is host context, not a user interruption/);
-  assert.match(cognitiveRouting, /`Control` and `Profile` report the host's current compute state only/);
+  assert.match(
+    cognitiveRouting,
+    /`Control` and `Profile` in the latest Runtime State report current compute state, not Yield, Delegate, `ACT_BOUNDED`, or boundary state/,
+  );
   assert.doesNotMatch(
     conversationHistory,
     /Current user direction, live source truth, and present runtime state remain authoritative/,
