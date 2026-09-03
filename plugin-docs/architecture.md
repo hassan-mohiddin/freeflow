@@ -109,8 +109,11 @@ A review report never edits. The active agent adjudicates and may request correc
 
 Track Work owns one complete model-facing method and one deterministic executable boundary:
 
-- `skills/track-work/SKILL.md` teaches continuity, slice, authority, and settlement judgment;
-- `skills/track-work/scripts/working-record.mjs` owns schema-v2 parsing, views, transitions, IDs, timestamps, locking, validation, and atomic persistence.
+- `skills/track-work/SKILL.md` teaches continuity, state reconstruction, Slice lifecycle, authority, and settlement judgment;
+- `skills/track-work/references/working-record-format.md` defines the Schema 4 Markdown structure and direct-edit boundary;
+- `skills/track-work/scripts/working-record.mjs` owns Schema 4 parsing, two views, deterministic lifecycle transitions, ID allocation, validation, and atomic persistence.
+
+Schema 4 is an intentional breaking change from the prior Schema 2/3 representations. Existing ignored records remain untouched and are not automatically migrated; later compatibility work must select records explicitly and preserve copy-first recovery evidence.
 
 After compaction, summarization, clear, resume, or session navigation, Workflow requests the bounded `resume` view, compares it with the current conversation and live state, and retrieves exact history only when needed. Conversation branches may write memory but cannot create authority for another branch.
 

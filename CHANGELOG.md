@@ -6,6 +6,7 @@
 
 - Removes Freeflow's selectable modes, mode commands, session mode state, and `defaultMode` configuration; all work now uses one adaptive Workflow.
 - Removes the `interactionContract` and `skills` configuration toggles. The separately editable Interaction Contract and 25 base skills are always present whenever Freeflow is enabled, while optional capabilities remain independently gated.
+- Replaces the current Schema 3 Track Work package with compact Schema 4 Markdown task memory and lifecycle commands. Existing Schema 2/3 records remain untouched and require a later explicit migration.
 
 ### Added
 

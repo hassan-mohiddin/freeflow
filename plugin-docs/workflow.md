@@ -101,7 +101,7 @@ Effects are cumulative. Passive observation may support an inquiry when safe and
 
 Artifacts have distinct jobs:
 
-- **Working Record:** living task context, one current slice, proposed work, decisions, evidence pointers, history, and next action.
+- **Working Record:** living task context, one Current Slice, ordered Future Work, Decisions, Slice-local Evidence/Blockers, History, Notes, and the next action.
 - **Spec:** stable accepted content, behavior, boundaries, and uncertainty.
 - **Plan:** stable ordered execution strategy when dependencies, mechanism, and checks can be stated without guessing.
 - **Handoff:** point-in-time continuation context for a pause or transfer.

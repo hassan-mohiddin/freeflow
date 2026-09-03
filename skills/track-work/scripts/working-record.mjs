@@ -1,600 +1,275 @@
 #!/usr/bin/env node
 
-import { fileURLToPath } from "node:url";
-import { resolve } from "node:path";
-import { applyCommand } from "./command-runner.mjs";
+import { rm } from "node:fs/promises";
+import { cwd } from "node:process";
+import { dirname } from "node:path";
+import { canonicalLines, joinLines, slugify, TASK_STATES } from "./lib/format.mjs";
+import { parseDocument, validateDocument } from "./lib/document.mjs";
+import { runTransition } from "./lib/transitions.mjs";
 import {
-  CommandContractError,
-  cliOptionsForCommand,
-  commandNames,
-  getCommandDefinition,
-  renderCommandSchema,
-  schemaForCommand,
-  validateCommandInput,
-} from "./command-registry.mjs";
-import { MarkdownCodecError, renderRecord } from "./markdown-codec.mjs";
-import { OperationError } from "./lifecycle-operations.mjs";
-import { initializeRecord, inspectLock, loadRecord, persistRecord, PersistenceError } from "./persistence.mjs";
-import { CompressionError, compressRecord } from "./compression.mjs";
-import { MigrationError, migrateCopy } from "./migration.mjs";
-import { RecoveryError, reconcileRecovery, recoverStaleLock } from "./recovery.mjs";
-import { ViewError, renderView } from "./views.mjs";
-import { sha256 } from "./model.mjs";
-import { WorkspaceError, pathInside } from "./workspace.mjs";
+  createRecordPath,
+  displayPath,
+  readInput,
+  readRecord,
+  resolveRecordPath,
+  writeInitialAtomically,
+} from "./lib/store.mjs";
+import { renderFull, renderResume } from "./lib/views.mjs";
 
-const VIEW_NAMES = new Set(["resume", "discuss", "execute", "recent", "entity", "full"]);
-const MUTATION_COMMANDS = new Set(commandNames());
-const SAFE_MESSAGES = {
-  "unknown-command": "The command is not supported.",
-  "unknown-option": "The command option is not supported.",
-  "missing-option-value": "The command option requires a value.",
-  "missing-option": "A required command option is missing.",
-  "duplicate-option": "The command option may be supplied once.",
-  "invalid-option": "The option is not valid for this command.",
-  "invalid-input-json": "The input is not valid JSON.",
-  "invalid-input": "The command input is invalid.",
-  "invalid-type": "A value has the wrong type.",
-  "empty-field": "A required value is empty.",
-  "missing-field": "A required value is missing.",
-  "unknown-field": "The input contains an unsupported field.",
-  "alias-rejected": "The input uses a retired alias.",
-  "invalid-id": "An ID has the wrong format.",
-  "invalid-reference": "A reference has the wrong shape or kind.",
-  "invalid-enum": "A value is not one of the supported choices.",
-  "proposal-form": "Proposal start cannot include direct-start fields.",
-  "direct-form": "Direct start requires its complete declaration.",
-  "legacy-record": "The record uses a legacy schema and is read-only.",
-  "unsupported-schema": "The record uses an unsupported schema.",
-  "malformed-record": "The record Markdown is malformed.",
-  "invalid-record": "The record failed schema validation.",
-  "record-unavailable": "The record could not be read.",
-  "missing-record": "A record path is required.",
-  "invalid-view": "The requested view is not supported.",
-  "invalid-limit": "The view limit is invalid.",
-  "missing-entity": "The requested entity does not exist.",
-  "candidate-validation": "The proposed candidate violates the semantic model.",
-  "candidate-validation-failure": "The proposed candidate violates the semantic model.",
-  "candidate-roundtrip-failure": "The proposed candidate changed during Markdown round-trip.",
-  "invalid-expected-sha": "The expected SHA-256 is invalid.",
-  "stale-sha": "The record changed since the expected SHA was read.",
-  "stale-source": "The record changed before publication.",
-  "recovery-required": "Recovery evidence must be reconciled before mutation.",
-  "recovery-marker-failure": "Publication is uncertain and recovery evidence could not be recorded.",
-  "recovery-validation-failure": "Fresh recovery validation did not establish a safe state.",
-  "recovery-marker-changed": "Recovery evidence changed before cleanup.",
-  "recovery-cleanup-failure": "Recovery evidence could not be cleaned up.",
-  "stale-lock": "The mutation lock is stale and requires explicit recovery.",
-  "stale-lock-changed": "The stale lock changed before recovery.",
-  "lock-conflict": "Another mutation holds the record lock.",
-  "lock-metadata-invalid": "The record lock metadata is invalid.",
-  "lock-recovery-failure": "The stale lock could not be safely recovered.",
-  "lock-release-failure": "The record lock could not be released.",
-  "tracked-task-path": "The task record is tracked and cannot be mutated.",
-  "unignored-task-path": "The task record is not in an ignored task path.",
-  "unsafe-path": "The record path is outside the safe task workspace.",
-  "unsafe-symlink": "The task path contains a symlink.",
-  "task-already-exists": "The task directory already exists.",
-  "invalid-sha": "The source SHA-256 is invalid.",
-  "multiline-field": "A command value must be single-line.",
-  "unsupported-scope": "The compression scope is not supported.",
-  "semantic-change": "Compression would change semantic record state.",
-  "compression-artifacts-exist": "Compression evidence already exists for this record.",
-  "compression-conflict": "Compression recovery found conflicting record state.",
-  "rollback-conflict": "Compression rollback found conflicting evidence.",
-  "forward-recovery-conflict": "Compression forward recovery found conflicting record state.",
-  "rollback-unavailable": "Compression rollback evidence is unavailable.",
-  "forward-recovery-unavailable": "Compression forward recovery evidence is unavailable.",
-};
+function usage() {
+  return [
+    "Usage:",
+    "  working-record.mjs init --root <path> --name <task name> [--input <file|->]",
+    "  working-record.mjs view resume|full --record <record.md>",
+    "  working-record.mjs validate --record <record.md>",
+    "  working-record.mjs <slice|checkpoint|decision|task> <operation> ...",
+  ].join("\n");
+}
 
-export class PublicBoundaryError extends Error {
-  constructor(status, errorClass, code, message, details = {}) {
+const COMMAND_HELP = new Map([
+  ["init", "Usage: init --root <path> --name <task name> [--state <state>] [--input <file|->]"],
+  ["view", "Usage: view resume|full --record <record.md>"],
+  ["validate", "Usage: validate --record <record.md>"],
+  [
+    "slice propose",
+    "Usage: slice propose --record <record.md> --title <title> --input <file|->\nInput: Intended result required; Type, Expected evidence, and Dependencies optional.",
+  ],
+  [
+    "slice start",
+    "Usage: slice start --record <record.md> --title <proposal title> --next-action <text> --input <file|->\nInput: Authority source, Scope, Expected evidence, Stop condition, and Starting state required.",
+  ],
+  [
+    "slice start-direct",
+    "Usage: slice start-direct --record <record.md> --title <title> --next-action <text> --input <file|->\nInput: Intended result, Authority source, Scope, Expected evidence, Stop condition, and Starting state required; Future Work is unchanged.",
+  ],
+  [
+    "slice pause",
+    "Usage: slice pause --record <record.md> --reason <reason> --resume-when <condition> --next-action <text>",
+  ],
+  ["slice resume", "Usage: slice resume --record <record.md> --resolution <source> --next-action <text>"],
+  [
+    "slice close",
+    "Usage: slice close --record <record.md> --state <completed|blocked|abandoned> --next-action <text> --input <file|->\nInput: Result, Evidence and limits, and Task effect required.",
+  ],
+  [
+    "slice reopen",
+    "Usage: slice reopen --record <record.md> --id <S-NNN> --next-action <text> --input <file|->\nInput: fresh Authority source, Scope, Expected evidence, Stop condition, and Starting state required.",
+  ],
+  [
+    "checkpoint propose",
+    "Usage: checkpoint propose --record <record.md> --title <title> --input <file|->\nInput: Type, Condition, and Applies to required.",
+  ],
+  [
+    "checkpoint activate",
+    "Usage: checkpoint activate --record <record.md> --title <proposal title> [--next-action <text>]",
+  ],
+  ["checkpoint defer", "Usage: checkpoint defer --record <record.md> --id <C-NNN> [--next-action <text>]"],
+  ["checkpoint resume", "Usage: checkpoint resume --record <record.md> --id <C-NNN> [--next-action <text>]"],
+  [
+    "checkpoint close",
+    "Usage: checkpoint close --record <record.md> --id <C-NNN> --state <completed|cancelled|replaced> [--next-action <text>] --input <file|->",
+  ],
+  ["decision add", "Usage: decision add --record <record.md> --title <title> --input <file|->"],
+  [
+    "decision supersede",
+    "Usage: decision supersede --record <record.md> --id <D-NNN> --title <title> --input <file|->",
+  ],
+  ["decision retire", "Usage: decision retire --record <record.md> --id <D-NNN> --reason <reason>"],
+  [
+    "task set-state",
+    "Usage: task set-state --record <record.md> --state <active|paused|completed|abandoned> --next-action <text>",
+  ],
+]);
+
+function commandHelp(command, operation) {
+  return `${COMMAND_HELP.get([command, operation].filter(Boolean).join(" ")) ?? COMMAND_HELP.get(command) ?? usage()}\n`;
+}
+
+class CliError extends Error {
+  constructor(message, exitCode = 1) {
     super(message);
-    this.name = "PublicBoundaryError";
-    this.status = status;
-    this.errorClass = errorClass;
-    this.code = code;
-    this.details = details;
+    this.name = "CliError";
+    this.exitCode = exitCode;
   }
 }
 
-function fail(status, errorClass, code, message, details = {}) {
-  throw new PublicBoundaryError(status, errorClass, code, message, details);
-}
-
-function parsePublicArgs(args) {
-  const [command, ...rest] = args;
-  if (!command || command === "--help" || command === "-h") return { command: null, help: true, options: {} };
-  const cli = cliOptionsForCommand(command);
-  const optionDefinitions = new Map(cli.options.map((option) => [option.name, option]));
+function parseOptions(args) {
   const options = {};
-  for (let index = 0; index < rest.length; index += 1) {
-    const argument = rest[index];
-    const equals = argument.indexOf("=");
-    const key = equals >= 0 ? argument.slice(0, equals) : argument;
-    const definition = optionDefinitions.get(key);
-    if (!definition) fail("failed", "invalid-input", "unknown-option", `Unknown command option: ${key}`);
-    if (definition.kind === "flag") {
-      if (equals >= 0) fail("failed", "invalid-input", "invalid-option", `${key} does not accept a value`);
-      if (Object.hasOwn(options, key))
-        fail("failed", "invalid-input", "duplicate-option", `Option may be supplied once: ${key}`);
-      options[key] = true;
+  const positionals = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const token = args[index];
+    if (!token.startsWith("--")) {
+      positionals.push(token);
       continue;
     }
-    if (Object.hasOwn(options, key))
-      fail("failed", "invalid-input", "duplicate-option", `Option may be supplied once: ${key}`);
-    const value = equals >= 0 ? argument.slice(equals + 1) : rest[++index];
-    if (value === undefined || (value.startsWith("--") && value !== "-"))
-      fail("failed", "invalid-input", "missing-option-value", `Option requires a value: ${key}`);
-    options[key] = value;
-  }
-  if (!Object.hasOwn(options, "--help"))
-    for (const required of cli.required)
-      if (!Object.hasOwn(options, required))
-        fail("failed", "invalid-input", "missing-option", `Option requires a value: ${required}`);
-  return { command, help: false, options };
-}
-
-function usage(command = null) {
-  if (command) return `${renderCommandSchema(command)}\n`;
-  return (
-    [
-      "Usage: working-record.mjs <command> [options]",
-      "",
-      "Commands: init, view, schema, validate, inspect, reconcile, unlock, migrate, compress, or a registered lifecycle command.",
-      "Run <command> --help or schema --command <command> for generated CLI and JSON input details.",
-      "Views emit direct Markdown. Schema, validation, inspection, recovery, and mutation results emit JSON transport.",
-    ].join("\n") + "\n"
-  );
-}
-
-async function readStdin() {
-  const chunks = [];
-  for await (const chunk of process.stdin) chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
-  return Buffer.concat(chunks).toString("utf8");
-}
-
-async function readInput(options) {
-  if (!Object.hasOwn(options, "--input")) return {};
-  const text = options["--input"] === "-" ? await readStdin() : options["--input"];
-  try {
-    return JSON.parse(text);
-  } catch {
-    fail("failed", "invalid-input", "invalid-input-json", "Input is not valid JSON");
-  }
-}
-
-function safeMessage(code) {
-  return SAFE_MESSAGES[code] ?? "The operation was rejected.";
-}
-
-function safeErrors(error) {
-  let source;
-  if (error instanceof CommandContractError) source = error.errors;
-  else if (Array.isArray(error?.details?.errors)) source = error.details.errors;
-  else source = [error];
-  return source.map((item) => ({
-    code: item.code ?? error.code ?? "operation-failed",
-    message: safeMessage(item.code ?? error.code),
-    ...(item.path ? { path: item.path } : {}),
-  }));
-}
-
-function errorCode(error) {
-  return error instanceof CommandContractError
-    ? (error.errors[0]?.code ?? "invalid-input")
-    : (error.code ?? "view-failed");
-}
-
-function errorEnvelope(command, error) {
-  const code = errorCode(error);
-  let status = "failed";
-  let errorClass = "internal-error";
-  if (error instanceof PublicBoundaryError) {
-    status = error.status;
-    errorClass = error.errorClass;
-  } else if (error instanceof CommandContractError) {
-    errorClass = "invalid-input";
-  } else if (error instanceof OperationError) {
-    status = "candidate-invalid";
-    errorClass = "candidate-invalid";
-  } else if (error instanceof CompressionError) {
-    if (error.code === "recovery-required") status = "recoverable";
-    errorClass = "compression-failure";
-  } else if (error instanceof PersistenceError) {
-    if (error.status === "committed-unconfirmed") {
-      status = "committed-unconfirmed";
-      errorClass = "committed-unconfirmed";
-    } else if (error.code === "recovery-required" || error.code === "stale-lock") {
-      status = "recoverable";
-      errorClass = error.code;
-    } else if (error.code === "legacy-record") {
-      status = "legacy";
-      errorClass = "legacy-record";
-    } else if (error.code === "unsupported-schema") {
-      status = "unsupported";
-      errorClass = "unsupported-schema";
-    } else if (error.code === "invalid-record" || error.code === "malformed-record") {
-      errorClass = "malformed-record";
-    } else {
-      errorClass = "persistence-failure";
+    if (options[token] !== undefined) throw new CliError(`Duplicate option: ${token}`);
+    if (token === "--help") {
+      options[token] = true;
+      continue;
     }
-  } else if (error instanceof RecoveryError) {
-    status = ["recovery-required", "stale-lock", "stale-lock-changed", "lock-recovery-failure"].includes(code)
-      ? "recoverable"
-      : "failed";
-    errorClass = "recovery-failure";
-  } else if (error instanceof ViewError || error instanceof WorkspaceError || error instanceof MarkdownCodecError) {
-    errorClass = "invalid-input";
+    const value = args[index + 1];
+    if (value === undefined || value.startsWith("--")) throw new CliError(`Missing value for ${token}`);
+    options[token] = value;
+    index += 1;
   }
-  return { status, command, errorClass, errors: safeErrors(error) };
+  return { options, positionals };
 }
 
-function metadata(record, sourceText, confirmation, path) {
-  return {
-    path,
-    confirmation,
-    sha256: sha256(sourceText),
-    schemaVersion: record.schemaVersion,
-    taskId: record.record.id,
-    taskState: record.record.state,
-    currentSliceId: record.current.currentSliceId,
-  };
-}
-
-function rootFor(options) {
-  return resolve(options["--root"] ?? process.cwd());
-}
-
-function requireRecord(options) {
-  if (typeof options["--record"] !== "string" || !options["--record"])
-    fail("failed", "invalid-input", "missing-record", "A record path is required");
-  return options["--record"];
-}
-
-async function runInit(options) {
-  if (typeof options["--name"] !== "string" || !options["--name"])
-    fail("failed", "invalid-input", "missing-field", "init requires --name");
-  const input = await readInput(options);
-  validateCommandInput("init", input);
-  const result = await initializeRecord(rootFor(options), options["--name"], input, {
-    dryRun: options["--dry-run"] === true,
-  });
-  const text = result.text ?? result.candidateText;
-  const record = result.record ?? result.candidate;
-  return {
-    format: "json",
-    exitCode: 0,
-    envelope: {
-      status: result.status,
-      command: "init",
-      operation: "init",
-      record: metadata(record, text, result.status === "dry-run" ? "candidate" : "confirmed", result.path),
-      candidateText: text,
-    },
-  };
-}
-
-async function runView(options) {
-  const view = options["--view"];
-  if (!VIEW_NAMES.has(view)) fail("failed", "invalid-input", "invalid-view", "A supported view is required");
-  if (view === "entity" && options["--entity"] === undefined)
-    fail("failed", "invalid-input", "missing-entity", "Entity view requires --entity");
-  if (view !== "entity" && options["--entity"] !== undefined)
-    fail("failed", "invalid-input", "invalid-option", "--entity is only valid for entity view");
-  if (view !== "recent" && options["--limit"] !== undefined)
-    fail("failed", "invalid-input", "invalid-option", "--limit is only valid for recent view");
-  const root = rootFor(options);
-  const loaded = await loadRecord(root, requireRecord(options));
-  if (loaded.recovery.status !== "missing" && (view === "resume" || view === "execute"))
-    fail(
-      "recoverable",
-      "recovery-required",
-      "recovery-required",
-      "Reconcile recovery before requesting a continuation view",
-    );
-  const limit = options["--limit"] === undefined ? undefined : Number(options["--limit"]);
-  const content = renderView(loaded.record, view, {
-    ...(limit === undefined ? {} : { limit }),
-    ...(options["--entity"] === undefined ? {} : { entityId: options["--entity"] }),
-    recordSha: loaded.sha256,
-  });
-  return { format: "text", exitCode: 0, content };
-}
-
-async function runSchema(options) {
-  const name = options["--command"] ?? "all";
-  const schema = schemaForCommand(name);
-  return {
-    format: "json",
-    exitCode: 0,
-    envelope: {
-      status: "confirmed",
-      command: "schema",
-      operation: "schema",
-      commandName: name,
-      schema,
-      help: renderCommandSchema(name),
-    },
-  };
-}
-
-async function runValidate(options) {
-  const loaded = await loadRecord(rootFor(options), requireRecord(options));
-  const recoverable = loaded.recovery.status !== "missing";
-  return {
-    format: "json",
-    exitCode: recoverable ? 2 : 0,
-    envelope: {
-      status: recoverable ? "recoverable" : "confirmed",
-      command: "validate",
-      operation: "validate",
-      record: { ...metadata(loaded.record, loaded.text, "confirmed", loaded.path), recovery: loaded.recovery },
-    },
-  };
-}
-
-async function runInspect(options) {
-  const loaded = await loadRecord(rootFor(options), requireRecord(options));
-  const canonicalText = renderRecord(loaded.record);
-  return {
-    format: "json",
-    exitCode: 0,
-    envelope: {
-      status: loaded.recovery.status === "missing" ? "confirmed" : "recoverable",
-      command: "inspect",
-      operation: "inspect",
-      record: { ...metadata(loaded.record, loaded.text, "confirmed", loaded.path), recovery: loaded.recovery },
-      lock: await inspectLock(loaded.path),
-      representation: "schema-v3-markdown",
-      bytes: Buffer.byteLength(loaded.text, "utf8"),
-      canonical: canonicalText === loaded.text,
-    },
-  };
-}
-
-async function runReconcile(options) {
-  const root = rootFor(options);
-  const path = requireRecord(options);
-  const result = await reconcileRecovery(root, path);
-  const safeRecovery = {
-    status: result.status,
-    ...(result.classification ? { classification: result.classification } : {}),
-    ...(result.actualSha256 ? { actualSha256: result.actualSha256 } : {}),
-    ...(result.quarantinePaths?.length ? { quarantinePaths: result.quarantinePaths } : {}),
-  };
-  const confirmed = result.status === "recovered" || result.status === "no-recovery";
-  return {
-    format: "json",
-    exitCode: confirmed ? 0 : 2,
-    envelope: {
-      status: confirmed ? "confirmed" : "recoverable",
-      command: "reconcile",
-      operation: "reconcile",
-      recovery: safeRecovery,
-    },
-  };
-}
-
-async function runUnlock(options) {
-  const input = await readInput(options);
-  validateCommandInput("unlock", input);
-  const result = await recoverStaleLock(rootFor(options), requireRecord(options), input);
-  return {
-    format: "json",
-    exitCode: 0,
-    envelope: { status: "recovered", command: "unlock", operation: "unlock", lock: result.lock },
-  };
-}
-
-function resolveMigrationPath(root, value, label) {
-  const path = resolve(root, value);
-  if (!pathInside(root, path))
-    fail("failed", "invalid-input", "unsafe-path", `${label} path must remain inside --root`);
-  return path;
-}
-
-function migrationCoverage(result) {
-  const counts = {
-    sourceUnits: result.coverage.length,
-    contentUnits: 0,
-    represented: 0,
-    normalized: 0,
-    verbatim: 0,
-    deferred: 0,
-  };
-  for (const unit of result.coverage) {
-    if (unit.kind === "content") counts.contentUnits += 1;
-    counts[unit.disposition] += 1;
+function allowedOptions(command, operation) {
+  const common = new Set(["--root", "--record", "--input", "--help"]);
+  const withNextAction = new Set([...common, "--next-action"]);
+  if (command === "init") return new Set(["--root", "--name", "--state", "--input", "--help"]);
+  if (command === "view") return new Set(["--root", "--record", "--view", "--help"]);
+  if (command === "validate") return new Set(["--root", "--record", "--help"]);
+  if (command === "slice") {
+    if (operation === "propose") return new Set([...common, "--title"]);
+    if (operation === "start" || operation === "start-direct") return new Set([...withNextAction, "--title"]);
+    if (operation === "pause") return new Set([...withNextAction, "--reason", "--resume-when"]);
+    if (operation === "resume") return new Set([...withNextAction, "--resolution"]);
+    if (operation === "close") return new Set([...withNextAction, "--state"]);
+    if (operation === "reopen") return new Set([...withNextAction, "--id", "--title"]);
   }
-  return counts;
+  if (command === "checkpoint") {
+    if (operation === "propose") return new Set([...common, "--title"]);
+    if (operation === "activate") return new Set([...withNextAction, "--title"]);
+    if (operation === "defer" || operation === "resume") return new Set([...withNextAction, "--id"]);
+    if (operation === "close") return new Set([...withNextAction, "--id", "--state"]);
+  }
+  if (command === "decision") {
+    if (operation === "add") return new Set([...common, "--title"]);
+    if (operation === "supersede") return new Set([...common, "--id", "--title"]);
+    if (operation === "retire") return new Set(["--root", "--record", "--id", "--reason", "--input", "--help"]);
+  }
+  if (command === "task" && operation === "set-state")
+    return new Set(["--root", "--record", "--state", "--next-action", "--help"]);
+  return null;
 }
 
-function migrationEnvelope(result) {
-  return {
-    status: result.status,
-    command: "migrate",
-    operation: "migration.copy",
-    representation: result.inventory.schema.kind,
-    sourcePath: result.sourcePath,
-    sourceSha256: result.sourceSha256,
-    candidateSha256: result.candidateSha256,
-    destinationPath: result.destinationPath,
-    snapshotPath: result.snapshotPath,
-    manifestPath: result.manifestPath,
-    artifactsWritten: result.status === "updated",
-    coverage: migrationCoverage(result),
-  };
+function validateCommandOptions(command, operation, options) {
+  const allowed = allowedOptions(command, operation);
+  if (!allowed) throw new CliError(`Unknown command: ${command}${operation ? ` ${operation}` : ""}`);
+  for (const name of Object.keys(options)) {
+    if (!allowed.has(name))
+      throw new CliError(`Unknown option ${name} for ${command}${operation ? ` ${operation}` : ""}`);
+  }
 }
 
-function migrationFailure(error) {
-  const partial = Array.isArray(error.details?.deferredContentUnits);
-  const messages = {
-    "stale-sha": "The migration source SHA does not match the supplied source.",
-    "stale-source": "The migration source changed before publication.",
-    "migration-blocked": partial
-      ? "The migration candidate has deferred source content."
-      : "The source cannot be safely mapped to schema-v3.",
-    "unsupported-source": "The source representation is not supported by this migration boundary.",
-    "unsafe-path": "The migration source path is unsafe.",
-    "same-source-destination": "Migration source and destination must differ.",
-  };
-  return {
-    format: "json",
-    exitCode: partial ? 2 : 1,
-    envelope: {
-      status: partial ? "partial" : "failed",
-      command: "migrate",
-      operation: "migration.copy",
-      errorClass: partial ? "partial" : "migration-failure",
-      errors: [
-        { code: error.code ?? "migration-failure", message: messages[error.code] ?? "The migration was rejected." },
-      ],
-    },
-  };
+function requireOption(options, name) {
+  const value = options[name];
+  if (!value) throw new CliError(`Missing required option: ${name}`);
+  return value;
 }
 
-async function runMigration(options) {
-  const input = await readInput(options);
-  validateCommandInput("migrate", input);
-  const root = rootFor(options);
-  const sourcePath = resolveMigrationPath(root, input.sourcePath, "source");
-  const destinationPath = resolveMigrationPath(root, input.destinationPath, "destination");
-  const migrationOptions = { authoritySource: input.authoritySource, expectedSha: input.sourceSha256 };
+function rootOption(options) {
+  return options["--root"] ?? cwd();
+}
+
+function initialContent(skeletonLines, input) {
+  if (!input.trim()) return joinLines(skeletonLines, "\n");
+  const inputLines = input.replace(/\r\n?/g, "\n").split("\n");
+  const targets = new Map();
+  const names = [
+    "Goal",
+    "What defines this task",
+    "Settled",
+    "Tentative",
+    "Open",
+    "Current direction",
+    "Boundaries",
+    "Next useful action",
+  ];
+  const allowed = new Set(names);
+  for (let index = 0; index < inputLines.length; index += 1) {
+    const levelThree = /^### (.+?)\s*$/.exec(inputLines[index]);
+    if (levelThree) {
+      const name = levelThree[1];
+      if (!allowed.has(name)) throw new CliError(`Unknown initialization heading: ${name}`);
+      if (targets.has(name)) throw new CliError(`Duplicate initialization heading: ${name}`);
+      const content = [];
+      for (let next = index + 1; next < inputLines.length; next += 1) {
+        if (/^### /.test(inputLines[next]) || /^## /.test(inputLines[next])) break;
+        content.push(inputLines[next]);
+      }
+      targets.set(name, content);
+      continue;
+    }
+    if (/^## /.test(inputLines[index])) throw new CliError(`Unknown initialization heading: ${inputLines[index]}`);
+  }
+  const output = [...skeletonLines];
+  for (const name of names) {
+    const content = targets.get(name);
+    if (!content) continue;
+    const headingIndex = output.findIndex((line) => line === `### ${name}`);
+    if (headingIndex < 0) continue;
+    let end = headingIndex + 1;
+    while (end < output.length && !/^### |^## /.test(output[end])) end += 1;
+    const trimmed = [...content];
+    while (trimmed.length && trimmed[0].trim() === "") trimmed.shift();
+    while (trimmed.length && trimmed[trimmed.length - 1].trim() === "") trimmed.pop();
+    output.splice(headingIndex + 1, end - headingIndex - 1, "", ...trimmed, "");
+  }
+  return joinLines(output, "\n");
+}
+
+async function initialize(options) {
+  const root = rootOption(options);
+  const name = requireOption(options, "--name");
+  const state = options["--state"] ?? "active";
+  if (!TASK_STATES.has(state)) throw new CliError(`Invalid task state: ${state}`);
+  const input = await readInput(options["--input"], cwd());
+  const text = initialContent(canonicalLines(name, state), input);
+  parseDocument(text);
+  const created = await createRecordPath(root, name, slugify(name));
   try {
-    const dryRun = await migrateCopy(root, sourcePath, destinationPath, { ...migrationOptions, dryRun: true });
-    if (options["--dry-run"] === true || dryRun.status === "partial")
-      return {
-        format: "json",
-        exitCode: dryRun.status === "partial" ? 2 : 0,
-        envelope: migrationEnvelope({ ...dryRun, status: dryRun.status }),
-      };
-    const applied = await migrateCopy(root, sourcePath, destinationPath, migrationOptions);
-    return { format: "json", exitCode: 0, envelope: migrationEnvelope(applied) };
+    await writeInitialAtomically(root, created.path, text);
   } catch (error) {
-    if (error instanceof MigrationError) return migrationFailure(error);
+    if (error?.exitCode !== 2) await rm(dirname(created.path), { recursive: true, force: true }).catch(() => undefined);
     throw error;
   }
+  return `${created.path}\n`;
 }
 
-function compressionEnvelope(result) {
-  return {
-    status: result.status,
-    command: "compress",
-    operation: "compression.canonical-markdown",
-    scope: result.scope,
-    representation: "schema-v3-markdown",
-    recordPath: result.recordPath,
-    sourceSha256: result.sourceSha256,
-    candidateSha256: result.candidateSha256,
-    artifactsWritten: result.status === "updated",
-    ...(result.status === "updated" ? { snapshotPath: result.snapshotPath, manifestPath: result.manifestPath } : {}),
-  };
+async function readExisting(options) {
+  const root = rootOption(options);
+  const recordOption = requireOption(options, "--record");
+  const loaded = await readRecord(root, resolveRecordPath(root, recordOption));
+  return { root, ...loaded };
 }
 
-async function runCompression(options) {
-  const input = await readInput(options);
-  validateCommandInput("compress", input);
-  const result = await compressRecord(rootFor(options), requireRecord(options), {
-    scope: input.scope,
-    expectedSha: input.sourceSha256,
-    authoritySource: input.authoritySource,
-    dryRun: options["--dry-run"] === true,
-  });
-  return { format: "json", exitCode: 0, envelope: compressionEnvelope(result) };
-}
-
-function runSpecialBoundary(command) {
-  const definition = getCommandDefinition(command);
-  return {
-    format: "json",
-    exitCode: 2,
-    envelope: {
-      status: "deferred",
-      command,
-      operation: definition.operation,
-      specialBoundary: definition.specialBoundary,
-      errors: [
-        {
-          code: "special-boundary",
-          message: `${command} requires its dedicated ${definition.specialBoundary} boundary`,
-        },
-      ],
-    },
-  };
-}
-
-async function runMutation(command, options, input) {
-  const root = rootFor(options);
-  const path = requireRecord(options);
-  if (typeof options["--expected-sha"] !== "string" || !options["--expected-sha"])
-    fail("failed", "invalid-input", "invalid-expected-sha", "Existing mutations require --expected-sha");
-  const loaded = await loadRecord(root, path);
-  const operation = applyCommand(loaded.record, command, input);
-  const persisted = await persistRecord(root, path, operation.record, {
-    expectedSha: options["--expected-sha"],
-    dryRun: options["--dry-run"] === true,
-    operation: command,
-  });
-  const record = persisted.record ?? persisted.candidate;
-  const candidateText = persisted.candidateText;
-  const confirmation = persisted.status === "dry-run" ? "candidate" : "confirmed";
-  return {
-    format: "json",
-    exitCode: 0,
-    envelope: {
-      status: persisted.status,
-      command,
-      operation: operation.operation,
-      record: { ...metadata(record, candidateText, confirmation, path) },
-      beforeSha256: persisted.beforeSha256,
-      afterSha256: persisted.afterSha256,
-      affectedIds: operation.affectedIds,
-      candidateText,
-    },
-  };
-}
-
-export async function runPublicCommand(args) {
-  let command = args[0] ?? null;
-  try {
-    const parsed = parsePublicArgs(args);
-    command = parsed.command;
-    if (parsed.help) return { format: "text", exitCode: 0, content: usage() };
-    const { options } = parsed;
-    if (options["--help"] === true) return { format: "text", exitCode: 0, content: usage(command) };
-    if (command === "init") return await runInit(options);
-    if (command === "view") return await runView(options);
-    if (command === "schema") return await runSchema(options);
-    if (command === "migrate") return await runMigration(options);
-    if (command === "compress") return await runCompression(options);
-    if (command === "validate") return await runValidate(options);
-    if (command === "inspect") return await runInspect(options);
-    if (command === "reconcile") return await runReconcile(options);
-    if (command === "unlock") return await runUnlock(options);
-    if (!MUTATION_COMMANDS.has(command))
-      fail("failed", "invalid-input", "unknown-command", "The command is not supported");
-    const input = await readInput(options);
-    validateCommandInput(command, input);
-    if (getCommandDefinition(command).specialBoundary) return runSpecialBoundary(command);
-    return await runMutation(command, options, input);
-  } catch (error) {
-    if (command === "view") {
-      const exitCode = error instanceof PersistenceError && error.status === "committed-unconfirmed" ? 2 : 1;
-      return {
-        format: "text",
-        exitCode,
-        content: `Track Work view failed [${errorCode(error)}]: ${safeMessage(errorCode(error))}\n`,
-      };
-    }
-    const envelope = errorEnvelope(command, error);
-    const exitCode = envelope.status === "committed-unconfirmed" || envelope.status === "recoverable" ? 2 : 1;
-    return { format: "json", exitCode, envelope };
+async function runCore(command, rest) {
+  const { options, positionals } = parseOptions(rest);
+  const operation = positionals[0];
+  if (options["--help"]) return commandHelp(command, operation);
+  validateCommandOptions(command, operation, options);
+  if (command === "init") return initialize(options);
+  if (command === "view") {
+    if (positionals.length > 1) throw new CliError("View accepts only resume or full");
+    const view = positionals[0] ?? options["--view"];
+    if (!view || !["resume", "full"].includes(view)) throw new CliError("View must be resume or full");
+    const loaded = await readExisting(options);
+    if (view === "full") return renderFull(loaded.text);
+    return renderResume(loaded.text);
   }
+  if (command === "validate") {
+    if (positionals.length) throw new CliError("Validate does not accept positional arguments");
+    const loaded = await readExisting(options);
+    validateDocument(parseDocument(loaded.text));
+    return `valid\n${displayPath(loaded.root, loaded.path)}\n`;
+  }
+  if (positionals.length !== 1) throw new CliError(`Expected one operation for ${command}`);
+  const loaded = await readExisting(options);
+  const input = await readInput(options["--input"], cwd());
+  return runTransition(command, positionals, options, input, loaded);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const result = await runPublicCommand(process.argv.slice(2));
-  if (result.format === "text") process.stdout.write(result.content);
-  else process.stdout.write(`${JSON.stringify(result.envelope, null, 2)}\n`);
-  process.exitCode = result.exitCode;
+try {
+  const [command, ...rest] = process.argv.slice(2);
+  if (!command || command === "--help" || command === "help") {
+    process.stdout.write(`${usage()}\n`);
+  } else {
+    process.stdout.write(await runCore(command, rest));
+  }
+} catch (error) {
+  process.stderr.write(`Error: ${error.message}\n`);
+  process.exitCode = error.exitCode ?? 1;
 }

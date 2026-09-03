@@ -547,9 +547,9 @@
       "neighbours": ["workflow", "discuss", "execute-work", "handoff", "write-spec", "write-plan"],
       "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Resume after context loss, preserve the current slice through feedback, and record only route- or state-changing evidence.",
-      "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
+      "current_result": "Current Schema 4 Track Work skill has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/track-work/SKILL.md",
-      "source_sha256": "3df12bf16316faf4964d6b3dee2a9ab96c984ac9d40103be08b0c425035d6782",
+      "source_sha256": "26ced06f55cfcba3a3fc848f680a35ce3c87a32e561cf8d223e76b0c29b47598",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
