@@ -2,6 +2,10 @@
 
 Cognitive Routing changes compute only. Use the latest Runtime State `Control` and `Profile`; it never changes Workflow ownership or authority.
 
+A Runtime State refresh is host context, not a user interruption. It does not end an active route or `ACT_BOUNDED` scope unless the reported state contradicts it.
+
+`Control` and `Profile` report the host's current compute state only. They do not establish Yield, Delegate, `ACT_BOUNDED`, or Delegate-boundary state; recover those from visible routing records. Do not infer `Boundary state: NONE` from the Runtime State block.
+
 - **Manual:** use the held profile for the ordinary unsplit Workflow; do not request switching.
 - **Automatic:** each new interaction begins in Reasoning. Conversational analysis, decisions, questions, assessment, and reporting are the default and need no route marker.
 

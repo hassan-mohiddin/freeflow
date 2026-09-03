@@ -41,11 +41,10 @@ Automatic control lets Cognitive Routing choose compute placement. Each new user
 
 Before the full Cognitive Routing skill is visible, Automatic Reasoning reads that skill as its only environment action and stops. It does not interpret the current user request or perform task/evidence work until the read returns. If the read fails or is unavailable, routing stops and reports missing context.
 
-For an authorized execution-bearing activity, Reasoning chooses one route:
+For an authorized execution-bearing activity, Reasoning checks the current boundary first:
 
-- **Yield:** Standard temporarily leads a small, exact, directly verifiable result and hands it back when complete.
-- **Delegate:** Reasoning remains responsible for the governing result while Standard executes a decision-complete contract inside an open model-written boundary.
-- **Act Bounded:** Reasoning performs a bounded direct execution only when judgment and action are materially inseparable and delegation would cause material loss.
+- With **no open boundary**, Yield may transfer one complete ordinary result, `ACT_BOUNDED` may act when independently qualified, and otherwise Delegate opens a boundary.
+- With an **open boundary**, Delegate is the continuing route. Yield is not used; work that would qualify for Yield in isolation remains Delegate because Reasoning still owns the boundary. A qualifying `ACT_BOUNDED` scope may temporarily operate inside it.
 
 Standard is used automatically only through Yield or Delegate. It never conducts substantive user-facing interaction; at every return condition it transfers state with `YIELD HANDOFF` or `RETURN` to Reasoning, which handles interpretation, questions, discussion, assessment, and reporting. The transfer records are control text, not user interaction. The target is cost-sensitive quality, not a claim of equivalence between profiles.
 
@@ -54,16 +53,18 @@ Standard is used automatically only through Yield or Delegate. It never conducts
 ```text
 Workflow establishes authority, owner, and slice
 -> Reasoning receives an authorized execution-bearing activity
-   ├─ YIELD
-   │  └─ switch to Standard; ordinary work; YIELD HANDOFF → Reasoning
-   ├─ DELEGATE
-   │  └─ open a model-written boundary; Standard executes
-   │     └─ RETURN → Reasoning assessment; boundary remains open
-   └─ ACT_BOUNDED
-      └─ Reasoning performs bounded direct execution; no boundary is created
+   ├─ Boundary OPEN
+   │  ├─ DELEGATE next decision-complete unit → RETURN; boundary remains open
+   │  ├─ ACT_BOUNDED when independently qualified → reassess; boundary remains open
+   │  ├─ suspend or route a contradiction, choice, or changed boundary
+   │  └─ CLOSE only after the bounded result is supported and reviewed
+   └─ Boundary NONE
+      ├─ YIELD → Standard leads one complete result → YIELD HANDOFF → Reasoning
+      ├─ ACT_BOUNDED when independently qualified → Reasoning acts directly
+      └─ DELEGATE → open a model-written boundary; Standard executes
 ```
 
-Under automatic control, Yield has no Cognitive Routing execution boundary. Delegate opens one with `NEW` or `REOPEN`; `RETURN` leaves it open and only Reasoning closes it. `ACT_BOUNDED` creates no execution boundary and may contribute evidence to an open one. A closed boundary may be reopened only for the same authorized outcome.
+Under automatic control, Yield has no Cognitive Routing execution boundary and is forbidden while one is open. Delegate opens one with `NEW` or `REOPEN`; `RETURN` leaves it open and only Reasoning closes it. `ACT_BOUNDED` creates no execution boundary, may operate inside or outside Delegate, and never contains Delegate or closes its boundary. A closed boundary may be reopened only for the same authorized outcome with fresh authority and invalidating evidence or changed intent.
 
 Delegation transfers bounded execution, not the cognitive boundary. Standard must not reinterpret the governing judgment, expand scope, hide contradictory evidence, or continue after the return condition.
 
@@ -118,7 +119,7 @@ The request changes compute only and never authorizes a task action.
 - A Yield handoff transfers the profile back to Reasoning without creating an execution boundary.
 - A delegated return resumes the same open boundary; it is not a new boundary.
 - Closing a delegated boundary leaves Reasoning active; it does not hand leadership to Standard.
-- A closed boundary is reopened only by material new evidence, changed intent, or an invalidated assumption.
+- A closed boundary is reopened only for the same authorized outcome when fresh authority and invalidating evidence or changed intent require it.
 - Transition history reports unresolved or anomalous evidence instead of fabricating a cause.
 - A native Pi model or thinking-level selection suspends routing until explicit reactivation; partial transitions roll back or remain blocked with persisted evidence.
 

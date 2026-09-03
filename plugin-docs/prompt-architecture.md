@@ -81,15 +81,19 @@ Interaction Lifecycle
 └─ Workflow Feedback Loop
    ├─ establishes authority, owner, and slice
    └─ Cognitive Execution Routes — automatic control only
-      ├─ Reasoning chooses one route
-      │  ├─ YIELD → Standard leads ordinary work → YIELD HANDOFF → Reasoning
-      │  ├─ DELEGATE → open model-written boundary → Standard executes
-      │  │  └─ RETURN → Reasoning assesses; boundary remains open until CLOSE
-      │  └─ ACT_BOUNDED → Reasoning performs bounded direct execution
+      ├─ Boundary OPEN
+      │  ├─ DELEGATE next unit → RETURN; boundary remains open
+      │  ├─ ACT_BOUNDED when independently qualified → reassess
+      │  ├─ suspend or route a changed boundary
+      │  └─ CLOSE after support and review
+      ├─ Boundary NONE
+      │  ├─ YIELD → Standard leads one complete result → YIELD HANDOFF
+      │  ├─ ACT_BOUNDED when independently qualified → Reasoning acts directly
+      │  └─ DELEGATE → open a model-written boundary; Standard executes
       └─ Action Selection guides uncertain environment interactions
 ```
 
-Manual Cognitive Routing control runs the ordinary unsplit Workflow. Under automatic control, conversational Reasoning is the default and owns user-facing interpretation and reporting; Yield has no execution boundary, Delegate keeps one model-written boundary open until Reasoning closes it, and Act Bounded creates no boundary. Automatic Standard only executes active Yield or Delegate contracts and never conducts substantive user-facing interaction; at every return condition it transfers state to Reasoning. Cognitive Routing changes compute placement only and never changes authority, owner, task scope, evidence requirements, or review independence.
+Manual Cognitive Routing control runs the ordinary unsplit Workflow. Under automatic control, conversational Reasoning is the default and owns user-facing interpretation and reporting. With no open boundary, Yield is the standalone whole-result transfer, `ACT_BOUNDED` is exceptional direct Reasoning execution, and otherwise Delegate opens a boundary. With an open boundary, Delegate is the continuing route; literal Yield is not used, while a qualifying `ACT_BOUNDED` scope may operate inside it without closing it. Automatic Standard only executes active Yield or Delegate contracts and never conducts substantive user-facing interaction; at every return condition it transfers state to Reasoning. Cognitive Routing changes compute placement only and never changes authority, owner, task scope, evidence requirements, or review independence.
 
 ## Failure and recovery boundaries
 
