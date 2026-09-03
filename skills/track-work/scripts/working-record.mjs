@@ -27,20 +27,58 @@ function usage() {
 }
 
 const COMMAND_HELP = new Map([
-  ["init", "Usage: init --root <path> --name <task name> [--state <state>] [--input <file|->]"],
+  [
+    "slice",
+    [
+      "Usage: working-record.mjs slice <operation> ...",
+      "Operations: slice propose, slice start, slice start-direct, slice pause, slice resume, slice close, slice reopen.",
+      "Run working-record.mjs <group> <operation> --help for options and input fields.",
+      "Use --input - to read Markdown fragments from stdin.",
+    ].join("\n"),
+  ],
+  [
+    "checkpoint",
+    [
+      "Usage: working-record.mjs checkpoint <operation> ...",
+      "Operations: checkpoint propose, checkpoint activate, checkpoint defer, checkpoint resume, checkpoint close.",
+      "Run working-record.mjs <group> <operation> --help for options and input fields.",
+      "Use --input - to read Markdown fragments from stdin.",
+    ].join("\n"),
+  ],
+  [
+    "decision",
+    [
+      "Usage: working-record.mjs decision <operation> ...",
+      "Operations: decision add, decision supersede, decision retire.",
+      "Run working-record.mjs <group> <operation> --help for options and input fields.",
+      "Use --input - to read Markdown fragments from stdin.",
+    ].join("\n"),
+  ],
+  [
+    "task",
+    [
+      "Usage: working-record.mjs task <operation> ...",
+      "Operations: task set-state.",
+      "Run working-record.mjs <group> <operation> --help for options and input fields.",
+    ].join("\n"),
+  ],
+  [
+    "init",
+    "Usage: init --root <path> --name <task name> [--state <state>] [--input <file|->]\nInput: Goal and Next useful action required; the seven Current Context headings are accepted. Use --input - to read Markdown fragments from stdin.",
+  ],
   ["view", "Usage: view resume|full --record <record.md>"],
   ["validate", "Usage: validate --record <record.md>"],
   [
     "slice propose",
-    "Usage: slice propose --record <record.md> --title <title> --input <file|->\nInput: Intended result required; Type, Expected evidence, and Dependencies optional.",
+    "Usage: slice propose --record <record.md> --title <title> --input <file|->\nInput: Intended result required; Type, Expected evidence, and Dependencies optional. Use --input - to read the fragment from stdin.",
   ],
   [
     "slice start",
-    "Usage: slice start --record <record.md> --title <proposal title> --next-action <text> --input <file|->\nInput: Authority source, Scope, Expected evidence, Stop condition, and Starting state required.",
+    "Usage: slice start --record <record.md> --title <proposal title> --next-action <text> --input <file|->\nInput: Authority source, Scope, Expected evidence, Stop condition, and Starting state required. Use --input - to read the fragment from stdin.",
   ],
   [
     "slice start-direct",
-    "Usage: slice start-direct --record <record.md> --title <title> --next-action <text> --input <file|->\nInput: Intended result, Authority source, Scope, Expected evidence, Stop condition, and Starting state required; Future Work is unchanged.",
+    "Usage: slice start-direct --record <record.md> --title <title> --next-action <text> --input <file|->\nInput: Intended result, Authority source, Scope, Expected evidence, Stop condition, and Starting state required; Future Work is unchanged. Use --input - to read the fragment from stdin.",
   ],
   [
     "slice pause",
@@ -49,15 +87,15 @@ const COMMAND_HELP = new Map([
   ["slice resume", "Usage: slice resume --record <record.md> --resolution <source> --next-action <text>"],
   [
     "slice close",
-    "Usage: slice close --record <record.md> --state <completed|blocked|abandoned> --next-action <text> --input <file|->\nInput: Result, Evidence and limits, and Task effect required.",
+    "Usage: slice close --record <record.md> --state <completed|blocked|abandoned> --next-action <text> --input <file|->\nInput: Result, Evidence and limits, and Task effect required. Use --input - to read the fragment from stdin.",
   ],
   [
     "slice reopen",
-    "Usage: slice reopen --record <record.md> --id <S-NNN> --next-action <text> --input <file|->\nInput: fresh Authority source, Scope, Expected evidence, Stop condition, and Starting state required.",
+    "Usage: slice reopen --record <record.md> --id <S-NNN> --next-action <text> --input <file|->\nInput: fresh Authority source, Scope, Expected evidence, Stop condition, and Starting state required. Use --input - to read the fragment from stdin.",
   ],
   [
     "checkpoint propose",
-    "Usage: checkpoint propose --record <record.md> --title <title> --input <file|->\nInput: Type, Condition, and Applies to required.",
+    "Usage: checkpoint propose --record <record.md> --title <title> --input <file|->\nInput: Type, Condition, and Applies to required. Use --input - to read the fragment from stdin.",
   ],
   [
     "checkpoint activate",
@@ -67,12 +105,15 @@ const COMMAND_HELP = new Map([
   ["checkpoint resume", "Usage: checkpoint resume --record <record.md> --id <C-NNN> [--next-action <text>]"],
   [
     "checkpoint close",
-    "Usage: checkpoint close --record <record.md> --id <C-NNN> --state <completed|cancelled|replaced> [--next-action <text>] --input <file|->",
+    "Usage: checkpoint close --record <record.md> --id <C-NNN> --state <completed|cancelled|replaced> [--next-action <text>] --input <file|->\nInput: Result and Task effect required; Evidence optional; Reason required for cancelled or replaced; Replaced by required for replaced. Use --input - to read the fragment from stdin.",
   ],
-  ["decision add", "Usage: decision add --record <record.md> --title <title> --input <file|->"],
+  [
+    "decision add",
+    "Usage: decision add --record <record.md> --title <title> --input <file|->\nInput: Decision, Established by, Rationale, Consequences, and Revisit when required; Source references optional. Use --input - to read the fragment from stdin.",
+  ],
   [
     "decision supersede",
-    "Usage: decision supersede --record <record.md> --id <D-NNN> --title <title> --input <file|->",
+    "Usage: decision supersede --record <record.md> --id <D-NNN> --title <title> --input <file|->\nInput: Decision, Established by, Rationale, Consequences, and Revisit when required; Source references optional. Use --input - to read the fragment from stdin.",
   ],
   ["decision retire", "Usage: decision retire --record <record.md> --id <D-NNN> --reason <reason>"],
   [

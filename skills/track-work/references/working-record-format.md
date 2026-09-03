@@ -72,6 +72,8 @@ Do not create another top-level section or remove an empty structural heading. T
 - Omit optional fields when they carry no useful information; do not emit empty labels or `[empty]` markers.
 - `Current Slice` uses the literal `None` when no Slice is current.
 - Field values may be multiline. Use ordinary Markdown bullets for concise lists.
+- Lifecycle-created structured entities use compact field-list rows. A one-value field is `- Field: value`; multiple or block values use `- Field:` followed by two-space-indented lines. Keep fields contiguous so the preview remains a compact list.
+- Expanded Schema 4 fields (`Field:` followed by values) remain accepted for backward reads and direct maintenance. Do not mix expanded and compact field styles within one entity block.
 - Proposed Slices and proposed Checkpoints have no durable ID. Their titles must be unique across all Future Work items.
 - Current and historical Slices use script-assigned `S-NNN` IDs.
 - Accepted Checkpoints use script-assigned `C-NNN` IDs.
@@ -129,20 +131,15 @@ Current Work contains only one Current Slice and one next useful action:
 ### Current Slice
 
 #### S-001 — <title>
-
-State: in_progress
-Type: delivery
-Intended result:
-- The accepted outcome.
-Authority source:
-- The request or approval covering this Slice.
-Scope:
-- The permitted work boundary.
-Expected evidence:
-- The evidence required before closure.
-Stop condition:
-- The condition requiring pause or return for direction.
-Reopened from: S-004
+- State: in_progress
+- Type: delivery
+- Intended result: The accepted outcome.
+- Authority source: The request or approval covering this Slice.
+- Scope: The permitted work boundary.
+- Expected evidence: The evidence required before closure.
+- Stop condition: The condition requiring pause or return for direction.
+- Starting state: The relevant current code or artifact state.
+- Reopened from: S-004
 
 ##### Material updates
 
@@ -210,20 +207,13 @@ When an immediately authorized outcome does not need Future Work ordering or rec
 
 ```markdown
 #### S-001 — Immediate outcome
-
-State: in_progress
-Intended result:
-- The immediate accepted outcome.
-Authority source:
-- The request or approval covering this Slice.
-Scope:
-- The permitted work boundary.
-Expected evidence:
-- The evidence required before closure.
-Stop condition:
-- The condition requiring pause or return for direction.
-Starting state:
-- The relevant starting code or artifact state.
+- State: in_progress
+- Intended result: The immediate accepted outcome.
+- Authority source: The request or approval covering this Slice.
+- Scope: The permitted work boundary.
+- Expected evidence: The evidence required before closure.
+- Stop condition: The condition requiring pause or return for direction.
+- Starting state: The relevant starting code or artifact state.
 ```
 
 Direct start requires the same authority and write-ahead contract as proposal start. Its title must not conflict with a Future Work item; if a proposal should be selected, use proposal start instead.
@@ -238,15 +228,11 @@ All Future Work titles are unique across both kinds of item. A proposed item may
 
 ```markdown
 ### Slice — <unique title>
-
-State: proposed
-Type: learning
-Intended result:
-- The candidate outcome.
-Expected evidence:
-- The evidence that would settle it.
-Dependencies:
-- A prerequisite or ordering constraint.
+- State: proposed
+- Type: learning
+- Intended result: The candidate outcome.
+- Expected evidence: The evidence that would settle it.
+- Dependencies: A prerequisite or ordering constraint.
 ```
 
 Required:
@@ -276,12 +262,10 @@ A proposed Checkpoint has no ID:
 
 ```markdown
 ### Checkpoint — <unique title>
-
-State: proposed
-Type: independent_review
-Condition:
-- The boundary that must be crossed or assessed.
-Applies to: <proposed Slice title>
+- State: proposed
+- Type: independent_review
+- Condition: The boundary that must be crossed or assessed.
+- Applies to: <proposed Slice title>
 ```
 
 Required fields:
@@ -320,20 +304,13 @@ Decisions are accepted choices, not tentative hypotheses. Add one with a script-
 
 ```markdown
 #### D-001 — Keep the Markdown record canonical
-
-State: active
-Decision:
-- `record.md` remains the canonical task projection.
-Established by:
-- The user’s accepted direction.
-Rationale:
-- Agents need a readable selective recovery surface.
-Source references:
-- file:...#...
-Consequences:
-- Views can project one record without duplicating state.
-Revisit when:
-- The storage boundary changes.
+- State: active
+- Decision: `record.md` remains the canonical task projection.
+- Established by: The user’s accepted direction.
+- Rationale: Agents need a readable selective recovery surface.
+- Source references: file:...#...
+- Consequences: Views can project one record without duplicating state.
+- Revisit when: The storage boundary changes.
 ```
 
 Fields:
@@ -362,18 +339,13 @@ Only terminal Checkpoints appear in History:
 
 ```markdown
 #### C-001 — Review the compatibility boundary
-
-State: completed
-Type: independent_review
-Condition:
-- Review the integrated result before dependent work proceeds.
-Applies to: S-001
-Result:
-- Review completed; one non-blocking concern remains outside this Slice.
-Evidence:
-- review:compatibility-review
-Task effect:
-- The Slice may proceed.
+- State: completed
+- Type: independent_review
+- Condition: Review the integrated result before dependent work proceeds.
+- Applies to: S-001
+- Result: Review completed; one non-blocking concern remains outside this Slice.
+- Evidence: review:compatibility-review
+- Task effect: The Slice may proceed.
 ```
 
 Required terminal fields:
@@ -399,19 +371,13 @@ Closure compacts the Current Slice and its Material updates into one historical 
 
 ```markdown
 #### S-001 — Implement the compatibility layer
-
-State: completed
-Type: delivery
-Intended result:
-- Existing clients remain compatible.
-Authority source:
-- User request in the current conversation.
-Result:
-- The adapter was updated and the accepted behavior was verified locally.
-Evidence and limits:
-- Focused integration checks passed; production behavior was not observed.
-Task effect:
-- The next consumer can be migrated.
+- State: completed
+- Type: delivery
+- Intended result: Existing clients remain compatible.
+- Authority source: User request in the current conversation.
+- Result: The adapter was updated and the accepted behavior was verified locally.
+- Evidence and limits: Focused integration checks passed; production behavior was not observed.
+- Task effect: The next consumer can be migrated.
 ```
 
 Required historical fields:
@@ -512,7 +478,7 @@ A direct edit must not change a durable ID, lifecycle state, entity kind, or own
 
 Prose-only bullet edits need no extra validation. After changing headings, fields, references, or other structured blocks, run `validate` before consequential work. Every lifecycle command validates both its source and candidate.
 
-The lifecycle executable is [working-record.mjs](../scripts/working-record.mjs). Its grouped command help is the transport contract for the operations described here; it accepts agent-authored Markdown fragments and does not replace this format reference.
+The lifecycle executable is [working-record.mjs](../scripts/working-record.mjs). Read the format reference before preparing structured content, then run the complete operation help as `working-record.mjs <group> <operation> --help`; group help lists operations and operation help lists options and fragment fields. Use `--input -` for stdin when convenient. Command help is the transport contract for the operations described here and does not replace this format reference. It is not normally necessary to inspect the implementation source.
 
 ## View Contract
 

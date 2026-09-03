@@ -13,7 +13,8 @@ Track Work uses a compact Schema 4 Markdown Working Record as the current projec
 - one Current Slice carries active authority, scope, evidence, stop conditions, and material updates;
 - History keeps Decisions, terminal Checkpoints, and settled Slices in that order;
 - `resume` exposes active state and `full` exposes the complete canonical record;
-- agents may edit ordinary Markdown content directly, while deterministic commands own identity, lifecycle transitions, movement, and safe persistence.
+- agents may edit ordinary Markdown content directly, while deterministic commands own identity, lifecycle transitions, movement, and safe persistence;
+- lifecycle-created structured entities use compact field-list rows for visual density, while expanded Schema 4 records remain accepted for backward reads.
 
 This is an intentional breaking change from the prior Schema 2/3 representations. Existing ignored records are not modified or automatically migrated. Later compatibility work must select records explicitly and preserve copy-first recovery evidence.
 

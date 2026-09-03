@@ -49,8 +49,10 @@ function isUtcTimestamp(value) {
 }
 
 function fieldLine(line) {
-  const match = /^([A-Za-z][A-Za-z -]*):(?:[ \t]*(.*))?$/.exec(line);
-  return match ? { name: match[1], inline: match[2] ?? "" } : null;
+  const compact = /^- ([A-Za-z][A-Za-z -]*):(?:[ \t]*(.*))?$/.exec(line);
+  if (compact) return { name: compact[1], inline: compact[2] ?? "", style: "compact" };
+  const expanded = /^([A-Za-z][A-Za-z -]*):(?:[ \t]*(.*))?$/.exec(line);
+  return expanded ? { name: expanded[1], inline: expanded[2] ?? "", style: "expanded" } : null;
 }
 
 function nonBlankLines(lines) {
@@ -88,8 +90,18 @@ function fieldNames(allowed) {
   return [...allowed].sort().join(", ");
 }
 
+function detectFieldStyle(lines, start, end) {
+  for (let index = start; index < end; index += 1) {
+    if (isBlank(lines[index])) continue;
+    const foundField = fieldLine(lines[index]);
+    return foundField?.style ?? "expanded";
+  }
+  return "expanded";
+}
+
 function parseFields(lines, start, end, allowed, path, allowedNestedHeadings = new Set()) {
   const fields = new Map();
+  const style = detectFieldStyle(lines, start, end);
   let current = null;
   let inNestedBlock = false;
   for (let index = start; index < end; index += 1) {
@@ -105,6 +117,13 @@ function parseFields(lines, start, end, allowed, path, allowedNestedHeadings = n
     }
     if (inNestedBlock) continue;
     const foundField = fieldLine(line);
+    if (foundField && foundField.style !== style) {
+      if (style === "expanded" && current && foundField.style === "compact") {
+        current.valueLines.push(line);
+        continue;
+      }
+      fail("mixed-field-style", `Mixed structured-field styles in ${path}: ${line}`);
+    }
     if (foundField) {
       if (!allowed.has(foundField.name))
         fail("unknown-field", `Unknown field ${foundField.name} in ${path}; allowed fields: ${fieldNames(allowed)}`);
@@ -117,10 +136,21 @@ function parseFields(lines, start, end, allowed, path, allowedNestedHeadings = n
       fields.set(foundField.name, current);
       continue;
     }
-    if (current) current.valueLines.push(line);
-    else if (!isBlank(line)) fail("unowned-content", `Unowned content in ${path}: ${line}`);
+    if (current) {
+      if (style === "compact" && !isBlank(line)) {
+        if (!line.startsWith("  "))
+          fail("malformed-field", `Compact field values must be indented in ${path}: ${line}`);
+        current.valueLines.push(line.slice(2));
+      } else {
+        current.valueLines.push(line);
+      }
+    } else if (!isBlank(line) && style === "compact") {
+      fail("unowned-content", `Unowned content in ${path}: ${line}`);
+    } else if (!isBlank(line)) {
+      fail("unowned-content", `Unowned content in ${path}: ${line}`);
+    }
   }
-  return fields;
+  return { fields, style };
 }
 
 function parseBlock(lines, start, end, kind, title, id, allowed, path) {
@@ -130,8 +160,8 @@ function parseBlock(lines, start, end, kind, title, id, allowed, path) {
       : path.startsWith("History/")
         ? new Set(["Corrections"])
         : new Set();
-  const fields = parseFields(lines, start + 1, end, allowed, path, nested);
-  return { kind, title, id: id ?? null, start, end, fields, path };
+  const parsed = parseFields(lines, start + 1, end, allowed, path, nested);
+  return { kind, title, id: id ?? null, start, end, fields: parsed.fields, fieldStyle: parsed.style, path };
 }
 
 function findHeadings(lines, start, end, level) {
@@ -558,8 +588,8 @@ export function parseDocument(text, { validate = true } = {}) {
 export function parseFragment(text, allowed, path = "input") {
   if (typeof text !== "string") fail("invalid-input", `Input for ${path} must be text`);
   const { lines } = splitLines(text);
-  const fields = parseFields(lines, 0, lines.length, allowed, path);
-  return { fields, lines };
+  const parsed = parseFields(lines, 0, lines.length, allowed, path);
+  return { fields: parsed.fields, fieldStyle: parsed.style, lines };
 }
 
 export function fieldValue(block, name) {
@@ -574,21 +604,32 @@ export function hasField(block, name) {
   return block.fields.has(name) && Boolean(valueText(block.fields.get(name)));
 }
 
-export function formatField(name, linesOrValue) {
+export function formatField(name, linesOrValue, style = "expanded") {
   const raw = Array.isArray(linesOrValue) ? linesOrValue : String(linesOrValue ?? "").split("\n");
   const lines = trimValueLines(raw);
+  if (style === "compact") {
+    if (lines.length === 0) return [`- ${name}:`];
+    if (lines.length === 1) {
+      const value = lines[0].startsWith("- ") ? lines[0].slice(2) : lines[0];
+      return [`- ${name}: ${value}`];
+    }
+    return [`- ${name}:`, ...lines.map((line) => (line === "" ? "" : `  ${line}`))];
+  }
   if (lines.length === 0) return [`${name}:`];
   if (lines.length === 1 && !lines[0].startsWith("- ")) return [`${name}: ${lines[0]}`];
   return [`${name}:`, ...lines];
 }
 
-export function renderBlock(blockHeading, orderedFields, values) {
+export function renderBlock(blockHeading, orderedFields, values, style = "compact") {
   const lines = [blockHeading];
+  let emittedField = false;
   for (const field of orderedFields) {
     if (!Object.hasOwn(values, field) || values[field] === undefined || values[field] === null) continue;
     const value = Array.isArray(values[field]) ? values[field] : String(values[field]).split("\n");
     if (value.length === 0 || (value.length === 1 && value[0] === "")) continue;
-    lines.push(...formatField(field, value));
+    if (emittedField && style !== "compact") lines.push("");
+    lines.push(...formatField(field, value, style));
+    emittedField = true;
   }
   lines.push("");
   return lines;
@@ -633,7 +674,10 @@ export function replaceFieldInBlock(document, block, fieldName, value) {
     [...block.fields.values()]
       .filter((candidate) => candidate.start > field.start)
       .sort((left, right) => left.start - right.start)[0]?.start ?? block.end;
-  return applyLineReplacements(document, [{ start: field.start, end: fieldEnd, lines: formatField(fieldName, value) }]);
+  const style = block.fieldStyle ?? "expanded";
+  const lines = formatField(fieldName, value, style);
+  if (style !== "compact") lines.push("");
+  return applyLineReplacements(document, [{ start: field.start, end: fieldEnd, lines }]);
 }
 
 export function nextEntityId(document, kind) {

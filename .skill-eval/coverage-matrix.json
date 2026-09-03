@@ -549,7 +549,7 @@
       "case_concept": "Resume after context loss, preserve the current slice through feedback, and record only route- or state-changing evidence.",
       "current_result": "Current Schema 4 Track Work skill has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/track-work/SKILL.md",
-      "source_sha256": "26ced06f55cfcba3a3fc848f680a35ce3c87a32e561cf8d223e76b0c29b47598",
+      "source_sha256": "ab780a510c5883fd57b62f2ca8d7a49bb8a5685d56afa39a2e560606efc6ce6a",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

@@ -172,7 +172,10 @@ function renderDecision(values, title, id) {
 
 function replacementForField(block, field, value) {
   const range = fieldRange(block, field);
-  return { start: range.start, end: range.end, lines: [...formatField(field, value), ""] };
+  const style = block.fieldStyle ?? "expanded";
+  const lines = formatField(field, value, style);
+  if (style !== "compact") lines.push("");
+  return { start: range.start, end: range.end, lines };
 }
 
 function assertUniqueFutureTitle(document, title) {

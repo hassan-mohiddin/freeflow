@@ -573,6 +573,134 @@ test("command help is local and unknown options fail before reading a record", a
   }
 });
 
+test("generated lifecycle blocks use compact field lists and preserve expanded reads", async () => {
+  const workspace = await makeWorkspace();
+  try {
+    const initialized = await initRecord(workspace, "compact-markdown");
+    assert.equal(initialized.exitCode, 0, initialized.stderr);
+    const recordPath = initialized.stdout.trim();
+
+    const added = await runScript(
+      workspace,
+      ["decision", "add", "--record", recordPath, "--title", "Keep Markdown", "--input", "-"],
+      "Decision:\n- Keep Markdown canonical.\nEstablished by:\n- User instruction.\nRationale:\n- It is readable.\nSource references:\n- file:one\n- file:two\nConsequences:\n- Views can project it.\nRevisit when:\n- Storage requirements change.\n",
+    );
+    assert.equal(added.exitCode, 0, added.stderr);
+    let record = await readFile(recordPath, "utf8");
+    assert.match(
+      record,
+      /#### D-001 — Keep Markdown\n- State: active\n- Decision: Keep Markdown canonical\.\n- Established by: User instruction\.\n- Rationale: It is readable\.\n- Source references:\n {2}- file:one\n {2}- file:two\n- Consequences: Views can project it\.\n- Revisit when: Storage requirements change\./,
+    );
+
+    const compactDecision = [
+      "#### D-001 — Keep Markdown",
+      "- State: active",
+      "- Decision: Keep Markdown canonical.",
+      "- Established by: User instruction.",
+      "- Rationale: It is readable.",
+      "- Source references:",
+      "  - file:one",
+      "  - file:two",
+      "- Consequences: Views can project it.",
+      "- Revisit when: Storage requirements change.",
+      "",
+    ].join("\n");
+    const expandedDecision = [
+      "#### D-001 — Keep Markdown",
+      "",
+      "State: active",
+      "",
+      "Decision:",
+      "- Keep Markdown canonical.",
+      "",
+      "Established by:",
+      "- User instruction.",
+      "",
+      "Rationale:",
+      "- It is readable.",
+      "",
+      "Source references:",
+      "- file:one",
+      "- file:two",
+      "",
+      "Consequences:",
+      "- Views can project it.",
+      "",
+      "Revisit when:",
+      "- Storage requirements change.",
+      "",
+    ].join("\n");
+    const expandedRecord = record.replace(compactDecision, expandedDecision);
+    assert.notEqual(expandedRecord, record);
+    await writeFile(recordPath, expandedRecord, "utf8");
+    record = expandedRecord;
+    assert.equal((await runScript(workspace, ["validate", "--record", recordPath])).exitCode, 0);
+
+    const proposed = await runScript(
+      workspace,
+      ["slice", "propose", "--record", recordPath, "--title", "Deliver result", "--input", "-"],
+      "Intended result:\n- Deliver result.\nExpected evidence:\n- Focused check.\n",
+    );
+    assert.equal(proposed.exitCode, 0, proposed.stderr);
+    const started = await runScript(
+      workspace,
+      [
+        "slice",
+        "start",
+        "--record",
+        recordPath,
+        "--title",
+        "Deliver result",
+        "--input",
+        "-",
+        "--next-action",
+        "Continue the focused test.",
+      ],
+      "Authority source:\n- User request.\nScope:\n- Deliver the result.\nExpected evidence:\n- Focused check.\nStop condition:\n- Stop if scope changes.\nStarting state:\n- Initial.\n",
+    );
+    assert.equal(started.exitCode, 0, started.stderr);
+    record = await readFile(recordPath, "utf8");
+    assert.match(
+      record,
+      /#### S-001 — Deliver result\n- State: in_progress\n- Intended result: Deliver result\.\n- Authority source: User request\.\n- Scope: Deliver the result\.\n- Expected evidence: Focused check\.\n- Stop condition: Stop if scope changes\.\n- Starting state: Initial\./,
+    );
+    assert.equal((await runScript(workspace, ["validate", "--record", recordPath])).exitCode, 0);
+  } finally {
+    await cleanup(workspace);
+  }
+});
+
+test("grouped command help exposes fragment contracts and stdin", async () => {
+  const workspace = await makeWorkspace();
+  try {
+    const initHelp = await runScript(workspace, ["init", "--help"]);
+    assert.equal(initHelp.exitCode, 0, initHelp.stderr);
+    assert.ok(initHelp.stdout.includes("[--input <file|->]\nInput: Goal and Next useful action required"));
+    assert.ok(!initHelp.stdout.includes("\\nInput:"));
+
+    const sliceHelp = await runScript(workspace, ["slice", "--help"]);
+    assert.equal(sliceHelp.exitCode, 0, sliceHelp.stderr);
+    assert.match(sliceHelp.stdout, /slice propose/);
+    assert.match(sliceHelp.stdout, /<group> <operation> --help/);
+    assert.match(sliceHelp.stdout, /--input -/);
+
+    const decisionHelp = await runScript(workspace, ["decision", "add", "--help"]);
+    assert.equal(decisionHelp.exitCode, 0, decisionHelp.stderr);
+    assert.match(
+      decisionHelp.stdout,
+      /Decision, Established by, Rationale, Consequences, and Revisit when required; Source references optional/,
+    );
+    assert.match(decisionHelp.stdout, /--input -/);
+
+    const checkpointHelp = await runScript(workspace, ["checkpoint", "close", "--help"]);
+    assert.equal(checkpointHelp.exitCode, 0, checkpointHelp.stderr);
+    assert.match(checkpointHelp.stdout, /Result and Task effect required/);
+    assert.match(checkpointHelp.stdout, /--input -/);
+  } finally {
+    await cleanup(workspace);
+  }
+});
+
 test("resume projects active Decisions without loading terminal History", async () => {
   const workspace = await makeWorkspace();
   try {

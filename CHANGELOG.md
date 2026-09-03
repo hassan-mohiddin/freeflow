@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.7.0 - 2026-09-03
+
 ### Breaking Changes
 
 - Removes Freeflow's selectable modes, mode commands, session mode state, and `defaultMode` configuration; all work now uses one adaptive Workflow.
@@ -25,6 +27,7 @@
 - Keeps extension-generated Runtime State before the latest genuine user message so automatic profile refreshes cannot masquerade as user interruptions and prematurely return delegated work.
 - Prevents stock-Pi model and thinking events emitted by Freeflow-owned profile transitions from being treated as native user overrides.
 - Expands direct Pi skill commands through Pi’s `sendUserMessage` API before dispatching them to the model.
+- Renders Schema 4 Current Work, Future Work, and History entities as compact field-list rows while preserving expanded reads, and expands Track Work operation help with fragment fields and stdin guidance.
 
 ## 0.6.0 - 2026-08-25
 

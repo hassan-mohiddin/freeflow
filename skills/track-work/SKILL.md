@@ -31,7 +31,9 @@ Keep the record in this order:
 4. **History** — Decisions, Checkpoints, and settled Slices, in that order.
 5. **Notes** — inert retained context.
 
-Read [Working Record Format](references/working-record-format.md) before directly editing structured record content or preparing Markdown for a lifecycle command. It owns the exact headings, fields, state tables, and omission rules. Do not invent fields, headings, IDs, or lifecycle states.
+Current Context and Notes remain ordinary Markdown prose and bullets. Structured entities in Current Work, Future Work, and History use compact field-list rows: one value stays inline as `- Field: value`, while multiple values use nested two-space-indented bullets. This changes presentation only; the Schema 4 sections, fields, IDs, states, and lifecycle semantics remain unchanged.
+
+Read [Working Record Format](references/working-record-format.md) before directly editing structured record content or preparing Markdown for a lifecycle command. It owns the exact headings, fields, state tables, omission rules, and compact entity layout. Do not invent fields, headings, IDs, or lifecycle states.
 
 ## Create Or Recover Honestly
 
@@ -109,7 +111,7 @@ Use a deterministic lifecycle command when an operation creates structured ident
 - add, supersede, or retire a Decision;
 - change task state.
 
-Commands own placement, ID allocation, legal state transitions, complete multi-block movement, and the script-maintained `Last updated` field. The agent owns meaning and supplies the content. Slice and task-state transitions also require agent-supplied Next useful action text; Checkpoint transitions may update it when supplied. Use [working-record.mjs](scripts/working-record.mjs) for the lifecycle boundary; run each command with `--help` for its small Markdown-fragment input contract.
+Commands own placement, ID allocation, legal state transitions, complete multi-block movement, and the script-maintained `Last updated` field. The agent owns meaning and supplies the content. Slice and task-state transitions also require agent-supplied Next useful action text; Checkpoint transitions may update it when supplied. Use [working-record.mjs](scripts/working-record.mjs) directly for the lifecycle boundary. Read the format reference first, then run the complete operation help—`working-record.mjs <group> <operation> --help`—before preparing a fragment; use `--input -` when supplying agent-authored Markdown through stdin. `validate --record` checks the stored Schema 4 record after structured direct edits. Do not inspect the implementation source under `scripts/lib/` unless diagnosing a concrete defect.
 
 A lifecycle command must validate the source and candidate before publication and apply one complete transition or none. If its result is uncertain, stop and re-read `full` before retrying or editing related state.
 

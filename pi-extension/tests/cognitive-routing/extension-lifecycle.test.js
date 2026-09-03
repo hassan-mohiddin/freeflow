@@ -883,15 +883,16 @@ test("Pi delivers stable Cognitive Routing cues and refreshes runtime state only
 
     assert.equal(first.message, undefined);
     assert.match(first.systemPrompt, /## Cognitive Routing Cue/);
-    assert.match(first.systemPrompt, /each new interaction begins in Reasoning/);
-    assert.match(first.systemPrompt, /Read the complete skill as the only environment call/);
-    assert.match(first.systemPrompt, /do not batch it with another tool or task action/);
+    assert.match(first.systemPrompt, /each user interaction begins in Reasoning/);
+    assert.match(first.systemPrompt, /If the full Cognitive Routing skill is not visible/);
+    assert.match(first.systemPrompt, /Make that read the only environment call/);
+    assert.match(first.systemPrompt, /it is not a route transition/);
     assert.match(first.systemPrompt, /YIELD/);
-    assert.match(first.systemPrompt, /DELEGATE/);
+    assert.match(first.systemPrompt, /Delegate/);
     assert.match(first.systemPrompt, /ACT_BOUNDED/);
     assert.match(first.systemPrompt, /Automatic Standard only executes active Yield or Delegate contracts/);
     assert.match(first.systemPrompt, /writes `YIELD HANDOFF` or `RETURN` and switches to Reasoning/);
-    assert.match(first.systemPrompt, /which alone handles substantive user-facing interaction/);
+    assert.match(first.systemPrompt, /Standard never handles substantive user-facing interaction/);
     assert.doesNotMatch(first.systemPrompt, /TASK ACT|OBSERVE/);
     assert.ok(
       first.systemPrompt.indexOf("## Action Selection Cue") < first.systemPrompt.indexOf("## Cognitive Routing Cue"),

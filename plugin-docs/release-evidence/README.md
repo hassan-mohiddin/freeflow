@@ -20,6 +20,7 @@ After a release is frozen, its version record is historical evidence. Do not rew
 
 - [Freeflow v0.5.0](v0.5.0.md): the evidence preserved for the released v0.5.0 source and artifact boundary.
 - [Freeflow v0.6.0 candidate](v0.6.0.md): prepared local candidate evidence; commit, tag, publication, and consumer verification remain pending.
+- [Freeflow v0.7.0 candidate](v0.7.0.md): prepared local candidate evidence; deterministic checks and exact package inspection passed, while commit/tag/publication and consumer verification remain pending.
 
 ## Related documentation
 
