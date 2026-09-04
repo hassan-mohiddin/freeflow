@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- Adds Agent Plugins 1.0, Gemini CLI, Cursor, GitHub Copilot/VS Code, OpenCode v2, and Hermes distribution metadata or compatibility over the same canonical 25-skill tree, with Kiro compatibility through the portable Agent Plugins skill surface.
+
+### Changed
+
+- Separates shared runtime-context rendering from Codex, Claude, Gemini, Cursor, and Copilot/VS Code hook adapters while preserving existing Pi/PiFlow capability boundaries and lifecycle behavior.
+
+### Fixed
+
+- Aligns OpenCode v2 skill configuration, Gemini lifecycle matching, and Copilot session-start context output with their documented host contracts.
+
 ## 0.7.0 - 2026-09-03
 
 ### Breaking Changes

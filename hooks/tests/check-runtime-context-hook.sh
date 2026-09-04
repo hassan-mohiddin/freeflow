@@ -3,7 +3,11 @@ set -euo pipefail
 
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)"
 HOOK_PATH="$ROOT_DIR/hooks/freeflow-runtime-context.mjs"
-HOOKS_JSON="$ROOT_DIR/hooks/hooks.json"
+CLAUDE_HOOKS_JSON="$ROOT_DIR/hooks/claude/hooks.json"
+CODEX_HOOKS_JSON="$ROOT_DIR/hooks/codex/hooks.json"
+GEMINI_HOOKS_JSON="$ROOT_DIR/hooks/hooks.json"
+CURSOR_HOOKS_JSON="$ROOT_DIR/hooks/cursor/hooks.json"
+COPILOT_HOOKS_JSON="$ROOT_DIR/com.github.copilot/hooks/hooks.json"
 CORE_PROMPT="$ROOT_DIR/runtime/prompts/core.md"
 INTERACTION_PROMPT="$ROOT_DIR/runtime/prompts/interaction-contract.md"
 
@@ -29,7 +33,9 @@ assert_not_contains() {
 }
 
 [[ -f "$HOOK_PATH" ]] || fail "missing hook script"
-[[ -f "$HOOKS_JSON" ]] || fail "missing hooks manifest"
+for hooks_manifest in "$CLAUDE_HOOKS_JSON" "$CODEX_HOOKS_JSON" "$GEMINI_HOOKS_JSON" "$CURSOR_HOOKS_JSON" "$COPILOT_HOOKS_JSON"; do
+  [[ -f "$hooks_manifest" ]] || fail "missing hooks manifest: $hooks_manifest"
+done
 [[ -f "$CORE_PROMPT" ]] || fail "missing core prompt"
 [[ -f "$INTERACTION_PROMPT" ]] || fail "missing interaction contract prompt"
 [[ ! -f "$ROOT_DIR/runtime/prompts/skills.md" ]] || fail "retired skills prompt remains"
@@ -40,7 +46,29 @@ const hooks = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).hooks || {};
 if (!Array.isArray(hooks.SessionStart) || hooks.SessionStart.length !== 1) process.exit(1);
 if (hooks.SessionStart[0]?.matcher !== "startup|resume|clear|compact") process.exit(1);
 if (hooks.UserPromptSubmit || hooks.SessionEnd) process.exit(1);
-' "$HOOKS_JSON" || fail "hooks.json does not expose only SessionStart"
+' "$CODEX_HOOKS_JSON" || fail "Codex hooks manifest does not expose only SessionStart"
+node -e '
+const fs = require("fs");
+const hooks = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).hooks || {};
+if (!Array.isArray(hooks.SessionStart) || hooks.SessionStart.length !== 1) process.exit(1);
+if (hooks.SessionStart[0]?.matcher !== "startup|resume|clear|compact") process.exit(1);
+' "$CLAUDE_HOOKS_JSON" || fail "Claude hooks manifest does not preserve lifecycle starts"
+node -e '
+const fs = require("fs");
+const hooks = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).hooks || {};
+if (!Array.isArray(hooks.SessionStart) || hooks.SessionStart.length !== 1) process.exit(1);
+if (Object.prototype.hasOwnProperty.call(hooks.SessionStart[0], "matcher")) process.exit(1);
+' "$GEMINI_HOOKS_JSON" || fail "Gemini hooks manifest does not expose SessionStart"
+node -e '
+const fs = require("fs");
+const hooks = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).hooks || {};
+if (!Array.isArray(hooks.sessionStart) || hooks.sessionStart.length !== 1) process.exit(1);
+' "$CURSOR_HOOKS_JSON" || fail "Cursor hooks manifest does not expose sessionStart"
+node -e '
+const fs = require("fs");
+const config = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+if (config.version !== 1 || !Array.isArray(config.hooks?.SessionStart) || config.hooks.SessionStart.length !== 1) process.exit(1);
+' "$COPILOT_HOOKS_JSON" || fail "Copilot hooks manifest does not expose versioned SessionStart"
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
@@ -81,6 +109,9 @@ assert_not_contains "$codex_output" "session-modes" "configured core context"
 whitespace_root="$(mktemp -d)"
 mkdir -p "$whitespace_root/hooks" "$whitespace_root/runtime/prompts" "$whitespace_root/repo/.freeflow"
 cp "$HOOK_PATH" "$whitespace_root/hooks/freeflow-runtime-context.mjs"
+mkdir -p "$whitespace_root/hooks/adapters" "$whitespace_root/hooks/shared"
+cp "$ROOT_DIR/hooks/adapters/codex-session-start.mjs" "$whitespace_root/hooks/adapters/codex-session-start.mjs"
+cp "$ROOT_DIR/hooks/shared/runtime-context.mjs" "$whitespace_root/hooks/shared/runtime-context.mjs"
 cp -R "$ROOT_DIR/runtime/prompts/." "$whitespace_root/runtime/prompts/"
 printf ' \n\t\n' >"$whitespace_root/runtime/prompts/core.md"
 printf '{}\n' >"$whitespace_root/repo/.freeflow/config.json"

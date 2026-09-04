@@ -80,6 +80,7 @@ jobs:
       - name: Run release-focused tests
         run: |
           npm run test:pi-extension
+          npm run test:host-manifests
           npm run test:skill-author
           npm run test:skill-eval
           npm run test:track-work

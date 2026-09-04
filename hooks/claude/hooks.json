@@ -1,0 +1,18 @@
+{
+  "description": "Load Freeflow core runtime context in Claude Code.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/adapters/claude-session-start.mjs\" SessionStart",
+            "timeout": 5,
+            "statusMessage": "Loading Freeflow context"
+          }
+        ]
+      }
+    ]
+  }
+}

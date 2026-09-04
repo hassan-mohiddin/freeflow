@@ -1,15 +1,14 @@
 {
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "freeflow",
-  "description": "Freeflow gives coding agents an Interaction Contract, adaptive Workflow, focused methods, and durable task memory.",
   "version": "0.7.0",
+  "description": "Feedback-based control system for coding agents.",
   "author": {
     "name": "Hassan Mohiddin"
   },
   "homepage": "https://github.com/hassan-mohiddin/freeflow",
   "repository": "https://github.com/hassan-mohiddin/freeflow",
   "license": "MIT",
-  "skills": "./skills/",
-  "hooks": "./hooks/claude/hooks.json",
   "keywords": [
     "workflow",
     "skills",
@@ -19,7 +18,16 @@
     "planning",
     "verification",
     "review",
-    "claude-code",
-    "codex"
-  ]
+    "agent-plugins",
+    "gemini",
+    "copilot",
+    "vscode",
+    "cursor",
+    "kiro",
+    "opencode",
+    "hermes"
+  ],
+  "extensions": {
+    "com.github.copilot": {}
+  }
 }

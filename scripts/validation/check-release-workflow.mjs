@@ -30,6 +30,7 @@ export function inspectCiWorkflow(workflow) {
   requireText("git diff --exit-code -- pi-extension/dist", "CI workflow must reject dirty generated Pi output.");
   requireText("npm run check", "CI workflow must run the repository check gate.");
   requireText("npm run test:release-workflow", "CI workflow must run release workflow invariant tests.");
+  requireText("npm run test:host-manifests", "CI workflow must run host manifest and adapter tests.");
   requireText("npm run test:docs", "CI workflow must run documentation tests.");
   requireText("npm run test:changelog", "CI workflow must run changelog tests.");
   requireText("npm run test:pi-extension", "CI workflow must run the complete Pi extension suite.");
@@ -43,6 +44,11 @@ export function inspectCiWorkflow(workflow) {
     "git diff --exit-code -- pi-extension/dist",
     "npm run check",
     "CI must run the check gate after generated-output verification.",
+  );
+  requireOrder(
+    "npm run test:host-manifests",
+    "npm run test:skill-author",
+    "CI must run host manifest and adapter tests before the remaining deterministic suite.",
   );
   requireOrder(
     "npm run test:docs",
@@ -77,6 +83,7 @@ export function inspectReleaseWorkflow(workflow) {
   requireText("npm run test:docs", "Release workflow must run the documentation tests.");
   requireText("npm run test:changelog", "Release workflow must run the changelog tests.");
   requireText("npm run test:release-workflow", "Release workflow must run its invariant tests.");
+  requireText("npm run test:host-manifests", "Release workflow must run host manifest and adapter tests.");
   requireText(
     "git diff --exit-code -- pi-extension/dist",
     "Release workflow must reject dirty generated Pi output after build.",
@@ -113,6 +120,11 @@ export function inspectReleaseWorkflow(workflow) {
     "Changelog structure must be validated before release-note extraction.",
   );
   requireOrder("node scripts/release-notes.mjs", "npm publish", "Release notes must be extracted before npm publish.");
+  requireOrder(
+    "npm run test:host-manifests",
+    "npm run test:skill-author",
+    "Release workflow must run host manifest and adapter tests before the remaining deterministic suite.",
+  );
   requireOrder("npm pack --ignore-scripts", "npm publish", "The exact npm tarball must be created before publication.");
   requireOrder("--pack-destination", "npm publish", "The exact npm tarball must be retained before publication.");
   requireOrder(

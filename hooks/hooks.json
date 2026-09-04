@@ -1,15 +1,14 @@
 {
-  "description": "Load Freeflow core runtime context.",
+  "description": "Load Freeflow core runtime context in Gemini CLI.",
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup|resume|clear|compact",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT}}/hooks/freeflow-runtime-context.mjs\" SessionStart",
-            "timeout": 5,
-            "statusMessage": "Loading Freeflow context"
+            "name": "freeflow-runtime-context",
+            "command": "node \"${extensionPath}/hooks/adapters/gemini-session-start.mjs\" SessionStart",
+            "timeout": 5000
           }
         ]
       }

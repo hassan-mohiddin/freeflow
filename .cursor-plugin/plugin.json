@@ -1,6 +1,6 @@
 {
   "name": "freeflow",
-  "description": "Freeflow gives coding agents an Interaction Contract, adaptive Workflow, focused methods, and durable task memory.",
+  "description": "Feedback-based control system for coding agents.",
   "version": "0.7.0",
   "author": {
     "name": "Hassan Mohiddin"
@@ -9,7 +9,8 @@
   "repository": "https://github.com/hassan-mohiddin/freeflow",
   "license": "MIT",
   "skills": "./skills/",
-  "hooks": "./hooks/claude/hooks.json",
+  "hooks": "./hooks/cursor/hooks.json",
+  "logo": "assets/freeflow-plugin-icon-transparent.png",
   "keywords": [
     "workflow",
     "skills",
@@ -19,7 +20,6 @@
     "planning",
     "verification",
     "review",
-    "claude-code",
-    "codex"
+    "cursor"
   ]
 }

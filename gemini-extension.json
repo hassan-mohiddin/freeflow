@@ -1,0 +1,5 @@
+{
+  "name": "freeflow",
+  "version": "0.7.0",
+  "description": "Feedback-based control system for coding agents."
+}

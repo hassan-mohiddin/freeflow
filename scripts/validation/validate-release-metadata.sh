@@ -67,6 +67,10 @@ esac
 
 codex_marketplace="$repo_root/.agents/plugins/marketplace.json"
 claude_marketplace="$repo_root/.claude-plugin/marketplace.json"
+agent_plugins_manifest="$plugin_root/plugin.json"
+gemini_extension_manifest="$plugin_root/gemini-extension.json"
+opencode_config="$plugin_root/opencode.json"
+cursor_manifest="$plugin_root/.cursor-plugin/plugin.json"
 codex_manifest="$plugin_root/.codex-plugin/plugin.json"
 claude_manifest="$plugin_root/.claude-plugin/plugin.json"
 command_surface="$plugin_root/command-surface.json"
@@ -79,12 +83,23 @@ skill_routing_check="$plugin_root/scripts/validation/check-skill-routing-doc.mjs
 runtime_hooks_json="$plugin_root/hooks/hooks.json"
 runtime_hook_script="$plugin_root/hooks/freeflow-runtime-context.mjs"
 runtime_hook_check="$plugin_root/hooks/tests/check-runtime-context-hook.sh"
+codex_hooks_json="$plugin_root/hooks/codex/hooks.json"
+claude_hooks_json="$plugin_root/hooks/claude/hooks.json"
+gemini_hooks_json="$plugin_root/hooks/hooks.json"
+cursor_hooks_json="$plugin_root/hooks/cursor/hooks.json"
+copilot_hooks_json="$plugin_root/com.github.copilot/hooks/hooks.json"
+host_manifest_check="$plugin_root/scripts/validation/check-host-manifests.mjs"
+host_adapter_check="$plugin_root/hooks/tests/check-host-adapters.test.mjs"
 command_audit_stdout="$(mktemp "${TMPDIR:-/tmp}/freeflow-command-surface-audit.out.XXXXXX")"
 command_audit_stderr="$(mktemp "${TMPDIR:-/tmp}/freeflow-command-surface-audit.err.XXXXXX")"
 skill_routing_stdout="$(mktemp "${TMPDIR:-/tmp}/freeflow-skill-routing.out.XXXXXX")"
 skill_routing_stderr="$(mktemp "${TMPDIR:-/tmp}/freeflow-skill-routing.err.XXXXXX")"
 runtime_hook_stdout="$(mktemp "${TMPDIR:-/tmp}/freeflow-runtime-hook.out.XXXXXX")"
 runtime_hook_stderr="$(mktemp "${TMPDIR:-/tmp}/freeflow-runtime-hook.err.XXXXXX")"
+host_manifest_stdout="$(mktemp "${TMPDIR:-/tmp}/freeflow-host-manifest.out.XXXXXX")"
+host_manifest_stderr="$(mktemp "${TMPDIR:-/tmp}/freeflow-host-manifest.err.XXXXXX")"
+host_adapter_stdout="$(mktemp "${TMPDIR:-/tmp}/freeflow-host-adapter.out.XXXXXX")"
+host_adapter_stderr="$(mktemp "${TMPDIR:-/tmp}/freeflow-host-adapter.err.XXXXXX")"
 readme="$plugin_root/README.md"
 architecture_doc="$plugin_root/plugin-docs/architecture.md"
 release_doc="$plugin_root/plugin-docs/release.md"
@@ -96,7 +111,7 @@ findings_file="$(mktemp "${TMPDIR:-/tmp}/freeflow-release-findings.XXXXXX")"
 warnings_file="$(mktemp "${TMPDIR:-/tmp}/freeflow-release-warnings.XXXXXX")"
 deferred_file="$(mktemp "${TMPDIR:-/tmp}/freeflow-release-deferred.XXXXXX")"
 evidence_file="$(mktemp "${TMPDIR:-/tmp}/freeflow-release-evidence.XXXXXX")"
-trap 'rm -f "$checks_file" "$findings_file" "$warnings_file" "$deferred_file" "$evidence_file" "$command_audit_stdout" "$command_audit_stderr" "$skill_routing_stdout" "$skill_routing_stderr" "$runtime_hook_stdout" "$runtime_hook_stderr"' EXIT
+trap 'rm -f "$checks_file" "$findings_file" "$warnings_file" "$deferred_file" "$evidence_file" "$command_audit_stdout" "$command_audit_stderr" "$skill_routing_stdout" "$skill_routing_stderr" "$runtime_hook_stdout" "$runtime_hook_stderr" "$host_manifest_stdout" "$host_manifest_stderr" "$host_adapter_stdout" "$host_adapter_stderr"' EXIT
 
 status="pass"
 
@@ -172,7 +187,7 @@ contains_fixed() {
 check_json_shape() {
 	local check="json-shape"
 	local ok=1
-	for file in "$codex_marketplace" "$claude_marketplace" "$codex_manifest" "$claude_manifest" "$command_surface" "$runtime_hooks_json" "$package_json"; do
+	for file in "$codex_marketplace" "$claude_marketplace" "$agent_plugins_manifest" "$gemini_extension_manifest" "$opencode_config" "$cursor_manifest" "$codex_manifest" "$claude_manifest" "$command_surface" "$codex_hooks_json" "$claude_hooks_json" "$gemini_hooks_json" "$cursor_hooks_json" "$copilot_hooks_json" "$package_json"; do
 		require_file "$check" "$file" || ok=0
 		if [ -f "$file" ]; then
 			if ! jq empty "$file" >/dev/null; then
@@ -183,7 +198,7 @@ check_json_shape() {
 	done
 
 	if [ "$ok" = "1" ]; then
-		record_check "$check" "pass" "Required marketplace, manifest, and command-surface JSON files parse."
+		record_check "$check" "pass" "Required marketplace, host manifest, hook, and command-surface JSON files parse."
 	fi
 }
 
@@ -215,12 +230,17 @@ check_manifest_consistency() {
 	done
 
 	same_value "$check" "release version" "$release_version" "$(json_get "$codex_manifest" '.version')" || ok=0
+	same_value "$check" "Agent Plugins release version" "$release_version" "$(json_get "$agent_plugins_manifest" '.version')" || ok=0
+	same_value "$check" "Gemini extension release version" "$release_version" "$(json_get "$gemini_extension_manifest" '.version')" || ok=0
+	same_value "$check" "Cursor release version" "$release_version" "$(json_get "$cursor_manifest" '.version')" || ok=0
 	same_value "$check" "author.name" "$(json_get "$codex_manifest" '.author.name')" "$(json_get "$claude_manifest" '.author.name')" || ok=0
 	same_value "$check" "Codex displayName" "Freeflow" "$(json_get "$codex_manifest" '.interface.displayName')" || ok=0
 	same_value "$check" "Codex skills path" "./skills/" "$(json_get "$codex_manifest" '.skills')" || ok=0
-	same_value "$check" "Codex hooks path" "./hooks/hooks.json" "$(json_get "$codex_manifest" '.hooks')" || ok=0
+	same_value "$check" "Codex hooks path" "./hooks/codex/hooks.json" "$(json_get "$codex_manifest" '.hooks')" || ok=0
 	same_value "$check" "Claude skills path" "./skills/" "$(json_get "$claude_manifest" '.skills')" || ok=0
-	same_value "$check" "Claude manifest hooks override" "" "$(json_get "$claude_manifest" '.hooks')" || ok=0
+	same_value "$check" "Claude hooks path" "./hooks/claude/hooks.json" "$(json_get "$claude_manifest" '.hooks')" || ok=0
+	same_value "$check" "Cursor skills path" "./skills/" "$(json_get "$cursor_manifest" '.skills')" || ok=0
+	same_value "$check" "Cursor hooks path" "./hooks/cursor/hooks.json" "$(json_get "$cursor_manifest" '.hooks')" || ok=0
 	same_value "$check" "Claude marketplace version" "$release_version" "$(json_get "$claude_marketplace" '.plugins[0].version')" || ok=0
 	same_value "$check" "Claude marketplace homepage" "$(json_get "$claude_manifest" '.homepage')" "$(json_get "$claude_marketplace" '.plugins[0].homepage')" || ok=0
 	same_value "$check" "Claude marketplace author" "$(json_get "$claude_manifest" '.author.name')" "$(json_get "$claude_marketplace" '.plugins[0].author.name')" || ok=0
@@ -231,6 +251,10 @@ check_manifest_consistency() {
 	same_value "$check" "Claude manifest description" "$long_description" "$(json_get "$claude_manifest" '.description')" || ok=0
 	same_value "$check" "Claude marketplace description" "$product_description" "$(json_get "$claude_marketplace" '.description')" || ok=0
 	same_value "$check" "Claude marketplace plugin description" "$short_description" "$(json_get "$claude_marketplace" '.plugins[0].description')" || ok=0
+	same_value "$check" "Agent Plugins name" "freeflow" "$(json_get "$agent_plugins_manifest" '.name')" || ok=0
+	same_value "$check" "Agent Plugins schema" "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json" "$(json_get "$agent_plugins_manifest" '.["$schema"]')" || ok=0
+	same_value "$check" "Gemini extension name" "freeflow" "$(json_get "$gemini_extension_manifest" '.name')" || ok=0
+	same_value "$check" "Cursor name" "freeflow" "$(json_get "$cursor_manifest" '.name')" || ok=0
 
 	if [ "$ok" = "1" ]; then
 		record_check "$check" "pass" "Package and marketplace manifests agree on release identity and product descriptions."
@@ -265,7 +289,7 @@ check_host_skill_surface() {
 	fi
 
 	if [ "$ok" = "1" ]; then
-		record_check "$check" "pass" "Codex and Claude expose 25 functional skills with no retired Output Router runtime or discovery surface."
+		record_check "$check" "pass" "Supported host surfaces expose the canonical 25 functional skills with no retired Output Router runtime or discovery surface."
 	fi
 }
 
@@ -296,12 +320,27 @@ check_runtime_context_hooks() {
 	require_file "$check" "$runtime_hooks_json" || ok=0
 	require_file "$check" "$runtime_hook_script" || ok=0
 	require_file "$check" "$runtime_hook_check" || ok=0
+	require_file "$check" "$host_manifest_check" || ok=0
+	require_file "$check" "$host_adapter_check" || ok=0
+	for file in "$codex_hooks_json" "$claude_hooks_json" "$gemini_hooks_json" "$cursor_hooks_json" "$copilot_hooks_json"; do
+		require_file "$check" "$file" || ok=0
+	done
 
 	if [ "$ok" = "1" ]; then
 		if "$runtime_hook_check" >"$runtime_hook_stdout" 2>"$runtime_hook_stderr"; then
-			record_check "$check" "pass" "Plugin-bundled runtime context hook passed deterministic session-start checks."
+			record_check "$check" "pass" "Legacy Codex/Claude runtime-context compatibility checks passed."
 		else
-			record_check "$check" "fail" "Plugin-bundled runtime context hook check failed."
+			record_check "$check" "fail" "Legacy Codex/Claude runtime-context compatibility check failed."
+		fi
+		if node "$host_manifest_check" >"$host_manifest_stdout" 2>"$host_manifest_stderr"; then
+			record_check "$check" "pass" "Host manifest and path checks passed."
+		else
+			record_check "$check" "fail" "Host manifest and path checks failed."
+		fi
+		if node --test "$host_adapter_check" >"$host_adapter_stdout" 2>"$host_adapter_stderr"; then
+			record_check "$check" "pass" "Host adapter fixture checks passed."
+		else
+			record_check "$check" "fail" "Host adapter fixture checks failed."
 		fi
 	fi
 }
@@ -329,8 +368,8 @@ check_release_boundary() {
 		ok=0
 	}
 
-	contains_fixed "$architecture_doc" "shared runtime context hook" || {
-		record_check "$check" "fail" "Architecture doc no longer documents the shared runtime hook."
+	contains_fixed "$architecture_doc" "shared runtime-context renderer" || {
+		record_check "$check" "fail" "Architecture doc no longer documents the shared runtime-context renderer."
 		ok=0
 	}
 
@@ -407,13 +446,21 @@ check_package_cleanliness() {
 		ok=0
 	elif ! jq -e '
     .[0] as $pack
-    | ([$pack.files[].path | select(startswith("plugin-docs/") or startswith(".skill-eval/") or startswith(".deprecated/"))] | length) == 0
+    | ([$pack.files[].path | select(startswith("plugin-docs/") or startswith(".skill-eval/") or startswith(".deprecated/") or startswith("plans/"))] | length) == 0
       and ([$pack.files[].path | select(. == "skills/workflow/SKILL.md")] | length) == 1
       and ([$pack.files[].path | select(. == "runtime/prompts/interaction-contract.md")] | length) == 1
+      and ([$pack.files[].path | select(. == "plugin.json")] | length) == 1
+      and ([$pack.files[].path | select(. == "gemini-extension.json")] | length) == 1
+      and ([$pack.files[].path | select(. == ".cursor-plugin/plugin.json")] | length) == 1
+      and ([$pack.files[].path | select(. == "com.github.copilot/hooks/hooks.json")] | length) == 1
+      and ([$pack.files[].path | select(. == "hooks/shared/runtime-context.mjs")] | length) == 1
+      and ([$pack.files[].path | select(. == "hooks/adapters/claude-session-start.mjs" or . == "hooks/adapters/codex-session-start.mjs" or . == "hooks/adapters/gemini-session-start.mjs" or . == "hooks/adapters/cursor-session-start.mjs" or . == "hooks/adapters/copilot-session-start.mjs")] | length) == 5
+      and ([$pack.files[].path | select(. == "opencode.json")] | length) == 0
+      and ([$pack.files[].path | select(startswith(".github/skills/") or startswith(".agents/skills/") or startswith(".gemini/skills/") or startswith(".kiro/skills/"))] | length) == 0
       and ([$pack.files[].path | select(. == "capabilities/output-router/SKILL.md" or startswith("router/") or startswith("pi-extension/src/output-router/") or startswith("pi-extension/dist/output-router/"))] | length) == 0
       and ([$pack.files[].path | select(. == "pi-extension/freeflow/index.js")] | length) == 1
   ' <<<"$pack_manifest" >/dev/null; then
-		record_check "$check" "fail" "npm pack contents do not match the post-Output-Router runtime boundary."
+		record_check "$check" "fail" "npm pack contents do not match the multi-host runtime boundary."
 		ok=0
 	fi
 
@@ -462,6 +509,13 @@ check_docs_drift() {
 		ok=0
 	}
 
+	for host in OpenCode Hermes; do
+		contains_fixed "$architecture_doc" "$host" || {
+			record_check "$check" "fail" "Architecture docs do not preserve the $host compatibility boundary."
+		ok=0
+		}
+	done
+
 	contains_fixed "$readme" '**A feedback-based control system for coding agents.**' || {
 		record_check "$check" "fail" "README no longer states the accepted product identity."
 		ok=0
@@ -497,10 +551,10 @@ check_docs_drift() {
 }
 
 check_install_smoke() {
-	record_deferred "install-smoke" "GitHub/Codex, Claude, and fresh Pi install smoke checks are not run by local metadata validation."
+	record_deferred "install-smoke" "GitHub/Codex, Claude, Gemini, Cursor, Copilot/VS Code, Kiro, OpenCode, Hermes, and fresh Pi install smoke checks are not run by local metadata validation."
 	if [ "$mode" = "release" ] && [ "$status" = "pass" ]; then
 		status="blocked"
-		record_line "$warnings_file" "install-smoke: release mode is blocked until GitHub/Codex, Claude, and fresh Pi install smoke checks run or are explicitly waived."
+		record_line "$warnings_file" "install-smoke: release mode is blocked until GitHub/Codex, Claude, Gemini, Cursor, Copilot/VS Code, Kiro, OpenCode, Hermes, and fresh Pi install smoke checks run or are explicitly waived."
 	fi
 }
 

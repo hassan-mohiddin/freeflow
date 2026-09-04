@@ -60,12 +60,18 @@ Freeflow is one package with different host boundaries:
 
 | Host | Freeflow support | Cognitive Routing |
 | --- | --- | --- |
-| Codex | Shared skills and lifecycle hook | Not available; Pi/PiFlow capabilities are not delivered |
-| Claude Code | Shared skills and lifecycle hook | Not available; Pi/PiFlow capabilities are not delivered |
+| Codex | Shared skills and Codex `SessionStart` hook | Not available; Pi/PiFlow capabilities are not delivered |
+| Claude Code | Shared skills and Claude Code `SessionStart` hook | Not available; Pi/PiFlow capabilities are not delivered |
+| Gemini CLI | Gemini extension manifest, shared skills, and Gemini `SessionStart` hook | Not available; Pi/PiFlow capabilities are not delivered |
+| Cursor | Agent Plugins 1.0 skills plus Cursor-specific hook delivery | Not available; Pi/PiFlow capabilities are not delivered |
+| GitHub Copilot / VS Code | Agent Plugins 1.0 skills plus Copilot-specific hook delivery | Not available; Pi/PiFlow capabilities are not delivered |
+| Kiro | Agent Plugins 1.0 Power and shared skills | Not available; no Kiro-specific runtime adapter is claimed |
+| OpenCode v2 | Canonical `skills/` through OpenCode’s project skill source | Not available; skills-only support |
+| Hermes Agent | Agent Plugins 1.0 package and canonical skills | Not available; skills-only support |
 | Pi | Shared skills, Pi extension, optional context capabilities, and native host controls | Available when configured and the official model-state APIs are present |
 | PiFlow | Freeflow package hosted by the separate PiFlow distribution | Available when configured |
 
-Freeflow owns workflow policy, prompt fragments, skills, capabilities, and the Pi extension. Each host owns its launch, package installation, session state, updates, and native model-state control; PiFlow remains a supported host integration.
+Freeflow owns workflow policy, portable prompt fragments, the 25-skill distribution kernel, host adapters, Pi/PiFlow capabilities, and the Pi extension. Each host owns its launch, package installation, session state, updates, and native model-state control; PiFlow remains a supported host integration.
 
 ## Capabilities
 
@@ -105,6 +111,24 @@ Trust the Freeflow hook from `/hooks`, then start a new session.
 /plugin install freeflow
 /reload-plugins
 ```
+
+### Gemini CLI
+
+```bash
+gemini extensions install https://github.com/hassan-mohiddin/freeflow
+```
+
+Restart Gemini CLI after installation or updates. The extension uses the root `gemini-extension.json`, shared `skills/`, and its Gemini-specific `SessionStart` hook adapter.
+
+### Cursor, GitHub Copilot, VS Code, Kiro, OpenCode, and Hermes Agent
+
+These hosts consume the root Agent Plugins 1.0 manifest and the same `skills/` directory. Cursor also reads `.cursor-plugin/plugin.json` for its host-specific hook surface; GitHub Copilot and VS Code read the `com.github.copilot/` extension namespace. Install from each host’s documented plugin source or marketplace UI. For Copilot CLI, the direct repository form is:
+
+```bash
+copilot plugin install hassan-mohiddin/freeflow
+```
+
+VS Code provides **Chat: Install Plugin From Source**. Kiro exposes compatible Agent Plugins as Powers and can import a GitHub source through its Powers UI. OpenCode v2 can add the checkout or package’s `skills/` directory to the documented `skills` array in `opencode.json`; it does not receive a native Freeflow plugin runtime. Hermes can install the root portable package with `hermes plugins install hassan-mohiddin/freeflow --no-enable`, then enable it with `hermes plugins enable freeflow`, or use its documented skills source workflow. A host’s install/trust UI and marketplace availability are external to this repository’s deterministic checks.
 
 ### Pi
 
@@ -178,6 +202,8 @@ Read the full [System Prompt Architecture](https://github.com/hassan-mohiddin/fr
 Freeflow is explicit about what its checks prove:
 
 - deterministic checks prove structure, assembly, package boundaries, and selected delivery behavior;
+- host-manifest and adapter checks prove the Agent Plugins 1.0, Gemini, Cursor, and Copilot/VS Code package shapes, not native host dispatch;
+- OpenCode and Hermes compatibility checks cover the canonical Agent Skills/Agent Plugins package shape, not native host plugin APIs or runtime prompt delivery;
 - release evidence is versioned and records source, checks, artifacts, deferred evidence, and limits;
 - local installation does not prove remote host installation or registry propagation;
 - deterministic skill/runtime checks do not prove model behavior or universal skill readiness;

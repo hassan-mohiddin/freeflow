@@ -7,8 +7,11 @@ import { prepareChangelog, resolveReleaseVersion } from "./release-utils.mjs";
 
 const VERSIONED_JSON_FILES = [
   "package.json",
+  "plugin.json",
+  "gemini-extension.json",
   ".codex-plugin/plugin.json",
   ".claude-plugin/plugin.json",
+  ".cursor-plugin/plugin.json",
   ".claude-plugin/marketplace.json",
 ];
 

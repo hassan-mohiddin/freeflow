@@ -6,8 +6,11 @@ import { parseVersion } from "../release-utils.mjs";
 
 const VERSION_FILES = [
   { path: "package.json", getVersion: (data) => data.version },
+  { path: "plugin.json", getVersion: (data) => data.version },
+  { path: "gemini-extension.json", getVersion: (data) => data.version },
   { path: ".codex-plugin/plugin.json", getVersion: (data) => data.version },
   { path: ".claude-plugin/plugin.json", getVersion: (data) => data.version },
+  { path: ".cursor-plugin/plugin.json", getVersion: (data) => data.version },
   { path: ".claude-plugin/marketplace.json", getVersion: (data) => data.plugins?.[0]?.version },
 ];
 

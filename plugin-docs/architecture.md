@@ -8,6 +8,11 @@ The repository root is the single source of truth for skills, references, runtim
 
 ```text
 freeflow/
+  plugin.json                    # Agent Plugins 1.0 portable manifest
+  gemini-extension.json          # Gemini CLI extension manifest
+  opencode.json                  # OpenCode project skill-source config
+  .cursor-plugin/plugin.json     # Cursor-specific manifest
+  com.github.copilot/            # Copilot/VS Code-specific components
   runtime/prompts/
   skills/
   capabilities/
@@ -29,12 +34,13 @@ The npm tarball contains runtime-required files. GitHub also retains plugin docs
 - `CHANGELOG.md` records release history for the single published Freeflow package.
 - `.deprecated/project-docs/` preserves project plans, handoffs, research, issues, and historical evidence; it is not the normal current-runtime reading path.
 - `.freeflow/tasks/` contains ignored Working Records and task-local Plans; it is not public or package documentation.
+- `plugin.json` is the Agent Plugins 1.0 root manifest. `skills/` is discovered at its fixed standard location; the manifest does not override it. `.cursor-plugin/`, `gemini-extension.json`, `com.github.copilot/`, and `opencode.json` are host-specific delivery metadata/configuration, not additional skill sources. `opencode.json` is repository-only and is not part of the npm runtime allowlist.
 
 For local Pi/PiFlow integration, Freeflow can provide an exact-commit development snapshot outside the repository. It is not a production release or source-precedence mechanism; production installs use ordinary npm/Git sources. PiFlow owns host launch, package installation, import, update, and upstream synchronization, while Freeflow owns policy and snapshot production.
 
-Codex marketplace metadata uses local source `.`, while Claude uses host-valid local source `./`. Pi loads `pi-extension/freeflow/index.js` from the root package manifest.
+Codex marketplace metadata uses local source `.`, while Claude uses host-valid local source `./`. Agent Plugins-compatible hosts read the root `plugin.json`; Gemini reads `gemini-extension.json`; Cursor-specific hooks use `.cursor-plugin/plugin.json`; Copilot/VS Code-specific hooks use `com.github.copilot/`. Pi loads `pi-extension/freeflow/index.js` from the root package manifest.
 
-Freeflow does not ship a CLI, duplicate manifest command handlers, enforcement hooks, or a new agent runtime in this release. It uses each host's native skill invocation and ships a shared runtime context hook plus the Pi extension.
+Freeflow does not ship a CLI, duplicate manifest command handlers, enforcement hooks, or a new agent runtime in this release. It uses each host's native skill invocation and ships one shared runtime-context renderer with host-specific session adapters plus the Pi extension.
 
 ## Layered Configuration
 
@@ -64,11 +70,27 @@ The Interaction Contract is prompt-only and not discoverable. Full skill and cap
 
 ## Host Delivery
 
-### Codex And Claude
+### Codex and Claude Code
 
-One packaged runtime script serves the `SessionStart` lifecycle boundary. It reads repository and personal layers and delivers the mandatory core fragments after startup, resume, clear, or compact. The hook does not process submitted prompts, persist session controls, or create clear-transfer state. Codex and Claude do not receive Pi/PiFlow capability delivery.
+`hooks/adapters/codex-session-start.mjs` and `hooks/adapters/claude-session-start.mjs` use the shared `hooks/shared/runtime-context.mjs` renderer. Their host manifests preserve the `SessionStart` lifecycle boundary and startup, resume, clear, and compact matcher. They read repository and personal layers and deliver the mandatory core fragments without processing submitted prompts, persisting session controls, or creating clear-transfer state. Codex and Claude do not receive Pi/PiFlow capability delivery.
 
-The hook stays inert without valid repository activation, fails closed on invalid personal core config, and never inspects or exposes Pi/PiFlow capabilities. Host trust or hook registration may still be required. Setup reports delivery as confirmed, unavailable, or unconfirmed.
+The compatibility entrypoint `hooks/freeflow-runtime-context.mjs` remains executable for existing integrations. All shared adapters stay inert without valid repository activation, fail closed on invalid personal core config, and never inspect or expose Pi/PiFlow capabilities. Host trust or hook registration may still be required. Setup reports delivery as confirmed, unavailable, or unconfirmed.
+
+### Gemini CLI
+
+`gemini-extension.json` identifies the root package as a Gemini extension. Gemini’s root `hooks/hooks.json` invokes `hooks/adapters/gemini-session-start.mjs` for its documented `SessionStart` lifecycle. The adapter returns Gemini’s `hookSpecificOutput.additionalContext` shape and shares the mandatory prompt renderer; Gemini does not receive Pi/PiFlow capabilities.
+
+### Cursor
+
+The root `plugin.json` supplies the portable Agent Plugins 1.0 skill surface. `.cursor-plugin/plugin.json` adds Cursor’s documented `sessionStart` hook path, which invokes `hooks/adapters/cursor-session-start.mjs` and returns Cursor’s `additional_context` field. Cursor hook delivery is host-specific and fire-and-forget; the root standard manifest alone does not prove that runtime hook behavior occurred.
+
+### GitHub Copilot and VS Code
+
+Copilot CLI and VS Code consume the root Agent Plugins 1.0 `plugin.json` and fixed `skills/` directory. The `com.github.copilot/hooks/hooks.json` namespace provides the compatible `SessionStart` adapter for hosts with plugin hooks enabled. VS Code hook support is currently preview; Copilot cloud and CLI have different lifecycle environments. Local checks prove the package and hook shapes, not host dispatch or marketplace availability.
+
+### Kiro, OpenCode, Hermes, and other skills-compatible hosts
+
+Kiro can consume the root Agent Plugins 1.0 package as a Power and activate the same `skills/` directories. Hermes can install the same root portable package through its Agent Plugins adapter or scan the source through its skills workflow. OpenCode v2 uses the repository `opencode.json` `skills` array or an equivalent installed-project configuration to point at the existing `skills/` directory. This package does not add Kiro steering files, a Hermes `plugin.yaml`/`register(ctx)` module, or an OpenCode plugin module. Cline and Kilo are not claimed as native plugin integrations; users may use their documented standalone Agent Skills paths when available.
 
 ### Pi
 
@@ -95,7 +117,7 @@ A skill body establishes the first-read job and normal route from guaranteed con
 
 See [Skill routing](skill-routing.md) for the typed owner, route, and reference adjacency map.
 
-The active cross-host model/contributor surface has 25 skills under `skills/`, including Action Selection and Workflow. Cognitive Routing, Context Virtualization, and Conversation History are separately packaged Pi/PiFlow capability skills under `capabilities/`, outside Codex and Claude discovery. Retired Output Router material is preserved under `.deprecated/output-router/`. Removed Mode Contract material is preserved under `.deprecated/modes/` and is not an active package surface.
+The active cross-host model/contributor surface has 25 skills under `skills/`, including Action Selection and Workflow. Agent Plugins-compatible hosts, Gemini, Cursor, Codex, Claude, OpenCode, Hermes, and the Pi extension all consume this one canonical skill tree through their documented discovery surfaces. Cognitive Routing, Context Virtualization, and Conversation History are separately packaged Pi/PiFlow capability skills under `capabilities/`, outside non-Pi host delivery. Retired Output Router material is preserved under `.deprecated/output-router/`. Removed Mode Contract material is preserved under `.deprecated/modes/` and is not an active package surface.
 
 ## Review And Verification Topology
 

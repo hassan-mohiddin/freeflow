@@ -8,6 +8,8 @@ Freeflow releases one npm package and one public plugin source tree:
 
 The repository root is the source tree. The npm tarball is the installable runtime artifact. GitHub-only documentation, task memory, evaluation definitions, and deprecated historical material remain outside the runtime package.
 
+The package has one portable skills source under `skills/`. Host-specific metadata and delivery adapters are versioned with that package: Agent Plugins 1.0 uses `plugin.json` and `com.github.copilot/`, Gemini uses `gemini-extension.json` and its hook manifest, Cursor uses `.cursor-plugin/`, OpenCode v2 uses the repository-only `opencode.json` `skills` array, Hermes uses its portable Agent Plugins adapter, and Codex/Claude retain their existing manifests. These are compatibility surfaces over the same source tree, not separate packages; `opencode.json` remains outside the npm runtime allowlist.
+
 ## Changelog contract
 
 `CHANGELOG.md` is the root package changelog and the release-history source for Freeflow while the repository has one package. The current `## Unreleased` section must use these categories in this order, omitting empty categories:
@@ -60,6 +62,8 @@ Release preparation is an authorized local preparation step, not publication:
 
 The preparation script requires a clean worktree, updates version metadata and the changelog, and does not commit, tag, push, publish, or create a GitHub Release.
 
+Release preparation updates every version-bearing manifest, including `package.json`, `plugin.json`, `gemini-extension.json`, `.codex-plugin/plugin.json`, `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `package-lock.json`. The current post-v0.7.0 implementation keeps `CHANGELOG.md` under `## Unreleased`; its next versioned evidence record is created only when a release target is selected.
+
 ## Human-controlled boundaries
 
 A release is not complete because local preparation or a build passes. The human-controlled sequence is:
@@ -81,7 +85,7 @@ Do not reuse a published npm version or force-move a release tag. Do not publish
 
 ## Release evidence
 
-For each candidate or release, preserve versioned evidence under [`release-evidence/`](release-evidence/). A version record must state what was checked and what remains unavailable. Keep behavioral evaluation, remote host installation, host trust UI, registry propagation, signatures, and consumer installation claims separate from local deterministic checks.
+For each candidate or release, preserve versioned evidence under [`release-evidence/`](release-evidence/). A version record must state what was checked and what remains unavailable. Keep behavioral evaluation, remote host installation, host trust UI, registry propagation, signatures, marketplace review, and consumer installation claims separate from local deterministic checks. Host-specific smoke checks should cover Codex, Claude, Gemini, Cursor, Copilot/VS Code, Kiro, OpenCode, Hermes, and Pi when those clients are available; their absence leaves the corresponding claim deferred.
 
 ## PiFlow development snapshots
 

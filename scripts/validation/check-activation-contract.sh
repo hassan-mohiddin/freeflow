@@ -18,6 +18,8 @@ architecture_doc="$repo_root/plugin-docs/architecture.md"
 workflow_doc="$repo_root/plugin-docs/workflow.md"
 pi_runtime="$repo_root/pi-extension/src/runtime/runtime-context.ts"
 shared_hook="$repo_root/hooks/freeflow-runtime-context.mjs"
+shared_renderer="$repo_root/hooks/shared/runtime-context.mjs"
+claude_adapter="$repo_root/hooks/adapters/claude-session-start.mjs"
 
 failures=0
 fail() {
@@ -54,7 +56,9 @@ for file in \
 	"$runtime_doc" \
 	"$architecture_doc" \
 	"$pi_runtime" \
-	"$shared_hook"; do
+	"$shared_hook" \
+	"$shared_renderer" \
+	"$claude_adapter"; do
 	[[ -f "$file" ]] || fail "missing required file: $file"
 done
 
@@ -84,8 +88,8 @@ require_text "$pi_runtime" '../../../runtime/prompts/interaction-contract.md'
 require_text "$pi_runtime" '../../../runtime/prompts/cognitive-routing.md'
 require_text "$pi_runtime" '../../../runtime/prompts/context-virtualization.md'
 require_text "$pi_runtime" '../../../runtime/prompts/conversation-history.md'
-require_text "$shared_hook" '"runtime", "prompts", "interaction-contract.md"'
-require_text "$shared_hook" 'return eventName === "SessionStart";'
+require_text "$shared_renderer" 'path.join(PLUGIN_ROOT, "runtime", "prompts", "interaction-contract.md")'
+require_text "$claude_adapter" 'eventNames: ["SessionStart"]'
 
 for file in \
 	"$agents_file" \

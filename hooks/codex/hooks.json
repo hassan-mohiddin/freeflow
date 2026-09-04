@@ -1,0 +1,18 @@
+{
+  "description": "Load Freeflow core runtime context in Codex.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/hooks/adapters/codex-session-start.mjs\" SessionStart",
+            "timeout": 5,
+            "statusMessage": "Loading Freeflow context"
+          }
+        ]
+      }
+    ]
+  }
+}

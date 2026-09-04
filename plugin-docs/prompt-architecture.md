@@ -60,9 +60,29 @@ The `enabled` setting is the only Freeflow core switch. Context Virtualization, 
 
 ### Codex and Claude Code
 
-The shared hook loads the mandatory core fragments at `SessionStart` for startup, resume, clear, and compact boundaries. It does not process ordinary submitted prompts, persist session controls, or create clear-transfer state. Codex and Claude do not receive Pi/PiFlow capability delivery.
+The Codex and Claude adapters load the mandatory core fragments at `SessionStart` for startup, resume, clear, and compact boundaries. They share `hooks/shared/runtime-context.mjs` but keep host-specific hook manifests and output envelopes. They do not process ordinary submitted prompts, persist session controls, or create clear-transfer state. Codex and Claude do not receive Pi/PiFlow capability delivery.
 
 Hook delivery does not enforce Workflow policy, block tools, grant permissions, or replace repository instructions. Hook trust and registration are host concerns; Setup reports delivery as confirmed, unavailable, or unconfirmed.
+
+### Gemini CLI
+
+Gemini uses `gemini-extension.json`, the root `skills/` directory, and its `hooks/hooks.json` `SessionStart` adapter. The adapter returns Gemini’s `hookSpecificOutput.additionalContext` field. Gemini’s documented startup, resume, and clear lifecycle is host-specific; local fixtures do not prove extension dispatch.
+
+### Cursor
+
+Cursor discovers the portable skill surface from the root Agent Plugins 1.0 manifest. Its `.cursor-plugin/plugin.json` adds a `sessionStart` adapter that returns Cursor’s `additional_context` field. Cursor session-start hooks are fire-and-forget and do not provide a blocking policy boundary.
+
+### GitHub Copilot and VS Code
+
+Copilot CLI and VS Code discover portable skills from the root Agent Plugins 1.0 manifest. The `com.github.copilot/hooks/hooks.json` namespace supplies the compatible `SessionStart` hook, whose adapter returns direct `additionalContext` output. VS Code’s hook runtime is a preview surface, and Copilot CLI/cloud lifecycle environments differ; deterministic adapter tests do not establish native dispatch.
+
+### Kiro
+
+Kiro can load the root Agent Plugins 1.0 package as a Power and activate its bundled skills. No Kiro-specific context file or hook adapter is included, so Kiro does not receive a claimed always-on Freeflow prompt surface from this package.
+
+### OpenCode and Hermes Agent
+
+OpenCode v2 and Hermes consume the canonical `skills/` surface through their documented skill-source or Agent Plugins adapters. Neither receives a claimed always-on Freeflow prompt surface or the Pi/PiFlow capabilities from this package.
 
 ### Pi and PiFlow
 
@@ -106,7 +126,7 @@ Manual Cognitive Routing control runs the ordinary unsplit Workflow. Under autom
 
 ## Evidence boundary
 
-Deterministic prompt, gating, discovery, and package checks prove assembly and delivery structure. They do not establish behavioral quality, universal skill readiness, host trust UI, remote installation, or release publication. Those claims require their own evidence boundary.
+Deterministic prompt, gating, discovery, package, and host-adapter checks prove assembly and delivery structure. They do not establish behavioral quality, universal skill readiness, native host dispatch, host trust UI, remote installation, marketplace review, or release publication. Those claims require their own evidence boundary.
 
 ## Related documentation
 
