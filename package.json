@@ -1,6 +1,6 @@
 {
   "name": "@hassangameryt/freeflow",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Feedback-based control system for coding agents.",
   "publishConfig": {
     "access": "public"

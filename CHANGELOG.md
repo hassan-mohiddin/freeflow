@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.7.1 - 2026-09-04
+
 ### Added
 
 - Adds Agent Plugins 1.0, Gemini CLI, Cursor, GitHub Copilot/VS Code, OpenCode v2, and Hermes distribution metadata or compatibility over the same canonical 25-skill tree, with Kiro compatibility through the portable Agent Plugins skill surface.
