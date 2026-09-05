@@ -884,16 +884,20 @@ test("Pi delivers stable Cognitive Routing cues and refreshes runtime state only
     assert.equal(first.message, undefined);
     assert.match(first.systemPrompt, /## Cognitive Routing Cue/);
     assert.match(first.systemPrompt, /each user interaction begins in Reasoning/);
-    assert.match(first.systemPrompt, /If the full Cognitive Routing skill is not visible/);
-    assert.match(first.systemPrompt, /Make that read the only environment call/);
+    assert.match(
+      first.systemPrompt,
+      /Before interpreting or acting on a request, read the full `cognitive-routing` skill/,
+    );
+    assert.match(first.systemPrompt, /before selecting another task skill/);
+    assert.match(first.systemPrompt, /Make this bootstrap read the only environment call/);
     assert.match(first.systemPrompt, /it is not a route transition/);
-    assert.match(first.systemPrompt, /YIELD/);
-    assert.match(first.systemPrompt, /Delegate/);
-    assert.match(first.systemPrompt, /ACT_BOUNDED/);
-    assert.match(first.systemPrompt, /Automatic Standard only executes active Yield or Delegate contracts/);
-    assert.match(first.systemPrompt, /writes `YIELD HANDOFF` or `RETURN` and switches to Reasoning/);
-    assert.match(first.systemPrompt, /Standard never handles substantive user-facing interaction/);
-    assert.doesNotMatch(first.systemPrompt, /TASK ACT|OBSERVE/);
+    assert.match(first.systemPrompt, /If the read fails or is unavailable, stop and report missing context/);
+    assert.match(
+      first.systemPrompt,
+      /Substantive user-facing interpretation, discussion, questions, decisions, assessment, and reporting remain there/,
+    );
+    assert.match(first.systemPrompt, /Cognitive Routing never changes authority or Workflow ownership/);
+    assert.doesNotMatch(first.systemPrompt, /YIELD|DELEGATE|ACT_BOUNDED|Automatic Standard/);
     assert.ok(
       first.systemPrompt.indexOf("## Action Selection Cue") < first.systemPrompt.indexOf("## Cognitive Routing Cue"),
     );

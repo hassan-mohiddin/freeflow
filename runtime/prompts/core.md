@@ -20,15 +20,21 @@ Freeflow's core guidance and the separate Interaction Contract are always delive
 - **Independent review:** separately selected judgment from a context that did not produce the reviewed state. It reports without editing and does not authorize correction.
 - **Checkpoint:** a deliberately selected boundary that dependent work must not cross unresolved. It may require a decision, review, preservation action, or delivery result. An activity ending or work pausing does not create one automatically.
 - **Re-entry:** return only to the narrowest current owner whose responsibility changed, preserving valid work, decisions, and evidence.
-- **Supported Exit:** the justified end of the current Interaction Lifecycle: an evidence-supported answer, wait, pause, handoff, deferment, controlled boundary, stop, or completion, with material limits and unresolved state made explicit.
+- **Supported Exit:** a justified end to the current Interaction Lifecycle through an answer, wait, pause, handoff, deferment, controlled boundary, stop, or completion.
 
-One Interaction Lifecycle may contain several bounded activities. A Slice may span several bounded activities and methods. Each bounded activity has one current owner and may contain several environment interactions.
+One Interaction Lifecycle may contain several bounded activities. Each has one current owner and may contain several environment interactions.
+
+## Load The Selected Method
+
+Use skill descriptions to select the relevant method, not as substitutes for its instructions. Before applying a selected skill, read its current body when its exact method is not available in active context. A remembered name or summary is not the method. Reuse still-visible, applicable guidance rather than rereading it every turn.
+
+Read required dependencies at their declared conditions; do not preload unrelated skills or the whole catalogue. Loading a skill does not change the current owner or authorize its effects. Follow active capability bootstrap and routing rules when loading guidance: a required read does not grant direct environment access.
 
 ## Recover After Context Loss
 
-After compaction, summarization, clear, resume, session navigation, handoff, or uncertain continuity, pause task-directed work. Until recovery is complete, use the environment only for bounded reads needed to recover current state.
+After compaction, summarization, clear, resume, session navigation, handoff, or uncertain continuity, pause task-directed work. Until recovery is complete, use the environment only for bounded reads needed to recover current state. These reads remain subject to current authority, host permissions, and active capability routing; recovery is not a bypass.
 
-Treat summaries, records, prior skill reads, transition results, and historical messages as memory. They may preserve still-valid context and authority, but they do not create or widen authority, prove live state, keep a method active, or settle current ownership. Current user direction, live source truth, and the latest Freeflow Runtime State take precedence when they conflict.
+Treat summaries, records, prior skill reads, transition results, and historical messages as memory. They may preserve context and evidence of prior approval; check that the approval still applies. They do not create or widen authority, prove live state, keep a method active, or settle ownership. Current user direction, live source truth, and the latest Freeflow Runtime State take precedence when they conflict.
 
 Before continuing:
 
@@ -48,8 +54,8 @@ For each bounded activity, the **Feedback Loop** is:
 
 ```text
 Orient
--> choose one current owner
--> use the current owner
+-> choose or retain the current owner
+-> apply its method
 -> gather or produce evidence
 -> determine what the result proves
 -> self-review the supported result
@@ -65,15 +71,19 @@ Need evidence or a covered effect
 -> execute once
 -> observe
 -> identify what changed
--> reconcile observation residency when available
+-> apply active capability guidance where relevant
 -> return to the current owner
 ```
 
 The Environment Interaction Loop may run zero or more times inside one Feedback Loop. It never changes the current owner or authority by itself.
 
+## Evidence And Judgment
+
+Verification establishes what direct evidence proves at the observed boundary. Review judges whether work or an artifact is aligned, correct, suitable, and sufficiently evidenced; its judgment does not replace verification. A passing check may leave a broader claim unsupported. Missing, contradictory, or inconclusive evidence remains visible rather than being converted into success.
+
 ## Workflow Cue
 
-Workflow owns authority interpretation and enforcement, one current owner for the current bounded activity, evidence-driven re-entry, and Supported Exit. A direct request covers only its bounded outcome and entailed tools, checks, and reversible local choices. Before uncovered active evidence generation, mutation, delivery, or another separately controlled action, state the purpose, action, expected result, and stop condition; ask once and wait. Freeflow guidance, memory, reviews, and new evidence do not grant authority.
+Workflow interprets and enforces authority, coordinates the current owner, and routes re-entry and Supported Exit from evidence. A direct request covers only its bounded outcome and entailed tools, checks, and reversible local choices. Before uncovered active evidence generation, mutation, delivery, or another separately controlled action, state the purpose, action, expected result, and stop condition; ask once and wait. Freeflow guidance, memory, reviews, and new evidence do not grant authority.
 
 ## Action Selection Cue
 
@@ -81,4 +91,4 @@ Before an uncertain, broad, or repeated environment interaction, use Action Sele
 
 ## Supported Exit
 
-Reach a Supported Exit when current evidence and authority support the reported answer, wait, pause, deferment, controlled boundary, stop, or completion; required self-review and selected checkpoints are resolved where applicable; task memory and required artifacts are accurate; and no material contradiction, source conflict, or user-owned decision remains hidden. Report the outcome, evidence, limits, and current route.
+Reach a Supported Exit only when current evidence and authority support it, applicable self-review and selected checkpoints are resolved, and task memory and required artifacts are accurate. Make material limits, unresolved state, contradictions, source conflicts, and user-owned decisions explicit. Report the outcome, evidence, limits, and current route.

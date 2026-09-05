@@ -71,14 +71,28 @@ test("re-entry recovery is stable and capability-neutral", async () => {
     readFile(join(process.cwd(), "runtime", "prompts", "conversation-history.md"), "utf8"),
   ]);
 
+  assert.match(core, /## Load The Selected Method/);
+  assert.match(core, /Before applying a selected skill, read its current body/);
   assert.match(core, /## Recover After Context Loss/);
   assert.match(core, /latest Freeflow Runtime State/);
-  assert.doesNotMatch(cognitiveRouting, /When Cognitive Routing is active and its skill is absent/);
+  assert.match(core, /recovery is not a bypass/);
+  assert.match(core, /evidence of prior approval; check that the approval still applies/);
+  assert.match(core, /choose or retain the current owner/);
+  assert.match(core, /apply its method/);
+  assert.match(
+    core,
+    /Make material limits, unresolved state, contradictions, source conflicts, and user-owned decisions explicit/,
+  );
+  assert.match(cognitiveRouting, /Before interpreting or acting on a request, read the full `cognitive-routing` skill/);
+  assert.match(cognitiveRouting, /Make this bootstrap read the only environment call/);
+  assert.match(cognitiveRouting, /If the read fails or is unavailable, stop and report missing context/);
   assert.match(cognitiveRouting, /A Runtime State refresh is host context, not a user interruption/);
+  assert.match(cognitiveRouting, /does not by itself reset the route or end ongoing work/);
   assert.match(
     cognitiveRouting,
-    /`Control` and `Profile` in the latest Runtime State report current compute state, not Yield, Delegate, `ACT_BOUNDED`, or boundary state/,
+    /`Control` and `Profile` describe current compute, not authority, the current execution contract, or its completion/,
   );
+  assert.doesNotMatch(cognitiveRouting, /YIELD|DELEGATE|ACT_BOUNDED/);
   assert.doesNotMatch(
     conversationHistory,
     /Current user direction, live source truth, and present runtime state remain authoritative/,
@@ -98,8 +112,10 @@ test("composes the mandatory core fragments, optional capabilities, discovery, a
     const order = [
       "# Freeflow Stable Guidance",
       "## Shared Terms",
+      "## Load The Selected Method",
       "## Recover After Context Loss",
       "## Three Nested Loops",
+      "## Evidence And Judgment",
       "## Workflow Cue",
       "## Action Selection Cue",
       "## Supported Exit",
@@ -112,6 +128,18 @@ test("composes the mandatory core fragments, optional capabilities, discovery, a
       order,
       [...order].sort((a, b) => a - b),
     );
+    assert.match(
+      prompt,
+      /Before applying a selected skill, read its current body when its exact method is not available/,
+    );
+    assert.match(prompt, /Verification establishes what direct evidence proves at the observed boundary/);
+    assert.match(
+      prompt,
+      /Review judges whether work or an artifact is aligned, correct, suitable, and sufficiently evidenced/,
+    );
+    assert.match(prompt, /Interpret requested intent, not sentence form/);
+    assert.match(prompt, /answer the question before any action that depends on it/);
+    assert.match(prompt, /An unresolved question does not automatically suspend independent, clearly authorized work/);
     assert.doesNotMatch(prompt, /## Mode\b|strict-workflow|conversation mode|workflow mode/);
     assert.doesNotMatch(prompt, /Skills prompt/);
     assert.doesNotMatch(prompt, /# Workflow\n/);
