@@ -104,12 +104,18 @@ export function isPromptAvailable(value: unknown): value is string {
 // pi-subagents stamps child system prompts with this tag before binding extensions.
 // Keeping detection at the prompt boundary avoids a process-global child flag.
 export const SUBAGENT_AGENT_TAG = /<active_agent\s+name="[^"]+"\s*\/>/;
+export const FREEFLOW_SUBAGENT_CAPABILITIES_DISABLED_MARKER =
+  "<!-- freeflow-subagent-capabilities: disabled -->";
 const SUBAGENT_OPTIONAL_CAPABILITIES_MESSAGE = "Optional Freeflow capabilities are disabled for subagents.";
 
 export function isSubagentContext(context: unknown): boolean {
   try {
     const systemPrompt = (context as { getSystemPrompt?: () => unknown })?.getSystemPrompt?.();
-    return typeof systemPrompt === "string" && SUBAGENT_AGENT_TAG.test(systemPrompt);
+    return (
+      typeof systemPrompt === "string" &&
+      (SUBAGENT_AGENT_TAG.test(systemPrompt) ||
+        systemPrompt.includes(FREEFLOW_SUBAGENT_CAPABILITIES_DISABLED_MARKER))
+    );
   } catch {
     return false;
   }

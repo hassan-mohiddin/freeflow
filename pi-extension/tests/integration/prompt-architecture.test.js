@@ -180,7 +180,7 @@ test("subagents keep Freeflow core and base skills without optional capabilities
   });
   try {
     const { handlers, activeToolNames } = loadExtension(freeflowExtension, null);
-    const ctx = context(cwd, '<active_agent name="general-purpose"/>');
+    const ctx = context(cwd, "<!-- freeflow-subagent-capabilities: disabled -->");
     await handlers.get("session_start")({ type: "session_start" }, ctx);
 
     const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);

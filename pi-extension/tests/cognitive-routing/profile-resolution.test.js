@@ -172,7 +172,7 @@ test("subagent sessions keep Freeflow core enabled while disabling optional capa
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-subagent-capabilities-"));
   const host = {
     ...createHost({ models: [standardModel, reasoningModel] }),
-    getSystemPrompt: () => '<active_agent name="general-purpose"/>',
+    getSystemPrompt: () => "<!-- freeflow-subagent-capabilities: disabled -->",
   };
   try {
     await mkdir(join(cwd, ".freeflow"));
