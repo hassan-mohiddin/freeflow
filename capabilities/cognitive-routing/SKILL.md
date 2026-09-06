@@ -106,7 +106,7 @@ Prefer a small, coherent result whose evidence lets Reasoning decide what should
 
 Shorten the unit when an unfamiliar integration, uncertain observer, failure-prone mechanism, or prior misunderstanding could invalidate substantial dependent work. Return before expanding that work, not after building a complete implementation around an unchecked premise.
 
-For a new proof or integration path, establish a narrow end-to-end case before expanding its matrix. Specify the real path to exercise and controls that can show the observer is wrong. A fixture must not manufacture the behavior it claims to prove. Apply [Verify Work](../../skills/verify-work/SKILL.md) for the evidence method rather than treating test count as coverage.
+When substantial work depends on an unverified assumption or mechanism, establish that foundation before expanding dependent work. For a new proof or integration path, establish a narrow end-to-end case before expanding its matrix. Specify the real path to exercise and controls that can show the observer is wrong. A fixture must not manufacture the behavior it claims to prove. Apply [Verify Work](../../skills/verify-work/SKILL.md) for the evidence method rather than treating test count as coverage.
 
 Keep straightforward, well-understood execution together when another return would not change the direction. Do not split it into individual reads or edits. More switches are not inherently cheaper: each invokes Reasoning again. Choose return points for avoided mistakes, useful judgment, and supported progress—not maximum supervision.
 
@@ -199,12 +199,14 @@ Return when:
 
 Finish only the current atomic environment interaction. Preserve partial effects and unverified work; do not start another action to improve the appearance of the return. A fresh user message must reach Reasoning before interpretation or response.
 
-Write:
+Under Delegate, write:
 
 ```text
 RETURN
 Boundary state: OPEN
 ```
+
+Under Yield, write `YIELD HANDOFF` instead, as described below; Yield does not open a delegation boundary.
 
 Explain naturally what was actually found or produced, the exact supporting evidence and its limits, meaningful adaptations, contradictions, unresolved questions, partial effects, and why the unit is returning. Separate facts from hypotheses and recommendations. Do not repeat an earlier result as though newly requested work was performed.
 
