@@ -85,6 +85,26 @@ let currentSessionOverrides = {};
 export function isPromptAvailable(value) {
   return typeof value === "string" && value.trim().length > 0;
 }
+// pi-subagents stamps child system prompts with this tag before binding extensions.
+// Keeping detection at the prompt boundary avoids a process-global child flag.
+export const SUBAGENT_AGENT_TAG = /<active_agent\s+name="[^"]+"\s*\/>/;
+const SUBAGENT_OPTIONAL_CAPABILITIES_MESSAGE = "Optional Freeflow capabilities are disabled for subagents.";
+export function isSubagentContext(context) {
+  try {
+    const systemPrompt = context?.getSystemPrompt?.();
+    return typeof systemPrompt === "string" && SUBAGENT_AGENT_TAG.test(systemPrompt);
+  } catch {
+    return false;
+  }
+}
+function disableSubagentCapability(capability) {
+  return {
+    ...capability,
+    enabled: false,
+    effective: false,
+    blockingReason: { code: "disabled", message: SUBAGENT_OPTIONAL_CAPABILITIES_MESSAGE },
+  };
+}
 export function hasUsableMandatoryPrompts(freeflowContext) {
   return (
     isPromptAvailable(freeflowContext?.corePrompt) && isPromptAvailable(freeflowContext?.interactionContractPrompt)
@@ -380,7 +400,8 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
   const enabled = layers.configured && effectiveCore.config.enabled;
   const contextVirtualizationConfigEnabled = effectiveCore.config.contextVirtualization;
   const conversationHistoryConfigEnabled = effectiveCore.config.conversationHistory;
-  const hostSupportsCognitiveRouting = supportsCognitiveRoutingModelRegistry(host);
+  const subagentContext = isSubagentContext(host);
+  const hostSupportsCognitiveRouting = !subagentContext && supportsCognitiveRoutingModelRegistry(host);
   const configuredCognitiveRouting = await resolveCognitiveRoutingState(
     layers.repository.parsed,
     layers.local.parsed,
@@ -400,7 +421,7 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
         effective: false,
         blockingReason: disabledReason,
       };
-  return {
+  const capabilityState = {
     configured: layers.configured,
     repositoryConfigured: layers.repositoryConfigured,
     configExists: layers.repository.exists,
@@ -420,6 +441,13 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
     conversationHistory: childCapability(conversationHistoryConfigEnabled),
     hostSupportsCognitiveRouting,
     cognitiveRouting,
+  };
+  if (!subagentContext) return capabilityState;
+  return {
+    ...capabilityState,
+    contextVirtualization: disableSubagentCapability(capabilityState.contextVirtualization),
+    conversationHistory: disableSubagentCapability(capabilityState.conversationHistory),
+    cognitiveRouting: disableSubagentCapability(capabilityState.cognitiveRouting),
   };
 }
 export const readRuntimeState = readCapabilityState;

@@ -168,6 +168,37 @@ test("preflights exact identities, authentication, and effective thinking levels
   });
 });
 
+test("subagent sessions keep Freeflow core enabled while disabling optional capabilities", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-subagent-capabilities-"));
+  const host = {
+    ...createHost({ models: [standardModel, reasoningModel] }),
+    getSystemPrompt: () => '<active_agent name="general-purpose"/>',
+  };
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow", "config.json"),
+      JSON.stringify({
+        contextVirtualization: true,
+        conversationHistory: true,
+        ...configuredRepository(),
+      }),
+    );
+
+    const state = await readCapabilityState(cwd, host, PIFLOW_HOST);
+    assert.equal(state.enabled, true);
+    assert.equal(state.contextVirtualization.enabled, false);
+    assert.equal(state.contextVirtualization.effective, false);
+    assert.equal(state.conversationHistory.enabled, false);
+    assert.equal(state.conversationHistory.effective, false);
+    assert.equal(state.cognitiveRouting.enabled, false);
+    assert.equal(state.cognitiveRouting.effective, false);
+    assert.equal(state.cognitiveRouting.blockingReason.code, "disabled");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("normal Pi preflight resolves thinking levels from model metadata without a registry clamp", async () => {
   const models = [
     {

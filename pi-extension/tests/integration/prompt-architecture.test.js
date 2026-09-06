@@ -8,9 +8,10 @@ import test from "node:test";
 import freeflowExtension from "../../dist/index.js";
 import { PIFLOW_HOST } from "../cognitive-routing/host-fixture.js";
 
-function context(cwd) {
+function context(cwd, systemPrompt = "") {
   return {
     cwd,
+    getSystemPrompt: () => systemPrompt,
     sessionManager: {
       getEntries: () => [],
       getBranch: () => [],
@@ -160,6 +161,46 @@ test("composes the mandatory core fragments, optional capabilities, discovery, a
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/capabilities/conversation-history/SKILL.md")));
     assert.ok(!resources.skillPaths.some((path) => path.endsWith("/skills/mode-contract/SKILL.md")));
     assert.ok(activeToolNames().includes("freeflow_context"));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("subagents keep Freeflow core and base skills without optional capabilities", async () => {
+  const cwd = await configuredRepo({
+    contextVirtualization: true,
+    conversationHistory: true,
+    cognitiveRouting: {
+      enabled: true,
+      profiles: {
+        standard: { provider: "test", model: "standard", thinkingLevel: "high" },
+        reasoning: { provider: "test", model: "reasoning", thinkingLevel: "max" },
+      },
+    },
+  });
+  try {
+    const { handlers, activeToolNames } = loadExtension(freeflowExtension, null);
+    const ctx = context(cwd, '<active_agent name="general-purpose"/>');
+    await handlers.get("session_start")({ type: "session_start" }, ctx);
+
+    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+    assert.match(before.systemPrompt, /# Freeflow Stable Guidance/);
+    assert.match(before.systemPrompt, /# Freeflow Interaction Contract/);
+    assert.doesNotMatch(before.systemPrompt, /## Cognitive Routing Cue/);
+    assert.doesNotMatch(before.systemPrompt, /## Context Virtualization Cue/);
+    assert.doesNotMatch(before.systemPrompt, /## Conversation History Cue/);
+
+    const resources = await handlers.get("resources_discover")({ cwd }, ctx);
+    assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/action-selection/SKILL.md")));
+    assert.ok(!resources.skillPaths.some((path) => path.includes("/capabilities/")));
+
+    const providerContext = await handlers.get("context")({ messages: [] }, ctx);
+    const runtimeState = lastRuntimeState(providerContext.messages);
+    assert.match(runtimeState.content, /Freeflow: active/);
+    assert.match(runtimeState.content, /Context Virtualization: inactive/);
+    assert.match(runtimeState.content, /Conversation History: inactive/);
+    assert.match(runtimeState.content, /Cognitive Routing: inactive/);
+    assert.ok(!activeToolNames().includes("freeflow_context"));
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

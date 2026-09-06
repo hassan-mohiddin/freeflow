@@ -105,6 +105,11 @@ function contextParameters(features: ContextFeatureFlags) {
       operationSchema(CONVERSATION_HISTORY_RETRIEVE_PROPERTIES, ["operation", "refs"]),
     );
   }
+  if (oneOf.length === 0) {
+    // Codex rejects an empty oneOf even when the tool is inactive. Keep the
+    // placeholder schema valid until capability-specific operations are enabled.
+    return { type: "object", additionalProperties: false, properties: {} };
+  }
   return { type: "object", oneOf };
 }
 
