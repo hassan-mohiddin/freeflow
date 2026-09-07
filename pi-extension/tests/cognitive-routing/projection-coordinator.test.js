@@ -130,6 +130,19 @@ function exposedRefFor(observedContexts, marker) {
   return matches[0].slice("[projection-ref: ".length, -1);
 }
 
+function exposedAssistantRefFor(observedContexts, marker) {
+  const context = observedContexts.at(-1);
+  assert.ok(context, "an observed Standard context is required");
+  const sources = context.filter(
+    (message) =>
+      message?.role === "assistant" && message.content?.some((part) => part?.type === "text" && part.text === marker),
+  );
+  assert.equal(sources.length, 1, `Standard must expose exactly one assistant entry for ${marker}`);
+  const matches = JSON.stringify(sources[0]).match(/\[projection-ref: (ctx:[^\]]+)\]/g) ?? [];
+  assert.equal(matches.length, 1, `Standard must expose exactly one assistant ref for ${marker}`);
+  return matches[0].slice("[projection-ref: ".length, -1);
+}
+
 function stripProjectionRefs(message) {
   if (!Array.isArray(message?.content)) return message;
   return {
@@ -169,7 +182,12 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
   let prematureStandardRecordCount = 0;
   let selectedRefFromContext;
   let sharedRefFromContext;
+  let omittedRefFromContext;
+  let earlierAssistantRefFromContext;
   let laterRefFromContext;
+  let contextOnlyBlockAssistantRefFromContext;
+  let reassessedAssistantRefFromContext;
+  let canonicalBeforeThirdReturn;
 
   process.env.PI_OFFLINE = "1";
   globalThis.fetch = async (url, init) => {
@@ -228,6 +246,8 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
     if (requestIndex === 5) {
       selectedRefFromContext = exposedRefFor(observedContexts, "CAPTURED_SELECTED");
       sharedRefFromContext = exposedRefFor(observedContexts, "CAPTURED_SHARED");
+      omittedRefFromContext = exposedRefFor(observedContexts, "CAPTURED_OMITTED");
+      earlierAssistantRefFromContext = exposedAssistantRefFor(observedContexts, "Standard completed the follow-up.");
       requestIndex += 1;
       return functionCallResponse(
         "switch-to-reasoning",
@@ -280,8 +300,49 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
         "Standard returns the second selected evidence.",
       );
     }
+    if (requestIndex === 11) {
+      requestIndex += 1;
+      return textResponse("reasoning-second-follow-up", "Reasoning received the second returned context.");
+    }
+    if (requestIndex === 12) {
+      requestIndex += 1;
+      return functionCallResponse(
+        "switch-to-standard-context-only",
+        "freeflow_switch_profile",
+        { target: "standard", reason: "Reinspect the already exposed evidence without new reads." },
+        "Reasoning requests a context-only follow-up.",
+      );
+    }
+    if (requestIndex === 13) {
+      requestIndex += 1;
+      return textResponse("standard-context-only-follow-up", "Standard completed the context-only follow-up.");
+    }
+    if (requestIndex === 14) {
+      canonicalBeforeThirdReturn = new Map(
+        messageEntries(sessionManager).map((entry) => [entry.id, structuredClone(entry.message)]),
+      );
+      const contextOnlyOmittedRef = exposedRefFor(observedContexts, "CAPTURED_OMITTED");
+      reassessedAssistantRefFromContext = exposedAssistantRefFor(observedContexts, "Standard completed the follow-up.");
+      contextOnlyBlockAssistantRefFromContext = exposedAssistantRefFor(
+        observedContexts,
+        "Standard completed the context-only follow-up.",
+      );
+      assert.equal(contextOnlyOmittedRef, omittedRefFromContext);
+      assert.equal(reassessedAssistantRefFromContext, earlierAssistantRefFromContext);
+      requestIndex += 1;
+      return functionCallResponse(
+        "switch-to-reasoning-context-only",
+        "freeflow_switch_profile",
+        {
+          target: "reasoning",
+          reason: "The previously exposed evidence is ready for reassessment.",
+          projection: { include: [contextOnlyOmittedRef, reassessedAssistantRefFromContext] },
+        },
+        "Standard returns previously exposed evidence without new reads.",
+      );
+    }
     requestIndex += 1;
-    return textResponse("reasoning-second-follow-up", "Reasoning received the second returned context.");
+    return textResponse("reasoning-context-only-follow-up", "Reasoning received the context-only follow-up.");
   };
 
   try {
@@ -388,6 +449,8 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
         messageEntries(sessionManager).map((entry) => [entry.id, structuredClone(entry.message)]),
       );
       await session.prompt("return the second captured evidence for assessment");
+      await session.prompt("start the context-only later block");
+      await session.prompt("return previously exposed evidence for reassessment");
     } finally {
       unsubscribeErrors();
       session.dispose();
@@ -396,24 +459,63 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
 
     assert.ok(selectedRefFromContext, `selected ref missing; requests=${requests.length}`);
     assert.ok(sharedRefFromContext, `shared ref missing; requests=${requests.length}`);
+    assert.ok(omittedRefFromContext, `omitted ref missing; requests=${requests.length}`);
+    assert.ok(earlierAssistantRefFromContext, `earlier assistant ref missing; requests=${requests.length}`);
     assert.ok(laterRefFromContext, `later ref missing; requests=${requests.length}`);
+    assert.ok(
+      contextOnlyBlockAssistantRefFromContext,
+      `context-only assistant ref missing; requests=${requests.length}`,
+    );
     const entryForRef = (ref) => messageEntries(sessionManager).find((entry) => entry.id === ref.slice("ctx:".length));
     const captureEntry = entryForRef(selectedRefFromContext);
     const sharedEntry = entryForRef(sharedRefFromContext);
+    const omittedEntry = entryForRef(omittedRefFromContext);
+    const earlierAssistantEntry = entryForRef(earlierAssistantRefFromContext);
     const laterEntry = entryForRef(laterRefFromContext);
+    const contextOnlyAssistantEntry = entryForRef(contextOnlyBlockAssistantRefFromContext);
     assert.ok(captureEntry);
     assert.ok(sharedEntry);
+    assert.ok(omittedEntry);
+    assert.ok(earlierAssistantEntry);
     assert.ok(laterEntry);
+    assert.ok(contextOnlyAssistantEntry);
     assert.match(JSON.stringify(captureEntry.message.content), /CAPTURED_SELECTED/);
     assert.match(JSON.stringify(sharedEntry.message.content), /CAPTURED_SHARED/);
+    assert.match(JSON.stringify(omittedEntry.message.content), /CAPTURED_OMITTED/);
+    assert.match(JSON.stringify(earlierAssistantEntry.message.content), /Standard completed the follow-up/);
     assert.match(JSON.stringify(laterEntry.message.content), /CAPTURED_LATER/);
+    assert.match(
+      JSON.stringify(contextOnlyAssistantEntry.message.content),
+      /Standard completed the context-only follow-up/,
+    );
+    const captureResults = messageEntries(sessionManager).filter(
+      (entry) => entry.message.role === "toolResult" && entry.message.toolName === CAPTURE_TOOL,
+    );
+    assert.equal(captureResults.length, 4, "the context-only block must not invoke another evidence-producing tool");
     assert.equal(prematureStandardRecordCount, 0);
     const captureRef = `ctx:${captureEntry.id}`;
     const captureMarker = `[projection-ref: ${captureRef}]`;
     const requestInputs = requests.map((body) => JSON.stringify(body.input));
     assert.deepEqual(
       requests.map((body) => body.model),
-      ["gpt-4o", "gpt-4", "gpt-4", "gpt-4", "gpt-4", "gpt-4", "gpt-4o", "gpt-4o", "gpt-4", "gpt-4", "gpt-4", "gpt-4o"],
+      [
+        "gpt-4o",
+        "gpt-4",
+        "gpt-4",
+        "gpt-4",
+        "gpt-4",
+        "gpt-4",
+        "gpt-4o",
+        "gpt-4o",
+        "gpt-4",
+        "gpt-4",
+        "gpt-4",
+        "gpt-4o",
+        "gpt-4o",
+        "gpt-4",
+        "gpt-4",
+        "gpt-4o",
+      ],
     );
     assert.equal(requestInputs[0].includes(captureMarker), false);
     assert.equal(requestInputs[1].includes(captureMarker), false);
@@ -421,16 +523,51 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
     assert.equal(requestInputs[3].includes(captureMarker), true);
     assert.equal(requestInputs[4].includes(captureMarker), true);
     assert.equal(requestInputs[5].includes(captureMarker), true);
+    assert.match(requestInputs[10], /CAPTURED_OMITTED/);
+    assert.match(requestInputs[10], /Standard completed the follow-up/);
+    assert.match(requestInputs[14], /CAPTURED_OMITTED/);
+    assert.match(requestInputs[14], /Standard completed the follow-up/);
 
     const sourceRecords = sourceEntries(sessionManager);
+    const projectionRecords = sessionManager
+      .getBranch()
+      .filter((entry) => entry.type === "custom" && entry.customType === "freeflow-cognitive-routing-projection");
     const standardRecords = sourceRecords.filter((entry) => entry.data?.profile === "standard");
-    assert.ok(standardRecords.length >= 6, "both Standard evidence blocks and their follow-ups should be recorded");
-    assert.equal(new Set(standardRecords.map((entry) => entry.data.blockId)).size, 2);
+    assert.ok(standardRecords.length >= 10, "three Standard blocks and their follow-ups should be recorded");
+    assert.equal(new Set(standardRecords.map((entry) => entry.data.blockId)).size, 3);
 
     const captureRecord = standardRecords.find((entry) =>
       entry.data.toolResults?.some((source) => source.entryId === captureEntry.id),
     );
+    const omittedRecord = standardRecords.find((entry) =>
+      entry.data.toolResults?.some((source) => source.entryId === omittedEntry.id),
+    );
+    const earlierAssistantRecord = standardRecords.find(
+      (entry) => entry.data.assistant?.entryId === earlierAssistantEntry.id,
+    );
+    const laterRecord = standardRecords.find((entry) =>
+      entry.data.toolResults?.some((source) => source.entryId === laterEntry.id),
+    );
+    const contextOnlyRecord = standardRecords.find(
+      (entry) => entry.data.assistant?.entryId === contextOnlyAssistantEntry.id,
+    );
     assert.ok(captureRecord);
+    assert.ok(omittedRecord);
+    assert.ok(earlierAssistantRecord);
+    assert.ok(laterRecord);
+    assert.ok(contextOnlyRecord);
+    assert.equal(projectionRecords.length, 3);
+    const thirdSelection = projectionRecords.find((entry) => entry.data?.blockId === contextOnlyRecord.data.blockId);
+    assert.ok(thirdSelection);
+    assert.deepEqual(
+      new Set(thirdSelection.data.include),
+      new Set([omittedRefFromContext, earlierAssistantRefFromContext]),
+    );
+    assert.equal(omittedRecord.data.blockId, captureRecord.data.blockId);
+    assert.equal(earlierAssistantRecord.data.blockId, captureRecord.data.blockId);
+    assert.notEqual(laterRecord.data.blockId, captureRecord.data.blockId);
+    assert.notEqual(contextOnlyRecord.data.blockId, laterRecord.data.blockId);
+    assert.notEqual(thirdSelection.data.blockId, omittedRecord.data.blockId);
     const switchAssistant = messageEntries(sessionManager).find((entry) => toolCallTarget(entry, "reasoning"));
     assert.ok(switchAssistant);
     const switchCall = switchAssistant.message.content.find(
@@ -476,8 +613,16 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
     assert.match(secondReasoningRequest, /CAPTURED_SHARED/);
     assert.match(secondReasoningRequest, /CAPTURED_LATER/);
     assert.doesNotMatch(secondReasoningRequest, /CAPTURED_OMITTED/);
-    assert.equal(requests.length, 12);
-    assert.equal(observedContexts.length >= 12, true);
+    assert.doesNotMatch(secondReasoningRequest, /Standard completed the follow-up/);
+    const thirdReasoningRequest = JSON.stringify(requests[15].input);
+    assert.match(thirdReasoningRequest, /CAPTURED_SELECTED/);
+    assert.match(thirdReasoningRequest, /CAPTURED_SHARED/);
+    assert.match(thirdReasoningRequest, /CAPTURED_LATER/);
+    assert.match(thirdReasoningRequest, /CAPTURED_OMITTED/);
+    assert.match(thirdReasoningRequest, /capture-omitted/);
+    assert.match(thirdReasoningRequest, /Standard completed the follow-up/);
+    assert.equal(requests.length, 16);
+    assert.equal(observedContexts.length >= 16, true);
     assert.match(JSON.stringify(observedContexts[6]), /CAPTURED_SELECTED/);
     assert.match(JSON.stringify(observedContexts[6]), /CAPTURED_SHARED/);
     assert.doesNotMatch(JSON.stringify(observedContexts[6]), /CAPTURED_OMITTED/);
@@ -485,6 +630,12 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
     assert.match(JSON.stringify(observedContexts[11]), /CAPTURED_SHARED/);
     assert.match(JSON.stringify(observedContexts[11]), /CAPTURED_LATER/);
     assert.doesNotMatch(JSON.stringify(observedContexts[11]), /CAPTURED_OMITTED/);
+    assert.doesNotMatch(JSON.stringify(observedContexts[11]), /Standard completed the follow-up/);
+    assert.match(JSON.stringify(observedContexts[15]), /CAPTURED_SELECTED/);
+    assert.match(JSON.stringify(observedContexts[15]), /CAPTURED_SHARED/);
+    assert.match(JSON.stringify(observedContexts[15]), /CAPTURED_LATER/);
+    assert.match(JSON.stringify(observedContexts[15]), /CAPTURED_OMITTED/);
+    assert.match(JSON.stringify(observedContexts[15]), /Standard completed the follow-up/);
     const assertCheckpoint = (checkpoint, label) => {
       for (const [entryId, beforeMessage] of checkpoint) {
         const afterEntry = messageEntries(sessionManager).find((entry) => entry.id === entryId);
@@ -495,11 +646,22 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
     assertCheckpoint(canonicalBeforeFirstReturn, "before first return");
     assertCheckpoint(canonicalAfterFirstReturn, "after first return");
     assertCheckpoint(canonicalBeforeSecondReturn, "before second return");
-    const omittedEntry = messageEntries(sessionManager).find(
-      (entry) =>
-        entry.message.role === "toolResult" && JSON.stringify(entry.message.content).includes("CAPTURED_OMITTED"),
+    assertCheckpoint(canonicalBeforeThirdReturn, "before third return");
+    const thirdHandoff = observedContexts[15].find(
+      (message) =>
+        message?.role === "assistant" &&
+        JSON.stringify(message.content).includes("Standard returns previously exposed evidence without new reads."),
     );
-    assert.ok(omittedEntry);
+    assert.ok(thirdHandoff);
+    const thirdHandoffCall = thirdHandoff.content.find(
+      (part) => part?.type === "toolCall" && part.name === "freeflow_switch_profile",
+    );
+    assert.equal(thirdHandoffCall?.arguments?.target, "reasoning");
+    assert.ok(
+      observedContexts[15].some(
+        (message) => message?.role === "toolResult" && message.toolCallId === thirdHandoffCall?.id,
+      ),
+    );
     assertObservedCanonicalSource(observedContexts, captureEntry);
     assertObservedCanonicalSource(observedContexts, omittedEntry);
     assertObservedCanonicalSource(observedContexts, sharedEntry);

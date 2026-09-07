@@ -18,7 +18,6 @@ export type ProjectionInput = {
   sources: readonly ProjectionSource[];
   /** Exact objects constructed by Freeflow for this assembly; never inferred from a message's label. */
   ownedTransientMessages?: readonly any[];
-  currentBlockId?: string;
   include?: readonly string[];
   shared?: readonly string[];
   previous?: readonly string[];
@@ -198,8 +197,9 @@ export function projectReasoningContext(input: ProjectionInput): ContextProjecti
   }
   for (const ref of requested.include) {
     const source = sourcesByRef.get(ref);
-    if (!input.currentBlockId || source?.profile !== "standard" || source.blockId !== input.currentBlockId) {
-      return rejected(`include_ref_not_current_block:${ref}`);
+    if (source?.profile !== "standard") return rejected(`include_ref_not_standard:${ref}`);
+    if (typeof source.blockId !== "string" || source.blockId.length === 0) {
+      return rejected(`include_ref_block_unavailable:${ref}`);
     }
   }
 

@@ -57,7 +57,6 @@ test("projects one selected result while preserving native dependencies and drop
     sessionId: "session-1",
     messages,
     sources,
-    currentBlockId: "block-1",
     include: ["ctx:result-a"],
   });
 
@@ -83,7 +82,6 @@ test("omitted and empty selections add no current Standard evidence", () => {
       sessionId: "session-1",
       messages,
       sources,
-      currentBlockId: "block-1",
       ...(include === undefined ? {} : { include }),
     });
     assert.equal(result.status, "projected");
@@ -127,7 +125,6 @@ test("retains previous and shared refs while rejecting an unknown request ref", 
     sessionId: "session-1",
     messages,
     sources,
-    currentBlockId: "block-1",
     previous: ["ctx:result-b"],
     shared: ["ctx:user-1"],
   });
@@ -143,7 +140,6 @@ test("retains previous and shared refs while rejecting an unknown request ref", 
       sessionId: "session-1",
       messages,
       sources,
-      currentBlockId: "block-1",
       include: ["ctx:missing"],
     }),
     { status: "rejected", reason: "requested_ref_not_found:ctx:missing" },
@@ -166,36 +162,65 @@ test("shared and previous membership is additive, while duplicates within a requ
       sessionId: "session-1",
       messages,
       sources,
-      currentBlockId: "block-1",
       include: ["ctx:result-a", "ctx:result-a"],
     }),
     { status: "rejected", reason: "requested_ref_duplicate:ctx:result-a" },
   );
 });
 
-test("current selection cannot claim another block or an absent block boundary", () => {
+test("include accepts earlier Standard evidence but rejects ineligible or unavailable refs", () => {
   const { messages, sources } = fixture();
-  for (const currentBlockId of ["block-2", undefined]) {
-    assert.deepEqual(
-      projectReasoningContext({
-        sessionId: "session-1",
-        messages,
-        sources,
-        currentBlockId,
-        include: ["ctx:result-a"],
-      }),
-      { status: "rejected", reason: "include_ref_not_current_block:ctx:result-a" },
-    );
-  }
-  delete sources[2].blockId;
+  const earlier = projectReasoningContext({
+    sessionId: "session-1",
+    messages,
+    sources,
+    include: ["ctx:result-a", "ctx:assistant-2"],
+  });
+  assert.equal(earlier.status, "projected");
+  assert.deepEqual(earlier.selectedRefs, ["ctx:result-a", "ctx:assistant-2"]);
+
+  const nonStandard = structuredClone(sources);
+  nonStandard[2].profile = "shared";
   assert.deepEqual(
     projectReasoningContext({
       sessionId: "session-1",
       messages,
-      sources,
+      sources: nonStandard,
       include: ["ctx:result-a"],
     }),
-    { status: "rejected", reason: "include_ref_not_current_block:ctx:result-a" },
+    { status: "rejected", reason: "include_ref_not_standard:ctx:result-a" },
+  );
+
+  for (const mutate of [
+    (candidate) => delete candidate[2].blockId,
+    (candidate) => {
+      candidate[2].blockId = "";
+    },
+    (candidate) => {
+      candidate[2].blockId = 42;
+    },
+  ]) {
+    const missingBlock = structuredClone(sources);
+    mutate(missingBlock);
+    assert.deepEqual(
+      projectReasoningContext({
+        sessionId: "session-1",
+        messages,
+        sources: missingBlock,
+        include: ["ctx:result-a"],
+      }),
+      { status: "rejected", reason: "include_ref_block_unavailable:ctx:result-a" },
+    );
+  }
+
+  assert.deepEqual(
+    projectReasoningContext({
+      sessionId: "session-1",
+      messages,
+      sources: sources.filter((source) => source.source.entryId !== "result-a"),
+      include: ["ctx:result-a"],
+    }),
+    { status: "rejected", reason: "requested_ref_not_found:ctx:result-a" },
   );
 });
 
@@ -230,7 +255,6 @@ test("unknown, changed, and reused messages reject without a partial view", () =
       sessionId: "session-1",
       messages: messages.filter((message) => message !== messages[2]),
       sources,
-      currentBlockId: "block-1",
       include: ["ctx:result-a"],
     }),
     { status: "rejected", reason: "requested_ref_not_visible:ctx:result-a" },
@@ -255,7 +279,6 @@ test("retained tool groups reject duplicate, misnamed, orphaned, and interrupted
       sessionId: "session-1",
       messages,
       sources,
-      currentBlockId: "block-1",
       include: ["ctx:result-a"],
     });
     assert.equal(result.status, "rejected", mutation);
@@ -274,7 +297,6 @@ test("rejects ambiguous source association and dangling selected tool groups", (
       sessionId: "session-1",
       messages,
       sources: duplicateSources,
-      currentBlockId: "block-1",
       include: ["ctx:result-a"],
     }),
     { status: "rejected", reason: "ambiguous_source:toolResult" },
@@ -287,7 +309,6 @@ test("rejects ambiguous source association and dangling selected tool groups", (
       sessionId: "session-1",
       messages: incompleteMessages,
       sources: incompleteSources,
-      currentBlockId: "block-1",
       include: ["ctx:result-a"],
     }),
     { status: "rejected", reason: "selected_tool_group_incomplete:ctx:assistant-1" },
@@ -303,7 +324,6 @@ test("rejects session divergence and preserves transient owned context", () => {
     messages: withTransient,
     sources,
     ownedTransientMessages: [transient],
-    currentBlockId: "block-1",
   });
   assert.equal(result.status, "projected");
   assert.equal(result.messages.at(-1), transient);
@@ -322,7 +342,6 @@ test("rejects session divergence and preserves transient owned context", () => {
       sessionId: "other-session",
       messages,
       sources,
-      currentBlockId: "block-1",
     }),
     { status: "rejected", reason: "source_session_mismatch:ctx:user-1" },
   );

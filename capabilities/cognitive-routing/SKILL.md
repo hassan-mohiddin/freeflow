@@ -5,252 +5,244 @@ description: "Use when Cognitive Routing is active and automatic or manual compu
 
 # Cognitive Routing
 
-Use premium judgment to direct economical execution without lowering the accepted quality bar. Reasoning should solve the important planning and interpretation problems, then communicate enough of that solution for Standard to execute resourcefully. Bring evidence back before substantial further work depends on an assumption Reasoning needs to assess.
+Under Automatic control, use Reasoning to direct consequential judgment and Standard to execute bounded work. Before Standard hands back, select enough evidence for Reasoning to assess the actual result and decide what follows.
 
-This is one active agent using two compute profiles in one shared visible context. Only one profile executes at a time:
+Cognitive Routing runs one agent in one Pi session through two distinct, separately configured model participants: **Reasoning** and **Standard**. These are two model-backed profiles, not one participant changing hats or two independent agents. Only one executes at a time, over one canonical transcript. Under Automatic control, their responsibilities are:
 
-- **Reasoning** frames the problem, identifies important uncertainty, finds the approach, plans the next execution unit, interprets evidence, and accepts or rejects the result.
-- **Standard** investigates, implements, diagnoses local problems, verifies, and self-reviews within that direction. It contributes discoveries, better local mechanisms, and contrary evidence—not just transcription.
+- **Reasoning** interprets user intent, settles governing decisions, plans the next execution unit, assesses returned evidence, and communicates with the user. Treat Standard's reports as the other participant's contribution, not as work or conclusions you have personally verified.
+- **Standard** investigates, implements, verifies, self-reviews, and selects evidence within that direction. Treat Reasoning's contract as direction from the other participant. Contribute discoveries and contrary evidence, and challenge unsupported premises without taking over governing judgment.
 
-Plan for Standard to be an inexpensive model that may need explicit guidance to avoid mistakes Reasoning would recognize. Do not assume equal capability or rely on Standard to reconstruct an unstated approach. Do not assume incapacity either: preserve its freedom to solve local problems and improve execution within the contract.
+Contracts, handoffs, and evidence selections are communication between these participants. They do not share private reasoning. When Automatic projection is active, their context views differ. Read the other profile's messages as that participant's communication with the user or with you—not as your own remembered thinking. Distinguish what you observed, what the other participant reported, and what the evidence establishes. When historical authorship is unclear, do not guess it from the current profile.
 
-A **governing decision** materially changes the accepted outcome, architecture, policy, failure behavior, scope, authority, or evidence requirements. Standard may think about and challenge it; Standard must return before adopting a change outside its execution freedom. The distinction is who may settle the decision, not who may think.
+Adapt through explicit feedback: communicate lessons, corrected assumptions, and revised approaches so the other participant can use them in subsequent work. This is session-local learning from available evidence, not model retraining or separate authority, permissions, task ownership, or private task memory.
 
-Cognitive Routing changes compute responsibility, not Workflow ownership. [Workflow](../../skills/workflow/SKILL.md) still owns authority, the current activity, checkpoints, and Supported Exit. A profile, contract, or review creates no permission and does not supply independent review.
+A **governing decision** materially changes the accepted outcome, architecture, policy, failure behavior, scope, authority, or evidence requirements. Standard may challenge one; it must return before adopting a change outside its contract.
 
-Both profiles inherit the visible conversation, tool history, task memory, evidence, and current owner. Communicate conclusions and responsibility, not a replay of shared history. Hidden reasoning does not transfer through a switch; write the insights Standard needs to act on.
+Cognitive Routing controls compute and context placement, not authority or the current owner. [Workflow](../../skills/workflow/SKILL.md) still owns permission, activity ownership, checkpoints, and Supported Exit. A profile change does not create independent review.
 
 ## Establish Current Control
 
-Use the latest extension-generated `Control` and `Profile`. Missing or contradictory current state requires recovery, not inference from model identity, an old transition, or a conversational suggestion.
+Use the latest host-generated `Control` and `Profile`. Do not infer them from model identity, an earlier switch, or conversational role labels.
 
-- **Manual:** the user holds Standard or Reasoning. Run the ordinary unsplit Workflow in that profile, including conversation, tools, verification, and self-review. Do not request switching or simulate automatic delegation. The hold persists until the user changes or releases it.
-- **Automatic:** each new user interaction begins in Reasoning. Reasoning owns substantive user-facing interpretation, discussion, questions, decisions, progress, and reporting. Conversation and judgment over already-visible evidence need no route marker.
+- **Manual:** the user holds Standard or Reasoning. Run ordinary unsplit Workflow in that profile, including conversation and environment work. Projection is bypassed. Do not request automatic switches or simulate a Reasoning/Standard hierarchy. The hold persists until the user changes or releases it.
+- **Automatic:** Reasoning owns substantive user-facing interpretation, discussion, decisions, questions, and reporting. It delegates environment work to Standard through the routes below. If a fresh user message reaches Standard, prepare an interrupted handback before acting on that request.
 
-The remaining execution rules apply under Automatic control.
+Missing or contradictory state requires recovery, not a guessed route. A Runtime State refresh alone is not a user interruption and does not end a valid execution contract.
 
-Standard executes only an active Yield or Delegate contract. Its visible communication is the transfer record, not progress narration, questions to the user, or a final answer. It must actually switch back at handback; writing both sides of a conversation does not transfer responsibility.
+The remaining execution rules apply under Automatic control. They still apply when context projection is disabled.
 
-Once this skill is loaded, Reasoning uses no environment tools outside a qualifying `ACT_BOUNDED` scope. Source and skill reads, searches, experiments, edits, tests, builds, diagnostics, and substantive artifact production are execution. Route them even when one call would suffice. Profile switching is a control operation, not environment execution.
+## Understand The Context Views
 
-## Distinguish The Work From Its Routing
+Pi owns the canonical transcript and its active, compaction-aware context. Context projection filters Reasoning's view; it does not delete canonical history.
 
-An **execution unit** is the coherent work assigned in one delegation. It can include several interactions and local choices. It ends in one assessable result before the next governing decision. It is not a tool-call quota, task record, or durable identity.
+With projection enabled:
 
-A **contract** communicates the unit's purpose, governing direction, concrete approach, execution freedom, required evidence, and return conditions. It is **decision-complete** when Standard can pursue it without settling a governing decision left unresolved. That does not mean every local choice is prescribed or the whole task is understood. A discovery contract can be complete while the implementation approach remains undecided.
+- **Standard** sees Pi's ordinary active context, including Standard evidence not selected for Reasoning. Eligible completed entries are exposed with `ctx:` refs.
+- **Reasoning** receives required context, including user messages and applicable Reasoning history, shared context, accumulated selections, and retained handoffs with their native dependencies.
+- Unselected Standard evidence is excluded by default. A retained tool-call envelope or omission placeholder is not the original result body.
 
-A **delegation boundary** is the explicitly opened scope in which Reasoning retains governing judgment across delegated units and returned evidence. It is not an evidence boundary or another Workflow owner.
+Projection belongs to Cognitive Routing. The Context Virtualization or Conversation History status does not establish whether it is enabled. `cognitiveRouting.contextProjection: false` disables projection; both profiles then use ordinary Pi active context. Do not change configuration merely to complete a handback.
 
-At most one delegation boundary is open:
+Neither profile should assume it sees the whole original session. Compaction can replace older content with a summary while retaining a recent tail. Selection does not pin raw entries outside Pi's active context. Branch navigation may return to a point before a compaction; a ref quoted in a summary is not proof that its original body remains available.
+
+Hidden reasoning does not transfer as a dependable handoff. Write conclusions and relevant uncertainty explicitly.
+
+## Choose The Execution Route
+
+Once this skill is loaded, Reasoning uses no environment tools outside a qualifying `ACT_BOUNDED` scope. Source and skill reads, searches, diagnostics, experiments, edits, tests, builds, and substantive artifact production are execution. Profile switching is a control operation, not environment execution.
+
+Every agent-requested Automatic profile transition must use `freeflow_switch_profile`. Write the applicable transfer record first, in the same assistant response as the call. The switch must be that response's only tool call.
+
+An **execution unit** is coherent work ending in one assessable result. It may contain several environment interactions. It is not a tool-call quota or a Working Record Slice.
+
+A **delegation boundary** keeps Reasoning responsible for governing judgment across delegated units. At most one is open:
 
 ```text
 Boundary state: NONE | OPEN
 Boundary operation: NEW | REOPEN | CLOSE
 ```
 
-`DELEGATE` with `NEW` or `REOPEN` opens it. `RETURN` leaves it open. Only Reasoning performs `CLOSE`. Runtime State supplies control and profile, not this model-written boundary state. Recover it from visible transfer records; never infer `NONE` from the current profile or an absent recent marker.
+Recover its state from visible transfer records, not the current profile. `RETURN` leaves it open; only Reasoning closes it. Task memory preserves work, not routing authority.
 
-A Slice remains one coherent outcome, not one delegation. It may contain several sequential boundaries; a boundary may contain several units within the same bounded activity. Do not silently carry one boundary across distinct activities. Opening, returning, or closing does not select or complete a Slice. [Track Work](../../skills/track-work/SKILL.md) owns durable task memory when needed; its record is not routing state or fresh authority.
+Choose the route from the work:
 
-## Choose The Execution Route
+| State | Route |
+| --- | --- |
+| No environment work needed | Remain in Reasoning and discuss, assess, answer, or wait. |
+| Boundary NONE; one small, exact, local, reversible, low-risk, directly verifiable result | `YIELD` may transfer the whole ordinary result to Standard. |
+| Boundary OPEN, or work needs Reasoning's later judgment | `DELEGATE` to Standard. |
+| Judgment and action are materially inseparable, and delegation would lose essential judgment | Consider `ACT_BOUNDED` under its conditions below. |
 
-When no execution is needed, remain in Reasoning and discuss, assess, answer, or wait.
+Use Delegate when uncertain. Never Yield inside an open boundary or close a boundary just to obtain Yield. Do not silently carry a boundary into a distinct activity; reconcile changed direction or authority through Workflow.
 
-For covered execution, check the existing boundary first:
+## Reasoning: Give Standard A Decision-Complete Contract
 
-```text
-Boundary OPEN
-  -> continue through DELEGATE
-  -> or use ACT_BOUNDED if independently qualified
-  -> suspend changed or blocked direction for Workflow
-  -> CLOSE only when the bounded result is supported and self-reviewed
+Work out the next approach before delegating. Give Standard enough direction to execute resourcefully without settling an unresolved governing decision. Plan for unequal model capabilities: make critical premises and instructions explicit without lowering acceptance or micromanaging Standard's local choices.
 
-Boundary NONE
-  -> YIELD if Standard can own the whole ordinary bounded result
-  -> ACT_BOUNDED only if its independent conditions hold
-  -> otherwise DELEGATE
-```
+A useful contract communicates:
 
-- **Yield** transfers one complete ordinary result without opening a delegation boundary. It must be small, exact, local, reversible, low-risk, directly verifiable, and require no further governing judgment to complete.
-- **Delegate** keeps Reasoning responsible for governing judgment while Standard executes. Use it for discovery, evidence Reasoning needs to interpret, and implementation or verification under accepted direction.
-- **ACT_BOUNDED** permits exceptional direct Reasoning execution where judgment and action cannot usefully be separated under the conditions below.
+- the outcome or question and why it matters;
+- established facts versus hypotheses;
+- the concrete approach, relevant sources, required ordering, and invariants;
+- permitted local choices and excluded effects;
+- required evidence and any material shared context;
+- the assessable result or condition that requires return.
 
-Use Delegate when uncertain. Task size, convenience, or preference for the stronger profile does not settle the route.
+For discovery, name the uncertainty and the smallest observation that distinguishes meaningful alternatives. For implementation, explain the supported correction rather than handing over only an objective. Do not invent APIs, paths, or exact edits before their premises are known.
 
-Never Yield inside an open boundary or close a boundary to obtain Yield. A qualifying `ACT_BOUNDED` scope may contribute to an open boundary but does not close it.
+Keep straightforward work together. Shorten the unit when an unfamiliar seam, uncertain observer, or repeated misunderstanding could invalidate dependent work. A fixture must exercise the required path, not manufacture the behavior it claims to prove.
 
-Reading an exact package version as the complete requested result may Yield. Reading a configuration file so Reasoning can choose an architecture is Delegate, even though the action is equally small.
+### Request Evidence Without Limiting Standard's Judgment
 
-A route never widens authority. If the requested outcome, covered effects, or a user-owned decision is unsettled, use Workflow or [Decision Gate](../../skills/decision-gate/SKILL.md) before affected execution. An informative experiment still needs authority to exercise target behavior.
+Reasoning may name known refs or describe evidence it expects to need: the resulting diff, an actual test result, a governing contract, or a relevant assistant-authored proposal. Describe future evidence by purpose; its refs do not exist until the host exposes completed entries.
 
-## Delegate Through Concrete, Assessable Units
+**Requested evidence is a requirement, not an exclusive allowlist.** Standard must satisfy it where possible and add other material evidence needed for judgment. A contract requesting a passing test does not justify omitting a later failure or contradictory observation.
 
-### Reasoning: Resolve The Next Planning Problem
+Do not require redundant resubmission of already-retained refs. If a requested ref is unavailable, stale, or invalid for the intended selection field, Standard must report the limit rather than invent a replacement or misuse `shared` to bypass validation.
 
-Start from the actual goal, accepted constraints, and current evidence. Before assigning work, ask:
+### Open Or Continue Delegation
 
-> If I were executing this, what would I do next, why that approach, what would I establish first, and what mistake would I need to avoid?
-
-Answer from evidence, not an imagined repository. Transfer the useful conclusions into the contract rather than leaving Standard to rediscover them.
-
-- **Intent is unclear:** discuss the material choice with the user; do not delegate a guess.
-- **Environmental facts are missing:** delegate a focused investigation of the uncertainty that could change the approach. Name the relationship or alternatives to investigate, useful starting sources when known, and the evidence needed to decide. Allow adjacent exploration when it changes the answer.
-- **Alternatives depend on an observable difference:** choose the smallest covered observation or experiment that distinguishes them before committing to an implementation.
-- **Direction is supported:** work out the concrete next approach, important ordering, invariants, and checks. Do not hand over only an objective when Reasoning can already supply a useful solution strategy.
-
-Discovery, implementation, verification, and correction are purposes of Delegate, not additional routes. Use the current owner's method; this skill does not replace planning, diagnosis, verification, or review.
-
-### Reasoning: Keep The Unit Small Enough To Steer
-
-Prefer a small, coherent result whose evidence lets Reasoning decide what should happen next. Make the immediate unit concrete; leave later work directional until its premises hold.
-
-Shorten the unit when an unfamiliar integration, uncertain observer, failure-prone mechanism, or prior misunderstanding could invalidate substantial dependent work. Return before expanding that work, not after building a complete implementation around an unchecked premise.
-
-When substantial work depends on an unverified assumption or mechanism, establish that foundation before expanding dependent work. For a new proof or integration path, establish a narrow end-to-end case before expanding its matrix. Specify the real path to exercise and controls that can show the observer is wrong. A fixture must not manufacture the behavior it claims to prove. Apply [Verify Work](../../skills/verify-work/SKILL.md) for the evidence method rather than treating test count as coverage.
-
-Keep straightforward, well-understood execution together when another return would not change the direction. Do not split it into individual reads or edits. More switches are not inherently cheaper: each invokes Reasoning again. Choose return points for avoided mistakes, useful judgment, and supported progress—not maximum supervision.
-
-### Reasoning: Communicate A Usable Plan
-
-Write naturally and directly. There is no required prose template or heading order. Include what Standard needs, even when that requires a detailed plan:
-
-- the result or question this unit owns, and how it advances the task;
-- what is established, what is a hypothesis, and why the proposed approach fits;
-- relevant locations, interfaces, relationships, implementation steps, and ordering supported by current evidence;
-- required behavior, invariants, exclusions, and any mechanism that is genuinely mandatory;
-- the local choices Standard may make or improve;
-- the observations and checks needed, misleading substitutes to avoid, and when to return.
-
-Do not omit useful low-level direction merely to keep the contract high-level. Do not invent paths, APIs, or exact edits before inspecting their premises. Distinguish a suggested approach from a required constraint so Standard knows which it may improve.
-
-Give extra precision where a mistake is likely or expensive, not everywhere equally. Explain the insight that removes search or ambiguity; do not reproduce a complete patch solely for Standard to transcribe. Shared context avoids history replay, not the need to state the current plan and stop condition clearly.
-
-For example:
-
-> I need to know whether cancellation reaches the real request path before we expand the compatibility matrix. Use the existing session fixture and one adapter. Register the actual handler; keep the normal serializer path and stub only the network boundary. Show a successful control that reaches the stub, then cancellation through that same path. Don't add an early-return gate in the fixture—that would prove our gate, not native cancellation. Choose the local instrumentation. Return the actual call counts and signal observations before adding more adapters.
-
-This supplies a concrete investigation plan while leaving Standard useful local work. A contrary result is evidence, not a reason to alter the observer until it passes.
-
-### Reasoning: Open Or Continue The Transfer
-
-For the first transfer, write the literal markers, choosing one operation:
+For a new boundary, write:
 
 ```text
 DELEGATE
-Boundary operation: NEW | REOPEN
+Boundary operation: NEW
 Boundary state: OPEN
 ```
 
-Use `NEW` for the first boundary for this bounded outcome. Use `REOPEN` only to continue the same previously closed outcome under fresh authority and invalidating evidence or changed intent. Identify the outcome when opening; later contracts identify the next unit without restating the whole task.
+Use `REOPEN` instead of `NEW` only for the same previously closed outcome under fresh authority and changed evidence or intent. Identify that outcome.
 
-For another unit in the same open boundary:
+For another unit within the same open boundary:
 
 ```text
 DELEGATE
 Boundary state: OPEN
 ```
 
-Follow the markers with the contract, then switch to Standard. A transfer must be visible and actually executed; private reasoning or role-labelled prose does not transfer responsibility.
+Follow with the contract, then call `freeflow_switch_profile` targeting `standard`. Do not submit a projection payload on entry to Standard.
 
-## Standard: Execute Within The Plan, Not Blindly
+## Standard: Execute And Keep Evidence Selectable
 
-Use the current owner's method and the shared evidence. Follow the concrete direction and required ordering. Decide ordinary local mechanics rather than returning because a helper, filename, variable name, or necessary intermediate step was not specified.
+Execute only the active Yield or Delegate contract. Use the current owner's method; a profile does not replace implementation, diagnosis, verification, or review guidance.
 
-Within the covered unit, Standard may:
+Within the contract, choose local mechanics, inspect adjacent evidence that changes the answer, correct understood local errors, and recommend better approaches. Return before adopting an uncovered effect or changed governing direction.
 
-- follow relevant references and adjacent evidence that materially affect the question;
-- test hypotheses and explain evidence that challenges the proposed approach;
-- use an existing abstraction or simpler mechanism that preserves required direction;
-- make necessary local changes, focused checks, and supported corrections;
-- recommend a better governing approach without adopting it prematurely.
+Use [Action Selection](../../skills/action-selection/SKILL.md) for environment interactions; read its body when the exact method is absent. Take its fast path for known mechanical work. When an interaction is broad, uncertain, or repetitive, choose the smallest action that can change the decision. Do not narrate internal planning or keep collecting unchanged evidence.
 
-A suggested mechanism may change within this freedom; an explicit requirement may not. Optional cleanup, unrelated improvements, extra side effects, and scope expansion remain outside the contract. Later review cannot retroactively authorize them.
+Use [Verify Work](../../skills/verify-work/SKILL.md) to determine what observations prove. Check that requested cases and observers actually ran. A green suite does not establish a test that was never added, and a successful write confirms mutation—not the correctness of the resulting artifact.
 
-Disproving a tentative discovery hypothesis does not invalidate the investigation. Continue while the agreed question remains useful and covered. Return before adopting a change to governing direction or required evidence.
+Once evidence supports the unit's result, silently self-review it through the current owner's method. Correct a clear covered defect and recheck the affected state. Do not report intended changes as actual changes or claim the wider outcome accepted.
 
-### Use Action Selection Throughout Execution
+### Track Ref Meaning During The Block
 
-[Action Selection](../../skills/action-selection/SKILL.md) is Standard's required environment-interaction method under both Delegate and Yield. Before task interactions, read its body if the exact method is absent from active context; recover it after context loss. Reuse still-visible guidance rather than rereading it for every unit or call.
+As entries complete and receive refs, keep track of what each available ref represents and what it establishes. Consider the whole block, not only its last tool result.
 
-Apply its fast path to an obvious, known, covered operation. Use its branch path when the target, hypothesis, observer, or scope is uncertain, output may be broad, or recent interactions have stopped changing the decision. The contract supplies direction; Action Selection helps choose the next useful interaction within it.
+Eligible material can include:
 
-Do not announce the method, narrate candidate comparisons, or add a separate planning turn for mechanical work. Keep comparisons internal. Follow its stall route when progress stops rather than repeating equivalent searches, expanding breadth, or collecting evidence without a current question.
+- tool results: source reads, diffs, checks, diagnostics, and returned subagent reports;
+- earlier completed assistant-text entries: a draft, finding, interpretation, or proposal that Reasoning needs to inspect.
 
-Action Selection returns evidence to the current owner inside the contract. It does not authorize another unit or replace a required profile handback.
+Use only refs actually exposed for eligible entries in the current view. A ref identifies an entry, not necessarily one tool invocation or an arbitrary paragraph. Do not derive refs from filenames, tool-call IDs, session storage, or an old summary. Do not invent refs for hidden reasoning or the not-yet-completed handoff.
 
-### Verify The Assigned Result
+This is evidence awareness, not another ledger. Do not print a ref inventory after every call, create a separate evidence store, or reread material merely to manufacture new refs.
 
-Use Verify Work to establish what the actual observer proves. Check that the required path and assertions ran—not just that the command passed. Distinguish a local helper or test-added safeguard from the native path the contract requested. Preserve failed, unavailable, and unexercised cases explicitly.
+### Select For Judgment, Not Volume
 
-An expected failing regression or understood mechanical error does not alone require return. Correct it within the unit when the cause and remedy are local and supported. Do not guess through unexplained failure, weaken assertions, replace the requested observer, or expand repairs to make a result look complete.
+Before every handback, reassess the eligible entries already visible:
 
-Once evidence supports the unit's result, silently self-review through the current owner's method for correctness, alignment, suitability, and unnecessary complexity. Correct a clear covered defect and recheck only the affected state. Local self-review does not settle a changed governing decision or close the delegation boundary.
+1. Identify what the contract required Reasoning to inspect.
+2. Identify additional material facts, failures, contradictions, partial effects, and uncertainty uncovered during execution.
+3. Select the smallest sufficient evidence set that lets Reasoning judge those points without relying only on the handoff's claims.
+4. Leave redundant exploration, superseded content, and irrelevant output unselected. Do not omit material adverse evidence to make the result look successful or smaller.
 
-### Return At The Actual Stop Condition
+When a material inclusion is uncertain, favor enough evidence for sound judgment over a cosmetically minimal payload. Do not append every ref just because it exists.
 
-Return when:
+Use the switch payload fields by purpose:
 
-- the assigned result or evidence is available, with applicable verification and local self-review complete;
-- the contract's stop point is reached, including an early evidence result before further implementation;
-- a material contradiction or decision exceeds the unit's direction, authority, scope, failure behavior, or evidence requirements;
-- required execution or verification cannot continue within the contract, or failure remains unexplained or repeats without useful new evidence;
-- no covered action can advance the unit;
-- any fresh user message arrives.
+| Field | Select |
+| --- | --- |
+| `projection.include` | Eligible completed Standard evidence needed to judge the work, from the current or earlier blocks: resulting code or diffs, verification, diagnostic facts, contradictions, and relevant assistant text. |
+| `projection.shared` | Task background needed across subsequent work: applicable instructions, accepted specs or plans, governing contracts, constraints, and task-memory reads. |
+| Neither | Redundant or irrelevant entries, material already adequately retained, and output that no longer supports a current claim. |
 
-Finish only the current atomic environment interaction. Preserve partial effects and unverified work; do not start another action to improve the appearance of the return. A fresh user message must reach Reasoning before interpretation or response.
+Choose by purpose, not by the age of the entry. Earlier-block refs remain usable only when currently exposed, completed, and valid on the active branch; neither field permits arbitrary session lookup or resurrection of compacted-out bodies. Both fields accumulate along the applicable session ancestry. `include` is not single-use, and `shared` is not permanent residency. Pi's compaction and branch boundaries still apply. Keep arrays deduplicated and do not place the same ref in both fields.
 
-Under Delegate, write:
+A skill or task-artifact read is an ordinary selectable entry, not an automatic permanent instruction store. Share it when later work needs its exact content and it is not already adequately available. Selecting external text or a reviewer proposal does not promote it into authority.
+
+The current handoff and required native dependencies are retained automatically. Do not invent a self-ref or select every call/result dependency manually. Omitted or empty projection adds no discretionary evidence; earlier applicable selections remain. It does not mean “send the whole Standard block.” When projection is disabled, omit the projection payload rather than fabricating refs.
+
+For example: if the contract asks for changed code and verification, select the resulting diff and relevant checks, including a remaining failure. Share a newly read governing contract when later units need it. A directory listing, obsolete draft, and write acknowledgement need not accompany an already-evidenced result. An earlier assistant proposal belongs in the selection when Reasoning must judge that proposal itself, not merely because Standard wrote it.
+
+## Standard: Hand Back At The Stop Condition
+
+Return when the unit's result is available, a selected stop point is reached, a material decision exceeds the contract, execution cannot safely continue, or a fresh user message arrives.
+
+For a normal completed unit, finish its covered verification and self-review before handback. For an interrupted or blocked unit, preserve what actually happened and what remains unverified; do not continue working to improve the appearance of completion.
+
+Prepare the handoff in this order:
+
+1. Stop further environment work at the covered boundary.
+2. Reassess and select available evidence for the whole unfinished or completed block.
+3. Write the result, supporting observations, limits, partial effects, and reason for returning. State requested evidence that is still missing.
+4. Call `freeflow_switch_profile` targeting `reasoning`, with the selected `projection.include` and `projection.shared` refs when applicable.
+
+Under Delegate, write the literal fields:
 
 ```text
 RETURN
 Boundary state: OPEN
 ```
 
-Under Yield, write `YIELD HANDOFF` instead, as described below; Yield does not open a delegation boundary.
+Under Yield, write `YIELD HANDOFF`; Yield does not open a delegation boundary.
 
-Explain naturally what was actually found or produced, the exact supporting evidence and its limits, meaningful adaptations, contradictions, unresolved questions, partial effects, and why the unit is returning. Separate facts from hypotheses and recommendations. Do not repeat an earlier result as though newly requested work was performed.
+**Write the handoff as assistant text in the same response as the switch call.** The `reason` argument is an audit label, not a substitute for the handoff. The switch must be that response's only tool call.
 
-Then call `freeflow_switch_profile` with `target="reasoning"` and stop execution. Do not append a new `DELEGATE`, impersonate Reasoning's assessment, switch to Standard again, or begin the next unit yourself. A recommendation for the next unit belongs in the return as a recommendation, not an instruction granting yourself work.
+Do not replay raw evidence bodies in the handoff to evade selection. Communicate conclusions and responsibility, with refs carrying the inspectable material. After requesting the switch, stop Standard execution. Do not impersonate Reasoning's assessment, close the boundary, append a new delegation, or assign yourself another unit.
 
-`RETURN` leaves the boundary open. It is not `NEW`, `REOPEN`, `CLOSE`, independent review, or acceptance of the wider result.
+### A Fresh User Message Stops Work, Not Evidence Preservation
 
-## Reasoning: Assess The Result And Your Plan
+If a user message arrives in Standard, finish only the current atomic environment interaction. Before switching, reassess the already-visible eligible refs for the unfinished block—including earlier assistant text, not just tool results.
 
-Compare the return with the actual observations and artifacts in shared context. Do not accept the report merely because it says the contract is complete or the checks passed.
+Preserve the evidence Reasoning needs to understand completed work, failures, partial mutations, and remaining uncertainty. Honor the contract's evidence requests where the available state permits, and add other material evidence. The new user message is already retained; it needs no fabricated ref.
+
+Do not start another read, test, edit, or retrieval to complete the evidence set. Do not answer the new request, reinterpret it as a new Standard contract, or continue because it says “continue.” Report unavailable or unfinished evidence, write the handoff, and switch to Reasoning.
+
+For example: interrupted after an edit but before verification, select the available mutation/result evidence, state that verification has not run, and hand back. Do not run the missing check or report a pass. An interruption must not become an empty-selection shortcut that silently discards material evidence already available.
+
+## Reasoning: Assess The Received Evidence
+
+After a successful handback, compare the actual received evidence with the contract and accepted outcome. Do not assume an omitted Standard block is visible or that a fluent report establishes its claims.
 
 Ask:
 
-- Does the result satisfy the actual goal and constraints, not just my suggested steps?
-- Did the observer establish the required boundary, or did the fixture supply the behavior being claimed?
-- Are material claims contradicted, unexercised, or missing evidence?
-- Did Standard expose a mistaken premise, a better mechanism, or an omitted risk?
-- Is the problem in execution, evidence, my plan, or the size of the assigned unit?
+- Did the work satisfy the goal and constraints, not merely the suggested steps?
+- Do the selected artifacts and observations support the stated result at the required boundary?
+- Are requested evidence, contradictions, unverified effects, or meaningful failures missing?
+- Did Standard expose a mistaken premise, better mechanism, or flaw in the execution unit?
+- Does the next action remain covered, or does it require a user-owned decision?
 
-Do not accept a result you would reject if you had produced it yourself. Keep the required behavior, correctness, maintainability, and evidence standard independent of Standard's price. Do not require identical code or personal style. A simpler valid implementation may be better than Reasoning's original suggestion.
+Selected assistant text and subagent reports retain their evidence limits. A claim about a diff is not the diff; a report that tests passed does not establish which assertions ran. If a material source or assertion must be inspected, delegate that focused follow-up rather than assuming it exists or performing an ordinary direct read in Reasoning.
 
-Reuse adequate verification and Standard's supported local self-review. Supply the governing assessment and self-review of your own direction; do not automatically repeat an identical full review. Once the accepted requirements and evidence are satisfied, stop. Imagined improvements and preference alone do not justify another correction.
+When received evidence is insufficient, Reasoning may request a context-only follow-up by naming the evidence needed—such as existing test output, failure details, or an earlier assistant proposal—without knowing its refs. Standard reassesses its already-visible eligible entries, selects the requested evidence plus other material context, reports anything unavailable, and hands back. Do not reread files, rerun checks, or retrieve omitted history unless the contract authorizes that work.
 
-If current context is sufficient, judge it directly. If another source, diff, test, or runtime observation is needed, delegate that evidence unit inside the same boundary. Do not create a nested review boundary or use direct tools to review personally.
+Use `projection.include` for additional eligible Standard evidence, including refs from earlier blocks. Reserve `projection.shared` for task background; an old test result does not become background merely because it came from an earlier block. Do not fabricate refs or infer an available body from a summary. If the original material is no longer visible or eligible, report that limit so Reasoning can choose a bounded investigation.
 
-Profile changes do not provide independence. Use [Review Work](../../skills/review-work/SKILL.md) or [Review Artifact](../../skills/review-artifact/SKILL.md) when the current owner needs their judgment method. A selected independent review remains a separate Workflow responsibility.
+Reuse adequate verification and local self-review. Supply governing judgment without automatically repeating a full identical review. Do not require identical implementation style or turn imagined improvements into unfinished work.
 
-### Adapt From The Actual Gap
+Route narrowly:
 
-- **Supported, incomplete work:** plan the next small coherent unit from what now holds.
-- **Missing evidence:** delegate the observation that can resolve the claim, not speculative implementation.
-- **One supported local defect:** explain the defect and correction basis; delegate the correction and affected verification.
-- **A mistaken premise or better approach:** revise your direction before assigning more work. Route user-owned changes through Workflow.
-- **Unclear or repeated failure:** use [Diagnose Failure](../../skills/diagnose-failure/SKILL.md) or Workflow before another correction. Reconsider the observer, decomposition, and execution demands rather than appending another checklist to the same failed approach.
-- **Changed authority, a source conflict, or a user-owned choice:** suspend dependent execution and route through Workflow or Decision Gate.
-- **Supported and complete:** self-review the bounded result and close.
+- supported but incomplete work → the next coherent delegated unit;
+- missing evidence → the smallest covered observation that can resolve it;
+- clear covered defect → a bounded correction and affected verification;
+- unclear or repeated failure → [Diagnose Failure](../../skills/diagnose-failure/SKILL.md), reconsidering the observer and execution demands;
+- changed authority or a user-owned choice → Workflow or [Decision Gate](../../skills/decision-gate/SKILL.md);
+- separately selected implementation/artifact review → [Review Work](../../skills/review-work/SKILL.md) or [Review Artifact](../../skills/review-artifact/SKILL.md).
 
-Carry discoveries into later contracts. When evidence shows a misunderstood requirement, state it more concretely and shorten the next unit around that risk. When local execution is sound, do not add supervision without a reason. Repeated failure despite precise guidance is not a reason to lower acceptance or iterate indefinitely; return the limitation through Workflow and reconsider the approach or user-controlled compute configuration.
+Repeated failure despite concrete direction is not a reason to lower acceptance or iterate indefinitely. Preserve the limitation and reconsider the approach or user-controlled compute configuration through Workflow.
 
-This is adaptation through shared context, not parameter learning, proof of model equivalence, or automatic promotion of a permanent rule.
+### Close Only Supported Work
 
-### Close Only The Supported Boundary
-
-When the bounded result is supported and self-reviewed, with applicable checkpoints and material contradictions resolved, write:
+When the delegated outcome is supported and self-reviewed, with selected checkpoints and material contradictions resolved, write:
 
 ```text
 CLOSE
@@ -258,96 +250,68 @@ Boundary state: NONE
 Current owner: unchanged
 ```
 
-State the supported result, important limits, and next route proportionately. Closing leaves Reasoning active to report or discuss. It does not complete the wider Slice or authorize follow-up work.
+State the result and material limits proportionately. Closing leaves Reasoning active and does not complete a Working Record Slice or authorize delivery by itself.
 
-Do not close an unsupported, blocked, inconclusive, or contradictory result to clear routing state. If the task or activity changes, reconcile the unresolved boundary through Workflow rather than silently carrying it into distinct work. Preserve what remains open and why; pause, cancellation, and profile change are not completion.
+Do not close an unsupported boundary merely to clear routing state. Preserve why it remains unresolved and return changed activity or authority to Workflow.
 
-## Yield One Complete Ordinary Result
+## Yield A Complete Ordinary Result
 
-Use Yield only with `Boundary state: NONE` and when Standard can complete and verify the whole ordinary result without further governing judgment. It avoids a delegation boundary, not the profile transition.
+Use Yield only with Boundary NONE and the small, exact, local, reversible, low-risk, directly verifiable conditions above.
 
-Write literal `YIELD`, followed by a brief identifying the result, constraints, evidence, and handback condition. One line is enough for an exact result. Then switch to Standard.
+Write `YIELD` with the outcome, constraints, evidence, and stop condition, then switch to Standard. Standard executes, verifies, self-reviews, selects evidence, writes `YIELD HANDOFF`, and actually switches back to Reasoning. The same interruption and failure rules apply.
 
-Standard executes, verifies, and self-reviews through the current owner's method, using Action Selection as specified above. The same scope, authority, failure, and fresh-user-message safeguards apply. If broad exploration or a new governing decision becomes necessary, stop and hand back; do not turn Yield into an unannounced delegation.
-
-Write literal `YIELD HANDOFF`, followed by the actual result, evidence and limits, blocker or partial effects, and handback condition reached. Switch to Reasoning; do not assign yourself follow-up work.
-
-Reasoning accepts and reports a sufficiently supported result without repeating Standard's review. If evidence is contradictory or insufficient, assess the gap and choose the appropriate route. Yield never opens or closes a delegation boundary. `YIELD HANDOFF` is not the separate task-memory Handoff method.
+If broader investigation or a governing decision becomes necessary, hand back instead of turning Yield into an unannounced delegation. Reasoning accepts a supported result or chooses the next route. Yield never opens or closes a delegation boundary.
 
 ## Act Bounded Only When Delegation Loses Essential Judgment
 
-`ACT_BOUNDED` is the sole direct execution route for Automatic Reasoning. Both conditions must hold:
+`ACT_BOUNDED` is the sole direct Automatic Reasoning execution route. Both conditions must hold:
 
-1. judgment and the environment action or artifact production are materially inseparable;
-2. shared-context delegation would cause a concrete material loss warranting the premium execution cost.
+1. judgment and action or artifact production are materially inseparable;
+2. shared-session delegation would cause a concrete material loss warranting direct Reasoning execution.
 
-Name what delegation would lose. Convenience, fewer switches, one small read, or a general belief that Reasoning would do better is insufficient. Ordinary inspection, research, implementation, tests, builds, verification, and cleanup remain Standard work. A demanding quality bar does not itself qualify direct execution.
+Task size, convenience, fewer switches, a demanding quality bar, or preference for the stronger model is insufficient. Ordinary inspection, implementation, verification, and cleanup remain Standard work.
 
-Difficult synthesis may qualify when the synthesis is itself the artifact: a decision-complete contract would require Reasoning to produce essentially the artifact and Standard merely to transcribe it. Sensitive result-by-result intervention may qualify when evolving judgment cannot usefully be separated from bounded action. The task label alone establishes neither condition; separable source gathering and routine validation remain delegated.
+Synthesis may qualify when the synthesis is itself the artifact: a decision-complete delegation would require Reasoning to produce essentially that artifact and Standard merely to transcribe it. Sensitive result-by-result intervention may qualify when evolving judgment cannot usefully be separated from bounded action.
 
-Before acting, write literal `ACT_BOUNDED` and state the scope and expected result, why judgment and action are inseparable, the concrete loss from delegation, existing authority, and stop condition. Fixed prose headings are not required.
+Before acting, write `ACT_BOUNDED` and name the scope, expected result, existing authority, stop condition, inseparable judgment, and concrete loss from delegation. Perform only that work while the justification holds. End the scope at completion, interruption, context loss, changed authority, or loss of eligibility, and before delegating again.
 
-Perform only that bounded work while its justification remains valid. The scope ends at its stop condition, interruption, context loss, changed authority or material scope, or loss of eligibility. Make the result and limit visible. End the scope before delegating Standard work.
-
-An `ACT_BOUNDED` scope creates no delegation boundary. It may contribute inside an open boundary but never contains Delegate, operates while Standard executes a contract, or closes a boundary. If uncertain about eligibility, Delegate.
-
-## Switch Profiles Explicitly
-
-Every automatic transition uses only:
-
-```text
-freeflow_switch_profile(
-  target="reasoning" | "standard",
-  reason="one-sentence audit label"
-)
-```
-
-Write the applicable transfer record first. The switch must be the only tool call in that assistant response. Markers and required state fields are literal protocol; accompanying communication is adaptive. Do not substitute roleplay, private reasoning, or another mechanism for the transition.
-
-Stay in Standard until a return condition, then switch to Reasoning before further interpretation or execution. Stay in Reasoning for assessment and user interaction. Do not switch per tool call; a close does not switch to Standard.
+An Act Bounded scope creates no delegation boundary. It may contribute to an open one but cannot contain Delegate, operate while Standard executes, or close the boundary. It is not a fallback around a failed switch.
 
 ## Preserve Continuity And Failure Boundaries
 
-A Runtime State refresh is host context, not a fresh user request. It does not end a valid contract or `ACT_BOUNDED` scope, or resolve a delegation boundary, unless its actual state contradicts the route.
-
-A fresh user message requires Reasoning. During Standard execution, finish only the atomic interaction, preserve partial work, write `RETURN` or `YIELD HANDOFF`, and switch. If the host has already returned to Reasoning, recover the unfinished unit before assessing the message; do not infer completion.
-
 ### Manual Changes
 
-A user control change takes effect at a safe boundary, never during an atomic interaction. Preserve the current result, contract, and unverified effects. Suspend an open automatic boundary rather than closing or abandoning it by implication. The held profile then runs ordinary Workflow.
+A user control change takes effect at a safe boundary, not during an atomic interaction. Preserve the current result, contract, and unverified effects. Suspend an open Automatic boundary rather than implying it completed. The held profile runs ordinary Workflow without projection or automatic handbacks.
 
-When Manual control is released, begin in Reasoning and reconcile the suspended boundary before automatic execution. A failed release leaves the hold in force. If the held profile cannot continue reliably, state the blocker and required user control without requesting an automatic switch.
+Releasing Manual returns to Automatic Reasoning; reconcile the suspended work before delegating. A failed release leaves the hold in force. Manual execution does not automatically share all its history on later Automatic re-entry: profile-based selection still governs Standard-attributed evidence in the active context.
 
-### Failed Transitions
+### Failed Transitions Or Projection
 
 A failed switch authorizes no workaround:
 
-- Failed Yield entry: Standard has not begun the result.
-- Failed Delegate entry: the boundary remains open; Standard has not begun the unit.
-- Failed `YIELD HANDOFF` or `RETURN`: Standard stops at handback. It cannot take over user interaction, settle governing judgment, close the boundary, or execute another unit.
+- failed Yield or Delegate entry → Standard has not begun the assigned work;
+- failed Standard handback → Standard stops at handback; it may not take over user interaction or governing judgment;
+- rejected or unavailable projection → preserve the error and missing evidence; do not drop refs, disable projection, fabricate a full-context return, or retry merely to force progress.
 
-Preserve the supported route and use host-reported state rather than inventing success. Reasoning cannot execute directly to bypass failure. Any later `ACT_BOUNDED` scope must independently qualify; recovery uncertainty is not eligibility.
+Use host-reported control/profile state, not an assumed successful transfer. Preserve the open boundary and partial effects. Reasoning cannot execute directly to bypass a routing failure; any later Act Bounded scope must independently qualify.
 
-### Context Loss Or Uncertain Recovery
+### Context Loss Or Session Navigation
 
-After compaction, resume, session navigation, interruption, or uncertain continuity, recover before task execution:
+After compaction, resume, navigation, interruption, or uncertain continuity, recover before task execution:
 
-- latest Control and Profile;
-- current owner, bounded activity, and live authority;
-- active route and explicit delegation-boundary state;
-- latest contract, return, or handoff;
-- evidence, partial effects, unverified work, and stop conditions.
+- latest control/profile and current owner;
+- live authority, active contract, and explicit boundary state;
+- completed and partial effects, remaining evidence, and stop conditions;
+- which material is actually visible as a body, rather than only named by a summary or old ref.
 
-Visible records are memory, not fresh authority. A stale contract never overrides the current user or contradictory live evidence. A Working Record preserves task state, not profile or boundary state.
+Use [Track Work](../../skills/track-work/SKILL.md) when ongoing work has a Working Record. A record or summary is memory, not new authority or proof that old refs remain selectable. Load required methods whose exact bodies are absent; do not assume a previously shared read survived compaction.
 
-Required environmental recovery reads still use Standard through supported Yield or Delegate. If route identity or boundary state cannot be recovered well enough to select that route, stop and return the uncertainty to Workflow. Do not invent `NONE`, open a replacement boundary, or use direct Reasoning access. No fresh `ACT_BOUNDED` scope begins before recovery is complete.
+Required environmental recovery reads still use Standard through a supported route. If authority or route identity cannot be recovered well enough to select it, stop through Workflow. Do not invent Boundary NONE, open a replacement boundary, or invoke Act Bounded because recovery is uncertain.
 
-Recover required methods when their exact bodies are absent. A recovery-only unit ends by returning the recovered state; it does not authorize Standard to start the next task unit, even when that work is already described in memory.
+A recovery-only unit returns recovered state; it does not authorize the next implementation unit. Preserve useful existing decisions and evidence instead of restarting the task.
 
-An open boundary can survive turns, reloads, and returns while the same bounded outcome remains coherent. Do not create another boundary for every correction, self-review, or evidence request.
+## Stop At The Supported Boundary
 
-## Stop At The Supported Route Boundary
+Yield ends with handback, Delegate ends when Reasoning closes supported work, and Act Bounded ends at its declared stop condition. A recommendation does not authorize the next action.
 
-Yield ends with handoff to Reasoning. Delegate ends when Reasoning closes the supported boundary. `ACT_BOUNDED` ends with its declared scope. Without further execution authority, answer, wait, pause, or stop through Workflow rather than manufacturing another route.
-
-When Cognitive Routing is inactive or control is Manual, retained automatic instructions must stop directing work. Use current host state and ordinary Workflow; do not preserve shadow profile leadership or treat this skill as independent authority.
+When Cognitive Routing is inactive or control is Manual, retained Automatic instructions must stop directing work. Use current host state and ordinary Workflow, not shadow profile leadership.

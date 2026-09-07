@@ -212,57 +212,131 @@ export class CognitiveRoutingSourceRegistry {
       source: { sessionId: input.sessionId, entryId: candidates[0].id, toolCallId: input.toolCallId },
     };
   }
-  hydrate(sessionId, branchEntries) {
+  hydrate(sessionId, branchEntries, inheritedSessionIds = new Set(), lineageAvailable = true) {
+    const acceptedSessionIds = new Set([sessionId, ...inheritedSessionIds]);
     const entriesById = new Map();
     for (const entry of branchEntries) {
-      if (messageEntry(entry)) entriesById.set(entry.id, entry);
+      if (!messageEntry(entry)) continue;
+      if (entriesById.has(entry.id)) return { status: "unavailable", reason: `attributed_entry_ambiguous:${entry.id}` };
+      entriesById.set(entry.id, entry);
     }
+    const prepared = [];
     for (const entry of branchEntries) {
       if (entry.type !== "custom" || entry.customType !== "freeflow-cognitive-routing-source") continue;
       const data = entry.data;
+      if (data?.version !== 1) return { status: "unavailable", reason: "source_entry_unrecognized" };
+      if (typeof data.sessionId !== "string" || !acceptedSessionIds.has(data.sessionId)) {
+        return {
+          status: "unavailable",
+          reason: lineageAvailable ? "source_entry_session_invalid" : "source_entry_lineage_unavailable",
+        };
+      }
       if (
-        data?.version !== 1 ||
-        data.sessionId !== sessionId ||
         (data.profile !== "standard" && data.profile !== "reasoning") ||
         typeof data.blockId !== "string" ||
         !data.assistant ||
         !Array.isArray(data.toolResults)
       ) {
-        continue;
+        return { status: "unavailable", reason: "source_entry_invalid" };
       }
-      const persisted = [
-        { source: data.assistant, kind: "assistant" },
-        ...data.toolResults.map((source) => ({ source, kind: "toolResult" })),
-      ];
-      for (const item of persisted) {
-        const source = item.source;
-        if (
-          !source ||
-          source.sessionId !== sessionId ||
-          typeof source.entryId !== "string" ||
-          source.entryId.length === 0
-        ) {
-          continue;
-        }
-        const canonical = entriesById.get(source.entryId);
-        if (!canonical) continue;
-        const stored = {
-          source: { ...source },
+      const originSessionId = data.sessionId;
+      const journalIndex = branchEntries.findIndex((candidate) => candidate.id === entry.id);
+      const assistantSource = data.assistant;
+      if (
+        assistantSource.sessionId !== originSessionId ||
+        typeof assistantSource.entryId !== "string" ||
+        assistantSource.entryId.length === 0
+      ) {
+        return { status: "unavailable", reason: "source_entry_assistant_invalid" };
+      }
+      const assistantEntry = entriesById.get(assistantSource.entryId);
+      if (!assistantEntry || assistantEntry.message.role !== "assistant") {
+        return { status: "unavailable", reason: "source_entry_assistant_missing" };
+      }
+      const callIds = toolCallIds(assistantEntry.message);
+      if (new Set(callIds).size !== callIds.length) {
+        return { status: "unavailable", reason: "source_entry_assistant_calls_ambiguous" };
+      }
+      const callNames = new Map(
+        (assistantEntry.message.content ?? [])
+          .filter((part) => part?.type === "toolCall" && typeof part.id === "string")
+          .map((part) => [part.id, part.name]),
+      );
+      const assistantIndex = branchEntries.findIndex((candidate) => candidate.id === assistantEntry.id);
+      if (journalIndex < 0 || assistantIndex < 0 || assistantIndex >= journalIndex) {
+        return { status: "unavailable", reason: "source_entry_assistant_order_invalid" };
+      }
+      const storedForJournal = [
+        {
+          source: { ...assistantSource, sessionId },
           profile: data.profile,
           blockId: data.blockId,
-          kind: item.kind,
-          message: immutableSnapshot(canonical.message),
-        };
-        const key = `${sessionId}:${source.entryId}`;
-        const existing = this.attributions.get(key);
-        if (existing && !sameAttribution(existing, stored)) {
-          this.conflicts.add(key);
-          continue;
+          kind: "assistant",
+          message: immutableSnapshot(assistantEntry.message),
+        },
+      ];
+      let previousResultIndex = assistantIndex;
+      const seenCalls = new Set();
+      for (let index = 0; index < data.toolResults.length; index += 1) {
+        const source = data.toolResults[index];
+        if (
+          !source ||
+          source.sessionId !== originSessionId ||
+          typeof source.entryId !== "string" ||
+          source.entryId.length === 0 ||
+          typeof source.toolCallId !== "string" ||
+          source.toolCallId !== callIds[index] ||
+          seenCalls.has(source.toolCallId)
+        ) {
+          return { status: "unavailable", reason: "source_entry_tool_result_invalid" };
         }
-        this.sources.set(key, { ...stored.source });
-        this.attributions.set(key, stored);
+        const resultEntry = entriesById.get(source.entryId);
+        const resultIndex = branchEntries.findIndex((candidate) => candidate.id === source.entryId);
+        if (
+          !resultEntry ||
+          resultEntry.message.role !== "toolResult" ||
+          resultIndex <= previousResultIndex ||
+          resultIndex >= journalIndex ||
+          resultEntry.message.toolCallId !== source.toolCallId ||
+          resultEntry.message.toolName !== callNames.get(source.toolCallId) ||
+          (typeof source.toolName === "string" && source.toolName !== resultEntry.message.toolName)
+        ) {
+          return { status: "unavailable", reason: "source_entry_tool_result_mismatch" };
+        }
+        seenCalls.add(source.toolCallId);
+        previousResultIndex = resultIndex;
+        storedForJournal.push({
+          source: { ...source, sessionId },
+          profile: data.profile,
+          blockId: data.blockId,
+          kind: "toolResult",
+          message: immutableSnapshot(resultEntry.message),
+        });
+      }
+      if (data.toolResults.length !== callIds.length) {
+        return { status: "unavailable", reason: "source_entry_tool_result_count_mismatch" };
+      }
+      prepared.push(...storedForJournal);
+    }
+    const preparedByKey = new Map();
+    for (const stored of prepared) {
+      const key = `${sessionId}:${stored.source.entryId}`;
+      const staged = preparedByKey.get(key);
+      if (staged && !sameAttribution(staged, stored)) {
+        return { status: "unavailable", reason: `attributed_entry_conflict:${stored.source.entryId}` };
+      }
+      preparedByKey.set(key, stored);
+      const existing = this.attributions.get(key);
+      if (existing && !sameAttribution(existing, stored)) {
+        return { status: "unavailable", reason: `attributed_entry_conflict:${stored.source.entryId}` };
       }
     }
+    for (const stored of prepared) {
+      const key = `${sessionId}:${stored.source.entryId}`;
+      this.sources.set(key, { ...stored.source });
+      this.attributions.set(key, stored);
+    }
+    return { status: "available", attributions: prepared };
   }
   hasAttributedProfileAfter(sessionId, branchEntries, afterEntryId, profile) {
     const afterIndex = branchIndex(branchEntries, afterEntryId);

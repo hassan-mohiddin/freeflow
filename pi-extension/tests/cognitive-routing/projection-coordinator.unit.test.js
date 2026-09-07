@@ -13,7 +13,10 @@ function user(text = "Inspect the selected evidence") {
 function assistant(toolCallId, toolName = "capture_evidence") {
   return {
     role: "assistant",
-    content: [{ type: "toolCall", id: toolCallId, name: toolName, arguments: {} }],
+    content: [
+      { type: "text", text: "Completed the bounded step." },
+      { type: "toolCall", id: toolCallId, name: toolName, arguments: {} },
+    ],
   };
 }
 
@@ -156,6 +159,81 @@ test("rejects duplicate visible source reuse and transformed source content", as
     transformed.coordinator.exposure().sources.some((source) => source.source.entryId === "result-capture-call"),
     false,
   );
+});
+
+test("rejects an existing but unexposed include ref before transition", async () => {
+  const value = fixture();
+  assert.equal((await captureStandardTurn(value)).status, "captured");
+  const oldRef = "ctx:result-capture-call";
+  const context = nextStandardContext(value, [value.entries[0].message]);
+  assert.equal(context.changed, true);
+  assert.equal(
+    value.coordinator.exposure().sources.some((source) => source.ref === oldRef),
+    false,
+    "the canonical result exists but is not exposed in this context",
+  );
+  const switchMessage = assistant("switch-call", "freeflow_switch_profile");
+  value.entries.push(entry("assistant-switch", switchMessage, value.entries.at(-1)?.id ?? null));
+  let transitionCalls = 0;
+  const result = await value.coordinator.switchProfile({
+    toolCallId: "switch-call",
+    target: "reasoning",
+    reason: "Reject an unexposed evidence ref.",
+    projection: { include: [oldRef], shared: [] },
+    signal: undefined,
+    ctx: value.ctx,
+    controller: {
+      state: () => ({ effective: true, controlMode: "automatic", activeProfile: "standard" }),
+      switchAutomaticProfile: async () => {
+        transitionCalls += 1;
+        return { status: "active" };
+      },
+    },
+  });
+  assert.deepEqual(result, { status: "blocked", reason: `projection_ref_not_exposed:${oldRef}` });
+  assert.equal(transitionCalls, 0, "unexposed selection must block before profile transition");
+});
+
+test("rejects non-Standard and unattributed include refs before transition", async () => {
+  const assertBlocked = async (value, ref, reason) => {
+    const context = nextStandardContext(value, [value.entries[0].message]);
+    assert.equal(context.changed, true);
+    assert.equal(
+      value.coordinator.exposure().sources.some((source) => source.ref === ref),
+      ref === "ctx:user-1",
+    );
+    const switchMessage = assistant("switch-call", "freeflow_switch_profile");
+    value.entries.push(entry("assistant-switch", switchMessage, value.entries.at(-1)?.id ?? null));
+    let transitionCalls = 0;
+    const result = await value.coordinator.switchProfile({
+      toolCallId: "switch-call",
+      target: "reasoning",
+      reason: "Reject an ineligible evidence ref.",
+      projection: { include: [ref], shared: [] },
+      signal: undefined,
+      ctx: value.ctx,
+      controller: {
+        state: () => ({ effective: true, controlMode: "automatic", activeProfile: "standard" }),
+        switchAutomaticProfile: async () => {
+          transitionCalls += 1;
+          return { status: "active" };
+        },
+      },
+    });
+    assert.deepEqual(result, { status: "blocked", reason });
+    assert.equal(transitionCalls, 0);
+  };
+
+  await assertBlocked(fixture(), "ctx:user-1", "include_ref_not_standard:ctx:user-1");
+
+  const unattributed = fixture();
+  const unattributedAssistant = assistant("unattributed-call");
+  const unattributedResult = toolResult("unattributed-call", "UNATTRIBUTED_EVIDENCE");
+  unattributed.entries.push(
+    entry("assistant-unattributed", unattributedAssistant, unattributed.entries.at(-1)?.id ?? null),
+    entry("result-unattributed", unattributedResult, "assistant-unattributed"),
+  );
+  await assertBlocked(unattributed, "ctx:result-unattributed", "projection_ref_not_exposed:ctx:result-unattributed");
 });
 
 test("keeps source persistence failure explicit without publishing exposure", async () => {

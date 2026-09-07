@@ -154,6 +154,8 @@ test("reconstructs persisted projection state in a fresh Pi session", async () =
   let firstSessionManager;
   let reloadedSessionManager;
   let savedBeforeSecondReturnLeaf;
+  let selectedRef;
+  let dRef;
   let compactionKeepId;
   const compactionPreparations = [];
 
@@ -206,7 +208,8 @@ test("reconstructs persisted projection state in a fresh Pi session", async () =
       return textResponse("standard-follow-up", "Standard completed the evidence block.");
     }
     if (requestIndex === 5) {
-      const include = exposedRefFor(firstContexts, "CAPTURED_SELECTED");
+      selectedRef = exposedRefFor(firstContexts, "CAPTURED_SELECTED");
+      const include = selectedRef;
       const shared = exposedRefFor(firstContexts, "CAPTURED_SHARED");
       requestIndex += 1;
       return functionCallResponse(
@@ -281,7 +284,8 @@ test("reconstructs persisted projection state in a fresh Pi session", async () =
       return textResponse("standard-post-compaction-follow-up", "Standard completed post-compaction evidence.");
     }
     if (requestIndex === 17) {
-      const include = exposedRefFor(reloadContexts, "CAPTURED_D");
+      dRef = exposedRefFor(reloadContexts, "CAPTURED_D");
+      const include = dRef;
       requestIndex += 1;
       return functionCallResponse(
         "switch-to-reasoning-post-compaction",
@@ -297,6 +301,39 @@ test("reconstructs persisted projection state in a fresh Pi session", async () =
     if (requestIndex === 19) {
       requestIndex += 1;
       return functionCallResponse(
+        "switch-to-standard-invalid-compaction",
+        "freeflow_switch_profile",
+        { target: "standard", reason: "Prepare a stale-selection rejection." },
+        "Reasoning prepares a stale-selection check.",
+      );
+    }
+    if (requestIndex === 20) {
+      requestIndex += 1;
+      return textResponse("standard-invalid-compaction-prep", "Standard is ready to return a stale selection.");
+    }
+    if (requestIndex === 21) {
+      requestIndex += 1;
+      return functionCallResponse(
+        "switch-to-reasoning-invalid-compaction",
+        "freeflow_switch_profile",
+        {
+          target: "reasoning",
+          reason: "Return the formerly exposed compacted evidence.",
+          projection: { include: [selectedRef], shared: [] },
+        },
+        "Standard requests retired evidence after compaction.",
+      );
+    }
+    if (requestIndex === 22) {
+      requestIndex += 1;
+      return textResponse(
+        "standard-invalid-compaction-result",
+        "Standard reports the stale selection was unavailable.",
+      );
+    }
+    if (requestIndex === 23) {
+      requestIndex += 1;
+      return functionCallResponse(
         "switch-to-reasoning-branch",
         "freeflow_switch_profile",
         {
@@ -307,9 +344,45 @@ test("reconstructs persisted projection state in a fresh Pi session", async () =
         "Standard returns the earlier branch without C.",
       );
     }
-    if (requestIndex === 20) {
+    if (requestIndex === 24) {
       requestIndex += 1;
       return textResponse("reasoning-branch-follow-up", "Reasoning assessed the earlier branch.");
+    }
+    if (requestIndex === 25) {
+      requestIndex += 1;
+      return functionCallResponse(
+        "switch-to-standard-invalid-branch",
+        "freeflow_switch_profile",
+        { target: "standard", reason: "Prepare a branch-local stale-selection rejection." },
+        "Reasoning prepares a branch-local stale-selection check.",
+      );
+    }
+    if (requestIndex === 26) {
+      requestIndex += 1;
+      return textResponse(
+        "standard-invalid-branch-prep",
+        "Standard is ready to return a branch-local stale selection.",
+      );
+    }
+    if (requestIndex === 27) {
+      requestIndex += 1;
+      return functionCallResponse(
+        "switch-to-reasoning-invalid-branch",
+        "freeflow_switch_profile",
+        {
+          target: "reasoning",
+          reason: "Return evidence from the later branch.",
+          projection: { include: [dRef], shared: [] },
+        },
+        "Standard requests evidence that is not on this branch.",
+      );
+    }
+    if (requestIndex === 28) {
+      requestIndex += 1;
+      return textResponse(
+        "standard-invalid-branch-result",
+        "Standard reports the branch-local selection was unavailable.",
+      );
     }
     requestIndex += 1;
     return textResponse("reasoning-after-reload", "Reasoning continued after reload.");
@@ -500,6 +573,22 @@ test("reconstructs persisted projection state in a fresh Pi session", async () =
     assert.match(postCompactionContext, /CAPTURED_D/);
     assert.doesNotMatch(postCompactionContext, /CAPTURED_SELECTED/);
     assert.doesNotMatch(postCompactionContext, /CAPTURED_OMITTED/);
+    assert.ok(selectedRef);
+    assert.ok(dRef);
+    assert.doesNotMatch(JSON.stringify(reloadedSessionManager.buildContextEntries()), /CAPTURED_SELECTED/);
+
+    const projectionRecordCount = () =>
+      reloadedSessionManager
+        .getBranch()
+        .filter((entry) => entry.type === "custom" && entry.customType === PROJECTION_ENTRY).length;
+    const recordsAfterD = projectionRecordCount();
+    await reloadedSession.prompt("start invalid compacted-selection block");
+    await reloadedSession.prompt("return the retired selected evidence");
+    const compactedInvalidContext = JSON.stringify(reloadContexts.at(-1));
+    assert.match(compactedInvalidContext, /projection_ref_not_exposed/);
+    assert.equal(projectionRecordCount(), recordsAfterD);
+    assert.equal(requests[21].model, "gpt-4");
+    assert.equal(requests[22].model, "gpt-4");
 
     for (const [entryId, beforeMessage] of beforeReload) {
       const afterEntry = messageEntries(reloadedSessionManager).find((entry) => entry.id === entryId);
@@ -515,13 +604,22 @@ test("reconstructs persisted projection state in a fresh Pi session", async () =
     assert.equal(navigation.cancelled, false);
     assert.equal(treeEvents.length >= 1, true);
     assert.match(JSON.stringify(reloadedSessionManager.buildContextEntries()), /CAPTURED_C/);
+    assert.doesNotMatch(JSON.stringify(reloadedSessionManager.getBranch()), /CAPTURED_D/);
     await reloadedSession.prompt("return the earlier branch");
     const branchContext = JSON.stringify(reloadContexts.at(-1));
     assert.match(branchContext, /CAPTURED_SELECTED/);
     assert.match(branchContext, /CAPTURED_SHARED/);
     assert.doesNotMatch(branchContext, /CAPTURED_C/);
     assert.doesNotMatch(branchContext, /CAPTURED_OMITTED/);
-    assert.equal(requests.length, 21);
+    const recordsAfterEarlierBranchReturn = projectionRecordCount();
+    await reloadedSession.prompt("start invalid branch-selection block");
+    await reloadedSession.prompt("return evidence from the later branch");
+    const branchInvalidContext = JSON.stringify(reloadContexts.at(-1));
+    assert.match(branchInvalidContext, /projection_ref_not_exposed/);
+    assert.equal(projectionRecordCount(), recordsAfterEarlierBranchReturn);
+    assert.equal(requests[27].model, "gpt-4");
+    assert.equal(requests[28].model, "gpt-4");
+    assert.equal(requests.length, 29);
     const allEntriesAfterNavigation = reloadedSessionManager.getEntries();
     for (const [entryId, beforeMessage] of beforeReload) {
       const afterEntry = allEntriesAfterNavigation.find((entry) => entry.id === entryId);

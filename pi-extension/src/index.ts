@@ -360,8 +360,7 @@ export default function freeflow(pi: FreeflowExtensionAPI) {
     projectionEligible =
       capabilityState?.cognitiveRouting?.contextProjection === true &&
       surfaceCapabilityState?.cognitiveRouting?.effective === true &&
-      routingSnapshot.controllerState?.effective === true &&
-      routingSnapshot.controllerState?.controlMode === "automatic";
+      routingSnapshot.controllerState?.effective === true;
     return {
       capabilityState: surfaceCapabilityState,
       freeflowContext,
@@ -387,8 +386,7 @@ export default function freeflow(pi: FreeflowExtensionAPI) {
     projectionEligible =
       capabilityState?.cognitiveRouting?.contextProjection === true &&
       surfaceCapabilityState?.cognitiveRouting?.effective === true &&
-      routingSnapshot.controllerState?.effective === true &&
-      routingSnapshot.controllerState?.controlMode === "automatic";
+      routingSnapshot.controllerState?.effective === true;
     setFreeflowStatus(ctx, surfaceCapabilityState, routingSnapshot.runtimeState, freeflowContext, {
       startupSelectionSuppressed: routingSnapshot.startupSelectionSuppressed,
     });
