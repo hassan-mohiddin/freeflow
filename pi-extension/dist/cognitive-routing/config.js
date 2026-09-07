@@ -104,7 +104,7 @@ function parseLayer(value, source) {
       error: invalid(source, "invalid_block", `${source} cognitiveRouting must be an object`),
     };
   }
-  const allowedKeys = new Set(["enabled", "profiles", "sessionStart"]);
+  const allowedKeys = new Set(["enabled", "contextProjection", "profiles", "sessionStart"]);
   const unsupportedKey = Object.keys(value).find((key) => !allowedKeys.has(key));
   if (unsupportedKey) {
     return {
@@ -132,11 +132,37 @@ function parseLayer(value, source) {
     }
     enabled = value.enabled;
   }
+  let contextProjection;
+  if (Object.hasOwn(value, "contextProjection")) {
+    if (typeof value.contextProjection !== "boolean") {
+      return {
+        present: true,
+        valid: false,
+        enabled,
+        profiles: {},
+        sessionStart: {},
+        error: invalid(
+          source,
+          "invalid_context_projection",
+          `${source} cognitiveRouting.contextProjection must be a boolean`,
+        ),
+      };
+    }
+    contextProjection = value.contextProjection;
+  }
   let sessionStart = {};
   if (Object.hasOwn(value, "sessionStart")) {
     const parsed = parseSessionStart(value.sessionStart, source);
     if (parsed.error)
-      return { present: true, valid: false, enabled, profiles: {}, sessionStart: {}, error: parsed.error };
+      return {
+        present: true,
+        valid: false,
+        enabled,
+        contextProjection,
+        profiles: {},
+        sessionStart: {},
+        error: parsed.error,
+      };
     sessionStart = parsed.sessionStart ?? {};
   }
   const profiles = {};
@@ -145,6 +171,8 @@ function parseLayer(value, source) {
       return {
         present: true,
         valid: false,
+        enabled,
+        contextProjection,
         profiles: {},
         sessionStart: {},
         error: invalid(source, "invalid_profiles", `${source} cognitiveRouting.profiles must be an object`),
@@ -155,6 +183,8 @@ function parseLayer(value, source) {
       return {
         present: true,
         valid: false,
+        enabled,
+        contextProjection,
         profiles: {},
         sessionStart: {},
         error: invalid(
@@ -168,12 +198,20 @@ function parseLayer(value, source) {
       if (!Object.hasOwn(value.profiles, name)) continue;
       const parsed = parseProfile(value.profiles[name], source, name);
       if (parsed.error) {
-        return { present: true, valid: false, enabled, profiles: {}, sessionStart: {}, error: parsed.error };
+        return {
+          present: true,
+          valid: false,
+          enabled,
+          contextProjection,
+          profiles: {},
+          sessionStart: {},
+          error: parsed.error,
+        };
       }
       profiles[name] = parsed.profile;
     }
   }
-  return { present: true, valid: true, enabled, profiles, sessionStart };
+  return { present: true, valid: true, enabled, contextProjection, profiles, sessionStart };
 }
 export function resolveCognitiveRoutingConfig(repositoryConfig, personalConfig) {
   const repositoryValue = isRecord(repositoryConfig) ? repositoryConfig.cognitiveRouting : undefined;
@@ -197,6 +235,10 @@ export function resolveCognitiveRoutingConfig(repositoryConfig, personalConfig) 
   let enabledSource = "default";
   if (repository.enabled !== undefined) enabledSource = "repository";
   if (personal.enabled !== undefined) enabledSource = "personal";
+  const contextProjection = personal.contextProjection ?? repository.contextProjection ?? false;
+  let contextProjectionSource = "default";
+  if (repository.contextProjection !== undefined) contextProjectionSource = "repository";
+  if (personal.contextProjection !== undefined) contextProjectionSource = "personal";
   const sessionStartControl =
     personal.sessionStart.control ?? repository.sessionStart.control ?? DEFAULT_COGNITIVE_ROUTING_SESSION_START.control;
   const configuredSessionStartProfile =
@@ -223,6 +265,8 @@ export function resolveCognitiveRoutingConfig(repositoryConfig, personalConfig) 
     valid: repository.valid && personal.valid,
     enabled,
     enabledSource,
+    contextProjection,
+    contextProjectionSource,
     profiles,
     profileSources,
     sessionStart,

@@ -26,6 +26,7 @@ export interface CognitiveRoutingConfigError {
   code:
     | "invalid_block"
     | "invalid_enabled"
+    | "invalid_context_projection"
     | "invalid_profiles"
     | "invalid_profile"
     | "invalid_session_start"
@@ -40,6 +41,8 @@ export interface CognitiveRoutingConfigResolution {
   valid: boolean;
   enabled: boolean;
   enabledSource: CognitiveRoutingConfigSource;
+  contextProjection: boolean;
+  contextProjectionSource: CognitiveRoutingConfigSource;
   profiles: Partial<Record<CognitiveRoutingProfileName, CognitiveRoutingProfile>>;
   profileSources: Partial<Record<CognitiveRoutingProfileName, CognitiveRoutingConfigSource>>;
   sessionStart: CognitiveRoutingSessionStart;
@@ -77,6 +80,8 @@ export interface CognitiveRoutingCapabilityState {
   enabled: boolean;
   effective: boolean;
   enabledSource: CognitiveRoutingConfigSource;
+  contextProjection: boolean;
+  contextProjectionSource: CognitiveRoutingConfigSource;
   profiles: Partial<Record<CognitiveRoutingProfileName, CognitiveRoutingProfile>>;
   profileSources: Partial<Record<CognitiveRoutingProfileName, CognitiveRoutingConfigSource>>;
   sessionStart: CognitiveRoutingSessionStart;

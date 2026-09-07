@@ -60,6 +60,92 @@ test("resolves two complete repository profiles", () => {
   assert.deepEqual(result.profileSources, { standard: "repository", reasoning: "repository" });
 });
 
+test("defaults context projection off without changing Cognitive Routing activation", () => {
+  const result = resolveCognitiveRoutingConfig(configuredRepository(), {});
+
+  assert.equal(result.contextProjection, false);
+  assert.equal(result.contextProjectionSource, "default");
+  assert.equal(result.enabled, true);
+
+  for (const value of [true, false]) {
+    const configured = resolveCognitiveRoutingConfig(configuredRepository({ contextProjection: value }), {});
+    assert.equal(configured.valid, true);
+    assert.equal(configured.contextProjection, value);
+    assert.equal(configured.contextProjectionSource, "repository");
+  }
+});
+
+test("layers context projection independently with personal precedence", () => {
+  const repositoryEnabled = resolveCognitiveRoutingConfig(configuredRepository({ contextProjection: true }), {});
+  assert.equal(repositoryEnabled.contextProjection, true);
+  assert.equal(repositoryEnabled.contextProjectionSource, "repository");
+
+  const personalDisabled = resolveCognitiveRoutingConfig(configuredRepository({ contextProjection: true }), {
+    cognitiveRouting: { contextProjection: false },
+  });
+  assert.equal(personalDisabled.contextProjection, false);
+  assert.equal(personalDisabled.contextProjectionSource, "personal");
+
+  const personalEnabled = resolveCognitiveRoutingConfig(configuredRepository({ contextProjection: false }), {
+    cognitiveRouting: { contextProjection: true },
+  });
+  assert.equal(personalEnabled.contextProjection, true);
+  assert.equal(personalEnabled.contextProjectionSource, "personal");
+});
+
+test("rejects malformed context projection values without coercion", () => {
+  for (const value of [null, "true", 1, [], {}]) {
+    const repository = resolveCognitiveRoutingConfig(configuredRepository({ contextProjection: value }), {});
+    assert.equal(repository.valid, false, `repository value ${JSON.stringify(value)}`);
+    assert.equal(repository.error.code, "invalid_context_projection");
+    assert.equal(repository.error.source, "repository");
+
+    const personal = resolveCognitiveRoutingConfig(configuredRepository(), {
+      cognitiveRouting: { contextProjection: value },
+    });
+    assert.equal(personal.valid, false, `personal value ${JSON.stringify(value)}`);
+    assert.equal(personal.error.code, "invalid_context_projection");
+    assert.equal(personal.error.source, "personal");
+  }
+
+  const repositoryInvalidWithPersonalOverride = resolveCognitiveRoutingConfig(
+    configuredRepository({ contextProjection: "true" }),
+    { cognitiveRouting: { contextProjection: true } },
+  );
+  assert.equal(repositoryInvalidWithPersonalOverride.valid, false);
+  assert.equal(repositoryInvalidWithPersonalOverride.error.source, "repository");
+});
+
+test("propagates the independent projection setting and source through runtime state", async () => {
+  const result = await resolveCognitiveRoutingState(
+    configuredRepository({ contextProjection: true }),
+    { cognitiveRouting: { contextProjection: false } },
+    createHost({ models: [standardModel, reasoningModel] }),
+  );
+
+  assert.equal(result.contextProjection, false);
+  assert.equal(result.contextProjectionSource, "personal");
+  assert.equal(result.effective, true);
+});
+
+test("does not let projection setting enable routing or alter configured manual control", async () => {
+  const disabled = await resolveCognitiveRoutingState(
+    { cognitiveRouting: { contextProjection: true } },
+    {},
+    createHost({ models: [standardModel, reasoningModel] }),
+  );
+  assert.equal(disabled.contextProjection, true);
+  assert.equal(disabled.enabled, false);
+  assert.equal(disabled.effective, false);
+
+  const manual = resolveCognitiveRoutingConfig(
+    configuredRepository({ contextProjection: true, sessionStart: { control: "manual" } }),
+    {},
+  );
+  assert.equal(manual.contextProjection, true);
+  assert.deepEqual(manual.sessionStart, { control: "manual", profile: "reasoning" });
+});
+
 test("defaults new-session Cognitive Routing to automatic Reasoning control", () => {
   const result = resolveCognitiveRoutingConfig(configuredRepository(), {});
 

@@ -7,7 +7,7 @@ import {
   registerCognitiveRoutingTool,
 } from "../../dist/cognitive-routing/tool.js";
 
-function register(getController) {
+function register(getController, options) {
   let tool;
   registerCognitiveRoutingTool(
     {
@@ -16,6 +16,7 @@ function register(getController) {
       },
     },
     getController,
+    options,
   );
   return tool;
 }
@@ -40,6 +41,9 @@ test("exposes exactly the bounded profile switch schema", () => {
   assert.deepEqual(tool.parameters.required, ["target", "reason"]);
   assert.deepEqual(tool.parameters.properties.target.enum, ["standard", "reasoning"]);
   assert.equal(tool.parameters.properties.reason.maxLength, 160);
+  assert.deepEqual(tool.parameters.properties.projection.required, ["include"]);
+  assert.deepEqual(tool.parameters.properties.projection.properties.include.items, { type: "string" });
+  assert.deepEqual(tool.parameters.properties.projection.properties.shared.items, { type: "string" });
 });
 
 test("validates reason before any controller call", async () => {
@@ -54,6 +58,81 @@ test("validates reason before any controller call", async () => {
   );
 
   assert.deepEqual(result.details.result, { status: "blocked", reason: "reason_must_be_single_line" });
+});
+
+test("rejects malformed projection before any controller call", async () => {
+  let calls = 0;
+  const tool = register(() => ({
+    state() {
+      return { effective: true, controlMode: "automatic" };
+    },
+    async switchAutomaticProfile() {
+      calls += 1;
+      return { status: "active", profile: "reasoning" };
+    },
+  }));
+
+  for (const projection of [
+    null,
+    { include: "ctx:one" },
+    { include: ["ctx:one", 1] },
+    { include: [], unexpected: [] },
+    { shared: [] },
+  ]) {
+    const result = await tool.execute(
+      "invalid-projection",
+      { target: "reasoning", reason: "Need projection.", projection },
+      undefined,
+      undefined,
+      {},
+    );
+    assert.deepEqual(result.details.result, { status: "blocked", reason: "projection_invalid" });
+  }
+  assert.equal(calls, 0);
+});
+
+test("passes the real tool call and projection payload to the coordinator executor", async () => {
+  const calls = [];
+  const controller = {
+    state() {
+      return { effective: true, controlMode: "automatic" };
+    },
+    async switchAutomaticProfile() {
+      throw new Error("direct controller path must not run");
+    },
+  };
+  const tool = register(() => controller, {
+    async executeSwitch(input) {
+      calls.push(input);
+      return { status: "active", changed: true, from: "standard", to: "reasoning", profile: "reasoning" };
+    },
+  });
+  const context = {};
+  const result = await tool.execute(
+    "switch-call-id",
+    {
+      target: "reasoning",
+      reason: "Need selected evidence.",
+      projection: { include: ["ctx:selected"], shared: [] },
+    },
+    "signal",
+    undefined,
+    context,
+  );
+
+  assert.deepEqual(result.details.result, {
+    status: "active",
+    changed: true,
+    from: "standard",
+    to: "reasoning",
+    profile: "reasoning",
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].toolCallId, "switch-call-id");
+  assert.deepEqual(calls[0].projection, { include: ["ctx:selected"], shared: [] });
+  assert.equal(calls[0].ctx, context);
+  assert.equal(calls[0].signal, "signal");
+  assert.equal(calls[0].controller, controller);
 });
 
 test("blocks stale or manually held execution without host mutation", async () => {

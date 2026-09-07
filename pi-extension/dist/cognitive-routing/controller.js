@@ -785,6 +785,27 @@ export class CognitiveRoutingController {
       thinkingLevel: currentActivationProfile.effectiveThinkingLevel,
     };
     const activationMatched = hasMatchingHostEntry(sessionEntries, lifecycleIntent);
+    if (activationMatched && !pairEquals(activationTarget, lifecycleIntent.target)) {
+      return { status: "pending", reason: "applied_target_changed" };
+    }
+    if (!activationMatched && !pairEquals(activationTarget, lifecycleIntent.target)) {
+      return this.abandonIntent(lifecycleIntent, "Prepared profile target changed.");
+    }
+    const profileIntent = latestIntent(
+      branchEntries,
+      (intent) => intent.kind === "profile" && intent.epoch === lifecycleIntent.epoch,
+    );
+    const profileCommit = profileIntent ? latestPiSessionCommit(branchEntries, profileIntent.correlationId) : undefined;
+    // A profile transition is a routing-owned continuation of activation. Resolve its
+    // terminal state before comparing live state; otherwise a committed Standard
+    // transition is mistaken for an external override of the older activation target.
+    if (profileIntent && profileCommit && profileCommit.phase !== "committed") {
+      const terminal = await this.recoverTerminalProfileIntent(profileIntent);
+      if (terminal) return terminal;
+    }
+    const profileCommitMatchesIntent =
+      profileCommit?.phase === "committed" && hasMatchingHostEntry(branchEntries, profileIntent);
+    const effectiveTarget = profileCommitMatchesIntent ? profileIntent.target : activationTarget;
     if (this.liveStateAuthoritative && activationMatched) {
       const livePair = this.currentPair();
       if (!livePair) {
@@ -792,17 +813,11 @@ export class CognitiveRoutingController {
         this.nativeBlockedReason = "native_state_unavailable";
         return { status: "inactive", reason: "native_override" };
       }
-      if (!pairEquals(livePair, activationTarget)) {
+      if (!pairEquals(livePair, effectiveTarget)) {
         this.recordNativeInactive("Pi model state diverged during recovery", livePair);
         this.clearActiveState();
         return { status: "inactive", reason: "native_override" };
       }
-    }
-    if (activationMatched && !pairEquals(activationTarget, lifecycleIntent.target)) {
-      return { status: "pending", reason: "applied_target_changed" };
-    }
-    if (!activationMatched && !pairEquals(activationTarget, lifecycleIntent.target)) {
-      return this.abandonIntent(lifecycleIntent, "Prepared profile target changed.");
     }
     if (!activationMatched) {
       const retried = await this.activatePrepared({
@@ -818,13 +833,7 @@ export class CognitiveRoutingController {
       });
       return retried.status === "active" ? retried : { status: "pending", reason: "activation_recovery_failed" };
     }
-    const profileIntent = latestIntent(
-      branchEntries,
-      (intent) => intent.kind === "profile" && intent.epoch === lifecycleIntent.epoch,
-    );
     if (profileIntent) {
-      const terminal = await this.recoverTerminalProfileIntent(profileIntent);
-      if (terminal) return terminal;
       const currentProfile = this.capabilityState.resolvedProfiles[profileIntent.profile ?? "standard"];
       if (!currentProfile) {
         return this.abandonIntent(profileIntent, "Prepared profile is unavailable.");

@@ -44,6 +44,23 @@ export const COGNITIVE_ROUTING_SWITCH_PARAMETERS = {
       maxLength: 160,
       description: "A concise one-line reason for the profile transition.",
     },
+    projection: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        include: {
+          type: "array",
+          items: { type: "string" },
+          description: "Completed Standard evidence refs to include in the Reasoning context.",
+        },
+        shared: {
+          type: "array",
+          items: { type: "string" },
+          description: "Previously exposed evidence refs to retain as shared context.",
+        },
+      },
+      required: ["include"],
+    },
   },
   required: ["target", "reason"],
 };
@@ -59,10 +76,26 @@ type HistoryReader = (
   context?: unknown,
 ) => CognitiveRoutingHistoryResult | Promise<CognitiveRoutingHistoryResult>;
 
+export type CognitiveRoutingProjection = {
+  include: string[];
+  shared: string[];
+};
+
 type SwitchToolParams = {
   target?: unknown;
   reason?: unknown;
+  projection?: unknown;
 };
+
+export type CognitiveRoutingSwitchExecutor = (input: {
+  toolCallId: string;
+  target: CognitiveRoutingProfileName;
+  reason: string;
+  projection?: CognitiveRoutingProjection;
+  signal: unknown;
+  ctx: unknown;
+  controller: CognitiveRoutingController;
+}) => Promise<CognitiveRoutingSwitchResult>;
 
 type RenderedSwitchResult =
   | {
@@ -160,9 +193,29 @@ function historyOptions(params: HistoryToolParams): CognitiveRoutingHistoryOptio
   };
 }
 
+function validateProjection(value: unknown): CognitiveRoutingProjection | undefined {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).some((key) => key !== "include" && key !== "shared")) return undefined;
+  if (!Array.isArray(record.include) || record.include.some((ref) => typeof ref !== "string")) return undefined;
+  if (
+    record.shared !== undefined &&
+    (!Array.isArray(record.shared) || record.shared.some((ref) => typeof ref !== "string"))
+  ) {
+    return undefined;
+  }
+  return {
+    include: [...record.include],
+    shared: record.shared === undefined ? [] : [...(record.shared as string[])],
+  };
+}
+
 function validateParams(
   params: SwitchToolParams,
-): { status: "valid"; target: CognitiveRoutingProfileName; reason: string } | { status: "invalid"; reason: string } {
+):
+  | { status: "valid"; target: CognitiveRoutingProfileName; reason: string; projection?: CognitiveRoutingProjection }
+  | { status: "invalid"; reason: string } {
   if (params.target !== "standard" && params.target !== "reasoning") {
     return { status: "invalid", reason: "target_must_be_standard_or_reasoning" };
   }
@@ -174,7 +227,9 @@ function validateParams(
   if (reason.includes("\n") || reason.includes("\r"))
     return { status: "invalid", reason: "reason_must_be_single_line" };
   if (reason.length > 160) return { status: "invalid", reason: "reason_too_long" };
-  return { status: "valid", target: params.target, reason };
+  const projection = validateProjection(params.projection);
+  if (params.projection !== undefined && !projection) return { status: "invalid", reason: "projection_invalid" };
+  return { status: "valid", target: params.target, reason, ...(projection ? { projection } : {}) };
 }
 
 export function registerCognitiveRoutingTool(
@@ -182,6 +237,7 @@ export function registerCognitiveRoutingTool(
     registerTool(tool: Record<string, unknown>): void;
   },
   getController: () => CognitiveRoutingController | undefined,
+  options: { executeSwitch?: CognitiveRoutingSwitchExecutor } = {},
 ) {
   pi.registerTool({
     name: COGNITIVE_ROUTING_SWITCH_TOOL_NAME,
@@ -206,7 +262,17 @@ export function registerCognitiveRoutingTool(
       } else if (!controller.state().effective) {
         result = blocked("not_active");
       } else if (controller.state().controlMode === "automatic") {
-        result = await controller.switchAutomaticProfile(input.target, input.reason);
+        result = options.executeSwitch
+          ? await options.executeSwitch({
+              toolCallId: _toolCallId,
+              target: input.target,
+              reason: input.reason,
+              ...(input.projection ? { projection: input.projection } : {}),
+              signal: _signal,
+              ctx: _ctx,
+              controller,
+            })
+          : await controller.switchAutomaticProfile(input.target, input.reason);
       } else {
         result = blocked("manual_hold");
       }

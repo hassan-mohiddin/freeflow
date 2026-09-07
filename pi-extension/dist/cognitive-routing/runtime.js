@@ -10,6 +10,8 @@ function baseState(config) {
     enabled: config.enabled,
     effective: false,
     enabledSource: config.enabledSource,
+    contextProjection: config.contextProjection,
+    contextProjectionSource: config.contextProjectionSource,
     profiles: config.profiles,
     profileSources: config.profileSources,
     sessionStart: config.sessionStart,

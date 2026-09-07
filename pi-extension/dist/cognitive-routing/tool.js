@@ -38,6 +38,23 @@ export const COGNITIVE_ROUTING_SWITCH_PARAMETERS = {
       maxLength: 160,
       description: "A concise one-line reason for the profile transition.",
     },
+    projection: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        include: {
+          type: "array",
+          items: { type: "string" },
+          description: "Completed Standard evidence refs to include in the Reasoning context.",
+        },
+        shared: {
+          type: "array",
+          items: { type: "string" },
+          description: "Previously exposed evidence refs to retain as shared context.",
+        },
+      },
+      required: ["include"],
+    },
   },
   required: ["target", "reason"],
 };
@@ -119,6 +136,23 @@ function historyOptions(params) {
     ...(Number.isInteger(params.limit) ? { limit: Math.max(1, Math.min(100, params.limit)) } : {}),
   };
 }
+function validateProjection(value) {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const record = value;
+  if (Object.keys(record).some((key) => key !== "include" && key !== "shared")) return undefined;
+  if (!Array.isArray(record.include) || record.include.some((ref) => typeof ref !== "string")) return undefined;
+  if (
+    record.shared !== undefined &&
+    (!Array.isArray(record.shared) || record.shared.some((ref) => typeof ref !== "string"))
+  ) {
+    return undefined;
+  }
+  return {
+    include: [...record.include],
+    shared: record.shared === undefined ? [] : [...record.shared],
+  };
+}
 function validateParams(params) {
   if (params.target !== "standard" && params.target !== "reasoning") {
     return { status: "invalid", reason: "target_must_be_standard_or_reasoning" };
@@ -131,9 +165,11 @@ function validateParams(params) {
   if (reason.includes("\n") || reason.includes("\r"))
     return { status: "invalid", reason: "reason_must_be_single_line" };
   if (reason.length > 160) return { status: "invalid", reason: "reason_too_long" };
-  return { status: "valid", target: params.target, reason };
+  const projection = validateProjection(params.projection);
+  if (params.projection !== undefined && !projection) return { status: "invalid", reason: "projection_invalid" };
+  return { status: "valid", target: params.target, reason, ...(projection ? { projection } : {}) };
 }
-export function registerCognitiveRoutingTool(pi, getController) {
+export function registerCognitiveRoutingTool(pi, getController, options = {}) {
   pi.registerTool({
     name: COGNITIVE_ROUTING_SWITCH_TOOL_NAME,
     label: "Switch Cognitive Profile",
@@ -157,7 +193,17 @@ export function registerCognitiveRoutingTool(pi, getController) {
       } else if (!controller.state().effective) {
         result = blocked("not_active");
       } else if (controller.state().controlMode === "automatic") {
-        result = await controller.switchAutomaticProfile(input.target, input.reason);
+        result = options.executeSwitch
+          ? await options.executeSwitch({
+              toolCallId: _toolCallId,
+              target: input.target,
+              reason: input.reason,
+              ...(input.projection ? { projection: input.projection } : {}),
+              signal: _signal,
+              ctx: _ctx,
+              controller,
+            })
+          : await controller.switchAutomaticProfile(input.target, input.reason);
       } else {
         result = blocked("manual_hold");
       }

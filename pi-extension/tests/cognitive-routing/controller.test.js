@@ -5,6 +5,7 @@ import {
   COGNITIVE_ROUTING_CONTROL_ENTRY,
   COGNITIVE_ROUTING_INTENT_ENTRY,
 } from "../../dist/cognitive-routing/controller.js";
+import { PI_SESSION_MODEL_STATE_ENTRY } from "../../dist/cognitive-routing/pi-session-control.js";
 
 const capabilityState = {
   configured: true,
@@ -75,6 +76,73 @@ function appliedLease({ calls, sessionEntries }) {
       },
     },
   };
+}
+
+function committedProfileEntries({ activationTarget, profileTarget, profile = "standard", epoch = "epoch-1" }) {
+  const returnTarget = { provider: "faux", modelId: "return", thinkingLevel: "medium" };
+  return [
+    {
+      type: "custom",
+      customType: COGNITIVE_ROUTING_INTENT_ENTRY,
+      data: {
+        version: 2,
+        phase: "prepared",
+        kind: "activation",
+        control: "automatic",
+        source: "system",
+        epoch,
+        correlationId: "activation-correlation",
+        profile: "reasoning",
+        target: activationTarget,
+        returnTarget,
+      },
+    },
+    {
+      type: "custom",
+      customType: PI_SESSION_MODEL_STATE_ENTRY,
+      data: {
+        version: 1,
+        phase: "committed",
+        status: "applied",
+        correlationId: "activation-correlation",
+        fromPair: returnTarget,
+        target: activationTarget,
+        origin: { source: "pi", operation: "session-model-state-control" },
+      },
+    },
+    {
+      type: "custom",
+      customType: COGNITIVE_ROUTING_INTENT_ENTRY,
+      data: {
+        version: 2,
+        phase: "prepared",
+        kind: "profile",
+        control: "automatic",
+        source: "agent",
+        fromPair: activationTarget,
+        fromProfile: "reasoning",
+        fromControl: "automatic",
+        epoch,
+        correlationId: "profile-correlation",
+        profile,
+        target: profileTarget,
+        returnTarget,
+      },
+    },
+    {
+      type: "custom",
+      customType: PI_SESSION_MODEL_STATE_ENTRY,
+      data: {
+        version: 1,
+        phase: "committed",
+        status: "applied",
+        correlationId: "profile-correlation",
+        fromPair: activationTarget,
+        target: profileTarget,
+        origin: { source: "pi", operation: "session-model-state-control" },
+      },
+    },
+  ];
 }
 
 test("prepares activation before acquiring and applying the host pair", async () => {
@@ -547,6 +615,376 @@ test("recovers the applied profile while preserving the latest automatic control
   assert.deepEqual(
     host.calls.map(([kind]) => kind),
     ["prepare", "acquire", "setState"],
+  );
+});
+
+test("recovers a committed routing-owned Standard profile before native override detection", async () => {
+  const activationTarget = { provider: "faux", modelId: "reasoning", thinkingLevel: "max" };
+  const standardTarget = { provider: "faux", modelId: "standard", thinkingLevel: "high" };
+  const returnTarget = { provider: "faux", modelId: "return", thinkingLevel: "medium" };
+  const entries = [
+    {
+      type: "custom",
+      customType: COGNITIVE_ROUTING_INTENT_ENTRY,
+      data: {
+        version: 2,
+        phase: "prepared",
+        kind: "activation",
+        control: "automatic",
+        source: "system",
+        epoch: "epoch-1",
+        correlationId: "activation-correlation",
+        profile: "reasoning",
+        target: activationTarget,
+        returnTarget,
+      },
+    },
+    {
+      type: "custom",
+      customType: PI_SESSION_MODEL_STATE_ENTRY,
+      data: {
+        version: 1,
+        phase: "committed",
+        status: "applied",
+        correlationId: "activation-correlation",
+        fromPair: returnTarget,
+        target: activationTarget,
+        origin: { source: "pi", operation: "session-model-state-control" },
+      },
+    },
+    {
+      type: "custom",
+      customType: COGNITIVE_ROUTING_INTENT_ENTRY,
+      data: {
+        version: 2,
+        phase: "prepared",
+        kind: "profile",
+        control: "automatic",
+        source: "agent",
+        fromPair: activationTarget,
+        fromProfile: "reasoning",
+        fromControl: "automatic",
+        epoch: "epoch-1",
+        correlationId: "standard-correlation",
+        profile: "standard",
+        target: standardTarget,
+        returnTarget,
+      },
+    },
+    {
+      type: "custom",
+      customType: PI_SESSION_MODEL_STATE_ENTRY,
+      data: {
+        version: 1,
+        phase: "committed",
+        status: "applied",
+        correlationId: "standard-correlation",
+        fromPair: activationTarget,
+        target: standardTarget,
+        origin: { source: "pi", operation: "session-model-state-control" },
+      },
+    },
+  ];
+  const host = createHost({ entries, onAcquire: appliedLease, currentModel: { provider: "faux", id: "standard" } });
+  host.ctx.thinkingLevel = "high";
+  const controller = new CognitiveRoutingController({
+    capabilityState,
+    pi: host.pi,
+    ctx: host.ctx,
+    liveStateAuthoritative: true,
+  });
+
+  const result = await controller.recover();
+
+  assert.deepEqual(result, { status: "active", profile: "standard" });
+  assert.equal(controller.state().effective, true);
+  assert.equal(controller.state().activeProfile, "standard");
+  assert.equal(
+    host.sessionEntries.some((entry) => entry.customType === "freeflow-cognitive-routing-inactive"),
+    false,
+  );
+});
+
+test("recovers same-model profiles by their thinking level", async () => {
+  const sameModelCapabilityState = {
+    ...capabilityState,
+    resolvedProfiles: {
+      standard: {
+        ...capabilityState.resolvedProfiles.standard,
+        model: "shared",
+        thinkingLevel: "low",
+        effectiveThinkingLevel: "low",
+      },
+      reasoning: {
+        ...capabilityState.resolvedProfiles.reasoning,
+        model: "shared",
+        thinkingLevel: "high",
+        effectiveThinkingLevel: "high",
+      },
+    },
+  };
+  const activationTarget = { provider: "faux", modelId: "shared", thinkingLevel: "high" };
+  const profileTarget = { provider: "faux", modelId: "shared", thinkingLevel: "low" };
+  const host = createHost({
+    entries: committedProfileEntries({ activationTarget, profileTarget }),
+    onAcquire: appliedLease,
+    currentModel: { provider: "faux", id: "shared" },
+  });
+  host.ctx.thinkingLevel = "low";
+  const controller = new CognitiveRoutingController({
+    capabilityState: sameModelCapabilityState,
+    pi: host.pi,
+    ctx: host.ctx,
+    liveStateAuthoritative: true,
+  });
+
+  const result = await controller.recover();
+
+  assert.deepEqual(result, { status: "active", profile: "standard" });
+  assert.equal(controller.state().activeProfile, "standard");
+  assert.equal(
+    host.sessionEntries.some((entry) => entry.customType === "freeflow-cognitive-routing-inactive"),
+    false,
+  );
+});
+
+test("retains native override rejection when the effective profile pair diverges", async () => {
+  const activationTarget = { provider: "faux", modelId: "reasoning", thinkingLevel: "max" };
+  const profileTarget = { provider: "faux", modelId: "standard", thinkingLevel: "high" };
+
+  for (const [kind, currentModel, thinkingLevel] of [
+    ["model", { provider: "faux", id: "outside-routing" }, "high"],
+    ["thinking", { provider: "faux", id: "standard" }, "low"],
+  ]) {
+    const host = createHost({
+      entries: committedProfileEntries({ activationTarget, profileTarget }),
+      onAcquire: appliedLease,
+      currentModel,
+    });
+    host.ctx.thinkingLevel = thinkingLevel;
+    host.pi.appendEntryDurable = (customType, data) => {
+      host.sessionEntries.push({ type: "custom", customType, data });
+    };
+    const controller = new CognitiveRoutingController({
+      capabilityState,
+      pi: host.pi,
+      ctx: host.ctx,
+      liveStateAuthoritative: true,
+    });
+
+    const result = await controller.recover();
+
+    assert.deepEqual(result, { status: "inactive", reason: "native_override" }, kind);
+    assert.equal(host.sessionEntries.at(-1).customType, "freeflow-cognitive-routing-inactive");
+    assert.equal(controller.state().effective, false);
+  }
+});
+
+test("rejects a committed profile marker whose host target differs from the intent", async () => {
+  const activationTarget = { provider: "faux", modelId: "reasoning", thinkingLevel: "max" };
+  const profileTarget = { provider: "faux", modelId: "standard", thinkingLevel: "high" };
+  const entries = committedProfileEntries({ activationTarget, profileTarget });
+  entries[3].data = {
+    ...entries[3].data,
+    target: { provider: "faux", modelId: "outside-routing", thinkingLevel: "medium" },
+  };
+  const host = createHost({
+    entries,
+    onAcquire: appliedLease,
+    currentModel: { provider: "faux", id: "standard" },
+  });
+  host.ctx.thinkingLevel = "high";
+  host.pi.appendEntryDurable = (customType, data) => {
+    host.calls.push(["prepare", customType, data]);
+    host.sessionEntries.push({ type: "custom", customType, data });
+  };
+  const controller = new CognitiveRoutingController({
+    capabilityState,
+    pi: host.pi,
+    ctx: host.ctx,
+    liveStateAuthoritative: true,
+  });
+
+  const result = await controller.recover();
+
+  assert.deepEqual(result, { status: "inactive", reason: "native_override" });
+  assert.equal(
+    host.calls.some(([kind]) => kind === "acquire" || kind === "setState"),
+    false,
+  );
+  assert.equal(host.sessionEntries.at(-1).customType, "freeflow-cognitive-routing-inactive");
+});
+
+test("does not activate a changed profile target during interrupted recovery", async () => {
+  const activationTarget = { provider: "faux", modelId: "reasoning", thinkingLevel: "max" };
+  const profileTarget = { provider: "faux", modelId: "standard", thinkingLevel: "high" };
+  const entries = committedProfileEntries({ activationTarget, profileTarget });
+  entries[3].data = { ...entries[3].data, phase: "prepared", status: "prepared" };
+  const changedCapabilityState = {
+    ...capabilityState,
+    resolvedProfiles: {
+      ...capabilityState.resolvedProfiles,
+      standard: { ...capabilityState.resolvedProfiles.standard, model: "replacement" },
+    },
+  };
+  const host = createHost({
+    entries,
+    onAcquire: appliedLease,
+    currentModel: { provider: "faux", id: "standard" },
+  });
+  host.ctx.thinkingLevel = "high";
+  const recoveryCalls = [];
+  host.pi.recoverPreparedModelState = async (request) => {
+    recoveryCalls.push(request);
+    host.ctx.model = { provider: "faux", id: "reasoning" };
+    host.ctx.thinkingLevel = "max";
+    return { status: "restored" };
+  };
+  const controller = new CognitiveRoutingController({
+    capabilityState: changedCapabilityState,
+    pi: host.pi,
+    ctx: host.ctx,
+    liveStateAuthoritative: true,
+    idFactory: () => "recovery-correlation",
+  });
+
+  const result = await controller.recover();
+
+  assert.deepEqual(result, { status: "active", profile: "reasoning" });
+  assert.deepEqual(recoveryCalls, [
+    {
+      fromPair: activationTarget,
+      target: profileTarget,
+      correlationId: "profile-correlation",
+    },
+  ]);
+  assert.equal(
+    host.calls.some((call) => call[0] === "setState" && call[1]?.modelId === "replacement"),
+    false,
+  );
+});
+
+test("validates changed activation configuration before terminal profile recovery", async () => {
+  const activationTarget = { provider: "faux", modelId: "reasoning", thinkingLevel: "max" };
+  const standardTarget = { provider: "faux", modelId: "standard", thinkingLevel: "high" };
+  const entries = committedProfileEntries({ activationTarget, profileTarget: standardTarget });
+  entries.push(
+    {
+      type: "custom",
+      customType: COGNITIVE_ROUTING_INTENT_ENTRY,
+      data: {
+        ...entries[2].data,
+        correlationId: "interrupted-profile-correlation",
+        fromPair: standardTarget,
+        fromProfile: "standard",
+        profile: "reasoning",
+        target: activationTarget,
+      },
+    },
+    {
+      type: "custom",
+      customType: PI_SESSION_MODEL_STATE_ENTRY,
+      data: {
+        ...entries[3].data,
+        phase: "prepared",
+        status: "prepared",
+        correlationId: "interrupted-profile-correlation",
+        fromPair: standardTarget,
+        target: activationTarget,
+      },
+    },
+  );
+  const changedCapabilityState = {
+    ...capabilityState,
+    resolvedProfiles: {
+      ...capabilityState.resolvedProfiles,
+      reasoning: { ...capabilityState.resolvedProfiles.reasoning, model: "replacement" },
+    },
+  };
+  const host = createHost({
+    entries,
+    onAcquire: appliedLease,
+    currentModel: { provider: "faux", id: "standard" },
+  });
+  host.ctx.thinkingLevel = "high";
+  const recoveryCalls = [];
+  host.pi.recoverPreparedModelState = async (request) => {
+    recoveryCalls.push(request);
+    return { status: "restored" };
+  };
+  const controller = new CognitiveRoutingController({
+    capabilityState: changedCapabilityState,
+    pi: host.pi,
+    ctx: host.ctx,
+    liveStateAuthoritative: true,
+  });
+
+  const result = await controller.recover();
+
+  assert.deepEqual(result, { status: "pending", reason: "applied_target_changed" });
+  assert.deepEqual(recoveryCalls, []);
+  assert.equal(
+    host.calls.some(([kind]) => kind === "acquire" || kind === "setState"),
+    false,
+  );
+  assert.equal(host.sessionEntries.length, entries.length);
+});
+
+test("recovers a prepared profile transition before native override detection", async () => {
+  const activationTarget = { provider: "faux", modelId: "reasoning", thinkingLevel: "max" };
+  const profileTarget = { provider: "faux", modelId: "standard", thinkingLevel: "high" };
+  const entries = committedProfileEntries({ activationTarget, profileTarget });
+  entries[3].data = { ...entries[3].data, phase: "prepared", status: "prepared" };
+  const host = createHost({
+    entries,
+    onAcquire: appliedLease,
+    currentModel: { provider: "faux", id: "standard" },
+  });
+  host.ctx.thinkingLevel = "high";
+  const recoveryCalls = [];
+  host.pi.recoverPreparedModelState = async (request) => {
+    recoveryCalls.push(request);
+    host.ctx.model = { provider: "faux", id: "reasoning" };
+    host.ctx.thinkingLevel = "max";
+    host.sessionEntries.push({
+      type: "custom",
+      customType: PI_SESSION_MODEL_STATE_ENTRY,
+      data: {
+        version: 1,
+        phase: "aborted",
+        status: "rolled-back",
+        correlationId: request.correlationId,
+        fromPair: request.fromPair,
+        target: request.target,
+        failure: "interrupted-transition",
+        origin: { source: "pi", operation: "session-model-state-control" },
+      },
+    });
+    return { status: "restored" };
+  };
+  const controller = new CognitiveRoutingController({
+    capabilityState,
+    pi: host.pi,
+    ctx: host.ctx,
+    liveStateAuthoritative: true,
+    idFactory: () => "recovery-correlation",
+  });
+
+  const result = await controller.recover();
+
+  assert.deepEqual(result, { status: "active", profile: "reasoning" });
+  assert.deepEqual(recoveryCalls, [
+    {
+      fromPair: activationTarget,
+      target: profileTarget,
+      correlationId: "profile-correlation",
+    },
+  ]);
+  assert.equal(
+    host.sessionEntries.some(
+      (entry) => entry.customType === COGNITIVE_ROUTING_INTENT_ENTRY && entry.data.phase === "abandoned",
+    ),
+    true,
   );
 });
 
