@@ -4,11 +4,12 @@ import { sessionEntryToContextMessages } from "@earendil-works/pi-coding-agent";
 import { projectContextSource } from "../freeflow-context/source-projector.js";
 import { contextRefForEntry, entryIdFromContextRef } from "../freeflow-context/types.js";
 import { projectReasoningContext } from "./context-projection.js";
-import { CognitiveRoutingSourceRegistry } from "./source-registry.js";
+import { COGNITIVE_ROUTING_BASELINE_ENTRY, CognitiveRoutingSourceRegistry } from "./source-registry.js";
 import { sessionLineageFor } from "./session-lineage.js";
 export const COGNITIVE_ROUTING_SOURCE_ENTRY = "freeflow-cognitive-routing-source";
 export const COGNITIVE_ROUTING_PROJECTION_ENTRY = "freeflow-cognitive-routing-projection";
 export const COGNITIVE_ROUTING_PROJECTION_MARKER_PREFIX = "[projection-ref: ";
+export const COGNITIVE_ROUTING_ORIGIN_MARKER_PREFIX = "[routing-origin: ";
 function sessionIdFor(ctx) {
   try {
     const sessionId = ctx?.sessionManager?.getSessionId?.();
@@ -40,20 +41,28 @@ function activeEntriesFor(ctx) {
 function markerText(ref) {
   return `${COGNITIVE_ROUTING_PROJECTION_MARKER_PREFIX}${ref}]`;
 }
-function appendProjectionMarker(message, ref, ownedAnnotations) {
-  if (message && typeof message === "object" && ownedAnnotations.get(message) === ref) return message;
+function originMarkerText(ref, profile, blockId, kind) {
+  return `${COGNITIVE_ROUTING_ORIGIN_MARKER_PREFIX}${profile}; block: ${blockId ?? "unknown"}; kind: ${kind}; ref: ${ref}]`;
+}
+function appendContextAnnotations(message, candidate, ownedAnnotations) {
   if (message?.role !== "user" && message?.role !== "assistant" && message?.role !== "toolResult") {
     return message;
   }
-  const marker = { type: "text", text: markerText(ref) };
+  const ref = sourceRef(candidate.source.entryId);
+  const signature = `${ref}|${candidate.profile}|${candidate.blockId ?? ""}|${candidate.kind}`;
+  if (message && typeof message === "object" && ownedAnnotations.get(message) === signature) return message;
+  const markers = [
+    { type: "text", text: markerText(ref) },
+    { type: "text", text: originMarkerText(ref, candidate.profile, candidate.blockId, candidate.kind) },
+  ];
   const baseContent = message.content;
   const content = Array.isArray(baseContent)
-    ? [...baseContent, marker]
+    ? [...baseContent, ...markers]
     : typeof baseContent === "string"
-      ? [{ type: "text", text: baseContent }, marker]
-      : [marker];
+      ? [{ type: "text", text: baseContent }, ...markers]
+      : markers;
   const annotated = { ...message, content };
-  if (annotated && typeof annotated === "object") ownedAnnotations.set(annotated, ref);
+  if (annotated && typeof annotated === "object") ownedAnnotations.set(annotated, signature);
   return annotated;
 }
 function routingState(options) {
@@ -66,6 +75,13 @@ function routingState(options) {
 function enabled(options) {
   try {
     return options.isEnabled() === true;
+  } catch {
+    return false;
+  }
+}
+function attributionEnabled(options) {
+  try {
+    return (options.isAttributionEnabled ?? options.isEnabled)() === true;
   } catch {
     return false;
   }
@@ -289,10 +305,21 @@ export class CognitiveRoutingProjectionCoordinator {
     if (lineage?.currentSessionId === sessionId) this.sessionLineage = lineage;
     return lineage;
   }
-  turnStart(ctx) {
+  latestBaselineIndex(sessionId, branchEntries, lineage) {
+    const accepted = new Set([sessionId, ...lineage.inheritedSessionIds]);
+    let latest;
+    for (let index = 0; index < branchEntries.length; index += 1) {
+      const entry = branchEntries[index];
+      if (entry.type !== "custom" || entry.customType !== COGNITIVE_ROUTING_BASELINE_ENTRY) continue;
+      const data = entry.data;
+      if (data?.version === 1 && data.kind === "baseline" && accepted.has(data.sessionId)) latest = index;
+    }
+    return latest;
+  }
+  async turnStart(ctx) {
     this.exposureSnapshot = undefined;
     const state = routingState(this.options);
-    const eligible = enabled(this.options) && state?.effective === true && state.activeProfile;
+    const eligible = attributionEnabled(this.options) && state?.effective === true && state.activeProfile;
     if (!eligible) {
       this.capturedTurn = undefined;
       return;
@@ -305,8 +332,8 @@ export class CognitiveRoutingProjectionCoordinator {
     }
     const lineage = this.lineageFor(ctx);
     const sessionId = lineage?.currentSessionId;
-    const branchEntries = branchEntriesFor(ctx);
-    const activeEntries = activeEntriesFor(ctx);
+    let branchEntries = branchEntriesFor(ctx);
+    let activeEntries = activeEntriesFor(ctx);
     if (!sessionId || !lineage || !branchEntries || !activeEntries) {
       if (!automatic) {
         this.capturedTurn = undefined;
@@ -327,6 +354,52 @@ export class CognitiveRoutingProjectionCoordinator {
       return;
     }
     this.restorePersistedSelection(sessionId, branchEntries, activeEntries, lineage);
+    if (this.failure) return;
+    const baselineIndex = this.latestBaselineIndex(sessionId, branchEntries, lineage);
+    if (baselineIndex === undefined) {
+      const entryIds = branchEntries
+        .filter(
+          (entry) =>
+            entry.type === "message" &&
+            typeof entry.id === "string" &&
+            (entry.message?.role === "assistant" || entry.message?.role === "toolResult") &&
+            this.registry.attributionForEntry(sessionId, entry.id) === undefined,
+        )
+        .map((entry) => entry.id);
+      try {
+        await this.persist(COGNITIVE_ROUTING_BASELINE_ENTRY, {
+          version: 1,
+          kind: "baseline",
+          sessionId,
+          entryIds,
+        });
+      } catch (error) {
+        this.failure = error instanceof Error ? error.message : String(error);
+        return;
+      }
+      branchEntries = branchEntriesFor(ctx);
+      activeEntries = activeEntriesFor(ctx);
+      if (!branchEntries || !activeEntries) {
+        this.failure = !branchEntries ? "branch_entries_unavailable" : "active_context_entries_unavailable";
+        return;
+      }
+      if (this.latestBaselineIndex(sessionId, branchEntries, lineage) === undefined) {
+        this.failure = "baseline_persistence_unconfirmed";
+        return;
+      }
+      const rehydrated = this.registry.hydrate(
+        sessionId,
+        branchEntries,
+        lineage.inheritedSessionIds,
+        lineage.available,
+      );
+      if (rehydrated.status === "unavailable") {
+        this.failure = rehydrated.reason;
+        return;
+      }
+      this.restorePersistedSelection(sessionId, branchEntries, activeEntries, lineage);
+      if (this.failure) return;
+    }
     let blockId;
     try {
       if (!this.activeBlock || this.activeBlock.profile !== state.activeProfile) {
@@ -346,10 +419,11 @@ export class CognitiveRoutingProjectionCoordinator {
     };
   }
   context(ctx, messages) {
-    if (!enabled(this.options)) {
+    if (!attributionEnabled(this.options)) {
       this.exposureSnapshot = undefined;
       return { messages: messages, changed: false };
     }
+    const laneEnabled = enabled(this.options);
     const turn = this.capturedTurn;
     const state = routingState(this.options);
     const eligible = state?.effective === true && state.activeProfile;
@@ -379,11 +453,17 @@ export class CognitiveRoutingProjectionCoordinator {
           this.capturedTurn = undefined;
         }
       }
-      return { messages: messages, changed: false };
+      return turn
+        ? this.annotateFullContext(turn.sessionId, messages, branchEntries, activeEntriesFor(ctx) ?? branchEntries)
+        : { messages: messages, changed: false };
     }
     const cancellationRequired =
-      state.activeProfile === "reasoning" || this.pendingSelection !== undefined || this.operation?.phase === "failed";
+      laneEnabled &&
+      (state.activeProfile === "reasoning" ||
+        this.pendingSelection !== undefined ||
+        this.operation?.phase === "failed");
     if (!turn) {
+      if (!laneEnabled) return { messages: messages, changed: false };
       return this.rejectProjectedContext(
         ctx,
         this.failure ?? "turn_capture_unavailable",
@@ -396,6 +476,7 @@ export class CognitiveRoutingProjectionCoordinator {
     const branchEntries = branchEntriesFor(ctx);
     const activeEntries = activeEntriesFor(ctx);
     if (!sessionId || !lineage || !branchEntries || !activeEntries || sessionId !== turn.sessionId) {
+      if (!laneEnabled) return { messages: messages, changed: false };
       return this.rejectProjectedContext(
         ctx,
         !sessionId
@@ -412,10 +493,12 @@ export class CognitiveRoutingProjectionCoordinator {
       );
     }
     if (this.failure) {
+      if (!laneEnabled) return this.annotateFullContext(sessionId, messages, branchEntries, activeEntries);
       return this.rejectProjectedContext(ctx, this.failure, messages, cancellationRequired);
     }
     const hydrated = this.registry.hydrate(sessionId, branchEntries, lineage.inheritedSessionIds, lineage.available);
     if (hydrated.status === "unavailable") {
+      if (!laneEnabled) return { messages: messages, changed: false };
       return this.rejectProjectedContext(ctx, hydrated.reason, messages, cancellationRequired);
     }
     this.restorePersistedSelection(sessionId, branchEntries, activeEntries, lineage);
@@ -429,6 +512,7 @@ export class CognitiveRoutingProjectionCoordinator {
         });
         turn.baselineEstablished = true;
       } catch (error) {
+        if (!laneEnabled) return { messages: messages, changed: false };
         return this.rejectProjectedContext(
           ctx,
           error instanceof Error ? error.message : String(error),
@@ -438,6 +522,7 @@ export class CognitiveRoutingProjectionCoordinator {
       }
     }
     if (turn.profile === "reasoning") {
+      if (!laneEnabled) return this.annotateFullContext(sessionId, messages, branchEntries, activeEntries);
       return this.projectReasoningTurn(ctx, messages, branchEntries, activeEntries);
     }
     return this.exposeStandardSources(messages, turn, branchEntries, activeEntries);
@@ -449,6 +534,7 @@ export class CognitiveRoutingProjectionCoordinator {
       const reason = this.failure;
       this.capturedTurn = undefined;
       if (
+        enabled(this.options) &&
         turn.controlMode === "automatic" &&
         (turn.profile === "reasoning" || this.pendingSelection !== undefined || this.operation?.phase === "failed")
       ) {
@@ -472,6 +558,7 @@ export class CognitiveRoutingProjectionCoordinator {
       this.failure = reason;
       this.capturedTurn = undefined;
       if (
+        enabled(this.options) &&
         turn.controlMode === "automatic" &&
         (turn.profile === "reasoning" || this.pendingSelection !== undefined || this.operation?.phase === "failed")
       ) {
@@ -484,6 +571,7 @@ export class CognitiveRoutingProjectionCoordinator {
       this.failure = hydrated.reason;
       this.capturedTurn = undefined;
       if (
+        enabled(this.options) &&
         turn.controlMode === "automatic" &&
         (turn.profile === "reasoning" || this.pendingSelection !== undefined || this.operation?.phase === "failed")
       ) {
@@ -501,6 +589,7 @@ export class CognitiveRoutingProjectionCoordinator {
       this.failure = reconciliation.reason;
       this.capturedTurn = undefined;
       if (
+        enabled(this.options) &&
         turn.controlMode === "automatic" &&
         (turn.profile === "reasoning" || this.pendingSelection !== undefined || this.operation?.phase === "failed")
       ) {
@@ -520,6 +609,7 @@ export class CognitiveRoutingProjectionCoordinator {
       this.exposureSnapshot = undefined;
       this.capturedTurn = undefined;
       if (
+        enabled(this.options) &&
         turn.controlMode === "automatic" &&
         (turn.profile === "reasoning" || this.pendingSelection !== undefined || this.operation?.phase === "failed")
       ) {
@@ -569,6 +659,9 @@ export class CognitiveRoutingProjectionCoordinator {
     }
     const current = input.controller.state();
     if (!current.effective || current.controlMode !== "automatic") return { status: "blocked", reason: "not_active" };
+    if (!projectionSupplied && current.activeProfile === "reasoning") {
+      return input.controller.switchAutomaticProfile("reasoning", input.reason);
+    }
     if (current.activeProfile !== "standard") return { status: "blocked", reason: "profile_not_standard" };
     const exposure = this.exposureSnapshot;
     if (!exposure || exposure.profile !== "standard") return { status: "blocked", reason: "exposure_unavailable" };
@@ -804,6 +897,9 @@ export class CognitiveRoutingProjectionCoordinator {
     if (sourceResult.status === "unavailable")
       return this.rejectProjectedContext(ctx, sourceResult.reason, messages, true);
     const sources = sourceResult.sources;
+    const baselineRefs = sources
+      .filter((source) => source.profile === "unknown")
+      .map((source) => sourceRef(source.source.entryId));
     const projected = projectReasoningContext({
       sessionId,
       messages,
@@ -811,10 +907,11 @@ export class CognitiveRoutingProjectionCoordinator {
       include: [],
       shared: this.committedSelection.shared,
       previous: this.committedSelection.include,
-      required: this.committedSelection.required,
+      required: uniqueRefs(this.committedSelection.required, baselineRefs),
     });
     if (projected.status === "rejected") return this.rejectProjectedContext(ctx, projected.reason, messages, true);
-    return { messages: projected.messages, changed: true };
+    const annotated = this.annotateMessages(projected.messages, sources, new Set(projected.visibleRefs));
+    return { messages: annotated, changed: true };
   }
   sourcesForBranch(sessionId, branchEntries, activeEntries) {
     const branchAttributions = this.registry.attributionsForBranch(sessionId, branchEntries);
@@ -828,6 +925,22 @@ export class CognitiveRoutingProjectionCoordinator {
         projectionSourceForCandidate,
       ),
     };
+  }
+  annotateFullContext(sessionId, messages, branchEntries, activeEntries) {
+    const sourceResult = this.sourcesForBranch(sessionId, branchEntries, activeEntries);
+    if (sourceResult.status === "unavailable") return { messages: messages, changed: false };
+    const annotated = this.annotateMessages(messages, sourceResult.sources);
+    return { messages: annotated, changed: annotated.some((message, index) => message !== messages[index]) };
+  }
+  annotateMessages(messages, sources, visibleRefs) {
+    return messages.map((message) => {
+      const matches = sources.filter((source) => sourceMatches(message, source));
+      if (matches.length !== 1) return message;
+      const candidate = matches[0];
+      const ref = sourceRef(candidate.source.entryId);
+      if (visibleRefs && !visibleRefs.has(ref)) return message;
+      return appendContextAnnotations(message, candidate, this.ownedAnnotations);
+    });
   }
   exposeStandardSources(messages, turn, branchEntries, activeEntries) {
     this.standardContext = [...messages];
@@ -870,7 +983,7 @@ export class CognitiveRoutingProjectionCoordinator {
       });
       if (outcome.status !== "eligible") continue;
       const ref = outcome.source.ref;
-      projectedMessages[index] = appendProjectionMarker(message, ref, this.ownedAnnotations);
+      projectedMessages[index] = appendContextAnnotations(message, candidate, this.ownedAnnotations);
       visibleRefs.push(ref);
       exposedSources.push(exposureSourceForCandidate(candidate));
     }

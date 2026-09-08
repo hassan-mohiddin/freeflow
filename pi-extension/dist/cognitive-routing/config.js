@@ -235,7 +235,7 @@ export function resolveCognitiveRoutingConfig(repositoryConfig, personalConfig) 
   let enabledSource = "default";
   if (repository.enabled !== undefined) enabledSource = "repository";
   if (personal.enabled !== undefined) enabledSource = "personal";
-  const contextProjection = personal.contextProjection ?? repository.contextProjection ?? false;
+  const contextProjection = personal.contextProjection ?? repository.contextProjection ?? true;
   let contextProjectionSource = "default";
   if (repository.contextProjection !== undefined) contextProjectionSource = "repository";
   if (personal.contextProjection !== undefined) contextProjectionSource = "personal";

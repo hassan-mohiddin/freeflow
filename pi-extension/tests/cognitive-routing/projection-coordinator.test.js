@@ -148,7 +148,11 @@ function stripProjectionRefs(message) {
   return {
     ...message,
     content: message.content.filter(
-      (part) => !(part?.type === "text" && /^\[projection-ref: ctx:[^\]]+\]$/.test(part.text ?? "")),
+      (part) =>
+        !(
+          part?.type === "text" &&
+          (/^\[projection-ref: ctx:[^\]]+\]$/.test(part.text ?? "") || /^\[routing-origin: /.test(part.text ?? ""))
+        ),
     ),
   };
 }
@@ -175,6 +179,7 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
   const originalOffline = process.env.PI_OFFLINE;
   const requests = [];
   const observedContexts = [];
+  const lifecycleEvents = [];
   const extensionErrors = [];
   let session;
   let sessionManager;
@@ -184,6 +189,7 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
   let sharedRefFromContext;
   let omittedRefFromContext;
   let earlierAssistantRefFromContext;
+  let earlierReasoningRefFromContext;
   let laterRefFromContext;
   let contextOnlyBlockAssistantRefFromContext;
   let reassessedAssistantRefFromContext;
@@ -288,6 +294,10 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
     }
     if (requestIndex === 10) {
       laterRefFromContext = exposedRefFor(observedContexts, "CAPTURED_LATER");
+      earlierReasoningRefFromContext = exposedAssistantRefFor(
+        observedContexts,
+        "Reasoning received the returned context.",
+      );
       requestIndex += 1;
       return functionCallResponse(
         "switch-to-reasoning-second",
@@ -404,6 +414,10 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
           pi.on("context", (event) => {
             observedContexts.push(structuredClone(event.messages));
           });
+          pi.on("session_start", (event) => lifecycleEvents.push({ type: "session_start", reason: event?.reason }));
+          pi.on("session_shutdown", (event) =>
+            lifecycleEvents.push({ type: "session_shutdown", reason: event?.reason }),
+          );
         },
       ],
     });
@@ -421,12 +435,14 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
       resourceLoader,
     });
     session = created.session;
-    const unsubscribeErrors = session.extensionRunner.onError((error) => extensionErrors.push(error));
     let canonicalBeforeFirstReturn;
     let canonicalAfterFirstReturn;
     let canonicalBeforeSecondReturn;
     try {
-      await session.bindExtensions({ mode: "print" });
+      await session.bindExtensions({
+        mode: "print",
+        onError: (error) => extensionErrors.push(error),
+      });
       await session.prompt("start the source-capture vertical");
       canonicalBeforeFirstReturn = new Map(
         messageEntries(sessionManager).map((entry) => [entry.id, structuredClone(entry.message)]),
@@ -451,8 +467,11 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
       await session.prompt("return the second captured evidence for assessment");
       await session.prompt("start the context-only later block");
       await session.prompt("return previously exposed evidence for reassessment");
+      await session.reload();
+      assert.ok(lifecycleEvents.some((event) => event.type === "session_shutdown" && event.reason === "reload"));
+      assert.ok(lifecycleEvents.some((event) => event.type === "session_start" && event.reason === "reload"));
+      await session.prompt("continue after native reload");
     } finally {
-      unsubscribeErrors();
       session.dispose();
       session = undefined;
     }
@@ -461,6 +480,7 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
     assert.ok(sharedRefFromContext, `shared ref missing; requests=${requests.length}`);
     assert.ok(omittedRefFromContext, `omitted ref missing; requests=${requests.length}`);
     assert.ok(earlierAssistantRefFromContext, `earlier assistant ref missing; requests=${requests.length}`);
+    assert.ok(earlierReasoningRefFromContext, `earlier reasoning ref missing; requests=${requests.length}`);
     assert.ok(laterRefFromContext, `later ref missing; requests=${requests.length}`);
     assert.ok(
       contextOnlyBlockAssistantRefFromContext,
@@ -471,18 +491,21 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
     const sharedEntry = entryForRef(sharedRefFromContext);
     const omittedEntry = entryForRef(omittedRefFromContext);
     const earlierAssistantEntry = entryForRef(earlierAssistantRefFromContext);
+    const earlierReasoningEntry = entryForRef(earlierReasoningRefFromContext);
     const laterEntry = entryForRef(laterRefFromContext);
     const contextOnlyAssistantEntry = entryForRef(contextOnlyBlockAssistantRefFromContext);
     assert.ok(captureEntry);
     assert.ok(sharedEntry);
     assert.ok(omittedEntry);
     assert.ok(earlierAssistantEntry);
+    assert.ok(earlierReasoningEntry);
     assert.ok(laterEntry);
     assert.ok(contextOnlyAssistantEntry);
     assert.match(JSON.stringify(captureEntry.message.content), /CAPTURED_SELECTED/);
     assert.match(JSON.stringify(sharedEntry.message.content), /CAPTURED_SHARED/);
     assert.match(JSON.stringify(omittedEntry.message.content), /CAPTURED_OMITTED/);
     assert.match(JSON.stringify(earlierAssistantEntry.message.content), /Standard completed the follow-up/);
+    assert.match(JSON.stringify(earlierReasoningEntry.message.content), /Reasoning received the returned context/);
     assert.match(JSON.stringify(laterEntry.message.content), /CAPTURED_LATER/);
     assert.match(
       JSON.stringify(contextOnlyAssistantEntry.message.content),
@@ -514,6 +537,7 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
         "gpt-4o",
         "gpt-4",
         "gpt-4",
+        "gpt-4o",
         "gpt-4o",
       ],
     );
@@ -606,6 +630,7 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
     const firstReasoningRequest = JSON.stringify(requests[6].input);
     assert.match(firstReasoningRequest, /CAPTURED_SELECTED/);
     assert.match(firstReasoningRequest, /CAPTURED_SHARED/);
+    assert.match(firstReasoningRequest, /\[routing-origin: standard; block:/);
     assert.doesNotMatch(firstReasoningRequest, /CAPTURED_OMITTED/);
     assert.match(firstReasoningRequest, /freeflow_switch_profile/);
     const secondReasoningRequest = JSON.stringify(requests[11].input);
@@ -621,8 +646,21 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
     assert.match(thirdReasoningRequest, /CAPTURED_OMITTED/);
     assert.match(thirdReasoningRequest, /capture-omitted/);
     assert.match(thirdReasoningRequest, /Standard completed the follow-up/);
-    assert.equal(requests.length, 16);
-    assert.equal(observedContexts.length >= 16, true);
+    assert.match(thirdReasoningRequest, /\[routing-origin: standard; block:/);
+    const reasoningRecord = sourceRecords.find((entry) => entry.data?.assistant?.entryId === earlierReasoningEntry.id);
+    assert.ok(reasoningRecord);
+    assert.ok(
+      thirdReasoningRequest.includes(
+        `[routing-origin: reasoning; block: ${reasoningRecord.data.blockId}; kind: assistant; ref: ctx:${earlierReasoningEntry.id}]`,
+      ),
+    );
+    assert.ok(
+      thirdReasoningRequest.includes(
+        `[routing-origin: standard; block: ${captureRecord.data.blockId}; kind: toolResult; ref: ctx:${sharedEntry.id}]`,
+      ),
+    );
+    assert.equal(requests.length, 17);
+    assert.equal(observedContexts.length >= 17, true);
     assert.match(JSON.stringify(observedContexts[6]), /CAPTURED_SELECTED/);
     assert.match(JSON.stringify(observedContexts[6]), /CAPTURED_SHARED/);
     assert.doesNotMatch(JSON.stringify(observedContexts[6]), /CAPTURED_OMITTED/);
@@ -636,6 +674,8 @@ test("captures Standard source blocks through the registered Pi lifecycle", asyn
     assert.match(JSON.stringify(observedContexts[15]), /CAPTURED_LATER/);
     assert.match(JSON.stringify(observedContexts[15]), /CAPTURED_OMITTED/);
     assert.match(JSON.stringify(observedContexts[15]), /Standard completed the follow-up/);
+    assert.match(JSON.stringify(observedContexts[16]), /CAPTURED_OMITTED/);
+    assert.match(JSON.stringify(observedContexts[16]), /\[routing-origin: standard; block:/);
     const assertCheckpoint = (checkpoint, label) => {
       for (const [entryId, beforeMessage] of checkpoint) {
         const afterEntry = messageEntries(sessionManager).find((entry) => entry.id === entryId);

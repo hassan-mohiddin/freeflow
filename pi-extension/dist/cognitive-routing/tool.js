@@ -53,7 +53,7 @@ export const COGNITIVE_ROUTING_SWITCH_PARAMETERS = {
           description: "Previously exposed evidence refs to retain as shared context.",
         },
       },
-      required: ["include"],
+      required: [],
     },
   },
   required: ["target", "reason"],
@@ -141,7 +141,12 @@ function validateProjection(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const record = value;
   if (Object.keys(record).some((key) => key !== "include" && key !== "shared")) return undefined;
-  if (!Array.isArray(record.include) || record.include.some((ref) => typeof ref !== "string")) return undefined;
+  if (
+    record.include !== undefined &&
+    (!Array.isArray(record.include) || record.include.some((ref) => typeof ref !== "string"))
+  ) {
+    return undefined;
+  }
   if (
     record.shared !== undefined &&
     (!Array.isArray(record.shared) || record.shared.some((ref) => typeof ref !== "string"))
@@ -149,7 +154,7 @@ function validateProjection(value) {
     return undefined;
   }
   return {
-    include: [...record.include],
+    include: record.include === undefined ? [] : [...record.include],
     shared: record.shared === undefined ? [] : [...record.shared],
   };
 }

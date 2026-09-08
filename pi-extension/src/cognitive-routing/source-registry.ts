@@ -2,7 +2,17 @@ import { isDeepStrictEqual } from "node:util";
 
 import type { ContextSourceIdentity } from "../freeflow-context/types.js";
 
-export type SourceRegistryProfile = "standard" | "reasoning";
+export type SourceRegistryExecutionProfile = "standard" | "reasoning";
+export type SourceRegistryProfile = SourceRegistryExecutionProfile | "unknown";
+
+export const COGNITIVE_ROUTING_BASELINE_ENTRY = "freeflow-cognitive-routing-baseline";
+
+export type CognitiveRoutingBaselineRecord = {
+  version: 1;
+  kind: "baseline";
+  sessionId: string;
+  entryIds: string[];
+};
 
 type SessionEntry = {
   type?: unknown;
@@ -15,7 +25,7 @@ type SessionEntry = {
 
 type TurnStart = {
   sessionId: string;
-  profile: SourceRegistryProfile;
+  profile: SourceRegistryExecutionProfile;
   blockId: string;
   branchEntries: readonly SessionEntry[];
 };
@@ -30,7 +40,7 @@ type TurnObservation = {
 type TurnAttribution = {
   status: "attributed";
   blockId: string;
-  profile: SourceRegistryProfile;
+  profile: SourceRegistryExecutionProfile;
   assistant: ContextSourceIdentity;
   toolResults: ContextSourceIdentity[];
 };
@@ -43,13 +53,13 @@ type TurnUnavailable = {
 type TurnAlreadyAttributed = {
   status: "already_attributed";
   blockId: string;
-  profile: SourceRegistryProfile;
+  profile: SourceRegistryExecutionProfile;
 };
 
 export type SourceRegistryAttribution = {
   source: ContextSourceIdentity;
   profile: SourceRegistryProfile;
-  blockId: string;
+  blockId?: string;
   kind: "assistant" | "toolResult";
   message: any;
 };
@@ -102,7 +112,7 @@ function cloneAttribution(attribution: SourceRegistryAttribution): SourceRegistr
   return {
     source: { ...attribution.source },
     profile: attribution.profile,
-    blockId: attribution.blockId,
+    ...(attribution.blockId === undefined ? {} : { blockId: attribution.blockId }),
     kind: attribution.kind,
     message: structuredClone(attribution.message),
   };
@@ -118,11 +128,26 @@ function sameAttribution(a: SourceRegistryAttribution, b: SourceRegistryAttribut
   );
 }
 
+function unknownAttributionForEntry(
+  entry: SessionEntry & { id: string; message: any },
+  sessionId: string,
+): SourceRegistryAttribution | undefined {
+  const kind =
+    entry.message?.role === "assistant" ? "assistant" : entry.message?.role === "toolResult" ? "toolResult" : undefined;
+  if (!kind) return undefined;
+  return {
+    source: sourceFor(entry, sessionId),
+    profile: "unknown",
+    kind,
+    message: immutableSnapshot(entry.message),
+  };
+}
+
 export class CognitiveRoutingSourceRegistry {
   private activeTurn:
     | {
         sessionId: string;
-        profile: SourceRegistryProfile;
+        profile: SourceRegistryExecutionProfile;
         blockId: string;
         baselineLeafId: string | null;
         attributed?: TurnAttribution;
@@ -423,6 +448,40 @@ export class CognitiveRoutingSourceRegistry {
       prepared.push(...storedForJournal);
     }
 
+    const preparedKeys = new Set(prepared.map((stored) => `${sessionId}:${stored.source.entryId}`));
+    for (const entry of branchEntries) {
+      if (entry.type !== "custom" || entry.customType !== COGNITIVE_ROUTING_BASELINE_ENTRY) continue;
+      const data = entry.data as Partial<CognitiveRoutingBaselineRecord> | undefined;
+      if (data?.version !== 1 || data.kind !== "baseline" || !Array.isArray(data.entryIds)) {
+        return { status: "unavailable", reason: "baseline_entry_invalid" };
+      }
+      if (typeof data.sessionId !== "string" || !acceptedSessionIds.has(data.sessionId)) {
+        return {
+          status: "unavailable",
+          reason: lineageAvailable ? "baseline_entry_session_invalid" : "baseline_entry_lineage_unavailable",
+        };
+      }
+      const seen = new Set<string>();
+      const baselineIndex = branchEntries.findIndex((candidate) => candidate.id === entry.id);
+      for (const entryId of data.entryIds) {
+        if (typeof entryId !== "string" || entryId.length === 0 || seen.has(entryId)) {
+          return { status: "unavailable", reason: "baseline_entry_ids_invalid" };
+        }
+        seen.add(entryId);
+        const canonical = entriesById.get(entryId);
+        const canonicalIndex = branchEntries.findIndex((candidate) => candidate.id === entryId);
+        if (!canonical || canonicalIndex < 0 || canonicalIndex >= baselineIndex) {
+          return { status: "unavailable", reason: `baseline_entry_ref_unavailable:${entryId}` };
+        }
+        const stored = unknownAttributionForEntry(canonical, sessionId);
+        if (!stored) return { status: "unavailable", reason: `baseline_entry_kind_invalid:${entryId}` };
+        const key = `${sessionId}:${entryId}`;
+        if (preparedKeys.has(key)) continue;
+        prepared.push(stored);
+        preparedKeys.add(key);
+      }
+    }
+
     const preparedByKey = new Map<string, SourceRegistryAttribution>();
     for (const stored of prepared) {
       const key = `${sessionId}:${stored.source.entryId}`;
@@ -432,15 +491,22 @@ export class CognitiveRoutingSourceRegistry {
       }
       preparedByKey.set(key, stored);
       const existing = this.attributions.get(key);
-      if (existing && !sameAttribution(existing, stored)) {
+      if (this.conflicts.has(key) || (existing && !sameAttribution(existing, stored))) {
         return { status: "unavailable", reason: `attributed_entry_conflict:${stored.source.entryId}` };
       }
     }
+    const nextSources = new Map<string, ContextSourceIdentity>();
+    const nextAttributions = new Map<string, SourceRegistryAttribution>();
     for (const stored of prepared) {
       const key = `${sessionId}:${stored.source.entryId}`;
-      this.sources.set(key, { ...stored.source });
-      this.attributions.set(key, stored);
+      nextSources.set(key, { ...stored.source });
+      nextAttributions.set(key, stored);
     }
+    this.sources.clear();
+    this.attributions.clear();
+    this.conflicts.clear();
+    for (const [key, source] of nextSources) this.sources.set(key, source);
+    for (const [key, attribution] of nextAttributions) this.attributions.set(key, attribution);
     return { status: "available", attributions: prepared };
   }
 

@@ -273,7 +273,7 @@ test("normal Pi settings expose active Cognitive Routing configuration", async (
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
       const rootText = renderText(component);
-      assert.match(rootText, /Cognitive Routing\s+enabled \(5\) active/);
+      assert.match(rootText, /Cognitive Routing\s+enabled \(6\) active/);
       assert.doesNotMatch(rootText, /PiFlow only/);
       return undefined;
     };

@@ -177,7 +177,9 @@ async function runProjectionMode(mode) {
             ? { include: [] }
             : mode === "omitted" || mode === "default-off"
               ? undefined
-              : { include: [selectedRef] };
+              : mode === "shared-only"
+                ? { shared: [selectedRef] }
+                : { include: [selectedRef] };
       requestIndex += 1;
       return functionCallResponse(
         "switch-to-reasoning",
@@ -376,17 +378,36 @@ test("rejects a mixed valid and invalid selection without a Reasoning request", 
   assert.equal(result.extensionErrors.length, 0);
 });
 
+test("accepts a shared-only selection through the registered Pi path", async () => {
+  const result = await runProjectionMode("shared-only");
+  assert.deepEqual(
+    result.requests.map((body) => body.model),
+    ["gpt-4o", "gpt-4", "gpt-4", "gpt-4", "gpt-4", "gpt-4o"],
+  );
+  const finalInput = JSON.stringify(result.requests[5].input);
+  assert.match(finalInput, /CAPTURED_SELECTED/);
+  assert.doesNotMatch(finalInput, /CAPTURED_OMITTED/);
+  assert.equal(result.projectionRecords.length, 1);
+  assert.deepEqual(result.projectionRecords[0].data.include, []);
+  assert.equal(result.projectionRecords[0].data.shared.length, 1);
+  assert.equal(result.extensionErrors.length, 0);
+});
+
 test("keeps the ordinary path when projected mode is disabled", async () => {
   const result = await runProjectionMode("default-off");
   assert.deepEqual(
     result.requests.map((body) => body.model),
     ["gpt-4o", "gpt-4", "gpt-4", "gpt-4", "gpt-4", "gpt-4o"],
   );
-  assert.equal(result.sourceRecords.length, 0);
+  assert.ok(result.sourceRecords.length > 0);
   assert.equal(result.projectionRecords.length, 0);
   assert.equal(
     result.requests.some((body) => JSON.stringify(body.input).includes("[projection-ref:")),
-    false,
+    true,
+  );
+  assert.equal(
+    result.requests.some((body) => JSON.stringify(body.input).includes("[routing-origin:")),
+    true,
   );
   assert.equal(result.extensionErrors.length, 0);
 });

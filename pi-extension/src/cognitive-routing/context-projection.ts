@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import { contextRefForEntry, entryIdFromContextRef, type ContextSourceIdentity } from "../freeflow-context/types.js";
 
-export type ProjectionSourceProfile = "standard" | "reasoning" | "user" | "shared";
+export type ProjectionSourceProfile = "standard" | "reasoning" | "unknown" | "user" | "shared";
 
 export type ProjectionSource = {
   source: ContextSourceIdentity;

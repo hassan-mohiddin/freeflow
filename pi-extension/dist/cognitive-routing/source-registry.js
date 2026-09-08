@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
+export const COGNITIVE_ROUTING_BASELINE_ENTRY = "freeflow-cognitive-routing-baseline";
 function messageEntry(entry) {
   return entry.type === "message" && typeof entry.id === "string" && entry.message !== undefined;
 }
@@ -35,7 +36,7 @@ function cloneAttribution(attribution) {
   return {
     source: { ...attribution.source },
     profile: attribution.profile,
-    blockId: attribution.blockId,
+    ...(attribution.blockId === undefined ? {} : { blockId: attribution.blockId }),
     kind: attribution.kind,
     message: structuredClone(attribution.message),
   };
@@ -48,6 +49,17 @@ function sameAttribution(a, b) {
     isDeepStrictEqual(a.source, b.source) &&
     isDeepStrictEqual(a.message, b.message)
   );
+}
+function unknownAttributionForEntry(entry, sessionId) {
+  const kind =
+    entry.message?.role === "assistant" ? "assistant" : entry.message?.role === "toolResult" ? "toolResult" : undefined;
+  if (!kind) return undefined;
+  return {
+    source: sourceFor(entry, sessionId),
+    profile: "unknown",
+    kind,
+    message: immutableSnapshot(entry.message),
+  };
 }
 export class CognitiveRoutingSourceRegistry {
   activeTurn;
@@ -318,6 +330,39 @@ export class CognitiveRoutingSourceRegistry {
       }
       prepared.push(...storedForJournal);
     }
+    const preparedKeys = new Set(prepared.map((stored) => `${sessionId}:${stored.source.entryId}`));
+    for (const entry of branchEntries) {
+      if (entry.type !== "custom" || entry.customType !== COGNITIVE_ROUTING_BASELINE_ENTRY) continue;
+      const data = entry.data;
+      if (data?.version !== 1 || data.kind !== "baseline" || !Array.isArray(data.entryIds)) {
+        return { status: "unavailable", reason: "baseline_entry_invalid" };
+      }
+      if (typeof data.sessionId !== "string" || !acceptedSessionIds.has(data.sessionId)) {
+        return {
+          status: "unavailable",
+          reason: lineageAvailable ? "baseline_entry_session_invalid" : "baseline_entry_lineage_unavailable",
+        };
+      }
+      const seen = new Set();
+      const baselineIndex = branchEntries.findIndex((candidate) => candidate.id === entry.id);
+      for (const entryId of data.entryIds) {
+        if (typeof entryId !== "string" || entryId.length === 0 || seen.has(entryId)) {
+          return { status: "unavailable", reason: "baseline_entry_ids_invalid" };
+        }
+        seen.add(entryId);
+        const canonical = entriesById.get(entryId);
+        const canonicalIndex = branchEntries.findIndex((candidate) => candidate.id === entryId);
+        if (!canonical || canonicalIndex < 0 || canonicalIndex >= baselineIndex) {
+          return { status: "unavailable", reason: `baseline_entry_ref_unavailable:${entryId}` };
+        }
+        const stored = unknownAttributionForEntry(canonical, sessionId);
+        if (!stored) return { status: "unavailable", reason: `baseline_entry_kind_invalid:${entryId}` };
+        const key = `${sessionId}:${entryId}`;
+        if (preparedKeys.has(key)) continue;
+        prepared.push(stored);
+        preparedKeys.add(key);
+      }
+    }
     const preparedByKey = new Map();
     for (const stored of prepared) {
       const key = `${sessionId}:${stored.source.entryId}`;
@@ -327,15 +372,22 @@ export class CognitiveRoutingSourceRegistry {
       }
       preparedByKey.set(key, stored);
       const existing = this.attributions.get(key);
-      if (existing && !sameAttribution(existing, stored)) {
+      if (this.conflicts.has(key) || (existing && !sameAttribution(existing, stored))) {
         return { status: "unavailable", reason: `attributed_entry_conflict:${stored.source.entryId}` };
       }
     }
+    const nextSources = new Map();
+    const nextAttributions = new Map();
     for (const stored of prepared) {
       const key = `${sessionId}:${stored.source.entryId}`;
-      this.sources.set(key, { ...stored.source });
-      this.attributions.set(key, stored);
+      nextSources.set(key, { ...stored.source });
+      nextAttributions.set(key, stored);
     }
+    this.sources.clear();
+    this.attributions.clear();
+    this.conflicts.clear();
+    for (const [key, source] of nextSources) this.sources.set(key, source);
+    for (const [key, attribution] of nextAttributions) this.attributions.set(key, attribution);
     return { status: "available", attributions: prepared };
   }
   hasAttributedProfileAfter(sessionId, branchEntries, afterEntryId, profile) {

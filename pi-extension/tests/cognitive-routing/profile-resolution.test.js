@@ -60,10 +60,10 @@ test("resolves two complete repository profiles", () => {
   assert.deepEqual(result.profileSources, { standard: "repository", reasoning: "repository" });
 });
 
-test("defaults context projection off without changing Cognitive Routing activation", () => {
+test("defaults context projection on without changing Cognitive Routing activation", () => {
   const result = resolveCognitiveRoutingConfig(configuredRepository(), {});
 
-  assert.equal(result.contextProjection, false);
+  assert.equal(result.contextProjection, true);
   assert.equal(result.contextProjectionSource, "default");
   assert.equal(result.enabled, true);
 

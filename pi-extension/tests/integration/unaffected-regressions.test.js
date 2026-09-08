@@ -322,13 +322,54 @@ test("Cognitive Routing settings refresh after enabling the capability", async (
       component.handleInput("\r");
       await component.waitForWrites();
       component.handleInput("\u001b");
-      assert.match(component.render(120).join("\n"), /Cognitive Routing\s+enabled \(5\) configured/);
+      assert.match(component.render(120).join("\n"), /Cognitive Routing\s+enabled \(6\) configured/);
       component.handleInput("\u001b");
       return result;
     };
     await command.definition.handler("settings repo", settings);
     const saved = JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8"));
     assert.equal(saved.cognitiveRouting.enabled, true);
+    assert.equal(settings.reloads.length, 1);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Cognitive Routing settings can disable projection without disabling routing", async () => {
+  const cwd = await configuredRepo({
+    cognitiveRouting: {
+      enabled: true,
+      profiles: {
+        standard: { provider: "test", model: "model-a", thinkingLevel: "low" },
+        reasoning: { provider: "test", model: "model-b", thinkingLevel: "high" },
+      },
+    },
+  });
+  try {
+    const { commands } = loadExtension();
+    const command = freeflowCommand(commands);
+    const settings = context(cwd, { isIdle: () => true });
+    settings.modelRegistry = cognitiveRoutingModelRegistry();
+    settings.ui.custom = async (factory) => {
+      let result;
+      const component = factory({ requestRender() {} }, theme, {}, (value) => {
+        result = value;
+      });
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      for (let index = 0; index < 5; index += 1) component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      await component.waitForWrites();
+      component.handleInput("\u001b");
+      component.handleInput("\u001b");
+      return result;
+    };
+    await command.definition.handler("settings repo", settings);
+    const saved = JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8"));
+    assert.equal(saved.cognitiveRouting.enabled, true);
+    assert.equal(saved.cognitiveRouting.contextProjection, false);
     assert.equal(settings.reloads.length, 1);
   } finally {
     await rm(cwd, { recursive: true, force: true });

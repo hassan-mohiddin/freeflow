@@ -296,10 +296,12 @@ export default function freeflow(pi: FreeflowExtensionAPI) {
   // SAFETY: These helpers register complete Pi tool definitions but retain legacy structural typing for PiFlow compatibility.
   const toolRegistrar = pi as unknown as { registerTool(tool: Record<string, unknown>): void };
   const routingSession = new PiRoutingSession({ pi, stockPi: !isPiFlowHost(pi?.host) });
+  let attributionEligible = false;
   let projectionEligible = false;
   let latestCapabilityState: any;
   const projectionCoordinator = new CognitiveRoutingProjectionCoordinator({
     isEnabled: () => projectionEligible,
+    isAttributionEnabled: () => attributionEligible,
     getRoutingState: () => routingSession.snapshot().controllerState,
     appendEntry: (customType, data) => pi.appendEntry(customType, data),
   });
@@ -357,10 +359,10 @@ export default function freeflow(pi: FreeflowExtensionAPI) {
       activationAttempted && !routingSession.hasController(),
     );
     const routingSnapshot = routingSession.snapshot();
-    projectionEligible =
-      capabilityState?.cognitiveRouting?.contextProjection === true &&
+    attributionEligible =
       surfaceCapabilityState?.cognitiveRouting?.effective === true &&
       routingSnapshot.controllerState?.effective === true;
+    projectionEligible = capabilityState?.cognitiveRouting?.contextProjection === true && attributionEligible;
     return {
       capabilityState: surfaceCapabilityState,
       freeflowContext,
@@ -383,10 +385,10 @@ export default function freeflow(pi: FreeflowExtensionAPI) {
       routingSession.snapshot(),
     );
     const routingSnapshot = routingSession.snapshot();
-    projectionEligible =
-      capabilityState?.cognitiveRouting?.contextProjection === true &&
+    attributionEligible =
       surfaceCapabilityState?.cognitiveRouting?.effective === true &&
       routingSnapshot.controllerState?.effective === true;
+    projectionEligible = capabilityState?.cognitiveRouting?.contextProjection === true && attributionEligible;
     setFreeflowStatus(ctx, surfaceCapabilityState, routingSnapshot.runtimeState, freeflowContext, {
       startupSelectionSuppressed: routingSnapshot.startupSelectionSuppressed,
     });
@@ -536,6 +538,7 @@ export default function freeflow(pi: FreeflowExtensionAPI) {
 
   pi.on("session_start", async (event, ctx) => {
     projectionCoordinator.reset();
+    attributionEligible = false;
     projectionEligible = false;
     latestCapabilityState = undefined;
     routingSession.resetForSession(ctx, event);
@@ -579,7 +582,7 @@ export default function freeflow(pi: FreeflowExtensionAPI) {
   });
 
   pi.on("turn_start", async (_event, ctx) => {
-    projectionCoordinator.turnStart(ctx);
+    await projectionCoordinator.turnStart(ctx);
     return undefined;
   });
 
@@ -596,6 +599,7 @@ export default function freeflow(pi: FreeflowExtensionAPI) {
 
   pi.on("session_shutdown", async (event) => {
     projectionCoordinator.reset();
+    attributionEligible = false;
     projectionEligible = false;
     latestCapabilityState = undefined;
     await routingSession.shutdown(event?.reason);

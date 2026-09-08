@@ -53,7 +53,13 @@ function fixture({
       appendEntry ??
       ((_customType, data) => {
         journals.push(data);
-        entries.push({ type: "custom", id: `journal-${journals.length}`, parentId: entries.at(-1)?.id ?? null, data });
+        entries.push({
+          type: "custom",
+          id: `journal-${journals.length}`,
+          parentId: entries.at(-1)?.id ?? null,
+          customType: _customType,
+          data,
+        });
       }),
     idFactory: () => `block-${journals.length + 1}`,
   });
@@ -68,9 +74,9 @@ function fixture({
   };
 }
 
-function captureStandardTurn(fixtureValue, callId = "capture-call") {
+async function captureStandardTurn(fixtureValue, callId = "capture-call") {
   const { coordinator, ctx, entries } = fixtureValue;
-  coordinator.turnStart(ctx);
+  await coordinator.turnStart(ctx);
   const baseline = coordinator.context(ctx, [entries[0].message]);
   assert.equal(baseline.changed, true);
   const assistantMessage = assistant(callId);
@@ -80,13 +86,13 @@ function captureStandardTurn(fixtureValue, callId = "capture-call") {
   return coordinator.turnEnd(ctx, { message: assistantMessage, toolResults: [resultMessage] });
 }
 
-function nextStandardContext(fixtureValue, messages) {
+async function nextStandardContext(fixtureValue, messages) {
   const { coordinator, ctx } = fixtureValue;
-  coordinator.turnStart(ctx);
+  await coordinator.turnStart(ctx);
   return coordinator.context(ctx, messages);
 }
 
-test("default-off and manual/inactive paths preserve marker-shaped source text exactly", () => {
+test("default-off and manual/inactive paths preserve marker-shaped source text exactly", async () => {
   const markerMessage = {
     role: "user",
     content: [
@@ -103,18 +109,19 @@ test("default-off and manual/inactive paths preserve marker-shaped source text e
   assert.deepEqual(disabled.journals, []);
 
   const manual = fixture({ state: { effective: true, controlMode: "manual-standard", activeProfile: "standard" } });
-  manual.coordinator.turnStart(manual.ctx);
+  await manual.coordinator.turnStart(manual.ctx);
   const manualResult = manual.coordinator.context(manual.ctx, [markerMessage]);
   assert.equal(manualResult.changed, false);
   assert.equal(manualResult.messages[0], markerMessage);
   assert.equal(manual.coordinator.exposure(), undefined);
-  assert.deepEqual(manual.journals, []);
+  assert.equal(manual.journals.length, 1);
+  assert.equal(manual.journals[0].kind, "baseline");
 });
 
-test("requires actual session identity and getBranch without writing source state", () => {
+test("requires actual session identity and getBranch without writing source state", async () => {
   const missingSession = fixture();
   missingSession.ctx.sessionManager.getSessionId = undefined;
-  missingSession.coordinator.turnStart(missingSession.ctx);
+  await missingSession.coordinator.turnStart(missingSession.ctx);
   const missingSessionMessage = { role: "user", content: [{ type: "text", text: "unchanged" }] };
   const missingSessionResult = missingSession.coordinator.context(missingSession.ctx, [missingSessionMessage]);
   assert.equal(missingSessionResult.changed, false);
@@ -124,7 +131,7 @@ test("requires actual session identity and getBranch without writing source stat
 
   const missingBranch = fixture();
   missingBranch.ctx.sessionManager.getBranch = undefined;
-  missingBranch.coordinator.turnStart(missingBranch.ctx);
+  await missingBranch.coordinator.turnStart(missingBranch.ctx);
   const missingBranchMessage = { role: "user", content: [{ type: "text", text: "unchanged" }] };
   const missingBranchResult = missingBranch.coordinator.context(missingBranch.ctx, [missingBranchMessage]);
   assert.equal(missingBranchResult.changed, false);
@@ -139,7 +146,7 @@ test("rejects duplicate visible source reuse and transformed source content", as
   const resultEntry = duplicate.entries.find((candidate) => candidate.id === "result-capture-call");
   assert.ok(resultEntry);
   const duplicateMessages = [duplicate.entries[0].message, resultEntry.message, structuredClone(resultEntry.message)];
-  const duplicateContext = nextStandardContext(duplicate, duplicateMessages);
+  const duplicateContext = await nextStandardContext(duplicate, duplicateMessages);
   assert.equal(duplicateContext.changed, false);
   assert.deepEqual(duplicateContext.messages, duplicateMessages);
   assert.equal(duplicate.coordinator.failureReason(), "visible_source_reused");
@@ -151,7 +158,10 @@ test("rejects duplicate visible source reuse and transformed source content", as
     transformed.entries.find((candidate) => candidate.id === "result-capture-call").message,
   );
   transformedResult.content[0].text = "changed before exposure";
-  const transformedContext = nextStandardContext(transformed, [transformed.entries[0].message, transformedResult]);
+  const transformedContext = await nextStandardContext(transformed, [
+    transformed.entries[0].message,
+    transformedResult,
+  ]);
   assert.equal(transformedContext.changed, true);
   assert.doesNotMatch(JSON.stringify(transformedContext.messages[1]), /ctx:result-capture-call/);
   assert.ok(transformed.coordinator.exposure());
@@ -165,7 +175,7 @@ test("rejects an existing but unexposed include ref before transition", async ()
   const value = fixture();
   assert.equal((await captureStandardTurn(value)).status, "captured");
   const oldRef = "ctx:result-capture-call";
-  const context = nextStandardContext(value, [value.entries[0].message]);
+  const context = await nextStandardContext(value, [value.entries[0].message]);
   assert.equal(context.changed, true);
   assert.equal(
     value.coordinator.exposure().sources.some((source) => source.ref === oldRef),
@@ -196,7 +206,7 @@ test("rejects an existing but unexposed include ref before transition", async ()
 
 test("rejects non-Standard and unattributed include refs before transition", async () => {
   const assertBlocked = async (value, ref, reason) => {
-    const context = nextStandardContext(value, [value.entries[0].message]);
+    const context = await nextStandardContext(value, [value.entries[0].message]);
     assert.equal(context.changed, true);
     assert.equal(
       value.coordinator.exposure().sources.some((source) => source.ref === ref),
@@ -236,17 +246,81 @@ test("rejects non-Standard and unattributed include refs before transition", asy
   await assertBlocked(unattributed, "ctx:result-unattributed", "projection_ref_not_exposed:ctx:result-unattributed");
 });
 
-test("keeps source persistence failure explicit without publishing exposure", async () => {
-  const writes = [];
+test("rejects malformed and out-of-order baseline metadata before context assembly", async () => {
+  const malformed = fixture();
+  malformed.entries.push({
+    type: "custom",
+    id: "baseline-invalid",
+    parentId: "user-1",
+    customType: "freeflow-cognitive-routing-baseline",
+    data: { version: 1, kind: "baseline", sessionId: "session-1", entryIds: "not-an-array" },
+  });
+  await malformed.coordinator.turnStart(malformed.ctx);
+  const malformedContext = malformed.coordinator.context(malformed.ctx, [malformed.entries[0].message]);
+  assert.equal(malformedContext.changed, false);
+  assert.equal(malformed.coordinator.failureReason(), "baseline_entry_invalid");
+
+  const outOfOrder = fixture();
+  outOfOrder.entries.push({
+    type: "custom",
+    id: "baseline-order",
+    parentId: "user-1",
+    customType: "freeflow-cognitive-routing-baseline",
+    data: { version: 1, kind: "baseline", sessionId: "session-1", entryIds: ["assistant-later"] },
+  });
+  outOfOrder.entries.push(
+    entry("assistant-later", assistant("later-call"), "baseline-order"),
+    entry("result-later", toolResult("later-call"), "assistant-later"),
+  );
+  await outOfOrder.coordinator.turnStart(outOfOrder.ctx);
+  const outOfOrderContext = outOfOrder.coordinator.context(outOfOrder.ctx, [outOfOrder.entries[0].message]);
+  assert.equal(outOfOrderContext.changed, false);
+  assert.equal(outOfOrder.coordinator.failureReason(), "baseline_entry_ref_unavailable:assistant-later");
+});
+
+test("baseline no-op persistence is rejected before first context", async () => {
+  const noOp = fixture({ appendEntry: () => undefined });
+  await noOp.coordinator.turnStart(noOp.ctx);
+  const context = noOp.coordinator.context(noOp.ctx, [noOp.entries[0].message]);
+  assert.equal(context.changed, false);
+  assert.equal(noOp.coordinator.failureReason(), "baseline_persistence_unconfirmed");
+});
+
+test("baseline persistence failure blocks first context without publishing metadata", async () => {
   const failing = fixture({
-    appendEntry: (_customType, data) => {
-      writes.push(data);
-      throw new Error("source journal write failed");
+    appendEntry: () => {
+      throw new Error("baseline persistence failed");
     },
   });
+  await failing.coordinator.turnStart(failing.ctx);
+  const context = failing.coordinator.context(failing.ctx, [failing.entries[0].message]);
+  assert.equal(context.changed, false);
+  assert.equal(failing.coordinator.failureReason(), "baseline persistence failed");
+  assert.deepEqual(failing.journals, []);
+});
+
+test("keeps source persistence failure explicit without publishing exposure", async () => {
+  const writes = [];
+  let entries;
+  const failing = fixture({
+    appendEntry: (customType, data) => {
+      writes.push({ customType, data });
+      if (customType === "freeflow-cognitive-routing-source") throw new Error("source journal write failed");
+      entries.push({
+        type: "custom",
+        id: `journal-${writes.length}`,
+        parentId: entries.at(-1)?.id ?? null,
+        customType,
+        data,
+      });
+    },
+  });
+  entries = failing.entries;
   const result = await captureStandardTurn(failing);
   assert.deepEqual(result, { status: "unavailable", reason: "source journal write failed" });
   assert.equal(failing.coordinator.exposure(), undefined);
   assert.equal(failing.coordinator.failureReason(), "source journal write failed");
-  assert.equal(writes.length, 1);
+  assert.equal(writes.length, 2);
+  assert.equal(writes[0].customType, "freeflow-cognitive-routing-baseline");
+  assert.equal(writes[1].customType, "freeflow-cognitive-routing-source");
 });

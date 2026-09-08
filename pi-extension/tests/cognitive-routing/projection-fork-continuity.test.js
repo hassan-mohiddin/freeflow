@@ -685,6 +685,7 @@ test("manual profiles bypass projection and re-enter Automatic control", async (
       await command.handler(`profile ${profile}`, current.session.extensionRunner.createCommandContext());
       await current.session.prompt(`Manual ${profile}.`);
       assert.equal(contexts.at(-1).aborted, false);
+      assert.match(JSON.stringify(contexts.at(-1).messages), /\[routing-origin:/);
       await command.handler("profile auto", current.session.extensionRunner.createCommandContext());
       await current.session.prompt(`Automatic after ${profile}.`);
       assert.equal(contexts.at(-1).aborted, false);
@@ -768,17 +769,15 @@ for (const profile of ["standard", "reasoning"]) {
         .filter((entry) => entry.type === "custom" && entry.customType === SOURCE_ENTRY).length;
       await current.session.prompt(`Manual ${profile} before reload.`);
       const beforeEntry = findToolResultEntry(manager, beforeBody);
-      assert.ok(
-        manager
-          .getBranch()
-          .filter((entry) => entry.type === "custom" && entry.customType === SOURCE_ENTRY)
-          .some(
-            (entry) =>
-              entry.data?.profile === profile &&
-              entry.data.toolResults?.some((result) => result.entryId === beforeEntry.id),
-          ),
-        "Manual tool result must append a source journal before disposal",
-      );
+      const beforeRecord = manager
+        .getBranch()
+        .filter((entry) => entry.type === "custom" && entry.customType === SOURCE_ENTRY)
+        .find(
+          (entry) =>
+            entry.data?.profile === profile &&
+            entry.data.toolResults?.some((result) => result.entryId === beforeEntry.id),
+        );
+      assert.ok(beforeRecord, "Manual tool result must append a source journal before disposal");
       assert.ok(
         manager.getBranch().filter((entry) => entry.type === "custom" && entry.customType === SOURCE_ENTRY).length >
           sourceCountBeforeManualTurn,
@@ -818,10 +817,16 @@ for (const profile of ["standard", "reasoning"]) {
         "reloaded Manual tool result must append a source journal",
       );
       assert.equal(reloadedContexts.at(-1).aborted, false);
+      assert.match(JSON.stringify(reloadedContexts.at(-1).messages), /\[routing-origin:/);
       assert.equal(reopened.errors.length, 0);
       const restoredContext = JSON.stringify(reloadedContexts.at(-1)?.messages);
       assert.match(restoredContext, /Control: `manual`/);
       assert.match(restoredContext, new RegExp("Profile: `" + profile + "`"));
+      assert.ok(
+        restoredContext.includes(
+          `[routing-origin: ${profile}; block: ${beforeRecord.data.blockId}; kind: toolResult; ref: ctx:${beforeEntry.id}]`,
+        ),
+      );
       const reopenedCommand = reopened.session.extensionRunner.getCommand("freeflow");
       assert.ok(reopenedCommand);
 

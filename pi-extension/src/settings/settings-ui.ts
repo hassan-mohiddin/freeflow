@@ -898,6 +898,22 @@ function freeflowItems(
     cognitiveRoutingEnabledItem.inactive = freeflowInactive || cognitiveRoutingRuntimeDisabled;
     cognitiveRoutingEnabledItem.runtimeInactive = cognitiveRoutingRuntimeDisabled;
 
+    const cognitiveRoutingProjectionItem = createScopedBooleanItem({
+      scope,
+      rawConfig,
+      localConfig,
+      id: "freeflow.cognitiveRouting.contextProjection",
+      label: "Context projection",
+      description:
+        "Show profile/block origin labels in active context; when enabled, selectively project Standard evidence to Reasoning. Explicitly disable to keep full context.",
+      path: ["cognitiveRouting", "contextProjection"],
+      effectiveValue: cognitiveRoutingState?.contextProjection ?? true,
+      effectiveSource: cognitiveRoutingSettingsSource(cognitiveRoutingState?.contextProjectionSource),
+      defaultValue: true,
+    });
+    cognitiveRoutingProjectionItem.inactive = freeflowInactive || cognitiveRoutingRuntimeDisabled;
+    cognitiveRoutingProjectionItem.runtimeInactive = cognitiveRoutingRuntimeDisabled;
+
     const cognitiveRoutingProfiles = ["standard", "reasoning"].map((name) =>
       cognitiveRoutingProfileItem({
         name: name as CognitiveRoutingProfileName,
@@ -941,7 +957,12 @@ function freeflowItems(
       value: cognitiveRoutingRuntimeDisabled ? false : (cognitiveRoutingState?.enabled ?? false),
       inactive: freeflowInactive,
       displaySuffix: cognitiveRoutingStatus,
-      children: [cognitiveRoutingEnabledItem, ...cognitiveRoutingProfiles, ...cognitiveRoutingSessionStart],
+      children: [
+        cognitiveRoutingEnabledItem,
+        ...cognitiveRoutingProfiles,
+        ...cognitiveRoutingSessionStart,
+        cognitiveRoutingProjectionItem,
+      ],
     } satisfies SettingsItem;
   })();
 

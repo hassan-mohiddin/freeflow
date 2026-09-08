@@ -34,14 +34,14 @@ function registerHistory(getHistory) {
   return tool;
 }
 
-test("exposes exactly the bounded profile switch schema", () => {
+test("exposes the bounded profile switch schema with independent projection arrays", () => {
   const tool = register(() => undefined);
 
   assert.equal(tool.name, COGNITIVE_ROUTING_SWITCH_TOOL_NAME);
   assert.deepEqual(tool.parameters.required, ["target", "reason"]);
   assert.deepEqual(tool.parameters.properties.target.enum, ["standard", "reasoning"]);
   assert.equal(tool.parameters.properties.reason.maxLength, 160);
-  assert.deepEqual(tool.parameters.properties.projection.required, ["include"]);
+  assert.deepEqual(tool.parameters.properties.projection.required, []);
   assert.deepEqual(tool.parameters.properties.projection.properties.include.items, { type: "string" });
   assert.deepEqual(tool.parameters.properties.projection.properties.shared.items, { type: "string" });
 });
@@ -77,7 +77,7 @@ test("rejects malformed projection before any controller call", async () => {
     { include: "ctx:one" },
     { include: ["ctx:one", 1] },
     { include: [], unexpected: [] },
-    { shared: [] },
+    { include: "ctx:one", shared: [] },
   ]) {
     const result = await tool.execute(
       "invalid-projection",
@@ -133,6 +133,33 @@ test("passes the real tool call and projection payload to the coordinator execut
   assert.equal(calls[0].ctx, context);
   assert.equal(calls[0].signal, "signal");
   assert.equal(calls[0].controller, controller);
+});
+
+test("accepts a shared-only projection payload", async () => {
+  const calls = [];
+  const controller = {
+    state() {
+      return { effective: true, controlMode: "automatic", activeProfile: "standard" };
+    },
+    async switchAutomaticProfile() {
+      throw new Error("direct controller path must not run");
+    },
+  };
+  const tool = register(() => controller, {
+    async executeSwitch(input) {
+      calls.push(input);
+      return { status: "active", changed: true, from: "standard", to: "reasoning", profile: "reasoning" };
+    },
+  });
+  const result = await tool.execute(
+    "shared-only",
+    { target: "reasoning", reason: "Retain shared guidance.", projection: { shared: ["ctx:shared"] } },
+    undefined,
+    undefined,
+    {},
+  );
+  assert.equal(result.details.result.status, "active");
+  assert.deepEqual(calls[0].projection, { include: [], shared: ["ctx:shared"] });
 });
 
 test("blocks stale or manually held execution without host mutation", async () => {
