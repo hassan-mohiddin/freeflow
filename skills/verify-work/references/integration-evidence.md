@@ -15,6 +15,8 @@ Evidence proves only the boundary it directly observes.
 
 Name the strongest level actually observed. Do not collapse source inspection, helper execution, registered entrypoint invocation, fallback replay, native dispatch, and installed execution into one "integration passed" claim.
 
+Before substantial work depends on an unfamiliar fixture, establish its actual entrypoint, observing stage, and how it captures the required result. A fixture named "integration" is not evidence of native dispatch. Keep a useful lower-boundary check, but do not substitute it for the required observer. Return an unavailable observer as a limitation rather than redesign production to suit the fixture.
+
 ## Observe Real Work
 
 A counter, trace, spy, or event proves execution only when it observes inside or wraps the actual invoked boundary. Manually updating evidence beside test setup proves only that the test updated it.
@@ -26,7 +28,7 @@ A zero value proves absence only when:
 - the observation window covered the complete operation;
 - failure did not bypass or disable observation.
 
-Prefer an adversarial disproof: bypass the producer, forge or replay the event, call the helper directly, or resolve code from the checkout instead of the installed root. The proof should fail before downstream work when the claimed boundary was not crossed.
+Identify a relevant adversarial disproof: bypass the producer, replay an event, call the helper directly, or resolve checkout code instead of the installed root. When inspection cannot establish the observer's sensitivity, exercise one such counterexample within covered effects; the intended assertion must detect the missing boundary, not merely fail in setup. No universal fault-injection matrix is required.
 
 ## Claim Map
 
@@ -42,4 +44,4 @@ Proves:
 Does not prove:
 ```
 
-Downgrade or split the claim when one mechanism cannot observe every asserted boundary.
+Qualify or split the reported claim when one mechanism cannot observe every asserted boundary. Required acceptance remains unresolved; do not silently downgrade it or treat another green lower-boundary run as its resolution.

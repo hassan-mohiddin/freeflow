@@ -398,7 +398,7 @@ test("Pi describes the mode-free Freeflow argument surface", () => {
   ]);
 });
 
-test("Pi exposes 25 base skills without a mode skill or compatibility aliases", async () => {
+test("Pi exposes 24 base skills without TDD, a mode skill, or compatibility aliases", async () => {
   const cwd = await configuredRepo();
   try {
     const { handlers, commands, sentMessages, sentMessageOptions } = loadExtension();
@@ -408,8 +408,9 @@ test("Pi exposes 25 base skills without a mode skill or compatibility aliases", 
       assert.ok(match, `unexpected skill path: ${path}`);
       return match[1];
     });
-    assert.equal(skillNames.length, 25);
+    assert.equal(skillNames.length, 24);
     assert.ok(skillNames.includes("workflow"));
+    assert.ok(!skillNames.includes("tdd"));
     assert.ok(!skillNames.includes("mode-contract"));
     assert.ok(!skillNames.includes("discover"));
     assert.ok(!skillNames.includes("execute-plan"));

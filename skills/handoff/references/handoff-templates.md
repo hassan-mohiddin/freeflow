@@ -15,6 +15,8 @@ Generated: <optional reliable date or time>
 Recipient / purpose:
 
 ## Goal And Owning Sources
+- Agreed outcome and scope:
+- User-facing return condition:
 
 ## Current State
 - Workflow route:
@@ -43,6 +45,8 @@ Recipient / purpose:
 ## Next Action
 - Accepted action:
 - Authority source:
+- Required dependencies and whether they hold:
+- Sources needed for this action:
 
 Or, when not approved:
 - Recommended route:
@@ -51,7 +55,7 @@ Or, when not approved:
 ## Stop Conditions
 ```
 
-Keep dirty-state details narrow. Include only paths, processes, environments, or artifacts whose omission risks loss, overwrite, duplicate work, or a false claim.
+Keep dirty-state details narrow. Include only paths, processes, environments, or artifacts whose omission risks loss, overwrite, duplicate work, or a false claim. In Current State, preserve the current assignment and source when older instructions could compete. In Completed Work And Evidence, distinguish the state actually checked from later changes whose verification remains unresolved.
 
 ## Repo-Memory Handoff
 
@@ -64,6 +68,8 @@ Generated: <optional reliable date or time>
 Recipient / purpose:
 
 ## Goal And Accepted Outcome
+- Agreed scope and exclusions:
+- User-facing return condition:
 
 ## Owning Sources
 
@@ -84,6 +90,8 @@ Recipient / purpose:
 ## Next Accepted Action
 - Action:
 - Authority source:
+- Required dependencies and whether they hold:
+- Sources needed for this action:
 
 Or:
 
@@ -132,10 +140,11 @@ Do not copy full reviewer output when a stable pointer exists. A new context or 
 
 ## Resume Checklist
 
-- Reopen named source truth, the Working Record when present, and live worktree state.
+- After context loss or transfer into another context, read the complete Working Record through `view full` when one exists. A summary or `resume` projection is not a substitute. Use Track Work's bounded reads for intact-session continuation.
+- Reconcile the record and handoff with current user direction and relevant live state; reopen named source truth where exact meaning or freshness matters.
 - Confirm artifact, environment, commit, and configuration identity where claims depend on them.
-- Verify important completion and evidence claims before repeating them.
-- Compare decisions, approval scope, review state, and the proposed route with live evidence.
-- Preserve valid context and identify only the invalidated layer.
-- Return the supported route and authority state to Workflow before editing.
+- Check important completion and evidence claims before repeating them; distinguish that a run occurred from whether it applies to the current candidate. Reuse adequate evidence rather than rerun every check merely because a transfer occurred.
+- Compare the execution agreement, current assignment and its source, return condition, decisions, dependencies, and review state with the next proposed action. Resolve superseded or conflicting directions before acting.
+- Preserve valid and partial work; identify only the invalidated layer. Missing or incomplete recovery remains a reported limit.
+- Return the supported route and authority state to Workflow before editing; do not require another user turn merely to continue an already-covered task.
 - Use Decision Gate for user-owned choices or source conflicts.

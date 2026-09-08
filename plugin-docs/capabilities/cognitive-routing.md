@@ -1,6 +1,6 @@
 # Cognitive Routing
 
-Cognitive Routing changes compute placement for one active agent. It does not create another agent, transfer task ownership, widen authority, or replace Workflow.
+Cognitive Routing changes compute and context placement for one active agent. It does not create another agent, transfer task ownership, widen authority, or replace Workflow.
 
 ## Host boundary and status
 
@@ -17,17 +17,15 @@ Cognitive Routing is effective only when:
 
 Missing profiles, unavailable or unauthenticated models, invalid thinking levels, identical effective profiles, or host limitations leave routing unavailable rather than partially active.
 
-## One agent and shared context
+## One agent, two participants, different views
 
-The `standard` and `reasoning` profiles are two compute profiles for one persistent agent. They share:
+`standard` and `reasoning` are distinct, separately configured model participants executing one at a time within one agent and canonical Pi session. They share the Workflow owner, authority envelope, accepted intent, and task-memory/evidence requirements—not private reasoning or necessarily identical visible history. A profile switch does not create independent review.
 
-- visible conversation and tool history;
-- Workflow owner and route;
-- authority envelope and accepted intent;
-- task memory and evidence requirements;
-- review independence.
+With Automatic context projection enabled, Standard sees Pi's ordinary active context. Reasoning receives required context, applicable user/Reasoning history, accumulated shared and selected evidence, and retained handoffs with native dependencies. Unselected Standard bodies are excluded by default; a retained call envelope or omission marker is not the original result. A narrow Standard assignment does not give it an isolated context window.
 
-A profile is not a task owner and a transition is not an authorization source.
+With `cognitiveRouting.contextProjection: false`, both profiles use ordinary Pi active context. Manual control bypasses projection. Selection is not pinning: it does not resurrect compacted-out bodies or override active-branch eligibility. Context Virtualization and Conversation History availability do not determine Cognitive Routing projection.
+
+A profile is not a task owner and a transition or selected source is not an authorization source.
 
 ## Manual and automatic control
 
@@ -66,7 +64,24 @@ Workflow establishes authority, owner, and slice
 
 Under automatic control, Yield has no Cognitive Routing execution boundary and is forbidden while one is open. Delegate opens one with `NEW` or `REOPEN`; `RETURN` leaves it open and only Reasoning closes it. `ACT_BOUNDED` creates no execution boundary, may operate inside or outside Delegate, and never contains Delegate or closes its boundary. A closed boundary may be reopened only for the same authorized outcome with fresh authority and invalidating evidence or changed intent.
 
-Delegation transfers bounded execution, not the cognitive boundary. Standard must not reinterpret the governing judgment, expand scope, hide contradictory evidence, or continue after the return condition.
+Delegation transfers bounded execution, not the governing boundary. Standard can challenge a mistaken premise but must not silently adopt a changed governing direction, expand scope, hide contrary evidence, or continue past its unit return condition.
+
+The user's work agreement, a delegation unit, and a Track Work Slice are different boundaries. An internal handback does not end an agreement to finish the task. Reasoning can continue covered units without another user confirmation; a new user-owned choice or uncovered effect still requires a stop.
+
+## Contracts and evidence
+
+Reasoning delegates the missing understanding or a supported change: a named outcome uncertainty, a bounded approach investigation, or concrete implementation with relevant invariants and checks. It distinguishes accepted requirements from suggested mechanics and makes superseding scope/order/return instructions explicit. Uncertain observers and repeated mismatches warrant smaller decision-bearing units, not increasingly long restatements of the same assignment.
+
+Standard reports from actual final artifacts and observations, separating implemented behavior, exercised checks, and unresolved requirements. Evidence must match the reported candidate; fresh test output paired with superseded code does not establish completion. A missing result can require evidence recovery rather than another implementation fix.
+
+When projection is applicable, the exposed switch tool accepts optional selections:
+
+- `projection.include`: completed eligible Standard evidence needed to assess the result, including actual tool-result bodies and relevant assistant text;
+- `projection.shared`: eligible task background needed across later units, such as instructions, accepted artifacts, constraints, and task-memory reads.
+
+Both fields accumulate along applicable ancestry. References must be actually exposed, completed, eligible, and deduplicated within and across the arrays. A tool-call ref does not substitute for its result body. Missing, stale, or adverse evidence remains explicit; successful reference validation does not prove semantic sufficiency.
+
+The current successful handoff and required native dependencies are retained automatically. On an explicitly authorized corrected retry, Standard must select the earlier substantive handoff's eligible assistant-text ref when that report is needed, alongside still-valid evidence. A short retry explanation is not the earlier report. Failure alone does not authorize retry, evidence removal, or disabling projection.
 
 ## Direct Reasoning execution
 
@@ -102,7 +117,7 @@ While either host is idle:
 
 Both hosts expose these controls when their required model-state APIs are available. Profile changes remain unavailable while the host is running.
 
-The model-facing Runtime State contains only current `Control` and `Profile`. Provider/model/lease details remain internal. Transition history is evidence, not current-state authority.
+Use the host-supplied Runtime State for current `Control` and `Profile`, not model identity or transition history. A Runtime State refresh is not a human interruption and does not cancel the active contract. Provider/model/lease implementation details are not routing authority; any projection-status display must be interpreted at its supported runtime boundary.
 
 Agents may request one bounded automatic transition through:
 
@@ -110,7 +125,7 @@ Agents may request one bounded automatic transition through:
 freeflow_switch_profile(target="reasoning" | "standard", reason="...")
 ```
 
-The request changes compute only and never authorizes a task action.
+The request changes compute and may carry applicable context selections; it never authorizes a task action. The full [Cognitive Routing skill](../../capabilities/cognitive-routing/SKILL.md) owns the transfer protocol and eligibility rules.
 
 ## Failure behavior
 
@@ -122,6 +137,12 @@ The request changes compute only and never authorizes a task action.
 - A closed boundary is reopened only for the same authorized outcome when fresh authority and invalidating evidence or changed intent require it.
 - Transition history reports unresolved or anomalous evidence instead of fabricating a cause.
 - A native Pi model or thinking-level selection suspends routing until explicit reactivation; partial transitions roll back or remain blocked with persisted evidence.
+
+## Recovery
+
+After context loss, recover current control/profile, the user agreement, active assignment and superseded directions, explicit delegation-boundary state, partial effects, evidence limits, and stopping conditions. Required environment reads still follow the compute route. When a Working Record exists, read its complete `full` view and reconcile it with current sources; task memory cannot recreate routing authority or make old refs selectable.
+
+Keep separate that a prior check occurred and whether it applies to the current candidate. Recover missing source bodies through a permitted bounded route rather than reconstructing exact evidence from a summary or automatically rerunning checks. Resume only the narrowest covered work whose state is coherent.
 
 ## Evidence boundary
 

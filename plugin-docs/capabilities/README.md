@@ -1,6 +1,6 @@
 # Freeflow Capabilities
 
-Capabilities are optional Pi/PiFlow extensions outside the shared 25-skill surface. They add bounded host or context behavior; they do not replace Workflow, change authority, or become a second agent.
+Capabilities are optional Pi/PiFlow extensions outside the shared 24-skill surface. They add bounded host or context behavior; they do not replace Workflow, change authority, or become a second agent.
 
 ## Common rules
 
@@ -23,7 +23,7 @@ Capabilities are optional Pi/PiFlow extensions outside the shared 25-skill surfa
 
 Conversation History retrieves missing prior evidence. Context Virtualization changes the residency classification of consumed evidence after it has been safely narrowed or exhausted. They may compose, but neither depends on the other for its primary job.
 
-Cognitive Routing changes compute placement around the active owner. It does not route evidence, retrieve history, or decide whether a task is authorized.
+Cognitive Routing changes compute placement and selects eligible evidence for Reasoning's projected view around the active owner. It does not retrieve arbitrary history or decide whether a task is authorized. Its projection is separate from Context Virtualization residency and Conversation History retrieval; selection does not pin material through compaction.
 
 ## Related documentation
 

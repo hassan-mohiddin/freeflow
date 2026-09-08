@@ -20,7 +20,7 @@ Restart Pi or use `/reload` after installing or updating the package so its reso
 
 ## Supported Pi versions
 
-The full normal-Pi integration targets Pi **0.84.3 or newer**. Pi 0.84.2 introduced the `expandPromptTemplates` option used by Freeflow’s direct skill commands; Pi 0.84.3 made model and thinking selections session-scoped unless they are explicitly saved, which Cognitive Routing requires. Pi 0.84.4 is the current integration test target.
+The full normal-Pi integration targets Pi **0.84.3 or newer**. Pi 0.84.2 introduced the `expandPromptTemplates` option used by Freeflow’s direct skill commands; Pi 0.84.3 made model and thinking selections session-scoped unless they are explicitly saved, which Cognitive Routing requires. The repository's current development dependency is Pi 0.85.1; version-specific release evidence remains the source for validated host claims.
 
 ## Activate Freeflow
 
@@ -32,7 +32,7 @@ In the repository where Freeflow should operate, run:
 
 Setup creates the shared `.freeflow/config.json` activation boundary. Minimal activation is `{}`. An optional `.freeflow/local.json` provides per-checkout personal overrides; it cannot activate Freeflow by itself.
 
-Freeflow's core prompt and separately editable Interaction Contract are delivered together whenever Freeflow is enabled. The 25 base skills are exposed with that core surface. Context Virtualization, Conversation History, and Cognitive Routing remain independently optional capabilities.
+Freeflow's core prompt and separately editable Interaction Contract are delivered together whenever Freeflow is enabled. The 24 base skills are exposed with that core surface. Context Virtualization, Conversation History, and Cognitive Routing remain independently optional capabilities.
 
 Pi stores temporary enablement and optional-context overrides in branch-aware session state. Session overrides do not replace repository activation or silently edit the shared configuration.
 
@@ -40,7 +40,7 @@ Pi stores temporary enablement and optional-context overrides in branch-aware se
 
 When effective, the Freeflow package provides:
 
-- the 25-skill model/contributor surface, including Workflow and Action Selection;
+- the 24-skill model/contributor surface, including Workflow and Action Selection;
 - the mandatory `runtime/prompts/core.md` and `runtime/prompts/interaction-contract.md` fragments;
 - refresh-aware Runtime State at session start, context reconstruction, and displayed state changes;
 - optional Context Virtualization for archiving consumed tool results;

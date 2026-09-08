@@ -1,104 +1,90 @@
 ---
 name: write-spec
-description: Use when writing or revising a spec, PRD, issue, API contract, technical design, migration contract, decision artifact, or similar durable document.
+description: "Use when writing or revising a spec, PRD, issue, API contract, technical design, migration contract, decision artifact, or similar durable document."
 ---
 
 # Write Spec
 
-Turn clear intent and source evidence into a durable artifact that later work can rely on.
+Turn accepted intent and source evidence into a durable artifact that later work can use without inheriting invented requirements or losing accepted changes.
 
-A spec may be broad, deep, or both. Its shape follows its intended use. It is not a transcript, implementation plan, Working Record, or polished substitute for an unresolved decision.
+A Spec describes content, behavior, constraints, and uncertainty for its intended use. It is not an implementation sequence, Working Record, transcript, or permission grant. Useful technical depth is welcome; hypothetical completeness is not required.
 
-## Identify The Artifact
+## Establish The Artifact's Job
 
-Before writing, establish:
+Identify the artifact type, intended reader or future action, accepted scope, destination, and unresolved questions it must preserve.
 
-- artifact type and intended use;
-- audience or future action it must support;
-- accepted intent, scope, and source context;
-- destination and repository convention;
-- unresolved questions that belong in the artifact.
+Answer questions about a Spec without editing it unless revision is requested. Use [Discuss](../discuss/SKILL.md) when direction or alternatives remain materially open, and [Decision Gate](../decision-gate/SKILL.md) for one blocking owner choice or source conflict. Do not repeat discussion that already settled the artifact's purpose.
 
-If the user is asking about an artifact, answer instead of writing one. If direction or alternatives still need shared understanding, read [Discuss](../discuss/SKILL.md). If one user-owned choice or source conflict blocks writing, read [Decision Gate](../decision-gate/SKILL.md).
+An agreement to draft a proposal permits proposed design, clearly labelled. It does not make that design accepted behavior. An agreement to implement accepted work may include documenting its supported contract; do not manufacture another user approval merely because a document was produced.
 
-Do not repeat discussion that already settled the artifact's intent.
+## Establish The Current Source Basis
 
-## Write From Source
+Use the sources that actually determine the artifact:
 
-Inspect the sources that define the artifact:
+- current user direction and accepted discussion, including later amendments;
+- existing Specs, issues, decisions, and contracts being revised or consumed;
+- relevant live code, tests, policy, ADRs, and established behavior;
+- current primary sources when an external version or interface constrains the result;
+- [Track Work](../track-work/SKILL.md) for task memory when a record exists.
 
-- explicit user decisions and current shared understanding;
-- [Track Work](../track-work/SKILL.md), which owns the living Working Record for current state, slices, task-local decisions, and evidence, when one exists;
-- relevant code, tests, requirements, policies, ADRs, and established behavior;
-- existing artifacts that this one revises or depends on;
-- current primary sources when an external contract or version matters.
+A record or implementation summary cannot override contradictory current intent or accepted source truth. Distinguish what was requested, what was proposed, what was accepted, and what an observation actually established.
 
-Use a Working Record as task memory, not authority over contradictory user decisions or live evidence. Distinguish accepted facts and decisions from hypotheses, proposals, and unresolved questions.
+Preserve enough source identity to recover the basis of a consequential statement. For an approval such as "proceed," retain the proposal and response together when their scope matters. Authorization to investigate or draft an option is not acceptance of undisclosed production consequences.
 
-Do not infer goals or requirements from adjacent repository details merely because they are available.
+Do not infer requirements from nearby code, existing tests, or available machinery merely because those sources exist. A test can faithfully protect an unnecessary mechanism.
 
-## Shape The Artifact By Its Job
+## Write Only What The Intended Use Needs
 
-Read [spec shapes](references/spec-shapes.md) and use only the sections that help the artifact perform its intended job. Read [artifact standards](references/artifact-standards.md) when choosing a durable destination, identity, status, or revision shape. Read [decision records](references/decision-records.md) when the artifact records a durable decision.
+Read [Spec Shapes](references/spec-shapes.md) before choosing the structure. Read [Artifact Standards](references/artifact-standards.md) when choosing destination, identity, status, source trail, or revision shape. Read [Decision Records](references/decision-records.md) when the artifact primarily preserves a decision and rationale.
 
-Include, when relevant:
+Include relevant purpose, scope, non-goals, accepted behavior, constraints, interfaces, consequential failure semantics, acceptance, and evidence. Explain architecture and ownership deeply where the intended use requires it; do not remove necessary detail just to shorten the document.
 
-- purpose, context, scope, and accepted content;
-- behavior, design, interfaces, constraints, and consequential failure semantics required by the artifact;
-- acceptance and suitable evidence;
-- accepted decisions, clearly marked uncertainty, and source references.
+Keep distinguishable:
 
-A technical design may go deeply into architecture, interfaces, ownership, state, and failure behavior. Do not remove useful depth merely to keep the artifact short.
+- required behavior and accepted decisions;
+- supported facts and their evidence limits;
+- proposed implementation mechanisms;
+- tentative assumptions and open questions;
+- intentional deferrals and superseded direction.
 
-Do not turn the artifact into ordered execution phases, task status, slice history, or a volatile file inventory. Ordered execution belongs in a Plan; living task state belongs in the Working Record.
+Use the repository's vocabulary rather than inventing a new status schema. Place a consequential uncertainty where the reader makes the affected decision, not in a distant caveat after confident requirements.
 
-## Stop Before Inventing Intent
+Keep ordered execution in a Plan and live progress in the Working Record. Link shared rationale rather than copying it into several independently maintained sources.
 
-Stop when writing would:
+## Do Not Promote An Approach Into A Requirement
 
-- invent or silently change product behavior, scope, requirements, public interfaces, compatibility, sensitive policy, failure semantics, or hard-to-reverse design;
-- override code, tests, docs, policies, ADRs, or established behavior without resolving the conflict;
-- present a tentative proposal or assumption as accepted;
-- hide an owner decision behind `TBD`, polished prose, or an unmarked open question;
-- reduce agreed scope into MVP, v1/v2, roadmap, or later-version framing without approval;
-- create a destination or artifact convention whose authority or durability matters without resolving it.
+Before adding an obligation, identify its accepted source or why it is necessary for the stated outcome. A limitation of one implementation technique does not establish a need for stronger guarantees, host changes, new persistence, retries, or a subsystem.
 
-Ask only for the decision that prevents the artifact from serving its intended use. Otherwise represent uncertainty honestly and continue.
+When a consequential choice remains, present its concrete effect and supported alternatives through its owner. Do not settle it through normative prose, an unexplained assumption, or a polished placeholder.
 
-## Revise Deliberately
+Stop the affected writing when it would silently change behavior, scope, public interfaces, compatibility, sensitive policy, failure semantics, or hard-to-reverse design. Do not rewrite source truth to suit implementation, or reduce agreed scope into an unapproved MVP, roadmap, or later-version split.
 
-When revising an artifact:
+Open questions need not stop unrelated content. A proposal can be fit for discussion while remaining unfit to authorize or guide production implementation; state that boundary clearly.
 
-- preserve accepted content that still holds;
-- update only what new intent or evidence changed;
-- keep superseded decisions and material rationale recoverable through the owning decision record, change history, or version control.
+## Reconcile Material Changes
 
-Do not rewrite history or synchronize unaffected artifacts. A clerical correction does not reopen settled intent; a material revision changes the artifact's review boundary and may affect its dependencies.
+Preserve accepted content that still holds. Change only what new intent or evidence affects, and keep consequential prior rationale recoverable through the owning decision record, change history, or version control.
 
-## Self-Check
+When an accepted amendment or learning result changes the contract, identify the affected downstream Plan, acceptance check, or implementation assumption. Reconcile those dependencies when authorized; otherwise mark them contingent and return the needed revision before dependent use. Do not synchronize unrelated artifacts.
 
-Silently review the artifact before routing it onward:
+Experimental learning does not automatically enter the production contract. Distinguish findings deliberately selected for implementation from observations retained as evidence or deferred possibilities. Conversely, do not keep using an older baseline after the user accepted a relevant change.
 
-- Does it perform its stated job?
-- Does it agree with accepted intent and source evidence?
-- Can a future reader distinguish required, tentative, open, deferred, and superseded information?
-- Is it broad and deep enough for its intended use without taking over another artifact's job?
-- Are consequential claims, failure behavior, and acceptance supported or explicitly unresolved?
-- Did writing introduce any decision the user did not make?
+Do not rewrite historical decisions as though they always contained the new choice. Follow repository policy for historical records and supersession.
 
-Correct clear local issues directly. Surface only unresolved material issues that prevent the artifact from being fit for use.
+## Self-Review Once Before Use
 
-## Review The Artifact
+After checking source-backed factual claims, use [Review Artifact](../review-artifact/SKILL.md) for silent author self-review of the complete resulting artifact and its intended use.
 
-After writing or materially revising the artifact, route it to [Review Artifact](../review-artifact/SKILL.md) before treating it as fit for its intended use.
+Check that it preserves accepted intent and amendments, separates requirements from proposals, has sufficient evidence and acceptance conditions, and keeps affected dependencies coherent. Correct clear covered defects, then recheck affected facts and review lenses. Return unresolved owner decisions instead of making the document internally consistent by inventing an answer.
 
-Provide the reviewer with the complete artifact, its intended use, source truth, dependencies, and known evidence gaps. Review Artifact owns review items, judgment, adjudication, and the review cycle.
+This is the author's ordinary self-review, not another mandatory review cycle. Do not dispatch an independent reviewer merely because a Spec was written or materially revised.
 
-## Report
+Independent review applies only when selected and authorized to protect a concrete boundary. Supply the complete artifact, source basis, dependencies, and evidence limits through Review Artifact's independent route. Its report ends the review; findings require adjudication before revision or use.
 
-State:
+Review establishes fitness, not user acceptance or execution authority. Respect an explicitly selected approval checkpoint, but do not create one for every artifact by default.
 
-- artifact path, type, and intended use;
-- source context used;
-- material unresolved questions or blocked decisions;
-- artifact-review status.
+## Report And Stop
+
+Report the artifact path, type, intended use, source basis, material unresolved or contingent content, and actual review/acceptance status. Do not label author self-review as independent review or use an approval status without its source.
+
+Stop when the authorized artifact is fit for its stated use or its blocking decision/evidence limit is explicit. Return to the requesting activity; writing a Spec does not begin implementation or authorize another outcome.

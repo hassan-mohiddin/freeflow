@@ -71,7 +71,7 @@ Freeflow is one package with different host boundaries:
 | Pi | Shared skills, Pi extension, optional context capabilities, and native host controls | Available when configured and the official model-state APIs are present |
 | PiFlow | Freeflow package hosted by the separate PiFlow distribution | Available when configured |
 
-Freeflow owns workflow policy, portable prompt fragments, the 25-skill distribution kernel, host adapters, Pi/PiFlow capabilities, and the Pi extension. Each host owns its launch, package installation, session state, updates, and native model-state control; PiFlow remains a supported host integration.
+Freeflow owns workflow policy, portable prompt fragments, the 24-skill distribution kernel, host adapters, Pi/PiFlow capabilities, and the Pi extension. Each host owns its launch, package installation, session state, updates, and native model-state control; PiFlow remains a supported host integration.
 
 ## Capabilities
 
@@ -142,7 +142,7 @@ Or:
 pi install git:github.com/hassan-mohiddin/freeflow
 ```
 
-The full normal-Pi integration targets Pi 0.84.3 or newer; Pi 0.84.4 is the current Cognitive Routing test target.
+The full normal-Pi integration targets Pi 0.84.3 or newer. The repository's current development dependency is Pi 0.85.1; version-specific release evidence remains the source for validated host claims.
 
 ### PiFlow
 
@@ -191,7 +191,7 @@ Freeflow’s model-facing surface has four coordinated parts:
 1. **Core guidance** in `runtime/prompts/core.md` contains identity, shared terms, loops, Workflow, Action Selection, and Supported Exit cues.
 2. **Interaction Contract** in `runtime/prompts/interaction-contract.md` remains a separate mandatory fragment so its behavior can be revised independently.
 3. **Runtime State** reports current capability availability and Cognitive Routing `Control`/`Profile` at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the current provider context.
-4. **Discoverable skills and tools** provide the 25 base methods and individually gated optional capability operations.
+4. **Discoverable skills and tools** provide the 24 base methods and individually gated optional capability operations.
 
 The core guidance and Interaction Contract are always delivered together when Freeflow is enabled. Optional capability content is omitted and reported unavailable rather than fabricated. One effective-state snapshot determines prompt assembly, discovery, tools, and projection.
 

@@ -138,8 +138,9 @@ test("Pi exposes base skills without mode or Skills controls", async () => {
     const { handlers, commands } = loadExtension();
     const ctx = context(cwd);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 25);
+    assert.equal(resources.skillPaths.length, 24);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/workflow/SKILL.md")));
+    assert.ok(!resources.skillPaths.some((path) => path.endsWith("/skills/tdd/SKILL.md")));
     assert.ok(!resources.skillPaths.some((path) => path.endsWith("/skills/mode-contract/SKILL.md")));
 
     const freeflowCommand = commands.find((command) => command.name === "freeflow");

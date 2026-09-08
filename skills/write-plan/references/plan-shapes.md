@@ -20,7 +20,7 @@ When no convention exists and future readers need durable identity, begin with a
 > **Source:** <spec, issue, Working Record, diagnosis, or accepted context>
 ```
 
-Use one current status. Follow the repository or owner's vocabulary; useful states may include `Draft`, `Reviewed`, `Ready`, `Superseded`, and `Abandoned`. Writing or reviewing a Plan does not by itself make it `Ready`.
+Use one current status. Follow the repository or owner's vocabulary; useful states may include `Draft`, `Reviewed`, `Ready`, `Superseded`, and `Abandoned`. Writing or reviewing a Plan does not by itself make it `Ready`. State whether any recorded review was author self-review or selected independent review; neither implies user acceptance or execution authority.
 
 Add dates, supersession links, or approvers only when useful and reliable.
 
@@ -39,7 +39,7 @@ Dependencies:
 Required order:
 ```
 
-Link accepted behavior, architecture, and decisions instead of copying their rationale. Do not hide unsettled design or owner choices as assumptions. If an assumption could choose among materially different strategies, resolve it before treating the Plan as executable.
+Link accepted behavior, architecture, and decisions instead of copying their rationale. Identify the governing source version and relevant accepted amendments when they affect execution. Do not hide unsettled design or owner choices as assumptions. If an assumption could choose among materially different strategies, resolve it before treating the Plan as executable. Experimental findings become planned obligations only when selected for the accepted outcome; a previously reviewed baseline does not excuse omitting a later accepted change.
 
 ## Choose The Execution Shape
 
@@ -106,7 +106,7 @@ A slice is a coherent result, not a file list. Mention files, modules, or system
 
 Consider checkpoints at meaningful slice, phase, integration, risk, and continuity boundaries. Record only useful additions; normal verification and silent self-review need no repeated fields.
 
-A selected local commit names its coherent outcome and conditions, not merely “commit after this slice.” Plan approval authorizes listed local commits subject to live evidence and Commit Work inspection, but not push, integration, migration, deprecation, release, or launch. Record actual results and commit identities in the Working Record.
+A selected local commit names its coherent outcome and conditions, not merely “commit after this slice.” Approval to execute the Plan may authorize listed local commits subject to live evidence and Commit Work inspection; approval of its strategy alone does not. Neither implies push, integration, migration, deprecation, release, or launch. Record actual results and commit identities in the Working Record.
 
 ## Adapt For The Work Type
 
@@ -151,6 +151,6 @@ These conditions stop or revise the affected Plan. They are not alternate branch
 
 A local implementation detail, expected result, or completed slice does not revise the Plan.
 
-For a founded material change, update only the affected strategy and dependencies, record why it changed, preserve prior rationale, and update linked artifacts only when their content changed.
+For a founded material change, update only the affected strategy and dependencies, record why it changed, and preserve prior rationale. Update linked artifacts only when their owned content changed and revision is authorized; otherwise mark dependent work contingent and return the missing decision or revision.
 
-Use a superseding Plan when editing in place would obscure what was originally reviewed. Route a materially revised or superseding Plan through artifact review again.
+Use a superseding Plan when editing in place would obscure the earlier accepted strategy or reviewed state. Apply author self-review through Review Artifact to a materially revised or superseding Plan. Independent review is separately selected and authorized when it protects a concrete boundary, not required merely because the Plan changed.

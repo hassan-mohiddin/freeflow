@@ -79,19 +79,16 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   assert.match(core, /recovery is not a bypass/);
   assert.match(core, /evidence of prior approval; check that the approval still applies/);
   assert.match(core, /choose or retain the current owner/);
-  assert.match(core, /apply its method/);
-  assert.match(
-    core,
-    /Make material limits, unresolved state, contradictions, source conflicts, and user-owned decisions explicit/,
-  );
+  assert.match(core, /apply its method and gather or produce evidence/);
+  assert.match(core, /read the complete `full` record/);
+  assert.match(core, /Make material gaps, contradictions, deferrals, and user-owned decisions explicit/);
   assert.match(cognitiveRouting, /Before interpreting or acting on a request, read the full `cognitive-routing` skill/);
   assert.match(cognitiveRouting, /Make this bootstrap read the only environment call/);
   assert.match(cognitiveRouting, /If the read fails or is unavailable, stop and report missing context/);
-  assert.match(cognitiveRouting, /A Runtime State refresh is host context, not a user interruption/);
-  assert.match(cognitiveRouting, /does not by itself reset the route or end ongoing work/);
+  assert.match(cognitiveRouting, /A state refresh is not a user interruption and does not reset ongoing work/);
   assert.match(
     cognitiveRouting,
-    /`Control` and `Profile` describe current compute, not authority, the current execution contract, or its completion/,
+    /`Control` and `Profile` describe current compute, not authority, an execution contract, or completion/,
   );
   assert.doesNotMatch(cognitiveRouting, /YIELD|DELEGATE|ACT_BOUNDED/);
   assert.doesNotMatch(
@@ -131,7 +128,7 @@ test("composes the mandatory core fragments, optional capabilities, discovery, a
     );
     assert.match(
       prompt,
-      /Before applying a selected skill, read its current body when its exact method is not available/,
+      /Before applying a selected skill, read its current body when its exact method is absent from context/,
     );
     assert.match(prompt, /Verification establishes what direct evidence proves at the observed boundary/);
     assert.match(

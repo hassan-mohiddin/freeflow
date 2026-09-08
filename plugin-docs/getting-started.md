@@ -105,7 +105,7 @@ pi install git:github.com/hassan-mohiddin/freeflow
 
 Restart Pi or use `/reload` after installing or updating the package.
 
-The full normal-Pi integration targets Pi 0.84.3 or newer. Pi 0.84.4 is the current integration test target for Cognitive Routing.
+The full normal-Pi integration targets Pi 0.84.3 or newer. The repository's current development dependency is Pi 0.85.1; version-specific release evidence remains the source for validated host claims.
 
 ### PiFlow
 
@@ -134,7 +134,7 @@ Run this in the repository where Freeflow should operate:
 
 Setup creates the shared `.freeflow/config.json` activation boundary. Minimal activation is `{}`. `.freeflow/local.json` is an optional personal override and cannot activate Freeflow by itself.
 
-Freeflow's core guidance and separately editable Interaction Contract are delivered together whenever Freeflow is enabled. The 25 base skills are exposed with that core surface. Context Virtualization, Conversation History, and Cognitive Routing remain individually optional capabilities.
+Freeflow's core guidance and separately editable Interaction Contract are delivered together whenever Freeflow is enabled. The 24 base skills are exposed with that core surface. Context Virtualization, Conversation History, and Cognitive Routing remain individually optional capabilities.
 
 Setup does not write Freeflow instructions into `AGENTS.md`, `CLAUDE.md`, or other repository-owned host files.
 

@@ -21,7 +21,7 @@ One directed interaction from Entry through a Feedback Loop when needed to a Sup
 _Avoid_: fixed forward pipeline, phase machine
 
 **Feedback Loop**:
-The recurrent inner loop applied to every bounded activity: orient, act or observe through the owning skill, verify, self-review the supported result before accepting or reusing it, then route from evidence.
+The recurrent inner loop applied to every bounded activity: orient, choose or retain the owner, establish the required result and supported approach, act or observe, verify, self-review, then route from evidence.
 _Avoid_: review-driven development, mandatory artifact sequence
 
 **Supported Exit**:
@@ -33,8 +33,12 @@ The active agent owns understanding, routing, locally authorized work, verificat
 _Avoid_: supervised typist, infallible agent
 
 **Authority Envelope**:
-The bounded requested outcome, permitted effects, evidence boundary, and stop condition established by a direct request or still-valid approval.
+The requested outcome, permitted effects, covered active evidence generation, and stop condition established by a direct request or still-valid approval. The observer establishes the evidence boundary separately.
 _Avoid_: permission inferred from skills, usefulness, or new evidence
+
+**Work Agreement**:
+The user-established outcome, scope, and user-facing return condition, which may include figuring out the approach and completing several Slices.
+_Avoid_: mandatory contract artifact, separate autonomy mode, internal handback
 
 **Passive Observation**:
 Inspection of existing evidence or sources without exercising target behavior or intentionally changing task state.
@@ -61,7 +65,7 @@ A stop for one user-owned decision, source-truth conflict, or material path chan
 _Avoid_: interview, permission ceremony
 
 **Discuss**:
-Collaborative exploration or revision when open direction, alternatives, assumptions, or new evidence could materially change the next action.
+Collaborative exploration or revision of what to accomplish and how to approach it when direction, alternatives, assumptions, or evidence could materially change the next action.
 _Avoid_: questionnaire, automatic discovery phase
 
 **Working Record**:

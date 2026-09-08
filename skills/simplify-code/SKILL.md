@@ -1,138 +1,85 @@
 ---
 name: simplify-code
-description: Use when working code should become easier to understand or change without altering accepted behavior, including removing duplication, indirection, dead abstractions, or confusing control flow.
+description: "Use when working code should become easier to understand or change without altering accepted behavior, including removing duplication, indirection, dead abstractions, or confusing control flow."
 ---
 
 # Simplify Code
 
-Reduce the concepts and coordination a reader must hold while preserving accepted behavior.
+Remove one named source of complexity while preserving accepted behavior. Judge simplicity by the concepts and coordination a reader must hold—not line, file, or abstraction count alone.
 
-Fewer lines, files, functions, or abstractions are not automatically simpler. Prefer the shape that makes behavior, ownership, and failure paths easier to understand, test, and change.
+This method supplies a behavior-preserving transformation under the current owner. It does not define behavior, authorize redesign, select or close a Slice, or turn nearby cleanup into accepted work.
 
-Simplify Code applies one behavior-preserving transformation. It does not define behavior, authorize effects, redesign ownership silently, select or close a Slice, or turn nearby cleanup into accepted work.
+## Establish What Must Stay True
 
-A **simplification action** removes one named source of complexity and produces one assessable before-and-after result. It may contain several mechanical edits and focused checks.
+Before editing, identify:
 
-## Enter With A Protected Boundary
+- the accepted behavior, relevant callers, and failure semantics;
+- the reliable baseline capable of detecting change;
+- the complexity or coordination to remove;
+- why the current structure exists, including compatibility, platform, performance, migration, and recovery constraints.
 
-Before editing, establish:
+If expected behavior is unclear or should change, return to [Workflow](../workflow/SKILL.md). If failure or current behavior is unexplained, use [Diagnose Failure](../diagnose-failure/SKILL.md). Do not characterize an invented expectation.
 
-- the accepted behavior that must remain unchanged;
-- the callers and failure semantics capable of detecting drift;
-- the smallest reliable behavior baseline;
-- the named complexity or coordination to remove;
-- why the current structure exists, including compatibility, performance, platform, migration, and recovery constraints.
+Use existing adequate checks. When protection is missing, establish the smallest useful observation of behavior before transforming it; read [Test Design](../verify-work/references/test-design.md) before designing or materially changing the check. Characterization protects required stable behavior, not every accidental implementation detail. It is evidence for a refactor, not a mandatory test-first implementation method.
 
-If behavior is unclear or should change, return to [Workflow](../workflow/SKILL.md).
+Return changes to interfaces, ownership, public state, or failure behavior through Workflow with [Design for Depth](../design-for-depth/SKILL.md) as a lens. Do not disguise a material redesign as cleanup.
 
-If no reliable behavior check protects the accepted boundary, use [TDD](../tdd/SKILL.md) to establish characterization evidence before simplification. When failure or current behavior remains unexplained, use [Diagnose Failure](../diagnose-failure/SKILL.md).
+Read [Simplification Patterns](references/simplification-patterns.md) before selecting or materially changing the transformation. Read [Code Practices](../execute-work/references/code-practices.md) before changing code.
 
-When the intended result requires changing interfaces, ownership, public state, or failure behavior, return the structural pressure to Workflow with [Design for Depth](../design-for-depth/SKILL.md) as a lens. Do not disguise redesign as cleanup.
+## Select One Coherent Transformation
 
-Before selecting or materially changing the transformation, read [Simplification Patterns](references/simplification-patterns.md).
+Name the actual complexity:
 
-Before changing code, read [Code Practices](../execute-work/references/code-practices.md).
+- confusing expression, naming, branches, or temporary state;
+- a pass-through wrapper that hides no useful decision;
+- generalized machinery with no accepted variation;
+- a scattered concept that can have one owner without changing its contract;
+- an unused, superseded, unreachable, or impossible path;
+- structural pressure requiring a separately selected boundary change.
 
-## Choose One Simplification
+Choose the smallest complete transformation that removes it. Keep related edits together even across files. Do not create another method activity for incidental local cleanup already contained in implementation; use Simplify Code when reducing complexity is itself the accepted result.
 
-Classify the named complexity:
+Fewer helpers are not better if their removal spreads lifecycle or error-handling knowledge into callers. Preserve useful information hiding and intentional constraints.
 
-- **Local expression:** confusing names, guards, branching, duplication, or temporary state.
-- **Pass-through indirection:** a wrapper, helper, adapter, or layer hides no useful decision.
-- **Accidental abstraction:** generalized machinery has no accepted variation or information-hiding value.
-- **Scattered concept:** one behavior or policy can move toward one owner without changing its contract.
-- **Dead path:** evidence shows code is unused, unreachable, superseded, or impossible under current invariants.
-- **Structural pressure:** simplification requires changing interfaces, ownership, state, or architecture; return it rather than editing.
+## Apply And Observe
 
-Select the smallest coherent transformation that removes the named complexity while leaving observable and failure behavior intact.
+Within the existing agreement:
 
-Do not invoke Simplify Code for immediate local cleanup already contained in one TDD behavior loop. Use it when complexity reduction is itself the accepted result.
+1. State which concepts or coordination will disappear.
+2. Make the complete behavior-preserving change.
+3. Run focused behavior and failure checks.
+4. Inspect the real caller path and resulting code.
+5. Compare the required coordination before and after.
+6. Keep the supported result or return a failed transformation for correction or covered rollback.
 
-## Simplify As One Coherent Action
+Preserve inputs/outputs, side effects and ordering, errors/recovery, relevant timing and resource behavior, permissions, compatibility, and externally visible state. Follow repository conventions rather than personal style.
 
-For the selected transformation:
+Do not combine feature work, bug fixes, new edge-case behavior, public contract changes, broad modernization, or unrelated cleanup with the transformation.
 
-1. name the concepts, branches, indirection, or coordination being removed;
-2. make the complete behavior-preserving change;
-3. run the focused behavior and failure checks;
-4. inspect the real caller path;
-5. compare conceptual and coordination cost before and after;
-6. keep or revert the action from evidence.
+## Interpret Checks Without Protecting Accidental Machinery
 
-Several edits may belong to one transformation. Do not create a new action merely because the file, tool, or syntax changes.
+Use [Verify Work](../verify-work/SKILL.md) to determine what the observations establish. A green suite cannot prove unchanged behavior it did not exercise. Do not rewrite a valid behavioral assertion merely to make the refactor pass.
 
-Keep feature work, bug fixes, edge-case behavior, public contract changes, broad modernization, and unrelated cleanup outside the simplification boundary.
+If an implementation-detail check fails while caller behavior appears unchanged, establish whether the detail is contractual, the check is stale or over-coupled, the transformation changed relevant behavior, or the observer is inadequate. Do not infer the answer from the desired cleanup.
 
-Preserve relevant:
+Test sequencing alone is not assurance. Retain or add independent checks where needed, and inspect the changed behavior rather than report only test counts.
 
-- inputs and outputs;
-- side effects and ordering;
-- errors and recovery;
-- timing and resource behavior;
-- permissions and compatibility;
-- failure units and externally visible state.
+## Delete Only With Supported Absence
 
-Follow repository conventions rather than personal style.
+Before removing code, establish its purpose and current consumers through relevant source, runtime registration, configuration, generated callers, tests, history, and compatibility obligations. An empty local search does not establish the absence of external or dormant consumers.
 
-## Treat Tests As Evidence
+Do not remove compatibility, fallback, platform, migration, audit, or recovery behavior merely because it looks redundant. Use [Migration Work](../migration-work/SKILL.md) when deletion carries consumer, state, or compatibility obligations.
 
-Do not rewrite valid behavior tests merely to make simplification pass.
+Preserve historical evidence; do not delete it to make a reference search clean.
 
-If an implementation-detail test fails while caller-visible behavior appears unchanged, classify the conflict before editing:
+## Judge The Result And Stop
 
-- the implementation detail may be an accepted contract;
-- the test may be stale or over-coupled;
-- the simplification may have changed relevant behavior;
-- the observing boundary may be insufficient.
+Ask whether there are fewer concepts to coordinate, clearer ownership, fewer related edit locations, visible failure semantics, a smaller or unchanged public interface, and tests focused on behavior rather than internal choreography.
 
-A green suite is necessary but not sufficient. Inspect the resulting code, real caller path, and relevant failure behavior.
+If the result is shorter but harder to understand, test, or change, complexity was relocated rather than reduced.
 
-Add characterization coverage only for behavior that must remain stable. Do not fossilize unnecessary machinery merely because it existed before simplification.
+Stop and return the changed boundary when unchanged behavior is unsupported, public/failure semantics changed, a material resource tradeoff is unmeasured, source truth conflicts, or each correction exposes another ownership or edge-case problem. Do not extend cleanup to preserve a failing approach.
 
-## Delete Deliberately
+When the named complexity is removed and the behavior boundary is supported, return to the current owner for applicable self-review and acceptance. Report the protected behavior, concepts removed, before/after evidence and limits, caller/failure-path shape, relevant comment changes, and intentionally retained complexity.
 
-Before deletion, establish the code’s purpose and current consumers through source, runtime registration, configuration, generated callers, tests, history, and compatibility obligations as relevant.
-
-Removing an unnecessary layer should reduce coordination, not scatter its protocol into callers.
-
-Do not delete compatibility, fallback, platform, migration, audit, or recovery behavior because it appears redundant. Use [Migration Work](../migration-work/SKILL.md) when removal carries consumer, state, or compatibility obligations.
-
-## Determine Whether It Became Simpler
-
-Ask:
-
-- Are there fewer concepts and branches?
-- Is ownership clearer?
-- Can the behavior be understood through fewer coordinated locations?
-- Did failure semantics remain visible?
-- Is the public interface smaller or unchanged?
-- Did tests become more behavior-focused rather than more coupled?
-- Would the next likely change require fewer coordinated edits?
-
-If the answers are mostly no, complexity was relocated rather than reduced.
-
-Stop when:
-
-- unchanged behavior cannot be supported;
-- public or failure semantics changed;
-- performance or resource tradeoffs became material and unmeasured;
-- each change exposes another interface, ownership, or edge-case problem;
-- the action broadens beyond its accepted boundary;
-- source truth or user decisions conflict with the transformation;
-- the result is shorter but harder to explain or test.
-
-## Return The Method Result
-
-Once evidence supports unchanged behavior and the named complexity has been removed, stop the simplification route and return to the current owner.
-
-Return:
-
-- the protected behavior boundary;
-- concepts or coordination removed;
-- before-and-after behavior evidence;
-- resulting caller and failure-path shape;
-- comments preserved, changed, or removed;
-- intentionally retained complexity;
-- what remains unverified.
-
-Do not freeze or close the Slice. Do not continue into further cleanup, modernization, or possible improvements without another accepted bounded action.
+Do not close the Slice, begin further cleanup, or claim broader modernization from this result. Continue only through another covered action serving the agreed outcome.

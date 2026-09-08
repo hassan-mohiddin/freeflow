@@ -267,12 +267,13 @@ check_host_skill_surface() {
 	local skill_count
 
 	skill_count="$(find "$plugin_root/skills" -mindepth 1 -maxdepth 1 -type d -exec test -f '{}/SKILL.md' ';' -print | wc -l | tr -d ' ')"
-	if [ "$skill_count" != "25" ]; then
-		record_check "$check" "fail" "Codex/Claude skills directory must contain exactly 25 skill packages; found $skill_count."
+	if [ "$skill_count" != "24" ]; then
+		record_check "$check" "fail" "Codex/Claude skills directory must contain exactly 24 skill packages; found $skill_count."
 		ok=0
 	fi
 
 	for retired_path in \
+		"$plugin_root/skills/tdd" \
 		"$plugin_root/router" \
 		"$plugin_root/capabilities/output-router" \
 		"$plugin_root/pi-extension/src/output-router" \
@@ -289,7 +290,7 @@ check_host_skill_surface() {
 	fi
 
 	if [ "$ok" = "1" ]; then
-		record_check "$check" "pass" "Supported host surfaces expose the canonical 25 functional skills with no retired Output Router runtime or discovery surface."
+		record_check "$check" "pass" "Supported host surfaces expose the canonical 24 functional skills with no retired TDD or Output Router runtime or discovery surface."
 	fi
 }
 

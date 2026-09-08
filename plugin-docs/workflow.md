@@ -6,7 +6,9 @@ Freeflow is a workflow layer, not a new agent. The active agent owns understandi
 
 Freeflow always uses one adaptive Workflow. The Interaction Contract interprets the whole user turn, then Workflow chooses the narrowest owning skill and scales pressure to consequence, uncertainty, interaction, and reversibility.
 
-Questions, criticism, examples, hypotheses, and tentative ideas remain discussion until clear action authority exists. A direct request covers only its bounded outcome and entailed effects. High-risk or hard-to-reverse work receives stronger decisions, evidence, verification, and checkpoints through this same Workflow rather than through a separate selectable process.
+Questions, criticism, examples, hypotheses, and tentative ideas remain discussion until clear action authority exists. For execution, the user-established work agreement defines the outcome, scope, and user-facing return condition. A clear request can already establish it; otherwise the agent asks only the missing material question. The agreement can cover figuring out the approach and completing several Slices without another confirmation at every internal return.
+
+A direct request covers only its bounded outcome and entailed effects. High-risk or hard-to-reverse work receives proportionate decisions, evidence, verification, and selected checkpoints through this same Workflow—not a separate autonomy mode. A new user-owned choice or uncovered effect still requires a stop.
 
 ## Activation And Configuration
 
@@ -35,19 +37,44 @@ Entry is a user turn or new evidence interpreted through the Interaction Contrac
 The Feedback Loop applies to every bounded activity, including a whole task, slice, subtask, artifact revision, or small local change:
 
 ```text
-orient to accepted intent, task memory, and live evidence
--> act, discuss, test, or observe through the owning skill
--> verify what direct evidence proves
--> once initially supported, self-review the resulting state
--> only then accept, reuse, or claim that activity complete
--> continue, correct, diagnose, revise, ask, defer, or stop
+orient or reconstruct state
+-> choose or retain the current owner
+-> establish the required result and a supported approach
+-> apply its method and gather or produce evidence
+-> determine what the evidence supports
+-> self-review the supported result
+-> continue, correct, re-enter, ask, defer, stop, or exit
 ```
 
-A later turn or new evidence begins another Interaction Lifecycle. Re-enter only the owning activity whose responsibility changed; preserve valid work and decisions.
+For concrete work, establish **what** is required and **how** to produce the next coherent result before production changes. These are readiness questions, not mandatory separate investigations, documents, or user turns. Reuse supported understanding. A factual answer or discussion can end without implementation.
+
+The third loop, the **Environment Interaction Loop**, runs inside a bounded activity whenever observation or effects are needed:
+
+```text
+need evidence or a covered effect
+-> reuse adequate context or identify what is missing
+-> select and bound the action and tool
+-> execute once
+-> observe what changed
+-> apply active capability guidance where relevant
+-> return to the current owner
+```
+
+Action Selection guides uncertain, broad, or repeated interactions and takes the fast path for known mechanics. It does not change the owner or authorize work.
+
+A later turn or new evidence begins another Interaction Lifecycle. Re-enter only the owning activity whose responsibility changed; preserve valid work and decisions. An internal handback does not by itself reach the user's return boundary.
+
+## Work Size, Learning, And Re-entry
+
+Choose Slices by coherent outcomes, dependencies, uncertainty, and manageable context for implementation, checking, and correction—not by file, bug, or tool-call count. Keep useful future work directional and the current unit concrete. One Slice may span context cycles; one context cycle may finish several Slices. Before later work, check that its prerequisites actually hold.
+
+Discuss frames and assesses learning needed to settle direction; Execute Work runs the bounded action. Diagnosis and design can also frame observations under their own methods. An experiment needs a question, adequate observer, covered effects, and an exit at an answer or observing limit. It does not continue until the prototype becomes a production subsystem. Promotion must be deliberately selected and authorized.
+
+A clear local defect returns to its producer. An invalidated approach needs renewed preparation; an unsupported cause needs diagnosis; unsettled acceptance needs discussion or a user decision. Missing or stale evidence is not itself a code defect. Before adding a prerequisite or stronger check, establish which accepted requirement needs it. Repeated mismatches require a changed basis for the next attempt, not just a longer restatement.
 
 ## Nested Execution Model
 
-The Workflow Feedback Loop contains the current owner and, under automatic Cognitive Routing, a nested execution loop. These diagrams describe ownership and control nesting, not a mandatory phase sequence.
+The three core loops apply with or without Cognitive Routing. Under Automatic control, compute transfers occur within the owning activity and its environment work; they are not a fourth mandatory task phase. These diagrams describe ownership and control nesting, not a fixed sequence.
 
 ### Runtime and compute nesting
 
@@ -76,14 +103,14 @@ Workflow Feedback Loop
    │  ├─ Reasoning leads the execution boundary
    │  └─ Standard executes the owner’s contract
    │     └─ Action Selection owns uncertain Environment Interactions
-   ├─ Execute Work / TDD supply execution methods
+   ├─ Execute Work supplies execution methods
    ├─ Verify Work establishes factual support
    ├─ Review Work / Artifact supply judgment when applicable
    ├─ Diagnose Failure owns unsupported causes
    └─ Design for Depth composes as a lens
 ```
 
-Discuss owns open direction and alternatives. Track Work owns durable task memory only when continuity value justifies it. Action Selection returns the observation and state change to the requesting owner; it does not replace Workflow or authorize work. Verify, review, diagnosis, TDD, and design methods compose when their conditions apply rather than forming a mandatory pipeline.
+Discuss owns open outcome/approach direction and alternatives. Execute Work owns concrete work and its bounded preparation. Track Work preserves durable meaning only when continuity warrants it. Action Selection returns observations to the requesting owner. Verify, review, diagnosis, and design compose when needed rather than forming a mandatory artifact pipeline. A delegation unit is not a Track Work Slice; Cognitive Routing places compute without changing these responsibilities.
 
 ## Authority And Effects
 
@@ -106,11 +133,13 @@ Artifacts have distinct jobs:
 - **Plan:** stable ordered execution strategy when dependencies, mechanism, and checks can be stated without guessing.
 - **Handoff:** point-in-time continuation context for a pause or transfer.
 
-They are conditional memory, not proof or authority over contradictory live evidence. Specs and Plans each receive a separate independent Review Artifact after author self-review. Working Records do not require independent review by default.
+Artifacts preserve content or strategy; they are not proof or authority over contradictory current intent and live evidence. Specs and Plans receive author self-review through Review Artifact. Independent review is separately selected and authorized only when it protects a concrete boundary; neither artifact creation nor revision requires it automatically. An already-covered task does not acquire another approval gate merely because its approach is written down.
 
 ## Review And Verification
 
 Verification is factual work owned by the active agent. Verify Work may deepen the method; reading it does not dispatch, create another role, or authorize an active check. Run an active check only when the current authority envelope covers it directly or as contained verification; otherwise propose it before running it.
+
+Checks must preserve the required property and observing boundary. A material assertion change must not replace exact behavior with a weaker shape check while retaining the stronger completion claim. Use a concrete wrong-behavior example or covered counterexample exercise where observer sensitivity is uncertain, not a compulsory test-first or mutation-testing cycle. A real passing result can become inapplicable after relevant edits without ceasing to be a real historical observation.
 
 Self-review is required for every completed bounded activity, remains silent, and follows initially supported verification. It belongs to the authorized activity without widening authority: clear local issues required by the accepted outcome may be corrected and re-verified before the final state is frozen. Review Work and Review Artifact may deepen self-review or guide a separately selected independent reviewer. Reading either skill does not create independence.
 
@@ -127,7 +156,9 @@ Corrections leave review and return to Execute Work or the artifact owner. They 
 
 ## Task Continuity
 
-When an ongoing task resumes after compaction, summarization, clear, resume, or session navigation, request the Working Record's bounded `resume` view before continuing task work. Compare it with the current conversation and live state, retrieving exact entities only when needed. Another conversation branch may have written memory, not authority.
+After context loss—such as compaction, context-replacing summarization, clear, session resume/navigation, or transfer into another context—read the complete Working Record through `full` when one exists. Page truncated output until complete; stop affected work if full recovery is unavailable. With intact context, use `resume` or targeted reads only when useful.
+
+Reconcile the current agreement, assignment, superseded directions, dependencies, partial effects, and evidence with current user direction, defining artifacts, and relevant live state. A full record restores recorded memory, not every linked source or proof of live correctness. Keep separate that an observation occurred and whether it applies now. Another conversation branch may preserve memory but cannot create authority. Continue already-covered work after coherent recovery rather than require another "continue."
 
 Routine in-slice feedback is not checkpoint history. Record state changes, accepted boundary extensions, decisions, blockers, evidence, and selected checkpoint results—not every edit or comment.
 
