@@ -393,6 +393,7 @@ function entriesFrom(context: ControllerContext): readonly unknown[] {
 }
 
 function branchEntriesFrom(context: ControllerContext): readonly unknown[] {
+  // Routing transitions are ancestry-local; session-wide entries include abandoned siblings.
   try {
     const entries = context.sessionManager?.getBranch?.();
     return Array.isArray(entries) ? entries : entriesFrom(context);
@@ -742,12 +743,12 @@ export class CognitiveRoutingController {
       };
     }
 
-    const sessionEntries = entriesFrom(this.ctx);
+    const branchEntries = branchEntriesFrom(this.ctx);
     const lifecycleIntent = latestIntent(
-      sessionEntries,
+      branchEntries,
       (intent) => intent.kind === "activation" || intent.kind === "closing",
     );
-    if (lifecycleIntent && !hasMatchingHostEntry(sessionEntries, lifecycleIntent)) {
+    if (lifecycleIntent && !hasMatchingHostEntry(branchEntries, lifecycleIntent)) {
       return { status: "inactive", reason: "pending_intent" };
     }
     if (
@@ -996,7 +997,6 @@ export class CognitiveRoutingController {
   }
 
   private async _recover(): Promise<CognitiveRoutingRecoveryResult> {
-    const sessionEntries = entriesFrom(this.ctx);
     const branchEntries = branchEntriesFrom(this.ctx);
     const inactive = latestInactiveEntry(branchEntries);
     const branchLifecycleIntent = latestIntent(
@@ -1013,7 +1013,7 @@ export class CognitiveRoutingController {
       return { status: "inactive", reason: "native_override" };
     }
     const lifecycleIntent = latestIntent(
-      sessionEntries,
+      branchEntries,
       (intent) => intent.kind === "activation" || intent.kind === "closing",
     );
     if (!lifecycleIntent) {
@@ -1024,14 +1024,14 @@ export class CognitiveRoutingController {
       if (lifecycleTerminal) return lifecycleTerminal;
     }
     if (lifecycleIntent.kind === "closing") {
-      return hasMatchingHostEntry(sessionEntries, lifecycleIntent)
+      return hasMatchingHostEntry(branchEntries, lifecycleIntent)
         ? { status: "inactive", reason: "closed" }
         : this.recoverClosingIntent(lifecycleIntent);
     }
 
     const currentActivationProfile = this.capabilityState.resolvedProfiles[lifecycleIntent.profile ?? "standard"];
     if (!this.capabilityState.effective) {
-      return hasMatchingHostEntry(sessionEntries, lifecycleIntent)
+      return hasMatchingHostEntry(branchEntries, lifecycleIntent)
         ? { status: "inactive", reason: "not_effective" }
         : this.abandonIntent(lifecycleIntent, "Cognitive Routing is not effective.");
     }
@@ -1043,7 +1043,7 @@ export class CognitiveRoutingController {
       modelId: currentActivationProfile.model,
       thinkingLevel: currentActivationProfile.effectiveThinkingLevel,
     };
-    const activationMatched = hasMatchingHostEntry(sessionEntries, lifecycleIntent);
+    const activationMatched = hasMatchingHostEntry(branchEntries, lifecycleIntent);
     if (activationMatched && !pairEquals(activationTarget, lifecycleIntent.target)) {
       return { status: "pending", reason: "applied_target_changed" };
     }
@@ -1228,23 +1228,21 @@ export class CognitiveRoutingController {
     }
 
     const currentProfile = this.activeProfile;
-    const sessionEntries = entriesFrom(this.ctx);
+    const entries = branchEntriesFrom(this.ctx);
     const lifecycleIntent = latestIntent(
-      sessionEntries,
+      entries,
       (intent) => intent.kind === "activation" || intent.kind === "closing",
     );
     if (lifecycleIntent?.kind === "closing") {
       this.branchPending = true;
-      return hasMatchingHostEntry(sessionEntries, lifecycleIntent)
+      return hasMatchingHostEntry(entries, lifecycleIntent)
         ? { status: "inactive", reason: "closed" }
         : { status: "pending", reason: "closing_intent_unmatched" };
     }
-    if (lifecycleIntent && !hasMatchingHostEntry(sessionEntries, lifecycleIntent)) {
+    if (lifecycleIntent && !hasMatchingHostEntry(entries, lifecycleIntent)) {
       this.branchPending = true;
       return { status: "pending", reason: "activation_intent_unmatched" };
     }
-
-    const entries = branchEntriesFrom(this.ctx);
     const intent = latestIntent(
       entries,
       (candidate) => candidate.kind === "profile" && candidate.epoch === lifecycleIntent?.epoch,
@@ -1388,15 +1386,14 @@ export class CognitiveRoutingController {
       target,
       returnTarget: this.returnTarget,
     });
-    const sessionEntries = entriesFrom(this.ctx);
+    const entries = branchEntriesFrom(this.ctx);
     const lifecycleIntent = latestIntent(
-      sessionEntries,
+      entries,
       (candidate) => candidate.kind === "activation" || candidate.kind === "closing",
     );
-    if (lifecycleIntent && !hasMatchingHostEntry(sessionEntries, lifecycleIntent)) {
+    if (lifecycleIntent && !hasMatchingHostEntry(entries, lifecycleIntent)) {
       return { status: "inactive", reason: "pending_intent" };
     }
-    const entries = branchEntriesFrom(this.ctx);
     const latest = latestIntent(entries, (candidate) => candidate.kind === "profile" && candidate.epoch === this.epoch);
     if (latest && !hasMatchingHostEntry(entries, latest)) {
       return { status: "inactive", reason: "pending_intent" };

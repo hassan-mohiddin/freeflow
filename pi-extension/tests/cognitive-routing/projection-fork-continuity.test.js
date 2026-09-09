@@ -11,6 +11,8 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import freeflowExtension from "../../dist/index.js";
+import { COGNITIVE_ROUTING_INTENT_ENTRY } from "../../dist/cognitive-routing/controller.js";
+import { PI_SESSION_MODEL_STATE_ENTRY } from "../../dist/cognitive-routing/pi-session-control.js";
 
 const SOURCE_ENTRY = "freeflow-cognitive-routing-source";
 const PROJECTION_ENTRY = "freeflow-cognitive-routing-projection";
@@ -338,6 +340,111 @@ async function buildLineageSession(cwd, sessionDir, depth) {
   }
   return manager;
 }
+
+test("native Pi ignores abandoned-branch routing state after branch-summary recovery", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-branch-recovery-cwd-"));
+  const agentDir = await mkdtemp(join(tmpdir(), "freeflow-branch-recovery-agent-"));
+  const sessionDir = await mkdtemp(join(tmpdir(), "freeflow-branch-recovery-session-"));
+  const originalOffline = process.env.PI_OFFLINE;
+  const originalFetch = globalThis.fetch;
+  const contexts = [];
+  const requests = [];
+  let current;
+  process.env.PI_OFFLINE = "1";
+  try {
+    const modelsPath = await setup(cwd, agentDir);
+    const manager = SessionManager.create(cwd, sessionDir);
+    manager.appendModelChange("openai", "gpt-4");
+    manager.appendThinkingLevelChange("off");
+    const activeRoot = manager.getLeafId();
+    const returnTarget = { provider: "openai", modelId: "gpt-4", thinkingLevel: "off" };
+    const abandonedTarget = { provider: "openai", modelId: "gpt-4o", thinkingLevel: "off" };
+    manager.appendCustomEntry(COGNITIVE_ROUTING_INTENT_ENTRY, {
+      version: 2,
+      phase: "prepared",
+      kind: "activation",
+      control: "automatic",
+      source: "system",
+      mechanism: "activation",
+      epoch: "abandoned-epoch",
+      correlationId: "abandoned-activation",
+      profile: "reasoning",
+      target: abandonedTarget,
+      returnTarget,
+    });
+    manager.appendCustomEntry(PI_SESSION_MODEL_STATE_ENTRY, {
+      version: 1,
+      phase: "committed",
+      status: "applied",
+      correlationId: "abandoned-activation",
+      fromPair: returnTarget,
+      target: abandonedTarget,
+      origin: { source: "pi", operation: "session-model-state-control" },
+    });
+    const abandonedLeaf = manager.getLeafId();
+    assert.ok(activeRoot && abandonedLeaf);
+    const summaryLeaf = manager.branchWithSummary(activeRoot, "The abandoned branch selected Reasoning.");
+    assert.ok(summaryLeaf);
+    assert.equal(
+      manager.getBranch().some((entry) => entry.id === abandonedLeaf),
+      false,
+    );
+    assert.equal(
+      manager.getEntries().some((entry) => entry.id === abandonedLeaf),
+      true,
+      "the abandoned routing commit must remain in the session tree",
+    );
+
+    current = await openSession({
+      cwd,
+      agentDir,
+      modelsPath,
+      manager,
+      contexts,
+      usePersistedModel: true,
+      fetchImpl: async (_url, init) => {
+        requests.push(JSON.parse(String(init.body)));
+        return textResponse("branch-recovery", "Recovered on the active branch.");
+      },
+    });
+
+    assert.equal(
+      manager
+        .getBranch()
+        .some((entry) => entry.type === "custom" && entry.customType === "freeflow-cognitive-routing-inactive"),
+      false,
+    );
+    assert.equal(
+      manager
+        .getBranch()
+        .some(
+          (entry) =>
+            entry.type === "custom" &&
+            entry.customType === COGNITIVE_ROUTING_INTENT_ENTRY &&
+            entry.data?.mechanism === "activation",
+        ),
+      true,
+      "active-branch recovery should establish routing on the current branch",
+    );
+
+    await current.session.prompt("Continue after returning from the abandoned branch.");
+    assert.equal(requests.length, 1);
+    assert.equal(
+      contexts.some((context) => context.aborted),
+      false,
+    );
+    assert.equal(current.errors.length, 0);
+  } finally {
+    current?.restore();
+    current?.session.dispose();
+    globalThis.fetch = originalFetch;
+    if (originalOffline === undefined) delete process.env.PI_OFFLINE;
+    else process.env.PI_OFFLINE = originalOffline;
+    await rm(cwd, { recursive: true, force: true });
+    await rm(agentDir, { recursive: true, force: true });
+    await rm(sessionDir, { recursive: true, force: true });
+  }
+});
 
 test("cancels over-limit lineage and preserves the within-limit control", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-lineage-limit-cwd-"));

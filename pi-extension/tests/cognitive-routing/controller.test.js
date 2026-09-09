@@ -988,7 +988,7 @@ test("recovers a prepared profile transition before native override detection", 
   );
 });
 
-test("session-wide unmatched cleanup blocks recovery from a divergent branch", async () => {
+test("ignores an unmatched cleanup intent from a divergent branch", async () => {
   const activationIntent = {
     version: 1,
     kind: "activation",
@@ -1030,21 +1030,24 @@ test("session-wide unmatched cleanup blocks recovery from a divergent branch", a
       { type: "custom", customType: COGNITIVE_ROUTING_INTENT_ENTRY, data: activationIntent },
       activationHostEntry,
     ],
-    onAcquire: async () => {
-      throw new Error("unmatched cleanup must remain pending");
-    },
+    onAcquire: appliedLease,
   });
   const controller = new CognitiveRoutingController({ capabilityState, pi: host.pi, ctx: host.ctx });
 
   const recovered = await controller.recover();
-  const activated = await controller.activate();
 
-  assert.deepEqual(recovered, { status: "pending", reason: "closing_recovery_acquire_failed" });
-  assert.deepEqual(activated, { status: "inactive", reason: "pending_intent" });
-  assert.equal(controller.state().effective, false);
+  assert.deepEqual(recovered, { status: "active", profile: "standard" });
+  assert.deepEqual(
+    host.calls.map(([kind]) => kind),
+    ["prepare", "acquire", "setState"],
+  );
+  assert.equal(
+    host.calls.some(([kind, request]) => kind === "setState" && request.modelId === "return"),
+    false,
+  );
 });
 
-test("session-wide matched cleanup prevents revival from a divergent branch", async () => {
+test("ignores a matched cleanup intent from a divergent branch", async () => {
   const activationIntent = {
     version: 1,
     kind: "activation",
@@ -1100,7 +1103,140 @@ test("session-wide matched cleanup prevents revival from a divergent branch", as
 
   const recovered = await controller.recover();
 
-  assert.deepEqual(recovered, { status: "inactive", reason: "closed" });
+  assert.deepEqual(recovered, { status: "active", profile: "standard" });
+  assert.deepEqual(
+    host.calls.map(([kind]) => kind),
+    ["prepare", "acquire", "setState"],
+  );
+  assert.equal(
+    host.calls.some(([kind, request]) => kind === "setState" && request.modelId === "return"),
+    false,
+  );
+});
+
+test("ignores a sibling pending lifecycle intent during activation", async () => {
+  const siblingIntent = {
+    version: 2,
+    phase: "prepared",
+    kind: "activation",
+    control: "automatic",
+    source: "system",
+    epoch: "epoch-1",
+    correlationId: "sibling-activation",
+    profile: "reasoning",
+    target: { provider: "faux", modelId: "reasoning", thinkingLevel: "max" },
+    returnTarget: { provider: "faux", modelId: "return", thinkingLevel: "medium" },
+  };
+  const host = createHost({
+    entries: [{ type: "custom", customType: COGNITIVE_ROUTING_INTENT_ENTRY, data: siblingIntent }],
+    branchEntries: [],
+    onAcquire: appliedLease,
+  });
+  const controller = new CognitiveRoutingController({ capabilityState, pi: host.pi, ctx: host.ctx });
+
+  const result = await controller.activate();
+
+  assert.deepEqual(result, { status: "active", profile: "reasoning" });
+  assert.deepEqual(
+    host.calls.map(([kind]) => kind),
+    ["prepare", "acquire", "setState"],
+  );
+});
+
+test("ignores a sibling pending lifecycle intent during an active profile switch", async () => {
+  const host = createHost({ onAcquire: appliedLease });
+  const controller = new CognitiveRoutingController({ capabilityState, pi: host.pi, ctx: host.ctx });
+  await controller.activate();
+
+  const activeBranch = [...host.sessionEntries];
+  host.sessionEntries.push({
+    type: "custom",
+    customType: COGNITIVE_ROUTING_INTENT_ENTRY,
+    data: {
+      version: 2,
+      phase: "prepared",
+      kind: "closing",
+      control: "automatic",
+      source: "system",
+      branchId: "sibling-branch",
+      epoch: "epoch-1",
+      correlationId: "sibling-closing",
+      target: { provider: "faux", modelId: "return", thinkingLevel: "medium" },
+      returnTarget: { provider: "faux", modelId: "return", thinkingLevel: "medium" },
+    },
+  });
+  host.ctx.sessionManager.getBranch = () => activeBranch;
+  host.ctx.sessionManager.getLeafId = () => activeBranch.at(-1)?.id ?? null;
+
+  const result = await controller.switchAutomaticProfile("standard", "Use Standard for bounded execution.");
+
+  assert.deepEqual(result, {
+    status: "active",
+    changed: true,
+    from: "reasoning",
+    to: "standard",
+    profile: "standard",
+  });
+  assert.equal(
+    host.calls.some(([kind, request]) => kind === "setState" && request.modelId === "standard"),
+    true,
+  );
+});
+
+test("ignores a sibling pending lifecycle intent during branch reconciliation", async () => {
+  const host = createHost({ onAcquire: appliedLease });
+  const controller = new CognitiveRoutingController({ capabilityState, pi: host.pi, ctx: host.ctx });
+  await controller.activate();
+
+  const activeBranch = [...host.sessionEntries];
+  host.sessionEntries.push({
+    type: "custom",
+    customType: COGNITIVE_ROUTING_INTENT_ENTRY,
+    data: {
+      version: 2,
+      phase: "prepared",
+      kind: "closing",
+      control: "automatic",
+      source: "system",
+      branchId: "sibling-branch",
+      epoch: "epoch-1",
+      correlationId: "sibling-closing",
+      target: { provider: "faux", modelId: "return", thinkingLevel: "medium" },
+      returnTarget: { provider: "faux", modelId: "return", thinkingLevel: "medium" },
+    },
+  });
+  host.ctx.sessionManager.getBranch = () => activeBranch;
+  host.ctx.sessionManager.getLeafId = () => activeBranch.at(-1)?.id ?? null;
+
+  const result = await controller.reconcileBranch();
+
+  assert.deepEqual(result, { status: "active", profile: "reasoning" });
+  assert.equal(controller.state().effective, true);
+});
+
+test("keeps an unmatched active-branch lifecycle intent fail-closed", async () => {
+  const activeIntent = {
+    version: 2,
+    phase: "prepared",
+    kind: "activation",
+    control: "automatic",
+    source: "system",
+    epoch: "epoch-1",
+    correlationId: "active-activation",
+    profile: "reasoning",
+    target: { provider: "faux", modelId: "reasoning", thinkingLevel: "max" },
+    returnTarget: { provider: "faux", modelId: "return", thinkingLevel: "medium" },
+  };
+  const host = createHost({
+    entries: [{ type: "custom", customType: COGNITIVE_ROUTING_INTENT_ENTRY, data: activeIntent }],
+    branchEntries: [{ type: "custom", customType: COGNITIVE_ROUTING_INTENT_ENTRY, data: activeIntent }],
+    onAcquire: appliedLease,
+  });
+  const controller = new CognitiveRoutingController({ capabilityState, pi: host.pi, ctx: host.ctx });
+
+  const result = await controller.activate();
+
+  assert.deepEqual(result, { status: "inactive", reason: "pending_intent" });
   assert.deepEqual(host.calls, []);
 });
 
@@ -1117,6 +1253,7 @@ test("reconciles the active branch through the owned lease", async () => {
   });
   await controller.activate();
   const branchEntries = [
+    ...host.sessionEntries,
     {
       id: "intent-profile",
       type: "custom",
