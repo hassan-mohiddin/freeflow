@@ -245,10 +245,14 @@ test("unknown, changed, and reused messages reject without a partial view", () =
   assert.deepEqual(projectReasoningContext({ sessionId: "session-1", messages: changed, sources }), {
     status: "rejected",
     reason: "source_not_found:toolResult",
+    position: 2,
+    role: "toolResult",
   });
   assert.deepEqual(projectReasoningContext({ sessionId: "session-1", messages: [...messages, messages[0]], sources }), {
     status: "rejected",
     reason: "source_reused:ctx:user-1",
+    position: 5,
+    role: "user",
   });
   assert.deepEqual(
     projectReasoningContext({
@@ -257,7 +261,7 @@ test("unknown, changed, and reused messages reject without a partial view", () =
       sources,
       include: ["ctx:result-a"],
     }),
-    { status: "rejected", reason: "requested_ref_not_visible:ctx:result-a" },
+    { status: "rejected", reason: "requested_ref_not_visible:ctx:result-a", ref: "ctx:result-a" },
   );
 });
 
@@ -299,7 +303,12 @@ test("rejects ambiguous source association and dangling selected tool groups", (
       sources: duplicateSources,
       include: ["ctx:result-a"],
     }),
-    { status: "rejected", reason: "ambiguous_source:toolResult" },
+    {
+      status: "rejected",
+      reason: "ambiguous_source:toolResult",
+      position: 2,
+      role: "toolResult",
+    },
   );
 
   const incompleteMessages = messages.filter((message) => message !== messages[3]);
@@ -311,7 +320,13 @@ test("rejects ambiguous source association and dangling selected tool groups", (
       sources: incompleteSources,
       include: ["ctx:result-a"],
     }),
-    { status: "rejected", reason: "selected_tool_group_incomplete:ctx:assistant-1" },
+    {
+      status: "rejected",
+      reason: "selected_tool_group_incomplete:ctx:assistant-1",
+      ref: "ctx:assistant-1",
+      position: 1,
+      role: "assistant",
+    },
   );
 });
 
@@ -335,7 +350,13 @@ test("rejects session divergence and preserves transient owned context", () => {
       sources,
       ownedTransientMessages: [transient],
     }),
-    { status: "rejected", reason: "source_not_found:custom" },
+    {
+      status: "rejected",
+      reason: "source_not_found:custom",
+      position: 5,
+      role: "custom",
+      customType: "freeflow-runtime-state",
+    },
   );
   assert.deepEqual(
     projectReasoningContext({
@@ -344,5 +365,245 @@ test("rejects session divergence and preserves transient owned context", () => {
       sources,
     }),
     { status: "rejected", reason: "source_session_mismatch:ctx:user-1" },
+  );
+});
+
+test("repairs an unselected unknown baseline group with request-only error results", () => {
+  const user = { role: "user", content: "Inspect legacy files" };
+  const assistant = {
+    role: "assistant",
+    content: [
+      { type: "text", text: "Legacy inspection" },
+      { type: "toolCall", id: "legacy-known", name: "read", arguments: {} },
+      { type: "toolCall", id: "legacy-missing", name: "read", arguments: {} },
+    ],
+  };
+  const known = toolResult("legacy-known", "KNOWN");
+  const messages = [user, assistant, known];
+  const sources = [
+    source("user-legacy", user, "user", undefined, "user"),
+    {
+      ...source("assistant-legacy", assistant, "unknown", undefined, "assistant"),
+      legacyBaseline: true,
+      legacyRepairableCallIds: ["legacy-missing"],
+    },
+    {
+      ...source("known-legacy", known, "unknown", undefined, "toolResult"),
+      legacyBaseline: true,
+    },
+  ];
+  const result = projectReasoningContext({
+    sessionId: "session-1",
+    messages,
+    sources,
+    required: ["ctx:assistant-legacy", "ctx:known-legacy"],
+    legacyBaselineRefs: ["ctx:assistant-legacy", "ctx:known-legacy"],
+  });
+
+  assert.equal(result.status, "projected");
+  assert.equal(result.messages.length, 4);
+  assert.deepEqual(result.messages[0], user);
+  assert.deepEqual(result.messages[1], assistant);
+  assert.deepEqual(result.messages[2], known);
+  assert.deepEqual(result.messages[3], {
+    role: "toolResult",
+    toolCallId: "legacy-missing",
+    toolName: "read",
+    content: [
+      {
+        type: "text",
+        text: "No recorded result is available for this historical tool call; execution outcome is unknown.",
+      },
+    ],
+    isError: true,
+  });
+  assert.deepEqual(result.visibleRefs, ["ctx:user-legacy", "ctx:assistant-legacy", "ctx:known-legacy"]);
+});
+
+test("preserves call order when the first legacy call is missing", () => {
+  const assistant = {
+    role: "assistant",
+    content: [
+      { type: "toolCall", id: "legacy-missing", name: "read", arguments: {} },
+      { type: "toolCall", id: "legacy-known", name: "read", arguments: {} },
+    ],
+  };
+  const known = toolResult("legacy-known", "KNOWN");
+  const result = projectReasoningContext({
+    sessionId: "session-1",
+    messages: [assistant, known],
+    sources: [
+      {
+        ...source("assistant-legacy", assistant, "unknown", undefined, "assistant"),
+        legacyBaseline: true,
+        legacyRepairableCallIds: ["legacy-missing"],
+      },
+      { ...source("known-legacy", known, "unknown", undefined, "toolResult"), legacyBaseline: true },
+    ],
+    required: ["ctx:assistant-legacy", "ctx:known-legacy"],
+    legacyBaselineRefs: ["ctx:assistant-legacy", "ctx:known-legacy"],
+  });
+
+  assert.equal(result.status, "projected");
+  assert.equal(result.messages[1].toolCallId, "legacy-missing");
+  assert.equal(result.messages[1].isError, true);
+  assert.equal(result.messages[2].toolCallId, "legacy-known");
+  assert.match(JSON.stringify(result.messages[2].content), /KNOWN/);
+});
+
+test("does not repair an explicitly selected incomplete baseline group", () => {
+  const assistant = {
+    role: "assistant",
+    content: [{ type: "toolCall", id: "legacy-missing", name: "read", arguments: {} }],
+  };
+  const result = projectReasoningContext({
+    sessionId: "session-1",
+    messages: [assistant],
+    sources: [
+      {
+        ...source("assistant-legacy", assistant, "unknown", undefined, "assistant"),
+        legacyBaseline: true,
+        legacyRepairableCallIds: ["legacy-missing"],
+      },
+    ],
+    shared: ["ctx:assistant-legacy"],
+    legacyBaselineRefs: ["ctx:assistant-legacy"],
+  });
+
+  assert.deepEqual(result, {
+    status: "rejected",
+    reason: "selected_tool_group_incomplete:ctx:assistant-legacy",
+    ref: "ctx:assistant-legacy",
+    position: 0,
+    role: "assistant",
+  });
+});
+
+test("does not trust a reused request-only legacy placeholder", () => {
+  const assistant = {
+    role: "assistant",
+    content: [{ type: "toolCall", id: "legacy-missing", name: "read", arguments: {} }],
+  };
+  const first = projectReasoningContext({
+    sessionId: "session-1",
+    messages: [assistant],
+    sources: [
+      {
+        ...source("assistant-legacy", assistant, "unknown", undefined, "assistant"),
+        legacyBaseline: true,
+        legacyRepairableCallIds: ["legacy-missing"],
+      },
+    ],
+    required: ["ctx:assistant-legacy"],
+    legacyBaselineRefs: ["ctx:assistant-legacy"],
+  });
+  assert.equal(first.status, "projected");
+  assert.deepEqual(
+    projectReasoningContext({
+      sessionId: "session-1",
+      messages: first.messages,
+      sources: [
+        {
+          ...source("assistant-legacy", assistant, "unknown", undefined, "assistant"),
+          legacyBaseline: true,
+          legacyRepairableCallIds: ["legacy-missing"],
+        },
+      ],
+      required: ["ctx:assistant-legacy"],
+      legacyBaselineRefs: ["ctx:assistant-legacy"],
+    }),
+    { status: "rejected", reason: "source_not_found:toolResult", position: 1, role: "toolResult" },
+  );
+});
+
+test("retains canonical custom messages across timestamp conversion and rejects duplicates", () => {
+  const user = { role: "user", content: "Review the notification" };
+  const delivered = {
+    role: "custom",
+    customType: "subagent-notification",
+    content: [{ type: "text", text: "Background work completed." }],
+    display: true,
+    details: { agentId: "agent-1", status: "completed" },
+    timestamp: 2000,
+  };
+  const persisted = { ...delivered, timestamp: 1000 };
+  const result = projectReasoningContext({
+    sessionId: "session-1",
+    messages: [user, delivered],
+    sources: [
+      source("user-1", user, "user", undefined, "user"),
+      source("notification-1", persisted, "shared", undefined, "custom"),
+    ],
+  });
+
+  assert.equal(result.status, "projected");
+  assert.deepEqual(result.messages, [user, delivered]);
+  assert.deepEqual(result.selectedRefs, []);
+
+  assert.deepEqual(
+    projectReasoningContext({
+      sessionId: "session-1",
+      messages: [user, delivered],
+      sources: [
+        source("user-1", user, "user", undefined, "user"),
+        source("notification-1", persisted, "shared", undefined, "custom"),
+        source("notification-2", persisted, "shared", undefined, "custom"),
+      ],
+    }),
+    {
+      status: "rejected",
+      reason: "ambiguous_source:custom",
+      position: 1,
+      role: "custom",
+      customType: "subagent-notification",
+    },
+  );
+
+  const altered = { ...persisted, details: { ...persisted.details, altered: true } };
+  assert.deepEqual(
+    projectReasoningContext({
+      sessionId: "session-1",
+      messages: [user, delivered],
+      sources: [
+        source("user-1", user, "user", undefined, "user"),
+        source("notification-1", altered, "shared", undefined, "custom"),
+      ],
+    }),
+    {
+      status: "rejected",
+      reason: "source_not_found:custom",
+      position: 1,
+      role: "custom",
+      customType: "subagent-notification",
+    },
+  );
+});
+
+test("rejects a recorded but unavailable legacy result instead of claiming it is missing", () => {
+  const assistant = {
+    role: "assistant",
+    content: [{ type: "toolCall", id: "legacy-missing", name: "read", arguments: {} }],
+  };
+  assert.deepEqual(
+    projectReasoningContext({
+      sessionId: "session-1",
+      messages: [assistant],
+      sources: [
+        {
+          ...source("assistant-legacy", assistant, "unknown", undefined, "assistant"),
+          legacyBaseline: true,
+          legacyOutcomeUnavailableCallIds: ["legacy-missing"],
+        },
+      ],
+      required: ["ctx:assistant-legacy"],
+      legacyBaselineRefs: ["ctx:assistant-legacy"],
+    }),
+    {
+      status: "rejected",
+      reason: "legacy_tool_result_unavailable:ctx:assistant-legacy",
+      position: 0,
+      role: "assistant",
+      ref: "ctx:assistant-legacy",
+    },
   );
 });

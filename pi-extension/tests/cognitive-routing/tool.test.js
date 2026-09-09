@@ -46,6 +46,13 @@ test("exposes the bounded profile switch schema with independent projection arra
   assert.deepEqual(tool.parameters.properties.projection.properties.shared.items, { type: "string" });
 });
 
+test("registers the ordinary switch surface when projection is unavailable", () => {
+  const tool = register(() => undefined, { projectionEnabled: false });
+
+  assert.equal(tool.parameters.properties.projection, undefined);
+  assert.doesNotMatch(tool.promptGuidelines.join("\n"), /evidence refs|returning to Reasoning/i);
+});
+
 test("validates reason before any controller call", async () => {
   const tool = register(() => undefined);
 

@@ -4,6 +4,7 @@ import { sessionEntryToContextMessages } from "@earendil-works/pi-coding-agent";
 import { projectContextSource } from "../freeflow-context/source-projector.js";
 import { contextRefForEntry, entryIdFromContextRef } from "../freeflow-context/types.js";
 import { projectReasoningContext } from "./context-projection.js";
+import { boundedDiagnosticMessage } from "./diagnostics.js";
 import { COGNITIVE_ROUTING_BASELINE_ENTRY, CognitiveRoutingSourceRegistry } from "./source-registry.js";
 import { sessionLineageFor } from "./session-lineage.js";
 export const COGNITIVE_ROUTING_SOURCE_ENTRY = "freeflow-cognitive-routing-source";
@@ -129,8 +130,71 @@ function cloneOperation(operation) {
     required: [...operation.required],
   };
 }
+function customMessageShape(message) {
+  if (!message || typeof message !== "object") return message;
+  const comparable = { ...message };
+  delete comparable.timestamp;
+  return comparable;
+}
+function customMessageTimestamp(value) {
+  if (typeof value === "number") return Number.isFinite(value);
+  return typeof value === "string" && !Number.isNaN(Date.parse(value));
+}
+function customMessagesMatch(left, right) {
+  return (
+    left?.role === "custom" &&
+    right?.role === "custom" &&
+    customMessageTimestamp(left.timestamp) &&
+    customMessageTimestamp(right.timestamp) &&
+    isDeepStrictEqual(customMessageShape(left), customMessageShape(right))
+  );
+}
 function sourceMatches(message, source) {
+  if (source.kind === "custom" || message?.role === "custom" || source.message?.role === "custom") {
+    return customMessagesMatch(source.message, message);
+  }
   return source.message === message || isDeepStrictEqual(source.message, message);
+}
+function legacyOutcomeForAssistant(assistant, branchEntries, activeEntryIds) {
+  const callNames = new Map();
+  for (const part of assistant.message?.content ?? []) {
+    if (part?.type === "toolCall" && typeof part.id === "string" && typeof part.name === "string") {
+      callNames.set(part.id, part.name);
+    }
+  }
+  if (callNames.size === 0) return { repairableCallIds: [], unavailableCallIds: [] };
+  const matchesByCall = new Map();
+  for (const entry of branchEntries) {
+    if (
+      entry.type !== "message" ||
+      entry.message?.role !== "toolResult" ||
+      typeof entry.message.toolCallId !== "string" ||
+      !callNames.has(entry.message.toolCallId)
+    ) {
+      continue;
+    }
+    const matches = matchesByCall.get(entry.message.toolCallId) ?? [];
+    matches.push(entry);
+    matchesByCall.set(entry.message.toolCallId, matches);
+  }
+  const repairableCallIds = [];
+  const unavailableCallIds = [];
+  for (const [callId, callName] of callNames) {
+    const matches = matchesByCall.get(callId) ?? [];
+    if (matches.length === 0) {
+      repairableCallIds.push(callId);
+      continue;
+    }
+    if (matches.length !== 1) {
+      unavailableCallIds.push(callId);
+      continue;
+    }
+    const result = matches[0];
+    if (result.message.toolName !== callName || typeof result.id !== "string" || !activeEntryIds.has(result.id)) {
+      unavailableCallIds.push(callId);
+    }
+  }
+  return { repairableCallIds, unavailableCallIds };
 }
 function projectionSourceForCandidate(candidate) {
   return {
@@ -139,6 +203,11 @@ function projectionSourceForCandidate(candidate) {
     profile: candidate.profile,
     kind: candidate.kind,
     ...(candidate.blockId ? { blockId: candidate.blockId } : {}),
+    ...(candidate.legacyBaseline === true ? { legacyBaseline: true } : {}),
+    ...(candidate.legacyRepairableCallIds ? { legacyRepairableCallIds: [...candidate.legacyRepairableCallIds] } : {}),
+    ...(candidate.legacyOutcomeUnavailableCallIds
+      ? { legacyOutcomeUnavailableCallIds: [...candidate.legacyOutcomeUnavailableCallIds] }
+      : {}),
   };
 }
 function exposureSourceForCandidate(candidate) {
@@ -278,10 +347,83 @@ export class CognitiveRoutingProjectionCoordinator {
   operationRevision = 0;
   exposureGeneration = 0;
   failure;
+  failureDiagnostic;
+  diagnosticOperationId;
+  diagnosticReports = new Map();
   constructor(options) {
     this.options = options;
     this.idFactory = options.idFactory ?? (() => randomUUID());
     this.operationIdFactory = options.operationIdFactory ?? (() => randomUUID());
+  }
+  diagnostic(draft) {
+    return {
+      version: 1,
+      kind: "projection-failure",
+      ...draft,
+      message: boundedDiagnosticMessage(draft.message),
+    };
+  }
+  setFailure(reason, diagnostic) {
+    this.failure = this.failure ?? reason;
+    this.failureDiagnostic = this.failureDiagnostic ?? diagnostic;
+  }
+  reportDiagnostic(ctx, diagnostic) {
+    if (!this.options.onDiagnostic) return undefined;
+    const key = [
+      diagnostic.stage,
+      diagnostic.code,
+      diagnostic.operationId ?? "",
+      diagnostic.ref ?? "",
+      diagnostic.role ?? "",
+      diagnostic.position ?? "",
+    ].join("|");
+    const existing = this.diagnosticReports.get(key);
+    if (existing) return existing;
+    let delivery = {
+      persisted: false,
+      notificationAvailable: false,
+      notificationAttempted: false,
+    };
+    try {
+      const observed = this.options.onDiagnostic(diagnostic, ctx);
+      if (observed) delivery = observed;
+    } catch (error) {
+      delivery = {
+        ...delivery,
+        notificationError: error instanceof Error ? error.message : String(error),
+      };
+    }
+    const report = { diagnostic, delivery };
+    this.diagnosticReports.set(key, report);
+    return report;
+  }
+  reportFailure(ctx) {
+    if (!this.failure) return undefined;
+    const diagnostic =
+      this.failureDiagnostic ??
+      this.diagnostic({
+        code: this.failure,
+        stage: "context_assembly",
+        message: this.failure,
+        modelState: "unknown",
+      });
+    return this.reportDiagnostic(ctx, diagnostic);
+  }
+  blocked(ctx, reason, stage, modelState = "unchanged", fields = {}) {
+    const report = this.reportDiagnostic(
+      ctx,
+      this.diagnostic({
+        code: reason,
+        stage,
+        message: reason,
+        modelState,
+        ...((fields.operationId ?? this.diagnosticOperationId)
+          ? { operationId: fields.operationId ?? this.diagnosticOperationId }
+          : {}),
+        ...fields,
+      }),
+    );
+    return { status: "blocked", reason, ...(report ? { diagnostic: report } : {}) };
   }
   reset() {
     this.registry.clear();
@@ -296,6 +438,9 @@ export class CognitiveRoutingProjectionCoordinator {
     this.operationRevision = 0;
     this.exposureGeneration = 0;
     this.failure = undefined;
+    this.failureDiagnostic = undefined;
+    this.diagnosticOperationId = undefined;
+    this.diagnosticReports.clear();
   }
   lineageFor(ctx) {
     const sessionId = sessionIdFor(ctx);
@@ -318,6 +463,7 @@ export class CognitiveRoutingProjectionCoordinator {
   }
   async turnStart(ctx) {
     this.exposureSnapshot = undefined;
+    this.diagnosticOperationId = undefined;
     const state = routingState(this.options);
     const eligible = attributionEnabled(this.options) && state?.effective === true && state.activeProfile;
     if (!eligible) {
@@ -327,7 +473,15 @@ export class CognitiveRoutingProjectionCoordinator {
     const automatic = state.controlMode === "automatic";
     if (!automatic) this.reset();
     if (this.capturedTurn) {
-      this.failure = "turn_previous_unresolved";
+      this.setFailure(
+        "turn_previous_unresolved",
+        this.diagnostic({
+          code: "turn_previous_unresolved",
+          stage: "context_assembly",
+          message: "The previous Cognitive Routing turn did not reach a safe boundary.",
+          modelState: "unknown",
+        }),
+      );
       return;
     }
     const lineage = this.lineageFor(ctx);
@@ -339,18 +493,35 @@ export class CognitiveRoutingProjectionCoordinator {
         this.capturedTurn = undefined;
         return;
       }
-      this.failure = !sessionId
+      const reason = !sessionId
         ? "session_identity_unavailable"
         : !branchEntries
           ? "branch_entries_unavailable"
           : !activeEntries
             ? "active_context_entries_unavailable"
             : "session_lineage_unavailable";
+      this.setFailure(
+        reason,
+        this.diagnostic({
+          code: reason,
+          stage: "context_assembly",
+          message: reason,
+          modelState: "unchanged",
+        }),
+      );
       return;
     }
     const hydrated = this.registry.hydrate(sessionId, branchEntries, lineage.inheritedSessionIds, lineage.available);
     if (hydrated.status === "unavailable") {
-      this.failure = hydrated.reason;
+      this.setFailure(
+        hydrated.reason,
+        this.diagnostic({
+          code: hydrated.reason,
+          stage: "selection_validation",
+          message: hydrated.reason,
+          modelState: "unchanged",
+        }),
+      );
       return;
     }
     this.restorePersistedSelection(sessionId, branchEntries, activeEntries, lineage);
@@ -374,17 +545,43 @@ export class CognitiveRoutingProjectionCoordinator {
           entryIds,
         });
       } catch (error) {
-        this.failure = error instanceof Error ? error.message : String(error);
+        const reason = error instanceof Error ? error.message : String(error);
+        this.setFailure(
+          reason,
+          this.diagnostic({
+            code: reason,
+            stage: "baseline_persistence",
+            message: reason,
+            modelState: "unchanged",
+          }),
+        );
         return;
       }
       branchEntries = branchEntriesFor(ctx);
       activeEntries = activeEntriesFor(ctx);
       if (!branchEntries || !activeEntries) {
-        this.failure = !branchEntries ? "branch_entries_unavailable" : "active_context_entries_unavailable";
+        const reason = !branchEntries ? "branch_entries_unavailable" : "active_context_entries_unavailable";
+        this.setFailure(
+          reason,
+          this.diagnostic({
+            code: reason,
+            stage: "baseline_persistence",
+            message: reason,
+            modelState: "unchanged",
+          }),
+        );
         return;
       }
       if (this.latestBaselineIndex(sessionId, branchEntries, lineage) === undefined) {
-        this.failure = "baseline_persistence_unconfirmed";
+        this.setFailure(
+          "baseline_persistence_unconfirmed",
+          this.diagnostic({
+            code: "baseline_persistence_unconfirmed",
+            stage: "baseline_persistence",
+            message: "The baseline write did not become observable on the active branch.",
+            modelState: "unchanged",
+          }),
+        );
         return;
       }
       const rehydrated = this.registry.hydrate(
@@ -394,7 +591,15 @@ export class CognitiveRoutingProjectionCoordinator {
         lineage.available,
       );
       if (rehydrated.status === "unavailable") {
-        this.failure = rehydrated.reason;
+        this.setFailure(
+          rehydrated.reason,
+          this.diagnostic({
+            code: rehydrated.reason,
+            stage: "selection_validation",
+            message: rehydrated.reason,
+            modelState: "unchanged",
+          }),
+        );
         return;
       }
       this.restorePersistedSelection(sessionId, branchEntries, activeEntries, lineage);
@@ -407,7 +612,15 @@ export class CognitiveRoutingProjectionCoordinator {
       }
       blockId = this.activeBlock.blockId;
     } catch {
-      this.failure = "block_identity_unavailable";
+      this.setFailure(
+        "block_identity_unavailable",
+        this.diagnostic({
+          code: "block_identity_unavailable",
+          stage: "attribution",
+          message: "A stable Cognitive Routing block identity could not be created.",
+          modelState: "unchanged",
+        }),
+      );
       return;
     }
     this.capturedTurn = {
@@ -469,6 +682,7 @@ export class CognitiveRoutingProjectionCoordinator {
         this.failure ?? "turn_capture_unavailable",
         messages,
         cancellationRequired,
+        this.failure !== undefined,
       );
     }
     const lineage = this.lineageFor(ctx);
@@ -525,13 +739,14 @@ export class CognitiveRoutingProjectionCoordinator {
       if (!laneEnabled) return this.annotateFullContext(sessionId, messages, branchEntries, activeEntries);
       return this.projectReasoningTurn(ctx, messages, branchEntries, activeEntries);
     }
-    return this.exposeStandardSources(messages, turn, branchEntries, activeEntries);
+    return this.exposeStandardSources(ctx, messages, turn, branchEntries, activeEntries);
   }
   async turnEnd(ctx, event) {
     const turn = this.capturedTurn;
     if (!turn) return { status: "ignored" };
     if (this.failure) {
       const reason = this.failure;
+      const diagnostic = this.reportFailure(ctx);
       this.capturedTurn = undefined;
       if (
         enabled(this.options) &&
@@ -540,7 +755,7 @@ export class CognitiveRoutingProjectionCoordinator {
       ) {
         this.abort(ctx);
       }
-      return { status: "unavailable", reason };
+      return { status: "unavailable", reason, ...(diagnostic ? { diagnostic } : {}) };
     }
     const lineage = this.lineageFor(ctx);
     const sessionId = lineage?.currentSessionId;
@@ -555,7 +770,16 @@ export class CognitiveRoutingProjectionCoordinator {
               : "turn_session_changed"
           : "branch_entries_unavailable"
         : "session_identity_unavailable";
-      this.failure = reason;
+      this.setFailure(
+        reason,
+        this.diagnostic({
+          code: reason,
+          stage: "context_assembly",
+          message: reason,
+          modelState: "unknown",
+        }),
+      );
+      const diagnostic = this.reportFailure(ctx);
       this.capturedTurn = undefined;
       if (
         enabled(this.options) &&
@@ -564,11 +788,20 @@ export class CognitiveRoutingProjectionCoordinator {
       ) {
         this.abort(ctx);
       }
-      return { status: "unavailable", reason };
+      return { status: "unavailable", reason, ...(diagnostic ? { diagnostic } : {}) };
     }
     const hydrated = this.registry.hydrate(sessionId, branchEntries, lineage.inheritedSessionIds, lineage.available);
     if (hydrated.status === "unavailable") {
-      this.failure = hydrated.reason;
+      this.setFailure(
+        hydrated.reason,
+        this.diagnostic({
+          code: hydrated.reason,
+          stage: "selection_validation",
+          message: hydrated.reason,
+          modelState: "unknown",
+        }),
+      );
+      const diagnostic = this.reportFailure(ctx);
       this.capturedTurn = undefined;
       if (
         enabled(this.options) &&
@@ -577,7 +810,7 @@ export class CognitiveRoutingProjectionCoordinator {
       ) {
         this.abort(ctx);
       }
-      return { status: "unavailable", reason: hydrated.reason };
+      return { status: "unavailable", reason: hydrated.reason, ...(diagnostic ? { diagnostic } : {}) };
     }
     const reconciliation = this.registry.reconcileTurn({
       sessionId,
@@ -586,7 +819,16 @@ export class CognitiveRoutingProjectionCoordinator {
       toolResults: event?.toolResults ?? [],
     });
     if (reconciliation.status === "unavailable") {
-      this.failure = reconciliation.reason;
+      this.setFailure(
+        reconciliation.reason,
+        this.diagnostic({
+          code: reconciliation.reason,
+          stage: "attribution",
+          message: reconciliation.reason,
+          modelState: this.pendingSelection ? "changed" : "unknown",
+        }),
+      );
+      const diagnostic = this.reportFailure(ctx);
       this.capturedTurn = undefined;
       if (
         enabled(this.options) &&
@@ -595,7 +837,7 @@ export class CognitiveRoutingProjectionCoordinator {
       ) {
         this.abort(ctx);
       }
-      return { status: "unavailable", reason: reconciliation.reason };
+      return { status: "unavailable", reason: reconciliation.reason, ...(diagnostic ? { diagnostic } : {}) };
     }
     if (reconciliation.status === "already_attributed") {
       this.capturedTurn = undefined;
@@ -605,7 +847,16 @@ export class CognitiveRoutingProjectionCoordinator {
       await this.persistSourceJournal(turn, reconciliation);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      this.failure = reason;
+      this.setFailure(
+        reason,
+        this.diagnostic({
+          code: reason,
+          stage: "attribution",
+          message: reason,
+          modelState: this.pendingSelection ? "changed" : "unknown",
+        }),
+      );
+      const diagnostic = this.reportFailure(ctx);
       this.exposureSnapshot = undefined;
       this.capturedTurn = undefined;
       if (
@@ -615,15 +866,25 @@ export class CognitiveRoutingProjectionCoordinator {
       ) {
         this.abort(ctx);
       }
-      return { status: "unavailable", reason };
+      return { status: "unavailable", reason, ...(diagnostic ? { diagnostic } : {}) };
     }
     if (turn.profile === "standard" && this.pendingSelection) {
       const completionError = await this.commitPendingSelection(reconciliation, branchEntries, ctx);
       if (completionError) {
-        this.failure = completionError;
+        this.setFailure(
+          completionError,
+          this.diagnostic({
+            code: completionError,
+            stage: "transition",
+            message: completionError,
+            modelState: "changed",
+            ...(this.operation?.operationId ? { operationId: this.operation.operationId } : {}),
+          }),
+        );
+        const diagnostic = this.reportFailure(ctx);
         this.capturedTurn = undefined;
         this.abort(ctx);
-        return { status: "unavailable", reason: completionError };
+        return { status: "unavailable", reason: completionError, ...(diagnostic ? { diagnostic } : {}) };
       }
     }
     this.capturedTurn = undefined;
@@ -645,55 +906,65 @@ export class CognitiveRoutingProjectionCoordinator {
     return this.operation ? cloneOperation(this.operation) : undefined;
   }
   async switchProfile(input) {
+    this.diagnosticOperationId = input.toolCallId;
     const projectionSupplied = input.projection !== undefined;
     if (input.target !== "standard" && input.target !== "reasoning") {
-      return { status: "blocked", reason: "target_invalid" };
+      return this.blocked(input.ctx, "target_invalid", "selection_validation");
     }
     if (input.target !== "reasoning") {
-      if (projectionSupplied) return { status: "blocked", reason: "projection_target_must_be_reasoning" };
+      if (projectionSupplied) {
+        return this.blocked(input.ctx, "projection_target_must_be_reasoning", "selection_validation");
+      }
       return input.controller.switchAutomaticProfile(input.target, input.reason);
     }
     if (!enabled(this.options)) {
-      if (projectionSupplied) return { status: "blocked", reason: "projection_unavailable" };
+      if (projectionSupplied) return this.blocked(input.ctx, "projection_unavailable", "selection_validation");
       return input.controller.switchAutomaticProfile("reasoning", input.reason);
     }
     const current = input.controller.state();
-    if (!current.effective || current.controlMode !== "automatic") return { status: "blocked", reason: "not_active" };
+    if (!current.effective || current.controlMode !== "automatic") {
+      return this.blocked(input.ctx, "not_active", "selection_validation");
+    }
     if (!projectionSupplied && current.activeProfile === "reasoning") {
       return input.controller.switchAutomaticProfile("reasoning", input.reason);
     }
-    if (current.activeProfile !== "standard") return { status: "blocked", reason: "profile_not_standard" };
+    if (current.activeProfile !== "standard")
+      return this.blocked(input.ctx, "profile_not_standard", "selection_validation");
     const exposure = this.exposureSnapshot;
-    if (!exposure || exposure.profile !== "standard") return { status: "blocked", reason: "exposure_unavailable" };
+    if (!exposure || exposure.profile !== "standard") {
+      return this.blocked(input.ctx, "exposure_unavailable", "selection_validation");
+    }
     if (!this.activeBlock || this.activeBlock.blockId !== exposure.blockId) {
-      return { status: "blocked", reason: "exposure_block_changed" };
+      return this.blocked(input.ctx, "exposure_block_changed", "selection_validation");
     }
     const sessionId = sessionIdFor(input.ctx);
     const branchEntries = branchEntriesFor(input.ctx);
     const activeEntries = activeEntriesFor(input.ctx);
     if (!sessionId || !branchEntries || !activeEntries) {
-      return {
-        status: "blocked",
-        reason: !sessionId
-          ? "session_identity_unavailable"
-          : !branchEntries
-            ? "branch_entries_unavailable"
-            : "active_context_entries_unavailable",
-      };
+      const reason = !sessionId
+        ? "session_identity_unavailable"
+        : !branchEntries
+          ? "branch_entries_unavailable"
+          : "active_context_entries_unavailable";
+      return this.blocked(input.ctx, reason, "selection_validation");
     }
-    if (sessionId !== exposure.sessionId) return { status: "blocked", reason: "exposure_session_changed" };
+    if (sessionId !== exposure.sessionId) {
+      return this.blocked(input.ctx, "exposure_session_changed", "selection_validation");
+    }
     const handoff = this.registry.resolveSwitchHandoff({ sessionId, branchEntries, toolCallId: input.toolCallId });
-    if (handoff.status === "unavailable") return { status: "blocked", reason: `handoff_${handoff.reason}` };
+    if (handoff.status === "unavailable") {
+      return this.blocked(input.ctx, `handoff_${handoff.reason}`, "selection_validation");
+    }
     const handoffEntry = branchEntries.find((entry) => entry.type === "message" && entry.id === handoff.source.entryId);
     if (!handoffEntry || !hasAssistantText(handoffEntry.message)) {
-      return { status: "blocked", reason: "switch_return_text_missing" };
+      return this.blocked(input.ctx, "switch_return_text_missing", "selection_validation");
     }
     const include = normalizeProjectionRefs(input.projection?.include ?? []);
     const shared = normalizeProjectionRefs(input.projection?.shared ?? []);
-    if (include.status === "invalid") return { status: "blocked", reason: include.reason };
-    if (shared.status === "invalid") return { status: "blocked", reason: shared.reason };
+    if (include.status === "invalid") return this.blocked(input.ctx, include.reason, "selection_validation");
+    if (shared.status === "invalid") return this.blocked(input.ctx, shared.reason, "selection_validation");
     if (new Set([...include.refs, ...shared.refs]).size !== include.refs.length + shared.refs.length) {
-      return { status: "blocked", reason: "projection_ref_duplicate" };
+      return this.blocked(input.ctx, "projection_ref_duplicate", "selection_validation");
     }
     const exposureError = this.validateExposedRefs(
       exposure,
@@ -703,12 +974,24 @@ export class CognitiveRoutingProjectionCoordinator {
       include.refs,
       shared.refs,
     );
-    if (exposureError) return { status: "blocked", reason: exposureError };
+    if (exposureError) {
+      const reason = typeof exposureError === "string" ? exposureError : exposureError.reason;
+      const fields =
+        typeof exposureError === "string"
+          ? {}
+          : {
+              ...(exposureError.ref ? { ref: exposureError.ref } : {}),
+              ...(exposureError.role ? { role: exposureError.role } : {}),
+              ...(exposureError.customType ? { customType: exposureError.customType } : {}),
+              ...(exposureError.position === undefined ? {} : { position: exposureError.position }),
+            };
+      return this.blocked(input.ctx, reason, "selection_validation", "unchanged", fields);
+    }
     let operationId;
     try {
       operationId = this.operationIdFactory();
     } catch {
-      return { status: "blocked", reason: "operation_identity_unavailable" };
+      return this.blocked(input.ctx, "operation_identity_unavailable", "selection_validation");
     }
     const pending = {
       version: 1,
@@ -739,7 +1022,13 @@ export class CognitiveRoutingProjectionCoordinator {
       transitionedState.controlMode !== "automatic" ||
       transitionedState.activeProfile !== "reasoning"
     ) {
-      return { status: "blocked", reason: "projection_transition_failed" };
+      const modelState =
+        transitionedState.activeProfile === "reasoning"
+          ? "changed"
+          : transition.status === "inactive"
+            ? "unknown"
+            : "unchanged";
+      return this.blocked(input.ctx, "projection_transition_failed", "transition", modelState, { operationId });
     }
     this.pendingSelection = pending;
     this.operation = pending;
@@ -764,7 +1053,15 @@ export class CognitiveRoutingProjectionCoordinator {
       if (entry.type !== "custom" || entry.customType !== COGNITIVE_ROUTING_PROJECTION_ENTRY) continue;
       const parsed = parsePersistedSelection(entry.data, sessionId, lineage);
       if (parsed.status === "invalid") {
-        this.failure = parsed.reason;
+        this.setFailure(
+          parsed.reason,
+          this.diagnostic({
+            code: parsed.reason,
+            stage: "selection_validation",
+            message: parsed.reason,
+            modelState: "unchanged",
+          }),
+        );
         return;
       }
       const recordError = validatePersistedSelectionRecord(
@@ -775,7 +1072,15 @@ export class CognitiveRoutingProjectionCoordinator {
         this.registry,
       );
       if (recordError) {
-        this.failure = recordError;
+        this.setFailure(
+          recordError,
+          this.diagnostic({
+            code: recordError,
+            stage: "selection_validation",
+            message: recordError,
+            modelState: "unchanged",
+          }),
+        );
         return;
       }
       const historical = this.registry.hasAttributedProfileAfter(
@@ -861,19 +1166,23 @@ export class CognitiveRoutingProjectionCoordinator {
     const includeSet = new Set(include);
     for (const ref of [...include, ...shared]) {
       const source = exposed.get(ref);
-      if (!source) return `projection_ref_not_exposed:${ref}`;
+      if (!source) return { status: "rejected", reason: `projection_ref_not_exposed:${ref}`, ref };
       if (includeSet.has(ref)) {
-        if (source.profile !== "standard") return `include_ref_not_standard:${ref}`;
+        if (source.profile !== "standard") {
+          return { status: "rejected", reason: `include_ref_not_standard:${ref}`, ref };
+        }
         if (typeof source.blockId !== "string" || source.blockId.length === 0) {
-          return `include_ref_block_unavailable:${ref}`;
+          return { status: "rejected", reason: `include_ref_block_unavailable:${ref}`, ref };
         }
       }
       const entry = branchEntries.find(
         (candidate) => candidate.type === "message" && candidate.id === source.source.entryId,
       );
       const attribution = this.registry.attributionForEntry(sessionId, source.source.entryId);
-      if (!entry || !attribution) return `projection_ref_missing:${ref}`;
-      if (!isDeepStrictEqual(entry.message, attribution.message)) return `projection_ref_changed:${ref}`;
+      if (!entry || !attribution) return { status: "rejected", reason: `projection_ref_missing:${ref}`, ref };
+      if (!isDeepStrictEqual(entry.message, attribution.message)) {
+        return { status: "rejected", reason: `projection_ref_changed:${ref}`, ref };
+      }
     }
     if (!this.standardContext) return "projection_context_unavailable";
     const preflightSources = this.sourcesForBranch(sessionId, branchEntries, activeEntries);
@@ -886,8 +1195,16 @@ export class CognitiveRoutingProjectionCoordinator {
       shared: uniqueRefs(this.committedSelection.shared, [...shared]),
       previous: this.committedSelection.include,
       required: [],
+      legacyBaselineRefs: preflightSources.sources
+        .filter((source) => source.legacyBaseline === true)
+        .map((source) => sourceRef(source.source.entryId)),
     });
-    if (preflight.status === "rejected") return `projection_dependency_invalid:${preflight.reason}`;
+    if (preflight.status === "rejected") {
+      return {
+        ...preflight,
+        reason: `projection_dependency_invalid:${preflight.reason}`,
+      };
+    }
     return undefined;
   }
   projectReasoningTurn(ctx, messages, branchEntries, activeEntries) {
@@ -898,7 +1215,7 @@ export class CognitiveRoutingProjectionCoordinator {
       return this.rejectProjectedContext(ctx, sourceResult.reason, messages, true);
     const sources = sourceResult.sources;
     const baselineRefs = sources
-      .filter((source) => source.profile === "unknown")
+      .filter((source) => source.legacyBaseline === true)
       .map((source) => sourceRef(source.source.entryId));
     const projected = projectReasoningContext({
       sessionId,
@@ -908,8 +1225,9 @@ export class CognitiveRoutingProjectionCoordinator {
       shared: this.committedSelection.shared,
       previous: this.committedSelection.include,
       required: uniqueRefs(this.committedSelection.required, baselineRefs),
+      legacyBaselineRefs: baselineRefs,
     });
-    if (projected.status === "rejected") return this.rejectProjectedContext(ctx, projected.reason, messages, true);
+    if (projected.status === "rejected") return this.rejectProjectedContext(ctx, projected, messages, true);
     const annotated = this.annotateMessages(projected.messages, sources, new Set(projected.visibleRefs));
     return { messages: annotated, changed: true };
   }
@@ -921,7 +1239,7 @@ export class CognitiveRoutingProjectionCoordinator {
     );
     return {
       status: "available",
-      sources: this.projectionCandidates(sessionId, activeEntries, attributionsByEntryId, true).map(
+      sources: this.projectionCandidates(sessionId, activeEntries, attributionsByEntryId, true, branchEntries).map(
         projectionSourceForCandidate,
       ),
     };
@@ -942,18 +1260,33 @@ export class CognitiveRoutingProjectionCoordinator {
       return appendContextAnnotations(message, candidate, this.ownedAnnotations);
     });
   }
-  exposeStandardSources(messages, turn, branchEntries, activeEntries) {
+  exposeStandardSources(ctx, messages, turn, branchEntries, activeEntries) {
     this.standardContext = [...messages];
     const branchAttributions = this.registry.attributionsForBranch(turn.sessionId, branchEntries);
     if (branchAttributions.status === "unavailable") {
-      this.failure = branchAttributions.reason;
+      this.setFailure(
+        branchAttributions.reason,
+        this.diagnostic({
+          code: branchAttributions.reason,
+          stage: "attribution",
+          message: branchAttributions.reason,
+          modelState: "unchanged",
+        }),
+      );
       this.exposureSnapshot = undefined;
-      return { messages: [...messages], changed: false };
+      const diagnostic = this.reportFailure(ctx);
+      return { messages: [...messages], changed: false, ...(diagnostic ? { diagnostic } : {}) };
     }
     const attributionsByEntryId = new Map(
       branchAttributions.attributions.map((attribution) => [attribution.source.entryId, attribution]),
     );
-    const candidates = this.projectionCandidates(turn.sessionId, activeEntries, attributionsByEntryId, false);
+    const candidates = this.projectionCandidates(
+      turn.sessionId,
+      activeEntries,
+      attributionsByEntryId,
+      false,
+      branchEntries,
+    );
     const projectedMessages = [...messages];
     const visibleRefs = [];
     const exposedSources = [];
@@ -962,17 +1295,40 @@ export class CognitiveRoutingProjectionCoordinator {
       const message = messages[index];
       const matches = candidates.filter((candidate) => sourceMatches(message, candidate));
       if (matches.length > 1) {
-        this.failure = "visible_source_ambiguous";
+        this.setFailure(
+          "visible_source_ambiguous",
+          this.diagnostic({
+            code: "visible_source_ambiguous",
+            stage: "attribution",
+            message: "More than one persisted source matched a visible context message.",
+            modelState: "unchanged",
+            position: index,
+            ...(typeof message?.role === "string" ? { role: message.role } : {}),
+            ...(typeof message?.customType === "string" ? { customType: message.customType } : {}),
+          }),
+        );
         this.exposureSnapshot = undefined;
-        return { messages: [...messages], changed: false };
+        const diagnostic = this.reportFailure(ctx);
+        return { messages: [...messages], changed: false, ...(diagnostic ? { diagnostic } : {}) };
       }
       if (matches.length === 0) continue;
       const candidate = matches[0];
       const sourceKey = `${candidate.source.sessionId}:${candidate.source.entryId}`;
       if (usedSourceIds.has(sourceKey)) {
-        this.failure = "visible_source_reused";
+        this.setFailure(
+          "visible_source_reused",
+          this.diagnostic({
+            code: "visible_source_reused",
+            stage: "attribution",
+            message: "One persisted source matched more than one visible context message.",
+            modelState: "unchanged",
+            ref: sourceRef(candidate.source.entryId),
+            position: index,
+          }),
+        );
         this.exposureSnapshot = undefined;
-        return { messages: [...messages], changed: false };
+        const diagnostic = this.reportFailure(ctx);
+        return { messages: [...messages], changed: false, ...(diagnostic ? { diagnostic } : {}) };
       }
       usedSourceIds.add(sourceKey);
       const outcome = projectContextSource({
@@ -1002,9 +1358,29 @@ export class CognitiveRoutingProjectionCoordinator {
       changed: projectedMessages.some((message, index) => message !== messages[index]),
     };
   }
-  projectionCandidates(sessionId, activeEntries, attributionsByEntryId, includeSummaries) {
+  projectionCandidates(
+    sessionId,
+    activeEntries,
+    attributionsByEntryId,
+    includeSummaries,
+    branchEntries = activeEntries,
+  ) {
     const candidates = [];
+    const activeEntryIds = new Set(activeEntries.flatMap((entry) => (typeof entry.id === "string" ? [entry.id] : [])));
     for (const entry of activeEntries) {
+      if (entry.type === "custom_message" && typeof entry.id === "string" && typeof entry.customType === "string") {
+        const message = sessionEntryToContextMessages(entry)[0];
+        if (message?.role === "custom" && message.customType === entry.customType) {
+          candidates.push({
+            entry: { ...entry, message },
+            message,
+            source: { sessionId, entryId: entry.id },
+            profile: "shared",
+            kind: "custom",
+          });
+        }
+        continue;
+      }
       if (entry.type === "message" && typeof entry.id === "string" && entry.message !== undefined) {
         const attribution = attributionsByEntryId.get(entry.id);
         if (attribution) {
@@ -1015,6 +1391,20 @@ export class CognitiveRoutingProjectionCoordinator {
             profile: attribution.profile,
             kind: attribution.kind,
             blockId: attribution.blockId,
+            legacyBaseline: this.registry.isUnknownBaselineEntry(sessionId, entry.id),
+            ...(this.registry.isUnknownBaselineEntry(sessionId, entry.id)
+              ? (() => {
+                  const legacyOutcome = legacyOutcomeForAssistant(entry, branchEntries, activeEntryIds);
+                  return {
+                    ...(legacyOutcome.repairableCallIds.length > 0
+                      ? { legacyRepairableCallIds: legacyOutcome.repairableCallIds }
+                      : {}),
+                    ...(legacyOutcome.unavailableCallIds.length > 0
+                      ? { legacyOutcomeUnavailableCallIds: legacyOutcome.unavailableCallIds }
+                      : {}),
+                  };
+                })()
+              : {}),
           });
         } else if (entry.message?.role === "user") {
           candidates.push({
@@ -1041,10 +1431,44 @@ export class CognitiveRoutingProjectionCoordinator {
     }
     return candidates;
   }
-  rejectProjectedContext(ctx, reason, messages, abort) {
-    this.failure = this.failure ?? reason;
+  contextDiagnostic(rejection, messages) {
+    const role = rejection.role;
+    const position = rejection.position;
+    const candidate = position !== undefined && position >= 0 ? messages[position] : undefined;
+    const message = role ? `No verifiable source was associated with the ${role} context message.` : rejection.reason;
+    return this.diagnostic({
+      code: rejection.reason,
+      stage: "context_assembly",
+      message,
+      modelState: "unknown",
+      ...(rejection.ref ? { ref: rejection.ref } : {}),
+      ...(role ? { role } : {}),
+      ...((rejection.customType ?? candidate?.customType)
+        ? { customType: rejection.customType ?? candidate?.customType }
+        : {}),
+      ...(position === undefined ? {} : { position }),
+    });
+  }
+  rejectProjectedContext(ctx, rejectionOrReason, messages, abort, latchFailure = true) {
+    const rejection =
+      typeof rejectionOrReason === "string" ? { status: "rejected", reason: rejectionOrReason } : rejectionOrReason;
+    const reason = rejection.reason;
+    const contextDiagnostic = this.contextDiagnostic(rejection, messages);
+    if (!this.failure && latchFailure) {
+      this.setFailure(
+        reason,
+        this.pendingSelection || this.operation?.phase === "committed"
+          ? { ...contextDiagnostic, modelState: "changed" }
+          : contextDiagnostic,
+      );
+    }
+    const diagnostic = this.failure ? this.reportFailure(ctx) : this.reportDiagnostic(ctx, contextDiagnostic);
     if (abort) this.abort(ctx);
-    return { messages: messages, changed: false };
+    return {
+      messages: messages,
+      changed: false,
+      ...(diagnostic ? { diagnostic } : {}),
+    };
   }
   abort(ctx) {
     try {

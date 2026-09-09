@@ -51,6 +51,52 @@ test("reads history without requiring an idle Pi or mutating the controller", as
   assert.equal(context.notifications[0].level, "info");
 });
 
+test("renders transition scope separately from projection health", async () => {
+  const context = createContext();
+  context.history = () => ({
+    status: "available",
+    scope: "active-branch",
+    current: { control: "automatic", profile: "standard" },
+    summary: { scope: "active-branch", unresolvedCount: 0, anomalyCount: 0 },
+    events: [],
+    projection: {
+      scope: "active-branch",
+      status: "available",
+      summary: { scope: "active-branch", diagnosticCount: 1, invalidCount: 0 },
+      diagnostics: [],
+    },
+  });
+
+  assert.equal(await handleCognitiveRoutingProfileCommand("profile history active", context, undefined), true);
+  assert.match(context.notifications[0].message, /Cognitive Routing history \(transition · active-branch\)/);
+  assert.match(context.notifications[0].message, /Projection health \(active-branch\): available/);
+  assert.match(context.notifications[0].message, /diagnostics=1/);
+});
+
+test("reports unavailable transition history without presenting zero counts as success", async () => {
+  const context = createContext();
+  context.history = () => ({
+    status: "unavailable",
+    scope: "session",
+    reason: "session_read_failed",
+    current: { control: "unavailable", profile: "unavailable" },
+    summary: { scope: "session", unresolvedCount: 0, anomalyCount: 0 },
+    events: [],
+    projection: {
+      scope: "session",
+      status: "unavailable",
+      reason: "session_read_failed",
+      summary: { scope: "session", diagnosticCount: 0, invalidCount: 0 },
+      diagnostics: [],
+    },
+  });
+
+  assert.equal(await handleCognitiveRoutingProfileCommand("profile history", context, undefined), true);
+  assert.match(context.notifications[0].message, /history unavailable/);
+  assert.match(context.notifications[0].message, /session_read_failed/);
+  assert.equal(context.notifications[0].message.includes("unresolved=0"), false);
+});
+
 test("routes standard and reasoning to manual controller ownership", async () => {
   const calls = [];
   const controller = {

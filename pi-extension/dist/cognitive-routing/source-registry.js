@@ -66,6 +66,7 @@ export class CognitiveRoutingSourceRegistry {
   sources = new Map();
   attributions = new Map();
   conflicts = new Set();
+  baselineEntries = new Set();
   beginTurn(input) {
     if (this.activeTurn && !this.activeTurn.attributed) throw new Error("active_turn_unresolved");
     const baselineLeafId = input.branchEntries.at(-1)?.id;
@@ -225,6 +226,7 @@ export class CognitiveRoutingSourceRegistry {
     };
   }
   hydrate(sessionId, branchEntries, inheritedSessionIds = new Set(), lineageAvailable = true) {
+    this.baselineEntries.clear();
     const acceptedSessionIds = new Set([sessionId, ...inheritedSessionIds]);
     const entriesById = new Map();
     for (const entry of branchEntries) {
@@ -331,6 +333,7 @@ export class CognitiveRoutingSourceRegistry {
       prepared.push(...storedForJournal);
     }
     const preparedKeys = new Set(prepared.map((stored) => `${sessionId}:${stored.source.entryId}`));
+    const baselineEntries = new Set();
     for (const entry of branchEntries) {
       if (entry.type !== "custom" || entry.customType !== COGNITIVE_ROUTING_BASELINE_ENTRY) continue;
       const data = entry.data;
@@ -361,6 +364,7 @@ export class CognitiveRoutingSourceRegistry {
         if (preparedKeys.has(key)) continue;
         prepared.push(stored);
         preparedKeys.add(key);
+        baselineEntries.add(key);
       }
     }
     const preparedByKey = new Map();
@@ -388,6 +392,7 @@ export class CognitiveRoutingSourceRegistry {
     this.conflicts.clear();
     for (const [key, source] of nextSources) this.sources.set(key, source);
     for (const [key, attribution] of nextAttributions) this.attributions.set(key, attribution);
+    for (const key of baselineEntries) this.baselineEntries.add(key);
     return { status: "available", attributions: prepared };
   }
   hasAttributedProfileAfter(sessionId, branchEntries, afterEntryId, profile) {
@@ -407,6 +412,9 @@ export class CognitiveRoutingSourceRegistry {
   attributionForEntry(sessionId, entryId) {
     const attribution = this.attributions.get(`${sessionId}:${entryId}`);
     return attribution ? cloneAttribution(attribution) : undefined;
+  }
+  isUnknownBaselineEntry(sessionId, entryId) {
+    return this.baselineEntries.has(`${sessionId}:${entryId}`);
   }
   attributionsForBranch(sessionId, branchEntries, requestedEntryIds = []) {
     const branchById = new Map();
@@ -455,6 +463,7 @@ export class CognitiveRoutingSourceRegistry {
     this.sources.clear();
     this.attributions.clear();
     this.conflicts.clear();
+    this.baselineEntries.clear();
   }
   matchExpectedEntries(expected, candidates) {
     const used = new Set();

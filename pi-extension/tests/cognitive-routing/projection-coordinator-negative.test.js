@@ -11,6 +11,8 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import freeflowExtension from "../../dist/index.js";
+import { COGNITIVE_ROUTING_DIAGNOSTIC_ENTRY } from "../../dist/cognitive-routing/diagnostics.js";
+import { filterBootstrapMessage } from "../../dist/runtime/runtime-context.js";
 
 const SOURCE_ENTRY = "freeflow-cognitive-routing-source";
 const PROJECTION_ENTRY = "freeflow-cognitive-routing-projection";
@@ -121,6 +123,8 @@ async function runProjectionMode(mode) {
   let requestIndex = 0;
   let contextAbortStates = [];
   let faultCount = 0;
+  let diagnosticAppendAttempts = 0;
+  const preflightContexts = [];
   let canonicalBeforeProjection;
 
   process.env.PI_OFFLINE = "1";
@@ -252,7 +256,23 @@ async function runProjectionMode(mode) {
               },
             ]
           : []),
-        ...(mode === "context-mutation"
+        ...(mode === "preflight-unmatched"
+          ? [
+              (pi) => {
+                pi.on("context", (event) => {
+                  if (requestIndex < 4) return undefined;
+                  event.messages.push({
+                    role: "custom",
+                    customType: "unmatched-notification",
+                    content: [{ type: "text", text: "UNMATCHED_PREFLIGHT_NOTIFICATION" }],
+                  });
+                  preflightContexts.push(structuredClone(event.messages));
+                  return undefined;
+                });
+              },
+            ]
+          : []),
+        ...(mode === "context-mutation" || mode.startsWith("diagnostic-persistence-")
           ? [
               (pi) => {
                 pi.on("context", (event) => {
@@ -299,6 +319,27 @@ async function runProjectionMode(mode) {
     await resourceLoader.reload();
 
     sessionManager = SessionManager.inMemory(cwd);
+    if (mode.startsWith("diagnostic-persistence-")) {
+      const appendCustomEntry = sessionManager.appendCustomEntry.bind(sessionManager);
+      sessionManager.appendCustomEntry = (customType, data) => {
+        if (customType === COGNITIVE_ROUTING_DIAGNOSTIC_ENTRY) {
+          diagnosticAppendAttempts += 1;
+          if (mode === "diagnostic-persistence-throw") {
+            throw new Error("diagnostic persistence failed");
+          }
+          if (mode === "diagnostic-persistence-readback") return appendCustomEntry(customType, data);
+          return undefined;
+        }
+        return appendCustomEntry(customType, data);
+      };
+      if (mode === "diagnostic-persistence-readback") {
+        const getBranch = sessionManager.getBranch.bind(sessionManager);
+        sessionManager.getBranch = () =>
+          getBranch().filter(
+            (entry) => !(entry.type === "custom" && entry.customType === COGNITIVE_ROUTING_DIAGNOSTIC_ENTRY),
+          );
+      }
+    }
     const created = await createAgentSession({
       cwd,
       agentDir,
@@ -311,10 +352,13 @@ async function runProjectionMode(mode) {
     });
     session = created.session;
     const unsubscribeErrors = session.extensionRunner.onError((error) => extensionErrors.push(error));
+    let switchDefinitionExposesProjection;
     try {
       await session.bindExtensions({ mode: "print" });
       await session.prompt("start the projection negative case");
       await session.prompt("return the captured evidence");
+      const switchDefinition = session.getToolDefinition("freeflow_switch_profile");
+      switchDefinitionExposesProjection = Boolean(switchDefinition?.parameters?.properties?.projection);
     } finally {
       unsubscribeErrors();
       session.dispose();
@@ -326,8 +370,11 @@ async function runProjectionMode(mode) {
       observedContexts,
       contextAbortStates,
       faultCount,
+      diagnosticAppendAttempts,
+      preflightContexts,
       canonicalBeforeProjection,
       extensionErrors,
+      switchDefinitionExposesProjection,
       entries: sessionManager.getBranch(),
       sourceRecords: sessionManager
         .getBranch()
@@ -375,6 +422,36 @@ test("rejects a mixed valid and invalid selection without a Reasoning request", 
   );
   assert.equal(result.projectionRecords.length, 0);
   assert.equal(latestAssistant(result).content[0].text, "The selection stayed on Standard.");
+  const diagnostics = result.entries.filter(
+    (entry) => entry.type === "custom" && entry.customType === "freeflow-cognitive-routing-diagnostic",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].data.code, "projection_ref_not_exposed:ctx:missing");
+  assert.equal(diagnostics[0].data.stage, "selection_validation");
+  assert.equal(result.extensionErrors.length, 0);
+});
+
+test("preserves exact unmatched custom-message identity through selection preflight", async () => {
+  const result = await runProjectionMode("preflight-unmatched");
+  assert.deepEqual(
+    result.requests.map((body) => body.model),
+    ["gpt-4o", "gpt-4", "gpt-4", "gpt-4", "gpt-4", "gpt-4"],
+  );
+  assert.equal(result.projectionRecords.length, 0);
+  const diagnostics = result.entries.filter(
+    (entry) => entry.type === "custom" && entry.customType === "freeflow-cognitive-routing-diagnostic",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].data.code, "projection_dependency_invalid:source_not_found:custom");
+  assert.equal(diagnostics[0].data.role, "custom");
+  assert.equal(diagnostics[0].data.customType, "unmatched-notification");
+  const exactPosition = result.preflightContexts[0]
+    .map(filterBootstrapMessage)
+    .filter((message) => message !== undefined)
+    .findIndex((message) => message?.customType === "unmatched-notification");
+  assert.equal(exactPosition >= 0, true);
+  assert.equal(diagnostics[0].data.position, exactPosition);
+  assert.equal(diagnostics[0].data.ref, undefined);
   assert.equal(result.extensionErrors.length, 0);
 });
 
@@ -421,6 +498,21 @@ test("aborts when a preceding context extension transforms selected evidence", a
   assert.equal(result.projectionRecords.length, 1);
   assert.ok(["aborted", "error"].includes(latestAssistant(result).stopReason));
   assert.match(latestAssistant(result).errorMessage ?? "", /aborted/i);
+  const diagnostics = result.entries.filter(
+    (entry) => entry.type === "custom" && entry.customType === "freeflow-cognitive-routing-diagnostic",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].data.stage, "context_assembly");
+  assert.match(diagnostics[0].data.code, /source_not_found|projection_ref_changed/);
+  const failingPosition = result.observedContexts
+    .at(-1)
+    .findIndex((message) => JSON.stringify(message).includes("MUTATED_SELECTED"));
+  assert.equal(diagnostics[0].data.position, failingPosition);
+  assert.match(
+    result.observedContexts.at(-1).find((message) => message?.customType === "freeflow-runtime-state")?.content ?? "",
+    /Projection: `blocked`/,
+  );
+  assert.equal(result.switchDefinitionExposesProjection, false);
   assert.equal(result.extensionErrors.length, 0);
   const selected = result.entries.find(
     (entry) =>
@@ -440,6 +532,33 @@ test("aborts when a preceding context extension transforms selected evidence", a
   }
 });
 
+test("registered diagnostic persistence failures stay truthful and fail-closed", async () => {
+  for (const mode of [
+    "diagnostic-persistence-failure",
+    "diagnostic-persistence-throw",
+    "diagnostic-persistence-readback",
+  ]) {
+    const result = await runProjectionMode(mode);
+    assert.deepEqual(
+      result.requests.map((body) => body.model),
+      ["gpt-4o", "gpt-4", "gpt-4", "gpt-4", "gpt-4"],
+      mode,
+    );
+    assert.equal(result.diagnosticAppendAttempts, 1, mode);
+    assert.equal(
+      result.entries.some(
+        (entry) => entry.type === "custom" && entry.customType === "freeflow-cognitive-routing-diagnostic",
+      ),
+      false,
+      mode,
+    );
+    assert.equal(result.contextAbortStates.some(Boolean), true, mode);
+    assert.ok(["aborted", "error"].includes(latestAssistant(result).stopReason), mode);
+    assert.match(latestAssistant(result).errorMessage ?? "", /aborted/i, mode);
+    assert.equal(result.extensionErrors.length, 0, mode);
+  }
+});
+
 test("aborts when a persisted projection failure is present before Reasoning context assembly", async () => {
   const result = await runProjectionMode("recorded-failure");
   assert.deepEqual(
@@ -452,6 +571,12 @@ test("aborts when a persisted projection failure is present before Reasoning con
   assert.equal(result.projectionRecords.at(-1).data.status, "corrupt");
   assert.ok(["aborted", "error"].includes(latestAssistant(result).stopReason));
   assert.match(latestAssistant(result).errorMessage ?? "", /aborted/i);
+  const diagnostics = result.entries.filter(
+    (entry) => entry.type === "custom" && entry.customType === "freeflow-cognitive-routing-diagnostic",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].data.stage, "selection_validation");
+  assert.equal(diagnostics[0].data.code, "projection_record_unrecognized");
   assert.equal(result.extensionErrors.length, 0);
   for (const [entryId, beforeMessage] of result.canonicalBeforeProjection) {
     const afterEntry = result.entries.find((entry) => entry.id === entryId);

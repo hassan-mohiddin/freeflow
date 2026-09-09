@@ -39,11 +39,22 @@ function requestedRefs(input) {
       all.push(ref);
     }
   }
+  const explicit = [];
+  const explicitSeen = new Set();
+  for (const refs of [groups.include, groups.previous, groups.shared]) {
+    if (refs.status !== "ok") continue;
+    for (const ref of refs.refs) {
+      if (explicitSeen.has(ref)) continue;
+      explicitSeen.add(ref);
+      explicit.push(ref);
+    }
+  }
   return {
     include: groups.include.status === "ok" ? groups.include.refs : [],
     previous: groups.previous.status === "ok" ? groups.previous.refs : [],
     shared: groups.shared.status === "ok" ? groups.shared.refs : [],
     required: groups.required.status === "ok" ? groups.required.refs : [],
+    explicit,
     all,
   };
 }
@@ -63,11 +74,46 @@ function toolCalls(message) {
 function omittedToolResult(message) {
   return { ...message, content: [{ type: "text", text: "[context omitted]" }] };
 }
-function sourceMatches(message, source) {
-  return source.message !== undefined && (source.message === message || isDeepStrictEqual(source.message, message));
+function legacyUnknownToolResult(toolCallId, toolName) {
+  const message = {
+    role: "toolResult",
+    toolCallId,
+    toolName,
+    content: [
+      {
+        type: "text",
+        text: "No recorded result is available for this historical tool call; execution outcome is unknown.",
+      },
+    ],
+    isError: true,
+  };
+  return message;
 }
-function rejected(reason) {
-  return { status: "rejected", reason };
+function customMessageShape(message) {
+  if (!message || typeof message !== "object") return message;
+  const comparable = { ...message };
+  delete comparable.timestamp;
+  return comparable;
+}
+function customMessageTimestamp(value) {
+  if (typeof value === "number") return Number.isFinite(value);
+  return typeof value === "string" && !Number.isNaN(Date.parse(value));
+}
+function sourceMatches(message, source) {
+  if (source.message === undefined) return false;
+  if (source.kind === "custom" || message?.role === "custom" || source.message?.role === "custom") {
+    return (
+      source.message?.role === "custom" &&
+      message?.role === "custom" &&
+      customMessageTimestamp(source.message.timestamp) &&
+      customMessageTimestamp(message.timestamp) &&
+      isDeepStrictEqual(customMessageShape(source.message), customMessageShape(message))
+    );
+  }
+  return source.message === message || isDeepStrictEqual(source.message, message);
+}
+function rejected(reason, details = {}) {
+  return { status: "rejected", reason, ...details };
 }
 function groupItems(items) {
   const groups = [];
@@ -76,7 +122,14 @@ function groupItems(items) {
     if (messageRole(assistant.message) !== "assistant") continue;
     const calls = toolCalls(assistant.message);
     if (!(calls instanceof Map)) return calls;
-    const group = { assistant, calls, results: [], danglingResults: [] };
+    const group = {
+      assistant,
+      calls,
+      results: [],
+      danglingResults: [],
+      legacyPlaceholders: [],
+      legacyOutcomeUnavailableCallIds: assistant.source?.legacyOutcomeUnavailableCallIds ?? [],
+    };
     groups.push(group);
     if (calls.size === 0) continue;
     for (let resultIndex = index + 1; resultIndex < items.length; resultIndex += 1) {
@@ -88,8 +141,44 @@ function groupItems(items) {
         group.danglingResults.push(candidate);
       }
     }
+    const callEntries = [...calls.keys()];
+    for (const result of group.results) {
+      const callIndex = callEntries.indexOf(result.message.toolCallId);
+      if (callIndex >= 0) result.order = assistant.index + (callIndex + 1) / (calls.size + 1);
+    }
+    const matchedCallIds = new Set(group.results.map((result) => result.message.toolCallId));
+    if (group.legacyOutcomeUnavailableCallIds.length > 0) {
+      return rejected(`legacy_tool_result_unavailable:${assistant.ref ?? "unknown"}`, {
+        ...(assistant.ref ? { ref: assistant.ref } : {}),
+        position: assistant.index,
+        role: "assistant",
+      });
+    }
+    const missingCalls = [...calls.entries()]
+      .map(([callId, toolName], callIndex) => ({ callId, toolName, callIndex }))
+      .filter(({ callId }) => !matchedCallIds.has(callId));
+    const repairableCallIds = new Set(assistant.source?.legacyRepairableCallIds ?? []);
+    if (
+      repairableCallIds.size > 0 &&
+      group.danglingResults.length === 0 &&
+      missingCalls.length > 0 &&
+      missingCalls.every(({ callId }) => repairableCallIds.has(callId))
+    ) {
+      missingCalls.forEach(({ callId, toolName, callIndex }) => {
+        const order = assistant.index + (callIndex + 1) / (calls.size + 1);
+        group.legacyPlaceholders.push({
+          index: order,
+          order,
+          message: legacyUnknownToolResult(callId, toolName),
+          legacyPlaceholder: true,
+        });
+      });
+    }
   }
   return groups;
+}
+function sortOrder(item) {
+  return item.order ?? item.index;
 }
 function itemForRef(items, ref) {
   return items.find((item) => item.ref === ref);
@@ -124,7 +213,7 @@ export function projectReasoningContext(input) {
   const usedSources = new Set();
   const ownedTransientMessages = new Set(input.ownedTransientMessages);
   const usedTransients = new Set();
-  const items = [];
+  let items = [];
   for (const [index, message] of input.messages.entries()) {
     if (ownedTransientMessages.has(message)) {
       if (usedTransients.has(message)) return rejected("transient_reused");
@@ -133,34 +222,48 @@ export function projectReasoningContext(input) {
       continue;
     }
     const matches = input.sources.filter((source) => sourceMatches(message, source));
-    if (matches.length === 0) return rejected(`source_not_found:${messageRole(message) ?? "message"}`);
-    if (matches.length > 1) return rejected(`ambiguous_source:${matches[0].kind}`);
+    const role = messageRole(message);
+    const details = {
+      position: index,
+      ...(role ? { role } : {}),
+      ...(typeof message?.customType === "string" ? { customType: message.customType } : {}),
+    };
+    if (matches.length === 0) return rejected(`source_not_found:${role ?? "message"}`, details);
+    if (matches.length > 1) return rejected(`ambiguous_source:${matches[0].kind}`, details);
     const source = matches[0];
-    if (usedSources.has(source)) return rejected(`source_reused:${refFor(source) ?? source.kind}`);
+    if (usedSources.has(source)) return rejected(`source_reused:${refFor(source) ?? source.kind}`, details);
     usedSources.add(source);
     const ref = refFor(source);
     items.push({ index, message, source, ...(ref ? { ref } : {}) });
   }
   for (const ref of requested.all) {
-    if (!itemForRef(items, ref)) return rejected(`requested_ref_not_visible:${ref}`);
+    if (!itemForRef(items, ref)) return rejected(`requested_ref_not_visible:${ref}`, { ref });
   }
   const groups = groupItems(items);
   if (!(groups instanceof Array)) return groups;
+  const repairedItems = groups.flatMap((group) => group.legacyPlaceholders);
+  if (repairedItems.length > 0) {
+    items = [...items, ...repairedItems].sort((left, right) => sortOrder(left) - sortOrder(right));
+  }
   const resultToGroup = new Map();
   for (const group of groups) {
-    for (const result of group.results) resultToGroup.set(result.index, group);
+    for (const result of [...group.results, ...group.legacyPlaceholders]) resultToGroup.set(result.index, group);
   }
   const selectedSet = new Set(requested.all);
+  const explicitSelectedSet = new Set(requested.explicit);
+  const legacyBaselineRefs = new Set(input.legacyBaselineRefs ?? []);
+  const requestedGroupRef = (ref) =>
+    ref !== undefined && selectedSet.has(ref) && (!legacyBaselineRefs.has(ref) || explicitSelectedSet.has(ref));
   const selectedGroups = new Set();
   for (const group of groups) {
-    if (group.assistant.ref && selectedSet.has(group.assistant.ref)) selectedGroups.add(group);
-    if (group.results.some((result) => result.ref && selectedSet.has(result.ref))) selectedGroups.add(group);
+    if (requestedGroupRef(group.assistant.ref)) selectedGroups.add(group);
+    if (group.results.some((result) => requestedGroupRef(result.ref))) selectedGroups.add(group);
   }
   for (const ref of requested.all) {
     const item = itemForRef(items, ref);
-    if (!item) return rejected(`requested_ref_not_visible:${ref}`);
+    if (!item) return rejected(`requested_ref_not_visible:${ref}`, { ref });
     if (messageRole(item.message) === "toolResult" && !resultToGroup.has(item.index)) {
-      return rejected(`selected_tool_result_without_assistant:${ref}`);
+      return rejected(`selected_tool_result_without_assistant:${ref}`, { ref, position: item.index });
     }
   }
   const kept = new Set();
@@ -183,25 +286,46 @@ export function projectReasoningContext(input) {
       addDependency(group.assistant.ref);
       continue;
     }
-    if (group.danglingResults.length > 0 || group.results.length !== group.calls.size) {
-      return rejected(`selected_tool_group_incomplete:${group.assistant.ref ?? "unknown"}`);
+    const allResults = [...group.results, ...group.legacyPlaceholders].sort(
+      (left, right) => sortOrder(left) - sortOrder(right),
+    );
+    if (
+      group.danglingResults.length > 0 ||
+      allResults.length !== group.calls.size ||
+      (group.legacyPlaceholders.length > 0 && selectedGroups.has(group))
+    ) {
+      return rejected(`selected_tool_group_incomplete:${group.assistant.ref ?? "unknown"}`, {
+        ...(group.assistant.ref ? { ref: group.assistant.ref } : {}),
+        position: group.assistant.index,
+        role: "assistant",
+      });
     }
     const seenResults = new Set();
-    for (const result of group.results) {
+    for (const result of allResults) {
       const callId = result.message.toolCallId;
-      if (seenResults.has(callId)) return rejected(`tool_result_duplicate:${callId}`);
+      if (seenResults.has(callId))
+        return rejected(`tool_result_duplicate:${callId}`, { position: result.index, role: "toolResult" });
       seenResults.add(callId);
+      if (result.legacyPlaceholder === true) {
+        kept.add(result.index);
+        continue;
+      }
       if (result.message.toolName !== group.calls.get(callId)) {
-        return rejected(`tool_result_tool_mismatch:${callId}`);
+        return rejected(`tool_result_tool_mismatch:${callId}`, { position: result.index, role: "toolResult" });
       }
       addDependency(result.ref);
     }
     if (seenResults.size !== group.calls.size) {
-      return rejected(`selected_tool_group_incomplete:${group.assistant.ref ?? "unknown"}`);
+      return rejected(`selected_tool_group_incomplete:${group.assistant.ref ?? "unknown"}`, {
+        ...(group.assistant.ref ? { ref: group.assistant.ref } : {}),
+        position: group.assistant.index,
+        role: "assistant",
+      });
     }
     kept.add(group.assistant.index);
     addDependency(group.assistant.ref);
-    for (const result of group.results) {
+    for (const result of allResults) {
+      if (result.legacyPlaceholder === true) continue;
       if (!isStandardSource(result) || (result.ref && selectedSet.has(result.ref))) {
         kept.add(result.index);
       } else {
@@ -213,7 +337,13 @@ export function projectReasoningContext(input) {
     const group = resultToGroup.get(item.index);
     if (group) continue;
     if (messageRole(item.message) === "toolResult") {
-      if (!isStandardSource(item)) return rejected(`dangling_tool_result:${item.ref ?? "unknown"}`);
+      if (!isStandardSource(item)) {
+        return rejected(`dangling_tool_result:${item.ref ?? "unknown"}`, {
+          ...(item.ref ? { ref: item.ref } : {}),
+          position: item.index,
+          role: "toolResult",
+        });
+      }
       continue;
     }
     if (!isStandardSource(item) || (item.ref !== undefined && selectedSet.has(item.ref))) kept.add(item.index);

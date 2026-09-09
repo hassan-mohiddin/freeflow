@@ -10,6 +10,7 @@ import {
 } from "./cognitive-routing/commands.js";
 import { registerCognitiveRoutingHistoryTool, registerCognitiveRoutingTool } from "./cognitive-routing/tool.js";
 import { CognitiveRoutingProjectionCoordinator } from "./cognitive-routing/projection-coordinator.js";
+import { COGNITIVE_ROUTING_DIAGNOSTIC_ENTRY, diagnosticNotification } from "./cognitive-routing/diagnostics.js";
 import { readCognitiveRoutingHistory } from "./cognitive-routing/history.js";
 import { ConversationHistoryRuntime } from "./conversation-history/runtime.js";
 import { FreeflowContextRuntime } from "./freeflow-context/runtime.js";
@@ -41,6 +42,74 @@ function unavailableCapability(capability, code, message) {
     ...capability,
     effective: false,
     blockingReason: { code, message },
+  };
+}
+function reportCognitiveRoutingDiagnostic(pi, diagnostic, ctx) {
+  let persisted = false;
+  let notificationAvailable = ctx?.hasUI === true && typeof ctx?.ui?.notify === "function";
+  let notificationAttempted = false;
+  let persistenceError;
+  let notificationError;
+  const entries = () => {
+    try {
+      const branch = ctx?.sessionManager?.getBranch?.() ?? ctx?.sessionManager?.getEntries?.();
+      return Array.isArray(branch) ? branch : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  const matchesDiagnostic = (entry) =>
+    entry?.type === "custom" &&
+    entry.customType === COGNITIVE_ROUTING_DIAGNOSTIC_ENTRY &&
+    entry.data?.version === diagnostic.version &&
+    entry.data?.kind === diagnostic.kind &&
+    entry.data?.code === diagnostic.code &&
+    entry.data?.stage === diagnostic.stage &&
+    entry.data?.modelState === diagnostic.modelState &&
+    entry.data?.message === diagnostic.message &&
+    entry.data?.operationId === diagnostic.operationId &&
+    entry.data?.ref === diagnostic.ref &&
+    entry.data?.role === diagnostic.role &&
+    entry.data?.customType === diagnostic.customType &&
+    entry.data?.position === diagnostic.position;
+  const before = entries() ?? [];
+  const beforeCount = before.filter(matchesDiagnostic).length;
+  try {
+    if (typeof pi?.appendEntry !== "function") throw new Error("diagnostic_persistence_unavailable");
+    pi.appendEntry(COGNITIVE_ROUTING_DIAGNOSTIC_ENTRY, diagnostic);
+    const after = entries();
+    if (!after || after.filter(matchesDiagnostic).length <= beforeCount) {
+      throw new Error("diagnostic_persistence_unconfirmed");
+    }
+    persisted = true;
+  } catch (error) {
+    persistenceError = error instanceof Error ? error.message : String(error);
+  }
+  try {
+    if (notificationAvailable) {
+      notificationAttempted = true;
+      ctx.ui.notify(
+        diagnosticNotification({
+          diagnostic,
+          delivery: {
+            persisted,
+            notificationAvailable,
+            notificationAttempted: true,
+            ...(persistenceError ? { persistenceError } : {}),
+          },
+        }),
+        "error",
+      );
+    }
+  } catch (error) {
+    notificationError = error instanceof Error ? error.message : String(error);
+  }
+  return {
+    persisted,
+    notificationAvailable,
+    notificationAttempted,
+    ...(persistenceError ? { persistenceError } : {}),
+    ...(notificationError ? { notificationError } : {}),
   };
 }
 function modelFacingCapabilityState(
@@ -265,11 +334,13 @@ export default function freeflow(pi) {
   let attributionEligible = false;
   let projectionEligible = false;
   let latestCapabilityState;
+  let registeredProjectionSurface;
   const projectionCoordinator = new CognitiveRoutingProjectionCoordinator({
     isEnabled: () => projectionEligible,
     isAttributionEnabled: () => attributionEligible,
     getRoutingState: () => routingSession.snapshot().controllerState,
     appendEntry: (customType, data) => pi.appendEntry(customType, data),
+    onDiagnostic: (diagnostic, ctx) => reportCognitiveRoutingDiagnostic(pi, diagnostic, ctx),
   });
   let latestCognitiveRoutingContext;
   let providerSurfaceSnapshot;
@@ -277,6 +348,15 @@ export default function freeflow(pi) {
   let freeflowContextRuntime;
   let contextVirtualizationRuntime;
   let conversationHistoryRuntime;
+  const registerCognitiveRoutingToolSurface = (projectionEnabled) => {
+    if (!routingSession.supportsCognitiveRoutingRuntime()) return;
+    if (registeredProjectionSurface === projectionEnabled) return;
+    registerCognitiveRoutingTool(toolRegistrar, () => routingSession.controllerForTool(), {
+      projectionEnabled,
+      executeSwitch: (input) => projectionCoordinator.switchProfile(input),
+    });
+    registeredProjectionSurface = projectionEnabled;
+  };
   const registerContextToolForState = (capabilityState) => {
     registerFreeflowContextTool(
       toolRegistrar,
@@ -329,10 +409,13 @@ export default function freeflow(pi) {
       surfaceCapabilityState?.cognitiveRouting?.effective === true &&
       routingSnapshot.controllerState?.effective === true;
     projectionEligible = capabilityState?.cognitiveRouting?.contextProjection === true && attributionEligible;
+    const projectionFailure = projectionEligible ? projectionCoordinator.failureReason() : undefined;
+    registerCognitiveRoutingToolSurface(projectionEligible && !projectionFailure);
     return {
       capabilityState: surfaceCapabilityState,
       freeflowContext,
       cognitiveRoutingRuntime: routingSnapshot.runtimeState,
+      ...(projectionFailure ? { projectionFailure } : {}),
       configuredCapabilityState: capabilityState,
     };
   };
@@ -352,6 +435,8 @@ export default function freeflow(pi) {
       surfaceCapabilityState?.cognitiveRouting?.effective === true &&
       routingSnapshot.controllerState?.effective === true;
     projectionEligible = capabilityState?.cognitiveRouting?.contextProjection === true && attributionEligible;
+    const projectionFailure = projectionEligible ? projectionCoordinator.failureReason() : undefined;
+    registerCognitiveRoutingToolSurface(projectionEligible && !projectionFailure);
     setFreeflowStatus(ctx, surfaceCapabilityState, routingSnapshot.runtimeState, freeflowContext, {
       startupSelectionSuppressed: routingSnapshot.startupSelectionSuppressed,
     });
@@ -359,9 +444,7 @@ export default function freeflow(pi) {
     registerContextToolForState(surfaceCapabilityState);
   };
   if (routingSession.supportsCognitiveRoutingRuntime()) {
-    registerCognitiveRoutingTool(toolRegistrar, () => routingSession.controllerForTool(), {
-      executeSwitch: (input) => projectionCoordinator.switchProfile(input),
-    });
+    registerCognitiveRoutingToolSurface(false);
     registerCognitiveRoutingHistoryTool(toolRegistrar, (options, context) => {
       return (
         routingSession.history(options) ??
@@ -555,6 +638,7 @@ export default function freeflow(pi) {
     projectionCoordinator.reset();
     attributionEligible = false;
     projectionEligible = false;
+    registeredProjectionSurface = undefined;
     latestCapabilityState = undefined;
     await routingSession.shutdown(event?.reason);
     providerSurfaceSnapshot = undefined;
@@ -618,6 +702,7 @@ export default function freeflow(pi) {
       })
       .filter((message) => message !== undefined);
     const captured = projectionCoordinator.context(ctx, messages);
+    const projectionFailure = projectionCoordinator.failureReason() ?? snapshot.projectionFailure;
     if (captured.changed) {
       changed = true;
       messages = captured.messages;
@@ -643,7 +728,10 @@ export default function freeflow(pi) {
       surfaceCapabilityState,
       cognitiveRoutingRuntime,
       snapshot.freeflowContext,
-      { force: forceRuntimeStateRefresh },
+      {
+        force: forceRuntimeStateRefresh,
+        projectionFailure,
+      },
     );
     if (nextMessages !== messages) {
       changed = true;

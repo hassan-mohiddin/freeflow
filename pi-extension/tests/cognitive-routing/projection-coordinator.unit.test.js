@@ -34,6 +34,7 @@ function fixture({
   enabled = true,
   state = { effective: true, controlMode: "automatic", activeProfile: "standard" },
   appendEntry,
+  onDiagnostic,
 } = {}) {
   const messages = user();
   const entries = [entry("user-1", messages)];
@@ -62,6 +63,7 @@ function fixture({
         });
       }),
     idFactory: () => `block-${journals.length + 1}`,
+    onDiagnostic,
   });
   return {
     coordinator,
@@ -169,6 +171,123 @@ test("rejects duplicate visible source reuse and transformed source content", as
     transformed.coordinator.exposure().sources.some((source) => source.source.entryId === "result-capture-call"),
     false,
   );
+});
+
+test("keeps separate selection failures distinct while deduplicating repeats", async () => {
+  const reports = [];
+  const value = fixture({
+    onDiagnostic: (diagnostic) => {
+      reports.push(diagnostic);
+      return { persisted: true, notificationAvailable: false, notificationAttempted: false };
+    },
+  });
+  const input = (toolCallId) => ({
+    toolCallId,
+    target: "invalid",
+    reason: "Invalid target.",
+    signal: undefined,
+    ctx: value.ctx,
+    controller: { state: () => ({ effective: true, controlMode: "automatic" }) },
+  });
+
+  assert.equal((await value.coordinator.switchProfile(input("call-a"))).reason, "target_invalid");
+  assert.equal((await value.coordinator.switchProfile(input("call-b"))).reason, "target_invalid");
+  assert.equal((await value.coordinator.switchProfile(input("call-b"))).reason, "target_invalid");
+  assert.deepEqual(
+    reports.map((report) => report.operationId),
+    ["call-a", "call-b"],
+  );
+});
+
+test("deduplicates a persistent context failure across later turns", async () => {
+  const reports = [];
+  const value = fixture({
+    onDiagnostic: (diagnostic) => {
+      reports.push(diagnostic);
+      return { persisted: true, notificationAvailable: false, notificationAttempted: false };
+    },
+  });
+  value.ctx.sessionManager.getSessionId = undefined;
+
+  await value.coordinator.turnStart(value.ctx);
+  const first = value.coordinator.context(value.ctx, [value.entries[0].message]);
+  await value.coordinator.turnStart(value.ctx);
+  const second = value.coordinator.context(value.ctx, [value.entries[0].message]);
+
+  assert.equal(first.changed, false);
+  assert.equal(second.changed, false);
+  assert.equal(value.coordinator.failureReason(), "session_identity_unavailable");
+  assert.equal(reports.length, 1);
+});
+
+test("exposes diagnostic persistence failure without claiming it was saved", async () => {
+  const reports = [];
+  const value = fixture({
+    onDiagnostic: (diagnostic) => {
+      reports.push(diagnostic);
+      return {
+        persisted: false,
+        notificationAvailable: false,
+        notificationAttempted: false,
+        persistenceError: "diagnostic write failed",
+      };
+    },
+  });
+  assert.equal((await captureStandardTurn(value)).status, "captured");
+  const result = await nextStandardContext(value, [
+    value.entries[0].message,
+    value.entries[2].message,
+    value.entries[2].message,
+  ]);
+
+  assert.equal(result.changed, false);
+  assert.equal(reports.length, 1);
+  assert.equal(reports[0].stage, "attribution");
+  assert.equal(result.diagnostic?.delivery.persisted, false);
+  assert.equal(result.diagnostic?.delivery.persistenceError, "diagnostic write failed");
+});
+
+test("rejects an unavailable legacy result even when an active same-id result exists", async () => {
+  const value = fixture({
+    state: { effective: true, controlMode: "automatic", activeProfile: "reasoning" },
+  });
+  const assistantMessage = assistant("legacy-call", "read");
+  const activeResultMessage = toolResult("legacy-call", "ACTIVE_RESULT", "read");
+  const compactedResultMessage = toolResult("legacy-call", "COMPACTED_RESULT", "read");
+  value.entries.push(
+    entry("assistant-legacy", assistantMessage, "user-1"),
+    entry("result-active", activeResultMessage, "assistant-legacy"),
+    entry("result-compacted", compactedResultMessage, "assistant-legacy"),
+    {
+      type: "custom",
+      id: "baseline-legacy",
+      parentId: "result-compacted",
+      customType: "freeflow-cognitive-routing-baseline",
+      data: {
+        version: 1,
+        kind: "baseline",
+        sessionId: "session-1",
+        entryIds: ["assistant-legacy", "result-active", "result-compacted"],
+      },
+    },
+  );
+  value.ctx.sessionManager.buildContextEntries = () =>
+    value.entries.filter((candidate) => candidate.type === "message" && candidate.id !== "result-compacted");
+  let aborts = 0;
+  value.ctx.abort = () => {
+    aborts += 1;
+  };
+
+  await value.coordinator.turnStart(value.ctx);
+  const result = value.coordinator.context(value.ctx, [
+    value.entries[0].message,
+    assistantMessage,
+    activeResultMessage,
+  ]);
+
+  assert.equal(result.changed, false);
+  assert.equal(value.coordinator.failureReason(), "legacy_tool_result_unavailable:ctx:assistant-legacy");
+  assert.equal(aborts, 1);
 });
 
 test("rejects an existing but unexposed include ref before transition", async () => {

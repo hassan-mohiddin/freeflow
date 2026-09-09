@@ -240,3 +240,183 @@ test("reconstructs legacy history, labels origins, and survives native reload an
     await rm(sessionDir, { recursive: true, force: true });
   }
 });
+
+test("repairs an orphaned baseline tool call without mutating canonical history", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-projection-legacy-orphan-cwd-"));
+  const agentDir = await mkdtemp(join(tmpdir(), "freeflow-projection-legacy-orphan-agent-"));
+  const sessionDir = await mkdtemp(join(tmpdir(), "freeflow-projection-legacy-orphan-session-"));
+  const originalFetch = globalThis.fetch;
+  const originalOffline = process.env.PI_OFFLINE;
+  const requests = [];
+  const contexts = [];
+  let session;
+  let compactionKeepId;
+  try {
+    process.env.PI_OFFLINE = "1";
+    await mkdir(join(cwd, ".freeflow"), { recursive: true });
+    const configPath = join(cwd, ".freeflow", "config.json");
+    await writeConfig(configPath, true);
+    const modelsPath = join(agentDir, "models.json");
+    await writeOpenAIConfig(modelsPath);
+    const modelRuntime = await ModelRuntime.create({
+      authPath: join(agentDir, "auth.json"),
+      modelsPath,
+      modelsStorePath: join(agentDir, "models-store.json"),
+      allowModelNetwork: false,
+      refreshOnCreate: false,
+    });
+    await modelRuntime.setRuntimeApiKey("openai", "offline-test-key");
+    const model = modelRuntime.getModel("openai", "gpt-4o");
+    assert.ok(model);
+    const settingsManager = SettingsManager.inMemory({
+      compaction: { enabled: true, keepRecentTokens: 1, reserveTokens: 1 },
+      retry: { enabled: false, maxRetries: 0, provider: { maxRetries: 0 } },
+    });
+    const manager = SessionManager.create(cwd, sessionDir);
+    const legacyUserId = manager.appendMessage({ role: "user", content: [{ type: "text", text: "Legacy task." }] });
+    const legacyAssistant = {
+      role: "assistant",
+      content: [
+        { type: "text", text: "I inspected the legacy files." },
+        { type: "toolCall", id: "legacy-known", name: "read", arguments: { path: "known.ts" } },
+        { type: "toolCall", id: "legacy-missing", name: "read", arguments: { path: "missing.ts" } },
+      ],
+    };
+    const legacyAssistantId = manager.appendMessage(legacyAssistant);
+    const legacyKnown = {
+      role: "toolResult",
+      toolCallId: "legacy-known",
+      toolName: "read",
+      content: [{ type: "text", text: "KNOWN_LEGACY_RESULT" }],
+      isError: false,
+    };
+    const legacyKnownId = manager.appendMessage(legacyKnown);
+    manager.appendCustomEntry(BASELINE_ENTRY, {
+      version: 1,
+      kind: "baseline",
+      sessionId: manager.getSessionId(),
+      entryIds: [legacyAssistantId, legacyKnownId],
+    });
+    const canonicalBefore = new Map(
+      messageEntries(manager)
+        .filter((entry) => [legacyUserId, legacyAssistantId, legacyKnownId].includes(entry.id))
+        .map((entry) => [entry.id, structuredClone(entry.message)]),
+    );
+
+    globalThis.fetch = async (_url, init) => {
+      requests.push(JSON.parse(String(init.body)));
+      return textResponse(`legacy-orphan-${requests.length}`, `Response ${requests.length}`);
+    };
+    const resourceLoader = new DefaultResourceLoader({
+      cwd,
+      agentDir,
+      settingsManager,
+      extensionFactories: [
+        freeflowExtension,
+        (pi) => {
+          pi.on("context", (event) => contexts.push(structuredClone(event.messages)));
+          pi.on("session_before_compact", () =>
+            compactionKeepId
+              ? {
+                  compaction: {
+                    summary: "The older legacy history was summarized.",
+                    firstKeptEntryId: compactionKeepId,
+                    tokensBefore: 1,
+                  },
+                }
+              : undefined,
+          );
+        },
+      ],
+    });
+    await resourceLoader.reload();
+    session = (
+      await createAgentSession({
+        cwd,
+        agentDir,
+        model,
+        thinkingLevel: "off",
+        modelRuntime,
+        settingsManager,
+        sessionManager: manager,
+        resourceLoader,
+      })
+    ).session;
+    await session.bindExtensions({ mode: "print" });
+    await session.prompt("Continue the legacy session.");
+    await session.prompt("Continue the legacy session again.");
+    await session.reload();
+    await session.prompt("Continue the legacy session after reload.");
+    await session.navigateTree(legacyUserId, { summarize: false });
+    await session.prompt("Continue on a branch without the orphan.");
+    assert.equal(
+      contexts.at(-1).filter((message) => message?.role === "toolResult" && message.toolCallId === "legacy-missing")
+        .length,
+      0,
+      "branch navigation must not resurrect the orphan",
+    );
+
+    const branchBeforeCompaction = manager.getBranch();
+    const firstKeptEntry = branchBeforeCompaction.at(-1);
+    assert.ok(firstKeptEntry?.id);
+    compactionKeepId = firstKeptEntry.id;
+    const compactionResult = await session.compact("deterministic legacy compaction");
+    assert.notEqual(compactionResult?.cancelled, true);
+    const compactedContextEntries = manager.buildContextEntries();
+    assert.equal(
+      compactedContextEntries.some((entry) => entry.type === "message" && entry.id === legacyAssistantId),
+      false,
+      "the native compaction boundary must retire the orphan from active context",
+    );
+    await session.prompt("Continue after compaction.");
+
+    assert.equal(requests.length, 5);
+    assert.equal(requests.at(-1).model, "gpt-4o");
+    assert.doesNotMatch(JSON.stringify(requests.at(-1).input), /legacy-missing|execution outcome is unknown/);
+    assert.equal(contexts.length >= 5, true);
+    const repairedContexts = contexts.filter((context) =>
+      context.some((message) => JSON.stringify(message?.content ?? "").includes("I inspected the legacy files.")),
+    );
+    assert.equal(repairedContexts.length, 3, "initial, repeated, and reloaded contexts repair the orphan");
+    for (const context of repairedContexts) {
+      const missing = context.filter(
+        (message) => message?.role === "toolResult" && message.toolCallId === "legacy-missing",
+      );
+      const known = context.filter(
+        (message) => message?.role === "toolResult" && message.toolCallId === "legacy-known",
+      );
+      assert.equal(missing.length, 1, "each projection assembles one request-only missing result");
+      assert.equal(missing[0].isError, true);
+      assert.match(JSON.stringify(missing[0].content), /execution outcome is unknown/);
+      assert.equal(known.length, 1);
+      assert.match(JSON.stringify(known[0].content), /KNOWN_LEGACY_RESULT/);
+    }
+    assert.equal(
+      contexts.at(-1).filter((message) => message?.role === "toolResult" && message.toolCallId === "legacy-missing")
+        .length,
+      0,
+      "the post-compaction registered request must not resurrect the orphan",
+    );
+    assert.match(JSON.stringify(requests[0].input), /execution outcome is unknown/);
+    for (const [entryId, beforeMessage] of canonicalBefore) {
+      const after = manager.getEntries().find((entry) => entry.id === entryId);
+      assert.ok(after);
+      assert.deepEqual(after.message, beforeMessage, `canonical entry ${entryId} changed`);
+    }
+    assert.equal(
+      messageEntries(manager).some(
+        (entry) => entry.message.role === "toolResult" && entry.message.toolCallId === "legacy-missing",
+      ),
+      false,
+      "the compatibility result must remain request-only",
+    );
+  } finally {
+    session?.dispose();
+    globalThis.fetch = originalFetch;
+    if (originalOffline === undefined) delete process.env.PI_OFFLINE;
+    else process.env.PI_OFFLINE = originalOffline;
+    await rm(cwd, { recursive: true, force: true });
+    await rm(agentDir, { recursive: true, force: true });
+    await rm(sessionDir, { recursive: true, force: true });
+  }
+});

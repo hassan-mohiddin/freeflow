@@ -26,12 +26,33 @@ function historyOptions(value) {
   return undefined;
 }
 function formatHistory(result) {
+  if (result.status === "unavailable") {
+    return `Cognitive Routing history unavailable (${result.scope}): ${result.reason ?? "unknown"}.`;
+  }
+  const scope = result.scope ?? "session";
   const lines = [
-    `Cognitive Routing history: ${result.current.profile} · ${result.current.control}`,
+    `Cognitive Routing history (transition · ${scope}): ${result.current.profile} · ${result.current.control}`,
     `Events: ${result.events.length}; unresolved=${result.summary.unresolvedCount}; anomalies=${result.summary.anomalyCount}`,
   ];
   if (result.summary.latestSemanticEventId) lines.push(`Latest semantic: ${result.summary.latestSemanticEventId}`);
   if (result.summary.latestCompletedEventId) lines.push(`Latest completed: ${result.summary.latestCompletedEventId}`);
+  if (result.projection) {
+    const projectionSummary = result.projection.summary;
+    lines.push(
+      `Projection health (${result.projection.scope}): ${result.projection.status}; diagnostics=${projectionSummary.diagnosticCount}; invalid=${projectionSummary.invalidCount}`,
+    );
+    if (result.projection.reason) lines.push(`Projection reason: ${result.projection.reason}`);
+    for (const diagnostic of result.projection.diagnostics) {
+      const identity = diagnostic.ref
+        ? ` ${diagnostic.ref}`
+        : diagnostic.role
+          ? ` ${diagnostic.role}${diagnostic.customType ? `:${diagnostic.customType}` : ""}`
+          : "";
+      lines.push(
+        `${diagnostic.jsonlPosition}: projection · ${diagnostic.stage} · ${diagnostic.code}${identity} · ${diagnostic.id}`,
+      );
+    }
+  }
   for (const event of result.events) {
     const transition = event.from && event.to ? ` ${event.from} → ${event.to}` : "";
     lines.push(

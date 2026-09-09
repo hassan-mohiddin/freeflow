@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { projectCognitiveRoutingHistory } from "../../dist/cognitive-routing/history.js";
+import { projectCognitiveRoutingHistory, readCognitiveRoutingHistory } from "../../dist/cognitive-routing/history.js";
 
 const standard = { provider: "faux", modelId: "standard", thinkingLevel: "high" };
 const reasoning = { provider: "faux", modelId: "reasoning", thinkingLevel: "max" };
@@ -66,6 +66,7 @@ test("projects a completed switch from the host representative and captured base
 
   assert.deepEqual(result.current, current());
   assert.deepEqual(result.summary, {
+    scope: "session",
     latestSemanticEventId: "intent:intent-1",
     latestCompletedEventId: "intent:intent-1",
     unresolvedCount: 0,
@@ -223,6 +224,7 @@ test("projects control-only entries without fabricating a profile transition", (
   const result = projectCognitiveRoutingHistory(entries, { current: current() });
 
   assert.deepEqual(result.summary, {
+    scope: "session",
     unresolvedCount: 0,
     anomalyCount: 0,
   });
@@ -271,4 +273,172 @@ test("latest completed transition ignores later control-only entries", () => {
   const result = projectCognitiveRoutingHistory(entries, { current: current() });
 
   assert.equal(result.summary.latestCompletedEventId, "intent:intent-completed");
+});
+
+test("reports persisted projection diagnostics separately from transition history", () => {
+  const entries = [
+    {
+      id: "intent-active",
+      type: "custom",
+      customType: "freeflow-cognitive-routing-intent",
+      data: intent(),
+    },
+    {
+      id: "diagnostic-active",
+      type: "custom",
+      customType: "freeflow-cognitive-routing-diagnostic",
+      timestamp: "2026-08-23T11:02:00.000Z",
+      data: {
+        version: 1,
+        kind: "projection-failure",
+        code: "projection_dependency_invalid:source_not_found:custom",
+        stage: "context_assembly",
+        message: "No verifiable source was associated with the custom context message.",
+        modelState: "unknown",
+        role: "custom",
+        customType: "subagent-notification",
+        position: 4,
+      },
+    },
+  ];
+
+  const result = projectCognitiveRoutingHistory(entries, {
+    scope: "active-branch",
+    branchEntries: [entries[0], entries[1]],
+    current: current(),
+  });
+
+  assert.equal(result.status, "available");
+  assert.deepEqual(result.summary, {
+    scope: "active-branch",
+    latestSemanticEventId: "intent:intent-active",
+    unresolvedCount: 1,
+    anomalyCount: 0,
+  });
+  assert.deepEqual(result.projection.summary, {
+    scope: "active-branch",
+    diagnosticCount: 1,
+    invalidCount: 0,
+    latestDiagnosticId: "projection:diagnostic-active",
+  });
+  assert.deepEqual(result.projection.diagnostics[0], {
+    version: 1,
+    kind: "projection-failure",
+    code: "projection_dependency_invalid:source_not_found:custom",
+    stage: "context_assembly",
+    message: "No verifiable source was associated with the custom context message.",
+    modelState: "unknown",
+    id: "projection:diagnostic-active",
+    timestamp: "2026-08-23T11:02:00.000Z",
+    jsonlPosition: 1,
+    entryId: "diagnostic-active",
+    branchAnchor: "diagnostic-active",
+    role: "custom",
+    customType: "subagent-notification",
+    position: 4,
+  });
+});
+
+test("filters sibling-branch host results before correlating active-branch history", () => {
+  const activeIntent = {
+    id: "intent-active",
+    type: "custom",
+    customType: "freeflow-cognitive-routing-intent",
+    data: intent({ correlationId: "shared-correlation", decisionCorrelationId: "shared-correlation" }),
+  };
+  const siblingHost = hostEntry({
+    id: "sibling-host",
+    parentId: "sibling-parent",
+    correlationId: "shared-correlation",
+  });
+  const entries = [activeIntent, siblingHost];
+  const result = projectCognitiveRoutingHistory(entries, {
+    scope: "active-branch",
+    branchEntries: [activeIntent],
+    current: current("standard"),
+  });
+
+  assert.deepEqual(
+    result.events.map(({ id, outcome, integrity }) => ({ id, outcome, integrity })),
+    [{ id: "intent:intent-active", outcome: "unresolved", integrity: "unknown" }],
+  );
+});
+
+test("classifies uncorrelated host changes using the closing event for their epoch", () => {
+  const entries = [
+    {
+      id: "intent-profile",
+      type: "custom",
+      customType: "freeflow-cognitive-routing-intent",
+      data: intent({ correlationId: "profile-correlation", decisionCorrelationId: "profile-correlation" }),
+    },
+    hostEntry({ id: "host-profile", correlationId: "profile-correlation" }),
+    {
+      id: "host-during-routing",
+      type: "model_state_change",
+      provider: "external",
+      modelId: "outside",
+      thinkingLevel: "off",
+    },
+    {
+      id: "intent-closing",
+      type: "custom",
+      customType: "freeflow-cognitive-routing-intent",
+      data: intent({
+        kind: "closing",
+        correlationId: "closing-correlation",
+        decisionCorrelationId: undefined,
+        profile: undefined,
+        fromPair: reasoning,
+        fromProfile: "reasoning",
+        target: standard,
+        epoch: "epoch-1",
+      }),
+    },
+    hostEntry({
+      id: "host-closing",
+      parentId: "intent-closing",
+      correlationId: "closing-correlation",
+      provider: standard.provider,
+      modelId: standard.modelId,
+      thinkingLevel: standard.thinkingLevel,
+    }),
+    {
+      id: "host-after-closing",
+      type: "model_state_change",
+      provider: "external",
+      modelId: "outside-again",
+      thinkingLevel: "off",
+    },
+  ];
+
+  const result = projectCognitiveRoutingHistory(entries, { current: current("standard") });
+  const hosts = result.events.filter((event) => event.classification === "external-host-change");
+  assert.deepEqual(
+    hosts.map(({ entryId, integrity, anomalyReason }) => ({ entryId, integrity, anomalyReason })),
+    [
+      { entryId: "host-after-closing", integrity: "valid", anomalyReason: undefined },
+      { entryId: "host-during-routing", integrity: "anomaly", anomalyReason: "host_change_during_routing" },
+    ],
+  );
+});
+
+test("reports unreadable session history instead of clean zero counts", () => {
+  const result = readCognitiveRoutingHistory(
+    {
+      sessionManager: {
+        getEntries() {
+          throw new Error("session read failed");
+        },
+      },
+    },
+    { current: current() },
+  );
+
+  assert.equal(result.status, "unavailable");
+  assert.equal(result.reason, "session_read_failed");
+  assert.equal(result.scope, "session");
+  assert.deepEqual(result.events, []);
+  assert.equal(result.projection.status, "unavailable");
+  assert.equal(result.projection.reason, "session_read_failed");
 });

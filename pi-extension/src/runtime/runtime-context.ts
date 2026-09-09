@@ -607,6 +607,8 @@ type CognitiveRoutingRuntimeSnapshot = {
   controlMode?: unknown;
 };
 
+type CognitiveRoutingProjectionMode = "disabled" | "enabled" | "manual-bypass" | "blocked" | "unavailable" | "pending";
+
 type FreeflowContextMessage = {
   customType?: unknown;
   [key: string]: unknown;
@@ -636,10 +638,27 @@ function publicCognitiveRoutingStatus(capability, runtime) {
   return publicCapabilityStatus(capability);
 }
 
+function publicCognitiveRoutingProjectionMode(
+  capability: any,
+  runtime: CognitiveRoutingRuntimeSnapshot | undefined,
+  projectionFailure?: string,
+): CognitiveRoutingProjectionMode {
+  if (capability?.contextProjection !== true) return "disabled";
+  if (capability?.effective !== true) return "unavailable";
+  if (runtime?.controlMode === "manual-standard" || runtime?.controlMode === "manual-reasoning") {
+    return "manual-bypass";
+  }
+  if (projectionFailure) return "blocked";
+  if (runtime?.runtimeStatus === "inactive" || runtime?.runtimeStatus === "blocked") return "unavailable";
+  if (runtime?.effective === true && runtime.controlMode === "automatic") return "enabled";
+  return "pending";
+}
+
 export function freeflowRuntimeStateMessage(
   capabilityState,
   cognitiveRoutingRuntime: CognitiveRoutingRuntimeSnapshot | undefined = undefined,
   freeflowContext = undefined,
+  options: { projectionFailure?: string } = {},
 ) {
   const cognitiveRoutingEffective = capabilityState?.cognitiveRouting?.effective === true;
   const profile = publicCognitiveRoutingProfile(
@@ -648,6 +667,11 @@ export function freeflowRuntimeStateMessage(
   );
   const control =
     profile === "unavailable" ? "unavailable" : publicCognitiveRoutingControl(cognitiveRoutingRuntime?.controlMode);
+  const projectionMode = publicCognitiveRoutingProjectionMode(
+    capabilityState?.cognitiveRouting,
+    cognitiveRoutingRuntime,
+    options.projectionFailure,
+  );
   const mandatoryPromptAvailable = capabilityState?.enabled !== true || hasUsableMandatoryPrompts(freeflowContext);
   const freeflowStatus = capabilityState?.configured
     ? capabilityState.enabled
@@ -677,6 +701,7 @@ export function freeflowRuntimeStateMessage(
       "Cognitive Routing:",
       `- Control: \`${control}\``,
       `- Profile: \`${profile}\``,
+      `- Projection: \`${projectionMode}\``,
     ].join("\n"),
     display: false,
     details: { source: "provider-request-runtime-state" },
@@ -712,10 +737,12 @@ export function withFreeflowRuntimeState(
   capabilityState,
   cognitiveRoutingRuntime: CognitiveRoutingRuntimeSnapshot | undefined = undefined,
   freeflowContext = undefined,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; projectionFailure?: string } = {},
 ) {
   const source = Array.isArray(messages) ? messages : [];
-  const runtimeState = freeflowRuntimeStateMessage(capabilityState, cognitiveRoutingRuntime, freeflowContext);
+  const runtimeState = freeflowRuntimeStateMessage(capabilityState, cognitiveRoutingRuntime, freeflowContext, {
+    projectionFailure: options.projectionFailure,
+  });
   const runtimeStateMessages = source.filter(
     (message) =>
       message?.customType === FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE ||

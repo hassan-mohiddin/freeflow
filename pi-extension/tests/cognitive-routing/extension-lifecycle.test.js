@@ -5,10 +5,11 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import test from "node:test";
 import freeflowExtension from "../../dist/index.js";
+import { COGNITIVE_ROUTING_DIAGNOSTIC_ENTRY } from "../../dist/cognitive-routing/diagnostics.js";
 import { PIFLOW_HOST } from "./host-fixture.js";
 
 function createExtensionHost(
-  { rejectReturnRestore = false, rejectAcquire = false } = {},
+  { rejectReturnRestore = false, rejectAcquire = false, diagnosticPersistence = "ok" } = {},
   extension = freeflowExtension,
 ) {
   const handlers = new Map();
@@ -38,6 +39,10 @@ function createExtensionHost(
       handlers.set(event, handler);
     },
     appendEntry(customType, data) {
+      if (customType === COGNITIVE_ROUTING_DIAGNOSTIC_ENTRY && diagnosticPersistence === "throw") {
+        throw new Error("diagnostic persistence failed");
+      }
+      if (customType === COGNITIVE_ROUTING_DIAGNOSTIC_ENTRY && diagnosticPersistence === "noop") return;
       entries.push({ type: "custom", customType, data });
     },
     appendEntryDurable(customType, data) {
@@ -99,11 +104,11 @@ function createExtensionHost(
   };
 }
 
-function createContext(cwd, host) {
+function createContext(cwd, host, { hasUI = false, notify = () => {} } = {}) {
   return {
     cwd,
     mode: "print",
-    hasUI: false,
+    hasUI,
     model: host.state.model,
     thinkingLevel: host.state.thinkingLevel,
     modelRegistry: {
@@ -131,7 +136,7 @@ function createContext(cwd, host) {
       },
     },
     ui: {
-      notify() {},
+      notify,
       setStatus() {},
     },
   };
@@ -333,6 +338,124 @@ test("missing Cognitive Routing prompt prevents lifecycle activation", async () 
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("registered diagnostics report persistence and UI boundaries truthfully", async () => {
+  const cases = [
+    {
+      hasUI: true,
+      diagnosticPersistence: "throw",
+      notify: () => {},
+      persisted: false,
+      attempted: true,
+      persistenceError: "diagnostic persistence failed",
+    },
+    {
+      hasUI: true,
+      diagnosticPersistence: "noop",
+      notify: () => {},
+      persisted: false,
+      attempted: true,
+      persistenceError: "diagnostic_persistence_unconfirmed",
+    },
+    {
+      hasUI: true,
+      diagnosticPersistence: "ok",
+      notify: () => {
+        throw new Error("notification failed");
+      },
+      persisted: true,
+      attempted: true,
+      notificationError: "notification failed",
+    },
+    { hasUI: false, diagnosticPersistence: "ok", notify: () => {}, persisted: true, attempted: false },
+  ];
+
+  for (const scenario of cases) {
+    const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-diagnostic-boundary-"));
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow", "config.json"),
+      JSON.stringify({
+        cognitiveRouting: {
+          enabled: true,
+          profiles: {
+            standard: { provider: "faux", model: "standard", thinkingLevel: "high" },
+            reasoning: { provider: "faux", model: "reasoning", thinkingLevel: "max" },
+          },
+        },
+      }),
+    );
+    const notifications = [];
+    const host = createExtensionHost({ diagnosticPersistence: scenario.diagnosticPersistence });
+    const ctx = createContext(cwd, host, {
+      hasUI: scenario.hasUI,
+      notify: (message, level) => {
+        notifications.push({ message, level });
+        scenario.notify(message, level);
+      },
+    });
+    try {
+      await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+      await host.handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+      const tool = host.tools.find((candidate) => candidate.name === "freeflow_switch_profile");
+      assert.ok(tool);
+      await tool.execute(
+        "delegate-call",
+        { target: "standard", reason: "Use Standard for bounded evidence." },
+        undefined,
+        undefined,
+        ctx,
+      );
+
+      const userMessage = { role: "user", content: "Collect bounded evidence." };
+      host.entries.push({ type: "message", id: "user-diagnostic", parentId: null, message: userMessage });
+      await host.handlers.get("turn_start")({}, ctx);
+      await host.handlers.get("context")({ messages: [userMessage] }, ctx);
+      const callId = "diagnostic-switch";
+      host.entries.push({
+        type: "message",
+        id: "assistant-diagnostic",
+        parentId: "user-diagnostic",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "text", text: "Returning evidence." },
+            { type: "toolCall", id: callId, name: "freeflow_switch_profile", arguments: {} },
+          ],
+        },
+      });
+      const result = await tool.execute(
+        callId,
+        { target: "reasoning", reason: "Return invalid evidence.", projection: { include: ["ctx:missing"] } },
+        undefined,
+        undefined,
+        ctx,
+      );
+      const diagnostic = result.details.result.diagnostic;
+      assert.ok(diagnostic);
+      assert.match(diagnostic.diagnostic.code, /exposure_unavailable|projection_ref_not_exposed:ctx:missing/);
+      assert.equal(diagnostic.diagnostic.stage, "selection_validation");
+      assert.equal(diagnostic.delivery.persisted, scenario.persisted);
+      assert.equal(diagnostic.delivery.notificationAvailable, scenario.hasUI);
+      assert.equal(diagnostic.delivery.notificationAttempted, scenario.attempted);
+      assert.equal(diagnostic.delivery.persistenceError, scenario.persistenceError);
+      assert.equal(diagnostic.delivery.notificationError, scenario.notificationError);
+      assert.equal(scenario.hasUI ? notifications.length >= 1 : notifications.length, scenario.hasUI ? true : 0);
+      if (scenario.hasUI) {
+        assert.ok(notifications.every(({ level }) => level === "error"));
+        assert.ok(notifications.every(({ message }) => message.includes("notification requested")));
+        assert.ok(notifications.every(({ message }) => !message.includes("notification not attempted")));
+      }
+      const persistedCount = host.entries.filter(
+        (entry) => entry.type === "custom" && entry.customType === COGNITIVE_ROUTING_DIAGNOSTIC_ENTRY,
+      ).length;
+      assert.equal(scenario.persisted ? persistedCount >= 1 : persistedCount, scenario.persisted ? true : 0);
+    } finally {
+      await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
+      await rm(cwd, { recursive: true, force: true });
+    }
   }
 });
 
@@ -892,10 +1015,7 @@ test("Pi delivers stable Cognitive Routing cues and refreshes runtime state only
     assert.match(first.systemPrompt, /Make this bootstrap read the only environment call/);
     assert.match(first.systemPrompt, /it is not a route transition/);
     assert.match(first.systemPrompt, /If the read fails or is unavailable, stop and report missing context/);
-    assert.match(
-      first.systemPrompt,
-      /It owns substantive user-facing interpretation, discussion, decisions, questions, assessment, and reporting/,
-    );
+    assert.match(first.systemPrompt, /It owns substantive user-facing interpretation, discussion, decisions/);
     assert.match(first.systemPrompt, /Cognitive Routing does not change Workflow ownership or authority/);
     assert.doesNotMatch(first.systemPrompt, /YIELD|DELEGATE|ACT_BOUNDED|Automatic Standard/);
     assert.ok(

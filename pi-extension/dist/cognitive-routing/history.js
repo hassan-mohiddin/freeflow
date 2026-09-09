@@ -1,3 +1,4 @@
+import { COGNITIVE_ROUTING_DIAGNOSTIC_ENTRY } from "./diagnostics.js";
 import { PI_SESSION_MODEL_STATE_ENTRY, parsePiSessionModelStateCommit } from "./pi-session-control.js";
 const COGNITIVE_ROUTING_INTENT_ENTRY = "freeflow-cognitive-routing-intent";
 const COGNITIVE_ROUTING_CONTROL_ENTRY = "freeflow-cognitive-routing-control";
@@ -254,6 +255,99 @@ function activeEntryIds(entries) {
       .filter((id) => !id.startsWith(`${UNKNOWN}:`)),
   );
 }
+function projectionDiagnosticFor(entry, position) {
+  if (!isRecord(entry) || entry.type !== "custom" || entry.customType !== COGNITIVE_ROUTING_DIAGNOSTIC_ENTRY) {
+    return undefined;
+  }
+  const data = entry.data;
+  if (!isRecord(data)) return "invalid";
+  const stage = data.stage;
+  const modelState = data.modelState;
+  const code = stringValue(data.code);
+  const message = typeof data.message === "string" && data.message.length > 0 ? data.message : undefined;
+  if (
+    data.version !== 1 ||
+    data.kind !== "projection-failure" ||
+    !code ||
+    !message ||
+    (stage !== "selection_validation" &&
+      stage !== "context_assembly" &&
+      stage !== "baseline_persistence" &&
+      stage !== "attribution" &&
+      stage !== "transition") ||
+    (modelState !== "unchanged" && modelState !== "changed" && modelState !== "unknown")
+  ) {
+    return "invalid";
+  }
+  if (data.position !== undefined && (!Number.isInteger(data.position) || data.position < 0)) {
+    return "invalid";
+  }
+  const metadata = metadataFor(entry, position);
+  const diagnostic = {
+    version: 1,
+    kind: "projection-failure",
+    code,
+    stage: stage,
+    message,
+    modelState: modelState,
+    id: `projection:${metadata.id}`,
+    jsonlPosition: position,
+    entryId: metadata.id,
+    ...(metadata.timestamp ? { timestamp: metadata.timestamp } : {}),
+    ...(metadata.parentId ? { parentId: metadata.parentId } : {}),
+    ...(metadata.branchAnchor ? { branchAnchor: metadata.branchAnchor } : {}),
+    ...(stringValue(data.operationId) ? { operationId: stringValue(data.operationId) } : {}),
+    ...(stringValue(data.ref) ? { ref: stringValue(data.ref) } : {}),
+    ...(stringValue(data.role) ? { role: stringValue(data.role) } : {}),
+    ...(stringValue(data.customType) ? { customType: stringValue(data.customType) } : {}),
+    ...(data.position === undefined ? {} : { position: data.position }),
+  };
+  return diagnostic;
+}
+function collectProjectionDiagnostics(entries) {
+  const diagnostics = [];
+  let invalidCount = 0;
+  for (const { entry, position } of entries) {
+    const parsed = projectionDiagnosticFor(entry, position);
+    if (parsed === "invalid") invalidCount += 1;
+    else if (parsed) diagnostics.push(parsed);
+  }
+  return { diagnostics, invalidCount };
+}
+function projectionHealth(scope, collection, options) {
+  const diagnostics = [...collection.diagnostics].sort((left, right) => right.jsonlPosition - left.jsonlPosition);
+  const reason = collection.invalidCount > 0 ? "projection_diagnostic_invalid" : undefined;
+  return {
+    scope,
+    status: reason ? "unavailable" : "available",
+    ...(reason ? { reason } : {}),
+    summary: {
+      scope,
+      diagnosticCount: collection.diagnostics.length,
+      invalidCount: collection.invalidCount,
+      ...(diagnostics[0]?.id ? { latestDiagnosticId: diagnostics[0].id } : {}),
+    },
+    diagnostics: diagnostics.slice(0, normalizeLimit(options.limit)),
+  };
+}
+function unavailableHistory(options, reason) {
+  const scope = options.scope ?? "session";
+  return {
+    status: "unavailable",
+    scope,
+    reason,
+    current: currentState(options.current),
+    summary: { scope, unresolvedCount: 0, anomalyCount: 0 },
+    events: [],
+    projection: {
+      scope,
+      status: "unavailable",
+      reason,
+      summary: { scope, diagnosticCount: 0, invalidCount: 0 },
+      diagnostics: [],
+    },
+  };
+}
 function normalizeLimit(limit) {
   if (!Number.isInteger(limit)) return 20;
   return Math.max(1, Math.min(100, limit));
@@ -265,20 +359,28 @@ function currentState(current) {
   };
 }
 export function projectCognitiveRoutingHistory(entries, options = {}) {
+  const scope = options.scope ?? "session";
+  const sourceEntries = Array.isArray(entries) ? entries : [];
+  const activeIds = scope === "active-branch" ? activeEntryIds(options.branchEntries ?? sourceEntries) : undefined;
+  const scopedEntries = sourceEntries.flatMap((entry, position) => {
+    if (activeIds && !activeIds.has(metadataFor(entry, position).id)) return [];
+    return [{ entry, position }];
+  });
+  const projectionDiagnostics = collectProjectionDiagnostics(scopedEntries);
   const intentRecords = new Map();
   const controls = [];
   const hosts = [];
   const semanticSources = new Map();
-  entries.forEach((entry, position) => {
+  for (const { entry, position } of scopedEntries) {
     const metadata = metadataFor(entry, position);
-    if (!isRecord(entry)) return;
+    if (!isRecord(entry)) continue;
     if (entry.type === "custom" && entry.customType === COGNITIVE_ROUTING_INTENT_ENTRY) {
       const parsed = parseIntent(entry.data);
-      if (!parsed) return;
+      if (!parsed) continue;
       if (parsed.phase === "abandoned") {
         const existing = intentRecords.get(parsed.correlationId);
         if (existing) existing.abandonment = { metadata, intent: parsed };
-        return;
+        continue;
       }
       const existing = intentRecords.get(parsed.correlationId);
       if (existing) {
@@ -289,23 +391,23 @@ export function projectCognitiveRoutingHistory(entries, options = {}) {
           semanticSources.set(parsed.correlationId, parsed.source);
         }
       }
-      return;
+      continue;
     }
     if (entry.type === "custom" && entry.customType === COGNITIVE_ROUTING_CONTROL_ENTRY) {
       const parsed = parseControl(entry.data);
       if (parsed) controls.push({ metadata, control: parsed });
-      return;
+      continue;
     }
     if (entry.type === "custom" && entry.customType === PI_SESSION_MODEL_STATE_ENTRY) {
       const parsed = parsePiSessionModelStateCommit(entry.data);
-      if (!parsed || parsed.phase !== "committed" || parsed.status !== "applied") return;
+      if (!parsed || parsed.phase !== "committed" || parsed.status !== "applied") continue;
       hosts.push({
         metadata,
         pair: parsed.target,
         correlationId: parsed.correlationId,
         hostOrigin: parsed.origin,
       });
-      return;
+      continue;
     }
     if (entry.type === "model_state_change") {
       const correlationId = stringValue(entry.correlationId);
@@ -320,18 +422,46 @@ export function projectCognitiveRoutingHistory(entries, options = {}) {
           : { hostOrigin: entry.origin }),
       });
     }
-  });
+  }
   const usedHostPositions = new Set();
   const events = [];
-  const activeEpochs = new Set();
-  let completedClosing = false;
+  const closingPositionsByEpoch = new Map();
+  const nonClosingStartsByEpoch = new Map();
   for (const record of intentRecords.values()) {
     const intent = record.prepared.intent;
     const correlatedHosts = hosts.filter((host) => host.correlationId === intent.correlationId);
     const matchingHosts = correlatedHosts.filter((host) => pairsEqual(host.pair, intent.target));
     correlatedHosts.forEach((host) => usedHostPositions.add(host.metadata.position));
+    if (record.abandonment) continue;
+    if (intent.kind === "closing") {
+      if (matchingHosts.length > 0) {
+        const positions = closingPositionsByEpoch.get(intent.epoch) ?? [];
+        positions.push(...matchingHosts.map((host) => host.metadata.position));
+        closingPositionsByEpoch.set(intent.epoch, positions);
+      }
+    } else {
+      const starts = nonClosingStartsByEpoch.get(intent.epoch) ?? [];
+      starts.push(record.prepared.metadata.position);
+      nonClosingStartsByEpoch.set(intent.epoch, starts);
+    }
+  }
+  const routingOwnsHostAt = (position) => {
+    for (const [epoch, starts] of nonClosingStartsByEpoch) {
+      const startsBeforeHost = starts.filter((start) => start <= position);
+      if (startsBeforeHost.length === 0) continue;
+      const latestStart = Math.max(...startsBeforeHost);
+      const closed = (closingPositionsByEpoch.get(epoch) ?? []).some(
+        (closingPosition) => closingPosition >= latestStart && closingPosition <= position,
+      );
+      if (!closed) return true;
+    }
+    return false;
+  };
+  for (const record of intentRecords.values()) {
+    const intent = record.prepared.intent;
+    const correlatedHosts = hosts.filter((host) => host.correlationId === intent.correlationId);
+    const matchingHosts = correlatedHosts.filter((host) => pairsEqual(host.pair, intent.target));
     const metadata = metadataIntegrity(intent, semanticSources);
-    if (intent.kind === "closing" && matchingHosts.length > 0) completedClosing = true;
     if (record.abandonment) {
       events.push(
         intentEvent(
@@ -348,7 +478,6 @@ export function projectCognitiveRoutingHistory(entries, options = {}) {
       );
       continue;
     }
-    if (intent.kind !== "closing") activeEpochs.add(intent.epoch);
     if (matchingHosts.length > 0) {
       const representative = matchingHosts.at(-1);
       const changed = intent.fromPair ? !pairsEqual(intent.fromPair, representative.pair) : "unknown";
@@ -391,61 +520,87 @@ export function projectCognitiveRoutingHistory(entries, options = {}) {
     );
   }
   for (const item of controls) events.push(controlEvent(item.metadata, item.control));
-  const routingOwnsHost = activeEpochs.size > 0 && !completedClosing;
   for (const host of hosts) {
     if (usedHostPositions.has(host.metadata.position)) continue;
+    const ownsHost = routingOwnsHostAt(host.metadata.position);
     events.push(
       hostEvent(
         host,
-        host.correlationId || routingOwnsHost ? "anomaly" : "valid",
-        host.correlationId ? "correlation_unresolved" : routingOwnsHost ? "host_change_during_routing" : undefined,
+        host.correlationId || ownsHost ? "anomaly" : "valid",
+        host.correlationId ? "correlation_unresolved" : ownsHost ? "host_change_during_routing" : undefined,
       ),
     );
   }
-  const scope = options.scope ?? "session";
-  const activeIds = activeEntryIds(options.branchEntries);
-  const scoped = events.filter((event) => scope !== "active-branch" || activeIds.has(event.entryId));
+  const visibleEvents = options.anomaliesOnly ? events.filter((event) => event.integrity === "anomaly") : events;
+  const visible = [...visibleEvents]
+    .sort((left, right) => right.representativePosition - left.representativePosition)
+    .slice(0, normalizeLimit(options.limit));
   const summary = {
-    ...(scoped
+    scope,
+    ...(events
       .filter((event) => event.classification === "semantic-switch")
       .sort((left, right) => left.representativePosition - right.representativePosition)
       .at(-1)?.id
       ? {
-          latestSemanticEventId: scoped
+          latestSemanticEventId: events
             .filter((event) => event.classification === "semantic-switch")
             .sort((left, right) => left.representativePosition - right.representativePosition)
             .at(-1)?.id,
         }
       : {}),
-    ...(scoped
+    ...(events
       .filter((event) => event.outcome === "completed" && event.classification !== "control-only")
       .sort((left, right) => left.representativePosition - right.representativePosition)
       .at(-1)?.id
       ? {
-          latestCompletedEventId: scoped
+          latestCompletedEventId: events
             .filter((event) => event.outcome === "completed" && event.classification !== "control-only")
             .sort((left, right) => left.representativePosition - right.representativePosition)
             .at(-1)?.id,
         }
       : {}),
-    unresolvedCount: scoped.filter((event) => event.outcome === "unresolved").length,
-    anomalyCount: scoped.filter((event) => event.integrity === "anomaly").length,
+    unresolvedCount: events.filter((event) => event.outcome === "unresolved").length,
+    anomalyCount: events.filter((event) => event.integrity === "anomaly").length,
   };
-  const visible = (options.anomaliesOnly ? scoped.filter((event) => event.integrity === "anomaly") : scoped)
-    .sort((left, right) => right.representativePosition - left.representativePosition)
-    .slice(0, normalizeLimit(options.limit))
-    .map(({ representativePosition: _representativePosition, ...event }) => event);
-  return { current: currentState(options.current), summary, events: visible };
+  return {
+    status: "available",
+    scope,
+    current: currentState(options.current),
+    summary,
+    events: visible.map(({ representativePosition: _representativePosition, ...event }) => event),
+    projection: projectionHealth(scope, projectionDiagnostics, options),
+  };
 }
 export function readCognitiveRoutingHistory(context, options = {}) {
-  let entries = [];
-  let branchEntries = [];
-  try {
-    entries = context?.sessionManager?.getEntries?.() ?? [];
-    branchEntries = context?.sessionManager?.getBranch?.() ?? entries;
-  } catch {
-    entries = [];
-    branchEntries = [];
+  const manager = context?.sessionManager;
+  if (!manager || typeof manager.getEntries !== "function") {
+    return unavailableHistory(options, "session_entries_unavailable");
   }
-  return projectCognitiveRoutingHistory(entries, { ...options, branchEntries });
+  let entries;
+  try {
+    const value = manager.getEntries();
+    if (!Array.isArray(value)) return unavailableHistory(options, "session_entries_unavailable");
+    entries = value;
+  } catch {
+    return unavailableHistory(options, "session_read_failed");
+  }
+  let branchEntries = options.branchEntries;
+  if (options.scope === "active-branch") {
+    if (typeof manager.getBranch !== "function") return unavailableHistory(options, "active_branch_unavailable");
+    try {
+      const value = manager.getBranch();
+      if (!Array.isArray(value)) return unavailableHistory(options, "active_branch_unavailable");
+      branchEntries = value;
+    } catch {
+      return unavailableHistory(options, "active_branch_read_failed");
+    }
+  } else if (typeof manager.getBranch === "function") {
+    try {
+      const value = manager.getBranch();
+      if (Array.isArray(value)) branchEntries = value;
+    } catch {
+      // Session-wide history remains readable when the optional branch view is unavailable.
+    }
+  }
+  return projectCognitiveRoutingHistory(entries, { ...options, ...(branchEntries ? { branchEntries } : {}) });
 }

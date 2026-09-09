@@ -83,6 +83,7 @@ test("projects a committed Pi session marker as the completed transition", () =>
     },
   ]);
   assert.deepEqual(result.summary, {
+    scope: "session",
     latestSemanticEventId: "intent:intent-1",
     latestCompletedEventId: "intent:intent-1",
     unresolvedCount: 0,

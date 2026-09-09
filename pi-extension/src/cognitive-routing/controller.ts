@@ -6,6 +6,7 @@ import {
   type CognitiveRoutingHistoryResult,
 } from "./history.js";
 import { PI_SESSION_MODEL_STATE_ENTRY, parsePiSessionModelStateCommit } from "./pi-session-control.js";
+import type { CognitiveRoutingDiagnosticReport } from "./diagnostics.js";
 import type {
   CognitiveRoutingCapabilityState,
   CognitiveRoutingProfileName,
@@ -153,8 +154,8 @@ export type CognitiveRoutingSwitchResult =
       to: CognitiveRoutingProfileName;
       profile: CognitiveRoutingProfileName;
     }
-  | { status: "blocked"; reason: string }
-  | { status: "inactive"; reason: string };
+  | { status: "blocked"; reason: string; diagnostic?: CognitiveRoutingDiagnosticReport }
+  | { status: "inactive"; reason: string; diagnostic?: CognitiveRoutingDiagnosticReport };
 
 type CognitiveRoutingProfileTransitionResult =
   { status: "active"; profile: CognitiveRoutingProfileName } | { status: "inactive"; reason: string };

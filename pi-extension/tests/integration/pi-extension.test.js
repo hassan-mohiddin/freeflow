@@ -187,6 +187,69 @@ test("keeps Runtime State before the latest user message during context refreshe
   }
 });
 
+test("projection surface and runtime state follow effective mode", async () => {
+  const cases = [
+    { contextProjection: false, expectedMode: "disabled", exposesProjection: false },
+    { contextProjection: true, expectedMode: "enabled", exposesProjection: true },
+    {
+      contextProjection: true,
+      expectedMode: "manual-bypass",
+      exposesProjection: true,
+      sessionStart: { control: "manual", profile: "standard" },
+    },
+  ];
+
+  for (const scenario of cases) {
+    const cwd = await configuredRepo({
+      cognitiveRouting: {
+        enabled: true,
+        ...(scenario.sessionStart ? { sessionStart: scenario.sessionStart } : {}),
+        contextProjection: scenario.contextProjection,
+        profiles: {
+          standard: { provider: "test", model: "model-a", thinkingLevel: "low" },
+          reasoning: { provider: "test", model: "model-b", thinkingLevel: "high" },
+        },
+      },
+    });
+    try {
+      let liveContext;
+      const loaded = loadExtension(freeflowExtension, null, {
+        async setModel(model) {
+          liveContext.model = model;
+          return true;
+        },
+        setThinkingLevel(level) {
+          liveContext.thinkingLevel = level;
+        },
+      });
+      const ctx = context(cwd);
+      liveContext = ctx;
+      ctx.model = { provider: "test", id: "return" };
+      ctx.thinkingLevel = "medium";
+      ctx.modelRegistry = cognitiveRoutingModelRegistry();
+      ctx.sessionManager.getSessionId = () => "mode-surface-session";
+      await loaded.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+      await loaded.handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+      const tool = loaded.tools.find((candidate) => candidate.name === "freeflow_switch_profile");
+      assert.ok(tool);
+      assert.equal(Boolean(tool.parameters.properties.projection), scenario.exposesProjection, scenario.expectedMode);
+      assert.equal(
+        tool.promptGuidelines.some((guideline) => /completed evidence refs/i.test(guideline)),
+        scenario.exposesProjection,
+        scenario.expectedMode,
+      );
+
+      const providerContext = await loaded.handlers.get("context")({ messages: [] }, ctx);
+      assert.match(providerContext.messages[0].content, new RegExp("Projection: `" + scenario.expectedMode + "`"));
+      if (scenario.sessionStart) {
+        assert.equal(loaded.activeToolNames().includes("freeflow_switch_profile"), false);
+      }
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  }
+});
+
 test("Pi registers the remaining Freeflow commands without mode controls or retired router tools", () => {
   const { commands, shortcuts, tools } = loadExtension();
   const commandNames = commands.map((command) => command.name);

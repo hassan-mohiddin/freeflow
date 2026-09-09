@@ -23,41 +23,48 @@ export const COGNITIVE_ROUTING_HISTORY_PARAMETERS = {
   },
   required: [],
 };
-export const COGNITIVE_ROUTING_SWITCH_PARAMETERS = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    target: {
-      type: "string",
-      enum: ["standard", "reasoning"],
-      description: "The configured Cognitive Routing profile to activate.",
-    },
-    reason: {
-      type: "string",
-      minLength: 1,
-      maxLength: 160,
-      description: "A concise one-line reason for the profile transition.",
-    },
-    projection: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        include: {
-          type: "array",
-          items: { type: "string" },
-          description: "Completed Standard evidence refs to include in the Reasoning context.",
-        },
-        shared: {
-          type: "array",
-          items: { type: "string" },
-          description: "Previously exposed evidence refs to retain as shared context.",
-        },
+function switchParameters(projectionEnabled) {
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      target: {
+        type: "string",
+        enum: ["standard", "reasoning"],
+        description: "The configured Cognitive Routing profile to activate.",
       },
-      required: [],
+      reason: {
+        type: "string",
+        minLength: 1,
+        maxLength: 160,
+        description: "A concise one-line reason for the profile transition.",
+      },
+      ...(projectionEnabled
+        ? {
+            projection: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                include: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Completed Standard evidence refs to include in the Reasoning context.",
+                },
+                shared: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Previously exposed evidence refs to retain as shared context.",
+                },
+              },
+              required: [],
+            },
+          }
+        : {}),
     },
-  },
-  required: ["target", "reason"],
-};
+    required: ["target", "reason"],
+  };
+}
+export const COGNITIVE_ROUTING_SWITCH_PARAMETERS = switchParameters(true);
 function resultText(result) {
   if (result.status === "active") {
     const fields = [COGNITIVE_ROUTING_SWITCH_TOOL_NAME + "|active", `profile|${result.profile}`];
@@ -66,7 +73,14 @@ function resultText(result) {
     if (result.to) fields.push(`to|${result.to}`);
     return fields.join("\n");
   }
-  return `${COGNITIVE_ROUTING_SWITCH_TOOL_NAME}|${result.status}\nreason|${result.reason}`;
+  const fields = [COGNITIVE_ROUTING_SWITCH_TOOL_NAME + `|${result.status}`, `reason|${result.reason}`];
+  if (result.diagnostic) {
+    fields.push(`diagnostic_code|${result.diagnostic.diagnostic.code}`);
+    fields.push(`diagnostic_stage|${result.diagnostic.diagnostic.stage}`);
+    fields.push(`diagnostic_model_state|${result.diagnostic.diagnostic.modelState}`);
+    fields.push(`diagnostic_persisted|${result.diagnostic.delivery.persisted}`);
+  }
+  return fields.join("\n");
 }
 function blocked(reason) {
   return { status: "blocked", reason };
@@ -175,6 +189,7 @@ function validateParams(params) {
   return { status: "valid", target: params.target, reason, ...(projection ? { projection } : {}) };
 }
 export function registerCognitiveRoutingTool(pi, getController, options = {}) {
+  const projectionEnabled = options.projectionEnabled !== false;
   pi.registerTool({
     name: COGNITIVE_ROUTING_SWITCH_TOOL_NAME,
     label: "Switch Cognitive Profile",
@@ -184,8 +199,11 @@ export function registerCognitiveRoutingTool(pi, getController, options = {}) {
       "Use only when the current task needs a different reasoning profile.",
       "Give one concise sentence as the reason and make this the only tool call in the response.",
       "Do not call this tool while a deterministic manual profile hold is active.",
+      ...(projectionEnabled
+        ? ["When returning to Reasoning, include only completed evidence refs needed for its assessment."]
+        : []),
     ],
-    parameters: COGNITIVE_ROUTING_SWITCH_PARAMETERS,
+    parameters: switchParameters(projectionEnabled),
     executionMode: "sequential",
     async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
       const controller = getController();
