@@ -16,6 +16,7 @@ import { filterBootstrapMessage } from "../../dist/runtime/runtime-context.js";
 
 const SOURCE_ENTRY = "freeflow-cognitive-routing-source";
 const PROJECTION_ENTRY = "freeflow-cognitive-routing-projection";
+const BASELINE_ENTRY = "freeflow-cognitive-routing-baseline";
 const CAPTURE_TOOL = "capture_evidence";
 
 function sseResponse(events) {
@@ -123,9 +124,14 @@ async function runProjectionMode(mode) {
   let requestIndex = 0;
   let contextAbortStates = [];
   let faultCount = 0;
+  let contextMutationCount = 0;
+  let unrelatedAssistantInjected = false;
   let diagnosticAppendAttempts = 0;
   const preflightContexts = [];
   let canonicalBeforeProjection;
+  let abortedAssistant;
+  let recoveredAssistant;
+  let unrelatedAssistantEntry;
 
   process.env.PI_OFFLINE = "1";
   globalThis.fetch = async (url, init) => {
@@ -272,13 +278,18 @@ async function runProjectionMode(mode) {
               },
             ]
           : []),
-        ...(mode === "context-mutation" || mode.startsWith("diagnostic-persistence-")
+        ...(mode === "context-mutation" || mode === "abort-recovery" || mode.startsWith("diagnostic-persistence-")
           ? [
               (pi) => {
                 pi.on("context", (event) => {
-                  if (requestIndex < 5 || !JSON.stringify(event.messages).includes("CAPTURED_SELECTED")) {
+                  if (
+                    (mode === "abort-recovery" && contextMutationCount > 0) ||
+                    requestIndex < 5 ||
+                    !JSON.stringify(event.messages).includes("CAPTURED_SELECTED")
+                  ) {
                     return undefined;
                   }
+                  if (mode === "abort-recovery") contextMutationCount += 1;
                   return {
                     messages: event.messages.map((message) =>
                       message?.role === "toolResult" && JSON.stringify(message.content).includes("CAPTURED_SELECTED")
@@ -319,6 +330,25 @@ async function runProjectionMode(mode) {
     await resourceLoader.reload();
 
     sessionManager = SessionManager.inMemory(cwd);
+    if (mode === "unmatched-assistant-error") {
+      sessionManager.appendMessage({ role: "user", content: [{ type: "text", text: "Seeded context." }] });
+      unrelatedAssistantEntry = sessionManager.appendMessage({
+        api: "openai-responses",
+        content: [],
+        errorMessage: "Provider failed",
+        model: "gpt-4",
+        provider: "openai",
+        role: "assistant",
+        stopReason: "error",
+      });
+      sessionManager.appendCustomEntry(BASELINE_ENTRY, {
+        version: 1,
+        kind: "baseline",
+        sessionId: sessionManager.getSessionId(),
+        entryIds: [],
+      });
+      unrelatedAssistantInjected = true;
+    }
     if (mode.startsWith("diagnostic-persistence-")) {
       const appendCustomEntry = sessionManager.appendCustomEntry.bind(sessionManager);
       sessionManager.appendCustomEntry = (customType, data) => {
@@ -357,6 +387,26 @@ async function runProjectionMode(mode) {
       await session.bindExtensions({ mode: "print" });
       await session.prompt("start the projection negative case");
       await session.prompt("return the captured evidence");
+      if (mode === "abort-recovery") {
+        const abortedEntry = [...sessionManager.getBranch()]
+          .reverse()
+          .find((entry) => entry.type === "message" && entry.message?.role === "assistant" && entry.message.stopReason);
+        assert.ok(abortedEntry, "the initial projection failure must persist an assistant result");
+        abortedAssistant = { id: abortedEntry.id, message: structuredClone(abortedEntry.message) };
+        await session.reload();
+        await session.prompt("recover after the projection abort");
+        const recoveredEntry = [...sessionManager.getBranch()]
+          .reverse()
+          .find(
+            (entry) =>
+              entry.type === "message" &&
+              entry.message?.role === "assistant" &&
+              entry.message.stopReason === "stop" &&
+              entry.id !== abortedAssistant.id,
+          );
+        assert.ok(recoveredEntry, "the later projected turn must complete");
+        recoveredAssistant = { id: recoveredEntry.id, message: structuredClone(recoveredEntry.message) };
+      }
       const switchDefinition = session.getToolDefinition("freeflow_switch_profile");
       switchDefinitionExposesProjection = Boolean(switchDefinition?.parameters?.properties?.projection);
     } finally {
@@ -370,9 +420,14 @@ async function runProjectionMode(mode) {
       observedContexts,
       contextAbortStates,
       faultCount,
+      contextMutationCount,
+      unrelatedAssistantInjected,
       diagnosticAppendAttempts,
       preflightContexts,
       canonicalBeforeProjection,
+      abortedAssistant,
+      recoveredAssistant,
+      unrelatedAssistantEntry,
       extensionErrors,
       switchDefinitionExposesProjection,
       entries: sessionManager.getBranch(),
@@ -530,6 +585,54 @@ test("aborts when a preceding context extension transforms selected evidence", a
       `transformed-source failure: canonical entry ${entryId} remains unchanged`,
     );
   }
+});
+
+test("does not let a persisted projection abort poison a later projected turn", async () => {
+  const result = await runProjectionMode("abort-recovery");
+
+  assert.equal(result.contextMutationCount, 1);
+  assert.ok(result.abortedAssistant);
+  assert.equal(result.abortedAssistant.message.stopReason, "error");
+  assert.equal(result.abortedAssistant.message.errorMessage, "This operation was aborted");
+  assert.ok(result.recoveredAssistant);
+  assert.equal(result.recoveredAssistant.message.stopReason, "stop");
+  assert.equal(result.requests.at(-1).model, "gpt-4o");
+  assert.equal(result.contextAbortStates.some(Boolean), true);
+  assert.equal(result.contextAbortStates.at(-1), false);
+  assert.match(
+    result.observedContexts.at(-1).find((message) => message?.customType === "freeflow-runtime-state")?.content ?? "",
+    /Projection: `enabled`/,
+  );
+  assert.equal(result.projectionRecords.length, 1);
+  assert.equal(result.extensionErrors.length, 0);
+
+  const diagnostics = result.entries.filter(
+    (entry) => entry.type === "custom" && entry.customType === "freeflow-cognitive-routing-diagnostic",
+  );
+  assert.equal(diagnostics.length, 1);
+  const retainedAbort = result.entries.find((entry) => entry.id === result.abortedAssistant.id);
+  assert.ok(retainedAbort);
+  assert.deepEqual(retainedAbort.message, result.abortedAssistant.message);
+});
+
+test("rejects an unrelated unattributed assistant error", async () => {
+  const result = await runProjectionMode("unmatched-assistant-error");
+
+  assert.equal(result.unrelatedAssistantInjected, true);
+  assert.equal(result.requests.length, 0);
+  assert.equal(result.contextAbortStates.some(Boolean), true);
+  assert.ok(["aborted", "error"].includes(latestAssistant(result).stopReason));
+  const diagnostics = result.entries.filter(
+    (entry) => entry.type === "custom" && entry.customType === "freeflow-cognitive-routing-diagnostic",
+  );
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].data.code, "source_not_found:assistant");
+  assert.equal(diagnostics[0].data.stage, "context_assembly");
+  assert.equal(diagnostics[0].data.role, "assistant");
+  const retainedUnrelatedError = result.entries.find((entry) => entry.id === result.unrelatedAssistantEntry);
+  assert.ok(retainedUnrelatedError);
+  assert.equal(retainedUnrelatedError.message.errorMessage, "Provider failed");
+  assert.equal(result.extensionErrors.length, 0);
 });
 
 test("registered diagnostic persistence failures stay truthful and fail-closed", async () => {

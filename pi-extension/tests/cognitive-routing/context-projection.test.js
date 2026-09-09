@@ -238,6 +238,40 @@ test("required handoffs survive empty discretionary selection", () => {
   assert.deepEqual(result.visibleRefs, ["ctx:user-1", "ctx:assistant-2"]);
 });
 
+test("drops Pi's empty aborted assistant artifact without accepting other errors", () => {
+  const { messages, sources } = fixture();
+  const aborted = {
+    role: "assistant",
+    content: [],
+    stopReason: "error",
+    errorMessage: "This operation was aborted",
+  };
+  const before = structuredClone(aborted);
+  const result = projectReasoningContext({
+    sessionId: "session-1",
+    messages: [messages[0], aborted],
+    sources,
+  });
+
+  assert.equal(result.status, "projected");
+  assert.deepEqual(result.messages, [messages[0]]);
+  assert.deepEqual(result.visibleRefs, ["ctx:user-1"]);
+  assert.deepEqual(result.selectedRefs, []);
+  assert.deepEqual(aborted, before);
+
+  for (const assistant of [
+    { ...aborted, errorMessage: "Provider failed" },
+    { ...aborted, content: [{ type: "text", text: "partial response" }] },
+  ]) {
+    assert.deepEqual(projectReasoningContext({ sessionId: "session-1", messages: [messages[0], assistant], sources }), {
+      status: "rejected",
+      reason: "source_not_found:assistant",
+      position: 1,
+      role: "assistant",
+    });
+  }
+});
+
 test("unknown, changed, and reused messages reject without a partial view", () => {
   const { messages, sources } = fixture();
   const changed = structuredClone(messages);

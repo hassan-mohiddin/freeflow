@@ -3,6 +3,16 @@ import { contextRefForEntry, entryIdFromContextRef } from "../freeflow-context/t
 function messageRole(message) {
   return typeof message?.role === "string" ? message.role : undefined;
 }
+function isAbortedAssistantArtifact(message) {
+  // Pi persists an empty assistant error after ctx.abort(); it contains no evidence or tool dependency.
+  return (
+    messageRole(message) === "assistant" &&
+    (message.stopReason === "error" || message.stopReason === "aborted") &&
+    message.errorMessage === "This operation was aborted" &&
+    Array.isArray(message.content) &&
+    message.content.length === 0
+  );
+}
 function refFor(source) {
   return typeof source.source.entryId === "string" ? contextRefForEntry(source.source.entryId) : undefined;
 }
@@ -215,6 +225,7 @@ export function projectReasoningContext(input) {
   const usedTransients = new Set();
   let items = [];
   for (const [index, message] of input.messages.entries()) {
+    if (isAbortedAssistantArtifact(message)) continue;
     if (ownedTransientMessages.has(message)) {
       if (usedTransients.has(message)) return rejected("transient_reused");
       usedTransients.add(message);

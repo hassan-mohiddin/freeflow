@@ -78,6 +78,17 @@ function messageRole(message: any): string | undefined {
   return typeof message?.role === "string" ? message.role : undefined;
 }
 
+function isAbortedAssistantArtifact(message: any): boolean {
+  // Pi persists an empty assistant error after ctx.abort(); it contains no evidence or tool dependency.
+  return (
+    messageRole(message) === "assistant" &&
+    (message.stopReason === "error" || message.stopReason === "aborted") &&
+    message.errorMessage === "This operation was aborted" &&
+    Array.isArray(message.content) &&
+    message.content.length === 0
+  );
+}
+
 function refFor(source: ProjectionSource): string | undefined {
   return typeof source.source.entryId === "string" ? contextRefForEntry(source.source.entryId) : undefined;
 }
@@ -317,6 +328,7 @@ export function projectReasoningContext(input: ProjectionInput): ContextProjecti
   const usedTransients = new Set<any>();
   let items: MessageEntry[] = [];
   for (const [index, message] of input.messages.entries()) {
+    if (isAbortedAssistantArtifact(message)) continue;
     if (ownedTransientMessages.has(message)) {
       if (usedTransients.has(message)) return rejected("transient_reused");
       usedTransients.add(message);
