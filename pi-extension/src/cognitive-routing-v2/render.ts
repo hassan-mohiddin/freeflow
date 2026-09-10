@@ -1,26 +1,168 @@
 import { Text } from "@earendil-works/pi-tui";
 
+type RenderContext = {
+  args?: any;
+  expanded?: boolean;
+  argsComplete?: boolean;
+  executionStarted?: boolean;
+  isPartial?: boolean;
+  isError?: boolean;
+};
 const value = (v: unknown) => (typeof v === "string" ? v : v === undefined ? "" : JSON.stringify(v, null, 2));
+const text = (v: unknown) => (typeof v === "string" ? v : "");
+const count = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const capital = (v: string) => (v ? v[0].toUpperCase() + v.slice(1) : "");
 
-export function renderRoutingCall(name: string, args: any = {}, expanded = false) {
-  const title = `${name.replace("freeflow_", "")} · ${args?.operation ?? "preparing"}`;
-  return new Text(title, 0, 0);
+function title(name: string, operation?: string): string {
+  if (name === "freeflow_delegate") return operation === "replace" ? "Replace assignment" : "Delegate to Executor";
+  if (name === "freeflow_return") return operation === "retry" ? "Retry return" : "Return to Coordinator";
+  if (name === "freeflow_project")
+    return (
+      (
+        {
+          add: "Select evidence",
+          remove: "Remove evidence",
+          inspect: "Inspect evidence",
+          list: "List evidence",
+        } as Record<string, string>
+      )[operation ?? ""] ?? "Evidence"
+    );
+  if (name === "freeflow_unit")
+    return (
+      (
+        {
+          close: "Close unit",
+          assess: "Resume assessment",
+          status: "Routing status",
+          history: "Routing history",
+        } as Record<string, string>
+      )[operation ?? ""] ?? "Routing unit"
+    );
+  return "Routing";
 }
 
-export function renderRoutingResult(result: any, options: { expanded?: boolean; isPartial?: boolean } = {}) {
+function draft(name: string, args: any): string {
+  const sections: string[] = [];
+  if (name === "freeflow_delegate") sections.push(text(args.contract));
+  if (name === "freeflow_return") sections.push(text(args.report));
+  if (name === "freeflow_unit") sections.push(text(args.assessment));
+  if (name === "freeflow_project" && Array.isArray(args.refs))
+    sections.push(args.refs.filter((r: unknown) => typeof r === "string").join("\n"));
+  if (args.reason) sections.push(`Reason: ${text(args.reason)}`);
+  if (Array.isArray(args.limitations))
+    sections.push(
+      ...args.limitations.filter((s: unknown) => typeof s === "string").map((s: string) => `Limitation: ${s}`),
+    );
+  return sections.filter(Boolean).join("\n\n");
+}
+
+export function renderRoutingCall(name: string, args: any = {}, context: RenderContext = {}) {
+  args ??= {};
+  const heading = title(name, args.operation);
+  if (context.isPartial === false) return new Text(heading, 0, 0);
+  const writing = context.argsComplete !== true;
+  const noun =
+    name === "freeflow_delegate"
+      ? "assignment"
+      : name === "freeflow_return"
+        ? "report"
+        : name === "freeflow_unit" && args.operation === "close"
+          ? "assessment"
+          : undefined;
+  const body = draft(name, args);
+  const activity = noun && args.operation !== "retry" ? `${writing ? "Writing" : "Saving"} ${noun}…` : "Working…";
+  return {
+    render(width: number) {
+      const header = new Text(`${heading} · ${activity}`, 0, 0).render(width);
+      if (!body) return header;
+      const lines = new Text(body, 0, 0).render(width);
+      if (context.expanded || lines.length <= 6) return [...header, "", ...lines];
+      // Bound terminal rows after wrapping, so a long single line cannot flood
+      // collapsed output. Pi supplies the real partial arguments on each update.
+      const hint = new Text("… earlier text available when expanded", 0, 0).render(width);
+      return [...header, ...hint, "", ...lines.slice(-6)];
+    },
+    invalidate() {},
+  };
+}
+
+function summary(receipt: any, name: string, args: any): string {
+  const operation = args.operation;
+  const problems = receipt.problems ?? receipt.evidence?.unresolved ?? [];
+  const issue = problems.length
+    ? `${count(problems.length, "evidence issue")} ${problems.length === 1 ? "needs" : "need"} correction`
+    : "Evidence needs correction";
+  if (receipt.reportSaved)
+    return `${operation === "retry" ? "Saved report retained" : "Report saved"}${receipt.ready === false ? ` · ${issue}` : ""}`;
+  if (receipt.status === "blocked" || receipt.status === "rejected") {
+    const reasons: Record<string, string> = {
+      wrong_profile: "This operation belongs to the other profile",
+      manual_control: "Automatic routing is paused by manual control",
+      assignment_outstanding: "An assignment is already in progress",
+      acknowledgment_uncertain: "Saved state needs reconciliation",
+      routing_unavailable: "Routing is unavailable",
+      assignment_task_ended: "Task work has ended for this assignment",
+    };
+    return reasons[receipt.code] || text(receipt.message).split("\n")[0] || "Operation needs attention";
+  }
+  if (receipt.status === "suspended") return "Couldn’t restore evidence · Assessment remains paused";
+  if (name === "freeflow_delegate") return `${operation === "replace" ? "Replacement" : "Assignment"} saved`;
+  if (name === "freeflow_project") {
+    const selected = (receipt.selected ?? receipt.evidence?.selected ?? []).length;
+    if (operation === "list")
+      return `${count(receipt.count ?? receipt.items?.length ?? 0, "source")}${Number.isInteger(receipt.selectableCount) ? ` · ${receipt.selectableCount} selectable` : ""}`;
+    if (operation === "remove") {
+      const removed = (receipt.items ?? []).filter((i: any) => i.status === "removed").length;
+      const withdrawn = (receipt.items ?? []).filter((i: any) => i.status === "withdrawn").length;
+      const changes = [
+        removed ? `${removed} removed` : "",
+        withdrawn ? `${count(withdrawn, "reference")} withdrawn` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return `${changes || "No changes"} · ${selected} remaining`;
+    }
+    const unchanged =
+      operation === "add" &&
+      receipt.items?.length &&
+      receipt.items.every((i: any) => ["already_selected", "unchanged"].includes(i.status));
+    return `${unchanged ? "No changes · " : ""}${count(selected, "source")} selected${receipt.ready === false ? ` · ${issue}` : operation === "inspect" ? " · No unresolved references" : ""}`;
+  }
+  if (name === "freeflow_unit") {
+    if (operation === "close") return capital(receipt.outcome ?? "closed");
+    if (operation === "assess")
+      return receipt.status === "unchanged" ? "Assessment already active" : "Evidence prepared";
+    if (operation === "history") return count(receipt.history?.length ?? 0, "event");
+    if (receipt.runtimeStatus === "blocked") return "Routing needs attention";
+    if (!receipt.effective) return "Routing inactive";
+    return `${capital(receipt.activeProfile ?? "unknown")} · ${receipt.controlMode?.startsWith("manual") ? "Manual control" : receipt.assignment?.state === "outstanding" ? "Assignment in progress" : receipt.assignment?.state === "returned" ? "Awaiting assessment" : "No assignment"}`;
+  }
+  return receipt.ready === false ? issue : "Done";
+}
+
+export function renderRoutingResult(
+  result: any,
+  options: { expanded?: boolean; isPartial?: boolean } = {},
+  name = "",
+  context: RenderContext = {},
+) {
   const receipt = result?.details ?? {};
-  const summary = [
-    options.isPartial ? "Working…" : (receipt.status ?? "Result"),
-    receipt.reportSaved ? "report saved" : "",
-    receipt.transition ? `transfer ${receipt.transition}` : "",
-    receipt.ready === true ? "evidence prepared (not acceptance)" : receipt.ready === false ? "evidence not ready" : "",
-    receipt.code ?? "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  const problems = (receipt.problems ?? [])
-    .map((p: any) => `${p.ref || "request"}: ${p.code} — ${p.detail}`)
-    .join("\n");
+  const args = context.args ?? {};
+  const fallback =
+    !result?.details || Object.keys(receipt).length === 0
+      ? result?.content
+          ?.filter((b: any) => b.type === "text")
+          .map((b: any) => b.text)
+          .join("\n")
+      : "";
+  const headline = options.isPartial
+    ? "Working…"
+    : context.isError
+      ? fallback?.split("\n")[0] || "Operation failed"
+      : fallback
+        ? fallback.split("\n")[0]
+        : summary(receipt, name, args);
+  if (!options.expanded) return new Text(headline, 0, 0);
   const facts = receipt.evidence;
   const evidence = facts
     ? [
@@ -31,35 +173,34 @@ export function renderRoutingResult(result: any, options: { expanded?: boolean; 
         ...(facts.limitations ?? []).map((p: any) => `${p.code}: ${p.detail}`),
       ].join("\n")
     : "";
-  const detail = options.expanded
-    ? [
-        receipt.contract ? `Accepted contract\n${receipt.contract}` : "",
-        receipt.report ? `Saved report\n${receipt.report}` : "",
-        receipt.assessment ? `Assessment\n${value(receipt.assessment)}` : "",
-        evidence,
-        receipt.items
-          ?.map((item: any) => `${item.ref} · ${item.status ?? item.kind}${item.detail ? `: ${item.detail}` : ""}`)
-          .join("\n"),
-        ["unit", "assignment", "handoff", "revision", "stage"]
-          .filter((key) => receipt[key] !== undefined)
-          .map((key) => `${key}: ${value(receipt[key])}`)
-          .join("\n"),
-        receipt.provisional,
-      ]
-        .filter(Boolean)
-        .join("\n\n")
-    : "";
-  // Text wraps complete content with Pi's ANSI/Unicode-aware layout. Receipts
-  // capture accepted data so expanding an old row never reads today's state.
-  const fallback = !result?.details
-    ? result?.content
-        ?.filter((b: any) => b.type === "text")
-        .map((b: any) => b.text)
-        .join("\n")
-    : "";
-  return new Text(
-    [summary, receipt.message, fallback, problems, receipt.recoveryAction, detail].filter(Boolean).join("\n\n"),
-    0,
-    0,
-  );
+  const detail = [
+    receipt.contract
+      ? `Accepted contract\n${receipt.contract}`
+      : args.contract
+        ? `Submitted contract\n${args.contract}`
+        : "",
+    receipt.report
+      ? `Saved report\n${receipt.report}`
+      : args.report
+        ? `${receipt.reportSaved ? "Saved" : "Submitted"} report\n${args.report}`
+        : "",
+    receipt.assessment ? `Assessment\n${value(receipt.assessment)}` : args.assessment,
+    evidence,
+    receipt.items
+      ?.map((item: any) => `${item.ref} · ${item.status ?? item.kind}${item.detail ? `: ${item.detail}` : ""}`)
+      .join("\n"),
+    receipt.history?.map((event: any) => `${event.type} · ${event.event}`).join("\n"),
+    ["unit", "assignment", "handoff", "revision", "stage", "transition", "code"]
+      .filter((key) => receipt[key] !== undefined)
+      .map((key) => `${key}: ${value(receipt[key])}`)
+      .join("\n"),
+    receipt.provisional,
+    receipt.message,
+    (receipt.problems ?? []).map((p: any) => `${p.ref || "request"}: ${p.code} — ${p.detail}`).join("\n"),
+    receipt.recoveryAction,
+    fallback,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  return new Text([headline, detail].filter(Boolean).join("\n\n"), 0, 0);
 }

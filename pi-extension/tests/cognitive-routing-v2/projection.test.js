@@ -5,6 +5,53 @@ import { initialState } from "../../dist/cognitive-routing-v2/state.js";
 import { prepareView } from "../../dist/cognitive-routing-v2/projection.js";
 import { fixture } from "../fixtures/routing-native.js";
 
+test(
+  "native projection receipts distinguish duplicate additions from actual removals",
+  { timeout: 30000 },
+  async () => {
+    let ref;
+    await fixture((n, _body, manager) => {
+      if (n === 1)
+        return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence and return." } }];
+      if (n === 2) return [{ name: "read", args: { path: "evidence.txt" } }];
+      if (n === 3) {
+        ref = "ctx:" + manager.getBranch().find((e) => e.message?.toolName === "read").id;
+        return [{ name: "freeflow_project", args: { operation: "add", refs: [ref] } }];
+      }
+      if (n === 4) return [{ name: "freeflow_project", args: { operation: "add", refs: [ref, ref] } }];
+      if (n === 5) {
+        const details = manager
+          .getBranch()
+          .filter((e) => e.message?.toolName === "freeflow_project")
+          .at(-1).message.details;
+        assert.deepEqual(details.selected, [ref]);
+        assert.deepEqual(details.items, [{ ref, status: "already_selected" }]);
+        return [
+          {
+            name: "freeflow_project",
+            args: { operation: "remove", refs: [ref], reason: "Deliberate fixture withdrawal" },
+          },
+        ];
+      }
+      if (n === 6) {
+        const details = manager
+          .getBranch()
+          .filter((e) => e.message?.toolName === "freeflow_project")
+          .at(-1).message.details;
+        assert.deepEqual(details.selected, []);
+        assert.deepEqual(details.items, [{ ref, status: "removed" }]);
+        return [
+          {
+            name: "freeflow_return",
+            args: { operation: "submit", report: "Fixture complete; evidence withdrawn.", outcome: "partial" },
+          },
+        ];
+      }
+      return [];
+    });
+  },
+);
+
 const model = {
   id: "receiver",
   provider: "fixture",

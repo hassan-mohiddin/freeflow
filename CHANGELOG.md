@@ -13,6 +13,7 @@
 ### Changed
 
 - Retires the old experimental routing source and tests into the historical archive, adds replacement-contract regression suites, and cleans generated extension output before building.
+- Shows live routing tool arguments in a six-line trailing preview with full expansion, and replaces internal collapsed receipt labels with readable operation outcomes and evidence counts.
 
 ### Fixed
 

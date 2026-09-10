@@ -967,6 +967,7 @@ export class RoutingRuntime {
         scope,
         offset,
         count: items.length,
+        selectableCount: items.filter((item) => item.eligible).length,
         otherAssignments: [...sources.byRef.values()].filter(
           (s) => s.producer === "executor" && s.assignmentId !== a.id,
         ).length,
@@ -994,8 +995,14 @@ export class RoutingRuntime {
         status: next.unresolved.some((p) => p.ref === ref)
           ? "rejected"
           : input.operation === "remove"
-            ? "withdrawn"
-            : "added",
+            ? selection.selected.includes(ref)
+              ? "removed"
+              : selection.unresolved.some((p) => p.ref === ref)
+                ? "withdrawn"
+                : "unchanged"
+            : selection.selected.includes(ref)
+              ? "already_selected"
+              : "added",
       })),
       estimate: { tokens: prepared.estimatedTokens, method: prepared.estimateMethod },
     };
@@ -1183,14 +1190,18 @@ export class RoutingRuntime {
       }
       this.projectionError = undefined;
     } catch (error) {
-      if (this.current(subject) && !this.store?.blocked && !this.error && this.stateData().pendingId === h.id)
+      if (this.current(subject) && !this.store?.blocked && !this.error && this.stateData().pendingId === h.id) {
         this.append({
           type: "handoff-state",
           handoffId: h.id,
           state: "blocked",
           reason: error instanceof Error ? error.message.slice(0, 4096) : "configuration_failed",
         });
-      else throw error;
+        this.ctx.ui?.notify?.(
+          `Couldn’t switch to ${h.to === "coordinator" ? "Coordinator" : "Executor"} — ${h.kind === "return" ? "report" : "assignment"} saved.`,
+          "warning",
+        );
+      } else throw error;
     }
   }
   async resume(ctx: any): Promise<void> {

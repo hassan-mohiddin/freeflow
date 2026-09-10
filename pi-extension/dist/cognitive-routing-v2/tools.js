@@ -127,8 +127,8 @@ export function registerRoutingTools(pi, runtime) {
       parameters: ROUTING_SCHEMAS[name],
       executionMode: "sequential",
       promptGuidelines: guidance[name],
-      renderCall: (args, _theme, context) => renderRoutingCall(name, args, context?.expanded),
-      renderResult: (result, options) => renderRoutingResult(result, options),
+      renderCall: (args, _theme, context) => renderRoutingCall(name, args, context),
+      renderResult: (result, options, _theme, context) => renderRoutingResult(result, options, name, context),
       async execute(id, input, signal, _update, ctx) {
         if (!matches(input, ROUTING_SCHEMAS[name]))
           throw new Error("Invalid routing arguments; no operation accepted.");
