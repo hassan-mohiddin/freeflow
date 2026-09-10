@@ -1,5 +1,6 @@
 import { RoutingRuntime, ROUTING_TOOLS } from "./runtime.js";
 import { isObject, requireCondition as check } from "./types.js";
+import { renderRoutingCall, renderRoutingResult } from "./render.js";
 
 const string = (maxLength = 32768) => ({ type: "string", minLength: 1, maxLength });
 const object = (properties: Record<string, any>, required = Object.keys(properties)) => ({
@@ -118,33 +119,57 @@ const guidance: Record<string, string[]> = {
     "freeflow_project selects actual result bodies, not merely calls. Correct or explicitly withdraw unresolved items with a limitation. Known previously exposed bodies resolve automatically; target-representation gaps are not successful delivery.",
   ],
 };
+const unitDefinitions = new WeakMap<object, { definition: any; signature?: string }>();
 export function registerRoutingTools(pi: any, runtime: RoutingRuntime): void {
-  for (const name of ROUTING_TOOLS)
-    pi.registerTool({
+  for (const name of ROUTING_TOOLS) {
+    const definition = {
       name,
       label: name.replace("freeflow_", "Routing "),
       description: descriptions[name],
       parameters: ROUTING_SCHEMAS[name],
       executionMode: "sequential",
       promptGuidelines: guidance[name],
+      renderCall: (args: any, _theme: any, context: any) => renderRoutingCall(name, args, context?.expanded),
+      renderResult: (result: any, options: any) => renderRoutingResult(result, options),
       async execute(id: string, input: unknown, signal: AbortSignal, _update: unknown, ctx: any) {
         if (!matches(input, ROUTING_SCHEMAS[name]))
-          return {
-            content: [{ type: "text", text: "Invalid routing arguments; no operation accepted." }],
-            details: { status: "rejected", code: "invalid_arguments" },
-            isError: true,
-          };
+          throw new Error("Invalid routing arguments; no operation accepted.");
         return runtime.invoke(name, id, input, signal, ctx);
       },
-    });
+    };
+    pi.registerTool(definition);
+    if (name === "freeflow_unit") unitDefinitions.set(pi, { definition });
+  }
 }
 export function applyRoutingToolVisibility(pi: any, runtime: RoutingRuntime, available: boolean): void {
   if (!pi.getActiveTools || !pi.setActiveTools) return;
   const current = new Set<string>(pi.getActiveTools());
+  const state = runtime.state();
+  const unit = unitDefinitions.get(pi);
+  const coordinator = state.effective && state.controlMode === "automatic" && state.activeProfile === "coordinator";
+  const signature = coordinator ? "coordinator" : "inspection";
+  if (unit && unit.signature !== signature) {
+    const schema = ROUTING_SCHEMAS.freeflow_unit;
+    const branches = coordinator
+      ? schema.oneOf
+      : schema.oneOf.filter((branch: any) => ["status", "history"].includes(branch.properties.operation.enum[0]));
+    const properties = Object.assign({}, ...branches.map((branch: any) => branch.properties));
+    properties.operation = {
+      type: "string",
+      enum: branches.flatMap((branch: any) => branch.properties.operation.enum),
+    };
+    pi.registerTool({ ...unit.definition, parameters: { ...schema, properties, oneOf: branches } });
+    unit.signature = signature;
+  }
   for (const name of ROUTING_TOOLS) {
     const enabled =
       available &&
-      (name === "freeflow_unit" || (runtime.state().effective && runtime.state().controlMode === "automatic")) &&
+      (name === "freeflow_unit" ||
+        (state.effective &&
+          state.controlMode === "automatic" &&
+          (name === "freeflow_delegate"
+            ? state.activeProfile === "coordinator"
+            : state.activeProfile === "executor"))) &&
       (name !== "freeflow_project" || runtime.projectionEnabled);
     if (enabled) current.add(name);
     else current.delete(name);

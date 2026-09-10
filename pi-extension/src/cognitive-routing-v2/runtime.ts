@@ -35,6 +35,15 @@ interface Turn {
   message?: any;
   bound?: string;
   sourceFingerprint?: string;
+  opened?: boolean;
+  pair: Pair;
+}
+interface Subject {
+  token: string;
+  revision: number;
+  store: EventStore | undefined;
+  leafId: string | null;
+  userId: string | null;
 }
 export class RoutingRuntime {
   private store?: EventStore;
@@ -50,9 +59,98 @@ export class RoutingRuntime {
   private externalChange = false;
   private targetSignature?: string;
   private operations: Promise<unknown> = Promise.resolve();
+  private revision = 0;
+  private manualHold?: Profile;
+  private automaticControl = false;
+  private sourceCache?: { entries: NativeEntry[]; authors: number; source: Sources };
   constructor(private readonly pi: any) {}
+  private subject(): Subject {
+    const branch = this.store?.reader.getBranch() ?? [];
+    return {
+      token: this.token,
+      revision: this.revision,
+      store: this.store,
+      leafId: branch.at(-1)?.id ?? null,
+      userId: branch.filter((e) => e.message?.role === "user").at(-1)?.id ?? null,
+    };
+  }
+  private current(s: Subject): boolean {
+    if (s.token !== this.token || s.revision !== this.revision || s.store !== this.store) return false;
+    const branch = this.store?.reader.getBranch() ?? [];
+    return (
+      (!s.leafId || branch.some((e) => e.id === s.leafId)) &&
+      (branch.filter((e) => e.message?.role === "user").at(-1)?.id ?? null) === s.userId
+    );
+  }
+  private guard(s: Subject): void {
+    check(
+      this.current(s),
+      "stale_operation",
+      "Routing state changed while the operation was waiting; no further effects applied.",
+    );
+  }
+  private taskBasis(state: State, assignmentId: string): string | null | undefined {
+    return state.resumeBasis.has(assignmentId)
+      ? state.resumeBasis.get(assignmentId)
+      : state.assignments.get(assignmentId)?.basisUserEntryId;
+  }
+  private retireUnbound(reason: string): void {
+    for (const execution of this.stateData().executions.values()) {
+      if (!execution.assistantEntryId && !execution.interrupted)
+        this.append({ type: "execution-interrupted", executionId: execution.id, reason });
+    }
+    this.turn = undefined;
+  }
+  private openTurn(): void {
+    if (!this.turn || this.turn.opened) return;
+    const t = this.turn;
+    this.append({
+      type: "execution-opened",
+      execution: {
+        id: t.id,
+        profile: t.profile,
+        assignmentId: t.assignmentId,
+        basisUserEntryId: t.basisUserEntryId,
+        pair: t.pair,
+        resultEntryIds: [],
+      },
+    });
+    t.opened = true;
+  }
+  async settled(ctx: any): Promise<void> {
+    if (!this.store || !this.supported() || this.store.blocked || !ctx.isIdle?.()) return;
+    this.ctx = ctx;
+    this.retireUnbound("Native run settled without a complete source binding; prior effects remain unresolved.");
+  }
+  async beforeRun(ctx: any): Promise<void> {
+    this.ctx = ctx;
+    if (!this.store || !this.supported() || this.store.blocked || this.error) return;
+    if (this.stateData().control === "automatic" && this.stateData().profile === "executor") {
+      const result = await this.control("coordinator", false);
+      check(result.status !== "blocked", "reconciliation_required", result.reason);
+    }
+  }
   private stateData(): State {
     return this.store?.state() ?? initialState();
+  }
+  private sources(state = this.stateData()): Sources {
+    const entries = (this.ctx.sessionManager.getBranch() as NativeEntry[]).filter((e) =>
+      ["message", "custom_message", "compaction", "branch_summary"].includes(e.type),
+    );
+    const cache = this.sourceCache;
+    if (
+      cache &&
+      cache.authors === state.authors.size &&
+      entries.length === cache.entries.length &&
+      entries.every((e, i) => e === cache.entries[i])
+    )
+      return cache.source;
+    const active = this.ctx.sessionManager.buildContextEntries?.();
+    const activeIds = active ? new Set<string>(active.map((e: NativeEntry) => e.id)) : undefined;
+    const source = cache?.source ?? new Sources([], state);
+    source.refresh(entries, state, activeIds);
+    this.sourceCache = { entries, authors: state.authors.size, source };
+    return source;
   }
   private observed(ctx = this.ctx): Pair | undefined {
     return ctx?.model?.provider && ctx?.model?.id && ctx?.thinkingLevel
@@ -100,6 +198,7 @@ export class RoutingRuntime {
     return result;
   }
   private mark(error: unknown) {
+    if (this.error && error instanceof RoutingError && error.code === "routing_blocked") return;
     this.error =
       error instanceof RoutingError
         ? `${error.code}: ${error.message}`
@@ -135,16 +234,24 @@ export class RoutingRuntime {
     this.capability = capability;
     this.turn = undefined;
     this.messages = [];
+    this.sourceCache = undefined;
+    this.applying = undefined;
+    this.externalChange = false;
     this.error = undefined;
     this.projectionError = undefined;
     this.operations = Promise.resolve();
     this.targetSignature = canonical(capability.profiles);
     this.suppressed = startup && process.argv.some((a) => /^(--model|--thinking)(=|$)/.test(a));
     this.store = new EventStore(this.pi, ctx.sessionManager as SessionReader);
+    const subject = this.subject();
     if (!capability.effective || this.suppressed) return;
     try {
       await this.store.reconcile();
+      this.guard(subject);
       const state = this.stateData();
+      this.manualHold = state.control === "manual" ? state.profile : undefined;
+      this.automaticControl = !state.events.size || state.control === "automatic";
+      this.retireUnbound("Session rebind found an unfinished execution; no task effects replayed.");
       if (!state.events.size) {
         this.append({
           type: "control",
@@ -159,10 +266,16 @@ export class RoutingRuntime {
         !samePair(this.observed(), this.profilePair(state.profile))
       ) {
         // Reload reconstructs responsibility; it does not silently reapply the last setter.
-        this.error = "reconciliation_required: observed model differs from recorded routing state";
+        this.append({
+          type: "control",
+          control: "automatic",
+          profile: "coordinator",
+          reason: "Rebind reconciles historical responsibility with current host control",
+        });
+        await this.applyPair(this.profilePair("coordinator"));
       }
     } catch (error) {
-      this.mark(error);
+      if (this.current(subject)) this.mark(error);
     }
   }
   unbind(): void {
@@ -171,11 +284,13 @@ export class RoutingRuntime {
     this.turn = undefined;
     this.messages = [];
     this.ctx = undefined;
+    this.sourceCache = undefined;
   }
   async refresh(ctx: any, capability: CognitiveRoutingCapabilityState): Promise<void> {
     this.ctx = ctx;
     const was = this.capability?.effective === true;
     const signature = canonical(capability.profiles);
+    if (this.capability && (was !== capability.effective || signature !== this.targetSignature)) this.revision++;
     this.capability = capability;
     if (!capability.effective) {
       this.turn = undefined;
@@ -186,9 +301,11 @@ export class RoutingRuntime {
       return;
     }
     if (!was) {
+      const subject = this.subject();
       this.suppressed = false;
       try {
         await this.store.reconcile();
+        this.guard(subject);
         this.error = undefined;
         this.append({
           type: "control",
@@ -196,83 +313,120 @@ export class RoutingRuntime {
           profile: "coordinator",
           reason: "Capability re-enabled; Coordinator reconciliation",
         });
+        this.automaticControl = true;
         await this.applyPair(this.profilePair("coordinator"));
       } catch (error) {
-        this.mark(error);
+        if (this.current(subject)) this.mark(error);
       }
     } else if (this.targetSignature && signature !== this.targetSignature) {
       this.error = "configuration_changed: reconcile profile configuration before automatic execution";
     }
-    this.targetSignature = signature;
+    if (canonical(this.capability?.profiles) === signature) this.targetSignature = signature;
   }
-  async ancestryChanged(ctx: any): Promise<void> {
+  async ancestryChanged(ctx: any, navigation = true): Promise<void> {
+    this.revision++;
     this.ctx = ctx;
     this.turn = undefined;
     this.messages = [];
+    this.sourceCache = undefined;
     if (!this.store || !this.supported()) return;
+    const subject = this.subject();
     try {
       await this.store.reconcile();
+      this.guard(subject);
       this.error = undefined;
+      this.retireUnbound("Selected historical ancestry ends before execution binding; effects are not replayed.");
       const state = this.stateData();
-      if (state.control === "automatic" && !samePair(this.observed(), this.profilePair(state.profile!)))
-        this.error = "reconciliation_required: ancestry and observed model differ";
+      if (this.manualHold) {
+        this.append({
+          type: "control",
+          control: "manual",
+          profile: this.manualHold,
+          reason: "Current explicit manual hold survives navigation",
+        });
+      } else if (
+        (this.automaticControl || !state.events.size) &&
+        (navigation || !samePair(this.observed(), this.profilePair(state.profile ?? "coordinator")))
+      ) {
+        this.append({
+          type: "control",
+          control: "automatic",
+          profile: "coordinator",
+          reason: "Coordinator reconciles selected native ancestry",
+        });
+        await this.applyPair(this.profilePair("coordinator"));
+      }
     } catch (error) {
-      this.mark(error);
+      if (this.current(subject)) this.mark(error);
     }
   }
   async nativeChange(ctx: any): Promise<void> {
     this.ctx = ctx;
     if (!this.supported() || !this.store) return;
     if (this.applying) {
-      if (ctx.model?.provider !== this.applying.provider || ctx.model?.id !== this.applying.modelId)
+      if (ctx.model?.provider !== this.applying.provider || ctx.model?.id !== this.applying.modelId) {
         this.externalChange = true;
+        this.revision++;
+      }
       return; // Never await a queue already held by our setter.
     }
     const state = this.stateData();
     if (state.control !== "automatic" || !state.profile || samePair(this.observed(), this.profilePair(state.profile)))
       return;
     try {
+      this.revision++;
+      this.manualHold = undefined;
+      this.automaticControl = false;
       this.append({ type: "control", control: "inactive", reason: "External native model/effort change" });
     } catch (error) {
       this.mark(error);
     }
   }
   private async applyPair(target: Pair): Promise<void> {
-    const token = this.token,
+    const subject = this.subject(),
+      token = this.token,
       prior = this.observed();
+    if (samePair(prior, target)) return;
     const model = this.ctx.modelRegistry.find(target.provider, target.modelId);
     check(model, "profile_unavailable");
     const auth = await this.ctx.modelRegistry.getApiKeyAndHeaders(model);
-    check(token === this.token && auth?.ok, "profile_unauthenticated");
+    this.guard(subject);
+    check(auth?.ok, "profile_unauthenticated");
     this.applying = target;
+    let ownedPair = target;
     this.externalChange = false;
     try {
       check(await this.pi.setModel(model), "model_rejected");
-      check(token === this.token, "stale_instance");
+      this.guard(subject);
       this.pi.setThinkingLevel(target.thinking);
       check(!this.externalChange && samePair(this.observed(), target), "configuration_mismatch");
     } catch (error) {
-      if (token === this.token && prior && !this.externalChange) {
+      if (this.current(subject) && prior && !this.externalChange) {
         const old = this.ctx.modelRegistry.find(prior.provider, prior.modelId);
         try {
           this.applying = prior;
+          ownedPair = prior;
           check(old && (await this.pi.setModel(old)), "rollback_failed");
+          this.guard(subject);
           this.pi.setThinkingLevel(prior.thinking);
           check(samePair(this.observed(), prior), "rollback_failed");
         } catch {
-          this.error = "configuration_unknown: rollback could not be observed";
+          if (this.current(subject)) this.error = "configuration_unknown: rollback could not be observed";
         }
       }
       throw error;
     } finally {
-      if (token === this.token) this.applying = undefined;
+      if (token === this.token && this.applying === ownedPair) this.applying = undefined;
     }
   }
   private async control(profile: Profile, manual: boolean): Promise<{ status: string; reason?: string }> {
+    this.revision++;
+    const subject = this.subject();
     return this.enqueue(async () => {
       try {
         check(this.capability?.effective && this.store, "routing_unavailable");
         await this.store.reconcile();
+        this.guard(subject);
         this.error = undefined;
         this.suppressed = false;
         const previous = this.stateData();
@@ -280,8 +434,11 @@ export class RoutingRuntime {
           previous.control === (manual ? "manual" : "automatic") &&
           previous.profile === profile &&
           samePair(this.observed(), this.profilePair(profile))
-        )
+        ) {
+          this.manualHold = manual ? profile : undefined;
+          this.automaticControl = !manual;
           return { status: manual ? "active" : "automatic" };
+        }
         this.append({
           type: "control",
           control: manual ? "manual" : "automatic",
@@ -290,8 +447,9 @@ export class RoutingRuntime {
         });
         try {
           await this.applyPair(this.profilePair(profile));
+          this.guard(subject);
         } catch (error) {
-          if (!this.error && !this.store.blocked)
+          if (this.current(subject) && !this.error && !this.store.blocked)
             this.append({
               type: "control",
               control: previous.control,
@@ -300,10 +458,12 @@ export class RoutingRuntime {
             });
           throw error;
         }
+        this.manualHold = manual ? profile : undefined;
+        this.automaticControl = !manual;
         return { status: manual ? "active" : "automatic" };
       } catch (error) {
-        this.mark(error);
-        return { status: "blocked", reason: this.error };
+        if (this.current(subject)) this.mark(error);
+        return { status: "blocked", reason: error instanceof Error ? error.message : String(error) };
       }
     });
   }
@@ -334,6 +494,7 @@ export class RoutingRuntime {
       `Handoff: ${h ? `${h.id} (${h.kind}, ${h.state})` : "none"}`,
       `Projection: ${this.projectionEnabled ? "enabled" : "bypassed"}`,
       state.assessment ? `Assessment: ${state.assessment.view}; evidence revision ${selection.revision}` : "",
+      `Mechanical evidence facts (not semantic acceptance): ${JSON.stringify(this.evidenceFacts(state))}`,
       this.error ? `Blocked: ${this.error}` : "",
       this.projectionError ? `Evidence limitation: ${this.projectionError}` : "",
       attention
@@ -350,7 +511,7 @@ export class RoutingRuntime {
       a?.state === "returned"
         ? "Executor ordinary task work has ended. Only supported handoff correction is permitted."
         : "",
-      this.turn?.profile === "executor" && this.turn.basisUserEntryId !== a?.basisUserEntryId
+      this.turn?.profile === "executor" && a && this.turn.basisUserEntryId !== this.taskBasis(state, a.id)
         ? "Current input differs from the original assignment. Account for it; changed direction requires Coordinator attention."
         : "",
       ...(state.assessment?.problems ?? []).map((p) => `${p.code}: ${p.detail}`),
@@ -366,22 +527,38 @@ export class RoutingRuntime {
       details: { routingInstance: this.token },
     };
   }
+  private evidenceFacts(state: State) {
+    const selection = state.assignmentId
+      ? (state.selections.get(state.assignmentId) ?? emptySelection())
+      : emptySelection();
+    return {
+      revision: selection.revision,
+      selected: selection.selected.map((ref) => {
+        const entry = this.ctx?.sessionManager.getEntry?.(ref.slice(4));
+        return { ref, kind: entry?.message?.role ?? "unknown", toolName: entry?.message?.toolName };
+      }),
+      unresolved: selection.unresolved,
+      withdrawals: selection.withdrawals,
+      preparedRevision: state.assessment?.reservation?.selectionRevision,
+      limitations: state.assessment?.problems ?? [],
+    };
+  }
   private prepared(profile: Profile, input: any[], handoffId?: string, restoring = false): PreparedView {
     const state = this.stateData(),
       model = this.model(profile);
     return prepareView({
       messages: input,
-      sources: new Sources(this.ctx.sessionManager.getBranch(), state),
+      sources: this.sources(state),
       state,
       view: profile,
       projection: this.projectionEnabled,
       model,
       pair: this.profilePair(profile),
       systemPrompt: this.ctx.getSystemPrompt?.() ?? "",
-      tools: this.pi.getAllTools?.() ?? [],
+      tools: (this.pi.getAllTools?.() ?? []).filter((tool: any) => this.pi.getActiveTools?.().includes(tool.name)),
       runtimeMessage: this.runtimeMessage(
         state,
-        profile === "coordinator" && state.assessment?.view === "suspended" && !restoring,
+        profile === "coordinator" && state.assessment?.view === "suspended" && !restoring && !handoffId,
       ),
       instance: this.token,
       preparingReturn: handoffId,
@@ -404,7 +581,7 @@ export class RoutingRuntime {
       if (state.control !== "automatic") return input;
       check(!this.error && !this.store.blocked && state.profile, "routing_blocked", this.error ?? this.store.blocked);
       check(samePair(this.observed(), this.profilePair(state.profile!)), "prepared_pair_mismatch");
-      const sources = new Sources(ctx.sessionManager.getBranch(), state),
+      const sources = this.sources(state),
         user = this.lastDeliveredUser(sources, input);
       if (state.assessment && user && user !== state.assessment.basisUserEntryId)
         this.append(
@@ -419,7 +596,8 @@ export class RoutingRuntime {
         );
       // New input reaching an already prepared Executor request cannot be rerouted by changing only the live model.
       const outstanding = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
-      const interrupted = state.profile === "executor" && user !== outstanding?.basisUserEntryId;
+      const interrupted =
+        state.profile === "executor" && user !== (outstanding ? this.taskBasis(state, outstanding.id) : undefined);
       if (!this.turn || this.turn.bound) {
         const execution: Execution = {
           id: randomUUID(),
@@ -430,14 +608,15 @@ export class RoutingRuntime {
           resultEntryIds: [],
         };
         const before = new Set((ctx.sessionManager.getBranch() as NativeEntry[]).map((e) => e.id));
-        this.append({ type: "execution-opened", execution });
         this.turn = {
           id: execution.id,
           profile: execution.profile,
           assignmentId: execution.assignmentId,
           basisUserEntryId: user,
           before,
+          pair: execution.pair,
         };
+        if (state.unitId || state.profile === "executor") this.openTurn();
       }
       let prepared = this.prepared(state.profile!, input);
       if (!prepared.ready && state.profile === "coordinator" && this.stateData().assessment) {
@@ -473,20 +652,6 @@ export class RoutingRuntime {
           content:
             "New delivered user input requires Coordinator attention. Do not run ordinary task tools; return the current partial result.",
         });
-      const latest = this.stateData();
-      this.append({
-        type: "request-observed",
-        executionId: this.turn.id,
-        profile: this.turn.profile,
-        boundary: "assembled",
-        manifestHash: bodyHash(prepared.messages),
-        ...(latest.assessment
-          ? {
-              handoffId: latest.assessment.handoffId,
-              selectionRevision: latest.selections.get(latest.assessment.assignmentId)?.revision ?? 0,
-            }
-          : {}),
-      });
       return prepared.messages;
     } catch (error) {
       this.mark(error);
@@ -504,26 +669,25 @@ export class RoutingRuntime {
       ];
     }
   }
-  observePayload(payload: unknown, ctx: any): void {
-    if (!this.turn || !this.supported() || !this.store || this.stateData().control !== "automatic") return;
-    try {
-      this.append({
-        type: "request-observed",
-        executionId: this.turn.id,
-        profile: this.turn.profile,
-        boundary: "payload-hook",
-        manifestHash: bodyHash(payload),
-      });
-    } catch (error) {
-      this.mark(error);
-      ctx.abort?.();
-    }
-  }
   messageEnd(message: any): void {
     if (message?.role === "assistant" && this.turn && !this.turn.bound) this.turn.message = structuredClone(message);
   }
   private batch(callId: string, name: string): void {
     check(this.turn?.message, "batch_unavailable");
+    const matches = (this.ctx.sessionManager.getBranch() as NativeEntry[]).filter(
+      (e) =>
+        !this.turn!.before.has(e.id) &&
+        e.type === "message" &&
+        e.message?.role === "assistant" &&
+        e.message.content?.some((b: any) => b.type === "toolCall" && b.id === callId),
+    );
+    check(matches.length === 1, "batch_source_changed");
+    const fingerprint = bodyHash(matches[0].message);
+    check(!this.turn.sourceFingerprint || this.turn.sourceFingerprint === fingerprint, "batch_source_changed");
+    // Later message_end handlers may legitimately replace the message. The first
+    // preflight freezes the actually persisted batch before any of its tools act.
+    this.turn.sourceFingerprint = fingerprint;
+    this.turn.message = structuredClone(matches[0].message);
     const calls = (this.turn.message.content ?? []).filter((b: any) => b.type === "toolCall");
     const handoffs = calls.filter((b: any) => HANDOFF_TOOLS.has(b.name));
     check(
@@ -540,17 +704,6 @@ export class RoutingRuntime {
       calls.some((b: any) => b.id === callId && b.name === name),
       "call_not_in_batch",
     );
-    const matches = (this.ctx.sessionManager.getBranch() as NativeEntry[]).filter(
-      (e) =>
-        !this.turn!.before.has(e.id) &&
-        e.type === "message" &&
-        e.message?.role === "assistant" &&
-        e.message.content?.some((b: any) => b.type === "toolCall" && b.id === callId),
-    );
-    check(
-      matches.length === 1 && canonical(matches[0].message) === canonical(this.turn.message),
-      "batch_source_changed",
-    );
   }
   preflight(event: any, ctx: any): any {
     this.ctx = ctx;
@@ -565,11 +718,12 @@ export class RoutingRuntime {
         return isRouting ? { block: true, reason: "Automatic routing is inactive." } : undefined;
       this.batch(event.toolCallId, name);
       check(!this.error && !this.store?.blocked, "routing_blocked");
+      this.openTurn();
       if (this.turn?.profile === "executor" && !isRouting && name !== "freeflow_context") {
         const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
         check(
           a?.state === "outstanding" &&
-            this.turn.basisUserEntryId === a.basisUserEntryId &&
+            this.turn.basisUserEntryId === this.taskBasis(state, a.id) &&
             state.profile === "executor",
           "executor_task_phase_ended",
         );
@@ -607,6 +761,10 @@ export class RoutingRuntime {
           code: error instanceof RoutingError ? error.code : "operation_failed",
           message: error instanceof Error ? error.message : String(error),
           problems: error instanceof RoutingError ? error.problems : [],
+          observed: this.observed(),
+          expectedProfile: name === "freeflow_delegate" || name === "freeflow_unit" ? "coordinator" : "executor",
+          recoveryAction:
+            "Preserve saved work. Inspect freeflow_unit status; reconcile current input/control before retrying the named operation.",
         });
       }
     });
@@ -683,6 +841,8 @@ export class RoutingRuntime {
       assignment: assignmentId,
       handoff: id,
       transition: "pending",
+      contract: input.contract,
+      reason: input.reason,
       createdUnit: !state.unitId,
       ...(old && input.operation === "replace"
         ? {
@@ -771,6 +931,8 @@ export class RoutingRuntime {
       finalExchangePending: true,
       provisional:
         "The finalized handoff exchange, target configuration and budget are revalidated at turn_end; this is not delivery evidence.",
+      report: h.text,
+      evidence: this.evidenceFacts(this.stateData()),
     };
   }
   private project(input: any, op: string) {
@@ -778,14 +940,21 @@ export class RoutingRuntime {
     const state = this.stateData(),
       a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
     check(a, "assignment_missing");
-    const sources = new Sources(this.ctx.sessionManager.getBranch(), state);
+    const sources = this.sources(state);
     sources.associate(this.messages);
     const selection = state.selections.get(a.id) ?? emptySelection();
     if (input.operation === "list") {
+      const scope = input.scope ?? "assignment";
       const offset = input.cursor === undefined ? 0 : Number(input.cursor);
       check(Number.isSafeInteger(offset) && offset >= 0, "invalid_cursor");
       const items = [...sources.byRef.values()]
-        .filter((s) => s.producer === "executor" && (input.scope !== "assignment" || s.assignmentId === a.id))
+        .filter(
+          (s) =>
+            s.producer === "executor" &&
+            (scope === "assignment" ? s.assignmentId === a.id : s.active) &&
+            (s.message.role === "toolResult" ||
+              s.message.content?.some((b: any) => b.type === "text" && b.text?.trim())),
+        )
         .map((s) => ({
           ref: s.ref,
           kind: s.message.role,
@@ -795,6 +964,12 @@ export class RoutingRuntime {
         }));
       return {
         status: "listed",
+        scope,
+        offset,
+        count: items.length,
+        otherAssignments: [...sources.byRef.values()].filter(
+          (s) => s.producer === "executor" && s.assignmentId !== a.id,
+        ).length,
         items: items.slice(offset, offset + 30),
         nextCursor: offset + 30 < items.length ? String(offset + 30) : undefined,
       };
@@ -813,6 +988,7 @@ export class RoutingRuntime {
       unresolved: next.unresolved,
       ready: !next.unresolved.length && prepared.ready,
       problems: prepared.problems,
+      evidence: this.evidenceFacts(this.stateData()),
       items: (input.refs ? [...new Set<string>(input.refs)] : []).map((ref) => ({
         ref,
         status: next.unresolved.some((p) => p.ref === ref)
@@ -854,7 +1030,12 @@ export class RoutingRuntime {
         op,
       );
       this.projectionError = undefined;
-      return { status: "resumed", ready: true };
+      return {
+        status: "resumed",
+        ready: true,
+        stage: "prepared assessment; next request revalidated",
+        evidence: this.evidenceFacts(this.stateData()),
+      };
     }
     check(input.operation === "close" && state.unitId, "unit_missing");
     const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
@@ -869,7 +1050,7 @@ export class RoutingRuntime {
       },
       op,
     );
-    return { status: "closed", unit: state.unitId, outcome: input.outcome };
+    return { status: "closed", unit: state.unitId, outcome: input.outcome, assessment: input.assessment };
   }
   status(limit = 0): any {
     const state = this.stateData();
@@ -895,8 +1076,13 @@ export class RoutingRuntime {
   async turnEnd(event: any, ctx: any): Promise<void> {
     this.ctx = ctx;
     if (!this.turn || this.turn.bound || !this.supported() || !this.store) return;
+    if (!this.turn.opened) {
+      this.turn = undefined;
+      return;
+    }
     const token = this.token,
       turn = this.turn;
+    const subject = this.subject();
     try {
       const message = event.message ?? turn.message;
       const candidates = (ctx.sessionManager.getBranch() as NativeEntry[]).filter(
@@ -938,13 +1124,29 @@ export class RoutingRuntime {
         );
       await this.finishHandoff(pending, inputs, token);
     } catch (error) {
-      this.mark(error);
-      ctx.abort?.();
+      if (this.current(subject)) {
+        this.mark(error);
+        ctx.abort?.();
+      }
     }
   }
   private async finishHandoff(h: Handoff, inputs: any[], token: string): Promise<void> {
+    const subject = this.subject();
     const state = this.stateData();
     check(state.control === "automatic" && !this.store?.blocked && token === this.token, "transition_ineligible");
+    const execution = state.executions.get(h.executionId);
+    check(
+      execution?.assistantEntryId,
+      "source_turn_incomplete",
+      "Saved communication belongs to an incomplete historical turn. Reconcile its effects and replace or cancel the outstanding work; no tool result is fabricated.",
+    );
+    const source = new Sources(this.ctx.sessionManager.getBranch(), state);
+    const carrier = source.byRef.get(`ctx:${execution.assistantEntryId}`);
+    check(
+      carrier && !source.exchange(carrier).problems.length,
+      "source_exchange_incomplete",
+      "The saved handoff has an incomplete native exchange; reconcile or explicitly dispose of it.",
+    );
     if (h.kind === "return" && this.projectionEnabled) {
       const prepared = this.prepared("coordinator", inputs, h.id);
       if (!prepared.ready) {
@@ -967,11 +1169,21 @@ export class RoutingRuntime {
       const current = this.stateData();
       check(current.pendingId === h.id && current.control === "automatic" && token === this.token, "stale_handoff");
       await this.applyPair(this.profilePair(h.to));
-      check(token === this.token, "stale_instance");
+      this.guard(subject);
       this.append({ type: "handoff-state", handoffId: h.id, state: "configured", observedPair: this.observed() });
+      const completed = this.stateData();
+      const reservation = completed.reservations.get(h.id);
+      if (h.kind === "return" && completed.assessment?.view === "suspended" && reservation) {
+        this.append({
+          type: "assessment-resumed",
+          handoffId: h.id,
+          basisUserEntryId: this.lastDeliveredUser(this.sources(completed), inputs),
+          reservation,
+        });
+      }
       this.projectionError = undefined;
     } catch (error) {
-      if (token === this.token && !this.store?.blocked && !this.error)
+      if (this.current(subject) && !this.store?.blocked && !this.error && this.stateData().pendingId === h.id)
         this.append({
           type: "handoff-state",
           handoffId: h.id,
@@ -985,17 +1197,69 @@ export class RoutingRuntime {
     this.ctx = ctx;
     check(ctx.isIdle?.(), "not_idle");
     check(this.store && this.capability?.effective, "routing_unavailable");
+    this.revision++;
+    const subject = this.subject();
+    return this.enqueue(() => this.resumeCurrent(ctx, subject));
+  }
+  private async resumeCurrent(ctx: any, subject: Subject): Promise<void> {
+    this.guard(subject);
+    check(this.store, "routing_unavailable");
     await this.store.reconcile();
+    this.guard(subject);
     this.error = undefined;
+    this.retireUnbound("Explicit resume retires an interrupted attempt without claiming its effects completed.");
     const state = this.stateData();
     check(state.control === "automatic", "manual_control");
+    check(
+      !ctx.hasPendingMessages?.(),
+      "pending_input",
+      "Queued input must be delivered and reconciled before resuming Executor.",
+    );
     const pending = state.pendingId ? state.handoffs.get(state.pendingId) : undefined;
     if (pending) {
       const source = ctx.sessionManager.buildSessionContext?.().messages;
       check(Array.isArray(source) || this.messages.length, "resume_context_unavailable");
       await this.finishHandoff(pending, source ?? this.messages, this.token);
-      check(!this.stateData().pendingId, "handoff_still_blocked");
-    } else await this.applyPair(this.profilePair(state.assessment ? "coordinator" : (state.profile ?? "coordinator")));
+      this.guard(subject);
+      if (this.stateData().pendingId) {
+        check(
+          pending.kind === "return" && this.projectionError,
+          "handoff_still_blocked",
+          "Saved transfer is still blocked; reconcile its configuration before retrying.",
+        );
+        this.append({
+          type: "control",
+          control: "automatic",
+          profile: "executor",
+          reason: "Explicit resume of saved-return evidence correction only; ordinary assignment work remains ended",
+        });
+        await this.applyPair(this.profilePair("executor"));
+      }
+    } else {
+      const assignment = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
+      const input = ctx.sessionManager.buildSessionContext?.().messages ?? this.messages;
+      const user = this.lastDeliveredUser(new Sources(ctx.sessionManager.getBranch(), state), input);
+      const coordinatorSawInput = [...state.executions.values()].some(
+        (x) =>
+          x.profile === "coordinator" && x.basisUserEntryId === user && x.assistantEntryId && x.outcome === "completed",
+      );
+      if (assignment?.state === "outstanding") {
+        check(
+          user === this.taskBasis(state, assignment.id) || coordinatorSawInput,
+          "input_unreconciled",
+          "New input needs Coordinator attention before the unchanged assignment can resume.",
+        );
+        this.append({ type: "assignment-resumed", assignmentId: assignment.id, basisUserEntryId: user });
+        this.append({
+          type: "control",
+          control: "automatic",
+          profile: "executor",
+          reason: "Explicit user resume of the unchanged assignment; current restrictions remain applicable",
+        });
+        await this.applyPair(this.profilePair("executor"));
+      } else await this.applyPair(this.profilePair("coordinator"));
+    }
+    this.guard(subject);
     this.pi.sendMessage(
       {
         customType: "freeflow-routing-v2-resume",

@@ -76,6 +76,7 @@ export interface Execution {
   assistantEntryId?: string;
   resultEntryIds: string[];
   outcome?: "completed" | "failed" | "aborted";
+  interrupted?: string;
 }
 export interface Assessment {
   handoffId: string;
@@ -86,6 +87,8 @@ export interface Assessment {
   reservation?: Reservation;
 }
 export type EventData =
+  | { type: "execution-interrupted"; executionId: string; reason: string }
+  | { type: "assignment-resumed"; assignmentId: string; basisUserEntryId: string | null }
   | { type: "control"; control: Control; profile?: Profile; reason: string }
   | { type: "execution-opened"; execution: Execution }
   | {
@@ -172,6 +175,7 @@ export interface State {
   attempts: Map<string, { executionId: string; reportRevision: number; selectionRevision: number }>;
   exposure: Map<string, string>;
   authors: Map<string, { profile: View; executionId: string; assignmentId?: string }>;
+  resumeBasis: Map<string, string | null>;
   assessment?: Assessment;
   events: Map<string, RoutingEvent>;
   eventIds: Map<string, string>;

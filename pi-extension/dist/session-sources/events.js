@@ -16,6 +16,8 @@ export class EventStore {
   attempted = new Map();
   fault;
   ready = false;
+  cachedEntries = [];
+  cachedState = replay([]);
   constructor(pi, reader) {
     this.pi = pi;
     this.reader = reader;
@@ -24,7 +26,20 @@ export class EventStore {
     return this.fault ?? (!this.ready ? "acknowledgment_unclassified" : undefined);
   }
   state() {
-    return replay(this.reader.getBranch());
+    const entries = this.reader.getBranch();
+    const prefix =
+      this.cachedEntries.length <= entries.length && this.cachedEntries.every((entry, i) => entry === entries[i]);
+    if (!prefix) {
+      this.cachedState = replay(entries);
+    } else {
+      let state = this.cachedState;
+      for (const entry of entries.slice(this.cachedEntries.length))
+        if (entry.type === "custom" && entry.customType === ROUTING_ENTRY)
+          state = reduce(state, parseRoutingEvent(entry.data));
+      this.cachedState = state;
+    }
+    this.cachedEntries = [...entries];
+    return this.cachedState;
   }
   block(reason) {
     this.fault = reason;
@@ -41,10 +56,35 @@ export class EventStore {
     });
   }
   async reconcile() {
+    const acknowledged = this.ready && !this.fault;
     this.ready = false;
     const branch = this.reader.getBranch();
     const live = branch.filter((e) => e.type === "custom" && e.customType === ROUTING_ENTRY);
     try {
+      const ids = new Set();
+      let parent = null;
+      for (const entry of branch) {
+        check(
+          typeof entry.id === "string" && !ids.has(entry.id) && entry.parentId === parent,
+          "invalid_native_ancestry",
+        );
+        ids.add(entry.id);
+        parent = entry.id;
+      }
+      check(parent === this.reader.getLeafId(), "invalid_native_ancestry");
+      if (
+        acknowledged &&
+        live.every((entry) => {
+          const event = parseRoutingEvent(entry.data);
+          const receipt = this.observed.get(eventKey(event));
+          return (
+            receipt?.entryId === entry.id && receipt.eventId === event.eventId && receipt.value === eventValue(event)
+          );
+        })
+      ) {
+        this.ready = true;
+        return;
+      }
       if (!live.length && !this.attempted.size) {
         this.observed.clear();
         this.fault = undefined;
@@ -87,6 +127,8 @@ export class EventStore {
       this.attempted.clear();
       this.fault = undefined;
       this.ready = true;
+      this.cachedEntries = [];
+      this.cachedState = replay([]);
     } catch (error) {
       this.block(error instanceof RoutingError ? error.code : "snapshot_unavailable");
       throw error;

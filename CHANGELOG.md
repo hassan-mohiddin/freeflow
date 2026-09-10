@@ -14,6 +14,10 @@
 
 - Retires the old experimental routing source and tests into the historical archive, adds replacement-contract regression suites, and cleans generated extension output before building.
 
+### Fixed
+
+- Reconciles native routing navigation and explicit assignment resume, guards stale session operations, preserves evidence withdrawal details and cross-model tool-result carriers, and reduces history replay and routine journal writes. Routing tools now show readable receipts and role-appropriate controls.
+
 ## 0.7.1 - 2026-09-04
 
 ### Added

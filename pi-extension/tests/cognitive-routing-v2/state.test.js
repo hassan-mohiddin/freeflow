@@ -127,6 +127,23 @@ test("event identity and operation idempotency reject changed payloads", () => {
     (e) => e.code === "operation_conflict",
   );
 });
+test("closed nested schemas reject malformed optional handoff and source fields", () => {
+  const m = machine();
+  for (const patch of [{ reason: {} }, { outcome: 123 }, { unexpected: "field" }]) {
+    const data = delegated();
+    Object.assign(data.handoff, patch);
+    assert.throws(
+      () => parseRoutingEvent(m.event(data)),
+      (e) => e.code === "invalid_assignment",
+    );
+  }
+  const data = opened("e", "executor", "a");
+  data.execution.pair = { ...data.execution.pair, extra: "invalid" };
+  assert.throws(
+    () => parseRoutingEvent(m.event(data)),
+    (e) => e.code === "invalid_execution",
+  );
+});
 test("prototype names are bounded malformed events, not raw decoder errors", () => {
   for (const type of ["constructor", "__proto__", "toString", "unknown"])
     assert.throws(

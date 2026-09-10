@@ -37,6 +37,26 @@ test("strict snapshot rejects corruption, duplicate identity, forward parents, c
   );
   assert.throws(() => activeReadOnlySessionBranch(snapshot, "absent"));
 });
+test("fresh no-v2 baseline validates ancestry before allowing automatic effects", async () => {
+  for (const branch of [[entry("child", "missing")], [entry("same", null), entry("same", "same")]]) {
+    const store = new EventStore(
+      {
+        appendEntry() {
+          assert.fail("must not append");
+        },
+      },
+      {
+        getSessionId: () => "fixture",
+        getSessionFile: () => undefined,
+        getBranch: () => branch,
+        getEntries: () => branch,
+        getLeafId: () => branch.at(-1).id,
+      },
+    );
+    await assert.rejects(store.reconcile(), (e) => e.code === "invalid_native_ancestry");
+    assert.ok(store.blocked);
+  }
+});
 
 test("snapshot does not repair a missing newline and enforces its read limit", async () => {
   const dir = await mkdtemp(join(tmpdir(), "freeflow-snapshot-"));

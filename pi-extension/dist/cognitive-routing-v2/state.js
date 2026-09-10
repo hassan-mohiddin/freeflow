@@ -11,13 +11,31 @@ import {
 const text = (x, max = 32768) => typeof x === "string" && x.trim().length > 0 && x.length <= max;
 const identity = (x) => text(x, 512);
 const nullableId = (x) => x === null || identity(x);
+const shape = (x, keys) => isObject(x) && Object.keys(x).every((k) => keys.includes(k));
 const uniqueStrings = (x) => Array.isArray(x) && x.every(identity) && new Set(x).size === x.length;
-const pair = (x) => isObject(x) && identity(x.provider) && identity(x.modelId) && EFFORTS.includes(x.thinking);
+const pair = (x) =>
+  shape(x, ["provider", "modelId", "thinking"]) &&
+  identity(x.provider) &&
+  identity(x.modelId) &&
+  EFFORTS.includes(x.thinking);
 const problemList = (xs) =>
   Array.isArray(xs) &&
-  xs.every((x) => isObject(x) && typeof x.ref === "string" && text(x.code, 256) && text(x.detail, 4096));
+  xs.every(
+    (x) =>
+      shape(x, ["ref", "code", "detail"]) && typeof x.ref === "string" && text(x.code, 256) && text(x.detail, 4096),
+  );
 const reservation = (r) =>
-  isObject(r) &&
+  shape(r, [
+    "id",
+    "selectionRevision",
+    "receiver",
+    "target",
+    "qualification",
+    "sources",
+    "maximumInputTokens",
+    "outputReserve",
+    "estimateMethod",
+  ]) &&
   identity(r.id) &&
   Number.isSafeInteger(r.selectionRevision) &&
   r.selectionRevision >= 0 &&
@@ -25,14 +43,30 @@ const reservation = (r) =>
   pair(r.target) &&
   text(r.qualification) &&
   Array.isArray(r.sources) &&
-  r.sources.every((s) => identity(s.ref) && /^[a-f0-9]{64}$/.test(s.bodyHash)) &&
+  r.sources.every((s) => shape(s, ["ref", "bodyHash"]) && identity(s.ref) && /^[a-f0-9]{64}$/.test(s.bodyHash)) &&
+  new Set(r.sources.map((s) => s.ref)).size === r.sources.length &&
   Number.isFinite(r.maximumInputTokens) &&
   r.maximumInputTokens > 0 &&
   Number.isFinite(r.outputReserve) &&
   r.outputReserve >= 0 &&
   text(r.estimateMethod);
 const handoff = (h) =>
-  isObject(h) &&
+  shape(h, [
+    "id",
+    "kind",
+    "assignmentId",
+    "text",
+    "from",
+    "to",
+    "executionId",
+    "toolCallId",
+    "basisUserEntryId",
+    "state",
+    "reportRevision",
+    "outcome",
+    "limitations",
+    "reason",
+  ]) &&
   identity(h.id) &&
   identity(h.assignmentId) &&
   text(h.text) &&
@@ -48,8 +82,13 @@ const handoff = (h) =>
   h.reportRevision >= 0 &&
   Array.isArray(h.limitations) &&
   h.limitations.length <= 32 &&
-  h.limitations.every((x) => text(x, 2048));
+  h.limitations.every((x) => text(x, 2048)) &&
+  (h.reason === undefined || text(h.reason, 4096)) &&
+  (h.outcome === undefined || ["completed", "partial", "blocked"].includes(h.outcome)) &&
+  (h.kind !== "delegate" || (h.outcome === undefined && h.reportRevision === 0));
 const fields = {
+  "execution-interrupted": ["executionId", "reason"],
+  "assignment-resumed": ["assignmentId", "basisUserEntryId"],
   control: ["control", "profile", "reason"],
   "execution-opened": ["execution"],
   "execution-bound": ["executionId", "assistantEntryId", "resultEntryIds", "outcome"],
@@ -99,6 +138,12 @@ export function parseRoutingEvent(raw) {
   check(Buffer.byteLength(JSON.stringify(raw)) <= 512 * 1024, "event_too_large");
   if (d.handoffId !== undefined) check(identity(d.handoffId), "invalid_handoff_id");
   switch (d.type) {
+    case "execution-interrupted":
+      check(identity(d.executionId) && text(d.reason, 4096), "invalid_interruption");
+      break;
+    case "assignment-resumed":
+      check(identity(d.assignmentId) && nullableId(d.basisUserEntryId), "invalid_resume");
+      break;
     case "control":
       check(
         ["automatic", "manual", "inactive"].includes(d.control) &&
@@ -111,7 +156,7 @@ export function parseRoutingEvent(raw) {
     case "execution-opened": {
       const e = d.execution;
       check(
-        isObject(e) &&
+        shape(e, ["id", "profile", "assignmentId", "basisUserEntryId", "pair", "resultEntryIds"]) &&
           identity(e.id) &&
           ["solo", ...PROFILES].includes(e.profile) &&
           nullableId(e.basisUserEntryId) &&
@@ -137,11 +182,15 @@ export function parseRoutingEvent(raw) {
         a = d.assignment,
         r = d.replacement;
       check(
-        isObject(u) && identity(u.id) && text(u.objective) && u.state === "open" && uniqueStrings(u.assignmentIds),
+        shape(u, ["id", "objective", "state", "assignmentIds"]) &&
+          identity(u.id) &&
+          text(u.objective) &&
+          u.state === "open" &&
+          uniqueStrings(u.assignmentIds),
         "invalid_unit",
       );
       check(
-        isObject(a) &&
+        shape(a, ["id", "unitId", "contract", "basisUserEntryId", "state", "delegateHandoffId"]) &&
           identity(a.id) &&
           identity(a.unitId) &&
           text(a.contract) &&
@@ -153,7 +202,7 @@ export function parseRoutingEvent(raw) {
       );
       check(
         r === undefined ||
-          (isObject(r) &&
+          (shape(r, ["assignmentId", "supersededHandoffId", "reason"]) &&
             identity(r.assignmentId) &&
             text(r.reason, 2048) &&
             (r.supersededHandoffId === undefined || identity(r.supersededHandoffId))),
@@ -196,13 +245,13 @@ export function parseRoutingEvent(raw) {
       const s = d.selection;
       check(
         identity(d.assignmentId) &&
-          isObject(s) &&
+          shape(s, ["revision", "selected", "unresolved", "withdrawals"]) &&
           Number.isSafeInteger(s.revision) &&
           s.revision > 0 &&
           uniqueStrings(s.selected) &&
           problemList(s.unresolved) &&
           Array.isArray(s.withdrawals) &&
-          s.withdrawals.every((w) => identity(w.ref) && text(w.reason, 2048)),
+          s.withdrawals.every((w) => shape(w, ["ref", "reason"]) && identity(w.ref) && text(w.reason, 2048)),
         "invalid_selection",
       );
       break;
@@ -243,7 +292,7 @@ export function parseRoutingEvent(raw) {
         identity(d.executionId) &&
           ["solo", ...PROFILES].includes(d.view) &&
           Array.isArray(d.sources) &&
-          d.sources.every((s) => identity(s.ref) && /^[a-f0-9]{64}$/.test(s.bodyHash)),
+          d.sources.every((s) => shape(s, ["ref", "bodyHash"]) && identity(s.ref) && /^[a-f0-9]{64}$/.test(s.bodyHash)),
         "invalid_exposure",
       );
       break;
@@ -262,11 +311,12 @@ export function initialState() {
     attempts: new Map(),
     exposure: new Map(),
     authors: new Map(),
+    resumeBasis: new Map(),
     events: new Map(),
     eventIds: new Map(),
   };
 }
-export function reduce(state, event) {
+function applyEvent(state, event, owned = false) {
   const e = parseRoutingEvent(event),
     key = eventKey(e),
     value = eventValue(e);
@@ -277,7 +327,24 @@ export function reduce(state, event) {
     check(eventValue(previous) === value, "operation_conflict");
     return state;
   }
-  const s = structuredClone(state),
+  const s = owned
+      ? state
+      : {
+          ...state,
+          units: new Map([...state.units].map(([k, v]) => [k, { ...v }])),
+          assignments: new Map([...state.assignments].map(([k, v]) => [k, { ...v }])),
+          handoffs: new Map([...state.handoffs].map(([k, v]) => [k, { ...v }])),
+          executions: new Map([...state.executions].map(([k, v]) => [k, { ...v }])),
+          selections: new Map(state.selections),
+          reservations: new Map(state.reservations),
+          attempts: new Map(state.attempts),
+          exposure: new Map(state.exposure),
+          authors: new Map(state.authors),
+          resumeBasis: new Map(state.resumeBasis),
+          events: new Map(state.events),
+          eventIds: new Map(state.eventIds),
+          assessment: state.assessment ? { ...state.assessment } : undefined,
+        },
     d = e.data;
   const assignment = () => (s.assignmentId ? s.assignments.get(s.assignmentId) : undefined);
   const pending = () => (s.pendingId ? s.handoffs.get(s.pendingId) : undefined);
@@ -288,6 +355,21 @@ export function reduce(state, event) {
     return h;
   };
   switch (d.type) {
+    case "execution-interrupted": {
+      const x = s.executions.get(d.executionId);
+      check(x && !x.assistantEntryId, "execution_not_unbound");
+      x.interrupted = d.reason;
+      break;
+    }
+    case "assignment-resumed": {
+      const a = assignment();
+      check(
+        s.control === "automatic" && a?.id === d.assignmentId && a.state === "outstanding" && !isPending(),
+        "assignment_not_resumable",
+      );
+      s.resumeBasis.set(a.id, d.basisUserEntryId);
+      break;
+    }
     case "control":
       s.control = d.control;
       s.profile = d.profile;
@@ -343,7 +425,7 @@ export function reduce(state, event) {
         check(a?.state === "outstanding" && a.id === d.replacement.assignmentId && u, "no_replaceable_assignment");
         check(
           ![...s.executions.values()].some(
-            (x) => x.assignmentId === a.id && x.profile === "executor" && !x.assistantEntryId,
+            (x) => x.assignmentId === a.id && x.profile === "executor" && !x.assistantEntryId && !x.interrupted,
           ),
           "unresolved_executor_execution",
         );
@@ -518,10 +600,13 @@ export function reduce(state, event) {
   s.eventIds.set(e.eventId, value);
   return s;
 }
+export function reduce(state, event) {
+  return applyEvent(state, event);
+}
 export function replay(entries) {
   let state = initialState();
   for (const entry of entries)
     if (entry.type === "custom" && entry.customType === ROUTING_ENTRY)
-      state = reduce(state, parseRoutingEvent(entry.data));
+      state = applyEvent(state, parseRoutingEvent(entry.data), true);
   return state;
 }

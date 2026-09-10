@@ -191,7 +191,8 @@ test("keeps Runtime State before the latest user message during context refreshe
 test("new routing tools and projection state follow the configured contract", async () => {
   const cases = [
     { projection: false, expectedMode: "disabled", exposesProjection: false },
-    { projection: true, expectedMode: "enabled", exposesProjection: true },
+    // Projection can be effective while the Coordinator correctly lacks Executor-only tools.
+    { projection: true, expectedMode: "enabled", exposesProjection: false },
   ];
 
   for (const scenario of cases) {

@@ -27,12 +27,22 @@ export interface Associated {
 export const bodyHash = (value: unknown) => createHash("sha256").update(canonical(value)).digest("hex");
 export class Sources {
   readonly byRef = new Map<string, Source>();
+  readonly ambiguous = new Set<string>();
   private readonly byBody = new Map<string, Source[]>();
-  constructor(
-    readonly entries: readonly NativeEntry[],
-    state: State,
-  ) {
-    for (const entry of entries) {
+  entries: readonly NativeEntry[] = [];
+  private activeIds?: ReadonlySet<string>;
+  constructor(entries: readonly NativeEntry[], state: State, activeIds?: ReadonlySet<string>) {
+    this.refresh(entries, state, activeIds);
+  }
+  refresh(entries: readonly NativeEntry[], state: State, activeIds?: ReadonlySet<string>): void {
+    const prefix = this.entries.length <= entries.length && this.entries.every((e, i) => e === entries[i]);
+    const start = prefix ? this.entries.length : 0;
+    if (!prefix) {
+      this.byRef.clear();
+      this.byBody.clear();
+    }
+    this.activeIds = activeIds;
+    for (const entry of entries.slice(start)) {
       const messages = sessionEntryToContextMessages(entry as any) as any[];
       // A materialized compaction tail is common context, not an invented original occurrence.
       if (messages.length !== 1 || ["compaction", "branch_summary"].includes(entry.type)) continue;
@@ -54,13 +64,38 @@ export class Sources {
       candidates.push(source);
       this.byBody.set(source.hash, candidates);
     }
+    // Binding can arrive after the source message. Refresh attribution without
+    // reconverting or rehashing the already-indexed captured bodies.
+    for (const source of this.byRef.values()) {
+      const author = state.authors.get(source.entry.id);
+      source.producer = author?.profile ?? "common";
+      source.executionId = author?.executionId;
+      source.assignmentId = author?.assignmentId;
+    }
+    this.entries = [...entries];
   }
   associate(messages: readonly any[]): Associated[] {
+    this.ambiguous.clear();
+    for (const source of this.byRef.values()) source.active = false;
     const used = new Set<string>();
-    return messages.map((message) => {
-      const candidates = (this.byBody.get(bodyHash(message)) ?? []).filter((source) => !used.has(source.ref));
-      if (candidates.length !== 1) return { message };
-      const source = candidates[0];
+    const hashes = messages.map(bodyHash);
+    const remaining = new Map<string, number>();
+    for (const hash of hashes) remaining.set(hash, (remaining.get(hash) ?? 0) + 1);
+    return messages.map((message, index) => {
+      const hash = hashes[index];
+      const count = remaining.get(hash)!;
+      remaining.set(hash, count - 1);
+      const candidates = (this.byBody.get(hash) ?? []).filter(
+        (source) => !used.has(source.ref) && (!this.activeIds || this.activeIds.has(source.entry.id)),
+      );
+      const exact = candidates.find((source) => source.message === message);
+      // Equal bodies are different occurrences. Match an entire repeated sequence in
+      // native order; a partial sequence without native identity remains ambiguous.
+      const source = exact ?? (candidates.length === 1 || candidates.length === count ? candidates[0] : undefined);
+      if (!source) {
+        for (const candidate of candidates) this.ambiguous.add(candidate.ref);
+        return { message };
+      }
       used.add(source.ref);
       source.active = true;
       return { message, source };
@@ -70,6 +105,12 @@ export class Sources {
     const source = this.byRef.get(ref);
     if (!idFor(ref) || !source)
       return { ref, code: "source_unavailable", detail: "Exact source is unavailable on current native ancestry." };
+    if (bodyHash(source.message) !== source.hash)
+      return {
+        ref,
+        code: "source_changed",
+        detail: "The canonical body changed since source association; evidence must be reconciled.",
+      };
     if (source.producer !== "executor")
       return { ref, code: "source_origin", detail: "Selection requires observed Executor attribution." };
     if (state.exposure.get(ref) !== source.hash)

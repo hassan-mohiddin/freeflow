@@ -27,7 +27,7 @@ export function changeSelection(prior, input, sources, state) {
   }
   return next;
 }
-export function representationProblems(source, model) {
+export function representationProblems(source, model, structural = false) {
   const message = source.message,
     content = Array.isArray(message.content) ? message.content : [];
   if (message.role === "assistant" && ["error", "aborted"].includes(message.stopReason))
@@ -44,6 +44,7 @@ export function representationProblems(source, model) {
       { ref: source.ref, code: "target_representation", detail: "The receiving model does not support image input." },
     ];
   if (
+    !structural &&
     content.some((b) => b.type === "thinking" && (b.redacted || b.thinkingSignature)) &&
     (message.provider !== model?.provider || message.model !== model?.id || message.api !== model?.api)
   )
@@ -61,7 +62,7 @@ export function prepareView(options) {
   const associated = sources.associate(options.messages);
   const selective = options.projection && options.view === "coordinator";
   const assessment = state.assessment;
-  const attention = selective && assessment?.view === "suspended" && !options.restoring;
+  const attention = selective && assessment?.view === "suspended" && !options.restoring && !options.preparingReturn;
   const handoffId = options.preparingReturn ?? (!attention ? assessment?.handoffId : undefined);
   const handoff = handoffId ? state.handoffs.get(handoffId) : undefined;
   const assignmentId = handoff?.assignmentId ?? state.assignmentId;
@@ -80,6 +81,14 @@ export function prepareView(options) {
       full.set(item.source.ref, item.source);
   }
   for (const ref of required) {
+    if (sources.ambiguous.has(ref)) {
+      problems.push({
+        ref,
+        code: "ambiguous_occurrence",
+        detail: "The active representation cannot be associated with one canonical occurrence.",
+      });
+      continue;
+    }
     const source = sources.byRef.get(ref),
       error = sources.eligible(ref, state);
     if (error) {
@@ -108,7 +117,7 @@ export function prepareView(options) {
   }
   for (const source of structural.values())
     if (source.message.role === "assistant" && required.size)
-      problems.push(...representationProblems(source, options.model));
+      problems.push(...representationProblems(source, options.model, true));
   const render = (source) => {
     if (full.has(source.ref) || source.message.role !== "toolResult") return structuredClone(source.message);
     return {
@@ -157,11 +166,7 @@ export function prepareView(options) {
       timestamp: 0,
     });
   messages.push(options.runtimeMessage);
-  const outputReserve = Math.min(
-    options.model?.maxTokens ?? 8192,
-    16384,
-    Math.floor((options.model?.contextWindow ?? 0) / 4),
-  );
+  const outputReserve = options.model?.maxTokens ?? 8192;
   const maximumInputTokens = Math.max(0, (options.model?.contextWindow ?? 0) - outputReserve);
   // Byte-count estimate is deliberately labelled; readiness is not an exact token guarantee.
   const estimatedTokens = Math.ceil(

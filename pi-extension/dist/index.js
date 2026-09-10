@@ -90,14 +90,17 @@ export default function freeflow(pi) {
   let history;
   let refreshState = true;
   let sessionContext;
+  let surfaceGeneration = 0;
   const unavailable = (state, message) => ({
     ...state,
     effective: false,
     blockingReason: { code: "unavailable", message },
   });
   async function loadSurface(ctx) {
+    const generation = surfaceGeneration;
     const next = await readCapabilityState(ctx.cwd, ctx, pi.host);
     const loaded = await getRuntimeContext(next);
+    if (generation !== surfaceGeneration) throw new Error("Discarded surface preparation for a replaced session.");
     if (!hasUsableMandatoryPrompts(loaded)) {
       for (const key of ["cognitiveRouting", "contextVirtualization", "conversationHistory"])
         next[key] = unavailable(next[key], "Mandatory Freeflow prompts are unavailable.");
@@ -175,6 +178,7 @@ export default function freeflow(pi) {
     return { skillPaths: state.enabled && hasUsableMandatoryPrompts(prompts) ? freeflowModelSkillPaths(state) : [] };
   });
   pi.on("session_start", async (event, ctx) => {
+    const generation = ++surfaceGeneration;
     routing.unbind();
     capability = undefined;
     prompts = undefined;
@@ -182,6 +186,7 @@ export default function freeflow(pi) {
     restoreSessionOverrides(ctx);
     const initial = await readCapabilityState(ctx.cwd, ctx, pi.host);
     await refreshRuntimeContext(initial);
+    if (generation !== surfaceGeneration) return;
     await loadSurface(ctx);
     context = new FreeflowContextRuntime(ctx);
     virtualization = new ContextVirtualizationRuntime(pi, ctx, context);
@@ -196,6 +201,7 @@ export default function freeflow(pi) {
     status(ctx);
   });
   pi.on("session_shutdown", async () => {
+    surfaceGeneration++;
     routing.unbind();
     context = undefined;
     virtualization = undefined;
@@ -206,13 +212,12 @@ export default function freeflow(pi) {
   });
   pi.on("before_agent_start", async (event, ctx) => {
     await update(ctx);
+    await routing.beforeRun(ctx);
+    status(ctx);
     const text = runtimeContext(prompts, capability);
     return { systemPrompt: text ? `${event.systemPrompt}\n\n${text}` : event.systemPrompt };
   });
   pi.on("message_end", (event) => routing.messageEnd(event.message));
-  pi.on("before_provider_request", (event, ctx) => {
-    routing.observePayload(event.payload, ctx);
-  });
   pi.on("tool_call", (event, ctx) => {
     if (
       event.toolName === CONTEXT_VIRTUALIZATION_TOOL_NAME &&
@@ -227,6 +232,7 @@ export default function freeflow(pi) {
     status(ctx);
   });
   pi.on("agent_settled", async (_event, ctx) => {
+    await routing.settled(ctx);
     await update(ctx);
   });
   pi.on("model_select", async (_event, ctx) => {
@@ -256,7 +262,7 @@ export default function freeflow(pi) {
     refreshState = false;
     return { messages: await routing.context(ctx, messages) };
   });
-  const restore = async (ctx) => {
+  const restore = async (ctx, navigation = true) => {
     restoreSessionOverrides(ctx);
     refreshState = true;
     if (virtualization) {
@@ -264,11 +270,11 @@ export default function freeflow(pi) {
       await virtualization.recover(ctx);
     }
     history?.setContext(ctx);
-    await routing.ancestryChanged(ctx);
+    await routing.ancestryChanged(ctx, navigation);
     await update(ctx);
   };
   pi.on("session_tree", async (_event, ctx) => restore(ctx));
-  pi.on("session_compact", async (_event, ctx) => restore(ctx));
+  pi.on("session_compact", async (_event, ctx) => restore(ctx, false));
   pi.on("session_compact_failed", async (_event, ctx) => {
     refreshState = true;
     status(ctx);
