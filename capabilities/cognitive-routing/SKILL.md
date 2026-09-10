@@ -142,6 +142,8 @@ Evidence preparation belongs to every return. Projection selection is required w
 
 Executor sees ordinary Pi active context. With projection on, Coordinator sees its own/common context plus admitted Executor evidence. Shared canonical history does not mean both profiles see the same bodies. A report, filename, quoted ref, or call envelope is not the underlying result.
 
+Choose the narrowest evidence path. For a small assignment with known refs, add them directly and use the receipt; do not call `inspect` to confirm known refs. For a long or unclear assignment, use bounded `inspect` only to discover candidates or recover missing state, then select the needed refs directly. Inspection is discovery or recovery, not a routine heartbeat after each tool call.
+
 Prepare the return in this order:
 
 1. **Reconcile the result.** Compare the contract with actual final artifacts and observations. Identify material claims, requested evidence, corrected assumptions, adverse findings, partial effects, and missing cases across the whole assignment.
