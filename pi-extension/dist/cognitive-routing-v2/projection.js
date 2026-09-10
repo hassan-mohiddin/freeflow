@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { textRef } from "../session-sources/sources.js";
+import { textRef, isTaskEvidence } from "../session-sources/sources.js";
 import { canonical, emptySelection, requireCondition as check } from "./types.js";
 import { estimateRequest } from "./budget.js";
 export function changeSelection(prior, input, sources, state) {
@@ -23,7 +23,7 @@ export function changeSelection(prior, input, sources, state) {
       if (existed) next.withdrawals.push({ ref, reason: input.reason });
       continue;
     }
-    const problem = sources.eligible(ref, state);
+    const problem = prior.selected.includes(ref) ? sources.eligible(ref, state) : sources.selectionProblem(ref, state);
     const index = next.unresolved.findIndex((p) => p.ref === ref);
     if (problem) {
       if (index < 0) next.unresolved.push(problem);
@@ -156,12 +156,15 @@ export function prepareView(options) {
   const activeRefs = new Set(associated.flatMap((i) => (i.source ? [i.source.ref] : [])));
   const historical = ordered.filter((s) => !activeRefs.has(s.ref));
   const emitted = new Set();
-  const messages = [];
+  let messages = [];
+  const renderedSources = new Map();
   let cursor = 0;
   const emit = (source) => {
     if (source.original && full.has(source.original.ref)) return;
     if (!emitted.has(source.ref)) {
-      messages.push(render(source));
+      const message = render(source);
+      messages.push(message);
+      renderedSources.set(message, source);
       emitted.add(source.ref);
     }
   };
@@ -179,35 +182,51 @@ export function prepareView(options) {
   }
   while (cursor < historical.length) emit(historical[cursor++]);
   const fullSources = [...full.values()];
-  // One annotation after complete exchanges; never insert text into signed native blocks.
-  if (fullSources.length)
-    messages.push({
-      role: "custom",
-      customType: "freeflow-routing-v2-refs",
-      display: false,
-      content: fullSources
-        .filter((s) => !s.original)
-        .slice(-12)
-        .map(
-          (s) =>
-            `${s.ref} | ${s.producer} | ${s.message.role}${s.message.toolName ? ` | ${s.message.toolName}` : ""}${sources.byRef.has(textRef(s.ref)) ? ` | visible text: ${textRef(s.ref)}` : ""}`,
-        )
-        .join("\n"),
-      details: { routingInstance: options.instance },
-      timestamp: 0,
+  // Stable provenance belongs with every represented occurrence, not a rolling
+  // catalog. Insert before whole exchanges, never between native calls/results.
+  const annotated = [];
+  for (let i = 0; i < messages.length;) {
+    const group = [messages[i++]];
+    while (i < messages.length && messages[i].role === "toolResult") group.push(messages[i++]);
+    const rows = group.flatMap((message) => {
+      const s = renderedSources.get(message);
+      if (!s) return [];
+      const representation = full.has(s.ref) ? "full" : "structural only; omitted result bodies are not evidence";
+      const selection =
+        s.producer === "executor" && isTaskEvidence(s) && full.has(s.ref)
+          ? "task evidence; selection checks apply"
+          : "not offered for new evidence selection";
+      return [
+        `${s.ref} | producer: ${s.producer === "common" ? "unknown/common (no observed routing profile)" : s.producer} | ${s.original ? "assistant-text" : s.message.role}${s.message.toolName ? ` | ${s.message.toolName}` : ""}${s.assignmentId ? ` | assignment: ${s.assignmentId}` : ""} | ${representation} | ${selection}${!s.original && full.has(s.ref) && sources.byRef.has(textRef(s.ref)) ? ` | visible text: ${textRef(s.ref)}` : ""}`,
+      ];
     });
+    if (rows.length)
+      annotated.push({
+        role: "custom",
+        customType: "freeflow-routing-v2-refs",
+        display: false,
+        content: `Source provenance for the following message/exchange:\n${rows.join("\n")}`,
+        details: { routingInstance: options.instance },
+        timestamp: 0,
+      });
+    annotated.push(...group);
+  }
+  messages = annotated;
   // Restore exact current communication only when its accepted occurrence is absent.
   const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
   const report = handoff?.kind === "return" ? handoff : undefined;
-  const hasCommunication = (h, field, value) =>
+  const hasCommunication = (h, field, value, metadata = {}) =>
     messages.some((m) => {
+      const matches = (payload) =>
+        payload?.[field] === value &&
+        Object.entries(metadata).every(([key, expected]) => canonical(payload?.[key]) === canonical(expected));
       if (m.role === "assistant")
-        return m.content?.some((b) => b.type === "toolCall" && b.id === h.toolCallId && b.arguments?.[field] === value);
+        return m.content?.some((b) => b.type === "toolCall" && b.id === h.toolCallId && matches(b.arguments));
       if (m.role !== "toolResult" || m.toolCallId !== h.toolCallId) return false;
       return m.content?.some((b) => {
         if (b.type !== "text") return false;
         try {
-          return JSON.parse(b.text)?.[field] === value;
+          return matches(JSON.parse(b.text));
         } catch {
           return false;
         }
@@ -227,7 +246,24 @@ export function prepareView(options) {
     if (accepted && !hasCommunication(accepted, "contract", a.contract))
       restore("Current exact assignment", a.id, a.contract);
   }
-  if (report && !hasCommunication(report, "report", report.text)) restore("Saved report", report.id, report.text);
+  if (report) {
+    const metadata = { outcome: report.outcome, limitations: report.limitations };
+    const hasBody = hasCommunication(report, "report", report.text);
+    // Tool arguments establish accepted content but do not carry harness-assigned
+    // revision/lineage. Old receipts and partially retained calls need metadata too.
+    const complete = hasCommunication(report, "report", report.text, {
+      ...metadata,
+      reportRevision: report.reportRevision,
+      assignmentRef: `assignment:${report.assignmentId}`,
+      reportRef: `report:${report.id}:${report.reportRevision}`,
+    });
+    if (!complete)
+      restore(
+        "Saved report",
+        report.id,
+        `Producer: executor\nAssignment: assignment:${report.assignmentId}\nReport ref: report:${report.id}:${report.reportRevision}\nRevision: ${report.reportRevision}\nOutcome: ${report.outcome}\nLimitations: ${JSON.stringify(report.limitations)}${hasBody ? "\nReport text is present in its accepted native occurrence above." : `\nReport:\n${report.text}`}`,
+      );
+  }
   messages.push(options.runtimeMessage);
   const { estimatedTokens, maximumInputTokens, outputReserve, estimateMethod, warnings } = estimateRequest(
     options.systemPrompt,

@@ -1,7 +1,7 @@
 import { schemaForProfile } from "./schemas.js";
 import { randomUUID } from "node:crypto";
 import { EventStore } from "../session-sources/events.js";
-import { Sources, bodyHash } from "../session-sources/sources.js";
+import { Sources, bodyHash, isTaskEvidence } from "../session-sources/sources.js";
 import { pairFromProfile } from "./config.js";
 import { prepareView, changeSelection, representationProblems } from "./projection.js";
 import { initialState } from "./state.js";
@@ -513,6 +513,8 @@ export class RoutingRuntime {
           ref,
           kind: ref.endsWith("#text") ? "assistant-text" : (entry?.message?.role ?? "unknown"),
           toolName: entry?.message?.toolName,
+          producer: state.authors.get(entry?.id)?.profile ?? "common",
+          assignment: state.authors.get(entry?.id)?.assignmentId,
         };
       }),
       unresolved: selection.unresolved,
@@ -786,6 +788,7 @@ export class RoutingRuntime {
               "cursor_expired",
               "invalid_cursor",
               "work_ref_required",
+              "invalid_work_ref",
               "work_unavailable",
               "invalid_inspection",
             ].includes(error.code)
@@ -950,6 +953,11 @@ export class RoutingRuntime {
       reportSaved: true,
       handoff: id,
       reportRevision: h.reportRevision,
+      assignmentRef: `assignment:${h.assignmentId}`,
+      reportRef: `report:${h.id}:${h.reportRevision}`,
+      producer: "executor",
+      outcome: h.outcome,
+      limitations: h.limitations,
       ready: prepared.ready,
       transition: prepared.ready ? "pending" : "blocked",
       problems: prepared.problems,
@@ -986,6 +994,7 @@ export class RoutingRuntime {
           .filter(
             (s) =>
               s.producer === "executor" &&
+              (isTaskEvidence(s) || (scope === "selected" && next.selected.includes(s.ref))) &&
               (scope === "selected"
                 ? next.selected.includes(s.ref)
                 : scope === "assignment"
@@ -998,7 +1007,7 @@ export class RoutingRuntime {
                 s.message.content?.some((b) => b.type === "text" && b.text?.trim())),
           )
           .map((s) => {
-            const eligibility = sources.eligible(s.ref, state);
+            const eligibility = sources.selectionProblem(s.ref, state);
             const limitations = [
               ...(eligibility ? [eligibility] : []),
               ...representationProblems(s, model),
@@ -1012,6 +1021,7 @@ export class RoutingRuntime {
               toolName: s.message.toolName,
               active: s.active,
               selected: next.selected.includes(s.ref),
+              retainedSelection: next.selected.includes(s.ref) && !isTaskEvidence(s),
               eligible: !eligibility,
               targetReady: !limitations.length,
               limitations,
@@ -1030,6 +1040,20 @@ export class RoutingRuntime {
         30,
         scope === "assignment" || scope === "selected" ? a.id : undefined,
         scope === "active",
+        (rows) => ({
+          scopeCounts: {
+            candidates: rows.length,
+            eligible: rows.filter((r) => r.eligible).length,
+            targetReady: rows.filter((r) => r.targetReady).length,
+          },
+          otherAssignments: [...sources.byRef.values()].filter(
+            (s) =>
+              s.producer === "executor" &&
+              s.assignmentId !== a.id &&
+              isTaskEvidence(s) &&
+              !sources.eligible(s.ref, state),
+          ).length,
+        }),
       );
     }
     return {
@@ -1041,12 +1065,22 @@ export class RoutingRuntime {
             returned: page.items.length,
             candidates: page.items,
             nextCursor: page.nextCursor,
-            eligibleCount: page.items.filter((r) => r.eligible).length,
-            targetReadyCount: page.items.filter((r) => r.targetReady).length,
+            ...page.summary,
+            pageCounts: {
+              candidates: page.items.length,
+              eligible: page.items.filter((r) => r.eligible).length,
+              targetReady: page.items.filter((r) => r.targetReady).length,
+            },
+            countsBasis:
+              "Inspection snapshot; page counts describe returned candidates, scope counts describe all candidates in this scope.",
+            historyHint: page.summary.otherAssignments
+              ? "Previously exposed task evidence exists in other assignments; inspect scope history when needed."
+              : undefined,
           }
         : {}),
       revision: next.revision,
       selected: next.selected,
+      selectedCount: next.selected.length,
       unresolved: next.unresolved,
       ready: !next.unresolved.length && prepared.ready,
       problems: prepared.problems,
@@ -1121,7 +1155,7 @@ export class RoutingRuntime {
     );
     return { status: "closed", unit: state.unitId, outcome: input.outcome, assessment: input.assessment };
   }
-  page(scope, rows, cursor, size = 30, assignment, active = false) {
+  page(scope, rows, cursor, size = 30, assignment, active = false, summarize) {
     const branch = this.ctx.sessionManager.getBranch();
     const compaction = branch.filter((e) => e.type === "compaction").at(-1)?.id;
     let key,
@@ -1148,13 +1182,15 @@ export class RoutingRuntime {
     } else {
       key = randomUUID();
       if (this.pages.size >= 8) this.pages.delete(this.pages.keys().next().value);
+      const items = typeof rows === "function" ? rows() : rows;
       this.pages.set(key, {
         scope,
         basis: branch.at(-1)?.id ?? null,
         assignment,
         compaction,
-        rows: typeof rows === "function" ? rows() : rows,
+        rows: items,
         size,
+        summary: summarize?.(items),
       });
     }
     const page = this.pages.get(key);
@@ -1162,6 +1198,7 @@ export class RoutingRuntime {
       scope,
       count: page.rows.length,
       offset,
+      summary: page.summary,
       items: page.rows.slice(offset, offset + page.size),
       nextCursor: offset + page.size < page.rows.length ? `${key}:${offset + page.size}` : undefined,
     };
@@ -1217,6 +1254,11 @@ export class RoutingRuntime {
       view === "detail" && typeof input.ref === "string",
       "work_ref_required",
       "Use a ref returned by history inspection.",
+    );
+    check(
+      /^(?:(?:unit|assignment):[^:\s]+|report:[^:\s]+:[1-9][0-9]*)$/.test(input.ref),
+      "invalid_work_ref",
+      "Use assignmentRef or reportRef from the return receipt, or a work ref returned by inspection, unchanged. A bare handoff ID is not a work ref.",
     );
     if (input.ref.startsWith("unit:")) {
       const u = state.units.get(input.ref.slice(5));

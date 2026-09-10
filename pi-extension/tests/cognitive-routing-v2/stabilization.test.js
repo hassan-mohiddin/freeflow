@@ -73,7 +73,11 @@ test("visible assistant text crosses models exactly without transferring the who
       if (n === 4) {
         const rows = latest(manager, "freeflow_project").candidates;
         assert.equal(rows.find((r) => r.ref === ref).targetReady, true);
-        assert.equal(rows.find((r) => r.ref === ref.replace("#text", "")).targetReady, false);
+        assert.equal(
+          rows.find((r) => r.ref === ref.replace("#text", "")),
+          undefined,
+          "mixed routing call messages are excluded; their explicit visible text remains selectable",
+        );
         return call("freeflow_project", { operation: "add", refs: [ref] });
       }
       if (n === 5) {

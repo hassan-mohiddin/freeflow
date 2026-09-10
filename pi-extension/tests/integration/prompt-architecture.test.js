@@ -100,7 +100,7 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   assert.match(cognitiveRouting, /project every completed skill and instructional-reference read/);
   assert.match(
     routingSkill,
-    /If the required recovery phase is unavailable, inspect saved communication and stop if it is insufficient/,
+    /If no supported route can recover the necessary information while preserving responsibility, stop and report that limitation/,
   );
   assert.doesNotMatch(
     conversationHistory,

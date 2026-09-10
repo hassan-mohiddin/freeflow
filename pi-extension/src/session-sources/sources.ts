@@ -28,6 +28,18 @@ export interface Associated {
 }
 export const bodyHash = (value: unknown) => createHash("sha256").update(canonical(value)).digest("hex");
 export const textRef = (ref: string) => `${ref}#text`;
+const routingTools = new Set(["freeflow_delegate", "freeflow_return", "freeflow_project", "freeflow_unit"]);
+// Discovery and new selections share this policy. Existing saved selections keep
+// their original delivery semantics; mixed assistant messages offer visible text.
+export function isTaskEvidence(source: Source): boolean {
+  if (source.original) return true;
+  if (source.message.role === "toolResult") return !routingTools.has(source.message.toolName);
+  return (
+    source.message.role === "assistant" &&
+    !source.message.content?.some((b: any) => b.type === "toolCall" && routingTools.has(b.name)) &&
+    source.message.content?.some((b: any) => b.type === "text" && b.text?.trim())
+  );
+}
 interface Exchange {
   assistant: Source;
   results: Map<string, Source[]>;
@@ -187,6 +199,20 @@ export class Sources {
         ref,
         code: "source_unexposed",
         detail: "The captured body has not been fully exposed to Executor on this ancestry.",
+      };
+    return undefined;
+  }
+  selectionProblem(ref: string, state: State): Problem | undefined {
+    const problem = this.eligible(ref, state);
+    if (problem) return problem;
+    const source = this.byRef.get(ref)!;
+    if (!isTaskEvidence(source))
+      return {
+        ref,
+        code: "routing_source",
+        detail: this.byRef.has(textRef(ref))
+          ? `Routing control messages are not task evidence. Use ${textRef(ref)} if its visible assistant text is the intended evidence.`
+          : "Routing control receipts are not task evidence; saved communication is delivered separately.",
       };
     return undefined;
   }

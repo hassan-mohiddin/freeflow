@@ -150,7 +150,10 @@ export function renderRoutingResult(result, options = {}, name = "", context = {
   const evidence = facts
     ? [
         `Evidence revision ${facts.revision ?? "unknown"}`,
-        ...(facts.selected ?? []).map((s) => `${s.ref} · ${s.kind}${s.toolName ? ` · ${s.toolName}` : ""}`),
+        ...(facts.selected ?? []).map(
+          (s) =>
+            `${s.ref} · ${s.kind}${s.producer ? ` · ${s.producer}` : ""}${s.assignment ? ` · assignment ${s.assignment}` : ""}${s.toolName ? ` · ${s.toolName}` : ""}`,
+        ),
         ...(facts.withdrawals ?? []).map((w) => `Withdrawn ${w.ref}: ${w.reason}`),
         ...(facts.unresolved ?? []).map((p) => `Unresolved ${p.ref}: ${p.detail}`),
         ...(facts.limitations ?? []).map((p) => `${p.code}: ${p.detail}`),
@@ -180,13 +183,13 @@ export function renderRoutingResult(result, options = {}, name = "", context = {
       )
       .join("\n\n"),
     receipt.scope
-      ? `Scope: ${receipt.scope} · ${receipt.returned}/${receipt.count} candidates returned. Eligibility and target checks describe this page; whole-request fit remains estimated.`
+      ? `Scope: ${receipt.scope} · ${receipt.returned}/${receipt.count} candidates returned. Whole-request fit remains estimated.${receipt.scopeCounts ? `\nScope totals: ${receipt.scopeCounts.eligible} eligible · ${receipt.scopeCounts.targetReady} without known item target gaps.\nThis page: ${receipt.pageCounts.eligible} eligible · ${receipt.pageCounts.targetReady} without known item target gaps.` : ""}`
       : "",
     receipt.nextCursor ? `Next cursor: ${receipt.nextCursor}` : "",
     receipt.candidates
       ?.map(
         (item) =>
-          `${item.ref} · ${item.kind} · ${item.producer}${item.toolName ? ` · ${item.toolName}` : ""}\n${item.selected ? "Selected" : "Not selected"} · ${item.active ? "Active" : "Historical"} · ${item.eligible ? "Eligible" : "Ineligible"} · ${item.targetReady ? "No known item target gap" : "Target needs attention"}\n${item.preview}\n${item.limitations.map((p) => `${p.code}: ${p.detail}`).join("\n")}`,
+          `${item.ref} · ${item.kind} · ${item.producer}${item.toolName ? ` · ${item.toolName}` : ""}\n${item.selected ? "Selected" : "Not selected"} · ${item.active ? "Active" : "Historical"} · ${item.eligible ? "Eligible" : "Ineligible"} · ${item.targetReady ? "No known item target gap" : "Target needs attention"}${item.retainedSelection ? "\nPreviously selected routing source retained; unavailable for new selections." : ""}\n${item.preview}\n${item.limitations.map((p) => `${p.code}: ${p.detail}`).join("\n")}`,
       )
       .join("\n\n"),
     receipt.ref ? `Work ref: ${receipt.ref}` : "",
@@ -198,7 +201,18 @@ export function renderRoutingResult(result, options = {}, name = "", context = {
     receipt.reportRef ? `Report revision ref: ${receipt.reportRef}` : "",
     receipt.previousReportRef ? `Previous report revision: ${receipt.previousReportRef}` : "",
     receipt.warnings?.map((p) => `Planning warning: ${p.detail}`).join("\n"),
-    ["unit", "assignment", "handoff", "revision", "stage", "transition", "code"]
+    [
+      "unit",
+      "assignment",
+      "assignmentRef",
+      "handoff",
+      "revision",
+      "reportRevision",
+      "outcome",
+      "stage",
+      "transition",
+      "code",
+    ]
       .filter((key) => receipt[key] !== undefined)
       .map((key) => `${key}: ${value(receipt[key])}`)
       .join("\n"),
