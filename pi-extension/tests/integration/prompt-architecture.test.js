@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 
 import freeflowExtension from "../../dist/index.js";
-import { PIFLOW_HOST } from "../cognitive-routing/host-fixture.js";
+import { PIFLOW_HOST } from "../fixtures/pi-host.js";
 
 function context(cwd, systemPrompt = "") {
   return {
@@ -82,15 +82,17 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   assert.match(core, /apply its method and gather or produce evidence/);
   assert.match(core, /read the complete `full` record/);
   assert.match(core, /Make material gaps, contradictions, deferrals, and user-owned decisions explicit/);
-  assert.match(cognitiveRouting, /Before interpreting or acting on a request, read the full `cognitive-routing` skill/);
-  assert.match(cognitiveRouting, /Make this bootstrap read the only environment call/);
-  assert.match(cognitiveRouting, /If the read fails or is unavailable, stop and report missing context/);
-  assert.match(cognitiveRouting, /A state refresh is not a user interruption and does not reset ongoing work/);
+  assert.match(cognitiveRouting, /Before relying on automatic routing, read the complete cognitive-routing skill/);
+  assert.match(cognitiveRouting, /This bootstrap read is the only environment call/);
+  assert.match(cognitiveRouting, /If unavailable, stop and report the missing method/);
+  assert.match(cognitiveRouting, /Manual control runs ordinary unsplit Workflow/);
   assert.match(
     cognitiveRouting,
-    /`Control` and `Profile` describe current compute, not authority, an execution contract, or completion/,
+    /Use the latest Runtime State for control, profile, view, current assignment, and pending handoff/,
   );
-  assert.doesNotMatch(cognitiveRouting, /YIELD|DELEGATE|ACT_BOUNDED/);
+  assert.match(cognitiveRouting, /Coordinator and Executor profiles/);
+  assert.match(cognitiveRouting, /Manual control.*bypasses automatic handoffs and routing projection/);
+  assert.match(cognitiveRouting, /delegate and return tools with the contract\/report in their inputs/);
   assert.doesNotMatch(
     conversationHistory,
     /Current user direction, live source truth, and present runtime state remain authoritative/,
@@ -150,6 +152,8 @@ test("composes the mandatory core fragments, optional capabilities, discovery, a
     assert.match(runtimeState.content, /Context Virtualization: active/);
     assert.match(runtimeState.content, /Conversation History: active/);
     assert.match(runtimeState.content, /Cognitive Routing: inactive/);
+    assert.match(runtimeState.content, /Control: `unavailable`/);
+    assert.match(runtimeState.content, /Projection: `disabled`/);
     assert.doesNotMatch(runtimeState.content, /Default mode|Active mode|Interaction Contract|Skills/);
 
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
@@ -170,8 +174,8 @@ test("subagents keep Freeflow core and base skills without optional capabilities
     cognitiveRouting: {
       enabled: true,
       profiles: {
-        standard: { provider: "test", model: "standard", thinkingLevel: "high" },
-        reasoning: { provider: "test", model: "reasoning", thinkingLevel: "max" },
+        coordinator: { provider: "test", model: "coordinator", thinking: "high" },
+        executor: { provider: "test", model: "executor", thinking: "max" },
       },
     },
   });

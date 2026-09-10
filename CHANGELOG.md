@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Breaking Changes
+
+- Replaces the experimental Cognitive Routing switch/boundary protocol with Coordinator/Executor assignments, separate delegate/return/unit/projection tools, and `projection`/`thinking` configuration. Old experimental configuration and tools are not migrated; redesigned PiFlow routing and composition with legacy context transforms remain unavailable pending qualification.
+
+### Added
+
+- Adds saved-report retry, explicit same-unit assignment replacement, strict read-only session acknowledgment reconciliation, and assessment-preserving evidence projection with attention suspension and restoration.
+
+### Changed
+
+- Retires the old experimental routing source and tests into the historical archive, adds replacement-contract regression suites, and cleans generated extension output before building.
+
 ## 0.7.1 - 2026-09-04
 
 ### Added

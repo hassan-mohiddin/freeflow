@@ -15,7 +15,7 @@ Capabilities are optional Pi/PiFlow extensions outside the shared 24-skill surfa
 
 | Capability | Host support | Primary job |
 | --- | --- | --- |
-| [Cognitive Routing](cognitive-routing.md) | Pi and PiFlow when the host model-state APIs are available | Place compute between Reasoning and Standard without changing authority or ownership |
+| [Cognitive Routing](cognitive-routing.md) | Native Pi; redesigned PiFlow routing remains unavailable | Place compute between Coordinator and Executor without changing authority or ownership |
 | [Context Virtualization](context-virtualization.md) | Pi and PiFlow | Change future context residency of consumed tool evidence while preserving canonical history |
 | [Conversation History](conversation-history.md) | Pi and PiFlow | Recover bounded exact prior-conversation evidence from the active branch |
 
@@ -23,7 +23,7 @@ Capabilities are optional Pi/PiFlow extensions outside the shared 24-skill surfa
 
 Conversation History retrieves missing prior evidence. Context Virtualization changes the residency classification of consumed evidence after it has been safely narrowed or exhausted. They may compose, but neither depends on the other for its primary job.
 
-Cognitive Routing changes compute placement and selects eligible evidence for Reasoning's projected view around the active owner. It does not retrieve arbitrary history or decide whether a task is authorized. Its projection is separate from Context Virtualization residency and Conversation History retrieval; selection does not pin material through compaction.
+Cognitive Routing changes compute placement and selects eligible evidence for Coordinator's projected view around the active owner. It does not retrieve arbitrary history or decide whether a task is authorized. Selected canonical evidence is preserved for the active assessment, with explicit attention suspension. The new projection is not yet qualified together with the legacy context transforms; they remain usable independently.
 
 ## Related documentation
 

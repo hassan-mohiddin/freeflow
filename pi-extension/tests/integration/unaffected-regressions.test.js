@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 
 import freeflowExtension from "../../dist/index.js";
 import { resetSessionOverrides, setSessionCoreOverride } from "../../dist/runtime/runtime-context.js";
-import { PIFLOW_HOST } from "../cognitive-routing/host-fixture.js";
+import { PIFLOW_HOST } from "../fixtures/pi-host.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -51,12 +51,12 @@ function context(cwd, options = {}) {
   };
 }
 
-function loadExtension() {
+function loadExtension(host = PIFLOW_HOST, runtimeApi = {}) {
   const handlers = new Map();
   const commands = [];
   const tools = [];
   const pi = {
-    host: PIFLOW_HOST,
+    host,
     registerTool(tool) {
       tools.push(tool);
     },
@@ -77,6 +77,7 @@ function loadExtension() {
     },
     setActiveTools() {},
   };
+  Object.assign(pi, runtimeApi);
   freeflowExtension(pi);
   return { handlers, commands, pi };
 }
@@ -263,14 +264,22 @@ test("Cognitive Routing preset cancellation preserves the previous repository va
     cognitiveRouting: {
       enabled: true,
       profiles: {
-        standard: { provider: "test", model: "model-a", thinkingLevel: "low" },
-        reasoning: { provider: "test", model: "model-b", thinkingLevel: "high" },
+        coordinator: { provider: "test", model: "model-a", thinking: "low" },
+        executor: { provider: "test", model: "model-b", thinking: "high" },
       },
     },
   });
   const original = await readFile(join(cwd, ".freeflow/config.json"), "utf8");
   try {
-    const { commands } = loadExtension();
+    const { commands } = loadExtension(
+      {},
+      {
+        setModel() {
+          return true;
+        },
+        setThinkingLevel() {},
+      },
+    );
     const command = freeflowCommand(commands);
     const settings = context(cwd, { isIdle: () => true });
     settings.modelRegistry = cognitiveRoutingModelRegistry();
@@ -300,13 +309,21 @@ test("Cognitive Routing settings refresh after enabling the capability", async (
     cognitiveRouting: {
       enabled: false,
       profiles: {
-        standard: { provider: "test", model: "model-a", thinkingLevel: "low" },
-        reasoning: { provider: "test", model: "model-b", thinkingLevel: "high" },
+        coordinator: { provider: "test", model: "model-a", thinking: "low" },
+        executor: { provider: "test", model: "model-b", thinking: "high" },
       },
     },
   });
   try {
-    const { commands } = loadExtension();
+    const { commands } = loadExtension(
+      {},
+      {
+        setModel() {
+          return true;
+        },
+        setThinkingLevel() {},
+      },
+    );
     const command = freeflowCommand(commands);
     const settings = context(cwd, { isIdle: () => true });
     settings.modelRegistry = cognitiveRoutingModelRegistry();
@@ -322,7 +339,7 @@ test("Cognitive Routing settings refresh after enabling the capability", async (
       component.handleInput("\r");
       await component.waitForWrites();
       component.handleInput("\u001b");
-      assert.match(component.render(120).join("\n"), /Cognitive Routing\s+enabled \(6\) configured/);
+      assert.match(component.render(120).join("\n"), /Cognitive Routing\s+enabled \(4\) configured/);
       component.handleInput("\u001b");
       return result;
     };
@@ -339,14 +356,23 @@ test("Cognitive Routing settings can disable projection without disabling routin
   const cwd = await configuredRepo({
     cognitiveRouting: {
       enabled: true,
+      projection: true,
       profiles: {
-        standard: { provider: "test", model: "model-a", thinkingLevel: "low" },
-        reasoning: { provider: "test", model: "model-b", thinkingLevel: "high" },
+        coordinator: { provider: "test", model: "model-a", thinking: "low" },
+        executor: { provider: "test", model: "model-b", thinking: "high" },
       },
     },
   });
   try {
-    const { commands } = loadExtension();
+    const { commands } = loadExtension(
+      {},
+      {
+        setModel() {
+          return true;
+        },
+        setThinkingLevel() {},
+      },
+    );
     const command = freeflowCommand(commands);
     const settings = context(cwd, { isIdle: () => true });
     settings.modelRegistry = cognitiveRoutingModelRegistry();
@@ -357,7 +383,7 @@ test("Cognitive Routing settings can disable projection without disabling routin
       });
       component.handleInput("\u001b[B");
       component.handleInput("\r");
-      for (let index = 0; index < 5; index += 1) component.handleInput("\u001b[B");
+      for (let index = 0; index < 3; index += 1) component.handleInput("\u001b[B");
       component.handleInput("\r");
       component.handleInput("\u001b[B");
       component.handleInput("\r");
@@ -369,7 +395,7 @@ test("Cognitive Routing settings can disable projection without disabling routin
     await command.definition.handler("settings repo", settings);
     const saved = JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8"));
     assert.equal(saved.cognitiveRouting.enabled, true);
-    assert.equal(saved.cognitiveRouting.contextProjection, false);
+    assert.equal(saved.cognitiveRouting.projection ?? false, false);
     assert.equal(settings.reloads.length, 1);
   } finally {
     await rm(cwd, { recursive: true, force: true });

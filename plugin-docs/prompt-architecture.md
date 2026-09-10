@@ -100,21 +100,17 @@ Prompt delivery describes what the model sees. Workflow and Cognitive Routing de
 ```text
 Interaction Lifecycle
 └─ Workflow Feedback Loop
-   ├─ establishes authority, owner, and slice
-   └─ Cognitive Execution Routes — automatic control only
-      ├─ Boundary OPEN
-      │  ├─ DELEGATE next unit → RETURN; boundary remains open
-      │  ├─ ACT_BOUNDED when independently qualified → reassess
-      │  ├─ suspend or route a changed boundary
-      │  └─ CLOSE after support and review
-      ├─ Boundary NONE
-      │  ├─ YIELD → Standard leads one complete result → YIELD HANDOFF
-      │  ├─ ACT_BOUNDED when independently qualified → Reasoning acts directly
-      │  └─ DELEGATE → open a model-written boundary; Standard executes
-      └─ Action Selection guides uncertain environment interactions
+   ├─ establishes agreement, owner, and slice
+   └─ Cognitive Routing — automatic control only
+      ├─ Coordinator saves an assignment through freeflow_delegate
+      ├─ Executor performs it and saves its actual freeflow_return report
+      ├─ Coordinator compares acceptance with actual evidence
+      │  ├─ continue or explicitly replace an assignment within an open unit
+      │  └─ close the supported unit through freeflow_unit
+      └─ Action Selection bounds environment interactions
 ```
 
-Manual Cognitive Routing control runs the ordinary unsplit Workflow. Under automatic control, conversational Reasoning is the default and owns user-facing interpretation and reporting. With no open boundary, Yield is the standalone whole-result transfer, `ACT_BOUNDED` is exceptional direct Reasoning execution, and otherwise Delegate opens a boundary. With an open boundary, Delegate is the continuing route; literal Yield is not used, while a qualifying `ACT_BOUNDED` scope may operate inside it without closing it. Automatic Standard only executes active Yield or Delegate contracts and never conducts substantive user-facing interaction; at every return condition it transfers state to Reasoning. Cognitive Routing changes compute and context placement, never authority, owner, task scope, evidence requirements, or review independence. Its internal handbacks are distinct from the user's agreed return boundary. Standard uses ordinary active context; under Automatic projection, Reasoning receives required context and accumulated selected evidence rather than the same complete view.
+Manual control runs the ordinary unsplit Workflow. Automatic Coordinator owns user-facing judgment; Executor works within its current assignment. A saved report ends Executor task permission without accepting the unit. Explicit retry preserves the saved report, and replacement preserves prior effects. There is no Yield, REOPEN, or model-maintained boundary ledger. Narrow Coordinator recovery reads preserve the existing responsibility; substantive direct work requires ACT_BOUNDED. Late user input reaching a prepared Executor request requires an interrupted return before task tools. Projection selects Executor evidence and preserves its assessment obligation through compaction until disposition, with explicit suspension for newer attention. These operations do not change user authority or make an internal handback the user-facing endpoint.
 
 ## Failure and recovery boundaries
 

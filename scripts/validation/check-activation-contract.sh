@@ -78,8 +78,10 @@ require_text "$interaction_contract" 'Interpret requested intent, not sentence f
 require_text "$core_prompt" '## Shared Terms'
 require_text "$core_prompt" '## Load The Selected Method'
 require_text "$core_prompt" 'Verification establishes what direct evidence proves'
-require_text "$cognitive_routing_prompt" "Before interpreting or acting on a request, read the full \`cognitive-routing\` skill"
-require_text "$cognitive_routing_prompt" 'Make this bootstrap read the only environment call'
+require_text "$cognitive_routing_prompt" 'Before relying on automatic routing, read the complete cognitive-routing skill if its body is absent.'
+require_text "$cognitive_routing_prompt" 'This bootstrap read is the only environment call in that response.'
+require_text "$cognitive_routing_prompt" 'If unavailable, stop and report the missing method.'
+require_text "$cognitive_routing_prompt" 'Reload it after context loss before applying remembered routing rules.'
 require_text "$workflow_skill" 'Own the outer Interaction Lifecycle.'
 require_text "$workflow_skill" 'When the owner needs an environment interaction and the action or tool choice is not already obvious'
 require_text "$action_selection_skill" 'Choose one covered environment interaction'

@@ -14,10 +14,10 @@ Freeflow is a portable workflow layer for coding agents. Choose the host that ma
 | Kiro | Agent Plugins 1.0 Power and shared skills | Not available; no Kiro-specific runtime adapter |
 | OpenCode v2 | Canonical `skills/` through the documented project skill source | Not available; skills-only support |
 | Hermes Agent | Agent Plugins 1.0 portable package and canonical skills | Not available; skills-only support |
-| Pi | Shared skills, Pi extension, optional context capabilities, and Cognitive Routing | Available when configured and the official model-state APIs are present |
-| PiFlow | PiFlow-hosted Freeflow, including model-state control | Available when configured |
+| Pi | Shared skills and Pi extension source entrypoint, plus optional context capabilities | Cognitive Routing is an unreleased experimental candidate; native SDK and bundled-CLI dispatch are exercised by isolated local fixtures; installed-user and model-behavior acceptance remain separate |
+| PiFlow | PiFlow-hosted Freeflow package and host lifecycle | Cognitive Routing is explicitly unavailable in the current source adapter |
 
-Cognitive Routing works in either Pi or PiFlow when the active host exposes the required model-state APIs.
+Cognitive Routing is not established merely by configuration or installation. The current source entrypoint is wired for native Pi, but installed-host dispatch and model behavior require separate evidence; the redesigned PiFlow adapter is currently unavailable.
 
 ## Install Freeflow
 
@@ -105,7 +105,7 @@ pi install git:github.com/hassan-mohiddin/freeflow
 
 Restart Pi or use `/reload` after installing or updating the package.
 
-The full normal-Pi integration targets Pi 0.84.3 or newer. The repository's current development dependency is Pi 0.85.1; version-specific release evidence remains the source for validated host claims.
+The repository's current development dependency is Pi 0.85.1. This is source/dependency context, not proof of a released or installed native integration; version-specific host acceptance requires separate evidence.
 
 ### PiFlow
 
@@ -122,7 +122,7 @@ A Git package source is also supported:
 piflow install git:github.com/hassan-mohiddin/freeflow
 ```
 
-Use `-l` when the package should be recorded in project-local PiFlow settings. Review package source before installation because PiFlow extensions run with host permissions.
+Use `-l` when the package should be recorded in project-local PiFlow settings. Review package source before installation because PiFlow extensions run with host permissions. The current source adapter explicitly marks PiFlow Cognitive Routing unavailable.
 
 ## Activate a repository
 
@@ -135,6 +135,23 @@ Run this in the repository where Freeflow should operate:
 Setup creates the shared `.freeflow/config.json` activation boundary. Minimal activation is `{}`. `.freeflow/local.json` is an optional personal override and cannot activate Freeflow by itself.
 
 Freeflow's core guidance and separately editable Interaction Contract are delivered together whenever Freeflow is enabled. The 24 base skills are exposed with that core surface. Context Virtualization, Conversation History, and Cognitive Routing remain individually optional capabilities.
+
+For a future qualified native host, Cognitive Routing uses this v2 configuration under `.freeflow/config.json` or `.freeflow/local.json`:
+
+```json
+{
+  "cognitiveRouting": {
+    "enabled": true,
+    "projection": false,
+    "profiles": {
+      "coordinator": { "provider": "openai", "model": "gpt-4o", "thinking": "off" },
+      "executor": { "provider": "openai", "model": "gpt-4.1-mini", "thinking": "off" }
+    }
+  }
+}
+```
+
+`projection` defaults to `false`. Only `coordinator` and `executor` profiles are supported. Older experimental routing names or fields such as `standard`, `reasoning`, `contextProjection`, and `sessionStart` are unsupported and have no migration; rewrite them manually. Configuration does not establish host availability or model evaluation.
 
 Setup does not write Freeflow instructions into `AGENTS.md`, `CLAUDE.md`, or other repository-owned host files.
 
@@ -150,8 +167,8 @@ Use the host-native surface to confirm the installation:
 - **Kiro:** confirm the Power is installed and the shared skills appear in the Agent Steering & Skills surface. Do not infer an always-on prompt adapter from the Power manifest alone.
 - **OpenCode v2:** confirm the configured `skills` array points at the canonical `skills/` directory and inspect the native `skill` catalog. Do not infer runtime prompt delivery.
 - **Hermes Agent:** confirm the portable package is listed/enabled or the checkout is trusted as a skills source, then inspect the skills catalog. Do not infer runtime prompt delivery from portable package installation.
-- **Pi:** use `/freeflow` to inspect settings/status, confirm the core prompt, Interaction Contract, and base skills, then configure distinct Cognitive Routing profiles when the official model-state APIs are available.
-- **PiFlow:** use `/freeflow` to configure Cognitive Routing and distinct `standard` and `reasoning` profiles. While idle, either host supports `/freeflow profile standard`, `/freeflow profile reasoning`, and `/freeflow profile auto`.
+- **Pi:** use `/freeflow` to inspect settings/status and confirm the core prompt, Interaction Contract, and base skills. The source entrypoint includes v2 native routing wiring, but this does not prove stock-Pi dispatch or model behavior.
+- **PiFlow:** use PiFlow's native lifecycle to confirm the package and Freeflow shared surface. The current source explicitly reports Cognitive Routing unavailable; do not configure or exercise it as an active PiFlow capability.
 
 Activation is not proof of runtime delivery. Setup reports delivery as `confirmed`, `unavailable`, or `unconfirmed`.
 

@@ -33,8 +33,9 @@ const pattern = /pi\.registerCommand\("([^"]+)"/g;
 for (const item of source.matchAll(pattern)) {
   console.log(`/${item[1]}`);
 }
-if (source.includes("handleCognitiveRoutingProfileCommand") && source.includes("cognitiveRoutingProfileCompletions")) {
-  console.log("/freeflow profile <standard|reasoning|auto>");
+if (source.includes("routing.command") && source.includes("profile coordinator")) {
+  console.log("/freeflow profile <coordinator|executor|auto>");
+  console.log("/freeflow resume");
 }
 NODE
 }

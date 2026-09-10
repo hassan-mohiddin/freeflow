@@ -19,7 +19,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "format:pi-extension-dist": "prettier --write pi-extension/dist",
-    "build:pi-extension": "tsc -p pi-extension/tsconfig.json && npm run format:pi-extension-dist",
+    "build:pi-extension": "node -e \"require('node:fs').rmSync('pi-extension/dist', { recursive: true, force: true })\" && tsc -p pi-extension/tsconfig.json && npm run format:pi-extension-dist",
     "build": "npm run build:pi-extension",
     "typecheck": "tsc -p pi-extension/tsconfig.json --noEmit",
     "check": "npm run typecheck && npm run check:source && npm run check:host-manifests && npm run check:changelog && npm run check:release-workflow && npm run check:docs && npm run format:check && npm run check:release-version && npm run check:commands && npm run check:activation && npm run check:runtime && npm run check:package",

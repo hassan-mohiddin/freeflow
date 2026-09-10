@@ -1,152 +1,131 @@
 # Cognitive Routing
 
-Cognitive Routing changes compute and context placement for one active agent. It does not create another agent, transfer task ownership, widen authority, or replace Workflow.
+Cognitive Routing is an experimental Pi/PiFlow capability for placing compute between a **Coordinator** and an **Executor** inside one active agent and one canonical session. It does not create another agent, transfer Workflow ownership, widen authority, or replace verification and review.
 
-## Host boundary and status
+## Current status and host boundary
 
-Cognitive Routing works in Pi and PiFlow when the host exposes the required model-state controls. Normal Pi uses its official model registry, model, thinking-level, and session-entry APIs; PiFlow uses its host-owned model-state lease.
+The current implementation is the `cognitive-routing-v2` source path. Its native Pi entrypoint is wired in the source tree, but it is not a released or installed host integration. Source inspection alone does not prove dispatch. Local SDK and bundled-CLI fixtures exercise native dispatch at captured request boundaries; they do not establish installed-user behavior, universal transport support, or model quality.
 
-The implementation is an experimental Pi/PiFlow capability. Deterministic runtime checks prove assembly, gating, host capability detection, persistence, and transition mechanics; behavioral model acceptance remains separate.
+The redesigned PiFlow adapter is explicitly unavailable in the current source entrypoint. Installing PiFlow or Freeflow does not make Cognitive Routing available there. PiFlow remains a separate host with its own launch, package, session, and update lifecycle; see [PiFlow integration](../integrations/piflow.md).
 
-Cognitive Routing is effective only when:
+On a qualified host, routing is effective only when:
 
-1. Freeflow repository activation is valid;
-2. Cognitive Routing is configured and enabled;
-3. both profiles resolve to available, authenticated, distinct effective model/thinking pairs;
-4. the host exposes the required model-state controls for its runtime.
+1. Freeflow repository activation is valid and enabled;
+2. Cognitive Routing is enabled in configuration;
+3. both configured profiles resolve to available, authenticated models with exactly supported thinking levels;
+4. the effective Coordinator and Executor pairs are distinct; and
+5. the host exposes the model registry, native model/thinking controls, session entries, and session ancestry needed by the adapter.
 
-Missing profiles, unavailable or unauthenticated models, invalid thinking levels, identical effective profiles, or host limitations leave routing unavailable rather than partially active.
+Missing profiles, unavailable or unauthenticated models, unsupported or clamped thinking levels, identical profiles, invalid configuration, missing host APIs, or a deliberately unavailable adapter leave routing unavailable rather than partially active.
 
-## One agent, two participants, different views
+## Configuration
 
-`standard` and `reasoning` are distinct, separately configured model participants executing one at a time within one agent and canonical Pi session. They share the Workflow owner, authority envelope, accepted intent, and task-memory/evidence requirements—not private reasoning or necessarily identical visible history. A profile switch does not create independent review.
+Cognitive Routing uses this schema under `.freeflow/config.json` or `.freeflow/local.json`:
 
-With Automatic context projection enabled, Standard sees Pi's ordinary active context. Reasoning receives required context, applicable user/Reasoning history, accumulated shared and selected evidence, and retained handoffs with native dependencies. Unselected Standard bodies are excluded by default; a retained call envelope or omission marker is not the original result. A narrow Standard assignment does not give it an isolated context window.
-
-With `cognitiveRouting.contextProjection: false`, both profiles use ordinary Pi active context. Manual control bypasses projection. Selection is not pinning: it does not resurrect compacted-out bodies or override active-branch eligibility. Context Virtualization and Conversation History availability do not determine Cognitive Routing projection.
-
-A profile is not a task owner and a transition or selected source is not an authorization source.
-
-## Manual and automatic control
-
-### Manual control
-
-A manual hold lets the user keep `standard` or `reasoning` active. The held profile runs the ordinary unsplit Workflow and model-requested switching is blocked.
-
-### Automatic control
-
-Automatic control lets Cognitive Routing choose compute placement. Each new user interaction begins in Reasoning, and internal profile transitions are not user-selected cycles. Conversational Reasoning is the default and needs no route marker. All user-facing interpretation, discussion, decisions, questions, assessment, and reporting belong to Reasoning.
-
-Before the full Cognitive Routing skill is visible, Automatic Reasoning reads that skill as its only environment action and stops. It does not interpret the current user request or perform task/evidence work until the read returns. If the read fails or is unavailable, routing stops and reports missing context.
-
-For an authorized execution-bearing activity, Reasoning checks the current boundary first:
-
-- With **no open boundary**, Yield may transfer one complete ordinary result, `ACT_BOUNDED` may act when independently qualified, and otherwise Delegate opens a boundary.
-- With an **open boundary**, Delegate is the continuing route. Yield is not used; work that would qualify for Yield in isolation remains Delegate because Reasoning still owns the boundary. A qualifying `ACT_BOUNDED` scope may temporarily operate inside it.
-
-Standard is used automatically only through Yield or Delegate. It never conducts substantive user-facing interaction; at every return condition it transfers state with `YIELD HANDOFF` or `RETURN` to Reasoning, which handles interpretation, questions, discussion, assessment, and reporting. The transfer records are control text, not user interaction. The target is cost-sensitive quality, not a claim of equivalence between profiles.
-
-## Cognitive Execution Routes
-
-```text
-Workflow establishes authority, owner, and slice
--> Reasoning receives an authorized execution-bearing activity
-   ├─ Boundary OPEN
-   │  ├─ DELEGATE next decision-complete unit → RETURN; boundary remains open
-   │  ├─ ACT_BOUNDED when independently qualified → reassess; boundary remains open
-   │  ├─ suspend or route a contradiction, choice, or changed boundary
-   │  └─ CLOSE only after the bounded result is supported and reviewed
-   └─ Boundary NONE
-      ├─ YIELD → Standard leads one complete result → YIELD HANDOFF → Reasoning
-      ├─ ACT_BOUNDED when independently qualified → Reasoning acts directly
-      └─ DELEGATE → open a model-written boundary; Standard executes
+```json
+{
+  "cognitiveRouting": {
+    "enabled": true,
+    "projection": false,
+    "profiles": {
+      "coordinator": {
+        "provider": "openai",
+        "model": "gpt-4o",
+        "thinking": "off"
+      },
+      "executor": {
+        "provider": "openai",
+        "model": "gpt-4.1-mini",
+        "thinking": "off"
+      }
+    }
+  }
+}
 ```
 
-Under automatic control, Yield has no Cognitive Routing execution boundary and is forbidden while one is open. Delegate opens one with `NEW` or `REOPEN`; `RETURN` leaves it open and only Reasoning closes it. `ACT_BOUNDED` creates no execution boundary, may operate inside or outside Delegate, and never contains Delegate or closes its boundary. A closed boundary may be reopened only for the same authorized outcome with fresh authority and invalidating evidence or changed intent.
+`projection` defaults to `false`. The accepted profile names are `coordinator` and `executor`; each profile requires `provider`, `model`, and a supported `thinking` value: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. The two effective provider/model/thinking pairs must differ, and each model must support the requested thinking level without clamping.
 
-Delegation transfers bounded execution, not the governing boundary. Standard can challenge a mistaken premise but must not silently adopt a changed governing direction, expand scope, hide contrary evidence, or continue past its unit return condition.
+Repository configuration is the shared baseline. A valid personal layer can override `enabled`, `projection`, or either complete profile; omitted values inherit from the repository layer. Use `/freeflow settings` or `/freeflow settings local` for personal settings and `/freeflow settings repo` for shared settings. Cognitive Routing is not configured through a session override.
 
-The user's work agreement, a delegation unit, and a Track Work Slice are different boundaries. An internal handback does not end an agreement to finish the task. Reasoning can continue covered units without another user confirmation; a new user-owned choice or uncovered effect still requires a stop.
+Only the v2 `enabled`/`projection`/`profiles` shape is supported. Older experimental routing names or fields such as `standard`, `reasoning`, `contextProjection`, and `sessionStart` are intentionally unsupported. There is no migration: rewrite the configuration manually using the schema above. Invalid layers fail closed; the runtime does not guess or partially apply them.
 
-## Contracts and evidence
+## Coordinator and Executor
 
-Reasoning delegates the missing understanding or a supported change: a named outcome uncertainty, a bounded approach investigation, or concrete implementation with relevant invariants and checks. It distinguishes accepted requirements from suggested mechanics and makes superseding scope/order/return instructions explicit. Uncertain observers and repeated mismatches warrant smaller decision-bearing units, not increasingly long restatements of the same assignment.
+The two profiles are sequential participants, not independent agents or independent reviewers:
 
-Standard reports from actual final artifacts and observations, separating implemented behavior, exercised checks, and unresolved requirements. Evidence must match the reported candidate; fresh test output paired with superseded code does not establish completion. A missing result can require evidence recovery rather than another implementation fix.
+- **Coordinator** interprets user direction, preserves the authority envelope, decides the current unit and assignment, selects or requests evidence, assesses the result, closes the unit, and handles all substantive user-facing interaction.
+- **Executor** carries out the current assignment, uses the producing method and bounded environment interactions, records actual observations, and returns a report with limitations.
 
-When projection is applicable, the exposed switch tool accepts optional selections:
+They share the canonical session, accepted intent, Workflow owner, authority, and evidence requirements. They do not share private reasoning. A profile switch is not independent review, and a report is not acceptance of the unit.
 
-- `projection.include`: completed eligible Standard evidence needed to assess the result, including actual tool-result bodies and relevant assistant text;
-- `projection.shared`: eligible task background needed across later units, such as instructions, accepted artifacts, constraints, and task-memory reads.
+## Automatic and manual control
 
-Both fields accumulate along applicable ancestry. References must be actually exposed, completed, eligible, and deduplicated within and across the arrays. A tool-call ref does not substitute for its result body. Missing, stale, or adverse evidence remains explicit; successful reference validation does not prove semantic sufficiency.
+Under automatic control, Coordinator owns new user direction; input reaching an already prepared Executor request requires an interrupted return before task tools. A normal route is:
 
-The current successful handoff and required native dependencies are retained automatically. On an explicitly authorized corrected retry, Standard must select the earlier substantive handoff's eligible assistant-text ref when that report is needed, alongside still-valid evidence. A short retry explanation is not the earlier report. Failure alone does not authorize retry, evidence removal, or disabling projection.
+```text
+Workflow establishes authority, owner, and unit
+-> Coordinator assigns one decision-complete assignment
+-> Executor executes the assignment and returns its actual report
+-> Coordinator receives the saved report and eligible evidence
+-> Coordinator assesses, continues, or closes the unit
+```
 
-## Direct Reasoning execution
+`freeflow_delegate` creates or replaces an assignment. `freeflow_return` saves or retries the Executor handoff. Returning ends ordinary Executor work for that assignment; it does not accept or close the unit. Coordinator can continue covered work, ask for a corrected assignment, or close only after the result is supported.
 
-Reasoning's conversational work is the default and needs no route marker. Outside an explicit `ACT_BOUNDED` scope, Automatic Reasoning performs no environment interaction, active evidence generation, mutation, tests, diagnostics, builds, probes, or substantive artifact production. Use Yield for a complete ordinary result and Delegate when Reasoning must assess evidence or retain cognitive leadership.
+Manual control keeps one selected profile active and runs the ordinary unsplit Workflow. Automatic handoffs and projection are bypassed. Manual control does not grant extra authority or make the held profile a separate agent.
 
-`ACT_BOUNDED` is the only direct execution route for Automatic Reasoning. It requires judgment and environment action to be materially inseparable and shared-context delegation to cause material loss beyond premium execution cost. The named scope may contain the related environment tools and execution needed for its result, but it creates no boundary, changes no owner, and grants no authority. It may contribute evidence to an open Delegate boundary but cannot close it.
+## Routing tools
 
-The scope ends at its stop condition, interruption, context loss, or material scope change. Recover before selecting a fresh route after context loss. Ordinary inspection, research, edits, tests, builds, verification, documentation, and cleanup belong to Standard through Yield or Delegate.
+The v2 tools are available only while the capability and the relevant automatic control state are effective. `freeflow_unit` status/history inspection remains available for routing state; ordinary task tools are not made safe or authorized by these tools.
+
+| Tool | Operations | Purpose and boundary |
+| --- | --- | --- |
+| `freeflow_delegate` | `assign`, `replace` | Coordinator saves a contract for Executor. `replace` requires an explicit reason and a quiescent outstanding assignment; prior effects and evidence remain. |
+| `freeflow_return` | `submit`, `retry` | Executor saves or deliberately revises a report, or retries the saved handoff without resubmitting text. `submit` takes `report`, `outcome` (`completed`, `partial`, or `blocked`), and optional `limitations`. A handoff must be last in its batch. |
+| `freeflow_unit` | `status`, `history`, `assess`, `close` | Read-only `status`/`history` inspect routing state; Coordinator uses `assess` to restore a suspended assessment and `close` to record the unit disposition. `close` takes `outcome` (`accepted`, `cancelled`, or `deferred`) and an `assessment`; it does not complete a Track Work task or authorize delivery. |
+| `freeflow_project` | `add`, `remove`, `inspect`, `list` | Executor selects eligible completed evidence for Coordinator when projection is enabled. References are canonical `ctx:<native-entry-id>` values. `remove` requires a reason; `list` supports `assignment` or `active` scope and a numeric cursor. |
+
+The harness owns operation and event identities. Do not create a parallel ledger or supply IDs. Projection changes, a saved return, and one final handoff may share a bounded batch; do not mix a handoff with new ordinary task work.
+
+## Context projection
+
+Projection is disabled by default. With `projection: false`, both profiles receive ordinary Pi active context and `freeflow_project` is unavailable. With projection enabled, Executor works from ordinary active context while Coordinator receives common context plus selected Executor evidence. Selection is evidence selection, not an isolated context window or a pin against compaction.
+
+A selected item must be an actually exposed, completed source on the active native ancestry. Selecting a call envelope does not select its result body. Native dependencies and the complete relevant call exchange are retained automatically; unselected result bodies may appear only as an omission marker, never as the original result. A valid selection remains saved when another item fails, while unresolved, stale, adverse, or target-representation problems remain explicit. A readiness result is not semantic proof of the report.
+
+The current successful handoff and required native dependencies are retained automatically. On a corrected retry, the earlier substantive saved report must be restored when it is needed; a short retry explanation is not a replacement for that report. Saved reports and selections are persisted routing state independent of whether a later profile switch succeeds.
+
+The new routing projection is not qualified in composition with the legacy Context Virtualization or Conversation History transforms. Do not enable either legacy capability together with `projection: true`. Context Virtualization and Conversation History remain independently available as standalone capabilities, and may still be used when Cognitive Routing projection is disabled.
+
+## Persistence, uncertainty, and recovery
+
+Routing state is recorded as native `freeflow-routing-v2` session entries. The runtime validates each transition before appending, reads the native append back from the live branch, and replays the selected ancestry for state. Native entries preserve assignments, reports, selections, assessments, controls, and transition evidence across switching and reloads; they are not a second task-memory store.
+
+When existing or uncertain routing state must be reconciled, the runtime reads the persisted native session file through a strict read-only snapshot: bounded regular-file read, complete UTF-8/JSONL parsing, session identity and ancestry checks, and live-branch comparison. It does not patch the host session file, claim `fsync`, or promise exactly-once behavior. If persisted readback cannot establish an attempted event or the snapshot is divergent, routing blocks with explicit uncertainty. Do not repeat a potentially completed effect blindly.
+
+New user attention suspends a saved Coordinator assessment rather than silently delivering stale report/evidence into the new interaction. Runtime State reports that the saved report/evidence is suspended. Once the saved assessment is again the intended activity, use `freeflow_unit` with `{"operation":"assess"}`; readiness and reservation checks must succeed before it resumes. A failed restoration leaves the assessment suspended.
+
+After context loss, ancestry change, native model/thinking override, or an uncertain transition, recover Runtime State, the current unit and assignment, saved report, partial effects, selected evidence, and stopping conditions before task work. `/freeflow resume` is an explicit idle-host recovery command; it does not bypass reconciliation or authorize a new outcome.
 
 ## Controls and history
 
-While Pi or PiFlow is idle, use:
+While the qualified host is idle, use:
 
 ```text
-/freeflow profile standard
-/freeflow profile reasoning
+/freeflow profile coordinator
+/freeflow profile executor
 /freeflow profile auto
 /freeflow profile history
-/freeflow profile history active
-/freeflow profile history anomalies
+/freeflow resume
 ```
 
-- `standard` and `reasoning` create manual holds;
-- `auto` releases the hold and returns automatic control to the Reasoning profile;
-- history commands expose read-only transition evidence.
+`coordinator` and `executor` create manual holds. `auto` releases the hold and reconciles automatic Coordinator control. `history` displays read-only routing status and recent transition evidence. `/freeflow resume` resumes the saved routing responsibility after the runtime can establish the persisted state. Profile changes and resume are unavailable while the host is running.
 
-### Pi and PiFlow keyboard shortcuts
-
-While either host is idle:
-
-- `Ctrl+Shift+R` cycles the manual standard/reasoning hold. It switches to the other active profile and keeps manual control.
-- `Ctrl+Shift+A` sets automatic control. It releases a manual hold and moves to Reasoning when necessary; repeating it while already automatic is idempotent.
-
-Both hosts expose these controls when their required model-state APIs are available. Profile changes remain unavailable while the host is running.
-
-Use the host-supplied Runtime State for current `Control` and `Profile`, not model identity or transition history. A Runtime State refresh is not a human interruption and does not cancel the active contract. Provider/model/lease implementation details are not routing authority; any projection-status display must be interpreted at its supported runtime boundary.
-
-Agents may request one bounded automatic transition through:
-
-```text
-freeflow_switch_profile(target="reasoning" | "standard", reason="...")
-```
-
-The request changes compute and may carry applicable context selections; it never authorizes a task action. The full [Cognitive Routing skill](../../capabilities/cognitive-routing/SKILL.md) owns the transfer protocol and eligibility rules.
-
-## Failure behavior
-
-- Missing current state is unavailable; do not infer it from model identity or old transitions.
-- A failed switch does not silently expand Reasoning or Standard’s role.
-- A Yield handoff transfers the profile back to Reasoning without creating an execution boundary.
-- A delegated return resumes the same open boundary; it is not a new boundary.
-- Closing a delegated boundary leaves Reasoning active; it does not hand leadership to Standard.
-- A closed boundary is reopened only for the same authorized outcome when fresh authority and invalidating evidence or changed intent require it.
-- Transition history reports unresolved or anomalous evidence instead of fabricating a cause.
-- A native Pi model or thinking-level selection suspends routing until explicit reactivation; partial transitions roll back or remain blocked with persisted evidence.
-
-## Recovery
-
-After context loss, recover current control/profile, the user agreement, active assignment and superseded directions, explicit delegation-boundary state, partial effects, evidence limits, and stopping conditions. Required environment reads still follow the compute route. When a Working Record exists, read its complete `full` view and reconcile it with current sources; task memory cannot recreate routing authority or make old refs selectable.
-
-Keep separate that a prior check occurred and whether it applies to the current candidate. Recover missing source bodies through a permitted bounded route rather than reconstructing exact evidence from a summary or automatically rerunning checks. Resume only the narrowest covered work whose state is coherent.
+The current source also wires `Ctrl+Shift+R` to cycle the Coordinator/Executor manual hold and `Ctrl+Shift+A` to release the hold to automatic Coordinator control when the native controls are present. This source wiring is not proof that an installed or stock host dispatches the behavior.
 
 ## Evidence boundary
 
-Cognitive Routing documentation and deterministic tests establish contracts and delivery mechanics. They do not establish that model behavior is universally improved, that every transition is optimal, or that the capability is production-ready.
+Documentation and deterministic source/fixture checks can establish the v2 schema, native-entry mechanics, gating, projection rules, and failure contracts at their observed boundaries. They do not establish stock-Pi installation, PiFlow availability, universal model behavior, optimal routing, or production readiness.
 
 ## Related documentation
 
@@ -155,4 +134,5 @@ Cognitive Routing documentation and deterministic tests establish contracts and 
 - [Workflow](../workflow.md)
 - [Pi integration](../integrations/pi.md)
 - [PiFlow integration](../integrations/piflow.md)
+- [Architecture](../architecture.md)
 - [Release evidence](../release-evidence/README.md)

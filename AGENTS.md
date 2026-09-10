@@ -20,6 +20,17 @@ Use the smallest current source set relevant to the change:
 
 Historical plans, research, handoffs, issues, and evidence under `docs/` preserve project context but are not current product authority. Live repository evidence and current `plugin-docs/` pages override them.
 
+## External Host Source Provenance
+
+When work depends on Pi or another external host's source, API, lifecycle, or documentation:
+
+- Do not use installed, bundled, cached, or locally generated host documentation as current source authority.
+- Clone or fetch the upstream repository into an ignored temporary checkout, resolve the current tip to an exact commit before reading it, and use that pinned checkout's source and docs for design work.
+- Record the remote, exact commit, relevant package version, and source/artifact hashes in task evidence when the claim is consequential.
+- For behavior of an installed or bundled artifact, identify the exact artifact and establish correspondence to the source commit when possible. A current upstream checkout does not prove an older artifact's behavior; qualify the artifact through an isolated fixture and state the boundary when correspondence is unavailable.
+- Do not float to a newer upstream commit during one qualification or implementation slice without recording the source change and reconciling affected evidence.
+- Network fetches, temporary clones, and artifact qualification remain covered environment effects; this rule does not authorize them by itself.
+
 ## Development Snapshot Boundary
 
 Pi and PiFlow development consume a committed Freeflow snapshot, not this checkout's working tree:

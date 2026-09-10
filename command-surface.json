@@ -86,7 +86,13 @@
       "kind": "settings"
     },
     {
-      "command": "/freeflow profile <standard|reasoning|auto>",
+      "command": "/freeflow profile <coordinator|executor|auto>",
+      "handler": "freeflow",
+      "kind": "cognitive-routing-control",
+      "piOnly": true
+    },
+    {
+      "command": "/freeflow resume",
       "handler": "freeflow",
       "kind": "cognitive-routing-control",
       "piOnly": true

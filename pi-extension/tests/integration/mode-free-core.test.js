@@ -14,7 +14,7 @@ import {
   runtimeContext,
   setSessionCoreOverride,
 } from "../../dist/runtime/runtime-context.js";
-import { PIFLOW_HOST } from "../cognitive-routing/host-fixture.js";
+import { PIFLOW_HOST } from "../fixtures/pi-host.js";
 
 function context(cwd) {
   const notifications = [];

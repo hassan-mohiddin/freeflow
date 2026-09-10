@@ -2,8 +2,8 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { resolveCognitiveRoutingState } from "../cognitive-routing/runtime.js";
-import { supportsCognitiveRoutingModelRegistry } from "../cognitive-routing/host.js";
+import { resolveCognitiveRoutingState } from "../cognitive-routing-v2/config.js";
+import { supportsCognitiveRoutingModelRegistry } from "../cognitive-routing-v2/config.js";
 
 export const WORKFLOW_COMMANDS = [
   { command: "discuss", skill: "discuss" },
@@ -86,7 +86,6 @@ type SessionCoreOverrides = Partial<Record<SessionCoreKey, boolean>>;
 const SESSION_OVERRIDES_ENTRY = "freeflow-session-overrides";
 const SESSION_CORE_KEYS = new Set<SessionCoreKey>(["enabled", "contextVirtualization", "conversationHistory"]);
 
-export const COGNITIVE_ROUTING_SWITCH_TOOL_NAME = "freeflow_switch_profile";
 export const FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-runtime-state";
 export const COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-cognitive-routing-runtime-state";
 export const WORKFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-workflow-bootstrap";
@@ -561,8 +560,8 @@ export function setFreeflowStatus(
   } else if (cognitiveRoutingActive) {
     const profile = cognitiveRoutingRuntime.activeProfile;
     const control =
-      cognitiveRoutingRuntime.controlMode === "manual-standard" ||
-      cognitiveRoutingRuntime.controlMode === "manual-reasoning"
+      cognitiveRoutingRuntime.controlMode === "manual-executor" ||
+      cognitiveRoutingRuntime.controlMode === "manual-coordinator"
         ? "manual hold"
         : "automatic";
     active.push(`${profile} · ${control}`);
@@ -577,8 +576,8 @@ export function setFreeflowStatus(
     ) {
       const startupProfile =
         cognitiveRouting.sessionStart?.control === "manual"
-          ? (cognitiveRouting.sessionStart.profile ?? "reasoning")
-          : "reasoning";
+          ? (cognitiveRouting.sessionStart.profile ?? "coordinator")
+          : "coordinator";
       active.push(`${startupProfile} · pending`);
     } else {
       const reason =
@@ -616,13 +615,13 @@ type FreeflowContextMessage = {
 
 function publicCognitiveRoutingControl(controlMode) {
   if (controlMode === "automatic") return "automatic";
-  if (controlMode === "manual-standard" || controlMode === "manual-reasoning") return "manual";
+  if (controlMode === "manual-executor" || controlMode === "manual-coordinator") return "manual";
   return "unavailable";
 }
 
 function publicCognitiveRoutingProfile(activeProfile, effective) {
   if (effective !== true) return "unavailable";
-  return activeProfile === "standard" || activeProfile === "reasoning" ? activeProfile : "unavailable";
+  return activeProfile === "executor" || activeProfile === "coordinator" ? activeProfile : "unavailable";
 }
 
 function publicCapabilityStatus(capability) {
@@ -643,9 +642,9 @@ function publicCognitiveRoutingProjectionMode(
   runtime: CognitiveRoutingRuntimeSnapshot | undefined,
   projectionFailure?: string,
 ): CognitiveRoutingProjectionMode {
-  if (capability?.contextProjection !== true) return "disabled";
+  if (capability?.projection !== true) return "disabled";
   if (capability?.effective !== true) return "unavailable";
-  if (runtime?.controlMode === "manual-standard" || runtime?.controlMode === "manual-reasoning") {
+  if (runtime?.controlMode === "manual-executor" || runtime?.controlMode === "manual-coordinator") {
     return "manual-bypass";
   }
   if (projectionFailure) return "blocked";
