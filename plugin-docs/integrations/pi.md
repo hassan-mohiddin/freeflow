@@ -93,7 +93,7 @@ While an effective native host is idle:
 /freeflow resume
 ```
 
-`/freeflow settings` and `/freeflow settings local` edit personal overrides; `/freeflow settings repo` edits `.freeflow/config.json`. `coordinator` and `executor` place a manual hold, `auto` releases it to automatic Coordinator control, and `history` reads recent routing evidence. `/freeflow resume` explicitly resumes saved routing responsibility after reconciliation. These commands require an idle host and do not authorize task work.
+`/freeflow settings` and `/freeflow settings local` edit personal overrides; `/freeflow settings repo` edits `.freeflow/config.json`. `coordinator` and `executor` place a manual hold, `auto` releases it to automatic Coordinator control, and `history` reads work-oriented routing history (`history diagnostics` retains the raw event view). `/freeflow resume` explicitly resumes saved routing responsibility after reconciliation. These commands require an idle host and do not authorize task work.
 
 When the source adapter exposes the native controls:
 
@@ -114,7 +114,7 @@ The routing tools are model-facing controls, not permission grants. A return sav
 
 Routing events are appended through Pi's native session-entry path and read back from the live branch. When existing or uncertain state needs reconciliation, the runtime uses a strict read-only persisted session snapshot with identity, ancestry, encoding, size, and divergence checks. It does not patch host files, claim `fsync`, or promise exactly-once behavior. Failed readback or uncertain effects block routing rather than permitting blind repetition.
 
-New user attention suspends a saved Coordinator assessment so stale report/evidence is not silently delivered. Use `freeflow_unit` with `{"operation":"assess"}` only when that saved assessment is again intended; failed readiness keeps it suspended. Recover Runtime State, the current assignment, saved report, selected evidence, and partial effects after context loss or native model/thinking changes.
+New user attention retains ordinary admitted history and pauses only the saved assessment obligation to restore compacted evidence. Closing, replacing and returning preserve admitted communication; current versus historical contracts remain distinct. Use `freeflow_unit` with `{"operation":"assess"}` only when that saved assessment is again intended; failed readiness keeps it suspended. Recover Runtime State, the current assignment, saved report, selected evidence, and partial effects after context loss or native model/thinking changes.
 
 ## Development boundary
 

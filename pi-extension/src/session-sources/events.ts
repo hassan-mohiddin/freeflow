@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { activeReadOnlySessionBranch, readOnlySessionSnapshot } from "./read-only-session.js";
+import { activeReadOnlySessionBranch, readOnlySessionSnapshot, ReadOnlySessionError } from "./read-only-session.js";
 import {
   ROUTING_ENTRY,
   RoutingError,
@@ -106,7 +106,7 @@ export class EventStore {
       check(snapshot.sessionId === this.reader.getSessionId(), "session_identity_changed");
       const persistedBranch = activeReadOnlySessionBranch(snapshot, this.reader.getLeafId());
       check(
-        canonical(persistedBranch) === canonical(branch),
+        persistedBranch.length === branch.length && persistedBranch.every((e, i) => e.id === branch[i].id),
         "snapshot_ancestry_mismatch",
         "Live branch is not the complete persisted ancestry for its claimed leaf.",
       );
@@ -139,7 +139,13 @@ export class EventStore {
       this.cachedEntries = [];
       this.cachedState = replay([]);
     } catch (error) {
-      this.block(error instanceof RoutingError ? error.code : "snapshot_unavailable");
+      this.block(
+        error instanceof RoutingError
+          ? error.code
+          : error instanceof ReadOnlySessionError
+            ? `${error.code}: ${error.message}`
+            : "snapshot_unavailable",
+      );
       throw error;
     }
   }
@@ -170,7 +176,8 @@ export class EventStore {
       return prior;
     }
     // Validate the whole state transition before mutating Pi's session memory.
-    reduce(this.state(), value);
+    const candidate = reduce(this.state(), value);
+    const baseline = this.cachedEntries;
     this.attempted.set(key, value);
     try {
       this.pi.appendEntry(ROUTING_ENTRY, value);
@@ -182,6 +189,13 @@ export class EventStore {
       check(found && eventValue(parseRoutingEvent(found.data)) === body, "append_not_observed");
       this.observed.set(key, { value: body, eventId: value.eventId, entryId: found.id });
       this.attempted.delete(key);
+      const branch = this.reader.getBranch();
+      const delta = branch.slice(baseline.length).filter((e) => e.type === "custom" && e.customType === ROUTING_ENTRY);
+      if (baseline.every((e, i) => branch[i] === e) && delta.length === 1 && delta[0].id === found!.id) {
+        // Publish the already validated candidate only after acknowledged native append.
+        this.cachedState = candidate;
+        this.cachedEntries = [...branch];
+      }
       return value;
     } catch (error) {
       this.block("append_acknowledgment_uncertain");

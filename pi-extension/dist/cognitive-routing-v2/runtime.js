@@ -1,8 +1,9 @@
+import { schemaForProfile } from "./schemas.js";
 import { randomUUID } from "node:crypto";
 import { EventStore } from "../session-sources/events.js";
 import { Sources, bodyHash } from "../session-sources/sources.js";
 import { pairFromProfile } from "./config.js";
-import { prepareView, changeSelection } from "./projection.js";
+import { prepareView, changeSelection, representationProblems } from "./projection.js";
 import { initialState } from "./state.js";
 import {
   ROUTING_MESSAGE,
@@ -31,6 +32,8 @@ export class RoutingRuntime {
   targetSignature;
   operations = Promise.resolve();
   revision = 0;
+  receipts = new Map();
+  pages = new Map();
   manualHold;
   automaticControl = false;
   sourceCache;
@@ -204,6 +207,8 @@ export class RoutingRuntime {
     this.turn = undefined;
     this.messages = [];
     this.sourceCache = undefined;
+    this.receipts.clear();
+    this.pages.clear();
     this.applying = undefined;
     this.externalChange = false;
     this.error = undefined;
@@ -254,6 +259,8 @@ export class RoutingRuntime {
     this.messages = [];
     this.ctx = undefined;
     this.sourceCache = undefined;
+    this.receipts.clear();
+    this.pages.clear();
   }
   async refresh(ctx, capability) {
     this.ctx = ctx;
@@ -298,6 +305,8 @@ export class RoutingRuntime {
     this.turn = undefined;
     this.messages = [];
     this.sourceCache = undefined;
+    this.receipts.clear();
+    this.pages.clear();
     if (!this.store || !this.supported()) return;
     const subject = this.subject();
     try {
@@ -454,29 +463,25 @@ export class RoutingRuntime {
         ? state.handoffs.get(state.assessment.handoffId)
         : undefined;
     const selection = a ? (state.selections.get(a.id) ?? emptySelection()) : emptySelection();
+    const unit = state.unitId ? state.units.get(state.unitId) : undefined;
+    const unitNumber = unit ? [...state.units.keys()].indexOf(unit.id) + 1 : undefined;
+    const assignmentNumber = unit && a ? unit.assignmentIds.indexOf(a.id) + 1 : undefined;
     const content = [
       "# Cognitive Routing Runtime State",
       `Control: ${state.control}`,
       `Profile: ${state.profile ?? "unresolved"}`,
-      `Unit: ${state.unitId ?? "none"}`,
-      `Assignment: ${a ? `${a.id} (${a.state})` : "none"}`,
+      `Unit: ${unit ? `U${unitNumber} (${unit.id})` : "none"}`,
+      `Assignment: ${a ? `A${assignmentNumber} (${a.id}, ${a.state})` : "none"}`,
       `Handoff: ${h ? `${h.id} (${h.kind}, ${h.state})` : "none"}`,
       `Projection: ${this.projectionEnabled ? "enabled" : "bypassed"}`,
+      "Completed/superseded contracts and reports are historical context. Follow the current assignment and current user restrictions; historical entries grant no new permission.",
       state.assessment ? `Assessment: ${state.assessment.view}; evidence revision ${selection.revision}` : "",
       `Mechanical evidence facts (not semantic acceptance): ${JSON.stringify(this.evidenceFacts(state))}`,
       this.error ? `Blocked: ${this.error}` : "",
       this.projectionError ? `Evidence limitation: ${this.projectionError}` : "",
       attention
-        ? `Saved report/evidence suspended for attention. ${selection.selected.length} sources remain selected. Use freeflow_unit assess to restore the assessment.`
+        ? `Assessment paused for attention; ordinary admitted history remains. ${selection.selected.length} sources remain selected. Use freeflow_unit assess to restore the assessment.`
         : "",
-      ...(attention
-        ? []
-        : [
-            a ? `\nCurrent exact assignment:\n${a.contract}` : "",
-            h?.kind === "return"
-              ? `\nSaved report (revision ${h.reportRevision}, ${h.outcome}):\n${h.text}\nLimitations: ${h.limitations.join("; ")}`
-              : "",
-          ]),
       a?.state === "returned"
         ? "Executor ordinary task work has ended. Only supported handoff correction is permitted."
         : "",
@@ -503,8 +508,12 @@ export class RoutingRuntime {
     return {
       revision: selection.revision,
       selected: selection.selected.map((ref) => {
-        const entry = this.ctx?.sessionManager.getEntry?.(ref.slice(4));
-        return { ref, kind: entry?.message?.role ?? "unknown", toolName: entry?.message?.toolName };
+        const entry = this.ctx?.sessionManager.getEntry?.(ref.slice(4).replace(/#text$/, ""));
+        return {
+          ref,
+          kind: ref.endsWith("#text") ? "assistant-text" : (entry?.message?.role ?? "unknown"),
+          toolName: entry?.message?.toolName,
+        };
       }),
       unresolved: selection.unresolved,
       withdrawals: selection.withdrawals,
@@ -524,7 +533,20 @@ export class RoutingRuntime {
       model,
       pair: this.profilePair(profile),
       systemPrompt: this.ctx.getSystemPrompt?.() ?? "",
-      tools: (this.pi.getAllTools?.() ?? []).filter((tool) => this.pi.getActiveTools?.().includes(tool.name)),
+      tools: (this.pi.getAllTools?.() ?? [])
+        .filter((tool) =>
+          ROUTING_TOOLS.includes(tool.name)
+            ? tool.name === "freeflow_unit" ||
+              (profile === "coordinator"
+                ? tool.name === "freeflow_delegate"
+                : tool.name === "freeflow_return" || (tool.name === "freeflow_project" && this.projectionEnabled))
+            : this.pi.getActiveTools?.().includes(tool.name),
+        )
+        .map((tool) =>
+          ROUTING_TOOLS.includes(tool.name)
+            ? { ...tool, parameters: schemaForProfile(tool.name, profile === "coordinator") }
+            : tool,
+        ),
       runtimeMessage: this.runtimeMessage(
         state,
         profile === "coordinator" && state.assessment?.view === "suspended" && !restoring && !handoffId,
@@ -568,6 +590,7 @@ export class RoutingRuntime {
       const interrupted =
         state.profile === "executor" && user !== (outstanding ? this.taskBasis(state, outstanding.id) : undefined);
       if (!this.turn || this.turn.bound) {
+        this.receipts.clear();
         const execution = {
           id: randomUUID(),
           profile: state.profile,
@@ -585,7 +608,7 @@ export class RoutingRuntime {
           before,
           pair: execution.pair,
         };
-        if (state.unitId || state.profile === "executor") this.openTurn();
+        this.openTurn();
       }
       let prepared = this.prepared(state.profile, input);
       if (!prepared.ready && state.profile === "coordinator" && this.stateData().assessment) {
@@ -641,6 +664,9 @@ export class RoutingRuntime {
   messageEnd(message) {
     if (message?.role === "assistant" && this.turn && !this.turn.bound) this.turn.message = structuredClone(message);
   }
+  contextOperation(name, input) {
+    return name === "freeflow_context" && ["archive", "restore", "search", "retrieve"].includes(input?.operation);
+  }
   batch(callId, name) {
     check(this.turn?.message, "batch_unavailable");
     const matches = this.ctx.sessionManager
@@ -666,7 +692,8 @@ export class RoutingRuntime {
         (handoffs.length === 1 &&
           HANDOFF_TOOLS.has(calls.at(-1)?.name) &&
           calls.every(
-            (b) => HANDOFF_TOOLS.has(b.name) || b.name === "freeflow_project" || b.name === "freeflow_context",
+            (b) =>
+              HANDOFF_TOOLS.has(b.name) || b.name === "freeflow_project" || this.contextOperation(b.name, b.arguments),
           )),
       "invalid_handoff_batch",
       "A handoff must be last and cannot accompany ordinary task tools.",
@@ -690,7 +717,7 @@ export class RoutingRuntime {
       this.batch(event.toolCallId, name);
       check(!this.error && !this.store?.blocked, "routing_blocked");
       this.openTurn();
-      if (this.turn?.profile === "executor" && !isRouting && name !== "freeflow_context") {
+      if (this.turn?.profile === "executor" && !isRouting && !this.contextOperation(name, event.input)) {
         const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
         check(
           a?.state === "outstanding" &&
@@ -717,14 +744,28 @@ export class RoutingRuntime {
       this.ctx = ctx;
       try {
         check(!signal?.aborted, "cancelled");
-        if (name === "freeflow_unit" && ["status", "history"].includes(input.operation))
-          return this.result(this.status(input.operation === "history" ? (input.limit ?? 20) : 0));
+        if (name === "freeflow_unit" && input.operation === "inspect") return this.result(this.inspectUnit(input));
         this.assertAvailable(name === "freeflow_delegate" || name === "freeflow_unit" ? "coordinator" : "executor");
         const op = this.callOperation(callId, name);
-        if (name === "freeflow_delegate") return this.result(this.delegate(input, callId, op));
-        if (name === "freeflow_return") return this.result(this.returnReport(input, callId, op));
-        if (name === "freeflow_project") return this.result(this.project(input, op));
-        if (name === "freeflow_unit") return this.result(this.unit(input, op));
+        const cached = this.receipts.get(op);
+        if (cached) {
+          check(cached.input === canonical(input), "operation_conflict");
+          return this.result(structuredClone(cached.value));
+        }
+        const value =
+          name === "freeflow_delegate"
+            ? this.delegate(input, callId, op)
+            : name === "freeflow_return"
+              ? this.returnReport(input, callId, op)
+              : name === "freeflow_project"
+                ? this.project(input, op)
+                : name === "freeflow_unit"
+                  ? this.unit(input, op)
+                  : undefined;
+        if (value !== undefined) {
+          this.receipts.set(op, { input: canonical(input), value: structuredClone(value) });
+          return this.result(value);
+        }
         throw new RoutingError("unknown_tool", name);
       } catch (error) {
         return this.result({
@@ -733,9 +774,23 @@ export class RoutingRuntime {
           message: error instanceof Error ? error.message : String(error),
           problems: error instanceof RoutingError ? error.problems : [],
           observed: this.observed(),
-          expectedProfile: name === "freeflow_delegate" || name === "freeflow_unit" ? "coordinator" : "executor",
+          expectedProfile:
+            name === "freeflow_unit" && input.operation === "inspect"
+              ? undefined
+              : name === "freeflow_delegate" || name === "freeflow_unit"
+                ? "coordinator"
+                : "executor",
           recoveryAction:
-            "Preserve saved work. Inspect freeflow_unit status; reconcile current input/control before retrying the named operation.",
+            error instanceof RoutingError &&
+            [
+              "cursor_expired",
+              "invalid_cursor",
+              "work_ref_required",
+              "work_unavailable",
+              "invalid_inspection",
+            ].includes(error.code)
+              ? "Inspect again without a cursor and use a returned work ref. Lookup recovery does not require a new assignment."
+              : "Preserve saved work. Use freeflow_unit inspect; reconcile current input/control before retrying the named operation.",
         });
       }
     });
@@ -898,6 +953,7 @@ export class RoutingRuntime {
       ready: prepared.ready,
       transition: prepared.ready ? "pending" : "blocked",
       problems: prepared.problems,
+      warnings: prepared.warnings,
       stage: "completed-input preparation",
       finalExchangePending: true,
       provisional:
@@ -914,51 +970,87 @@ export class RoutingRuntime {
     const sources = this.sources(state);
     sources.associate(this.messages);
     const selection = state.selections.get(a.id) ?? emptySelection();
-    if (input.operation === "list") {
-      const scope = input.scope ?? "assignment";
-      const offset = input.cursor === undefined ? 0 : Number(input.cursor);
-      check(Number.isSafeInteger(offset) && offset >= 0, "invalid_cursor");
-      const items = [...sources.byRef.values()]
-        .filter(
-          (s) =>
-            s.producer === "executor" &&
-            (scope === "assignment" ? s.assignmentId === a.id : s.active) &&
-            (s.message.role === "toolResult" || s.message.content?.some((b) => b.type === "text" && b.text?.trim())),
-        )
-        .map((s) => ({
-          ref: s.ref,
-          kind: s.message.role,
-          toolName: s.message.toolName,
-          active: s.active,
-          eligible: !sources.eligible(s.ref, state),
-        }));
-      return {
-        status: "listed",
-        scope,
-        offset,
-        count: items.length,
-        selectableCount: items.filter((item) => item.eligible).length,
-        otherAssignments: [...sources.byRef.values()].filter(
-          (s) => s.producer === "executor" && s.assignmentId !== a.id,
-        ).length,
-        items: items.slice(offset, offset + 30),
-        nextCursor: offset + 30 < items.length ? String(offset + 30) : undefined,
-      };
-    }
     let next = selection;
     if (input.operation !== "inspect") {
       check(["add", "remove"].includes(input.operation), "invalid_projection_operation");
       next = changeSelection(selection, input, sources, state);
-      this.append({ type: "selection-changed", assignmentId: a.id, selection: next }, op);
+      if (next !== selection) this.append({ type: "selection-changed", assignmentId: a.id, selection: next }, op);
     }
     const prepared = this.prepared("coordinator", this.messages, a.returnHandoffId);
+    const scope = input.scope ?? "assignment";
+    let page;
+    if (input.operation === "inspect") {
+      const model = this.model("coordinator");
+      const rows = () =>
+        [...sources.byRef.values()]
+          .filter(
+            (s) =>
+              s.producer === "executor" &&
+              (scope === "selected"
+                ? next.selected.includes(s.ref)
+                : scope === "assignment"
+                  ? s.assignmentId === a.id
+                  : scope === "active"
+                    ? s.active
+                    : true) &&
+              (s.original ||
+                s.message.role === "toolResult" ||
+                s.message.content?.some((b) => b.type === "text" && b.text?.trim())),
+          )
+          .map((s) => {
+            const eligibility = sources.eligible(s.ref, state);
+            const limitations = [
+              ...(eligibility ? [eligibility] : []),
+              ...representationProblems(s, model),
+              ...sources.exchange(s).problems,
+            ];
+            return {
+              ref: s.ref,
+              kind: s.original ? "assistant-text" : s.message.role,
+              producer: s.producer,
+              assignment: s.assignmentId,
+              toolName: s.message.toolName,
+              active: s.active,
+              selected: next.selected.includes(s.ref),
+              eligible: !eligibility,
+              targetReady: !limitations.length,
+              limitations,
+              preview:
+                (s.original?.message ?? s.message).content
+                  ?.filter?.((b) => b.type === "text")
+                  .map((b) => b.text)
+                  .join(" ")
+                  .slice(0, 160) ?? "",
+            };
+          });
+      page = this.page(
+        `evidence:${scope}`,
+        rows,
+        input.cursor,
+        30,
+        scope === "assignment" || scope === "selected" ? a.id : undefined,
+        scope === "active",
+      );
+    }
     return {
-      status: input.operation === "inspect" ? "unchanged" : "saved",
+      status: input.operation === "inspect" || next === selection ? "unchanged" : "saved",
+      ...(page
+        ? {
+            scope,
+            count: page.count,
+            returned: page.items.length,
+            candidates: page.items,
+            nextCursor: page.nextCursor,
+            eligibleCount: page.items.filter((r) => r.eligible).length,
+            targetReadyCount: page.items.filter((r) => r.targetReady).length,
+          }
+        : {}),
       revision: next.revision,
       selected: next.selected,
       unresolved: next.unresolved,
       ready: !next.unresolved.length && prepared.ready,
       problems: prepared.problems,
+      warnings: prepared.warnings,
       evidence: this.evidenceFacts(this.stateData()),
       items: (input.refs ? [...new Set(input.refs)] : []).map((ref) => ({
         ref,
@@ -1028,6 +1120,165 @@ export class RoutingRuntime {
       op,
     );
     return { status: "closed", unit: state.unitId, outcome: input.outcome, assessment: input.assessment };
+  }
+  page(scope, rows, cursor, size = 30, assignment, active = false) {
+    const branch = this.ctx.sessionManager.getBranch();
+    const compaction = branch.filter((e) => e.type === "compaction").at(-1)?.id;
+    let key,
+      offset = 0;
+    if (cursor) {
+      const match = /^([a-f0-9-]+):([0-9]+)$/.exec(cursor);
+      check(match, "invalid_cursor", "Use the returned cursor unchanged.");
+      key = match[1];
+      offset = Number(match[2]);
+      const page = this.pages.get(key);
+      check(
+        page &&
+          page.scope === scope &&
+          page.assignment === assignment &&
+          (!page.basis || branch.some((e) => e.id === page.basis)) &&
+          (!active || page.compaction === compaction),
+        "cursor_expired",
+        "History or scope changed. Inspect again without a cursor.",
+      );
+      check(
+        Number.isSafeInteger(offset) && offset >= 0 && offset < page.rows.length && offset % page.size === 0,
+        "invalid_cursor",
+      );
+    } else {
+      key = randomUUID();
+      if (this.pages.size >= 8) this.pages.delete(this.pages.keys().next().value);
+      this.pages.set(key, {
+        scope,
+        basis: branch.at(-1)?.id ?? null,
+        assignment,
+        compaction,
+        rows: typeof rows === "function" ? rows() : rows,
+        size,
+      });
+    }
+    const page = this.pages.get(key);
+    return {
+      scope,
+      count: page.rows.length,
+      offset,
+      items: page.rows.slice(offset, offset + page.size),
+      nextCursor: offset + page.size < page.rows.length ? `${key}:${offset + page.size}` : undefined,
+    };
+  }
+  inspectUnit(input) {
+    const state = this.stateData(),
+      view = input.view ?? "current";
+    check(view === "detail" || !input.ref, "invalid_inspection", "A work ref belongs to view detail.");
+    check(
+      view === "history" || (!input.cursor && !input.limit),
+      "invalid_inspection",
+      "Pagination belongs to view history.",
+    );
+    if (view === "current")
+      return {
+        ...this.status(),
+        status: "inspected",
+        view,
+        currentRef: state.assignmentId ? `assignment:${state.assignmentId}` : undefined,
+      };
+    if (view === "history") {
+      const numbers = new Map([...state.units.keys()].map((id, i) => [id, i + 1]));
+      const rows = () =>
+        [...state.assignments.values()].reverse().map((a) => {
+          const u = state.units.get(a.unitId),
+            h = a.returnHandoffId ? state.handoffs.get(a.returnHandoffId) : undefined;
+          return {
+            ref: `assignment:${a.id}`,
+            unitRef: `unit:${a.unitId}`,
+            unitNumber: numbers.get(a.unitId),
+            assignmentNumber: (u?.assignmentIds.indexOf(a.id) ?? 0) + 1,
+            state: a.state,
+            unitState: u?.state,
+            disposition: u?.disposition,
+            summary: a.contract.slice(0, 160),
+            reportAvailable: !!h,
+            outcome: h?.outcome,
+            from: "coordinator",
+            to: "executor",
+          };
+        });
+      const page = this.page("work-history", rows, input.cursor, input.limit ?? 20);
+      return {
+        status: "inspected",
+        view,
+        history: page.items,
+        count: page.count,
+        returned: page.items.length,
+        nextCursor: page.nextCursor,
+      };
+    }
+    check(
+      view === "detail" && typeof input.ref === "string",
+      "work_ref_required",
+      "Use a ref returned by history inspection.",
+    );
+    if (input.ref.startsWith("unit:")) {
+      const u = state.units.get(input.ref.slice(5));
+      check(u, "work_unavailable", "Unit is not on current ancestry.");
+      return {
+        status: "inspected",
+        view,
+        ref: input.ref,
+        unit: {
+          id: u.id,
+          state: u.state,
+          objective: u.objective,
+          disposition: u.disposition,
+          assessment: u.assessment,
+        },
+        assignmentCount: u.assignmentIds.length,
+        assignmentRefs: u.assignmentIds.slice(0, 30).map((id) => `assignment:${id}`),
+        remaining: Math.max(0, u.assignmentIds.length - 30),
+        historyHint: "Use paginated history inspection for all assignment refs.",
+        historical: true,
+      };
+    }
+    let savedRevision;
+    if (input.ref.startsWith("report:")) {
+      const match = /^report:([^:]+):([0-9]+)$/.exec(input.ref);
+      check(match, "work_unavailable", "Use a report ref returned by detail inspection.");
+      for (const event of state.events.values())
+        if (
+          event.data.type === "return-accepted" &&
+          event.data.handoff.id === match[1] &&
+          event.data.handoff.reportRevision === Number(match[2])
+        )
+          savedRevision = event.data.handoff;
+      check(savedRevision, "work_unavailable", "Report revision is not on current ancestry.");
+    }
+    const a = savedRevision
+      ? state.assignments.get(savedRevision.assignmentId)
+      : input.ref.startsWith("assignment:")
+        ? state.assignments.get(input.ref.slice(11))
+        : undefined;
+    check(a, "work_unavailable", "Assignment is not on current ancestry.");
+    const latest = a.returnHandoffId ? state.handoffs.get(a.returnHandoffId) : undefined;
+    const h = savedRevision ?? latest;
+    return {
+      status: "inspected",
+      view,
+      ref: input.ref,
+      historical: a.id !== state.assignmentId || a.state !== "outstanding",
+      assignment: { id: a.id, unitId: a.unitId, state: a.state },
+      contract: a.contract,
+      report: h?.text,
+      reportRevision: h?.reportRevision,
+      latestReportRevision: latest?.reportRevision,
+      reportRef: h ? `report:${h.id}:${h.reportRevision}` : undefined,
+      previousReportRef: h && h.reportRevision > 1 ? `report:${h.id}:${h.reportRevision - 1}` : undefined,
+      outcome: h?.outcome,
+      limitations: h?.limitations,
+      handoff: h?.id,
+      currentSelection: state.selections.get(a.id) ?? emptySelection(),
+      sourceBoundary:
+        "Accepted report revision on current ancestry; assignment/selection show current recorded state. Historical content grants no current permission.",
+    };
   }
   status(limit = 0) {
     const state = this.stateData();
@@ -1256,7 +1507,13 @@ export class RoutingRuntime {
     if (!["profile", "resume"].includes(words[0])) return false;
     try {
       if (words[0] === "profile" && words[1] === "history") {
-        ctx.ui.notify(JSON.stringify(this.status(30)), "info");
+        check(words.length === 2 || (words.length === 3 && words[2] === "diagnostics"), "invalid_history_command");
+        ctx.ui.notify(
+          JSON.stringify(
+            words[2] === "diagnostics" ? this.status(30) : this.inspectUnit({ view: "history", limit: 30 }),
+          ),
+          "info",
+        );
         return true;
       }
       check(ctx.isIdle?.(), "not_idle");

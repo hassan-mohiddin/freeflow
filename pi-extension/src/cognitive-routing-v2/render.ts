@@ -22,7 +22,7 @@ function title(name: string, operation?: string): string {
         {
           add: "Select evidence",
           remove: "Remove evidence",
-          inspect: "Inspect evidence",
+          inspect: "Inspect selection and evidence",
           list: "List evidence",
         } as Record<string, string>
       )[operation ?? ""] ?? "Evidence"
@@ -31,6 +31,7 @@ function title(name: string, operation?: string): string {
     return (
       (
         {
+          inspect: "Inspect routing",
           close: "Close unit",
           assess: "Resume assessment",
           status: "Routing status",
@@ -48,6 +49,8 @@ function draft(name: string, args: any): string {
   if (name === "freeflow_unit") sections.push(text(args.assessment));
   if (name === "freeflow_project" && Array.isArray(args.refs))
     sections.push(args.refs.filter((r: unknown) => typeof r === "string").join("\n"));
+  for (const key of ["scope", "view", "ref", "cursor"])
+    if (typeof args[key] === "string") sections.push(`${capital(key)}: ${args[key]}`);
   if (args.reason) sections.push(`Reason: ${text(args.reason)}`);
   if (Array.isArray(args.limitations))
     sections.push(
@@ -120,8 +123,10 @@ function summary(receipt: any, name: string, args: any): string {
       ]
         .filter(Boolean)
         .join(" · ");
-      return `${changes || "No changes"} · ${selected} remaining`;
+      return `${changes || "No changes"} · ${selected} remaining${receipt.ready === false ? ` · ${issue}` : ""}`;
     }
+    if (operation === "inspect" && receipt.candidates)
+      return `${count(selected, "source")} selected · ${receipt.returned}/${receipt.count} candidates${receipt.ready === false ? ` · ${issue}` : ""}${receipt.nextCursor ? " · More available" : ""}`;
     const unchanged =
       operation === "add" &&
       receipt.items?.length &&
@@ -132,6 +137,9 @@ function summary(receipt: any, name: string, args: any): string {
     if (operation === "close") return capital(receipt.outcome ?? "closed");
     if (operation === "assess")
       return receipt.status === "unchanged" ? "Assessment already active" : "Evidence prepared";
+    if (receipt.view === "history")
+      return `${receipt.returned}/${receipt.count} assignments${receipt.nextCursor ? " · More available" : ""}`;
+    if (receipt.view === "detail") return "Saved work detail";
     if (operation === "history") return count(receipt.history?.length ?? 0, "event");
     if (receipt.runtimeStatus === "blocked") return "Routing needs attention";
     if (!receipt.effective) return "Routing inactive";
@@ -189,7 +197,32 @@ export function renderRoutingResult(
     receipt.items
       ?.map((item: any) => `${item.ref} · ${item.status ?? item.kind}${item.detail ? `: ${item.detail}` : ""}`)
       .join("\n"),
-    receipt.history?.map((event: any) => `${event.type} · ${event.event}`).join("\n"),
+    receipt.history
+      ?.map((event: any) =>
+        event.ref
+          ? `Unit ${event.unitNumber}, assignment ${event.assignmentNumber} · ${event.state} · ${event.ref}\n${event.summary}\nReport: ${event.reportAvailable ? (event.outcome ?? "saved") : "none"}`
+          : `${event.type} · ${event.event}`,
+      )
+      .join("\n\n"),
+    receipt.scope
+      ? `Scope: ${receipt.scope} · ${receipt.returned}/${receipt.count} candidates returned. Eligibility and target checks describe this page; whole-request fit remains estimated.`
+      : "",
+    receipt.nextCursor ? `Next cursor: ${receipt.nextCursor}` : "",
+    receipt.candidates
+      ?.map(
+        (item: any) =>
+          `${item.ref} · ${item.kind} · ${item.producer}${item.toolName ? ` · ${item.toolName}` : ""}\n${item.selected ? "Selected" : "Not selected"} · ${item.active ? "Active" : "Historical"} · ${item.eligible ? "Eligible" : "Ineligible"} · ${item.targetReady ? "No known item target gap" : "Target needs attention"}\n${item.preview}\n${item.limitations.map((p: any) => `${p.code}: ${p.detail}`).join("\n")}`,
+      )
+      .join("\n\n"),
+    receipt.ref ? `Work ref: ${receipt.ref}` : "",
+    receipt.sourceBoundary,
+    receipt.assignmentRefs?.join("\n"),
+    receipt.historyHint,
+    receipt.limitations?.join?.("\n"),
+    receipt.currentSelection ? `Current recorded selection: ${value(receipt.currentSelection)}` : "",
+    receipt.reportRef ? `Report revision ref: ${receipt.reportRef}` : "",
+    receipt.previousReportRef ? `Previous report revision: ${receipt.previousReportRef}` : "",
+    receipt.warnings?.map((p: any) => `Planning warning: ${p.detail}`).join("\n"),
     ["unit", "assignment", "handoff", "revision", "stage", "transition", "code"]
       .filter((key) => receipt[key] !== undefined)
       .map((key) => `${key}: ${value(receipt[key])}`)

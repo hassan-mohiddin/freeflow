@@ -174,7 +174,11 @@ test("native projection omits an unselected sibling body but preserves its excha
       }
       if (n > 4) {
         assert.equal(body.model, "gpt-4o");
-        assert.doesNotMatch(JSON.stringify(body), /EXACT_EVIDENCE_BODY_81/);
+        assert.match(
+          JSON.stringify(body),
+          /EXACT_EVIDENCE_BODY_81/,
+          "D-002 retains admitted active evidence during attention",
+        );
         return [];
       }
       assert.equal(body.model, "gpt-4o");
@@ -193,7 +197,7 @@ test("native projection omits an unselected sibling body but preserves its excha
       assert.equal(state.assessment.handoffId, before);
       assert.equal(state.assessment.view, "suspended");
       const last = JSON.stringify(requests.at(-1));
-      assert.doesNotMatch(last, /EXACT_EVIDENCE_BODY_81/);
+      assert.match(last, /EXACT_EVIDENCE_BODY_81/, "suspension pauses historical restoration, not active membership");
       assert.match(last, /suspended/);
     },
   );

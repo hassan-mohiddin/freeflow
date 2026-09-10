@@ -199,8 +199,7 @@ test(
           assert.match(JSON.stringify(body), /New delivered user input requires Coordinator attention/);
           assert.ok(!body.tools.some((t) => t.name === "freeflow_delegate"));
           assert.deepEqual(body.tools.find((t) => t.name === "freeflow_unit").parameters.properties.operation.enum, [
-            "status",
-            "history",
+            "inspect",
           ]);
           return [{ name: "read", args: { path: "unselected.txt" } }];
         }

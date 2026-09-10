@@ -66,10 +66,11 @@ function lastRuntimeState(messages) {
 }
 
 test("re-entry recovery is stable and capability-neutral", async () => {
-  const [core, cognitiveRouting, conversationHistory] = await Promise.all([
+  const [core, cognitiveRouting, conversationHistory, routingSkill] = await Promise.all([
     readFile(join(process.cwd(), "runtime", "prompts", "core.md"), "utf8"),
     readFile(join(process.cwd(), "runtime", "prompts", "cognitive-routing.md"), "utf8"),
     readFile(join(process.cwd(), "runtime", "prompts", "conversation-history.md"), "utf8"),
+    readFile(join(process.cwd(), "capabilities", "cognitive-routing", "SKILL.md"), "utf8"),
   ]);
 
   assert.match(core, /## Load The Selected Method/);
@@ -85,14 +86,22 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   assert.match(cognitiveRouting, /Before relying on automatic routing, read the complete cognitive-routing skill/);
   assert.match(cognitiveRouting, /This bootstrap read is the only environment call/);
   assert.match(cognitiveRouting, /If unavailable, stop and report the missing method/);
-  assert.match(cognitiveRouting, /Manual control runs ordinary unsplit Workflow/);
+  // The approved compact cue keeps bootstrap/control boundaries; the loaded
+  // method owns detailed role and handoff policy. Keep both obligations checked.
   assert.match(
     cognitiveRouting,
-    /Use the latest Runtime State for control, profile, view, current assignment, and pending handoff/,
+    /Under Manual or inactive routing, stop applying the automatic split and follow ordinary Workflow/,
   );
-  assert.match(cognitiveRouting, /Coordinator and Executor profiles/);
-  assert.match(cognitiveRouting, /Manual control.*bypasses automatic handoffs and routing projection/);
-  assert.match(cognitiveRouting, /delegate and return tools with the contract\/report in their inputs/);
+  assert.match(cognitiveRouting, /Use the latest Runtime State for control, profile, and current responsibility/);
+  assert.match(cognitiveRouting, /Coordinator and Executor in one agent\/session/);
+  assert.match(routingSkill, /Automatic role restrictions, delegation, and projection are bypassed/);
+  assert.match(routingSkill, /Put the actual contract inside `freeflow_delegate/);
+  assert.match(routingSkill, /submits the report and stops ordinary assignment work/);
+  assert.match(cognitiveRouting, /project every completed skill and instructional-reference read/);
+  assert.match(
+    routingSkill,
+    /If the required recovery phase is unavailable, inspect saved communication and stop if it is insufficient/,
+  );
   assert.doesNotMatch(
     conversationHistory,
     /Current user direction, live source truth, and present runtime state remain authoritative/,

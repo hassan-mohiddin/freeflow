@@ -33,42 +33,55 @@ test("unchanged native history reuses state, while deltas and ancestry changes i
   assert.equal(store.state().control, "automatic");
 });
 
-test("ordinary native chat avoids per-response routing journal writes", { timeout: 30000 }, async (t) => {
-  await fixture(
-    () => [],
-    false,
-    async ({ session, manager }) => {
-      const count = () => manager.getEntries().filter((e) => e.customType === "freeflow-routing-v2").length;
-      const original = count();
-      const samples = [];
-      for (let n = 0; n < 24; n++) {
-        const start = performance.now();
-        await session.prompt(`hello ${n}`);
-        await session.waitForIdle();
-        samples.push(performance.now() - start);
-        assert.equal(count(), original, "ordinary chat must not emit attribution/telemetry without routing work");
-      }
-      const controls = [];
-      for (const profile of ["executor", "coordinator", "auto"]) {
-        const start = performance.now();
-        await session.prompt(`/freeflow profile ${profile}`);
-        await session.waitForIdle();
-        controls.push({ profile, ms: performance.now() - start });
-      }
-      const median = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
-      t.diagnostic(
-        JSON.stringify({
-          observer: "native SDK, immediate scripted transport",
-          samples,
-          firstFiveMedianMs: median(samples.slice(0, 5)),
-          lastFiveMedianMs: median(samples.slice(-5)),
-          controls,
-          entries: manager.getEntries().length,
-          routingEntries: count(),
-        }),
-      );
-    },
-    true,
-    { maxRequests: 30 },
-  );
-});
+test(
+  "ordinary native chat records minimal automatic authorship without exposure telemetry",
+  { timeout: 30000 },
+  async (t) => {
+    await fixture(
+      () => [],
+      false,
+      async ({ session, manager }) => {
+        const count = () => manager.getEntries().filter((e) => e.customType === "freeflow-routing-v2").length;
+        const original = count();
+        const samples = [];
+        for (let n = 0; n < 24; n++) {
+          const start = performance.now();
+          await session.prompt(`hello ${n}`);
+          await session.waitForIdle();
+          samples.push(performance.now() - start);
+          assert.equal(
+            count(),
+            original + 2 * (n + 1),
+            "one open/bind pair preserves Coordinator authorship without exposure telemetry",
+          );
+          const latest = manager
+            .getEntries()
+            .filter((e) => e.data?.data?.type === "execution-bound")
+            .at(-1);
+          assert.equal(manager.getEntry(latest.data.data.assistantEntryId).message.role, "assistant");
+        }
+        const controls = [];
+        for (const profile of ["executor", "coordinator", "auto"]) {
+          const start = performance.now();
+          await session.prompt(`/freeflow profile ${profile}`);
+          await session.waitForIdle();
+          controls.push({ profile, ms: performance.now() - start });
+        }
+        const median = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+        t.diagnostic(
+          JSON.stringify({
+            observer: "native SDK, immediate scripted transport",
+            samples,
+            firstFiveMedianMs: median(samples.slice(0, 5)),
+            lastFiveMedianMs: median(samples.slice(-5)),
+            controls,
+            entries: manager.getEntries().length,
+            routingEntries: count(),
+          }),
+        );
+      },
+      true,
+      { maxRequests: 30 },
+    );
+  },
+);

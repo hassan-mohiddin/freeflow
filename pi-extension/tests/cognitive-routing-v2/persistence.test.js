@@ -168,3 +168,78 @@ test("an acknowledgment from another native occurrence is not reused without rec
   );
   assert.equal(branch.length, 1);
 });
+
+test(
+  "streamed snapshot accepts a valid session beyond 64 MiB and preserves branch validation",
+  { timeout: 30000 },
+  async () => {
+    const { open, stat } = await import("node:fs/promises");
+    const dir = await mkdtemp(join(tmpdir(), "freeflow-large-snapshot-"));
+    try {
+      const path = join(dir, "session.jsonl"),
+        file = await open(path, "w");
+      await file.writeFile(JSON.stringify(header) + "\n");
+      const payload = "x".repeat(1024 * 1024);
+      for (let i = 0; i < 66; i++)
+        await file.writeFile(
+          JSON.stringify({ ...entry(String(i), i === 0 ? null : String(i - 1)), data: { payload } }) + "\n",
+        );
+      await file.close();
+      assert.ok((await stat(path)).size > 64 * 1024 * 1024);
+      const snapshot = await readOnlySessionSnapshot(path);
+      assert.equal(snapshot.entries.length, 67);
+      assert.equal(activeReadOnlySessionBranch(snapshot, "0").length, 1);
+      assert.equal(activeReadOnlySessionBranch(snapshot, "65").length, 66);
+      assert.equal(snapshot.entries[66].data.payload, payload);
+      await assert.rejects(readOnlySessionSnapshot(path, { maxEntryBytes: 1024 }), (e) => e.code === "entry_limit");
+      await assert.rejects(readOnlySessionSnapshot(path, { maxEntries: 10 }), (e) => e.code === "entry_count_limit");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+);
+
+test("streamed decoder preserves UTF-8 across chunks and rejects partial tails without repairing them", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "freeflow-streamed-snapshot-"));
+  try {
+    const path = join(dir, "session.jsonl");
+    const value = { ...entry("large", null), data: { text: "a".repeat(65500) + "界".repeat(100) } };
+    const valid = lines([header, value]);
+    await writeFile(path, valid);
+    assert.deepEqual((await readOnlySessionSnapshot(path)).entries[1], value);
+    await writeFile(path, valid + '{"type":');
+    await assert.rejects(readOnlySessionSnapshot(path), (e) => e.code === "invalid_json");
+    assert.equal(await readFile(path, "utf8"), valid + '{"type":');
+    await writeFile(path, Buffer.concat([Buffer.from(JSON.stringify(header) + "\n"), Buffer.from([0xff, 0x0a])]));
+    await assert.rejects(readOnlySessionSnapshot(path), (e) => e.code === "invalid_encoding");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("snapshot rejects a file changed at the read boundary", async () => {
+  const { open, appendFile } = await import("node:fs/promises");
+  const dir = await mkdtemp(join(tmpdir(), "freeflow-changing-snapshot-"));
+  let prototype, original;
+  try {
+    const path = join(dir, "session.jsonl");
+    await writeFile(path, lines([header, entry("a", null)]));
+    const handle = await open(path, "r");
+    prototype = Object.getPrototypeOf(handle);
+    original = prototype.read;
+    await handle.close();
+    let changed = false;
+    prototype.read = async function (...args) {
+      if (!changed) {
+        changed = true;
+        await appendFile(path, JSON.stringify(entry("b", "a")) + "\n");
+      }
+      return original.apply(this, args);
+    };
+    await assert.rejects(readOnlySessionSnapshot(path), (e) => e.code === "source_changed");
+    assert.ok(changed);
+  } finally {
+    if (original) prototype.read = original;
+    await rm(dir, { recursive: true, force: true });
+  }
+});

@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { emptySelection, requireCondition as check } from "./types.js";
+import { textRef } from "../session-sources/sources.js";
+import { canonical, emptySelection, requireCondition as check } from "./types.js";
+import { estimateRequest } from "./budget.js";
 export function changeSelection(prior, input, sources, state) {
   check(
     Array.isArray(input.refs) &&
@@ -13,23 +15,31 @@ export function changeSelection(prior, input, sources, state) {
       "withdrawal_reason_required",
     );
   const next = structuredClone(prior);
-  next.revision++;
   for (const ref of new Set(input.refs)) {
-    next.unresolved = next.unresolved.filter((p) => p.ref !== ref);
+    const existed = next.selected.includes(ref) || next.unresolved.some((p) => p.ref === ref);
     if (input.operation === "remove") {
+      next.unresolved = next.unresolved.filter((p) => p.ref !== ref);
       next.selected = next.selected.filter((r) => r !== ref);
-      next.withdrawals.push({ ref, reason: input.reason });
+      if (existed) next.withdrawals.push({ ref, reason: input.reason });
       continue;
     }
     const problem = sources.eligible(ref, state);
-    if (problem) next.unresolved.push(problem);
-    else if (!next.selected.includes(ref)) next.selected.push(ref);
+    const index = next.unresolved.findIndex((p) => p.ref === ref);
+    if (problem) {
+      if (index < 0) next.unresolved.push(problem);
+      else next.unresolved[index] = problem;
+    } else {
+      if (index >= 0) next.unresolved.splice(index, 1);
+      if (!next.selected.includes(ref)) next.selected.push(ref);
+    }
   }
+  if (canonical(next) === canonical(prior)) return prior;
+  next.revision++;
   return next;
 }
 export function representationProblems(source, model, structural = false) {
-  const message = source.message,
-    content = Array.isArray(message.content) ? message.content : [];
+  const message = source.original?.message ?? source.message,
+    content = Array.isArray(source.message.content) ? source.message.content : [];
   if (message.role === "assistant" && ["error", "aborted"].includes(message.stopReason))
     return [
       {
@@ -45,6 +55,7 @@ export function representationProblems(source, model, structural = false) {
     ];
   if (
     !structural &&
+    !source.original &&
     content.some((b) => b.type === "thinking" && (b.redacted || b.thinkingSignature)) &&
     (message.provider !== model?.provider || message.model !== model?.id || message.api !== model?.api)
   )
@@ -52,7 +63,7 @@ export function representationProblems(source, model, structural = false) {
       {
         ref: source.ref,
         code: "target_representation",
-        detail: "Signed/redacted native content is not qualified across this model boundary.",
+        detail: `Whole native signed content is not qualified across this model boundary. Inspect the explicit assistant-text source ${textRef(source.ref)} when visible text is the intended evidence.`,
       },
     ];
   return [];
@@ -70,15 +81,24 @@ export function prepareView(options) {
   const required = new Set(selective && !attention && assignmentId ? current.selected : []);
   const promised = handoff && state.reservations.get(handoff.id);
   const admitted = new Set();
-  if (selective && !attention)
+  if (selective)
     for (const selection of state.selections.values()) for (const ref of selection.selected) admitted.add(ref);
+  // Accepted return receipts are communication, independent of selected task evidence.
+  // Their ordinary active occurrence survives closure; compaction still owns its lifetime.
   const full = new Map();
   const structural = new Map();
   const problems = selective && !attention && assignmentId ? [...current.unresolved] : [];
   for (const item of associated) {
     if (!item.source) continue;
-    if (!selective || item.source.producer !== "executor" || admitted.has(item.source.ref))
+    if (
+      !selective ||
+      item.source.producer !== "executor" ||
+      admitted.has(item.source.ref) ||
+      (item.source.reportHandoff && state.handoffs.has(item.source.reportHandoff))
+    )
       full.set(item.source.ref, item.source);
+    const visible = sources.byRef.get(textRef(item.source.ref));
+    if (selective && visible && admitted.has(visible.ref)) full.set(visible.ref, visible);
   }
   for (const ref of required) {
     if (sources.ambiguous.has(ref)) {
@@ -119,7 +139,10 @@ export function prepareView(options) {
     if (source.message.role === "assistant" && required.size)
       problems.push(...representationProblems(source, options.model, true));
   const render = (source) => {
-    if (full.has(source.ref) || source.message.role !== "toolResult") return structuredClone(source.message);
+    const message = structuredClone(source.message);
+    if (source.message.role === "assistant" && !full.has(source.ref) && full.has(textRef(source.ref)))
+      message.content = message.content.filter((b) => b.type !== "text");
+    if (full.has(source.ref) || source.message.role !== "toolResult") return message;
     return {
       ...structuredClone(source.message),
       content: [{ type: "text", text: "[Executor result omitted from this view]" }],
@@ -136,6 +159,7 @@ export function prepareView(options) {
   const messages = [];
   let cursor = 0;
   const emit = (source) => {
+    if (source.original && full.has(source.original.ref)) return;
     if (!emitted.has(source.ref)) {
       messages.push(render(source));
       emitted.add(source.ref);
@@ -148,6 +172,8 @@ export function prepareView(options) {
         (rank.get(historical[cursor].entry.id) ?? 0) < (rank.get(item.source.entry.id) ?? 0)
       )
         emit(historical[cursor++]);
+      const visible = full.get(textRef(item.source.ref));
+      if (visible) emit(visible);
       if (full.has(item.source.ref) || structural.has(item.source.ref)) emit(item.source);
     } else messages.push(item.message);
   }
@@ -160,25 +186,66 @@ export function prepareView(options) {
       customType: "freeflow-routing-v2-refs",
       display: false,
       content: fullSources
-        .map((s) => `${s.ref} | ${s.message.role}${s.message.toolName ? ` | ${s.message.toolName}` : ""}`)
+        .filter((s) => !s.original)
+        .slice(-12)
+        .map(
+          (s) =>
+            `${s.ref} | ${s.producer} | ${s.message.role}${s.message.toolName ? ` | ${s.message.toolName}` : ""}${sources.byRef.has(textRef(s.ref)) ? ` | visible text: ${textRef(s.ref)}` : ""}`,
+        )
         .join("\n"),
       details: { routingInstance: options.instance },
       timestamp: 0,
     });
-  messages.push(options.runtimeMessage);
-  const outputReserve = options.model?.maxTokens ?? 8192;
-  const maximumInputTokens = Math.max(0, (options.model?.contextWindow ?? 0) - outputReserve);
-  // Byte-count estimate is deliberately labelled; readiness is not an exact token guarantee.
-  const estimatedTokens = Math.ceil(
-    Buffer.byteLength(JSON.stringify({ system: options.systemPrompt, tools: options.tools, messages })) / 3,
-  );
-  const estimateMethod = "UTF-8 bytes / 3 (approximate, includes schemas and runtime text)";
-  if (!maximumInputTokens || estimatedTokens > maximumInputTokens)
-    problems.push({
-      ref: "",
-      code: "delivery_budget",
-      detail: `Estimated input ${estimatedTokens} exceeds allowance ${maximumInputTokens}; common context may also require Pi compaction.`,
+  // Restore exact current communication only when its accepted occurrence is absent.
+  const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
+  const report = handoff?.kind === "return" ? handoff : undefined;
+  const hasCommunication = (h, field, value) =>
+    messages.some((m) => {
+      if (m.role === "assistant")
+        return m.content?.some((b) => b.type === "toolCall" && b.id === h.toolCallId && b.arguments?.[field] === value);
+      if (m.role !== "toolResult" || m.toolCallId !== h.toolCallId) return false;
+      return m.content?.some((b) => {
+        if (b.type !== "text") return false;
+        try {
+          return JSON.parse(b.text)?.[field] === value;
+        } catch {
+          return false;
+        }
+      });
     });
+  const restore = (kind, id, body) =>
+    messages.push({
+      role: "custom",
+      customType: "freeflow-routing-communication",
+      display: false,
+      content: `${kind} ${id}:\n${body}`,
+      timestamp: 0,
+      details: { routingInstance: options.instance },
+    });
+  if (a) {
+    const accepted = state.handoffs.get(a.delegateHandoffId);
+    if (accepted && !hasCommunication(accepted, "contract", a.contract))
+      restore("Current exact assignment", a.id, a.contract);
+  }
+  if (report && !hasCommunication(report, "report", report.text)) restore("Saved report", report.id, report.text);
+  messages.push(options.runtimeMessage);
+  const { estimatedTokens, maximumInputTokens, outputReserve, estimateMethod, warnings } = estimateRequest(
+    options.systemPrompt,
+    options.tools,
+    messages,
+    options.model,
+  );
+  if (warnings.length)
+    messages.push({
+      role: "custom",
+      customType: "freeflow-routing-budget",
+      display: false,
+      content: warnings.map((w) => w.detail).join("\n"),
+      timestamp: 0,
+      details: { routingInstance: options.instance },
+    });
+  if (!options.model?.contextWindow)
+    problems.push({ ref: "", code: "delivery_budget", detail: "Receiving model context capacity is unavailable." });
   const reservation =
     handoff && selective
       ? {
@@ -197,8 +264,18 @@ export function prepareView(options) {
         }
       : undefined;
   return {
+    warnings,
     ready: problems.length === 0,
-    messages,
+    // Recorded usage describes a prior provider view, which may belong to the
+    // other profile. Pi must estimate this assembled view when allocating output.
+    // Normalize request metadata only; canonical usage/billing records stay intact.
+    messages: messages.map((message) => ({
+      ...message,
+      timestamp: Number.isFinite(message.timestamp) ? message.timestamp : 0,
+      ...(message.role === "assistant"
+        ? { usage: { ...message.usage, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 } }
+        : {}),
+    })),
     problems,
     fullSources,
     reservation,
