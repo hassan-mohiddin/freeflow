@@ -1,7 +1,7 @@
 ---
-
-## name: "cognitive-routing"
+name: "cognitive-routing"
 description: "Use when Cognitive Routing is active to guide reasoning-led execution, shape assignments, select evidence, assess results, and adapt across Coordinator and Executor handoffs."
+---
 
 # Cognitive Routing
 
