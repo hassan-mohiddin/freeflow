@@ -989,6 +989,15 @@ export class RoutingRuntime {
     let page;
     if (input.operation === "inspect") {
       const model = this.model("coordinator");
+      const checksFor = (s) => {
+        const eligibility = sources.selectionProblem(s.ref, state);
+        const limitations = [
+          ...(eligibility ? [eligibility] : []),
+          ...representationProblems(s, model),
+          ...sources.exchange(s).problems,
+        ];
+        return { eligible: !eligibility, targetReady: !limitations.length, limitations };
+      };
       const rows = () =>
         [...sources.byRef.values()]
           .filter(
@@ -1007,12 +1016,6 @@ export class RoutingRuntime {
                 s.message.content?.some((b) => b.type === "text" && b.text?.trim())),
           )
           .map((s) => {
-            const eligibility = sources.selectionProblem(s.ref, state);
-            const limitations = [
-              ...(eligibility ? [eligibility] : []),
-              ...representationProblems(s, model),
-              ...sources.exchange(s).problems,
-            ];
             return {
               ref: s.ref,
               kind: s.original ? "assistant-text" : s.message.role,
@@ -1022,17 +1025,12 @@ export class RoutingRuntime {
               active: s.active,
               selected: next.selected.includes(s.ref),
               retainedSelection: next.selected.includes(s.ref) && !isTaskEvidence(s),
-              eligible: !eligibility,
-              targetReady: !limitations.length,
-              limitations,
-              preview:
-                (s.original?.message ?? s.message).content
-                  ?.filter?.((b) => b.type === "text")
-                  .map((b) => b.text)
-                  .join(" ")
-                  .slice(0, 160) ?? "",
+              ...checksFor(s),
             };
-          });
+          })
+          // Discovery offers usable candidates. Saved selections must remain
+          // inspectable even when a later source or target check fails.
+          .filter((row) => scope === "selected" || row.targetReady);
       page = this.page(
         `evidence:${scope}`,
         rows,
@@ -1048,10 +1046,7 @@ export class RoutingRuntime {
           },
           otherAssignments: [...sources.byRef.values()].filter(
             (s) =>
-              s.producer === "executor" &&
-              s.assignmentId !== a.id &&
-              isTaskEvidence(s) &&
-              !sources.eligible(s.ref, state),
+              s.producer === "executor" && s.assignmentId !== a.id && isTaskEvidence(s) && checksFor(s).targetReady,
           ).length,
         }),
       );

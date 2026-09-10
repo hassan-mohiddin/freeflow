@@ -395,3 +395,90 @@ test("empty new assignment advertises earlier evidence and selected receipts ret
     return [];
   });
 });
+
+test("normal inspection hides delivery gaps while selected inspection preserves their diagnostics", async () => {
+  let ref;
+  const result = await fixture(
+    (n, body, m) => {
+      if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Read and inspect evidence." });
+      if (n === 2) return call("read", { path: "evidence.txt" });
+      if (n === 3) {
+        ref = `ctx:${m.getBranch().find((e) => e.message?.content?.some?.((b) => b.type === "toolCall" && b.name === "read")).id}`;
+        return call("freeflow_project", { operation: "inspect", scope: "assignment" });
+      }
+      if ([4, 5, 6].includes(n)) {
+        const r = receipt(m, "freeflow_project");
+        assert.ok(r.candidates.every((c) => c.eligible && c.targetReady));
+        assert.ok(r.candidates.every((c) => !Object.hasOwn(c, "preview")));
+        assert.ok(!JSON.stringify(r).includes("EXACT_EVIDENCE_BODY_81"), "inspection does not repeat source text");
+        assert.equal(
+          r.candidates.find((c) => c.ref === ref),
+          undefined,
+          "incompatible whole message is not a candidate",
+        );
+        assert.ok(
+          r.candidates.some((c) => c.ref === `${ref}#text`),
+          "usable visible text remains offered",
+        );
+        assert.equal(r.scopeCounts.candidates, r.scopeCounts.targetReady);
+        assert.equal(r.pageCounts.candidates, r.pageCounts.targetReady);
+        if (n === 4) return call("freeflow_project", { operation: "inspect", scope: "active" });
+        if (n === 5) return call("freeflow_project", { operation: "inspect", scope: "history" });
+        return call("freeflow_project", { operation: "add", refs: [ref] });
+      }
+      if (n === 7) {
+        const r = receipt(m, "freeflow_project");
+        assert.equal(r.ready, false);
+        assert.ok(r.problems.some((p) => p.code === "target_representation"));
+        return call("freeflow_project", { operation: "inspect", scope: "selected" });
+      }
+      if (n === 8) {
+        const r = receipt(m, "freeflow_project");
+        assert.deepEqual(r.selected, [ref]);
+        const selected = r.candidates.find((c) => c.ref === ref);
+        assert.equal(Object.hasOwn(selected, "preview"), false);
+        assert.equal(selected.targetReady, false);
+        assert.ok(selected.limitations.some((p) => p.code === "target_representation"));
+        assert.equal(r.scopeCounts.candidates, 1);
+        assert.equal(r.scopeCounts.targetReady, 0);
+      }
+      return [];
+    },
+    true,
+    undefined,
+    true,
+    {
+      extensions: [
+        (pi) =>
+          pi.on("message_end", (e) => {
+            if (
+              e.message.role === "assistant" &&
+              e.message.content.some((b) => b.type === "toolCall" && b.name === "read")
+            )
+              return {
+                message: {
+                  ...e.message,
+                  content: [
+                    ...e.message.content,
+                    {
+                      type: "thinking",
+                      thinking: "Fixture signed reasoning",
+                      thinkingSignature: JSON.stringify({
+                        type: "reasoning",
+                        id: "rs_candidate",
+                        summary: [{ type: "summary_text", text: "Fixture signed reasoning" }],
+                      }),
+                    },
+                  ],
+                },
+              };
+          }),
+      ],
+    },
+  );
+  assert.deepEqual(
+    [...result.state.selections.values()].at(-1).selected,
+    [ref],
+    "inspection does not silently withdraw evidence",
+  );
+});

@@ -189,7 +189,7 @@ export function renderRoutingResult(result, options = {}, name = "", context = {
     receipt.candidates
       ?.map(
         (item) =>
-          `${item.ref} · ${item.kind} · ${item.producer}${item.toolName ? ` · ${item.toolName}` : ""}\n${item.selected ? "Selected" : "Not selected"} · ${item.active ? "Active" : "Historical"} · ${item.eligible ? "Eligible" : "Ineligible"} · ${item.targetReady ? "No known item target gap" : "Target needs attention"}${item.retainedSelection ? "\nPreviously selected routing source retained; unavailable for new selections." : ""}\n${item.preview}\n${item.limitations.map((p) => `${p.code}: ${p.detail}`).join("\n")}`,
+          `${item.ref} · ${item.kind} · ${item.producer}${item.toolName ? ` · ${item.toolName}` : ""}${item.assignment ? ` · assignment ${item.assignment}` : ""}\n${item.selected ? "Selected" : "Not selected"} · ${item.active ? "Active" : "Historical"} · ${item.eligible ? "Eligible" : "Ineligible"} · ${item.targetReady ? "No known item target gap" : "Target needs attention"}${item.retainedSelection ? "\nPreviously selected routing source retained; unavailable for new selections." : ""}\n${item.limitations.map((p) => `${p.code}: ${p.detail}`).join("\n")}`,
       )
       .join("\n\n"),
     receipt.ref ? `Work ref: ${receipt.ref}` : "",

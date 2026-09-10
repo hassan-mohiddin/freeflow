@@ -19,6 +19,7 @@
 
 ### Fixed
 
+- Limits normal evidence inspection to usable candidates and removes source-content previews, while preserving saved-selection diagnostics.
 - Preserves source attribution throughout routing request views and complete report metadata during handoff/recovery; excludes routing controls from new evidence selections, clarifies inspection counts and historical discovery, and distinguishes invalid lookup refs from unavailable work.
 - Preserves admitted routing communication and active evidence across closure, replacement and attention; removes duplicate runtime communication and selection no-op churn, preserves identical-call receipts, indexes native exchanges, and streams long-session reconciliation with explicit resource limits. Request planning no longer treats base64 as text or a model output maximum as an invariably reserved allocation.
 - Reconciles native routing navigation and explicit assignment resume, guards stale session operations, preserves evidence withdrawal details and cross-model tool-result carriers, and reduces history replay and routine journal writes. Routing tools now show readable receipts and role-appropriate controls.

@@ -3,6 +3,37 @@ import test from "node:test";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { renderRoutingCall, renderRoutingResult } from "../../dist/cognitive-routing-v2/render.js";
 
+test("evidence inspection renders metadata and gaps without source previews", () => {
+  const receipt = {
+    count: 1,
+    returned: 1,
+    selected: ["ctx:old"],
+    candidates: [
+      {
+        ref: "ctx:old",
+        kind: "toolResult",
+        producer: "executor",
+        toolName: "read",
+        assignment: "a1",
+        selected: true,
+        active: false,
+        eligible: true,
+        targetReady: false,
+        preview: "SOURCE_BODY_MUST_NOT_APPEAR",
+        limitations: [{ code: "target_representation", detail: "Required image unsupported" }],
+      },
+    ],
+  };
+  const rendered = renderRoutingResult({ details: receipt }, { expanded: true }, "freeflow_project", {
+    args: { operation: "inspect" },
+  })
+    .render(100)
+    .join("\n");
+  assert.doesNotMatch(rendered, /SOURCE_BODY_MUST_NOT_APPEAR|undefined/);
+  for (const value of ["ctx:old", "executor", "read", "assignment a1", "Required image unsupported"])
+    assert.ok(rendered.includes(value));
+});
+
 test("expanded receipts retain complete captured reports at narrow and wide widths", () => {
   const report = "Captured report " + "long evidence with Unicode 界 and words ".repeat(20) + " END_OF_REPORT";
   const receipt = {
