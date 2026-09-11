@@ -43,8 +43,8 @@ export function releasedSectionsEqual(current, base) {
       .replace(/^##\s+/, "")
       .trim();
   const sectionsByTitle = (markdown) => {
-    const sections = extractReleasedSections(markdown);
-    const result = new Map(sections.map((section) => [sectionTitle(section), section.replace(/\r?\n$/, "")]));
+    const sections = extractReleasedSections(String(markdown).replace(/\r?\n$/, ""));
+    const result = new Map(sections.map((section) => [sectionTitle(section), section]));
     return result.size === sections.length ? result : null;
   };
 
