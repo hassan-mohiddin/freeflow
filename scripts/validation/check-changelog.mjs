@@ -74,7 +74,7 @@ export function validateChangelogDeclaration({ body, changedPaths, currentChange
 }
 
 function git(args) {
-  return execFileSync("git", args, { encoding: "utf8" }).trimEnd();
+  return execFileSync("git", args, { encoding: "utf8" });
 }
 
 function readJson(path) {
