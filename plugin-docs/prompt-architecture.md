@@ -89,7 +89,7 @@ OpenCode v2 and Hermes consume the canonical `skills/` surface through their doc
 
 The Pi extension composes the mandatory core fragments, Runtime State, discoverable skills, and tools before provider requests. It filters historical one-time Workflow or Cognitive Routing bootstrap entries rather than creating new persistent bootstrap messages.
 
-Pi and PiFlow provide the optional context capabilities. Cognitive Routing runs on either host when its model registry, model/thinking controls, and session-entry APIs are available; PiFlow continues to provide its host-owned lease path.
+Pi exposes Cognitive Routing when its native model, thinking, session-entry, and ancestry gates are effective. PiFlow provides its host lifecycle for shared Freeflow skills and standalone context capabilities, but the current Freeflow source entrypoint explicitly marks the redesigned PiFlow Cognitive Routing adapter unavailable. Do not infer routing availability from PiFlow installation or from the Pi source entrypoint.
 
 See [Pi integration](integrations/pi.md) and [PiFlow integration](integrations/piflow.md) for host-specific installation and behavior.
 
@@ -110,7 +110,7 @@ Interaction Lifecycle
       └─ Action Selection bounds environment interactions
 ```
 
-Manual control runs the ordinary unsplit Workflow. Automatic Coordinator owns user-facing judgment; Executor works within its current assignment. A saved report ends Executor task permission without accepting the unit. Explicit retry preserves the saved report, and replacement preserves prior effects. There is no Yield, REOPEN, or model-maintained boundary ledger. Narrow Coordinator recovery reads preserve the existing responsibility; substantive direct work requires ACT_BOUNDED. Late user input reaching a prepared Executor request requires an interrupted return before task tools. Projection selects Executor evidence and preserves its assessment obligation through compaction until disposition, with explicit suspension for newer attention. These operations do not change user authority or make an internal handback the user-facing endpoint.
+Manual control runs the ordinary unsplit Workflow. Automatic Coordinator owns user-facing judgment; Executor works within its current assignment. A saved report ends Executor task permission without accepting the unit. Explicit retry preserves the saved report, and replacement preserves prior effects; routing does not add a second Workflow or model-authored boundary ledger. Narrow Coordinator recovery reads preserve the existing responsibility; substantive direct work requires ACT_BOUNDED. Late user input reaching a prepared Executor request requires an interrupted return before task tools. Projection selects Executor evidence and preserves its assessment obligation through compaction until disposition, with explicit suspension for newer attention; compaction retains the last observed delivered-user basis rather than treating stored-but-undelivered history as new input. These operations do not change user authority or make an internal handback the user-facing endpoint.
 
 ## Failure and recovery boundaries
 

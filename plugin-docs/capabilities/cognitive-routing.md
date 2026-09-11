@@ -72,6 +72,8 @@ Workflow establishes authority, owner, and unit
 
 `freeflow_delegate` creates or replaces an assignment. `freeflow_return` saves or retries the Executor handoff. Returning ends ordinary Executor work for that assignment; it does not accept or close the unit. Coordinator can continue covered work, ask for a corrected assignment, or close only after the result is supported.
 
+While routing-call arguments stream, collapsed receipts keep the current contract or report visible. Limitations and assignment-replacement reasons remain available in the expanded view without obscuring the live prose.
+
 Manual control keeps one selected profile active and runs the ordinary unsplit Workflow. Automatic handoffs and projection are bypassed. Manual control does not grant extra authority or make the held profile a separate agent.
 
 ## Routing tools
@@ -114,6 +116,8 @@ The new routing projection is not qualified in composition with the legacy Conte
 Routing state is recorded as native `freeflow-routing-v2` session entries. The runtime validates each transition before appending, reads the native append back from the live branch, and replays the selected ancestry for state. Native entries preserve assignments, reports, selections, assessments, controls, minimal automatic-profile authorship, and transition evidence across switching and reloads; they are not a second task-memory store.
 
 When existing or uncertain routing state must be reconciled, the runtime reads the persisted native session file through a strict read-only snapshot: bounded regular-file read, complete UTF-8/JSONL parsing, session identity and ancestry checks, and live-branch comparison. The reader decodes JSONL incrementally rather than retaining a full byte/string copy alongside the parsed tree. Resource limits are 512 MiB per file, 128 MiB per entry, and 250,000 JSONL records including the header. Oversize and integrity failures are explicit. These are processing limits, not a guarantee of equal latency or memory use for every history within them. It does not patch the host session file, claim `fsync`, or promise exactly-once behavior. If persisted readback cannot establish an attempted event or the snapshot is divergent, routing blocks with explicit uncertainty. Do not repeat a potentially completed effect blindly.
+
+Native compaction may remove user messages from the active view. Routing retains the last observed delivered-user basis: stored-but-undelivered user entries do not trigger attention, while genuinely delivered new input does. Compaction followed by explicit `/freeflow resume` therefore preserves an outstanding assignment without treating the compaction artifact as new direction.
 
 New user attention suspends the assessment obligation while retaining ordinary admitted history, including accepted reports and still-active selected evidence. It pauses forced restoration of compacted assessment sources; the notice is not delivery of missing bodies. Once the saved assessment is again the intended activity, use `freeflow_unit` with `{"operation":"assess"}`; readiness and reservation checks must succeed before it resumes. A failed restoration leaves the assessment suspended.
 

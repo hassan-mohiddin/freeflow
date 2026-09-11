@@ -16,10 +16,13 @@
 
 - Retires the old experimental routing source and tests into the historical archive, adds replacement-contract regression suites, and cleans generated extension output before building.
 - Shows live routing tool arguments in a six-line trailing preview with full expansion, and replaces internal collapsed receipt labels with readable operation outcomes and evidence counts.
+- Clarifies Cognitive Routing's Coordinator/Executor assignment boundary, design-decision transfer, selective evidence projection, and Coordinator assessment responsibilities in the shipped guidance.
 
 ### Fixed
 
 - Limits normal evidence inspection to usable candidates and removes source-content previews, while preserving saved-selection diagnostics.
+- Preserves delivered-user identity across native compaction and explicit resume, so stored-but-undelivered history does not interrupt an outstanding Executor assignment while genuinely new input still does.
+- Keeps streamed routing contracts and reports visible in collapsed receipts; limitations and replacement reasons remain available in expanded views instead of obscuring current prose.
 - Preserves source attribution throughout routing request views and complete report metadata during handoff/recovery; excludes routing controls from new evidence selections, clarifies inspection counts and historical discovery, and distinguishes invalid lookup refs from unavailable work.
 - Preserves admitted routing communication and active evidence across closure, replacement and attention; removes duplicate runtime communication and selection no-op churn, preserves identical-call receipts, indexes native exchanges, and streams long-session reconciliation with explicit resource limits. Request planning no longer treats base64 as text or a model output maximum as an invariably reserved allocation.
 - Reconciles native routing navigation and explicit assignment resume, guards stale session operations, preserves evidence withdrawal details and cross-model tool-result carriers, and reduces history replay and routine journal writes. Routing tools now show readable receipts and role-appropriate controls.

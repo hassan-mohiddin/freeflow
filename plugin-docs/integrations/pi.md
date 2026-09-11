@@ -106,6 +106,8 @@ Automatic routing gives Coordinator ownership of new direction. If input reaches
 
 Projection is off by default. With projection off, both profiles use ordinary active Pi context. With projection on, Executor retains ordinary active context while Coordinator receives common context plus selected, actually exposed Executor evidence. Native dependencies are retained automatically; omitted result bodies are not reconstructed. Saved reports and selections remain persisted routing state independent of a later profile-switch result.
 
+Native compaction can remove user messages from the active view without making stored-but-undelivered input look new: routing keeps the last observed delivered-user basis, while genuinely delivered input interrupts the assignment. During partial routing-call arguments, collapsed receipts keep live contract/report prose visible; expand a receipt to inspect limitations or replacement reasons.
+
 The v2 projection is not qualified with the legacy Context Virtualization or Conversation History transforms. Keep those legacy capabilities standalone, or keep routing projection disabled. Neither legacy capability is removed.
 
 The routing tools are model-facing controls, not permission grants. A return saves a report but does not close a unit. Evidence selection must use actual canonical `ctx:<native-entry-id>` references, and unresolved or adverse evidence remains explicit.

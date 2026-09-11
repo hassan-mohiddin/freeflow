@@ -20,7 +20,7 @@ host session enablement -> personal override -> repository value -> built-in def
 
 Configurations containing the removed `defaultMode`, `interactionContract`, or `skills` keys are invalid. An invalid existing local config fails closed instead of silently inheriting shared settings. Session state cannot bypass missing or invalid repository activation.
 
-Pi and PiFlow `/freeflow settings` edit personal overrides; `/freeflow settings session` edits temporary enablement and optional-context overrides; `/freeflow settings repo` edits shared configuration. Session settings do not mutate either config file. Cognitive Routing exposes the same profile controls on either host when its model-state APIs are available.
+Pi and PiFlow `/freeflow settings` edit personal overrides; `/freeflow settings session` edits temporary enablement and optional-context overrides; `/freeflow settings repo` edits shared configuration. Session settings do not mutate either config file. Pi exposes Cognitive Routing profile controls when its native model-state APIs and source gate are effective; the current Freeflow PiFlow adapter is explicitly unavailable.
 
 ## Interaction Lifecycle
 
@@ -74,7 +74,7 @@ A clear local defect returns to its producer. An invalidated approach needs rene
 
 ## Nested Execution Model
 
-The three core loops apply with or without Cognitive Routing. Under Automatic control, compute transfers occur within the owning activity and its environment work; they are not a fourth mandatory task phase. These diagrams describe ownership and control nesting, not a fixed sequence.
+The three core loops apply with or without Cognitive Routing. Under automatic Cognitive Routing, compute placement occurs inside the current Workflow owner; it is not a fourth mandatory task phase. These diagrams describe ownership and control nesting, not a fixed sequence.
 
 ### Runtime and compute nesting
 
@@ -82,16 +82,16 @@ The three core loops apply with or without Cognitive Routing. Under Automatic co
 Interaction Lifecycle
 └─ Workflow Feedback Loop
    ├─ establishes authority, owner, and slice
-   └─ Cognitive Execution Routes — automatic control only
-      ├─ Reasoning chooses one route
-      │  ├─ YIELD → Standard leads ordinary work → YIELD HANDOFF → Reasoning
-      │  ├─ DELEGATE → open model-written boundary → Standard executes
-      │  │  └─ RETURN → Reasoning assesses; boundary remains open until CLOSE
-      │  └─ ACT_BOUNDED → Reasoning performs bounded direct execution
-      └─ Action Selection guides uncertain environment interactions
+   └─ Cognitive Routing — automatic control only, when available
+      ├─ Coordinator interprets direction and saves one assignment
+      ├─ Executor performs the assignment and returns its actual report
+      ├─ Coordinator assesses the report and eligible evidence
+      │  ├─ continues or replaces a quiescent outstanding assignment
+      │  └─ closes the supported unit
+      └─ Action Selection bounds uncertain environment interactions
 ```
 
-The Cognitive Execution Loop exists only for automatic, authorized execution-bearing work. Conversational Reasoning is the default and owns user-facing interpretation and reporting; Yield, Delegate, and Act Bounded govern how execution reaches the environment. Automatic Standard only executes active Yield or Delegate contracts and never conducts substantive user-facing interaction; at every return condition it transfers state to Reasoning. Manual Cognitive Routing control runs the ordinary unsplit Workflow. A Slice may contain multiple sequential execution boundaries, but a boundary is not a new owner, task, authority source, Plan, or Working Record.
+Automatic Cognitive Routing transfers compute, not ownership: Coordinator interprets user direction, preserves the authority envelope, directs the current assignment, and assesses its result; Executor works within that assignment and returns an actual report with limitations. A saved return ends ordinary Executor work for that assignment but does not accept or close the unit. Manual Cognitive Routing control runs the ordinary unsplit Workflow. Late user input reaching a prepared Executor request requires an interrupted return before further task tools. Projection, when enabled, selects eligible Executor evidence for Coordinator and preserves the assessment obligation through compaction until disposition, with explicit suspension for newer attention. These operations do not change user authority or make an internal handback the user-facing endpoint.
 
 ### Workflow ownership and composition
 
@@ -99,18 +99,18 @@ The Cognitive Execution Loop exists only for automatic, authorized execution-bea
 Workflow Feedback Loop
 └─ current owner
    ├─ Discuss ↔ Track Work for direction and durable state
-   ├─ Cognitive Routing controls compute placement
-   │  ├─ Reasoning leads the execution boundary
-   │  └─ Standard executes the owner’s contract
-   │     └─ Action Selection owns uncertain Environment Interactions
+   ├─ Cognitive Routing places compute without changing the owner
+   │  ├─ Coordinator directs and assesses under automatic control
+   │  └─ Executor executes the current owner's contract
    ├─ Execute Work supplies execution methods
    ├─ Verify Work establishes factual support
    ├─ Review Work / Artifact supply judgment when applicable
    ├─ Diagnose Failure owns unsupported causes
+   ├─ Action Selection bounds uncertain Environment Interactions
    └─ Design for Depth composes as a lens
 ```
 
-Discuss owns open outcome/approach direction and alternatives. Execute Work owns concrete work and its bounded preparation. Track Work preserves durable meaning only when continuity warrants it. Action Selection returns observations to the requesting owner. Verify, review, diagnosis, and design compose when needed rather than forming a mandatory artifact pipeline. A delegation unit is not a Track Work Slice; Cognitive Routing places compute without changing these responsibilities.
+Discuss owns open outcome/approach direction and alternatives. Execute Work owns concrete work and its bounded preparation. Track Work preserves durable meaning only when continuity warrants it. Action Selection returns observations to the requesting owner. Verify, review, diagnosis, and design compose when needed rather than forming a mandatory artifact pipeline. A routing assignment is not a Track Work Slice; Cognitive Routing places compute without changing Workflow responsibility.
 
 ## Authority And Effects
 
