@@ -1,6 +1,6 @@
 {
   "name": "freeflow",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Feedback-based control system for coding agents.",
   "author": {
     "name": "Hassan Mohiddin"

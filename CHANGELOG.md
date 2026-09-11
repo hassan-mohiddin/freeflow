@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.7.2 - 2026-09-11
+
 ### Breaking Changes
 
 - Consolidates experimental routing reads into `freeflow_project inspect` with scoped candidates and `freeflow_unit inspect` with current/history/detail views; earlier `list`, `status`, and `history` operation names are no longer advertised or accepted.
