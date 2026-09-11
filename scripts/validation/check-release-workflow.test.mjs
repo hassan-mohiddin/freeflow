@@ -27,3 +27,13 @@ test("rejects publication before release-note extraction", () => {
   const result = inspectReleaseWorkflow(invalid);
   assert.match(result.errors.join("\n"), /release notes.*before npm publish/i);
 });
+
+test("bounds npm registry propagation verification after publish", () => {
+  assert.match(workflow, /registry_attempts=18/);
+  assert.match(workflow, /registry_delay_seconds=10/);
+  assert.match(workflow, /E404\|404 Not Found/);
+  assert.match(workflow, /sleep "\$registry_delay_seconds"/);
+  assert.match(workflow, /registry_predicate/);
+  assert.ok(workflow.indexOf('npm publish "$RELEASE_TARBALL"') < workflow.indexOf("registry_attempts=18"));
+  assert.ok(workflow.indexOf("registry_attempts=18") < workflow.indexOf('gh release create "$RELEASE_TAG"'));
+});
