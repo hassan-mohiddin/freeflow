@@ -101,7 +101,8 @@ export async function fixture(script, projection = true, after, withUI = true, o
     requests.push(body);
     assert.ok(requests.length <= (options.maxRequests ?? 15), "bounded fixture request count");
     try {
-      return response(requests.length, await script(requests.length, body, manager, requests));
+      const calls = await script(requests.length, body, manager, requests);
+      return options.response ? options.response(requests.length, calls) : response(requests.length, calls);
     } catch (error) {
       transportFailures.push(error);
       throw error;
@@ -118,6 +119,7 @@ export async function fixture(script, projection = true, after, withUI = true, o
     const settingsManager = SettingsManager.inMemory({
       compaction: { enabled: false, keepRecentTokens: 1, reserveTokens: 1 },
       retry: { enabled: false, maxRetries: 0, provider: { maxRetries: 0 } },
+      ...options.settings,
     });
     const loader = new DefaultResourceLoader({
       cwd,

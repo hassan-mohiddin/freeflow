@@ -42,11 +42,14 @@ function title(name: string, operation?: string): string {
   return "Routing";
 }
 
-function draft(name: string, args: any): string {
+function draft(name: string, args: any, expanded: boolean): string {
   const sections: string[] = [];
   if (name === "freeflow_delegate") sections.push(text(args.contract));
   if (name === "freeflow_return") sections.push(text(args.report));
-  if (name === "freeflow_unit") sections.push(text(args.assessment));
+  if (name === "freeflow_unit" && args.operation === "close") sections.push(text(args.assessment));
+  // Metadata can arrive before the main text and otherwise occupy the entire
+  // trailing preview forever. Keep the live prose moving; expansion keeps all fields.
+  if (!expanded && sections.length) return sections.filter(Boolean).join("\n\n");
   if (name === "freeflow_project" && Array.isArray(args.refs))
     sections.push(args.refs.filter((r: unknown) => typeof r === "string").join("\n"));
   for (const key of ["scope", "view", "ref", "cursor"])
@@ -72,7 +75,7 @@ export function renderRoutingCall(name: string, args: any = {}, context: RenderC
         : name === "freeflow_unit" && args.operation === "close"
           ? "assessment"
           : undefined;
-  const body = draft(name, args);
+  const body = draft(name, args, context.expanded === true);
   const activity = noun && args.operation !== "retry" ? `${writing ? "Writing" : "Saving"} ${noun}…` : "Working…";
   return {
     render(width: number) {

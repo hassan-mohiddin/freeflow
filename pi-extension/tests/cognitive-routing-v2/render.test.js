@@ -79,6 +79,52 @@ test("streaming arguments follow the latest six wrapped lines; expansion retains
   assert.equal(done.trim(), "Return to Coordinator");
 });
 
+test("report streaming is not obscured by limitations sent before or after the report", () => {
+  const limitations = ["First limitation", "Second limitation", "Third limitation"];
+  const live = { isPartial: true, argsComplete: false };
+  for (const reportFirst of [true, false]) {
+    for (const length of [2, 12, 20]) {
+      const report = Array.from({ length }, (_, i) => `Report progress ${i + 1}`).join("\n");
+      const args = reportFirst
+        ? { operation: "submit", report, limitations }
+        : { operation: "submit", limitations, report };
+      const collapsed = renderRoutingCall("freeflow_return", args, live).render(60).join("\n");
+      assert.match(collapsed, new RegExp(`Report progress ${length}`));
+      assert.doesNotMatch(collapsed, /Limitation:/);
+      const expanded = renderRoutingCall("freeflow_return", args, { ...live, expanded: true })
+        .render(60)
+        .join("\n");
+      for (const limit of limitations) assert.ok(expanded.includes(limit));
+      assert.match(expanded, /Report progress 1/);
+    }
+  }
+  assert.doesNotMatch(
+    renderRoutingCall("freeflow_return", { operation: "submit", limitations }, live).render(60).join("\n"),
+    /Limitation:/,
+  );
+});
+
+test("replacement streaming follows the contract without a sticky reason", () => {
+  const reason = "Replacement reason " + "keeps its full explanation. ".repeat(30);
+  const live = { isPartial: true, argsComplete: false };
+  for (const length of [2, 12]) {
+    const contract = Array.from({ length }, (_, i) => `Replacement progress ${i + 1}`).join("\n");
+    for (const args of [
+      { operation: "replace", reason, contract },
+      { operation: "replace", contract, reason },
+    ]) {
+      const compact = renderRoutingCall("freeflow_delegate", args, live).render(60).join("\n");
+      assert.match(compact, new RegExp(`Replacement progress ${length}`));
+      assert.doesNotMatch(compact, /Reason:|Replacement reason/);
+      const expanded = renderRoutingCall("freeflow_delegate", args, { ...live, expanded: true })
+        .render(60)
+        .join("\n");
+      assert.match(expanded, /Reason: Replacement reason/);
+      assert.match(expanded, /Replacement progress 1/);
+    }
+  }
+});
+
 test("completed receipts describe outcomes without protocol state disclaimers", () => {
   for (const [name, operation, receipt, expected] of [
     ["freeflow_delegate", "assign", { status: "accepted", transition: "pending" }, "Assignment saved"],
@@ -160,6 +206,15 @@ test("preview limits apply after wrapping long text, and interrupted drafts rema
 test("partial and absent arguments/results render without requiring live runtime state", () => {
   assert.ok(renderRoutingCall("freeflow_delegate", undefined).render(30).length);
   assert.match(renderRoutingResult({}, { isPartial: true }).render(30).join(""), /Working/);
+  const inspection = renderRoutingCall(
+    "freeflow_unit",
+    { operation: "inspect", view: "detail", ref: "assignment:existing" },
+    { isPartial: true, argsComplete: false },
+  )
+    .render(60)
+    .join("\n");
+  assert.match(inspection, /View: detail/);
+  assert.match(inspection, /Ref: assignment:existing/);
 });
 
 test("native error results with empty details never look like successful saved assignments", () => {

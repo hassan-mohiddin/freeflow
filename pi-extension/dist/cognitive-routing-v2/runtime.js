@@ -452,8 +452,19 @@ export class RoutingRuntime {
     return this.control("coordinator", false);
   }
   lastDeliveredUser(sources, messages) {
-    const users = sources.associate(messages).filter((x) => x.source?.message.role === "user");
-    return users.at(-1)?.source?.entry.id ?? null;
+    const delivered = new Set(
+      sources.associate(messages).flatMap((x) => (x.source?.message.role === "user" ? [x.source.entry.id] : [])),
+    );
+    // Compaction may remove every user message from the active view. Retain
+    // observed delivery on this ancestry; a stored but undelivered user entry
+    // must not advance the basis, and absence must not manufacture new input.
+    for (const execution of this.stateData().executions.values())
+      if (execution.basisUserEntryId) delivered.add(execution.basisUserEntryId);
+    for (let i = sources.entries.length - 1; i >= 0; i--) {
+      const entry = sources.entries[i];
+      if (entry.message?.role === "user" && delivered.has(entry.id)) return entry.id;
+    }
+    return null;
   }
   runtimeMessage(state, attention = false) {
     const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
