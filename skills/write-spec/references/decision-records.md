@@ -56,7 +56,7 @@ Use the repository's ADR or decision format when one exists. Otherwise adapt thi
 <Evidence, conditions, or later decision that would reopen or replace it.>
 ```
 
-State proposals as proposals. Do not write an assumption, reviewer suggestion, or agent preference as an accepted decision.
+State proposals as proposals. Do not write an assumption, reviewer suggestion, or agent preference as an accepted decision. For a consequential choice, identify the presented option, disclosed consequences, and acceptance source. Approval to investigate or draft an option does not establish acceptance of its eventual production requirements.
 
 ## Preserve Authority And History
 
@@ -67,7 +67,8 @@ When a decision changes:
 - preserve the old record as `Superseded` rather than rewriting it to match the present;
 - create or identify the replacement decision;
 - link both directions;
-- update owning specs, plans, or policies whose current content depends on it;
+- identify owning specs, plans, or policies whose current content depends on it and revise them when authorized;
+- mark dependent work contingent when a required decision or source revision remains unresolved;
 - preserve the evidence that justified the change.
 
 Live evidence may show that implementation violates a decision or that the decision is no longer viable. Use Decision Gate when resolving that conflict requires user authority.

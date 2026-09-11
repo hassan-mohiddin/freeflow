@@ -12,6 +12,8 @@ When durable memory exists, enter [Track Work](../../track-work/SKILL.md) and us
 
 Resume the same Slice only while its intended result, authority, evidence boundary, and stop condition remain coherent. Otherwise preserve supported work and return the changed boundary to [Workflow](../../workflow/SKILL.md).
 
+Recover the user-facing return condition separately from the next internal action. A supported record may preserve approval for the remaining task, but a proposed next action is not that approval. After reconstruction, continue covered work rather than returning solely because a context boundary occurred.
+
 Do not restart discovery, repeat supported work, or infer progress from summaries, Plans, records, handoffs, staged files, or partial artifacts.
 
 ## Distinguish Adaptation From Boundary Change
@@ -24,11 +26,15 @@ Routine changes to local mechanics, implementation order, tools, and focused che
 - the required observing boundary;
 - the stop condition.
 
-Return to Workflow when new evidence changes behavior, scope, persistence, compatibility, public interfaces, risk, evidence quality, or another user-owned outcome.
+A mechanical read of a known caller or a local correction may remain inside execution. If new evidence invalidates the implementation premise, stop dependent edits and re-establish the approach; do not hide renewed investigation inside a patch stream.
+
+Before following a new prerequisite, identify whether it blocks the required outcome, the chosen approach, or only the current observer. Preserve acceptance, compare supported in-scope remedies, and return to Workflow when the remedy changes behavior, scope, persistence, compatibility, public interfaces, risk, evidence quality, or another user-owned outcome.
 
 Keep an accepted extension in the current Slice only when its result remains coherent, explicit authority covers the added effects, and the combined boundary can still be verified as one unit. When a Working Record exists, Track Work records the extension before execution.
 
-Use another Slice when the work has a distinct result, authority source, evidence boundary, independently useful outcome, or explicit abandonment of the original result.
+Use another Slice when the work has a distinct result, authority source, evidence boundary, independently useful outcome, or explicit abandonment of the original result. Context pressure may require an earlier safe continuation boundary without inventing a completed result or new Slice.
+
+A whole-task agreement may already cover later Slices. Return their selection and lifecycle to Workflow and Track Work without requesting redundant user permission. A selected checkpoint or the agreed user-facing endpoint still stops dependent work.
 
 ## Route A Selected Checkpoint
 
@@ -44,7 +50,7 @@ Stop before dependent work, use the checkpoint’s owner, and return its result 
 
 When durable memory exists, Track Work preserves the checkpoint’s selection, condition, result, and task effect.
 
-Do not create a checkpoint merely because an action or Slice ended. Do not force a stale checkpoint when its condition, evidence, or protected boundary no longer holds.
+Do not create a checkpoint merely because an action or Slice ended. Do not force a stale checkpoint when its condition, evidence, or protected boundary no longer holds; return the discrepancy for a supported cancellation, replacement, deferral, or revision before dependent work.
 
 ## Separate Follow-On Work
 

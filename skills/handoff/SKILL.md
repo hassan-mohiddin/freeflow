@@ -1,92 +1,82 @@
 ---
 name: handoff
-description: Use when work must continue safely after a pause, context change, or ownership transfer.
+description: "Use when work must continue safely after a pause, context change, or ownership transfer."
 ---
 
 # Handoff
 
-Preserve the smallest point-in-time continuation package another context needs to orient safely.
+Preserve the point-in-time information another context needs to continue the agreed work without restarting discovery or changing its goal.
 
-A **handoff** transfers current context. A [Working Record](../track-work/SKILL.md) is living task memory. When a Working Record exists, reconcile changed task state through Track Work, reference it from the handoff, and add only transfer-specific context the recipient would otherwise miss.
+A [Working Record](../track-work/SKILL.md) maintains living task state. A handoff identifies that record, the relevant sources, and transfer-specific facts the recipient would otherwise miss. Neither is authority, proof of completion, or a replacement for current user direction and live evidence.
 
-A handoff is memory, not authority. It may record where approval or authority came from, but it does not create either, freeze a Plan, override live evidence, or prove completion.
+## Choose The Transfer Boundary
 
-## Choose The Transfer Shape
+Identify the recipient, purpose, and available transfer mechanism before writing.
 
-- **Ephemeral handoff:** use the current response, host continuation mechanism, or a temporary path for immediate transfer after a pause, compaction, session change, or short-lived ownership change. Do not create a file when the response or host mechanism is sufficient.
-- **Repo-memory handoff:** use the repository's established handoff location when durable project continuation context is requested or approved.
+- **Ephemeral handoff:** use the response or host continuation mechanism for immediate transfer, including compaction. Use a temporary file only when the transfer needs it.
+- **Repo-memory handoff:** use the repository's established destination when durable continuation documentation is requested or approved.
 - **User-provided destination:** follow the requested safe location and format.
 
-Do not silently promote ephemeral context into repository memory. Ask one direct question when the destination changes durability, privacy, repository state, intended audience, or authority and the user has not chosen.
+Do not turn an ephemeral transfer into repository memory. If the destination materially changes durability, privacy, repository state, audience, or authority and the user has not chosen it, ask one question and wait.
 
-Read [Handoff Templates](references/handoff-templates.md) after the transfer shape, recipient, and purpose are clear.
+Read [Handoff Templates](references/handoff-templates.md) after the shape, recipient, and purpose are clear. Use only fields that change safe continuation; the template is not a requirement to create another document.
 
-## Prepare From Live State
+## Prepare From The Actual State
 
-Before packaging the handoff:
+Inspect only the relevant worktree, artifacts, processes, and evidence needed to describe what the recipient will encounter. Reconcile an existing Working Record through Track Work when its understanding, current work, dependencies, evidence, or next action changed.
 
-1. Inspect the current worktree, active artifacts, and evidence needed for the transfer.
-2. Reconcile an existing Working Record when its current state, slice, decisions, checkpoints, or next action changed.
-3. Identify the recipient, purpose, and boundary being crossed.
-4. Separate the next accepted action and its authority source from an unapproved recommendation.
+Preserve the execution agreement separately from the immediate assignment: what outcome remains authorized, what this unit covers, what is excluded, and when the user expects a return. Identify the assignment's source and any superseded instruction whose reuse would misdirect continuation. A recommendation to continue is not the same as approval to finish the remaining task.
 
-Do not create a Working Record merely because a handoff exists. Do not change task lifecycle or slice state merely because continuation context is requested.
+Do not create a record merely because a handoff exists or change task/Slice state merely because context will be transferred. Use the host's safe boundary for ongoing operations; do not infer an unobserved result or interrupt a mutation to make a cleaner handoff.
 
-## Capture What Changes Continuation
+Partial work is a valid transfer state. Preserve unverified edits, failing checks, unresolved causes, and residual effects honestly. Do not rush to completion because compaction is near.
 
-Include only what the recipient needs to choose or perform the next sound action:
+## Capture The Next Useful Continuation
 
-- goal, accepted outcome, and owning sources;
-- current state and Workflow route, when one exists;
-- completed work and what fresh evidence supports or does not support;
-- relevant worktree, process, environment, or artifact identity needed to prevent loss or false claims;
-- active decisions and the source that established them;
-- invalidated assumptions, deviations, and affected Spec or Plan sections;
-- unresolved owner decisions, missing evidence, blockers, and stop conditions;
-- next accepted action with its authority source, or the recommended next route when not yet approved;
-- exact pointers the recipient must reopen.
+Include only material information:
 
-A Plan preserves stable strategy. Record live progress and deviations in the Working Record, then point to both rather than copying evolving state into the handoff.
+- the intended outcome, agreed scope, user-facing return condition, and defining sources;
+- current task/Slice and Workflow route when present;
+- completed and partial work, supporting evidence, and what remains unverified;
+- relevant repository, worktree, artifact, configuration, or process identity;
+- accepted decisions and their sources, later amendments, and remaining hypotheses;
+- changed assumptions, consequential rejected approaches, and affected Spec or Plan sections;
+- dependencies for remaining work and which are established versus unresolved;
+- the next accepted action and the minimum sources needed for it, or a recommendation awaiting authority;
+- blockers, selected checkpoints, and conditions requiring return rather than continuation.
 
-For a learning slice, preserve the question, evidence, and discard, revise, or promote result. Exploratory output does not become production behavior through transfer.
+Point to the current Working Record and accepted artifacts instead of duplicating their full contents. A Plan preserves strategy; the record preserves actual work and deviations. The handoff preserves transfer-specific context, not a second mutable task narrative.
 
-For review continuity, preserve the review number, reviewed state identity, reviewer judgment, adjudicated judgment, active-agent item adjudication, material Accepted or Open items, changed state, and whether follow-up review remains selected. A new context or reviewer does not reset the review budget.
+For learning, preserve the question, evidence and limits, the discard/revise/promote/inconclusive result, exploratory-artifact disposition, and consequence for dependent work. A recorded promotion does not grant production authority.
 
-## Keep It Compact And Safe
+For selected independent review, preserve review number, reviewed state, reviewer and adjudicated judgments, material Accepted or Open findings, changed areas, and whether follow-up remains selected. A new context or reviewer does not reset the budget.
 
-Link to live sources instead of copying Specs, Plans, Working Records, diffs, logs, transcripts, or full reviewer output. Include a narrow dirty-state list only when omission risks loss, overwrite, duplicate work, or a false completion claim.
+## Preserve Scope And Evidence
 
-Do not include:
+A newer summary is not necessarily a newer accepted decision. Distinguish source-backed changes from proposals; do not let "next" turn an optional follow-up into an obligation or carry a stronger claim than the evidence supports.
 
-- unsupported completion, verification, review, commit, integration, release, or launch claims;
-- volatile inventories or background that does not change continuation;
-- secrets, credentials, tokens, unrestricted personal data, or unnecessary private payloads;
-- instructions to trust the handoff without reinspection;
-- unapproved work presented as the next executable action.
+Include narrow dirty-state or process details when omission could cause loss, overwrite, duplicate execution, or false completion. Keep check outputs linked to the code/artifact and observer state they examined using available identities or source pointers. Distinguish an actual prior observation from whether it still applies after later changes. A missing output is unavailable evidence, not a reason to invent or automatically repeat the run. Do not copy full diffs, logs, transcripts, or reviewer reports when exact recoverable pointers suffice.
 
-Stop when safe transfer would require inventing intent, authority, evidence, destination, or status. Use [Decision Gate](../decision-gate/SKILL.md) when the remaining choice belongs to the user.
+Exclude secrets, credentials, unrestricted personal data, and private payloads unnecessary for continuation. Do not promise access to unavailable sources or reconstruct their exact content from memory.
 
-## Boundary Examples
+If safe transfer would require inventing intent, approval, evidence, status, or destination, state the missing information. Use [Decision Gate](../decision-gate/SKILL.md) when resolving it needs one user-owned choice.
 
-- A Working Record already contains current state → reference it and add only transfer-specific context.
-- Compaction is immediate and the host can carry context → return an ephemeral handoff; do not create repository documentation.
-- Durable repo continuation is approved → use the established handoff location and stable source pointers.
-- The handoff conflicts with live code or evidence → live evidence wins; return the conflict to Workflow.
+## Reconstruct Before Resuming
 
-## Resume Safely
+Follow current core and capability recovery guidance before task action. A handoff's earlier route or profile description is not current runtime state.
 
-When resuming:
+1. Read the complete Working Record through `view full` when resuming after context loss or into another context. Do not substitute its `resume` view or the handoff's summary. With intact context, follow Track Work's bounded in-session read guidance.
+2. Reconcile the record and handoff with current user direction, defining sources, and the relevant live environment. Follow supersession and corrections without silently reviving historical decisions.
+3. Check important completion, verification, review, commit, and artifact-identity claims against their evidence before repeating them. Reuse adequate current evidence; a transfer alone does not require rerunning every check.
+4. Establish the actual partial state, remaining dependencies, accepted work agreement, current assignment, and next useful action. Resolve contradictory old/new instructions from their sources before acting; do not resume editing when the current unit permits inspection only. Reopen only additional sources whose exact content or freshness changes that action.
+5. Return the recovered state to [Workflow](../workflow/SKILL.md) for the supported route and authority check. Continue covered work through its owner; stop for a genuine blocker or uncovered choice.
 
-1. Reopen the named source truth, the Working Record's bounded `resume` view when present, and current worktree state.
-2. Retrieve exact Working Record entities only when needed, then verify important completion, evidence, review, commit, and artifact-identity claims before repeating them.
-3. Compare the recorded route, decisions, and assumptions with live evidence.
-4. Preserve what still holds and identify only the invalidated layer.
-5. Return the live state and supported next action to [Workflow](../workflow/SKILL.md).
+Without a Working Record, use the available transfer and exact sources to reconstruct enough state; report any missing boundary rather than inventing it. If a required full-record read is incomplete or unavailable, follow Track Work's stop condition instead of claiming recovery succeeded.
 
-Do not edit merely because the handoff names a next action. Workflow confirms the route and authority; Execute Work establishes any next slice.
+Do not edit merely because a handoff names a next action. Do not restart the whole task or ask for another "continue" solely because an already-authorized task crossed a context boundary. Slice selection and lifecycle remain with Workflow and Track Work, not the handoff.
 
 ## Report And Stop
 
-State the transfer shape and destination, evidence and sources preserved, current route, next accepted action and authority or recommended route, and material gaps or intentionally omitted sensitive context.
+Report the transfer shape and destination, sources preserved, actual state and evidence limits, next accepted action or pending recommendation, and material missing or intentionally omitted sensitive information.
 
-At a selected pause or transfer boundary, stop after delivering the handoff. Creating continuity memory by itself does not complete, block, abandon, or supersede the active slice or task.
+At the selected pause or transfer boundary, stop after delivering the handoff. It does not complete, block, abandon, or supersede the task or Slice. On recovery, end Handoff once the next owner can continue with coherent scope, authority, and evidence.

@@ -1,140 +1,100 @@
 ---
 name: "action-selection"
-description: "Use when the current owner needs to choose, bound, or learn from an environment interaction, especially when several actions are plausible, expected output may be broad or noisy, or recent interactions have not materially changed the current decision."
+description: "Use when choosing or bounding an environment interaction, especially when the needed context, target, observer, or scope is uncertain, output may be broad, or recent actions have not advanced the current question."
 ---
 
 # Action Selection
 
-Choose one covered environment interaction likely to advance the current question or accepted outcome, learn from its actual result, and return the changed evidence to the current owner.
+Choose one covered environment interaction that advances the current question or result, observe what it actually changes, and return the changed evidence to the current owner.
 
-An **environment interaction** is one bounded tool-mediated observation or effect and the result it returns. A bounded activity may contain several environment interactions.
+An environment interaction is a bounded tool-mediated observation or effect. A current activity can need several interactions; a tool call is not a task phase, Slice, or reason to change ownership.
 
-Action Selection does not choose the current owner, execution method, accepted behavior, authority, Slice, checkpoint, or Workflow route. It does not replace implementation, diagnosis, verification, review, or domain guidance.
+Action Selection does not decide the user's outcome, work agreement, execution method, Slice, checkpoint, or Workflow route. It serves the owner responsible for those judgments and cannot accept the whole result.
 
-## Run One Interaction Loop
+## Identify The Immediate Need
 
-```text
-Need evidence or a covered effect
--> name what this interaction must resolve or produce
--> check whether current evidence supports one obvious action
-   -> yes: fast path
-   -> no: branch mentally
--> choose and bound one environment action
--> execute once
--> observe the actual result
--> identify what changed
--> return the observation and state change to the current owner
-```
+Before touching the environment, identify what this interaction must answer or produce. Reuse evidence already available and current enough for that purpose.
 
-Action Selection improves one local interaction. It does not plan the whole task or simulate a long future trajectory.
+The need may be:
 
-## Take The Fast Path When The Action Is Obvious
+- understanding the required outcome or reported symptom;
+- establishing the mechanism, dependency, or approach;
+- applying an understood change;
+- observing whether a claim holds;
+- reconstructing missing continuation state.
 
-Use the direct tool when current evidence supports one known, mechanical, covered, and directly verifiable interaction.
+Use these purposes to focus the action, not to print phase labels or restart planning. Ask: what is the minimum sufficient context or effect for this next decision? Minimum means sufficient, not merely short.
 
-The fast path is not the first plausible action. Use it only when choosing the target, hypothesis, observer, effect, and scope requires no unresolved material judgment.
+Do not collect information because it may be useful later. Do not confuse the existence of a source or reference with having its necessary contents available.
 
-Typical fast-path interactions include:
+## Take The Fast Path When The Action Is Known
 
-- reading a known file, symbol, range, or artifact;
-- applying an already selected exact edit;
-- running the exact focused check required by the current method;
-- formatting an accepted changed file;
-- inspecting a known diff or generated result.
+Use the direct tool when the target, purpose, scope, and observing boundary are already supported and the action is covered, mechanical, and directly verifiable.
 
-Do not generate alternatives for an obvious continuation.
+Examples include reading a known function or range, applying an exact selected edit, running an already-chosen focused check, or inspecting its resulting diff.
 
-An action is not obvious merely because it is easy to execute. Choosing where to search, which hypothesis to test, what boundary to observe, or what effect to apply normally requires the branch path when several materially different choices remain.
+Do not manufacture alternative tools or repeat the action-selection method for an obvious continuation. A command being easy to run does not make its target or hypothesis well chosen.
 
-## Branch Mentally, Execute Once
+## Compare Only Meaningful Alternatives
 
-Use the branch path when:
+When the target, observer, or scope is uncertain, likely output is broad, the action is destructive, expensive, or difficult to recover, or recent work has stalled:
 
-- several actions are plausible;
-- the relevant target, hypothesis, observer, or scope is unsettled;
-- the likely interaction is broad, noisy, destructive, expensive, or difficult to recover;
-- recent interactions have not materially changed the current question or accepted outcome.
+1. Identify the fact or effect the current owner needs.
+2. Check whether existing evidence already supplies it.
+3. Consider only a few materially different ways to obtain it.
+4. Reject unchanged rereads, equivalent searches, eliminated approaches, and information without a current use.
+5. Prefer the most direct action that distinguishes the plausible answers.
+6. Among equally useful actions, prefer proportionate output, side effects, context residue, and recovery cost.
+7. Execute the selected action once; choose the next interaction from its actual result.
 
-Before touching the environment:
+Keep this comparison internal unless a user-owned choice is exposed. Do not emit candidate tables, numeric scores, simulated results, or a speculative sequence of tool calls.
 
-1. name the question or concrete effect the next interaction must resolve or produce;
-2. check whether active evidence already answers it;
-3. consider only a few materially different actions—not synonyms of the same search or observer;
-4. reject actions that repeat unchanged evidence, revisit an eliminated path, or gather information without a current question;
-5. prefer the action most directly connected to the question;
-6. among similarly direct actions, prefer one that distinguishes the leading alternatives;
-7. among similarly discriminating actions, prefer the narrowest interaction with proportionate output, side effects, context residue, and recovery cost;
-8. execute only the selected interaction and decide again from reality.
+A good observation can change the owner's belief or next action whether it supports or contradicts the leading explanation. An exact mutation can advance a settled result without testing a new hypothesis.
 
-Keep this comparison internal unless it exposes a user-owned decision. Do not produce candidate tables, assign numeric scores, simulate several environment results, or plan multiple interactions before the first observation.
+## Bound The Tool And Its Output
 
-## Prefer Decision-Bearing Actions
+Use the simplest operation that can establish the required relationship:
 
-A **decision-bearing action** produces a result that changes what the current owner should believe or do whether it supports or contradicts the leading hypothesis.
+- known file, symbol, artifact, or range -> focused read or operation;
+- ownership, caller, or dependency question -> structured relationship query where available;
+- literal or generated reference -> bounded content search;
+- behavioral claim -> the owner's selected test, observer, or reproduction;
+- understood effect -> narrow direct mutation;
+- unknown location -> bounded discovery, then narrow from its result.
 
-Among actions already covered by the current route, authority, and any active execution contract, prefer one that:
+Choose scope before execution: directory, source kind, pattern, range, test target, time window, result count, fields, affected state, or recovery scope. Exclude unrelated history, generated output, and dependencies unless the current question needs them.
 
-- bears directly on the current question or accepted outcome;
-- distinguishes meaningful alternatives;
-- uses the narrowest sufficient observer or effect;
-- avoids unchanged evidence, eliminated paths, and equivalent prior interactions;
-- produces a clear next branch under both favorable and unfavorable results;
-- keeps expected observation volume, context residue, side effects, reversibility, and recovery cost proportionate.
+Use a location or count query before requesting all matching bodies when volume is uncertain. Prefer bounded output with an accessible full result. Truncation or a sampled result must remain explicit; it is not proof that omitted matches are irrelevant or that a search was exhaustive.
 
-Do not calculate a numeric value. Use these properties to reject low-value branches and select one useful interaction.
+Context cost includes instructions, results, repeated material, and the capacity still needed for implementation, checking, correction, and continuation. Use host-supplied usage when available; do not invent token measurements or treat the provider maximum as a promise that a unit will fit.
 
-The objective is not maximal information. It is the smallest observation or effect capable of changing the decision.
+The owner selects the work horizon. Return unexpectedly large context needs to it instead of reading the entire dependency tree or silently shrinking acceptance.
 
-## Shape The Environment Action
+## Observe Before Continuing
 
-Match the action and tool to the required relationship:
+After the interaction, determine:
 
-- when the entity, artifact, location, or range is known, use a focused operation;
-- when ownership, callers, dependencies, or structure are the question, use the most structured relationship query available;
-- when the target is literal, generated, or dynamically referenced, use bounded text or content search;
-- when behavior is the question, use the smallest direct test, runtime observer, or reproduction that exercises the required boundary;
-- when an exact covered effect has already been selected, use the narrowest direct mutation operation;
-- when the relevant entity is genuinely unknown, use one bounded broad discovery action, then narrow from its result instead of restarting breadth.
+- what actually ran or was returned;
+- what changed in evidence, hypotheses, implementation, or task state;
+- whether the intended question was answered or effect produced;
+- which uncertainty, partial effect, or contradictory observation remains.
 
-These rules apply across repositories, filesystems, local processes, browsers, databases, APIs, and other environments. Use environment-specific guidance when available.
+New content is not automatically useful evidence. A successful read is not understanding; a successful write is not correctness; a passing tool result is not proof of the wider claim. Return evidence to its owner for interpretation at the required boundary.
 
-Bound the directory, entity, pattern, range, test target, time window, result count, requested fields, affected state, or recovery scope when the tool supports it.
+When a read settles the question, stop that investigation. Ordinary local continuation may be obvious; an invalidated implementation premise needs reassessment before dependent effects.
 
-Tool sophistication is not evidence quality. Choose the simplest available operation that can establish the required boundary.
+If the result did not advance the question, do not repeat it using synonyms, nearby files, a wider equivalent search, or another tool. Change the question or observer, or report the missing evidence.
 
-## Update From Reality
+When two or more recent interactions have not materially changed understanding, advanced the covered effect, or supported a new branch, read [Trajectory Stalls](references/trajectory-stalls.md) before another interaction.
 
-After execution, identify:
+## Return Without Expanding The Work
 
-- what fact, hypothesis, path, effect, or task state changed;
-- what became stronger, weaker, eliminated, contradicted, or still unresolved;
-- whether the interaction answered the current question or produced the intended effect;
-- what next branch, if any, is now supported.
+Return the observation and material state change to the same current owner. Action Selection does not transfer compute profiles, accept an implementation, or create authority.
 
-New information is not automatically decision-relevant information.
+When an experiment reveals a new prerequisite, report what it blocks: the current observer, chosen approach, or required outcome. Do not convert a blocked tool or prototype into permission to build a subsystem.
 
-If the observation did not change the decision or distinguish alternatives, do not repeat it through synonyms, nearby files, a wider version of the same search, or another tool returning equivalent evidence. Reframe the question, choose a different observer class, or stop with the missing evidence.
+Use [Diagnose Failure](../diagnose-failure/SKILL.md) for unexplained repeated failures. Return changed authority, scope, ownership, direction, evidence boundary, or stop conditions to [Workflow](../workflow/SKILL.md).
 
-When two or more recent interactions have not materially changed the current question, advanced the covered effect, or supported a new branch, read [Trajectory Stalls](references/trajectory-stalls.md) before another interaction.
+Stop when the immediate need is satisfied, the active contract requires return, no useful covered interaction remains, or another activity must settle the next choice. Reuse adequate evidence instead of generating new calls to justify completion.
 
-Repeat the loop only while the same current owner, question, authority, and execution contract remain valid and each interaction either changes the decision surface or advances the exact covered effect.
-
-## Return To The Current Owner
-
-Return the observation and its material state change to the activity that requested it. Action Selection does not interpret another method’s final claim or return directly to a compute profile.
-
-When an active execution contract exists, stop when its return condition is met. Do not reinterpret or expand the contract to keep interacting.
-
-Return to [Workflow](../workflow/SKILL.md) when the result changes authority, accepted scope, current ownership, accepted direction, the required observing boundary, or stop conditions.
-
-Use [Diagnose Failure](../diagnose-failure/SKILL.md) when repeated failure remains unexplained rather than selecting another speculative interaction.
-
-Stop when:
-
-- one next action is sufficiently supported;
-- the requested effect was produced;
-- no covered interaction can reduce the important uncertainty;
-- the active execution contract requires return;
-- another activity now owns the problem.
-
-The objective is not fewer tool calls at any cost. It is fewer low-value interactions while preserving supported outcomes.
+The goal is fewer low-value interactions while preserving sufficient evidence and the agreed outcome—not fewer calls at any cost.

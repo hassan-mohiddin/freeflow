@@ -169,6 +169,22 @@ function renderComponent(component) {
   return component.render(120).join("\\n");
 }
 
+test("disabled Freeflow Context does not publish an empty oneOf schema", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-context-disabled-schema-"));
+  try {
+    await writeConfig(cwd, {});
+    const harness = createHarness(cwd, []);
+    await harness.handlers.get("session_start")({ reason: "startup" }, harness.ctx);
+
+    const contextTool = harness.tools.find((tool) => tool.name === "freeflow_context");
+    assert.ok(contextTool);
+    assert.deepEqual(contextTool.parameters.properties, {});
+    assert.equal(Object.hasOwn(contextTool.parameters, "oneOf"), false);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("enabled Context Virtualization registers, projects, archives, restores, and reports through commands", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-context-extension-"));
   try {

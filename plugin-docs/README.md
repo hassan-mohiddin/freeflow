@@ -12,7 +12,7 @@ Start with [Getting Started](getting-started.md) for host-specific installation,
 ## Capabilities
 
 - [Capability overview](capabilities/README.md): gates, host support, composition, and evidence limits.
-- [Cognitive Routing](capabilities/cognitive-routing.md): Reasoning/Standard compute placement across Pi and PiFlow.
+- [Cognitive Routing](capabilities/cognitive-routing.md): Coordinator/Executor compute placement, evidence projection, and host qualification boundaries.
 - [Context Virtualization](capabilities/context-virtualization.md): archive/restore of consumed evidence projections.
 - [Conversation History](capabilities/conversation-history.md): bounded current-branch evidence recovery.
 

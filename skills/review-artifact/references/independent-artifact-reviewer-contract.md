@@ -102,7 +102,7 @@ Before calling something an Issue, ask:
 3. Is there a supported artifact defect requiring revision for the intended use? Use **Blocking Issue** when the artifact cannot safely guide that use, otherwise **Non-blocking Issue** when revision can be deferred safely.
 4. Is the change merely useful beyond the intended use? Omit it by default; use **Improvement** only when materially relevant or requested.
 
-A **Needs evidence** item must identify the load-bearing claim or condition, required observing boundary, available evidence and its limit, why the gap affects intended-use fitness, and the smallest evidence that could disagree.
+A **Needs evidence** item must identify the load-bearing claim or condition, required observing boundary, available evidence and its limit, why the gap affects intended-use fitness, and the smallest evidence that could disagree. Establish that the claim is required. Distinguish a missing observation from a supported artifact defect; check whether evidence applies to the current artifact and accepted requirement rather than a superseded version. Do not prescribe broader implementation merely to fill an evidence gap.
 
 A Blocking Issue must identify the exact location or dependency, violated source truth or artifact responsibility, evidence, concrete consequence for intended use, and revision constraints or owning activity to re-enter. Recommend a specific revision only when source intent and dependency effects support it.
 

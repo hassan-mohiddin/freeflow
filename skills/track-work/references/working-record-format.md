@@ -121,6 +121,8 @@ Current Context is present understanding, not an event stream. Keep it concise a
 
 Change Context only when its present meaning changes. A Slice or Checkpoint transition alone does not require a Context rewrite. Concise does not mean lossy: retain detail when removing it could change the next valid action.
 
+Preserve the agreed outcome separately from the current approach. Use the existing Goal, defining-source pointers, Current direction, and Boundaries to retain the execution scope and user-facing return condition; do not add a contract or phase section. An accepted amendment or new finding may require reconciling affected Current Work and Future Work as well as Context. Record unresolved dependencies as unresolved rather than converting the current mechanism into a requirement.
+
 ## Current Work
 
 Current Work contains only one Current Slice and one next useful action:
@@ -185,6 +187,10 @@ Optional active Slice fields:
 
 These prefixes make important information recoverable without creating global Blocker or Evidence entities. They are compact conventions; the whole update remains ordinary Markdown prose. If an attempt fails, is rolled back, or leaves residual effects that change the next decision, preserve the attempt, reason, Evidence, and residual state here or in the historical Slice summary.
 
+Before context loss, retain any unverified edits, unresolved process outcome, relevant rejected approach, and prerequisite for the next action that would otherwise be lost. Preserve the current assignment's source and consequences separately from superseded instructions. Evidence prose should distinguish an observed result for an identified state from its unresolved applicability after later edits; keep real output pointers when available, and label unsupported reports as reports. Do not turn requested corrections into completed facts.
+
+A learning result records its question, evidence limits, and consequence for later work; it does not silently establish production acceptance. These are semantic contents of existing fields, not new lifecycle states, contract entities, or event types.
+
 When there is no active Slice:
 
 ```markdown
@@ -221,6 +227,8 @@ Direct start requires the same authority and write-ahead contract as proposal st
 ## Future Work
 
 Future Work is one ordered mixed sequence of proposed Slices and non-terminal Checkpoints. Order recommends a sequence; it is not fixed execution order or authority.
+
+Preserve a useful provisional route when one emerges rather than waiting for every implementation detail. Keep the immediate outcome concrete and later outcomes directional. Use the existing Dependencies field for prerequisites or ordering constraints, including uncertainty when material. Reconcile affected proposals after learning or accepted changes; neither their order nor a preceding Slice's completion proves their prerequisites.
 
 All Future Work titles are unique across both kinds of item. A proposed item may be edited, reordered, or removed. A proposed item has no authority and cannot be selected merely because it exists.
 
@@ -495,7 +503,7 @@ The canonical file is Markdown. Both public views render its content as human-re
 5. all Future Work in stored order, including proposed, pending, and deferred items;
 6. all Notes.
 
-It omits terminal History entries. Use it for normal continuation and recovery after context loss, compaction, session navigation, handoff, intentional pause, or uncertain continuity.
+It omits terminal History entries. Use it for active-state readback during intact-session continuation. A new conversational turn or ordinary pause does not require a reread by itself. Use a bounded entity or section read when that is sufficient. Do not substitute `resume` for the complete record after context loss.
 
 ### `full`
 
@@ -508,7 +516,11 @@ It omits terminal History entries. Use it for normal continuation and recovery a
 5. History with Decisions, Checkpoints, and Slices in that order;
 6. Notes.
 
-Use it for audit, dispute, migration, malformed-record inspection, or when `resume` is insufficient. Do not use it merely to find the next action.
+Read it completely after context loss, including compaction, context-replacing summarization, clear, session resume or navigation, transfer into another context, or uncertain continuity. It is also the view for audit, dispute, migration, malformed-record inspection, and uncertain mutation results.
+
+If output is truncated, continue bounded reads of the same canonical source until the whole record has been read. If full recovery cannot be completed within available context or access, report the limitation and stop affected work; do not silently replace it with `resume` or claim unseen History was recovered.
+
+A full read does not follow defining-source pointers or establish live correctness. Reconcile current direction, source evidence, task state, and authorization before acting. Once recovery is complete, use bounded in-session reads rather than repeatedly loading all History.
 
 ## Legacy Records
 

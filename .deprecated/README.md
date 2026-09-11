@@ -34,5 +34,6 @@ Historical Freeflow artifacts kept outside the active plugin runtime and npm pac
 - `skills/research-brief/`
 - `skills/grill-context/`
 - `skills/capture-decisions/`
+- `skills/tdd/`: retired standalone test-first method and preserved evaluation definitions.
 
-These discovery skills were replaced by the active `skills/discover/` skill. See `../plugin-docs/adr/0004-discover-replaces-shallow-discovery-skills.md`.
+These discovery skills were replaced by the active `skills/discover/` skill. See `../plugin-docs/adr/0004-discover-replaces-shallow-discovery-skills.md`. The retired TDD package is historical only; current test-design guidance belongs to `skills/verify-work/references/test-design.md`.

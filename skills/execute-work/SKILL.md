@@ -1,141 +1,122 @@
 ---
 name: execute-work
-description: Use when carrying out or resuming requested or approved implementation, fixes, prototypes, documentation, configuration, repository maintenance, or other concrete work.
+description: "Use when preparing and carrying out requested or approved concrete work, including implementation, fixes, prototypes, documentation, configuration, and repository maintenance."
 ---
 
 # Execute Work
 
-Turn one accepted outcome into a supported concrete result.
+Produce the agreed concrete result through supported preparation, bounded execution, verification, and correction. Do not make the user supply an implementation plan when the request authorizes you to figure it out.
 
-Workflow establishes the authority envelope and current Slice. Execute Work coordinates bounded execution and in-Slice continuation. It does not redefine intent, own durable task memory, make user decisions, prove claims beyond available evidence, or authorize checkpoints and follow-on work.
+Workflow establishes the work agreement and coordinates authority, ownership, and the user-facing return boundary. Execute Work owns implementation preparation and continuation within it. Task memory belongs to Track Work; governing choices remain with the user.
 
-A **bounded action** is one coherent execution or learning result with a checkable claim. It may include several reads, edits, commands, files, and focused checks. A tool call, file change, or execution-method change is not automatically another bounded action.
+## Establish The Execution Basis
 
-Read [Execute Work Edges](references/execute-work-edges.md) when resuming uncertain prior work, changing the Slice boundary, reaching a selected checkpoint, or exposing separately controlled follow-on work.
+Consume the current request, accepted discussion, governing artifacts, and relevant live state. Establish which assignment and stopping condition currently apply; do not combine older directions with a superseding contract. Resolve material ambiguity before dependent effects. Do not restart discovery because execution was selected.
 
-## Follow The Execution Loop
+Before production changes, establish:
 
-Use this as a feedback loop, not a mandatory phase sequence:
+- **Outcome:** the required result, constraints, non-goals, and acceptance boundary.
+- **Approach:** the supported mechanism, affected code or artifacts, dependencies, and necessary ordering.
+- **Evidence:** a check or observation capable of disagreeing with the result.
+- **Agreement:** covered effects, extent of work, and when to return to the user.
 
-```text
-[Accepted concrete result]
--> [Consume the current Slice and relevant live state]
--> [Choose one bounded action and a check that can disagree]
--> [Choose one primary execution route]
--> [Execute and observe]
--> [Determine what the evidence supports]
-   -> unsupported cause or repeated failure -> Diagnose Failure
-   -> user-owned choice or source conflict -> Decision Gate
-   -> supported -> Verify at the required boundary
-                -> self-review
-                -> accept or correct once
--> [Continue inside the Slice or return the changed boundary to Workflow]
-```
+Before effects, check whether a selected checkpoint or separately controlled boundary is already due. Do not cross it while unresolved.
 
-Implementation beginning does not justify continuation. Continue only while the accepted result, authority, evidence boundary, and Slice remain coherent.
+If the agreement is materially unclear, return to [Workflow](../workflow/SKILL.md) before the unsettled execution. A clear request may already establish it; do not ask again merely to perform a ritual.
 
-## Enter From Established Direction
+An agreement to fix a bug can cover investigation before the remedy is known. An agreement to return a plan does not cover production edits. Distinguish evidence gathering from implementation even when both are authorized.
 
-Consume the understanding already established by the request, [Discuss](../discuss/SKILL.md), Workflow, and accepted source truth. Do not restart discovery or recreate task context merely because execution began.
+Use [Discuss](../discuss/SKILL.md) when outcome or material approach alternatives need reconsideration, [Decision Gate](../decision-gate/SKILL.md) for one blocking user-owned choice or source conflict, and [Diagnose Failure](../diagnose-failure/SKILL.md) when the cause is unsupported.
 
-Before effects:
+## Gather Enough Context For This Unit
 
-- confirm the concrete result and relevant non-goals;
-- inspect the smallest live source set needed to avoid relying on stale context;
-- identify one bounded action;
-- name the claim its result must support;
-- identify a direct check or observation that can disagree;
-- confirm no selected checkpoint or separately controlled boundary is already due.
+Choose the next coherent result, then identify what is missing to implement and check it. Reuse current supported sources; inspect only the live boundaries whose freshness matters.
 
-When a Working Record exists, use [Track Work](../track-work/SKILL.md) for recovery, reconciliation, and write-ahead Current Slice state before relying on or changing it. Do not create durable memory for a short direct result merely because execution was selected.
+Find the relevant mechanism, callers, contracts, and observing seam before changing them. Do not begin substantial implementation from a guessed API, ownership boundary, or failure cause. Do not read every file or settle every later Slice merely to avoid all uncertainty.
 
-Return to [Workflow](../workflow/SKILL.md) when the intended result, authority, or current Slice is missing or materially inconsistent. Use [Decision Gate](../decision-gate/SKILL.md) when one known user-owned choice or source conflict blocks execution.
+Readiness means you can explain what will change, why it should produce the accepted result, and how the result will be checked. It does not require knowing every line or helper in advance. If an unfamiliar fixture or observing stage could invalidate substantial dependent work, establish that observer first through a bounded investigation. Reuse adequate fixtures; do not make a separate prototype mandatory.
 
-## Bound The Action
+Before substantial implementation, read [Design for Depth](../design-for-depth/SKILL.md) and use its Implementation Decisions method when unresolved representation, identity, ownership, algorithm, or failure choices could invalidate significant dependent work. Reuse applicable design decisions already supplied; distinguish required constraints, suggested mechanisms, and local freedom. A reference to a design is not enough when its relevant content is unavailable. Resolve the consequential unknown, not every future coding detail.
 
-Choose the smallest coherent action that can produce a useful result and evidence.
+Use [Action Selection](../action-selection/SKILL.md) when choosing the next source, observer, or effect is uncertain, broad, or repetitive. Stop gathering when the current unit is sufficiently supported. A mechanical read of a known caller or signature can remain inside execution; discovering an invalidated mechanism requires re-entry before dependent edits.
 
-A bounded action may be:
+When specialized guidance is needed, read [Domain Skill Composition](../workflow/references/domain-skill-composition.md). Before writing or changing code, read [Code Practices](references/code-practices.md). Before designing or materially changing a behavior check, read [Test Design](../verify-work/references/test-design.md); choose its oracle from accepted behavior rather than the implementation.
 
-- one accepted behavior implemented through a vertical test-first loop;
-- one behavior-preserving simplification with before-and-after evidence;
-- one coherent documentation, configuration, or repository change;
-- one reversible learning result with a discard, revise, or promotion condition;
-- one direct mechanical result whose complete effect is already clear.
+## Keep The Unit Coherent
 
-Keep unrelated work and later outcomes outside it. Do not split an action merely because it touches several files or tools. Do not combine results that require different authority, evidence boundaries, or independently useful outcomes.
+A bounded action produces one useful execution or learning result with a checkable claim. It may contain several files, tools, edits, and checks. Do not fragment it by command, file, test, or method change.
 
-Allow routine adaptation of local mechanics, ordering, and focused checks while the accepted result, permitted effects, and acceptance boundary remain unchanged. Return material changes to scope, behavior, evidence quality, persistence, or stop conditions to Workflow before acting.
+Choose work that can be understood, executed, checked, and corrected with a manageable working set. Split when dependencies, uncertainty, or distinct outcomes make one attempt unreliable; retain enough understanding of later constraints to avoid an obvious dead end.
 
-## Choose One Execution Route
+When a Working Record exists, use [Track Work](../track-work/SKILL.md) for recovery and write-ahead Current Slice state before Slice execution. Preserve useful provisional remaining work and dependencies through its existing fields. Do not create memory for a short direct result merely because execution began.
 
-Use one primary execution route at a time:
+Read [Execute Work Edges](references/execute-work-edges.md) when resuming uncertain prior work, changing a Slice boundary, reaching a selected checkpoint, or exposing separately controlled follow-on work.
 
-- execute directly when the effect is known, mechanical, and directly verifiable;
-- use [TDD](../tdd/SKILL.md) when accepted behavior should be guided by an observed failing check;
-- use [Simplify Code](../simplify-code/SKILL.md) when working behavior should become easier to understand or change without altering its contract;
-- use the required domain guidance when technology, risk, or repository conventions need a specialized method;
-- use [Diagnose Failure](../diagnose-failure/SKILL.md) before correction when the cause is unsupported or repeated attempts have failed.
+## Execute Through One Suitable Method
 
-When specialized guidance is needed, read [Domain Skill Composition](../workflow/references/domain-skill-composition.md). Keep one Freeflow owner and return domain evidence to the current route.
+Implement the supported approach directly when the outcome and mechanism are understood. Unfamiliar work may need preparation first; it does not automatically require a separate prototype or a test-first implementation sequence.
 
-Before writing or changing code, read [Code Practices](references/code-practices.md).
+Use one primary method at a time:
 
-Action Selection controls environment interactions, not execution-method choice. When the next interaction is uncertain, broad, or likely to repeat without changing understanding, use [Action Selection](../action-selection/SKILL.md) to select and bound one useful interaction. When the next read, edit, or check is obvious, take its fast path directly.
+- direct implementation for a supported change;
+- [Simplify Code](../simplify-code/SKILL.md) when behavior-preserving complexity reduction is the accepted outcome;
+- specialized domain guidance when the environment or risk needs it;
+- a bounded learning action when an empirical uncertainty must be resolved before production work.
 
-## Execute Without Drifting
+Preserve accepted behavior, failure semantics, repository conventions, and source truth. Do not rewrite tests, Specs, Plans, policies, or acceptance merely to make implementation pass.
 
-Implement the bounded result through the selected route.
+Allow local choices of helpers, editing order, and focused checks while the agreed result and effects remain unchanged. Handle edge cases required by accepted behavior, direct evidence, or material safety; return undefined consequential behavior rather than encode a guess.
 
-Preserve accepted behavior, source truth, repository conventions, and relevant failure semantics. Do not rewrite tests, checks, Specs, Plans, policies, or established behavior merely to make implementation pass.
+For an unfamiliar design boundary that could invalidate later work, establish its first coherent implementation and distinguishing observation before dependent expansion. Compare the actual ownership, identity, ordering, and failure behavior with the selected design—not merely its proposed filenames. Preserve accepted predicates when a sketch proves wrong; stop dependent effects and resolve the affected mechanism through the current owner. Supported local improvements need no automatic handback or separate review.
 
-Handle an edge case only when accepted behavior, observed evidence, or material safety requires it and the expected result is settled. Return undefined observable behavior to Workflow rather than encoding a guess.
+## Execute A Bounded Learning Action
 
-Let experiments fail safely. Keep disposable or diagnostic output outside production behavior until promotion is deliberately selected.
+Consume the declared question, observer, permitted effects, expected evidence, and return condition. If they are insufficient for safe execution, establish the missing basis through the requesting owner before acting. Do not assume Discuss was previously used or repeat framing that is already adequate.
 
-Stop the patch stream when related corrections keep adding caller coordination, public states, flags, retries, test-only seams, or recovery rules. Diagnose the shared cause before another patch. Use [Design for Depth](../design-for-depth/SKILL.md) only when direct evidence establishes structural ownership, interface, state, or failure-unit pressure.
+Build and run only what the observation needs. Correct an understood local observer defect within scope. Before adding scaffolding or a dependency, check whether it serves the current observation or implements a future product. Return before materially expanding effects or pursuing a different question.
 
-Do not turn nearby cleanup, documentation, migration, deprecation, commit, push, integration, release, or launch into implied execution scope.
+Stop when the question is answered or the observing limit is reached. Report support, contradiction, inconclusive evidence, or unavailable evidence honestly; do not keep polishing the prototype to manufacture a favorable result.
 
-## Accept Evidence At The Claim Boundary
+Return evidence, limits, exploratory artifacts, and residual effects to the owner that asked the question, following the agreed artifact disposition. Do not silently promote exploratory code into production, invent acceptance, or claim unobserved integration. The receiving owner assesses what the finding changes and which next action is supported and authorized.
 
-Close the evidence iteration when the bounded action’s claim is ready to be accepted or used by dependent work—not after every edit or command.
+## Re-enter When The Basis Changes
 
-1. Run the focused checks or observations required by the selected method.
-2. Use [Verify Work](../verify-work/SKILL.md) when the claim or observing boundary needs explicit factual classification.
-3. Once fresh evidence supports the claim, use [Review Work](../review-work/SKILL.md) for silent self-review.
-4. Return one clear local defect to the producing route when existing authority covers correction.
-5. Re-run the affected evidence and repeat only the affected review lenses once.
-6. Use Diagnose Failure when the cause is unclear or correction repeats.
-7. Use Decision Gate when evidence exposes unsettled behavior or a user-owned choice.
+Do not continue merely because implementation has begun.
 
-A green check does not prove behavior it did not exercise. Source inspection does not prove runtime behavior. Review judgment does not replace verification.
+- Clear local defect and supported remedy -> correct within the same action.
+- Required outcome clear but mechanism invalidated -> stop dependent edits and re-establish the approach.
+- Failure cause unclear or correction repeats -> Diagnose Failure before another patch.
+- Expected behavior or acceptance unsettled -> Discuss or Decision Gate.
+- New requirement, scope, compatibility, persistence, evidence, or user-facing return boundary -> Workflow before adopting it.
 
-Further polish, advisory warnings, unrelated findings, and optional improvements are feedback to classify—not authority to keep editing.
+Before pursuing a prerequisite, distinguish what the accepted outcome requires from what the current approach happens to need. Choose the smallest supported remedy preserving acceptance. A failed approach does not prove that a host change or stronger guarantee is necessary.
+
+When corrections keep adding caller coordination, public states, flags, retries, test-only seams, or recovery rules, stop the patch stream. Diagnose the cause; use [Design for Depth](../design-for-depth/SKILL.md) when direct evidence establishes structural pressure. Do not use that lens to broaden ordinary local work.
+
+Preserve unaffected changes and contradictory evidence. An optional improvement is not unfinished work.
+
+## Verify And Self-Review The Result
+
+Check at the boundary where a result will be accepted or used—not after every edit or command.
+
+1. Run the covered focused checks through the actual behavior or artifact boundary.
+2. Use [Verify Work](../verify-work/SKILL.md) to classify what the observations support and what remains unverified.
+3. Once evidence initially supports the result, use [Review Work](../review-work/SKILL.md) for silent self-review of concrete work. Guiding artifacts use their owning artifact-review route.
+4. Correct a supported local defect within authority, then rerun affected evidence and affected review lenses once.
+5. Route unresolved or repeated failure rather than iterating blindly. Distinguish a code defect from an invalid observer, stale evidence, or a misunderstood assignment before selecting another correction.
+
+A green check proves only its exercised assertions; a source read does not prove runtime behavior. Tests may be written before or after implementation as appropriate, without a formal test-first loop or invented earlier failure. Review judges suitability without replacing evidence. Evidence gaps in required behavior remain visible; optional stronger claims may be qualified instead of becoming extra work.
+
+Independent review is separately selected. A self-review finding does not require a reviewer, and a reviewer suggestion does not authorize another change.
 
 ## Continue Or Return
 
-Continue inside the same Slice when:
+Continue within the Slice while the next action serves the same outcome, remains covered, and can still be checked coherently. A method change, correction, or verification run does not create or close a Slice.
 
-- the next bounded action serves the same accepted result;
-- its authority and evidence boundary remain covered;
-- the combined result can still be verified coherently;
-- no stop condition or selected checkpoint is due.
+When durable memory exists, preserve only material changes to understanding, dependencies, scope, evidence, blockers, and the next useful action. Before context loss, record truthful partial state rather than rushing to completion. Resume only after required reconstruction and relevant live-state reconciliation.
 
-A method change, verification run, self-review, correction, or pause does not create or complete a Slice by itself.
+Return to Workflow when a distinct Slice is ready, a selected checkpoint is due, the agreement changes, or no useful covered continuation remains. Workflow can select another already-authorized Slice without asking the user again. Internal method returns and delegation handbacks are not the user-facing endpoint.
 
-When durable memory exists, use Track Work to preserve only material changes to context, authority, Slice boundaries, evidence, blockers, decisions, checkpoints, and the next useful action. Do not record every command, edit, or execution choice.
+Stop at the agreed return condition or an uncovered consequential boundary. Do not add cleanup, documentation, migration, deprecation, commit, push, integration, release, or launch merely because it would be useful.
 
-Return to Workflow before beginning a distinct result, crossing an uncovered boundary, changing the accepted strategy materially, or performing a selected checkpoint or separately controlled follow-on action.
-
-## Report The Supported State
-
-Report proportionately:
-
-- the concrete result;
-- the strongest fresh evidence and what it does not prove;
-- material corrections or route changes;
-- the Current Slice or checkpoint state when relevant;
-- unresolved, deferred, or unverified work.
-
-A supported bounded action is not automatically a completed Slice. A completed Slice does not authorize a checkpoint, another Slice, push, integration, release, or launch.
+Construct the report from inspected resulting files, assertions, and outputs—not requested changes phrased as accomplishments. Distinguish implemented, checked, and still unsupported properties. Account for relevant edits after the checks; do not pair a fresh pass with superseded code or test captures. Reuse applicable evidence and report missing bodies or cases explicitly. A completed action is not automatically a completed Slice, task, or delivery.

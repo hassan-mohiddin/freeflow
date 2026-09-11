@@ -1,175 +1,116 @@
 ---
 name: discuss
-description: "Use when the user is exploring, challenging, or revisiting what to build or how to proceed, or when assumptions, alternatives, or new evidence leave the next sound action materially uncertain."
+description: "Use when exploring, clarifying, or revisiting what to accomplish or how to approach it, especially when user collaboration, alternatives, assumptions, or new evidence could change the next action."
 ---
 
 # Discuss
 
-Build enough shared understanding to choose the next sound action.
+Build enough shared understanding to choose the next sound action. Discussion can establish both what to accomplish and how to approach it; it need not end at requirements or continue until every implementation detail is known.
 
-Discuss owns exploration, alternatives, assumptions, and direction. It may shape recommendations, proposed work, and checkpoints. It does not authorize active evidence generation, mutation, delivery, or a user-owned decision.
+Discuss owns exploration, alternatives, assumptions, and direction. It does not turn conversation, a recommendation, or a recorded proposal into execution authority.
 
-## Enter Or Exit Cleanly
+## Start From The User's Intent
 
-Use Discuss when:
+Respond to the substance before steering the process.
 
-- the outcome, boundary, approach, or acceptance remains materially open;
-- several meaningful paths remain viable;
-- an assumption or earlier direction needs reconsideration;
-- new evidence makes the next route uncertain.
+A request to discuss keeps the user involved as understanding develops. Gather relevant existing facts when needed, explain what they imply, and return at the next meaningful question or supported conclusion. Do not treat convergence as permission to implement.
 
-Do not turn every interaction into a discussion phase. If the user asks a direct factual question, provides a clear bounded request, or gives feedback that does not reopen direction, answer or return the request to Workflow.
+A direct action request may already settle the outcome and delegate approach selection. Do not force a discussion phase when existing evidence can resolve the remaining facts and reversible local choices. Return clear covered work to [Workflow](../workflow/SKILL.md).
 
-When one known user-owned choice or source conflict blocks progress, use [Decision Gate](../decision-gate/SKILL.md). When a failure lacks a supported cause or keeps recurring, use [Diagnose Failure](../diagnose-failure/SKILL.md).
+Use [Decision Gate](../decision-gate/SKILL.md) for one known blocking user-owned choice or source conflict. Use [Diagnose Failure](../diagnose-failure/SKILL.md) when a reported or recurring failure needs a supported cause rather than broader option discussion.
 
-## Discuss Like A Collaborator
+## Separate Outcome From Approach
 
-Respond to the user’s substance before steering the conversation.
+Identify which understanding is missing:
+
+- **What:** the problem or opportunity, desired result, accepted behavior, constraints, non-goals, and what would count as success.
+- **How:** the mechanism, dependencies, affected boundaries, tradeoffs, and evidence needed to produce that result in the actual environment.
+
+These questions can be answered together. Reuse what remains supported instead of running two compulsory discovery passes. A detailed request may settle what while leaving how open; an investigation may reveal that the initial problem description was wrong.
+
+Keep supported facts and explicit decisions distinct from hypotheses, proposed mechanisms, and unresolved choices. Do not turn an assistant recommendation into a requirement because it is repeated or recorded.
+
+When reopening discussion, name what changed and preserve unaffected understanding. A new local obstacle does not reopen the whole task.
+
+## Gather Context To Answer A Question
+
+Before inspecting the environment, identify the missing fact and how its answer could change the discussion. Check whether current evidence already supplies it.
+
+Use [Action Selection](../action-selection/SKILL.md) for uncertain or broad inspection. Prefer a focused source, caller, contract, or observation over a repository survey. Read more only when the result leaves a material question unresolved.
+
+Existing code, tests, documentation, policies, artifacts, repository state, supplied material, and current primary sources may settle factual questions. Inspect them rather than asking the user to supply facts available to the agent. Source inspection cannot establish unobserved runtime behavior.
+
+Stop gathering when sufficient evidence supports the next decision. Do not collect every later dependency, reconstruct exhausted history, or prepare an exact implementation plan while the outcome is still open.
+
+## Collaborate And Recommend Proportionately
 
 Carry your share of the thinking:
 
-- interpret what the current evidence and intent imply;
-- expose consequential assumptions and tradeoffs;
-- challenge claims when evidence or engineering judgment warrants it;
-- recommend a direction when one is better supported;
-- revise your position plainly when new reasoning or evidence changes it.
+- explain what the evidence and intent imply;
+- challenge unsupported claims and consequential assumptions;
+- compare only materially different paths that could realistically be chosen;
+- state what each sacrifices and the assumptions it needs;
+- recommend the best-supported direction and what would change it;
+- revise your position when evidence changes.
 
-Ask only questions whose answers could materially change the route and which available evidence cannot answer. Ask the user about intent, priorities, constraints, and tradeoffs they own. Do not make the user answer factual questions that existing sources can resolve.
+Ask about priorities, behavior, constraints, and tradeoffs the user owns. Keep one consequential uncertainty in focus; do not conduct a questionnaire or manufacture alternatives for ordinary choices.
 
-Keep one consequential uncertainty in focus. Do not conduct a questionnaire, manufacture alternatives, repeat accepted context, or continue arguing for a rejected path without new evidence.
+Before recommending a new obligation, distinguish a requirement from a limitation of the current approach. Explain consequences in user terms: "requires changing and distributing a patched host," not merely "needs a provenance interface." Include a simpler in-scope alternative when one is supported. Do not weaken required behavior to make an approach look simpler.
 
-## Follow The Discussion Loop
+Use [Design for Depth](../design-for-depth/SKILL.md) when ownership, interfaces, state, dependencies, or failure behavior materially shape the choice. A lens is not a reason to design a broader system.
 
-```text
-Orient from what remains true
--> respond to the current substance
--> focus the uncertainty that could change the route
--> inspect facts, ask about intent, or compare meaningful paths
--> determine what is now supported
-   -> continue discussion
-   -> learn through bounded action
-   -> decide continuity
-   -> route the supported result
-```
+## Frame And Assess A Learning Action
 
-Use this as a feedback loop, not a user-facing checklist.
+Use an experiment or prototype when existing evidence cannot settle a material question and exercising behavior can distinguish the remaining answers. A separate prototype should isolate the uncertainty more safely or economically than changing production; unfamiliarity alone does not require one.
 
-## Orient Without Restarting
+If the work is an accepted useful outcome regardless of what it teaches, treat it as Delivery or Deepening rather than disguise implementation as Learning. Incidental learning does not change its authority or acceptance boundary.
 
-Identify only what the next decision needs:
+Frame the action before proposing execution:
 
-- the goal and current direction;
-- supported facts and explicit decisions;
-- tentative assumptions or viable alternatives;
-- open questions capable of changing the route;
-- evidence that still matters.
+- the question and its consequence for the accepted outcome or approach;
+- plausible answers and the observation that would distinguish them;
+- the smallest adequate prototype or observer;
+- permitted effects, environment, and production exclusion;
+- expected evidence and return conditions: question answered, observing limit reached, or further work requiring a different question or expanded scope;
+- what would justify discarding, revising, or proposing promotion.
 
-Keep these distinctions available:
+Add a time or cost boundary when repetition or setup could grow; do not demand an exact token prediction. If no adequate observer is available within scope, state the limitation rather than inventing a proof.
 
-- **Settled:** supported fact or explicit decision.
-- **Tentative:** live hypothesis or provisional direction.
-- **Open:** unresolved and capable of changing the next action.
+Return the framed action to Workflow for authority and, when needed, [Track Work](../track-work/SKILL.md) preservation, then [Execute Work](../execute-work/SKILL.md) for execution. Existing authority may already cover the experiment; its name does not create another approval gate.
 
-Use those labels in the response only when they make a transition or summary clearer. Do not turn every discussion turn into a status report.
+Assess returned evidence against the original question. Negative or inconclusive evidence is a valid result; one failed technique does not prove every alternative impossible. If a new prerequisite is reported, distinguish a limitation of the observer or chosen approach from a requirement of the intended outcome before recommending more work.
 
-When discussion reopens after implementation, feedback, verification, review, or failure, preserve what still holds and revisit only the affected assumption, decision, or direction.
+Revise only the affected understanding. Preserve the consequence for the task, remaining uncertainty, and exploratory-artifact disposition when continuity matters. A successful demonstration is not production acceptance; promotion must be deliberately selected and its effects authorized. Stop assessment when the supported next direction or unresolved decision is clear.
 
-When a Working Record exists, read [Track Work](../track-work/SKILL.md) before any record operation. Recover the relevant current state, reconcile it with current user direction and live evidence, and return to the question that actually changed. Memory does not override contradictory evidence or current intent.
+## Preserve A Useful Route When Needed
 
-## Resolve What Conversation Can Resolve
+When the likely work becomes clear enough, propose coherent outcomes and their dependencies. Keep near-term work concrete and later work directional. A rough route need not wait for a formal Plan; its order may change as evidence arrives.
 
-Inspect existing code, tests, documentation, policies, artifacts, repository state, supplied material, or current primary sources when they can answer a factual question without exercising target behavior or changing state.
+Ask whether losing the current understanding, decisions, evidence, proposals, or next action would risk misalignment. If not, keep it in conversation.
 
-When several observations could answer the same question, or the likely inspection is broad, use [Action Selection](../action-selection/SKILL.md) to choose the smallest discriminating observation.
-
-When materially different paths remain viable:
-
-1. compare only the paths that could realistically be chosen;
-2. state what each optimizes and what it sacrifices;
-3. identify the assumptions on which each path depends;
-4. recommend the best-supported direction;
-5. state what evidence or changed priority would alter that recommendation.
-
-When architecture, interfaces, ownership, state, or failure behavior shapes the direction, use [Design for Depth](../design-for-depth/SKILL.md) as a lens.
-
-Converge when the next sound action no longer depends on unresolved direction. Do not continue discussion merely because more detail could be explored.
-
-## Learn Through Bounded Action
-
-Do not keep reasoning about an empirical uncertainty when a small, reversible experiment can discriminate between the remaining hypotheses.
-
-Use a Learning action when:
-
-- accepted evidence and passive inspection cannot answer a material question;
-- exercising behavior, building a prototype, testing an assumption, or writing disposable code can answer it;
-- the expected information can change the direction;
-- the action can be bounded by evidence and a stop condition.
-
-Propose:
+If continuity matters, read [Discussion Continuity](references/discussion-continuity.md), then Track Work before record operations. Preserve the state that made memory necessary, not an empty shell or transcript. Keep the outcome separate from the current approach and retain material uncertainty instead of describing proposals as settled work.
 
 ```text
-Question or hypothesis:
-Smallest discriminating action:
-Reversible effects and production boundary:
-Expected evidence:
-Stop and return when:
-Discard, revise, or propose promotion when:
+Discuss establishes supported meaning
+-> Track Work preserves material state
+-> Discuss continues or returns the direction to Workflow
 ```
 
-A learning proposal does not authorize execution. Before returning it to Workflow, decide whether its context needs durable preservation. Workflow confirms authority and routes covered work through [Track Work](../track-work/SKILL.md) when needed and then [Execute Work](../execute-work/SKILL.md).
+The record does not select work or grant authority. Propose independent review, a local commit, a user decision, or a continuity checkpoint only when it protects a material boundary; Workflow selects it.
 
-Return the result to Discuss. Treat prototypes, tests, benchmarks, sketches, and working behavior as evidence—not automatic approval of their design or promotion into production.
+## Converge And Return
 
-If the work remains valuable as an accepted outcome regardless of what it teaches, propose a Delivery or Deepening result instead of disguising it as Learning.
+End the current discussion when the next sound action no longer depends on unresolved direction, or when a bounded learning action, missing user decision, wait, or stop is clear. Do not continue merely because more detail could be explored.
 
-## Decide Continuity Before Leaving
+When the user requests execution, return to Workflow to establish its outcome, scope, and user-facing return condition. If the user delegates the remaining investigation and implementation, do not require them to finish planning it.
 
-Before discussion hands off a supported direction, ask:
+Return only what the next route needs: supported understanding, tentative approach, material open questions, relevant evidence, recommended or accepted next action, continuity, and authority state.
 
-> Would losing the current understanding, decisions, evidence, proposals, or next action risk later misalignment?
+- Stable accepted content needing a durable source -> [Write Spec](../write-spec/SKILL.md).
+- A supported ordered strategy needing a durable artifact -> [Write Plan](../write-plan/SKILL.md).
+- Covered concrete work -> Workflow and Execute Work.
+- One blocking owner choice -> Decision Gate.
+- Unsupported failure cause -> Diagnose Failure.
+- No action needed -> answer or stop.
 
-If no, keep the state in conversation.
-
-If yes, read [Discussion Continuity](references/discussion-continuity.md) before choosing or preserving the durable destination. When a Working Record is appropriate:
-
-```text
-Discuss
--> material supported state
--> Track Work update
--> Discuss
--> Workflow
-```
-
-Discuss decides what the state means and whether it needs continuity. Track Work owns the Working Record and its lifecycle. A record update does not end discussion, authorize work, select a proposal, or change the owning route.
-
-Do not create a Working Record for a short disposable exchange or one clear direct result merely because discussion occurred. Reconsider the decision if a small task develops durable decisions, several outcomes, repeated feedback, checkpoints, or context-loss risk.
-
-## Shape Checkpoints Sparingly
-
-Recommend a user decision, independent review, local commit, or continuity checkpoint only when crossing that boundary unresolved could materially endanger dependent work.
-
-Discussion may propose a checkpoint. Workflow selects it. Track Work preserves it when durable memory is needed. A recommendation or recorded checkpoint does not authorize the action it describes.
-
-## Return Supported Direction
-
-Return to [Workflow](../workflow/SKILL.md) with the concepts the next route needs:
-
-- current shared understanding;
-- settled and tentative direction;
-- open questions that still change the route;
-- recommended next action or bounded proposal;
-- continuity decision;
-- authority state and selected checkpoint, when any.
-
-Use natural prose unless structured state materially improves continuity.
-
-Route narrowly:
-
-- one user-owned choice or source conflict -> Decision Gate;
-- unexplained or repeated failure -> Diagnose Failure;
-- stable accepted content -> [Write Spec](../write-spec/SKILL.md);
-- stable ordered strategy -> [Write Plan](../write-plan/SKILL.md);
-- covered bounded work -> Workflow and Execute Work;
-- no action needed -> answer or stop.
-
-If work is recommended but not authorized, state the exact proposal and wait.
+Neither an artifact nor a planning milestone is mandatory. Stop recommending or preserving once the agreed discussion result is supported; do not begin implementation without the execution agreement.

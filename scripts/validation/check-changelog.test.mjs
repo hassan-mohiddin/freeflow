@@ -106,14 +106,27 @@ test("rejects a release when a released section changes", () => {
 });
 
 test("rejects line-ending changes in released sections", () => {
-  const current = baseChangelog.replaceAll("\n", "\r\n");
+  const releasedBase = `${baseChangelog}- Existing released note.\n`;
+  const current = releasedBase.replaceAll("\n", "\r\n");
   const result = validateChangelogDeclaration({
     body: internalBody,
     changedPaths: ["CHANGELOG.md"],
     currentChangelog: current,
-    baseChangelog,
+    baseChangelog: releasedBase,
   });
   assert.match(result.errors.join("\n"), /released changelog sections are immutable/i);
+});
+
+test("ignores a missing terminal newline when comparing released sections", () => {
+  assert.deepEqual(
+    validateChangelogDeclaration({
+      body: internalBody,
+      changedPaths: ["CHANGELOG.md"],
+      currentChangelog: baseChangelog,
+      baseChangelog: baseChangelog.trimEnd(),
+    }),
+    { declaration: "internal", errors: [] },
+  );
 });
 
 test("allows a new release section while preserving older released sections", () => {

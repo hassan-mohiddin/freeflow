@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveCognitiveRoutingState } from "../cognitive-routing/runtime.js";
-import { supportsCognitiveRoutingModelRegistry } from "../cognitive-routing/host.js";
+import { resolveCognitiveRoutingState } from "../cognitive-routing-v2/config.js";
+import { supportsCognitiveRoutingModelRegistry } from "../cognitive-routing-v2/config.js";
 export const WORKFLOW_COMMANDS = [
   { command: "discuss", skill: "discuss" },
   { command: "action-selection", skill: "action-selection" },
@@ -43,7 +43,6 @@ export const FREEFLOW_MODEL_SKILL_NAMES = [
   "setup-freeflow",
   "launch-work",
   "simplify-code",
-  "tdd",
   "track-work",
   "verify-work",
   "workflow",
@@ -74,7 +73,6 @@ export function freeflowModelSkillPaths(capabilityState = undefined) {
 }
 const SESSION_OVERRIDES_ENTRY = "freeflow-session-overrides";
 const SESSION_CORE_KEYS = new Set(["enabled", "contextVirtualization", "conversationHistory"]);
-export const COGNITIVE_ROUTING_SWITCH_TOOL_NAME = "freeflow_switch_profile";
 export const FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-runtime-state";
 export const COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-cognitive-routing-runtime-state";
 export const WORKFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-workflow-bootstrap";
@@ -84,6 +82,30 @@ let runtimeContextCache = null;
 let currentSessionOverrides = {};
 export function isPromptAvailable(value) {
   return typeof value === "string" && value.trim().length > 0;
+}
+// pi-subagents stamps child system prompts with this tag before binding extensions.
+// Keeping detection at the prompt boundary avoids a process-global child flag.
+export const SUBAGENT_AGENT_TAG = /<active_agent\s+name="[^"]+"\s*\/>/;
+export const FREEFLOW_SUBAGENT_CAPABILITIES_DISABLED_MARKER = "<!-- freeflow-subagent-capabilities: disabled -->";
+const SUBAGENT_OPTIONAL_CAPABILITIES_MESSAGE = "Optional Freeflow capabilities are disabled for subagents.";
+export function isSubagentContext(context) {
+  try {
+    const systemPrompt = context?.getSystemPrompt?.();
+    return (
+      typeof systemPrompt === "string" &&
+      (SUBAGENT_AGENT_TAG.test(systemPrompt) || systemPrompt.includes(FREEFLOW_SUBAGENT_CAPABILITIES_DISABLED_MARKER))
+    );
+  } catch {
+    return false;
+  }
+}
+function disableSubagentCapability(capability) {
+  return {
+    ...capability,
+    enabled: false,
+    effective: false,
+    blockingReason: { code: "disabled", message: SUBAGENT_OPTIONAL_CAPABILITIES_MESSAGE },
+  };
 }
 export function hasUsableMandatoryPrompts(freeflowContext) {
   return (
@@ -380,7 +402,8 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
   const enabled = layers.configured && effectiveCore.config.enabled;
   const contextVirtualizationConfigEnabled = effectiveCore.config.contextVirtualization;
   const conversationHistoryConfigEnabled = effectiveCore.config.conversationHistory;
-  const hostSupportsCognitiveRouting = supportsCognitiveRoutingModelRegistry(host);
+  const subagentContext = isSubagentContext(host);
+  const hostSupportsCognitiveRouting = !subagentContext && supportsCognitiveRoutingModelRegistry(host);
   const configuredCognitiveRouting = await resolveCognitiveRoutingState(
     layers.repository.parsed,
     layers.local.parsed,
@@ -400,7 +423,7 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
         effective: false,
         blockingReason: disabledReason,
       };
-  return {
+  const capabilityState = {
     configured: layers.configured,
     repositoryConfigured: layers.repositoryConfigured,
     configExists: layers.repository.exists,
@@ -420,6 +443,13 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
     conversationHistory: childCapability(conversationHistoryConfigEnabled),
     hostSupportsCognitiveRouting,
     cognitiveRouting,
+  };
+  if (!subagentContext) return capabilityState;
+  return {
+    ...capabilityState,
+    contextVirtualization: disableSubagentCapability(capabilityState.contextVirtualization),
+    conversationHistory: disableSubagentCapability(capabilityState.conversationHistory),
+    cognitiveRouting: disableSubagentCapability(capabilityState.cognitiveRouting),
   };
 }
 export const readRuntimeState = readCapabilityState;
@@ -469,8 +499,8 @@ export function setFreeflowStatus(
   } else if (cognitiveRoutingActive) {
     const profile = cognitiveRoutingRuntime.activeProfile;
     const control =
-      cognitiveRoutingRuntime.controlMode === "manual-standard" ||
-      cognitiveRoutingRuntime.controlMode === "manual-reasoning"
+      cognitiveRoutingRuntime.controlMode === "manual-executor" ||
+      cognitiveRoutingRuntime.controlMode === "manual-coordinator"
         ? "manual hold"
         : "automatic";
     active.push(`${profile} · ${control}`);
@@ -485,8 +515,8 @@ export function setFreeflowStatus(
     ) {
       const startupProfile =
         cognitiveRouting.sessionStart?.control === "manual"
-          ? (cognitiveRouting.sessionStart.profile ?? "reasoning")
-          : "reasoning";
+          ? (cognitiveRouting.sessionStart.profile ?? "coordinator")
+          : "coordinator";
       active.push(`${startupProfile} · pending`);
     } else {
       const reason =
@@ -507,12 +537,12 @@ export function skillPrompt(skill, args) {
 }
 function publicCognitiveRoutingControl(controlMode) {
   if (controlMode === "automatic") return "automatic";
-  if (controlMode === "manual-standard" || controlMode === "manual-reasoning") return "manual";
+  if (controlMode === "manual-executor" || controlMode === "manual-coordinator") return "manual";
   return "unavailable";
 }
 function publicCognitiveRoutingProfile(activeProfile, effective) {
   if (effective !== true) return "unavailable";
-  return activeProfile === "standard" || activeProfile === "reasoning" ? activeProfile : "unavailable";
+  return activeProfile === "executor" || activeProfile === "coordinator" ? activeProfile : "unavailable";
 }
 function publicCapabilityStatus(capability) {
   if (capability?.effective === true) return "active";
@@ -525,10 +555,22 @@ function publicCognitiveRoutingStatus(capability, runtime) {
   if (runtime?.runtimeStatus === "inactive") return "inactive";
   return publicCapabilityStatus(capability);
 }
+function publicCognitiveRoutingProjectionMode(capability, runtime, projectionFailure) {
+  if (capability?.projection !== true) return "disabled";
+  if (capability?.effective !== true) return "unavailable";
+  if (runtime?.controlMode === "manual-executor" || runtime?.controlMode === "manual-coordinator") {
+    return "manual-bypass";
+  }
+  if (projectionFailure) return "blocked";
+  if (runtime?.runtimeStatus === "inactive" || runtime?.runtimeStatus === "blocked") return "unavailable";
+  if (runtime?.effective === true && runtime.controlMode === "automatic") return "enabled";
+  return "pending";
+}
 export function freeflowRuntimeStateMessage(
   capabilityState,
   cognitiveRoutingRuntime = undefined,
   freeflowContext = undefined,
+  options = {},
 ) {
   const cognitiveRoutingEffective = capabilityState?.cognitiveRouting?.effective === true;
   const profile = publicCognitiveRoutingProfile(
@@ -537,6 +579,11 @@ export function freeflowRuntimeStateMessage(
   );
   const control =
     profile === "unavailable" ? "unavailable" : publicCognitiveRoutingControl(cognitiveRoutingRuntime?.controlMode);
+  const projectionMode = publicCognitiveRoutingProjectionMode(
+    capabilityState?.cognitiveRouting,
+    cognitiveRoutingRuntime,
+    options.projectionFailure,
+  );
   const mandatoryPromptAvailable = capabilityState?.enabled !== true || hasUsableMandatoryPrompts(freeflowContext);
   const freeflowStatus = capabilityState?.configured
     ? capabilityState.enabled
@@ -565,6 +612,7 @@ export function freeflowRuntimeStateMessage(
       "Cognitive Routing:",
       `- Control: \`${control}\``,
       `- Profile: \`${profile}\``,
+      `- Projection: \`${projectionMode}\``,
     ].join("\n"),
     display: false,
     details: { source: "provider-request-runtime-state" },
@@ -596,7 +644,9 @@ export function withFreeflowRuntimeState(
   options = {},
 ) {
   const source = Array.isArray(messages) ? messages : [];
-  const runtimeState = freeflowRuntimeStateMessage(capabilityState, cognitiveRoutingRuntime, freeflowContext);
+  const runtimeState = freeflowRuntimeStateMessage(capabilityState, cognitiveRoutingRuntime, freeflowContext, {
+    projectionFailure: options.projectionFailure,
+  });
   const runtimeStateMessages = source.filter(
     (message) =>
       message?.customType === FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE ||

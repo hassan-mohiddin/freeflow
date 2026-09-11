@@ -1,0 +1,396 @@
+import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import { resolveCognitiveRoutingConfig } from "../../dist/cognitive-routing/config.js";
+import { resolveCognitiveRoutingState } from "../../dist/cognitive-routing/runtime.js";
+import { readCapabilityState } from "../../dist/runtime/runtime-context.js";
+import { PIFLOW_HOST } from "./host-fixture.js";
+
+const standard = {
+  provider: "openai-codex",
+  model: "gpt-5.6-luna",
+  thinkingLevel: "high",
+};
+const reasoning = {
+  provider: "openai-codex",
+  model: "gpt-5.6-sol",
+  thinkingLevel: "max",
+};
+
+function configuredRepository(overrides = {}) {
+  return {
+    cognitiveRouting: {
+      enabled: true,
+      profiles: { standard, reasoning },
+      ...overrides,
+    },
+  };
+}
+
+function createHost({ models = [], unauthenticated = [], clamps = {} } = {}) {
+  const modelMap = new Map(models.map((model) => [`${model.provider}/${model.id}`, model]));
+  const unauthenticatedSet = new Set(unauthenticated);
+  return {
+    modelRegistry: {
+      find(provider, modelId) {
+        return modelMap.get(`${provider}/${modelId}`);
+      },
+      async getApiKeyAndHeaders(model) {
+        return unauthenticatedSet.has(model.provider) ? { ok: false, error: "missing credentials" } : { ok: true };
+      },
+      clampThinkingLevel(model, level) {
+        return clamps[`${model.provider}/${model.id}`]?.[level] ?? level;
+      },
+    },
+  };
+}
+
+const standardModel = { provider: standard.provider, id: standard.model };
+const reasoningModel = { provider: reasoning.provider, id: reasoning.model };
+
+test("resolves two complete repository profiles", () => {
+  const result = resolveCognitiveRoutingConfig(configuredRepository(), {});
+
+  assert.equal(result.valid, true);
+  assert.equal(result.enabled, true);
+  assert.equal(result.enabledSource, "repository");
+  assert.deepEqual(result.profiles, { standard, reasoning });
+  assert.deepEqual(result.profileSources, { standard: "repository", reasoning: "repository" });
+});
+
+test("defaults context projection on without changing Cognitive Routing activation", () => {
+  const result = resolveCognitiveRoutingConfig(configuredRepository(), {});
+
+  assert.equal(result.contextProjection, true);
+  assert.equal(result.contextProjectionSource, "default");
+  assert.equal(result.enabled, true);
+
+  for (const value of [true, false]) {
+    const configured = resolveCognitiveRoutingConfig(configuredRepository({ contextProjection: value }), {});
+    assert.equal(configured.valid, true);
+    assert.equal(configured.contextProjection, value);
+    assert.equal(configured.contextProjectionSource, "repository");
+  }
+});
+
+test("layers context projection independently with personal precedence", () => {
+  const repositoryEnabled = resolveCognitiveRoutingConfig(configuredRepository({ contextProjection: true }), {});
+  assert.equal(repositoryEnabled.contextProjection, true);
+  assert.equal(repositoryEnabled.contextProjectionSource, "repository");
+
+  const personalDisabled = resolveCognitiveRoutingConfig(configuredRepository({ contextProjection: true }), {
+    cognitiveRouting: { contextProjection: false },
+  });
+  assert.equal(personalDisabled.contextProjection, false);
+  assert.equal(personalDisabled.contextProjectionSource, "personal");
+
+  const personalEnabled = resolveCognitiveRoutingConfig(configuredRepository({ contextProjection: false }), {
+    cognitiveRouting: { contextProjection: true },
+  });
+  assert.equal(personalEnabled.contextProjection, true);
+  assert.equal(personalEnabled.contextProjectionSource, "personal");
+});
+
+test("rejects malformed context projection values without coercion", () => {
+  for (const value of [null, "true", 1, [], {}]) {
+    const repository = resolveCognitiveRoutingConfig(configuredRepository({ contextProjection: value }), {});
+    assert.equal(repository.valid, false, `repository value ${JSON.stringify(value)}`);
+    assert.equal(repository.error.code, "invalid_context_projection");
+    assert.equal(repository.error.source, "repository");
+
+    const personal = resolveCognitiveRoutingConfig(configuredRepository(), {
+      cognitiveRouting: { contextProjection: value },
+    });
+    assert.equal(personal.valid, false, `personal value ${JSON.stringify(value)}`);
+    assert.equal(personal.error.code, "invalid_context_projection");
+    assert.equal(personal.error.source, "personal");
+  }
+
+  const repositoryInvalidWithPersonalOverride = resolveCognitiveRoutingConfig(
+    configuredRepository({ contextProjection: "true" }),
+    { cognitiveRouting: { contextProjection: true } },
+  );
+  assert.equal(repositoryInvalidWithPersonalOverride.valid, false);
+  assert.equal(repositoryInvalidWithPersonalOverride.error.source, "repository");
+});
+
+test("propagates the independent projection setting and source through runtime state", async () => {
+  const result = await resolveCognitiveRoutingState(
+    configuredRepository({ contextProjection: true }),
+    { cognitiveRouting: { contextProjection: false } },
+    createHost({ models: [standardModel, reasoningModel] }),
+  );
+
+  assert.equal(result.contextProjection, false);
+  assert.equal(result.contextProjectionSource, "personal");
+  assert.equal(result.effective, true);
+});
+
+test("does not let projection setting enable routing or alter configured manual control", async () => {
+  const disabled = await resolveCognitiveRoutingState(
+    { cognitiveRouting: { contextProjection: true } },
+    {},
+    createHost({ models: [standardModel, reasoningModel] }),
+  );
+  assert.equal(disabled.contextProjection, true);
+  assert.equal(disabled.enabled, false);
+  assert.equal(disabled.effective, false);
+
+  const manual = resolveCognitiveRoutingConfig(
+    configuredRepository({ contextProjection: true, sessionStart: { control: "manual" } }),
+    {},
+  );
+  assert.equal(manual.contextProjection, true);
+  assert.deepEqual(manual.sessionStart, { control: "manual", profile: "reasoning" });
+});
+
+test("defaults new-session Cognitive Routing to automatic Reasoning control", () => {
+  const result = resolveCognitiveRoutingConfig(configuredRepository(), {});
+
+  assert.deepEqual(result.sessionStart, { control: "automatic", profile: "reasoning" });
+  assert.deepEqual(result.sessionStartSources, { control: "default", profile: "default" });
+});
+
+test("canonicalizes automatic session starts to Reasoning", () => {
+  const result = resolveCognitiveRoutingConfig(
+    configuredRepository({ sessionStart: { control: "automatic", profile: "standard" } }),
+    {},
+  );
+
+  assert.deepEqual(result.sessionStart, { control: "automatic", profile: "reasoning" });
+  assert.deepEqual(result.sessionStartSources, { control: "repository", profile: "default" });
+});
+
+test("layers session-start control and profile independently", () => {
+  const result = resolveCognitiveRoutingConfig(
+    configuredRepository({ sessionStart: { control: "automatic", profile: "standard" } }),
+    { cognitiveRouting: { sessionStart: { control: "manual", profile: "reasoning" } } },
+  );
+
+  assert.deepEqual(result.sessionStart, { control: "manual", profile: "reasoning" });
+  assert.deepEqual(result.sessionStartSources, { control: "personal", profile: "personal" });
+
+  const inheritedProfile = resolveCognitiveRoutingConfig(
+    configuredRepository({ sessionStart: { control: "manual" } }),
+    { cognitiveRouting: { sessionStart: { profile: "reasoning" } } },
+  );
+  assert.deepEqual(inheritedProfile.sessionStart, { control: "manual", profile: "reasoning" });
+  assert.deepEqual(inheritedProfile.sessionStartSources, { control: "repository", profile: "personal" });
+});
+
+test("replaces a profile atomically from the personal layer", () => {
+  const personalStandard = {
+    provider: "openai-codex",
+    model: "gpt-5.6-luna-personal",
+    thinkingLevel: "medium",
+  };
+  const result = resolveCognitiveRoutingConfig(configuredRepository(), {
+    cognitiveRouting: { profiles: { standard: personalStandard } },
+  });
+
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.profiles.standard, personalStandard);
+  assert.deepEqual(result.profiles.reasoning, reasoning);
+  assert.deepEqual(result.profileSources, { standard: "personal", reasoning: "repository" });
+});
+
+test("rejects a partial personal profile instead of merging fields", () => {
+  const result = resolveCognitiveRoutingConfig(configuredRepository(), {
+    cognitiveRouting: { profiles: { standard: { model: "personal-only" } } },
+  });
+
+  assert.equal(result.valid, false);
+  assert.equal(result.error.code, "invalid_profile");
+  assert.equal(result.error.profile, "standard");
+});
+
+test("keeps Cognitive Routing disabled by default without a config block", async () => {
+  const result = await resolveCognitiveRoutingState({}, {}, createHost({ models: [standardModel, reasoningModel] }));
+
+  assert.equal(result.configured, false);
+  assert.equal(result.enabled, false);
+  assert.equal(result.effective, false);
+  assert.equal(result.blockingReason.code, "disabled");
+});
+
+test("fails only Cognitive Routing closed when its config is invalid", async () => {
+  const result = await resolveCognitiveRoutingState(
+    { cognitiveRouting: { enabled: true, profiles: { standard: { provider: "only-provider" } } } },
+    {},
+    createHost({ models: [standardModel, reasoningModel] }),
+  );
+
+  assert.equal(result.configured, true);
+  assert.equal(result.configValid, false);
+  assert.equal(result.effective, false);
+  assert.equal(result.blockingReason.code, "config_invalid");
+});
+
+test("reports an unsupported host without weakening core capability state", async () => {
+  const result = await resolveCognitiveRoutingState(configuredRepository(), {}, undefined);
+
+  assert.equal(result.enabled, true);
+  assert.equal(result.effective, false);
+  assert.equal(result.blockingReason.code, "host_unsupported");
+});
+
+test("preflights exact identities, authentication, and effective thinking levels", async () => {
+  const host = createHost({
+    models: [standardModel, reasoningModel],
+    clamps: { "openai-codex/gpt-5.6-luna": { high: "high" }, "openai-codex/gpt-5.6-sol": { max: "max" } },
+  });
+  const result = await resolveCognitiveRoutingState(configuredRepository(), {}, host);
+
+  assert.equal(result.effective, true);
+  assert.deepEqual(result.resolvedProfiles.standard, {
+    ...standard,
+    effectiveThinkingLevel: "high",
+  });
+  assert.deepEqual(result.resolvedProfiles.reasoning, {
+    ...reasoning,
+    effectiveThinkingLevel: "max",
+  });
+});
+
+test("subagent sessions keep Freeflow core enabled while disabling optional capabilities", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-subagent-capabilities-"));
+  const host = {
+    ...createHost({ models: [standardModel, reasoningModel] }),
+    getSystemPrompt: () => "<!-- freeflow-subagent-capabilities: disabled -->",
+  };
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow", "config.json"),
+      JSON.stringify({
+        contextVirtualization: true,
+        conversationHistory: true,
+        ...configuredRepository(),
+      }),
+    );
+
+    const state = await readCapabilityState(cwd, host, PIFLOW_HOST);
+    assert.equal(state.enabled, true);
+    assert.equal(state.contextVirtualization.enabled, false);
+    assert.equal(state.contextVirtualization.effective, false);
+    assert.equal(state.conversationHistory.enabled, false);
+    assert.equal(state.conversationHistory.effective, false);
+    assert.equal(state.cognitiveRouting.enabled, false);
+    assert.equal(state.cognitiveRouting.effective, false);
+    assert.equal(state.cognitiveRouting.blockingReason.code, "disabled");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("normal Pi preflight resolves thinking levels from model metadata without a registry clamp", async () => {
+  const models = [
+    {
+      provider: standard.provider,
+      id: standard.model,
+      reasoning: true,
+      thinkingLevelMap: { xhigh: "xhigh", max: "max" },
+    },
+    {
+      provider: reasoning.provider,
+      id: reasoning.model,
+      reasoning: true,
+      thinkingLevelMap: { xhigh: "xhigh", max: "max" },
+    },
+  ];
+  const modelMap = new Map(models.map((model) => [`${model.provider}/${model.id}`, model]));
+  const host = {
+    modelRegistry: {
+      find(provider, modelId) {
+        return modelMap.get(`${provider}/${modelId}`);
+      },
+      async getApiKeyAndHeaders() {
+        return { ok: true };
+      },
+    },
+  };
+
+  const result = await resolveCognitiveRoutingState(configuredRepository(), {}, host);
+
+  assert.equal(result.effective, true);
+  assert.equal(result.resolvedProfiles.standard.effectiveThinkingLevel, "high");
+  assert.equal(result.resolvedProfiles.reasoning.effectiveThinkingLevel, "max");
+});
+
+test("runtime context isolates invalid Cognitive Routing from core Freeflow state", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-"));
+  await mkdir(join(cwd, ".freeflow"));
+  const host = createHost({ models: [standardModel, reasoningModel] });
+  try {
+    await writeFile(
+      join(cwd, ".freeflow", "config.json"),
+      JSON.stringify({ cognitiveRouting: configuredRepository().cognitiveRouting }),
+    );
+    let state = await readCapabilityState(cwd, host, PIFLOW_HOST);
+    assert.equal(state.configured, true);
+    assert.equal(state.enabled, true);
+    assert.equal(state.cognitiveRouting.effective, true);
+
+    await writeFile(
+      join(cwd, ".freeflow", "config.json"),
+      JSON.stringify({ enabled: false, cognitiveRouting: configuredRepository().cognitiveRouting }),
+    );
+    state = await readCapabilityState(cwd, host, PIFLOW_HOST);
+    assert.equal(state.enabled, false);
+    assert.equal(state.cognitiveRouting.enabled, false);
+    assert.equal(state.cognitiveRouting.effective, false);
+    assert.equal(state.cognitiveRouting.blockingReason.code, "disabled");
+
+    await writeFile(
+      join(cwd, ".freeflow", "config.json"),
+      JSON.stringify({
+        cognitiveRouting: { enabled: true, profiles: { standard: { provider: "only-provider" } } },
+      }),
+    );
+    state = await readCapabilityState(cwd, host, PIFLOW_HOST);
+    assert.equal(state.configured, true);
+    assert.equal(state.enabled, true);
+    assert.equal(state.cognitiveRouting.configValid, false);
+    assert.equal(state.cognitiveRouting.effective, false);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("rejects unavailable, unauthenticated, weakened, and identical profile pairs", async () => {
+  const unavailable = await resolveCognitiveRoutingState(
+    configuredRepository(),
+    {},
+    createHost({ models: [standardModel] }),
+  );
+  assert.equal(unavailable.blockingReason.code, "profile_unavailable");
+  assert.equal(unavailable.blockingReason.profile, "reasoning");
+
+  const unauthenticated = await resolveCognitiveRoutingState(
+    configuredRepository(),
+    {},
+    createHost({ models: [standardModel, reasoningModel], unauthenticated: ["openai-codex"] }),
+  );
+  assert.equal(unauthenticated.blockingReason.code, "profile_unauthenticated");
+  assert.equal(unauthenticated.blockingReason.profile, "standard");
+
+  const weakened = await resolveCognitiveRoutingState(
+    configuredRepository(),
+    {},
+    createHost({
+      models: [standardModel, reasoningModel],
+      clamps: { "openai-codex/gpt-5.6-luna": { high: "medium" } },
+    }),
+  );
+  assert.equal(weakened.blockingReason.code, "profile_clamped");
+  assert.equal(weakened.blockingReason.profile, "standard");
+
+  const identical = await resolveCognitiveRoutingState(
+    configuredRepository({ profiles: { standard, reasoning: { ...standard } } }),
+    {},
+    createHost({ models: [standardModel] }),
+  );
+  assert.equal(identical.blockingReason.code, "profiles_identical");
+});

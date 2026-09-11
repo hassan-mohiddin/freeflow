@@ -30,7 +30,7 @@ skillNames.sort();
 const matrixNames = Object.keys(matrix.skills).sort();
 
 assert.deepEqual(matrixNames, skillNames);
-assert.equal(matrixNames.length, 25);
+assert.equal(matrixNames.length, 24);
 
 const required = [
   "job",

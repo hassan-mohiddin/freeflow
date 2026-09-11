@@ -53,18 +53,31 @@ host session enablement
 -> built-in default
 ```
 
-`enabled` is the only Freeflow core switch. When it is effective, the core prompt, Interaction Contract, and 25 base skills are present. Context Virtualization, Conversation History, and Cognitive Routing are independently gated capabilities. Configurations containing the removed `defaultMode`, `interactionContract`, or `skills` keys are invalid. An invalid existing personal layer fails closed.
+`enabled` is the only Freeflow core switch. When it is effective, the core prompt, Interaction Contract, and 24 base skills are present. Context Virtualization, Conversation History, and Cognitive Routing are independently gated capabilities. Configurations containing the removed `defaultMode`, `interactionContract`, or `skills` keys are invalid. An invalid existing personal layer fails closed.
 
-Configuration establishes activation state; it does not prove host runtime delivery.
+Cognitive Routing has its own v2 shape under `cognitiveRouting`:
+
+```json
+{
+  "enabled": true,
+  "projection": false,
+  "profiles": {
+    "coordinator": { "provider": "openai", "model": "gpt-4o", "thinking": "off" },
+    "executor": { "provider": "openai", "model": "gpt-4.1-mini", "thinking": "off" }
+  }
+}
+```
+
+`projection` defaults to `false`; profile names are exactly `coordinator` and `executor`. Each profile requires `provider`, `model`, and a supported, un-clamped thinking level. Older experimental routing fields or names such as `standard`, `reasoning`, `contextProjection`, and `sessionStart` are rejected as routing configuration and are not migrated. Rewrite them manually. Configuration establishes activation state; it does not prove host runtime delivery or model behavior.
 
 ## Runtime Guidance
 
 Freeflow has four coordinated model-facing parts:
 
-1. **Core guidance:** `runtime/prompts/core.md` owns stable identity, shared terms, the Interaction Lifecycle, Feedback Loop, Workflow, Action Selection, and Supported Exit cues.
-2. **Interaction Contract:** `runtime/prompts/interaction-contract.md` is a separate mandatory fragment so its turn-interpretation behavior can be changed independently.
+1. **Core guidance:** `runtime/prompts/core.md` owns stable identity, shared terms, the three nested loops (Interaction Lifecycle, Feedback Loop, and Environment Interaction Loop), recovery, and Workflow, Action Selection, and Supported Exit cues.
+2. **Interaction Contract:** `runtime/prompts/interaction-contract.md` is a separate mandatory fragment for whole-turn interpretation and establishing outcome, scope, and the user-facing return condition without redundant confirmation.
 3. **Runtime State:** the extension supplies current capability availability and Cognitive Routing Control/Profile at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the current provider context. It is not system-prompt policy.
-4. **Discoverable skills:** 25 base skills under `skills/` are exposed with the core surface; child capability skills under `capabilities/` are exposed only when their own gates are effective.
+4. **Discoverable skills:** 24 base skills under `skills/` are exposed with the core surface; child capability skills under `capabilities/` are exposed only when their own gates are effective.
 
 The Interaction Contract is prompt-only and not discoverable. Full skill and capability bodies are discoverable methods, not persistent bootstrap content. Context loading does not enforce policy, block tools, grant permissions, or replace repository instructions. See [System Prompt Architecture](prompt-architecture.md) for the canonical assembly and gating contract, and [Capabilities](capabilities/README.md) for detailed capability contracts.
 
@@ -94,16 +107,18 @@ Kiro can consume the root Agent Plugins 1.0 package as a Power and activate the 
 
 ### Pi
 
-The Pi extension:
+The source Pi entrypoint:
 
 - reads both config layers before agent turns;
 - composes the mandatory core prompt and Interaction Contract plus effective optional capability prompts in `before_agent_start`;
 - supplies one unified volatile `Freeflow Runtime State` message at session start, after context reconstruction or loss, and when displayed state changes, preserving it when unchanged;
 - restores only remaining branch-aware session overrides for enablement and optional context capabilities;
-- dynamically exposes 25 base model/contributor skills plus effective child capability skills;
-- registers canonical direct commands;
+- dynamically exposes 24 base model/contributor skills plus effective child capability skills;
+- registers canonical direct commands and the v2 routing tools;
 - activates capability tools and discoverable capability skills only when their individual gates are effective;
-- when hosted by Pi or PiFlow, runs Cognitive Routing through the active host's model-state controls, with prepared profile intents, profile controls, reload state restoration, the automatic switch tool, and session status.
+- when the native source host gate is effective, uses Pi's model registry, session-scoped model/thinking controls, and native session entries for v2 Coordinator/Executor routing.
+
+The native entrypoint is wired in source but is not a released or installed host integration. Stock-Pi dispatch, host behavior, and model evaluation remain unverified. The identified PiFlow host path is explicitly gated unavailable by the current source entrypoint.
 
 `/freeflow settings` edits personal core overrides. `/freeflow settings session` manages temporary enablement and optional-context overrides without changing config files. `/freeflow settings repo` edits shared repository settings.
 
@@ -111,19 +126,21 @@ Pi source lives under `pi-extension/src/`; the package executes built output und
 
 ## Skill Architecture
 
-Workflow owns authority interpretation and enforcement, current-owner selection, and routing. Leaf skills own focused methods and return evidence, decisions, or route changes rather than redefining the lifecycle or widening authority. Selecting a leaf method never authorizes active evidence generation, mutation, or delivery.
+Workflow owns authority interpretation, work-agreement coordination, readiness, current-owner selection, and routing. It establishes the required outcome and supported approach for the next coherent unit rather than requiring a fixed sequence of documents or user turns. Leaf skills own focused methods and return evidence, decisions, or route changes without widening authority. Selecting a leaf method never authorizes active evidence generation, mutation, or delivery.
 
 A skill body establishes the first-read job and normal route from guaranteed context. Separately owned required depth and conditional branch depth live in linked references whose read points are declared by the body; deterministic repeated work may live in scripts. Cross-skill links are project dependencies, not bundled local resources.
 
 See [Skill routing](skill-routing.md) for the typed owner, route, and reference adjacency map.
 
-The active cross-host model/contributor surface has 25 skills under `skills/`, including Action Selection and Workflow. Agent Plugins-compatible hosts, Gemini, Cursor, Codex, Claude, OpenCode, Hermes, and the Pi extension all consume this one canonical skill tree through their documented discovery surfaces. Cognitive Routing, Context Virtualization, and Conversation History are separately packaged Pi/PiFlow capability skills under `capabilities/`, outside non-Pi host delivery. Retired Output Router material is preserved under `.deprecated/output-router/`. Removed Mode Contract material is preserved under `.deprecated/modes/` and is not an active package surface.
+The active cross-host model/contributor surface has 24 skills under `skills/`, including Action Selection and Workflow. Agent Plugins-compatible hosts, Gemini, Cursor, Codex, Claude, OpenCode, Hermes, and the Pi extension all consume this one canonical skill tree through their documented discovery surfaces. Cognitive Routing, Context Virtualization, and Conversation History are separately packaged Pi/PiFlow capability skills under `capabilities/`, outside non-Pi host delivery. Retired Output Router material is preserved under `.deprecated/output-router/`. Removed Mode Contract material is preserved under `.deprecated/modes/` and is not an active package surface.
 
 ## Review And Verification Topology
 
 The active agent owns factual verification and workflow control. Self-review is silent and follows supported verification.
 
-Independent review is a distinct selected judgment boundary. Specs and Plans each receive separate Review Artifact. Additional independent work review is plan-selected, explicitly requested, or otherwise authorized through Workflow. Review budgets limit dispatches but do not authorize them.
+Independent review is a distinct selected and authorized judgment boundary, not an automatic consequence of writing a Spec, Plan, or implementation. Authors self-review Specs and Plans through Review Artifact; independent artifact or work review is used only when selected to protect a concrete boundary. Review budgets limit dispatches but do not authorize them.
+
+Verify Work owns shared test-design guidance without mandatory test-first sequencing. Checks retain their accepted property and observing boundary when revised. Reports distinguish implemented work, exercised assertions, and supported claims, including whether saved results still apply after relevant edits.
 
 A review report never edits. The active agent adjudicates and may request corrections plus one warranted focused follow-up together. Corrections return to Execute Work or the artifact owner and may remain in the same coherent Working Record slice.
 
@@ -137,13 +154,17 @@ Track Work owns one complete model-facing method and one deterministic executabl
 
 Schema 4 is an intentional breaking change from the prior Schema 2/3 representations. Existing ignored records remain untouched and are not automatically migrated; later compatibility work must select records explicitly and preserve copy-first recovery evidence.
 
-After compaction, summarization, clear, resume, or session navigation, Workflow requests the bounded `resume` view, compares it with the current conversation and live state, and retrieves exact history only when needed. Conversation branches may write memory but cannot create authority for another branch.
+After context loss, Workflow requests the complete `full` record and reconciles its current sections and History with the agreement, current assignment, supersession, and relevant live sources. Incomplete full recovery stops affected work. `resume` and targeted reads remain available for intact-session continuation; neither command's output format or lifecycle behavior changes.
+
+The record preserves a provisional remaining route, dependencies, actual observations, and their applicability—not a transcript or a second routing-state store. A context boundary need not complete or replace a Slice. Conversation branches may preserve memory but cannot create authority for another branch.
 
 ## Capabilities
 
-The Pi/PiFlow Context Virtualization capability owns projection-only archive and restore of consumed tool-result content while preserving canonical session history.
+The Pi/PiFlow Context Virtualization capability owns projection-only archive and restore of consumed tool-result content while preserving canonical session history. It remains independently available when its own gate is effective.
 
-The Pi/PiFlow Cognitive Routing capability owns exactly two configured compute profiles, complete model-and-thinking transitions through the active host's native control boundary, deterministic `/freeflow profile standard|reasoning|auto` controls, the guarded `freeflow_switch_profile(target, reason)` request, and one volatile model-facing Control/Profile state record when the state is initially supplied, rebuilt, or changed. Transition history is evidence, not current-state authority. Its discoverable skill is exposed only while Freeflow and Cognitive Routing are effective; it shares authority, tools, workflow, context, and evidence requirements with the active agent and does not authorize work. The current implementation remains experimental pending behavioral acceptance evidence.
+The v2 Cognitive Routing capability owns exactly two configured profiles—Coordinator and Executor—native session-entry state, automatic assignment/report/assessment flow, `/freeflow profile coordinator|executor|auto|history`, `/freeflow resume`, and the tools `freeflow_delegate`, `freeflow_return`, `freeflow_unit`, and `freeflow_project`. Projection is disabled by default; when enabled, Executor evidence is selected for Coordinator with native dependencies and explicit readiness problems. Saved reports are independent of a later profile-switch result. Its current source path is experimental: the native Pi entrypoint is wired but unreleased/uninstalled, and the identified PiFlow adapter is explicitly unavailable.
+
+The new routing projection is not qualified with legacy Context Virtualization or Conversation History transforms. Those capabilities remain standalone and are not removed. Routing state uses native `freeflow-routing-v2` entries and a strict read-only persisted snapshot for reconciliation; it does not patch host files, claim `fsync`, or promise exactly-once behavior.
 
 Delegation Harness is retired from the live package. Its implementation and historical evidence remain under `.deprecated/delegation-harness/`.
 

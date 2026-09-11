@@ -10,14 +10,15 @@ Freeflow’s model-facing behavior is delivered through coordinated core, capabi
 
 - Freeflow identity and shared boundaries;
 - shared terminology;
-- the Interaction Lifecycle and Feedback Loop;
+- the Interaction Lifecycle, Feedback Loop, and Environment Interaction Loop;
+- compact readiness and recovery invariants;
 - Workflow, Action Selection, and Supported Exit cues.
 
-Core guidance is mandatory whenever Freeflow is enabled and also contains the guidance previously separated into `skills.md`.
+Core guidance is mandatory whenever Freeflow is enabled and also contains the guidance previously separated into `skills.md`. Detailed planning, execution, verification, and handback methods remain in skills rather than being duplicated into the standing prompt.
 
 ### 2. Interaction Contract
 
-`runtime/prompts/interaction-contract.md` remains a separate mandatory prompt fragment. It owns whole-turn interpretation, the distinction between questions or tentative ideas and authorization, and recommendations for focused discussion when collaboration has material value.
+`runtime/prompts/interaction-contract.md` remains a separate mandatory prompt fragment. It owns whole-turn interpretation, the distinction between discussion and authorization, and establishing the outcome, scope, and user-facing return condition. A clear request needs no redundant confirmation; an unsettled material boundary requires a question before execution.
 
 Keeping this file separate lets its behavior change without changing the rest of the core guidance. It is not a configurable capability and is not a discoverable skill.
 
@@ -35,7 +36,7 @@ Runtime State is current-state data, not stable policy. It does not replace the 
 
 Complete methods live in discoverable packages:
 
-- 25 base model/contributor skills under `skills/` whenever Freeflow is enabled and the mandatory core fragments are available;
+- 24 base model/contributor skills under `skills/` whenever Freeflow is enabled and the mandatory core fragments are available;
 - Cognitive Routing, Context Virtualization, and Conversation History under `capabilities/` only when their own gates are effective;
 - capability tools from the same effective surface snapshot.
 
@@ -88,7 +89,7 @@ OpenCode v2 and Hermes consume the canonical `skills/` surface through their doc
 
 The Pi extension composes the mandatory core fragments, Runtime State, discoverable skills, and tools before provider requests. It filters historical one-time Workflow or Cognitive Routing bootstrap entries rather than creating new persistent bootstrap messages.
 
-Pi and PiFlow provide the optional context capabilities. Cognitive Routing runs on either host when its model registry, model/thinking controls, and session-entry APIs are available; PiFlow continues to provide its host-owned lease path.
+Pi exposes Cognitive Routing when its native model, thinking, session-entry, and ancestry gates are effective. PiFlow provides its host lifecycle for shared Freeflow skills and standalone context capabilities, but the current Freeflow source entrypoint explicitly marks the redesigned PiFlow Cognitive Routing adapter unavailable. Do not infer routing availability from PiFlow installation or from the Pi source entrypoint.
 
 See [Pi integration](integrations/pi.md) and [PiFlow integration](integrations/piflow.md) for host-specific installation and behavior.
 
@@ -99,21 +100,17 @@ Prompt delivery describes what the model sees. Workflow and Cognitive Routing de
 ```text
 Interaction Lifecycle
 └─ Workflow Feedback Loop
-   ├─ establishes authority, owner, and slice
-   └─ Cognitive Execution Routes — automatic control only
-      ├─ Boundary OPEN
-      │  ├─ DELEGATE next unit → RETURN; boundary remains open
-      │  ├─ ACT_BOUNDED when independently qualified → reassess
-      │  ├─ suspend or route a changed boundary
-      │  └─ CLOSE after support and review
-      ├─ Boundary NONE
-      │  ├─ YIELD → Standard leads one complete result → YIELD HANDOFF
-      │  ├─ ACT_BOUNDED when independently qualified → Reasoning acts directly
-      │  └─ DELEGATE → open a model-written boundary; Standard executes
-      └─ Action Selection guides uncertain environment interactions
+   ├─ establishes agreement, owner, and slice
+   └─ Cognitive Routing — automatic control only
+      ├─ Coordinator saves an assignment through freeflow_delegate
+      ├─ Executor performs it and saves its actual freeflow_return report
+      ├─ Coordinator compares acceptance with actual evidence
+      │  ├─ continue or explicitly replace an assignment within an open unit
+      │  └─ close the supported unit through freeflow_unit
+      └─ Action Selection bounds environment interactions
 ```
 
-Manual Cognitive Routing control runs the ordinary unsplit Workflow. Under automatic control, conversational Reasoning is the default and owns user-facing interpretation and reporting. With no open boundary, Yield is the standalone whole-result transfer, `ACT_BOUNDED` is exceptional direct Reasoning execution, and otherwise Delegate opens a boundary. With an open boundary, Delegate is the continuing route; literal Yield is not used, while a qualifying `ACT_BOUNDED` scope may operate inside it without closing it. Automatic Standard only executes active Yield or Delegate contracts and never conducts substantive user-facing interaction; at every return condition it transfers state to Reasoning. Cognitive Routing changes compute placement only and never changes authority, owner, task scope, evidence requirements, or review independence.
+Manual control runs the ordinary unsplit Workflow. Automatic Coordinator owns user-facing judgment; Executor works within its current assignment. A saved report ends Executor task permission without accepting the unit. Explicit retry preserves the saved report, and replacement preserves prior effects; routing does not add a second Workflow or model-authored boundary ledger. Narrow Coordinator recovery reads preserve the existing responsibility; substantive direct work requires ACT_BOUNDED. Late user input reaching a prepared Executor request requires an interrupted return before task tools. Projection selects Executor evidence and preserves its assessment obligation through compaction until disposition, with explicit suspension for newer attention; compaction retains the last observed delivered-user basis rather than treating stored-but-undelivered history as new input. These operations do not change user authority or make an internal handback the user-facing endpoint.
 
 ## Failure and recovery boundaries
 
@@ -123,6 +120,8 @@ Manual Cognitive Routing control runs the ordinary unsplit Workflow. Under autom
 - Historical bootstrap entries: filter them from current projection; do not create new one-time bootstrap messages.
 - Runtime State unavailable: do not infer it from model identity, response style, or old transition history.
 - Configuration establishes activation but does not prove host delivery.
+- After context loss, the core cue requires complete `full` Working Record recovery when a record exists, current capability/owner methods, and reconciliation with current direction and live evidence. An intact session uses bounded readback instead of repeating full recovery.
+- A Runtime State refresh alone is not a user interruption or a replacement execution contract.
 
 ## Evidence boundary
 

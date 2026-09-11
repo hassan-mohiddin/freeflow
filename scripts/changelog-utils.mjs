@@ -44,7 +44,7 @@ export function releasedSectionsEqual(current, base) {
       .trim();
   const sectionsByTitle = (markdown) => {
     const sections = extractReleasedSections(markdown);
-    const result = new Map(sections.map((section) => [sectionTitle(section), section]));
+    const result = new Map(sections.map((section) => [sectionTitle(section), section.replace(/\r?\n$/, "")]));
     return result.size === sections.length ? result : null;
   };
 

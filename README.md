@@ -41,16 +41,14 @@ Freeflow uses one active agent, one shared context, and nested feedback loops:
 Interaction Lifecycle
 └─ Workflow Feedback Loop
    ├─ establishes authority, owner, and slice
-   └─ Cognitive Execution Routes — automatic control only
-      ├─ Reasoning chooses one route
-      │  ├─ YIELD → Standard leads ordinary work → YIELD HANDOFF → Reasoning
-      │  ├─ DELEGATE → open model-written boundary → Standard executes
-      │  │  └─ RETURN → Reasoning assesses; boundary remains open until CLOSE
-      │  └─ TASK ACT → Reasoning performs narrow direct OBSERVE or ACT_BOUNDED
-      └─ Action Selection guides uncertain environment interactions
+   └─ Cognitive Routing — experimental, when a qualified host is available
+      ├─ Coordinator assigns a decision-complete assignment
+      ├─ Executor performs it and returns an actual report
+      └─ Coordinator assesses evidence, continues, or closes the unit
+         └─ Action Selection bounds uncertain environment interactions
 ```
 
-Under automatic Cognitive Routing control, each new user interaction begins in Reasoning. Under manual control, the selected compute profile runs the ordinary unsplit Workflow. Cognitive Routing changes compute placement only. It never changes authority, ownership, task scope, evidence requirements, or review independence.
+Under automatic Cognitive Routing control, Coordinator owns new user direction; input reaching an already prepared Executor request requires an interrupted return before task tools. Under manual control, the selected profile runs the ordinary unsplit Workflow. Cognitive Routing changes compute and context placement only. It never changes authority, ownership, task scope, evidence requirements, or review independence.
 
 The Workflow owner may be Discuss, Track Work, Execute Work, Verify Work, Review Work, Review Artifact, Diagnose Failure, or another focused method. These methods compose when their conditions apply; they are not a mandatory phase pipeline.
 
@@ -68,10 +66,10 @@ Freeflow is one package with different host boundaries:
 | Kiro | Agent Plugins 1.0 Power and shared skills | Not available; no Kiro-specific runtime adapter is claimed |
 | OpenCode v2 | Canonical `skills/` through OpenCode’s project skill source | Not available; skills-only support |
 | Hermes Agent | Agent Plugins 1.0 package and canonical skills | Not available; skills-only support |
-| Pi | Shared skills, Pi extension, optional context capabilities, and native host controls | Available when configured and the official model-state APIs are present |
-| PiFlow | Freeflow package hosted by the separate PiFlow distribution | Available when configured |
+| Pi | Shared skills and the Pi extension source entrypoint | Cognitive Routing is an unreleased experimental candidate; native SDK and bundled-CLI dispatch are exercised by isolated local fixtures; installed-user and model-behavior acceptance remain separate |
+| PiFlow | Freeflow package can be hosted by the separate PiFlow distribution | Cognitive Routing is explicitly unavailable in the current source adapter |
 
-Freeflow owns workflow policy, portable prompt fragments, the 25-skill distribution kernel, host adapters, Pi/PiFlow capabilities, and the Pi extension. Each host owns its launch, package installation, session state, updates, and native model-state control; PiFlow remains a supported host integration.
+Freeflow owns workflow policy, portable prompt fragments, the 24-skill distribution kernel, host adapters, capability source, and the Pi extension. Each host owns its launch, package installation, session state, and updates. Native host behavior and model quality require separate installed-host evidence; PiFlow routing is not currently available.
 
 ## Capabilities
 
@@ -84,7 +82,7 @@ Freeflow owns workflow policy, portable prompt fragments, the 25-skill distribut
 
 ### Optional host capabilities
 
-- **[Cognitive Routing](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/cognitive-routing.md)** places compute between Reasoning and Standard under automatic control in Pi and PiFlow. It remains experimental.
+- **[Cognitive Routing](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/cognitive-routing.md)** places compute between Coordinator and Executor in one agent under automatic control. The current source path is experimental and host availability is not established by installation alone.
 - **[Context Virtualization](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/context-virtualization.md)** classifies consumed tool evidence as Full, Retained, or Reference-only for future context while leaving canonical history unchanged.
 - **[Conversation History](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/conversation-history.md)** performs bounded retrieval of exact missing prior-conversation evidence from the current active branch.
 
@@ -142,7 +140,7 @@ Or:
 pi install git:github.com/hassan-mohiddin/freeflow
 ```
 
-The full normal-Pi integration targets Pi 0.84.3 or newer; Pi 0.84.4 is the current Cognitive Routing test target.
+The repository's current development dependency is Pi 0.85.1. The native entrypoint is wired in the source tree, but local fixtures exercise native SDK and bundled-CLI integration without installing this candidate into the user’s host; version-specific host acceptance belongs to separate release evidence.
 
 ### PiFlow
 
@@ -158,6 +156,8 @@ For a Git source:
 ```bash
 piflow install git:github.com/hassan-mohiddin/freeflow
 ```
+
+The current source entrypoint explicitly marks the redesigned PiFlow Cognitive Routing adapter unavailable. Installing the package still does not establish routing availability.
 
 In the target repository, run:
 
@@ -190,8 +190,8 @@ Freeflow’s model-facing surface has four coordinated parts:
 
 1. **Core guidance** in `runtime/prompts/core.md` contains identity, shared terms, loops, Workflow, Action Selection, and Supported Exit cues.
 2. **Interaction Contract** in `runtime/prompts/interaction-contract.md` remains a separate mandatory fragment so its behavior can be revised independently.
-3. **Runtime State** reports current capability availability and Cognitive Routing `Control`/`Profile` at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the current provider context.
-4. **Discoverable skills and tools** provide the 25 base methods and individually gated optional capability operations.
+3. **Runtime State** reports current capability availability and v2 Cognitive Routing `Control`/`Profile` at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the current provider context.
+4. **Discoverable skills and tools** provide the 24 base methods and individually gated optional capability operations.
 
 The core guidance and Interaction Contract are always delivered together when Freeflow is enabled. Optional capability content is omitted and reported unavailable rather than fabricated. One effective-state snapshot determines prompt assembly, discovery, tools, and projection.
 
@@ -246,24 +246,29 @@ Contributor calls:
 /evaluate-skill
 ```
 
-Pi and PiFlow Cognitive Routing controls:
+Cognitive Routing controls on a qualified native host:
 
 ```text
 /freeflow
 /freeflow settings
 /freeflow settings session
+/freeflow settings local
 /freeflow settings repo
-/freeflow profile standard
-/freeflow profile reasoning
+/freeflow profile coordinator
+/freeflow profile executor
 /freeflow profile auto
+/freeflow profile history
+/freeflow resume
 ```
 
-`/freeflow settings` edits personal overrides, `/freeflow settings session` manages temporary enablement and optional-context overrides, and `/freeflow settings repo` edits shared repository settings. Profile changes require an idle host with the required model-state APIs.
+`/freeflow settings` edits personal overrides, `/freeflow settings session` manages temporary core/context overrides, and `/freeflow settings repo` edits shared repository settings. Cognitive Routing configuration is repository/personal configuration, not a session override. Profile changes and resume require an idle host with the required native model-state APIs.
 
-In Pi or PiFlow, while the host is idle:
+When the source adapter exposes the native controls and the host is idle:
 
-- `Ctrl+Shift+R` cycles the manual standard/reasoning hold.
-- `Ctrl+Shift+A` sets automatic control; from a manual hold, it releases the hold and moves to Reasoning when necessary. Repeating it while already automatic is idempotent.
+- `Ctrl+Shift+R` cycles the manual Coordinator/Executor hold.
+- `Ctrl+Shift+A` releases a manual hold to automatic Coordinator control; repeating it while already automatic is idempotent.
+
+These commands are host controls, not proof of installed-host delivery or model evaluation.
 
 ## Documentation and development
 
@@ -278,7 +283,7 @@ In Pi or PiFlow, while the host is idle:
 - [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 
-For local development, use committed Freeflow snapshots with `npm run snapshot:refresh`. Do not treat an uncommitted working tree as a production package source. PiFlow owns the host development launcher and state synchronization.
+For local development, use committed Freeflow snapshots with `npm run snapshot:refresh`. A snapshot identifies a committed Freeflow revision; an installed package is a separate host artifact and identity. Do not treat an uncommitted working tree as a production package source. Snapshot handling does not patch host files, claim `fsync`, or promise exactly-once delivery. PiFlow owns any host development launcher and state synchronization.
 
 ## What Freeflow is not
 

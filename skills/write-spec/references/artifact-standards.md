@@ -49,7 +49,7 @@ Draft | Reviewed | Approved | Rejected | Superseded
 
 The appropriate statuses depend on the artifact type. An issue, policy, ADR, and API contract need not share one lifecycle.
 
-Status communicates artifact state; it does not replace review evidence or user authority.
+Status communicates artifact state; it does not replace review evidence or user authority. Distinguish author self-review from selected independent review when reporting review status. Writing a Spec or Plan does not automatically select an independent reviewer.
 
 ## Preserve Sources Without Copying Them
 
@@ -66,7 +66,7 @@ session:<session-id>/turn:<turn-id>
 
 Use identifiers that actually exist. Prefer links and concise quotations over copied inventories, logs, diffs, or transcripts.
 
-A source trail should let a future reader recover why the artifact says what it says. It does not require preserving every conversation turn.
+A source trail should let a future reader recover why the artifact says what it says. For consequential choices, preserve the relevant proposal, disclosed consequences, and acceptance source rather than an isolated “proceed” or an agent's approval summary. Distinguish accepted amendments from unselected experimental findings. This does not require preserving every conversation turn.
 
 ## Revise Without Rewriting History
 

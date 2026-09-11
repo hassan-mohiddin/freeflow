@@ -43,6 +43,9 @@ try {
   const missing = requiredFiles.filter((path) => !files.has(path));
   const excluded = [...files].filter((path) => excludedPrefixes.some((prefix) => path.startsWith(prefix)));
   const forbidden = [...files].filter((path) => forbiddenPrefixes.some((prefix) => path.startsWith(prefix)));
+  const retiredSkillFiles = [...files].filter(
+    (path) => path === "skills/tdd/SKILL.md" || path.startsWith("skills/tdd/"),
+  );
   const portableSkillFiles = [...files].filter((path) => /^skills\/[^/]+\/SKILL\.md$/.test(path));
   const duplicateSkillTrees = [...files].filter((path) =>
     [".github/skills/", ".agents/skills/", ".gemini/skills/", ".kiro/skills/"].some((prefix) =>
@@ -53,8 +56,10 @@ try {
   if (excluded.length > 0) throw new Error(`npm package includes excluded files: ${excluded.join(", ")}`);
   if (forbidden.length > 0)
     throw new Error(`npm package includes retired Output Router files: ${forbidden.join(", ")}`);
-  if (portableSkillFiles.length !== 25)
-    throw new Error(`npm package must contain exactly 25 canonical skill files; found ${portableSkillFiles.length}`);
+  if (retiredSkillFiles.length > 0)
+    throw new Error(`npm package includes retired TDD skill files: ${retiredSkillFiles.join(", ")}`);
+  if (portableSkillFiles.length !== 24)
+    throw new Error(`npm package must contain exactly 24 canonical skill files; found ${portableSkillFiles.length}`);
   if (duplicateSkillTrees.length > 0)
     throw new Error(`npm package includes duplicate maintained skill trees: ${duplicateSkillTrees.join(", ")}`);
   if (files.has("opencode.json")) throw new Error("npm package must exclude the repository-only opencode.json");

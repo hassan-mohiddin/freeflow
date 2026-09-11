@@ -6,11 +6,12 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 
 import freeflowExtension from "../../dist/index.js";
-import { PIFLOW_HOST } from "../cognitive-routing/host-fixture.js";
+import { PIFLOW_HOST } from "../fixtures/pi-host.js";
 
-function context(cwd) {
+function context(cwd, systemPrompt = "") {
   return {
     cwd,
+    getSystemPrompt: () => systemPrompt,
     sessionManager: {
       getEntries: () => [],
       getBranch: () => [],
@@ -65,20 +66,44 @@ function lastRuntimeState(messages) {
 }
 
 test("re-entry recovery is stable and capability-neutral", async () => {
-  const [core, cognitiveRouting, conversationHistory] = await Promise.all([
+  const [core, cognitiveRouting, conversationHistory, routingSkill] = await Promise.all([
     readFile(join(process.cwd(), "runtime", "prompts", "core.md"), "utf8"),
     readFile(join(process.cwd(), "runtime", "prompts", "cognitive-routing.md"), "utf8"),
     readFile(join(process.cwd(), "runtime", "prompts", "conversation-history.md"), "utf8"),
+    readFile(join(process.cwd(), "capabilities", "cognitive-routing", "SKILL.md"), "utf8"),
   ]);
 
+  assert.match(core, /## Load The Selected Method/);
+  assert.match(core, /Before applying a selected skill, read its current body/);
   assert.match(core, /## Recover After Context Loss/);
   assert.match(core, /latest Freeflow Runtime State/);
-  assert.doesNotMatch(cognitiveRouting, /When Cognitive Routing is active and its skill is absent/);
-  assert.match(cognitiveRouting, /A Runtime State refresh is host context, not a user interruption/);
+  assert.match(core, /recovery is not a bypass/);
+  assert.match(core, /evidence of prior approval; check that the approval still applies/);
+  assert.match(core, /choose or retain the current owner/);
+  assert.match(core, /apply its method and gather or produce evidence/);
+  assert.match(core, /read the complete `full` record/);
+  assert.match(core, /Make material gaps, contradictions, deferrals, and user-owned decisions explicit/);
+  assert.match(cognitiveRouting, /Before relying on automatic routing, read the complete cognitive-routing skill/);
+  assert.match(cognitiveRouting, /This bootstrap read is the only environment call/);
+  assert.match(cognitiveRouting, /If unavailable, stop and report the missing method/);
+  // The approved compact cue keeps bootstrap/control boundaries; the loaded
+  // method owns detailed role and handoff policy. Keep both obligations checked.
   assert.match(
     cognitiveRouting,
-    /`Control` and `Profile` in the latest Runtime State report current compute state, not Yield, Delegate, `ACT_BOUNDED`, or boundary state/,
+    /Under Manual or inactive routing, stop applying the automatic split and follow ordinary Workflow/,
   );
+  assert.match(cognitiveRouting, /Use the latest Runtime State for control, profile, and current responsibility/);
+  assert.match(cognitiveRouting, /Coordinator and Executor in one agent\/session/);
+  assert.match(routingSkill, /Automatic delegation, role restrictions, and projection are bypassed/);
+  assert.match(routingSkill, /Put the actual contract inside `freeflow_delegate/);
+  assert.match(routingSkill, /submits the actual report and stops ordinary task work/);
+  assert.match(cognitiveRouting, /project every completed skill and instructional-reference read/);
+  assert.match(routingSkill, /Attach recovery to the existing responsibility/);
+  assert.match(
+    routingSkill,
+    /Returned work may use an attached recovery-only phase only if the runtime actually exposes it; otherwise inspect saved communication and stop if insufficient/,
+  );
+  assert.match(routingSkill, /Do not simulate recovery by replacing the assignment or report/);
   assert.doesNotMatch(
     conversationHistory,
     /Current user direction, live source truth, and present runtime state remain authoritative/,
@@ -98,8 +123,10 @@ test("composes the mandatory core fragments, optional capabilities, discovery, a
     const order = [
       "# Freeflow Stable Guidance",
       "## Shared Terms",
+      "## Load The Selected Method",
       "## Recover After Context Loss",
       "## Three Nested Loops",
+      "## Evidence And Judgment",
       "## Workflow Cue",
       "## Action Selection Cue",
       "## Supported Exit",
@@ -112,6 +139,18 @@ test("composes the mandatory core fragments, optional capabilities, discovery, a
       order,
       [...order].sort((a, b) => a - b),
     );
+    assert.match(
+      prompt,
+      /Before applying a selected skill, read its current body when its exact method is absent from context/,
+    );
+    assert.match(prompt, /Verification establishes what direct evidence proves at the observed boundary/);
+    assert.match(
+      prompt,
+      /Review judges whether work or an artifact is aligned, correct, suitable, and sufficiently evidenced/,
+    );
+    assert.match(prompt, /Interpret requested intent, not sentence form/);
+    assert.match(prompt, /answer the question before any action that depends on it/);
+    assert.match(prompt, /An unresolved question does not automatically suspend independent, clearly authorized work/);
     assert.doesNotMatch(prompt, /## Mode\b|strict-workflow|conversation mode|workflow mode/);
     assert.doesNotMatch(prompt, /Skills prompt/);
     assert.doesNotMatch(prompt, /# Workflow\n/);
@@ -124,6 +163,8 @@ test("composes the mandatory core fragments, optional capabilities, discovery, a
     assert.match(runtimeState.content, /Context Virtualization: active/);
     assert.match(runtimeState.content, /Conversation History: active/);
     assert.match(runtimeState.content, /Cognitive Routing: inactive/);
+    assert.match(runtimeState.content, /Control: `unavailable`/);
+    assert.match(runtimeState.content, /Projection: `disabled`/);
     assert.doesNotMatch(runtimeState.content, /Default mode|Active mode|Interaction Contract|Skills/);
 
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
@@ -132,6 +173,46 @@ test("composes the mandatory core fragments, optional capabilities, discovery, a
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/capabilities/conversation-history/SKILL.md")));
     assert.ok(!resources.skillPaths.some((path) => path.endsWith("/skills/mode-contract/SKILL.md")));
     assert.ok(activeToolNames().includes("freeflow_context"));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("subagents keep Freeflow core and base skills without optional capabilities", async () => {
+  const cwd = await configuredRepo({
+    contextVirtualization: true,
+    conversationHistory: true,
+    cognitiveRouting: {
+      enabled: true,
+      profiles: {
+        coordinator: { provider: "test", model: "coordinator", thinking: "high" },
+        executor: { provider: "test", model: "executor", thinking: "max" },
+      },
+    },
+  });
+  try {
+    const { handlers, activeToolNames } = loadExtension(freeflowExtension, null);
+    const ctx = context(cwd, "<!-- freeflow-subagent-capabilities: disabled -->");
+    await handlers.get("session_start")({ type: "session_start" }, ctx);
+
+    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+    assert.match(before.systemPrompt, /# Freeflow Stable Guidance/);
+    assert.match(before.systemPrompt, /# Freeflow Interaction Contract/);
+    assert.doesNotMatch(before.systemPrompt, /## Cognitive Routing Cue/);
+    assert.doesNotMatch(before.systemPrompt, /## Context Virtualization Cue/);
+    assert.doesNotMatch(before.systemPrompt, /## Conversation History Cue/);
+
+    const resources = await handlers.get("resources_discover")({ cwd }, ctx);
+    assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/action-selection/SKILL.md")));
+    assert.ok(!resources.skillPaths.some((path) => path.includes("/capabilities/")));
+
+    const providerContext = await handlers.get("context")({ messages: [] }, ctx);
+    const runtimeState = lastRuntimeState(providerContext.messages);
+    assert.match(runtimeState.content, /Freeflow: active/);
+    assert.match(runtimeState.content, /Context Virtualization: inactive/);
+    assert.match(runtimeState.content, /Conversation History: inactive/);
+    assert.match(runtimeState.content, /Cognitive Routing: inactive/);
+    assert.ok(!activeToolNames().includes("freeflow_context"));
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
