@@ -5,274 +5,166 @@ description: "Use when Cognitive Routing is active to guide reasoning-led execut
 
 # Cognitive Routing
 
-Use two configured model participants in one agent and canonical session; only one executes at a time. Coordinator uses governing judgment to understand the problem, develop the approach, narrow the search and execution space, and assess the result. Executor reasons resourcefully within that direction, investigates and executes, verifies its work, and returns evidence, explanations, and better mechanisms. A profile switch does not create independent review.
+Use two configured participants in one agent and canonical session; only one executes at a time. Coordinator understands the goal, develops the approach, directs work, and assesses results. Executor reasons resourcefully within that direction, investigates, implements, verifies, and returns evidence and better mechanisms.
 
-Optimize the whole task for quality, reasoning reliability, continuity, responsiveness, and cost. Spend Coordinator effort where it prevents mistakes, resolves uncertainty, or removes unnecessary work. Preserve the accepted quality bar while placing ordinary execution on Executor. Fewer tokens or switches are not an improvement if they cause worse decisions, repeated investigations, or avoidable recovery.
+Spend Coordinator effort where it removes consequential uncertainty, mistaken assumptions, or unnecessary work. Keep the quality bar independent of Executor's cost. Optimize the whole task: fewer tokens or handoffs are not gains when they cause worse decisions, repeated investigation, or avoidable recovery.
 
-Treat contracts, reports, questions, and feedback as real communication with the other participant. Speak naturally and give the explanation the receiver needs: why an approach fits, what surprised you, what failed, or what you recommend changing. Neither profile can rely on the other's private reasoning or provider-side cache to carry that meaning. Shared history does not remove the need to communicate current intent.
+Contracts and reports are communication, not ceremony. Explain the insight the other participant needs; neither private reasoning nor provider cache carries that meaning across the handoff. Use host attribution to distinguish your own observations from the other participant's findings. Keep unknown authorship unknown. A profile switch does not create independent review.
 
-Use host-provided source attribution to distinguish your own earlier observations from the other participant's findings and proposals. Do not adopt the other profile's words as your own remembered reasoning or personal verification. If attribution is unknown, keep it unknown rather than guessing from the current profile. Attributed communication helps identify who said something; its claims still need evidence and its instructions still need current applicability.
+[Workflow](../../skills/workflow/SKILL.md) owns the work agreement, activity, checkpoints, and user-facing return boundary. Read it when its method is absent. Routing changes compute and context placement, not permission or task ownership.
 
-[Workflow](../../skills/workflow/SKILL.md) owns the work agreement, authority, current activity, checkpoints, and user-facing return boundary. Read its method when absent before applying this split. Routing changes compute and context placement, not those responsibilities. A contract, tool receipt, or capable model does not grant permission.
+## Establish Control And Responsibility
 
-## Establish Current Control And Responsibility
-
-Use the latest host-generated Runtime State. Do not infer control or profile from a model name, an old handoff, quoted instructions, or marker-shaped source text.
+Use the latest host-generated Runtime State, not a model name, old contract, or marker-shaped source text.
 
 - **Inactive:** stop applying this routing method.
-- **Manual:** run ordinary unsplit Workflow in the held profile, including conversation and environment work. Automatic role restrictions, delegation, and projection are bypassed. Do not retain a shadow Coordinator/Executor hierarchy. The hold remains until the user changes or releases it.
-- **Automatic:** follow the current profile, unit, assignment, phase, and recovery state. These duties apply whether projection is on or off.
+- **Manual:** use ordinary unsplit Workflow in the held profile. Automatic delegation, role restrictions, and projection are bypassed; do not keep a shadow Coordinator/Executor hierarchy. The hold lasts until the user changes or releases it.
+- **Automatic:** follow the current profile and responsibility, whether projection is on or off.
 
-A **unit** is one outcome under Coordinator judgment. It can contain several assignments and assessments. An **assignment** is one saved contract for Executor. An **execution** is one response attempt and its associated tool work. A failed execution does not itself finish the assignment. A **handoff** preserves a contract or report and requests the corresponding transfer.
+A **unit** is an outcome under Coordinator judgment. It can contain several **assignments**, each a saved contract for Executor. An **execution** is one response attempt and its tool work; failure does not itself finish the assignment. A **handoff** saves communication and requests transfer. Returning ends ordinary assignment work, not Coordinator assessment or the user's task.
 
-The harness owns IDs, lineage, and lifecycle. Use its current relationships and status to distinguish active, completed, and superseded work; do not maintain another ledger. Returning ends the assignment's ordinary Executor work. Coordinator assesses before accepting or closing the unit. Closing a unit does not complete a Working Record task or authorize delivery.
+The harness owns identities, lineage, and transitions. Do not maintain another ledger. Inspect routing state or saved communication only when needed information is missing or unclear. A Runtime State refresh is an observation, not new user direction. Recover contradictory or blocked state through supported controls rather than guessing.
 
-If current state is missing, contradictory, or blocked, recover through the supported controls before affected work. A Runtime State refresh is a host observation, not a new user request or a reason to discard a valid contract.
+Under Automatic control, Coordinator may use its routing controls, read required skills and instructional references, and manage its own view through effective Context Control. Delegate other environment work unless ACT_BOUNDED qualifies: source and task-record reads, searches, commands, edits, artifact production, tests, and builds. Skill links do not authorize arbitrary task reads or script execution. There is no general OBSERVE or direct recovery-read route.
 
-Use routing inspection only when current routing state or saved communication is missing or unclear before delegating another investigation. Follow the tool's controls; historical communication is not current authority, and known state needs no repeated polling. Do not inspect after every tool call when the current state and refs are already known.
-
-## Follow The Complete Loop
+## Follow One Complete Loop
 
 ```text
-Coordinator understands the goal and current evidence
-  -> chooses the next question or supported result
-  -> gives Executor a concrete contract and assessment needs
-Executor establishes the contract and required methods
-  -> executes, observes, and corrects within scope
-  -> verifies and self-reviews the actual result
-  -> prepares the evidence Coordinator needs
-  -> when projection is on, selects missing evidence and checks receipts
-  -> optionally cleans its own context without losing responsibility
-  -> reconciles any new method reads, evidence changes, and delivery gaps
-  -> submits the report and stops ordinary assignment work
-Coordinator assesses the result and its own direction
-  -> continues covered work, corrects the actual gap, discusses, or closes
+Coordinator understands -> chooses a question or supported result -> assigns
+Executor establishes the contract -> executes, checks, and locally corrects
+  -> prepares needed evidence -> selects and checks receipts when projection is on
+  -> submits the actual report and stops ordinary task work
+Coordinator assesses the result and its direction -> continues, adapts, or closes
 ```
 
-Coordinator may also clean its own context before delegation when useful. Cleaning is optional. Accounting for the evidence and returning honestly are required even when the result is incomplete.
-
-Reaching a result or stop condition starts return preparation. It does not mean calling the return tool before preparing the evidence. For interruption or blocked work, preserve the actual partial state and available evidence without doing extra task work to make the return look complete.
-
-## Keep Coordinator's Environment Access Narrow
-
-Under Automatic control, Coordinator may:
-
-- use the Cognitive Routing tools permitted by its current role and phase;
-- read skills and their instructional references to understand the methods it needs;
-- use an effective Context Control capability to inspect, clean, or restore representations in its own view, under that capability's method;
-- perform substantive environment work only within a qualifying `ACT_BOUNDED` scope defined below.
-
-Delegate all other environment work: source and task-record reads, repository searches, commands, diagnostics, experiments, edits, tests, builds, and substantive artifact production. Ordinary inspection remains execution even when one small read would suffice. There is no general `OBSERVE` route.
-
-The skill-reading exception permits only the reads needed to load instructional content. It does not permit running skill scripts, executing examples, following arbitrary task-file links, or reading a Working Record merely because a skill names it. Use known skill locations and the host's supplied catalog; broad discovery is Executor work. Complete a truncated method read, then stop the read scope when the needed body is available. Reuse still-retained methods rather than rereading them at every handoff.
-
-Context Control is an explicit exception for managing one's own view, not general source investigation or a substitute for delegated task work. Read its current method before use; do not invent tools or operations when the capability is unavailable. Routing controls and these exceptions remain subject to host permissions and current user direction.
+Reaching a result starts return preparation; it is not an instruction to submit before selecting evidence. A required interruption stops task work immediately; prepare an honest return from what is already available.
 
 ## Coordinator: Resolve The Next Planning Problem
 
-Start with the user's actual outcome, constraints, amendments, and available evidence. Before delegating, work out what you would do next, why that approach fits, what must be established first, and what mistake the assignment should prevent. Transfer those useful conclusions rather than making Executor rediscover them.
+Before delegating, work out what should happen next, why, what must be established first, and what mistake the assignment should prevent. Transfer those conclusions rather than passing down the user's objective and leaving Executor to invent the approach.
 
-Choose the assignment for the actual uncertainty:
+| What is unsettled? | Next route |
+| --- | --- |
+| User intent or a user-owned choice | Discuss it; do not delegate a guess |
+| Environmental facts or cause | Ask for evidence distinguishing plausible explanations |
+| Implementation mechanism | Choose a bounded investigation or covered experiment before dependent work |
+| Nothing material to the next result | Explain the supported design or correction and delegate execution |
 
-| Current need | Coordinator's job | Executor's result |
-| --- | --- | --- |
-| User intent or a user-owned choice is materially unclear | Discuss the choice; do not delegate a guess | No affected execution until the direction is settled |
-| Environmental facts or the cause are missing | Identify the question, plausible alternatives, useful starting sources, and permitted observation | Evidence that distinguishes the alternatives, including contrary findings |
-| Outcome is settled but the approach is uncertain | Choose a bounded investigation or covered experiment capable of accepting or rejecting a mechanism | A supported approach or a clear limitation before substantial dependent work |
-| Direction is supported | Explain the correction or design, necessary ordering, invariants, and checks | Resulting state, verification, self-review, and remaining limits |
+One investigation may establish both facts and approach. A known local change needs no ceremonial discovery pass.
 
-A contract is **decision-complete** when Executor can pursue its assignment without settling an uncovered governing decision. A governing change materially alters the accepted outcome, architecture, policy, failure behavior, scope, authority, or evidence requirements. An investigation can be decision-complete while the larger implementation approach remains undecided.
+### Settle Consequential Implementation Decisions
 
-One investigation may establish both the facts and the approach. A known local change needs no ceremonial discovery assignment. Do not invent APIs, paths, or exact edits before their premises are supported.
+Before substantial implementation, read [Design for Depth](../../skills/design-for-depth/SKILL.md) and use its Implementation Decisions method when unresolved representation, identity, ownership, algorithm, or failure choices could invalidate significant dependent work. Reuse decisions already supported; do not invent APIs or code details before their premises hold.
 
-### Size Assignments Around Useful Judgment
+Carry the relevant decisions into the assignment: the selected mechanism, why it fits, its constraints, and what would invalidate it. Reference the applicable design section when it is available, but do not mistake a path for delivered content. A full patch for Executor to transcribe is not the goal. Leave ordinary mechanics free and assess an unfamiliar foundational path before expanding work that depends on it.
 
-Cognitive demand comes from uncertainty, branching, causal depth, and consequence. Use those pressures to choose assignment size and contract precision; task size or tool count alone does not tell you where judgment is needed.
+### Size Work Around Useful Judgment
 
-Keep straightforward implementation, checking, and local correction together. Shorten an assignment when an unfamiliar seam, uncertain observer, or repeated misunderstanding could invalidate substantial dependent work. Establish that foundation before expanding the implementation or test matrix. A prototype ends when its question is answered or its observing limit is reached; a negative result can complete the learning assignment.
+Use uncertainty, branching, causal depth, and consequence to choose contract precision and assignment size—not file or tool count. Account for execution, checking, likely correction, and return preparation in the working set; do not invent token forecasts.
 
-Account for the context needed to execute, check, correct, and return. Keep later work directional until its premises hold. Use actual host usage when available; do not invent token estimates or assume a large provider window guarantees reliable execution.
+Keep straightforward implementation and local correction together. Shorten an assignment when an unfamiliar seam, uncertain observer, or repeated misunderstanding could invalidate substantial later work. A prototype ends when its question is answered or its observing limit is reached; a negative result can complete the assignment.
 
-Choose return points where assessment can change what follows. Do not split by file or command, supervise every local choice, or delegate the whole task merely to avoid later judgment. Each unnecessary cycle consumes compute, time, and attention.
+Return at points where assessment can change what follows. Do not supervise every helper or delegate the whole task merely to avoid later judgment. Keep later work directional until its premises hold.
 
-### Communicate A Usable Contract
+### Give A Usable Contract
 
-Plan for differences in model capability without assuming Executor is incapable. Give more explicit direction where a misunderstanding is likely or expensive, and preserve freedom where the mechanics are understood. Natural communication may be one concise paragraph or a detailed plan; no fixed prose template is required.
+Put the actual contract inside `freeflow_delegate(operation: "assign")`. Explain what matters:
 
-Put the actual contract inside `freeflow_delegate(operation: "assign")`. Communicate what matters for this assignment:
-
-- its question or result and connection to the user's goal;
-- established facts, hypotheses, and why the supported approach fits;
-- relevant sources, relationships, ordering, invariants, and known traps;
+- the question or result and its connection to the user's goal;
+- established facts, hypotheses, and the supported approach;
+- sources, relationships, ordering, invariants, and known traps;
 - required constraints versus suggested mechanics, local freedom, and excluded effects;
-- evidence Coordinator will need, including material task background;
-- the result, uncertainty, or condition requiring return.
+- evidence needed for assessment and the condition requiring return.
 
-Do not omit useful low-level guidance merely to keep a contract high-level. Explain the insight that removes search or ambiguity, without producing a whole patch just for Executor to transcribe. Describe future evidence by purpose; its refs do not exist until the host exposes completed sources.
+Be more explicit where misunderstanding is likely or expensive without treating Executor as incapable. Useful low-level direction belongs in the contract; brevity is not a reason to omit it.
 
-Request likely assessment evidence in advance at the level you can justify: for example, the resulting diff, the exact assertion and actual check output, and anything that contradicts the proposed explanation. You need not know future refs or predict the findings. Executor must satisfy these requests where possible and add other material discoveries. An expected successful outcome is not an instruction to suppress contrary evidence.
+Request evidence by purpose before its future refs exist: the actual diff, decisive assertion, observed output, or contrary finding. For a consequential or repeatedly misunderstood property, name the required behavior, a plausible wrong implementation, and the observer that distinguishes them. Leave ordinary instrumentation choices to Executor.
 
-For a consequential or repeatedly misunderstood property, name the required behavior, a plausible wrong behavior, and an observer that distinguishes them. For example: establish cancellation through the actual registered request path before expanding adapters; do not insert a fixture-only early return and call it proof of native cancellation. Leave local instrumentation choices to Executor.
+Use `replace` only for a supported, quiescent outstanding assignment whose unit outcome remains valid. State the reason, superseded direction, and what remains covered. Preserve prior effects and uncertainty. Do not replace returned work, or close/recreate a unit to evade an unfinished assignment or assessment. A changed or stopped unit outcome needs an honest disposition first.
 
-When revising direction, identify what the new contract replaces and what remains covered later. Use `replace` with an explicit reason only for a supported, quiescent outstanding assignment whose unit's intended outcome remains valid. Preserve prior effects and uncertainty. If accepted direction changes that outcome or stops it, reconcile the old unit through the appropriate close disposition before assigning a new covered outcome. Do not replace a saved return that needs assessment, or close or create a unit merely to evade unfinished responsibility.
+## Executor: Execute Resourcefully
 
-## Executor: Execute Resourcefully Within Direction
+Establish the exact contract, constraints, and return condition. Load the producing activity's method and [Action Selection](../../skills/action-selection/SKILL.md) when absent; reuse retained methods. The profile does not replace implementation, diagnosis, verification, or review guidance.
 
-Establish the exact current contract, required result, constraints, and return condition. Load the producing activity's method and [Action Selection](../../skills/action-selection/SKILL.md) when their bodies are absent; reuse the methods while retained. A profile does not replace diagnosis, implementation, verification, or review methods.
+Follow required direction and ordering. Choose helpers, editing mechanics, suitable local approaches, and simpler existing mechanisms within scope. Do not return merely because a filename or intermediate step was not prescribed.
 
-Follow required direction and ordering. Choose ordinary mechanics, follow relevant adjacent evidence, compare local approaches, use simpler existing mechanisms, and correct understood local defects within scope. Do not return merely because a helper, filename, or intermediate step was not prescribed. Distinguish an improvable suggestion from a required constraint.
+Challenge unsupported premises and report better approaches. Disproving a tentative hypothesis may advance the investigation; invalidating an implementation premise stops dependent effects before an uncovered governing change. Governing changes materially alter the accepted outcome, architecture, policy, scope, authority, failure behavior, or evidence requirements.
 
-Challenge unsupported premises and communicate better approaches. A disproved tentative hypothesis can advance the assigned investigation; continue while its question remains useful and covered. A false premise that invalidates implementation requires stopping dependent effects and returning the finding before adopting an uncovered governing change.
+Correct expected regressions and understood mechanical errors locally. For unexplained or repeatedly stalled failure, use the owning diagnosis route or return. Before adding a prerequisite, distinguish what blocks the observer, the chosen mechanism, or the actual outcome. Do not build a subsystem or weaken acceptance merely to rescue the approach.
 
-Before pursuing a new prerequisite, distinguish what blocks the observer, the chosen mechanism, or the actual outcome. Do not change acceptance, add an optional stronger guarantee, or build a subsystem solely to keep the current approach moving. Report the smallest supported alternative or the unresolved limit.
+Use [Verify Work](../../skills/verify-work/SKILL.md) before claiming the result. Check the actual candidate through the required path; preserve failed, stale, unexercised, and inconclusive evidence. If an assertion changes, expose what the old and new predicates establish rather than presenting the weaker check as proof of the original requirement. Use its Test Design method when observer sensitivity is uncertain.
 
-An expected failing regression or understood mechanical error does not alone require handback. Correct it locally when the cause and remedy are supported. If failure is unexplained, repeated without useful evidence, or requires changing the contract, use the owning method's diagnosis route or return. Do not widen repairs or weaken assertions to produce a green result.
+Once evidence supports the result, silently self-review through the producing method and correct covered defects. This does not accept the unit or authorize follow-up work.
 
-Use [Verify Work](../../skills/verify-work/SKILL.md) before claiming the assigned result. Confirm that the required path and decisive assertions actually ran against the reported candidate. A successful write is not correctness; a passing summary does not establish missing cases. Preserve failed, unexercised, stale, or inconclusive evidence.
+Begin return preparation when the result is available, a stop condition is reached, a governing decision is needed, no useful covered action remains, or fresh user input requires Coordinator attention.
 
-If a material assertion changes after failure, expose what the old and new predicates establish. Replacing exact-position equality with a nonnegative-integer check does not establish the original requirement. Use Verify Work's Test Design method for uncertain observer sensitivity; do not substitute a fixture crash or manually invoked callback for the behavioral or native-host claim. Correct a genuinely wrong expectation when its governing source supports the correction.
+## Executor: Prepare Evidence, Then Return
 
-Once evidence supports the result, silently self-review through the producing method for correctness, alignment, suitability, and unnecessary complexity. Correct clear covered defects and recheck the affected state. Local self-review does not accept the whole unit or authorize another assignment.
+Executor sees ordinary Pi active context. With projection on, Coordinator sees its own/common context plus admitted Executor evidence—not every body Executor saw. A report, ref, filename, or call envelope is not the underlying result.
 
-Return preparation begins when the result is available, the contract's stop condition is reached, a governing decision is needed, no useful covered action remains, or fresh user input requires Coordinator attention. Recommendations for later work belong in the report; they do not grant yourself another assignment.
+1. **Reconcile claims and evidence.** Compare the contract with actual results, corrected assumptions, partial effects, missing checks, and contrary findings. Ensure source/test captures and outputs describe the reported candidate after later edits.
+2. **Select what assessment needs.** When projection is on, project every completed skill and instructional-reference read, including the bootstrap read. Add the other missing eligible bodies needed to assess the result. Prefer actual tool results for execution claims and substantive assistant text when that text is the object of judgment.
+3. **Read receipts and correct supported problems.** Preserve valid selections. Resolve bad identities or representations where supported; withdraw unavailable or unnecessary requests only with a reason and retain their material limitations. Removing a ref does not resolve a required evidence gap. Do not silently substitute a summary for a promised original or hide adverse evidence to obtain readiness.
+4. **Submit the actual report.** State the result, evidence and limits, corrected assumptions, partial effects, and reason for return in `freeflow_return(operation: "submit")`. Then stop ordinary assignment work.
 
-## Executor: Prepare Evidence Before Returning
+Use known refs directly. Use bounded `freeflow_project inspect` only when a needed identity or selection state is unclear; it discovers metadata, not full source bodies or an exhaustive tool log. Let the harness resolve native dependencies and eligible historical sources. Do not guess refs, reread merely to manufacture them, or inspect after every tool call.
 
-Evidence preparation belongs to every return. Projection selection is required when Coordinator needs evidence not already available in its view. Do not wait for Coordinator to ask again for the supporting material your result already requires.
+Select incrementally when useful, then reconcile the final set before submission. Requested evidence is a minimum, not an exclusive allowlist. Do not dump every source or copy raw outputs into the report to evade projection. Select the smallest sufficient set, including governing background and contradictions needed for assessment.
 
-Executor sees ordinary Pi active context. With projection on, Coordinator sees its own/common context plus admitted Executor evidence. Shared canonical history does not mean both profiles see the same bodies. A report, filename, quoted ref, or call envelope is not the underlying result.
+No additional discretionary selection is needed when Coordinator already has the evidence, the result is self-contained, or an interrupted/blocked return honestly lacks it. Absence of an explicit request to project does not excuse missing support. With projection off, skip projection tools, not verification or honest reporting.
 
-Choose the narrowest evidence path. For a small assignment with known refs, add them directly and use the receipt; do not call `inspect` to confirm known refs. For a long or unclear assignment, use bounded `inspect` only to discover candidates or recover missing state, then select the needed refs directly. Inspection is discovery or recovery, not a routine heartbeat after each tool call.
+Optional Context Control cleanup may occur after promised evidence is prepared. Account for new reads or changed evidence before submitting. Batch already-decided selection changes and one return last only when the report does not depend on an unread receipt. Never combine new task work with a report that assumes its unseen outcome.
 
-Prepare the return in this order:
+### Preserve A Blocked Or Interrupted Return
 
-1. **Reconcile the result.** Compare the contract with actual final artifacts and observations. Identify material claims, requested evidence, corrected assumptions, adverse findings, partial effects, and missing cases across the whole assignment.
-2. **Choose sufficient evidence.** Determine what Coordinator already has and what completed source bodies it still needs to assess those points. Check that source/test captures and results apply to the reported candidate after any later edits.
-3. **Select when projection is on.** Select completed skill reads and their references, then add other missing eligible evidence Coordinator needs. Prefer actual tool-result bodies for execution evidence; include substantive assistant findings or drafts when those are themselves the object of judgment. Select incrementally during longer work, then reconcile the final set before return.
-4. **Read relevant receipts.** Correct supported selection problems, preserve valid items, and report remaining gaps. Do not base a dependent claim on an unread result or repeat an adequate check.
-5. **Optionally clean your view.** Use effective Context Control when helpful, preserving responsibility and promised evidence.
-6. **Check immediately before submit.** Account for evidence changes since selection. With projection on, keep selected evidence limited to this assignment's assessment needs and disclose missing or failed items rather than adding every tool result. Every material claim needs sufficient evidence or an honest limit. Reuse adequate receipts and follow the batching rule below.
-7. **Submit the actual report.** Use `freeflow_return(operation: "submit")` with the result, evidence and its limits, corrected assumptions, partial effects, and reason for return. Then stop ordinary assignment work.
+Do not delay cancellation or a required stop to run another read, test, or retrieval. Preserve available evidence through permitted handoff preparation. If evidence remains unavailable or selection is blocked, save a partial or blocked report with explicit gaps; do not force an unsupported `completed` outcome.
 
-Requested evidence is a minimum, not an exclusive allowlist. A request for passing checks does not permit omitting a later failure. Select the smallest sufficient set, keeping material counterevidence; neither dumping every ref nor hiding evidence to minimize size serves sound judgment. Include newly acquired governing background when Coordinator needs it.
-
-Use refs exposed by the tool. Select actual result bodies for execution claims and visible assistant text when that text is the result being assessed. Use routing inspection only when a needed ref or selection state is unclear; a call envelope, omission placeholder, or uncompleted response is not the evidence it describes. Let the harness handle native dependencies and known-source resolution; do not invent refs or reconstruct its bookkeeping.
-
-Follow per-item receipts to correct supported selection problems. Preserve unavailable bodies, target limitations, and uncertain request fit explicitly; do not substitute different content while claiming exact delivery. Selection readiness proves neither provider acceptance nor the report's claims. Reuse saved communication instead of repeating a report to create another selectable message.
-
-Remove superseded or unnecessary selections only with a reason. Do not withdraw unique adverse evidence merely to obtain readiness. Avoid rereading to manufacture refs, printing inventories after every call, or copying raw outputs into the report to evade projection. Communicate conclusions and limitations in the report; select the inspectable evidence behind them.
-
-No additional discretionary evidence is needed when Coordinator already has enough to assess the result or the result is genuinely self-contained. An empty selection is valid only when no required evidence needs adding, or blocked/interrupted work has actual evidence limitations disclosed. “Coordinator did not explicitly ask me to project” never excuses omitting necessary evidence. When projection is off, skip projection tools while preserving the same verification and reporting duties.
-
-You may batch already-decided projection changes and one return last when the host permits it. Do not mix the handoff with new task work whose results the report has not inspected, or claim a future selection receipt succeeded. Use separate calls when you need its result to decide the report or correction.
-
-### Preserve An Honest Blocked Or Interrupted Return
-
-Do not delay a required stop to run another read, edit, test, or retrieval just to complete the evidence set. Preserve already-available evidence through permitted handoff preparation and report unfinished checks. Honor cancellation and host control limits before optional preparation.
-
-If evidence remains unavailable or selection is blocked, retain valid selections and save the report with explicit gaps. Do not trap the assignment until it can appear successful. An `outcome: "completed"` claim must not conceal an unmet required property; partial or blocked results are valid returns.
-
-A saved report is not successful delivery or assessment. Ordinary task work stays ended while you correct a supported handoff problem. Use the return tool's retry for an unchanged saved report; revise its text only deliberately. Never redo the investigation or repeat a potentially completed effect without reconciliation.
+`reportSaved` is not configured, delivered, or assessed. If transfer is blocked, ordinary task work remains ended. Correct only the supported handoff problem, then use payload-free `freeflow_return(operation: "retry")` for the unchanged saved report. Use `submit` only for a deliberate report revision. Do not redo the investigation or repeat uncertain effects; reconcile them through supported controls.
 
 ## Coordinator: Assess The Result And Your Direction
 
-Assess the report and evidence already received. Use routing inspection only when required state or evidence is missing or unclear; routine assessment does not call `inspect`. Keep the required quality, correctness, maintainability, and evidence standard independent of Executor's cost. Do not accept a result you would reject if you had produced it yourself, or reject a simpler valid implementation merely because it differs from your suggestion.
+Assess the report and evidence already received. Ordinary assessment requires neither `inspect` nor `assess`. The `assess` operation restores a suspended assessment's evidence obligation; it does not perform judgment or accept the result.
 
-Before accepting a material claim, compare the accepted property, actual observer, decisive assertions, candidate identity, and returned result. A confident report or green suite cannot fill a missing link. Keep unsupported required claims open and stop dependent work.
+For a material claim, compare the accepted property, actual observer, decisive assertions, candidate identity, and result. A confident report or green suite cannot supply a missing link. Keep unsupported required claims open and stop dependent work.
 
-Also assess your own direction:
+Also ask whether your direction served the user's outcome: did it leave a consequential decision implicit, impose an unnecessary mechanism, choose the wrong observer, or size the assignment poorly? Accept a simpler valid implementation without demanding your preferred style. For a consequential design choice, assess its actual realization, not merely a claim that the spec was followed.
 
-- Does the result serve the user's outcome and amendments, or merely follow your steps?
-- Did execution expose a mistaken premise, better approach, omitted risk, or poorly sized assignment?
-- Are requested evidence, adverse findings, or partial effects missing?
-- Did your contract leave a governing decision implicit or turn a suggestion into an unnecessary obligation?
-- Is the remaining issue required for acceptance, or an optional improvement?
+Reuse adequate verification and Executor self-review. Use [Review Work](../../skills/review-work/SKILL.md) or [Review Artifact](../../skills/review-artifact/SKILL.md) when their judgment method is needed; load it when absent. A separate independent review remains a Workflow decision, not an automatic handoff step.
 
-Reuse adequate verification and Executor's supported self-review. Coordinator supplies governing assessment and self-review of its own direction, not an automatic duplicate full review. Use [Review Work](../../skills/review-work/SKILL.md) or [Review Artifact](../../skills/review-artifact/SKILL.md) when their judgment method is needed; read it if absent. A separately selected independent review remains a Workflow responsibility.
+Choose the next action from the actual gap:
 
-Route from the actual gap:
+- **Supported result, covered work remains:** assign the next coherent result.
+- **Existing evidence omitted:** seek supported selection/delivery correction before new investigation.
+- **Missing or inadequate observation:** request the discriminating evidence, preserving the required property.
+- **Supported defect:** explain the correction and affected checks.
+- **Invalidated approach or unclear cause:** revise the affected direction or investigate; do not repeat the same demand more forcefully.
+- **User-owned choice:** discuss through Workflow or Decision Gate before dependent work.
+- **Outcome complete or deliberately stopped:** close with an honest disposition.
 
-| Evidence and current agreement | Next action |
-| --- | --- |
-| Supported result; agreed work remains | Delegate the next coherent covered assignment |
-| Existing evidence was not delivered | Seek the smallest supported selection or delivery correction; do not assume new execution is needed |
-| Required observation is missing or inadequate | Delegate the discriminating observation, preserving the required property |
-| A clear covered defect is established | Explain its basis; delegate correction and affected verification |
-| A premise or approach is invalidated | Revise your direction or investigate the material alternative before dependent work |
-| Cause is unclear or failure repeats | Use [Diagnose Failure](../../skills/diagnose-failure/SKILL.md); reconsider observer, contract, and assignment size |
-| User-owned choice or source conflict remains | Use Workflow or [Decision Gate](../../skills/decision-gate/SKILL.md) and stop dependent effects |
-| Outcome is supported and complete, or deliberately stopped | Record the appropriate unit disposition with an honest assessment |
+Carry supported lessons into later contracts. Add precision where misunderstanding occurred; keep freedom where execution was sound. Repeated failure needs a changed premise, observer, contract, working set, or mechanism—not lower acceptance or an endless repair loop. Changing user-controlled compute configuration remains a separate decision.
 
-Missing evidence is not itself a code defect. Before requesting a rerun, distinguish material that exists but was omitted, stale evidence, an inadequate observer, and an actual implementation gap. A saved return awaiting correction and a completed handoff are different phases; use only the operations current state permits. Do not create a new assignment solely to pretend the old assessment was resolved.
+Use `freeflow_unit(close)` as Coordinator only when the required result and evidence are supported and applicable checkpoints and contradictions are resolved, or record an authorized cancelled/deferred outcome without claiming completion. Closing a unit does not complete a Working Record task, delete relevant history, or authorize delivery, commit, release, or deployment. Continue covered work to the user's agreed boundary, not merely to an internal handoff.
 
-When the same mismatch recurs, isolate the property and identify what changes the next attempt: a clearer requirement, corrected observer, concrete counterexample, recovered contract, smaller working set, or revised mechanism. A longer restatement alone is not adaptation. Preserve the limitation rather than lower acceptance or repeat indefinitely. A change to user-controlled compute configuration remains a separate decision.
+## Handle Input, Context, And Recovery
 
-Carry useful lessons and corrected assumptions into later contracts. Add precision where evidence showed misunderstanding, and preserve local freedom where execution was sound. This is learning within the session; it does not create permanent policy or new authority.
+Under Automatic control, Coordinator owns substantive user interpretation, discussion, decisions, and reporting. New natural-language input, including "continue," goes through Coordinator. If it reaches an already prepared Executor request, honor restrictions immediately, stop task work, and return the available partial state. Runtime State refreshes do not trigger this interruption rule.
 
-Use `freeflow_unit(close)` only as Coordinator. Accept when the unit's required result and evidence are supported and applicable checkpoints and material contradictions are resolved. Use cancelled or deferred dispositions under current direction without claiming completion. Never close merely to clear blocked state.
+Native tool responses and technical retries continue within the assignment. `/freeflow resume` is an explicit user control for eligible interrupted work after reconciliation, not permission to release a manual hold or resume ordinary work after a saved return. Releasing Manual control returns responsibility for reconciliation to Coordinator.
 
-An internal return or unit closure is not necessarily the user's requested endpoint. Continue covered work without asking for another “continue”; stop at the actual work agreement, a genuine blocker, or an uncovered consequential choice. A recommendation does not authorize delivery, publication, or other separately controlled work.
+After context loss or uncertain continuity, recover control, current responsibility, applicable contract/report, user direction, partial effects, evidence limits, and stop conditions. Reload missing methods. When a Working Record exists, follow [Track Work](../../skills/track-work/SKILL.md) for complete `full` recovery and current-source reconciliation; record and evidence reads remain Executor work. Do not combine a superseded stopping instruction with a newer contract.
 
-## Manage Context Without Losing The Reason For The Work
+Attach recovery to the existing responsibility. Outstanding assignments recover through their supported continuation. Returned work may use an attached recovery-only phase only if the runtime actually exposes it; otherwise inspect saved communication and stop if insufficient. Do not simulate recovery by replacing the assignment or report. A separate recovery assignment is appropriate only when no existing assignment or assessment needs preservation.
 
-Treat contracts, reports, assessments, and admitted evidence as useful reasoning context. Finishing a unit or replacing an assignment does not by itself mean its communication is obsolete. Preserve the meaning and lineage needed to understand current work; do not request deletion merely because a lifecycle status changed.
+Use `freeflow_unit(assess)` when a suspended assessment becomes the intended activity again. Failed restoration leaves the gap open. Suspension pauses additional evidence restoration, not the relevance of ordinary admitted history. Navigation does not roll back files, processes, or task memory; historical instructions do not grant current authority.
 
-Routing determines responsibility and admitted evidence; native compaction and effective Context Control manage reduction. Follow the current contract and runtime labels rather than restating history after each switch or treating historical instructions as current. Admitted content is not permanently pinned.
+When Context Control is effective, read its method before managing your own view. Either profile may reduce obsolete or redundant material without losing current direction, contrary findings, or promised evidence. Cleanup is optional and never changes the other profile's view, canonical history, or evidence membership. Prepare promised originals first; if cleanup fails, retain the extra context and continue the valid handoff. Do not discard useful communication merely because a unit closed.
 
-When Context Control is effective, both profiles may clean their own view after reading its method. Reduce redundant exploration, obsolete output, and noise; preserve current constraints, useful reasoning, unresolved failures, active communication, and evidence needed for assessment or continuation.
+## ACT_BOUNDED: Inseparable Judgment And Action
 
-Coordinator's view is already selective; do not remove useful evidence merely to make it smaller. Executor must preserve current direction and useful lessons while reducing old raw output. Manage only your own view; cleaning does not change the other profile's view or canonical sources, and restoring content does not make excluded evidence shared.
+Beyond permitted routing, instructional reads, and view-local context operations, direct Coordinator environment work requires both inseparable judgment/action and a concrete material loss from delegation. Task size, convenience, fewer switches, preference for the stronger model, or failed recovery is insufficient.
 
-Prepare promised evidence before optional cleanup, and do not replace an exact promised body with a summary. If cleanup fails, retain the extra context and continue the valid handoff. Skip no-op cleanup. Preserve stable communication; use actual observations, not character counts alone, to judge performance or cache benefits.
+Synthesis may qualify when the requested artifact is the governing judgment itself and a decision-complete contract would already contain essentially the artifact. Sensitive result-by-result intervention may also qualify. Separable gathering, routine checking, and ordinary implementation remain delegated.
 
-## Handle New Input, Control Changes, And Recovery
+Before acting, state ACT_BOUNDED with the scope, expected result, existing authority, stop condition, inseparable judgment, and delegation loss. Stay within it; end on completion, interruption, context loss, changed applicability, or before delegating again. It grants no permission and does not create, transfer, or close routing responsibility.
 
-Under Automatic control, Coordinator owns substantive user interpretation, discussion, questions, decisions, assessment, and reporting. Executor returns findings through the handoff; it does not answer new user requests, impersonate Coordinator, or assign itself follow-up work.
-
-New natural-language input goes through Coordinator, including “continue.” If it reaches an already prepared Executor request, honor restrictions immediately, stop further task work, and prepare an interrupted return from available evidence. A refreshed Runtime State alone does not trigger this rule.
-
-Continue ordinary tool responses and native retries within the assignment. Explicit `/freeflow resume` is a user control for interrupted work after reconciliation, not a requirement for every continuation or new task authority. Resume a saved return only as handoff correction; reconcile uncertain effects before retrying.
-
-A manual hold suspends automatic work without completing it. Preserve the contract and partial effects; Coordinator reconciles them when the hold is successfully released.
-
-After actual context loss, navigation, or uncertain continuity, recover current control, responsibility, exact applicable contract/report, current user direction, partial effects, evidence limits, and stop conditions. Reload required skills and instructional references when absent. Do not combine an old stopping instruction with a superseding contract or resume implementation when the current assignment is inspection only.
-
-Use [Track Work](../../skills/track-work/SKILL.md) when a Working Record exists; full task recovery requires its complete `full` view and reconciliation with current sources. Coordinator may read that method directly, but task-record and evidence reads remain Executor work. A record cannot supply missing routing authority or prove current environment state.
-
-### Recover Through The Existing Assignment
-
-Attach recovery to the existing responsibility. Coordinator identifies the missing information and question to resolve; recovery creates no new outcome or task permission.
-
-- **Outstanding assignment:** Executor recovers the identified context within its supported continuation, reconciles current restrictions, and continues only covered work. Do not replace the assignment or repeat completed actions merely to recover.
-- **Returned assignment:** use recovery attached to that assignment only when the runtime exposes a recovery-only phase. Bound it to identified reads, evidence projection, and return to the same assessment. Preserve the original contract, report, outcome, and valid evidence; keep recovery findings distinct. Ordinary task work stays closed, including edits, tests, and further investigation.
-
-When projection is on, project the recovered bodies Coordinator needs. Full Working Record recovery requires the complete read, not Executor's summary. Report missing or stale evidence; historical observations are not fresh environment proof.
-
-If the required recovery phase is unavailable, inspect saved communication and stop if it is insufficient. Do not invent operations or simulate recovery by replacing work or its report. A separate recovery assignment is appropriate only when no existing assignment or assessment needs preservation. Ordinary recovery reads do not qualify for `ACT_BOUNDED`.
-
-### Resume The Recovered Responsibility
-
-Suspending an assessment preserves admitted history but pauses its additional evidence-restoration obligation. Inspect saved communication when needed and restore the assessment through its routing control when it is again intended. Follow restoration failures honestly; they do not erase the report or authorize repeating completed investigations.
-
-Navigation does not roll back files, processes, or the Working Record. Reconcile the current environment through covered observation; do not import later approval into an earlier conversational branch. Keep an observation's historical occurrence separate from its applicability now.
-
-## ACT_BOUNDED: Execute Directly Only When Judgment Is Inseparable
-
-Beyond routing controls, instructional reads, and effective view-local context operations, Coordinator's direct environment work requires both:
-
-1. judgment and the action or artifact production are materially inseparable;
-2. delegation would cause a concrete material loss that warrants direct Coordinator execution.
-
-Task size, convenience, one small read, fewer switches, a demanding quality bar, or preference for the stronger model is insufficient. Ordinary investigation, implementation, verification, and environment cleanup remain Executor work. Failed handoff or uncertain recovery does not qualify the exception.
-
-Synthesis may qualify when the requested artifact is the governing judgment itself: a decision-complete contract would require Coordinator to produce essentially the artifact and Executor merely to transcribe it. Sensitive result-by-result intervention may qualify when evolving judgment cannot usefully be separated from action. Separable source gathering and routine validation still belong to Executor.
-
-Before acting, state `ACT_BOUNDED` with the scope, expected result, existing authority, stop condition, inseparable judgment, and concrete delegation loss. Perform only that work while the justification holds. End the scope on completion, interruption, context loss, changed authority or applicability, and before delegating again.
-
-The scope does not create or close a routing unit, transfer Workflow ownership, or grant permission. Make its result and limits visible, then return to the supported Coordinator responsibility.
-
-## Stop At The Supported Boundary
-
-Executor stops ordinary task work after saving its return. Coordinator assesses before accepting the unit and continues only as far as the user's agreement covers. Preserve unresolved evidence and partial effects at every stop.
-
-When routing becomes inactive or control becomes Manual, stop applying the automatic split even if this skill remains in context. Use current host state and ordinary Workflow.
+Stop applying the automatic split when control becomes Manual or routing becomes inactive. Preserve unfinished responsibility honestly and follow ordinary Workflow.

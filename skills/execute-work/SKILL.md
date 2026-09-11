@@ -36,6 +36,8 @@ Find the relevant mechanism, callers, contracts, and observing seam before chang
 
 Readiness means you can explain what will change, why it should produce the accepted result, and how the result will be checked. It does not require knowing every line or helper in advance. If an unfamiliar fixture or observing stage could invalidate substantial dependent work, establish that observer first through a bounded investigation. Reuse adequate fixtures; do not make a separate prototype mandatory.
 
+Before substantial implementation, read [Design for Depth](../design-for-depth/SKILL.md) and use its Implementation Decisions method when unresolved representation, identity, ownership, algorithm, or failure choices could invalidate significant dependent work. Reuse applicable design decisions already supplied; distinguish required constraints, suggested mechanisms, and local freedom. A reference to a design is not enough when its relevant content is unavailable. Resolve the consequential unknown, not every future coding detail.
+
 Use [Action Selection](../action-selection/SKILL.md) when choosing the next source, observer, or effect is uncertain, broad, or repetitive. Stop gathering when the current unit is sufficiently supported. A mechanical read of a known caller or signature can remain inside execution; discovering an invalidated mechanism requires re-entry before dependent edits.
 
 When specialized guidance is needed, read [Domain Skill Composition](../workflow/references/domain-skill-composition.md). Before writing or changing code, read [Code Practices](references/code-practices.md). Before designing or materially changing a behavior check, read [Test Design](../verify-work/references/test-design.md); choose its oracle from accepted behavior rather than the implementation.
@@ -64,6 +66,8 @@ Use one primary method at a time:
 Preserve accepted behavior, failure semantics, repository conventions, and source truth. Do not rewrite tests, Specs, Plans, policies, or acceptance merely to make implementation pass.
 
 Allow local choices of helpers, editing order, and focused checks while the agreed result and effects remain unchanged. Handle edge cases required by accepted behavior, direct evidence, or material safety; return undefined consequential behavior rather than encode a guess.
+
+For an unfamiliar design boundary that could invalidate later work, establish its first coherent implementation and distinguishing observation before dependent expansion. Compare the actual ownership, identity, ordering, and failure behavior with the selected design—not merely its proposed filenames. Preserve accepted predicates when a sketch proves wrong; stop dependent effects and resolve the affected mechanism through the current owner. Supported local improvements need no automatic handback or separate review.
 
 ## Execute A Bounded Learning Action
 

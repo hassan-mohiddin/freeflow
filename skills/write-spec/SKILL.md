@@ -39,6 +39,8 @@ Read [Spec Shapes](references/spec-shapes.md) before choosing the structure. Rea
 
 Include relevant purpose, scope, non-goals, accepted behavior, constraints, interfaces, consequential failure semantics, acceptance, and evidence. Explain architecture and ownership deeply where the intended use requires it; do not remove necessary detail just to shorten the document.
 
+When writing an implementation-guiding design whose unresolved representation, identity, ownership, algorithm, or failure choices could invalidate significant dependent work, read [Design for Depth](../design-for-depth/SKILL.md) and use its Implementation Decisions method. Preserve the selected choices and rationale, distinguishing fixed constraints from illustrative sketches and local freedom. Existing supported decisions need no fresh design exercise; open choices must remain visible rather than being filled with invented mechanics.
+
 Keep distinguishable:
 
 - required behavior and accepted decisions;

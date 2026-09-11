@@ -73,6 +73,21 @@ Possible sections:
 
 A technical design may contain implementation detail when that detail defines the accepted design. Ordered phases and execution slices still belong in a Plan.
 
+### Implementation Decisions
+
+Include this subsection when consequential engineering choices must survive implementation handoffs or context loss. For selecting those choices, use [Design for Depth](../../design-for-depth/SKILL.md); this shape preserves their result rather than duplicating the design method.
+
+Capture only what the intended implementation needs:
+
+- selected representation, identity, state owners, and module responsibilities;
+- essential algorithm, effect ordering, update/invalidation, and failure behavior;
+- source basis, rationale, and invariants;
+- a plausible wrong implementation and the observer that distinguishes it;
+- required constraints, suggested mechanics, and implementer freedom;
+- unresolved assumptions and conditions requiring reconsideration.
+
+A compact type or control-flow sketch is useful when it removes consequential ambiguity. Mark illustrative code as such; it is not the behavioral oracle. Keep the applicable revision recoverable and update only decisions affected by new evidence. Do not require this subsection for a product-only artifact or an already clear local change.
+
 ## API, Protocol, Or Interface Contract
 
 Use for a public or internal interface that callers will depend on.

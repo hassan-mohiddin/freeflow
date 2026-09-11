@@ -94,14 +94,16 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   );
   assert.match(cognitiveRouting, /Use the latest Runtime State for control, profile, and current responsibility/);
   assert.match(cognitiveRouting, /Coordinator and Executor in one agent\/session/);
-  assert.match(routingSkill, /Automatic role restrictions, delegation, and projection are bypassed/);
+  assert.match(routingSkill, /Automatic delegation, role restrictions, and projection are bypassed/);
   assert.match(routingSkill, /Put the actual contract inside `freeflow_delegate/);
-  assert.match(routingSkill, /submits the report and stops ordinary assignment work/);
+  assert.match(routingSkill, /submits the actual report and stops ordinary task work/);
   assert.match(cognitiveRouting, /project every completed skill and instructional-reference read/);
+  assert.match(routingSkill, /Attach recovery to the existing responsibility/);
   assert.match(
     routingSkill,
-    /If no supported route can recover the necessary information while preserving responsibility, stop and report that limitation/,
+    /Returned work may use an attached recovery-only phase only if the runtime actually exposes it; otherwise inspect saved communication and stop if insufficient/,
   );
+  assert.match(routingSkill, /Do not simulate recovery by replacing the assignment or report/);
   assert.doesNotMatch(
     conversationHistory,
     /Current user direction, live source truth, and present runtime state remain authoritative/,
