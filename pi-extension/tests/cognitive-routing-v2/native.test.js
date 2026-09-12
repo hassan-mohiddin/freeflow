@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -199,6 +200,38 @@ test("native projection omits an unselected sibling body but preserves its excha
       const last = JSON.stringify(requests.at(-1));
       assert.match(last, /EXACT_EVIDENCE_BODY_81/, "suspension pauses historical restoration, not active membership");
       assert.match(last, /suspended/);
+    },
+  );
+});
+
+test("native pre-prompt reload and profile changes preserve unflushed routing state", { timeout: 30000 }, async () => {
+  await fixture(
+    () => [],
+    false,
+    async ({ session, manager, notices }) => {
+      assert.equal(existsSync(manager.getSessionFile()), true, "first assistant flushes the session file");
+      await session.reload();
+      await session.prompt("/freeflow profile executor");
+      await session.waitForIdle();
+      assert.equal(JSON.parse(notices.at(-1)[0]).status, "active");
+    },
+    true,
+    {
+      beforePrompt: async ({ session, manager, notices }) => {
+        const file = manager.getSessionFile();
+        assert.equal(existsSync(file), false, "new session is still unflushed after startup bind");
+        await session.reload();
+        assert.equal(existsSync(file), false, "reload must not require a pre-flush session file");
+        await session.prompt("/freeflow profile executor");
+        await session.waitForIdle();
+        assert.equal(JSON.parse(notices.at(-1)[0]).status, "active");
+        assert.equal(existsSync(file), false, "profile control remains in memory before first assistant");
+        await session.reload();
+        assert.equal(existsSync(file), false, "profile-triggered reload remains pre-flush");
+        await session.prompt("/freeflow profile coordinator");
+        await session.waitForIdle();
+        assert.equal(JSON.parse(notices.at(-1)[0]).status, "active");
+      },
     },
   );
 });

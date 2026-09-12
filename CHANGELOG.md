@@ -20,6 +20,8 @@
 
 ### Fixed
 
+- Clarifies Cognitive Routing evidence-selection operation shapes, remove-only withdrawal reasons, and the distinction between adding eligible refs and withdrawing unresolved non-selectable refs.
+- Prevents pre-prompt `/reload` and Cognitive Routing preset changes from blocking on Pi's not-yet-materialized session file.
 - Limits normal evidence inspection to usable candidates and removes source-content previews, while preserving saved-selection diagnostics.
 - Preserves delivered-user identity across native compaction and explicit resume, so stored-but-undelivered history does not interrupt an outstanding Executor assignment while genuinely new input still does.
 - Keeps streamed routing contracts and reports visible in collapsed receipts; limitations and replacement reasons remain available in expanded views instead of obscuring current prose.

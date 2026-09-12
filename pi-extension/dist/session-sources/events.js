@@ -91,6 +91,28 @@ export class EventStore {
         this.ready = true;
         return;
       }
+      // Pi defers creating a new session file until its first assistant message.
+      // Before that flush boundary, the complete in-memory native session is the
+      // only available source; uncertain appends still require persisted readback.
+      const preFlush =
+        !this.attempted.size &&
+        !this.reader.getEntries().some((entry) => entry.type === "message" && entry.message?.role === "assistant");
+      if (preFlush) {
+        replay(branch);
+        const known = new Map();
+        for (const entry of branch) {
+          if (entry.type === "custom" && entry.customType === ROUTING_ENTRY) {
+            const event = parseRoutingEvent(entry.data);
+            known.set(eventKey(event), { value: eventValue(event), eventId: event.eventId, entryId: entry.id });
+          }
+        }
+        this.observed = known;
+        this.fault = undefined;
+        this.ready = true;
+        this.cachedEntries = [];
+        this.cachedState = replay([]);
+        return;
+      }
       const path = this.reader.getSessionFile();
       check(path, "persisted_snapshot_unavailable", "Existing or uncertain routing state needs a persisted snapshot.");
       const snapshot = await readOnlySessionSnapshot(path);

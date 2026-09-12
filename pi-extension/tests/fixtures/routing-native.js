@@ -166,6 +166,7 @@ export async function fixture(script, projection = true, after, withUI = true, o
       ...(withUI ? { uiContext: { notify: (...args) => notices.push(args), setStatus: () => {} } } : {}),
     });
     await options.onSession?.(session);
+    await options.beforePrompt?.({ session, manager, requests, contexts, cwd, notices });
     await session.prompt("Complete the fixture assignment.");
     await session.waitForIdle();
     assert.deepEqual(errors, [], "extension lifecycle errors");

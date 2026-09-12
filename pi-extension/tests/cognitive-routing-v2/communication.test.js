@@ -129,6 +129,13 @@ test("new control selections are rejected while old selections and mixed assista
     attempted.unresolved.map((p) => p.code),
     ["routing_source", "routing_source"],
   );
+  assert.deepEqual(
+    attempted.unresolved.map((p) => p.detail),
+    [
+      "Routing control messages are not task evidence. Use ctx:control#text if its visible assistant text is the intended evidence.",
+      "Routing control receipts are not task evidence; saved communication is delivered separately.",
+    ],
+  );
   const prior = { ...empty, revision: 1, selected: ["ctx:receipt"] };
   assert.equal(changeSelection(prior, { operation: "add", refs: ["ctx:receipt"] }, sources, state), prior);
   state.assignmentId = "a";

@@ -1,12 +1,29 @@
 import { isObject } from "./types.js";
-const string = (maxLength = 32768) => ({ type: "string", minLength: 1, maxLength });
-const object = (properties, required = Object.keys(properties)) => ({
+const string = (maxLength = 32768, description) => ({
+  type: "string",
+  minLength: 1,
+  maxLength,
+  ...(description ? { description } : {}),
+});
+const object = (properties, required = Object.keys(properties), description, title) => ({
   type: "object",
   additionalProperties: false,
   properties,
   required,
+  ...(description ? { description } : {}),
+  ...(title ? { title } : {}),
 });
-const operation = (value) => ({ type: "string", enum: [value] });
+const operation = (value, description) => ({
+  type: "string",
+  enum: [value],
+  ...(description ? { description } : {}),
+});
+const evidenceRefs = (description) => ({
+  type: "array",
+  maxItems: 64,
+  items: string(512),
+  description,
+});
 const submit = object(
   {
     operation: operation("submit"),
@@ -48,18 +65,41 @@ export const ROUTING_SCHEMAS = {
     oneOf: [
       object(
         {
-          operation: operation("inspect"),
-          scope: { type: "string", enum: ["selected", "assignment", "active", "history"] },
-          cursor: string(128),
+          operation: operation("inspect", "Read current selection and offered evidence candidates."),
+          scope: {
+            type: "string",
+            enum: ["selected", "assignment", "active", "history"],
+            description: "Optional candidate scope; omit to inspect the current assignment.",
+          },
+          cursor: string(128, "Use the nextCursor returned by a previous inspection."),
         },
         ["operation"],
+        "Inspect selection and candidates without changing evidence state.",
+        "Inspect evidence selection",
       ),
-      object({ operation: operation("add"), refs: { type: "array", maxItems: 64, items: string(512) } }),
-      object({
-        operation: operation("remove"),
-        refs: { type: "array", maxItems: 64, items: string(512) },
-        reason: string(2048),
-      }),
+      object(
+        {
+          operation: operation("add", "Select eligible Executor task-evidence refs; do not include reason."),
+          refs: evidenceRefs(
+            "Exact refs returned by freeflow_project inspect as eligible evidence. Never add a ref marked not offered for new evidence selection.",
+          ),
+        },
+        ["operation", "refs"],
+        "Add evidence refs. This shape has no reason field.",
+        "Add evidence",
+      ),
+      object(
+        {
+          operation: operation("remove", "Withdraw selected or unresolved refs; reason is required."),
+          refs: evidenceRefs(
+            "Currently selected or unresolved refs to withdraw. A non-selectable ref may be removed with a reason to clear its unresolved request.",
+          ),
+          reason: string(2048, "Required only for remove; explain why the selection is being withdrawn."),
+        },
+        ["operation", "refs", "reason"],
+        "Remove evidence refs. This is the only operation that accepts reason.",
+        "Remove evidence",
+      ),
     ],
   },
 };
@@ -73,7 +113,14 @@ for (const schema of Object.values(ROUTING_SCHEMAS)) {
   schema.properties.operation = {
     type: "string",
     enum: schema.oneOf.flatMap((branch) => branch.properties.operation.enum),
+    description: "Choose exactly one operation; each operation has a strict shape and rejects unknown fields.",
   };
+  if (schema.properties.refs)
+    schema.properties.refs = {
+      ...schema.properties.refs,
+      description:
+        "For add, use exact refs returned by freeflow_project inspect as eligible evidence; never add a ref marked not offered for new evidence selection. For remove, use currently selected or unresolved refs; a non-selectable ref may be named to clear its unresolved request and requires reason.",
+    };
 }
 export function matches(value, schema) {
   if (schema.oneOf) return schema.oneOf.filter((branch) => matches(value, branch)).length === 1;

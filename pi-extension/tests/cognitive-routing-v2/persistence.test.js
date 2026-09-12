@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, writeFile, rename, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -55,6 +56,60 @@ test("fresh no-v2 baseline validates ancestry before allowing automatic effects"
     );
     await assert.rejects(store.reconcile(), (e) => e.code === "invalid_native_ancestry");
     assert.ok(store.blocked);
+  }
+});
+
+test("pre-flush native routing state reconciles from the in-memory branch", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "freeflow-preflush-routing-"));
+  try {
+    const manager = SessionManager.create(dir, join(dir, "sessions"));
+    const pi = { appendEntry: (type, data) => manager.appendCustomEntry(type, data) };
+    const store = new EventStore(pi, manager);
+    await store.reconcile();
+    const event = store.make({ type: "control", control: "automatic", profile: "coordinator", reason: "fixture" });
+    store.append(event);
+    assert.equal(existsSync(manager.getSessionFile()), false, "Pi has not flushed a new session yet");
+
+    const rebound = new EventStore(pi, manager);
+    await rebound.reconcile();
+    assert.equal(rebound.blocked, undefined);
+    assert.equal(rebound.state().control, "automatic");
+    assert.equal(rebound.state().profile, "coordinator");
+    assert.equal(rebound.append(event).eventId, event.eventId, "reconciled occurrence is reusable");
+    assert.equal(
+      manager.getEntries().filter((entry) => entry.type === "custom" && entry.customType === "freeflow-routing-v2")
+        .length,
+      1,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("pre-flush uncertain append still requires persisted readback", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "freeflow-preflush-uncertain-"));
+  try {
+    const manager = SessionManager.create(dir, join(dir, "sessions"));
+    const store = new EventStore(
+      {
+        appendEntry: (type, data) => {
+          manager.appendCustomEntry(type, data);
+          throw new Error("fixture append failure");
+        },
+      },
+      manager,
+    );
+    await store.reconcile();
+    const event = store.make({ type: "control", control: "automatic", profile: "coordinator", reason: "fixture" });
+    assert.throws(
+      () => store.append(event),
+      (error) => error.code === "acknowledgment_uncertain",
+    );
+    assert.equal(existsSync(manager.getSessionFile()), false);
+    await assert.rejects(store.reconcile(), (error) => error.code === "read_failed" && /ENOENT/.test(error.message));
+    assert.ok(store.blocked, "uncertain pre-flush state remains blocked without persisted acknowledgment");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
   }
 });
 

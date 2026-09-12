@@ -17,6 +17,7 @@ import {
   setSessionCoreOverride,
 } from "../../dist/runtime/runtime-context.js";
 import { PIFLOW_HOST } from "../fixtures/pi-host.js";
+import { matches } from "../../dist/cognitive-routing-v2/schemas.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -270,6 +271,44 @@ test("new routing tools and projection state follow the configured contract", as
       await rm(cwd, { recursive: true, force: true });
     }
   }
+});
+
+test("Pi describes strict evidence-selection operation shapes", () => {
+  const { tools } = loadExtension();
+  const project = tools.find((tool) => tool.name === "freeflow_project");
+  assert.ok(project);
+  assert.deepEqual(
+    project.parameters.oneOf.map((branch) => branch.properties.operation.enum[0]),
+    ["inspect", "add", "remove"],
+  );
+  assert.deepEqual(Object.keys(project.parameters.oneOf[1].properties), ["operation", "refs"]);
+  assert.deepEqual(Object.keys(project.parameters.oneOf[2].properties), ["operation", "refs", "reason"]);
+  assert.match(project.description, /reason is remove-only/i);
+  assert.match(project.promptGuidelines.join(" "), /reason is required only for remove and invalid for add\/inspect/i);
+  assert.match(
+    project.promptGuidelines.join(" "),
+    /for add.*never add refs marked not offered.*for remove.*currently selected or unresolved/i,
+  );
+  assert.match(project.parameters.properties.reason.description, /only for remove/i);
+  assert.match(project.parameters.oneOf[1].properties.refs.description, /never add a ref marked not offered/i);
+  assert.match(
+    project.parameters.oneOf[2].properties.refs.description,
+    /currently selected or unresolved.*non-selectable ref may be removed/i,
+  );
+  assert.match(
+    project.parameters.properties.refs.description,
+    /For add.*eligible.*For remove.*currently selected or unresolved/i,
+  );
+
+  assert.equal(
+    matches({ operation: "add", refs: ["ctx:example"], reason: "selection explanation" }, project.parameters),
+    false,
+  );
+  assert.equal(matches({ operation: "add", refs: ["ctx:example"] }, project.parameters), true);
+  assert.equal(
+    matches({ operation: "remove", refs: ["ctx:example"], reason: "selection explanation" }, project.parameters),
+    true,
+  );
 });
 
 test("Pi registers the remaining Freeflow commands without mode controls or retired router tools", () => {
