@@ -1,12 +1,12 @@
 # Implementation Decisions
 
-Read this before substantial implementation, or before writing its guiding design, when unresolved representation, identity, ownership, algorithm, or failure choices could invalidate significant dependent work. Skip it for a supported local change whose remaining mechanics do not alter those boundaries.
+Read this when unresolved representation, identity, ownership, algorithm, dependency, or failure choices could materially change a technical recommendation or invalidate significant dependent work. Apply it before recommending a mechanism during discussion, writing its guiding design, or beginning substantial implementation. Skip it for a supported local change whose remaining mechanics do not alter those boundaries.
 
 Use this method under Design for Depth and the current activity. It does not create another planning phase, document requirement, approval gate, or compute role.
 
 ## Identify What Implementation Would Still Have To Invent
 
-Start from the accepted outcome, relevant source evidence, and existing design. Ask:
+Start from the current goal and constraints, relevant source evidence, and existing design. During discussion, mark unsettled outcomes and approaches as provisional: compare their consequences without turning an explored option into an accepted requirement. Select supported engineering details within the agreement; return user-owned choices through the current activity. Ask:
 
 > Which remaining choices could change correctness, complexity, failure behavior, or force substantial dependent work to be redone?
 
@@ -73,4 +73,4 @@ Weak direction: "Make persistence idempotent and robust."
 
 Useful direction: "The append owner distinguishes observed acknowledgment from an uncertain attempt. An equal entry in memory does not resolve an earlier failure. Validate before mutation; publish accepted state only at the supported acknowledgment boundary. Test append advancing memory then failing, followed by the identical operation: uncertainty must remain until supported reconciliation. Also test an acknowledged duplicate so the implementation does not reject every retry. Do not infer filesystem durability from readback. Reconsider the mechanism if the actual host boundary differs."
 
-Stop when the next implementation has a supported approach and intentional local freedom, or its blocking question is explicit. Do not pursue a complete blueprint for later work whose premises remain unsettled.
+Stop when the current discussion has a supported recommendation or explicit open question, or the next implementation has a supported approach and intentional local freedom. Preserve provisional versus accepted decisions when passing the result back to the current activity; discussion does not authorize implementation. Do not pursue a complete blueprint for later work whose premises remain unsettled.

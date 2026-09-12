@@ -30,7 +30,7 @@ A large mechanical change may need no design escalation. A one-line change may n
 
 Use the lens early when interface, ownership, state, or failure choices could harden into caller contracts. It can support discussion, a Spec or Plan, implementation preparation, or selecting a test seam.
 
-Before substantial implementation, or before writing its guiding design, read [Implementation Decisions](references/implementation-decisions.md) when unresolved representation, identity, ownership, algorithm, or failure choices could invalidate significant dependent work. Select a supported mechanism or identify the missing observation; leave ordinary mechanics free. The reference helps make those choices explicit and check their realization, not impose a blueprint on every task.
+Read [Implementation Decisions](references/implementation-decisions.md) when unresolved representation, identity, ownership, algorithm, dependency, or failure choices could materially change a technical recommendation or invalidate significant dependent work. Apply it before recommending a mechanism during discussion, writing its guiding design, or beginning substantial implementation. Explore alternatives against the current goal and constraints; select a supported mechanism or identify the missing observation or user-owned choice. Leave ordinary mechanics free. The reference helps make those choices explicit and check their realization, not impose a blueprint on every task.
 
 Once a boundary is supported, do not reopen it merely because the skill remains in context. Re-enter when evidence shows growing caller coordination, scattered policy, exposed internal states, fragile test choreography, unclear dependency/failure ownership, or an invalidated design assumption.
 

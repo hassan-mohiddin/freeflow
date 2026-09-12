@@ -26,6 +26,8 @@ Identify which understanding is missing:
 - **What:** the problem or opportunity, desired result, accepted behavior, constraints, non-goals, and what would count as success.
 - **How:** the mechanism, dependencies, affected boundaries, tradeoffs, and evidence needed to produce that result in the actual environment.
 
+Use [Design for Depth](../design-for-depth/SKILL.md) when representation, identity, ownership, interfaces, algorithms, state, dependencies, or failure behavior materially shape the choice. If unresolved choices could materially change a technical recommendation or invalidate significant dependent work, read its Implementation Decisions method before recommending a mechanism. Use it to explain the differences that matter between viable approaches, not to turn ordinary discussion or a supported local change into an architecture exercise.
+
 These questions can be answered together. Reuse what remains supported instead of running two compulsory discovery passes. A detailed request may settle what while leaving how open; an investigation may reveal that the initial problem description was wrong.
 
 Keep supported facts and explicit decisions distinct from hypotheses, proposed mechanisms, and unresolved choices. Do not turn an assistant recommendation into a requirement because it is repeated or recorded.
@@ -56,8 +58,6 @@ Carry your share of the thinking:
 Ask about priorities, behavior, constraints, and tradeoffs the user owns. Keep one consequential uncertainty in focus; do not conduct a questionnaire or manufacture alternatives for ordinary choices.
 
 Before recommending a new obligation, distinguish a requirement from a limitation of the current approach. Explain consequences in user terms: "requires changing and distributing a patched host," not merely "needs a provenance interface." Include a simpler in-scope alternative when one is supported. Do not weaken required behavior to make an approach look simpler.
-
-Use [Design for Depth](../design-for-depth/SKILL.md) when ownership, interfaces, state, dependencies, or failure behavior materially shape the choice. A lens is not a reason to design a broader system.
 
 ## Frame And Assess A Learning Action
 
