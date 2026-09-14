@@ -110,7 +110,7 @@ Interaction Lifecycle
       └─ Action Selection bounds environment interactions
 ```
 
-Manual control runs the ordinary unsplit Workflow. Automatic Coordinator owns user-facing judgment; Executor works within its current assignment. A saved report ends Executor task permission without accepting the unit. Explicit retry preserves the saved report, and replacement preserves prior effects; routing does not add a second Workflow or model-authored boundary ledger. Narrow Coordinator recovery reads preserve the existing responsibility; substantive direct work requires ACT_BOUNDED. Late user input reaching a prepared Executor request requires an interrupted return before task tools. Projection selects Executor evidence and preserves its assessment obligation through compaction until disposition, with explicit suspension for newer attention; compaction retains the last observed delivered-user basis rather than treating stored-but-undelivered history as new input. These operations do not change user authority or make an internal handback the user-facing endpoint.
+Manual control runs the ordinary unsplit Workflow. Automatic Coordinator owns user-facing judgment; Executor works within its current assignment. A saved report ends Executor task permission without accepting the unit. Explicit retry preserves the saved report, and replacement preserves prior effects; routing does not add a second Workflow or model-authored boundary ledger. Attached recovery lets Coordinator request missing evidence while preserving the returned assignment, original report, selection, and assessment; Executor receives only bounded selection/exact-read work and returns a distinct supplement. Unsettled recovery must complete or be cancelled before `assess` resumes the assessment. Late user input reaching a prepared Executor request requires an interrupted return before task tools. Projection selects Executor evidence and preserves its assessment obligation through compaction until disposition, with explicit suspension for newer attention; compaction retains the last observed delivered-user basis rather than treating stored-but-undelivered history as new input. These operations do not change user authority or make an internal handback the user-facing endpoint.
 
 ## Failure and recovery boundaries
 
@@ -121,6 +121,7 @@ Manual control runs the ordinary unsplit Workflow. Automatic Coordinator owns us
 - Runtime State unavailable: do not infer it from model identity, response style, or old transition history.
 - Configuration establishes activation but does not prove host delivery.
 - After context loss, the core cue requires complete `full` Working Record recovery when a record exists, current capability/owner methods, and reconciliation with current direction and live evidence. An intact session uses bounded readback instead of repeating full recovery.
+- Attached recovery is not general Coordinator task access: the runtime permits only selected existing evidence, exact admitted task-file reads, packaged Freeflow methods, and recovery return controls. Fresh attention does not finish that recovery; supplement or cancellation precedes assessment resumption.
 - A Runtime State refresh alone is not a user interruption or a replacement execution contract.
 
 ## Evidence boundary

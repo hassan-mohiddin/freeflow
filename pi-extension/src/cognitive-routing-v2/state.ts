@@ -14,6 +14,7 @@ import {
   type NativeEntry,
   type Pair,
   type Handoff,
+  type Recovery,
   type Reservation,
 } from "./types.js";
 
@@ -28,6 +29,11 @@ const pair = (x: any): x is Pair =>
   identity(x.provider) &&
   identity(x.modelId) &&
   EFFORTS.includes(x.thinking);
+const profileOverrides = (x: any): boolean =>
+  isObject(x) &&
+  Object.keys(x).length > 0 &&
+  Object.keys(x).every((key) => PROFILES.includes(key as any)) &&
+  Object.values(x).every((value) => value === null || pair(value));
 const problemList = (xs: any): boolean =>
   Array.isArray(xs) &&
   xs.every(
@@ -60,6 +66,41 @@ const reservation = (r: any): r is Reservation =>
   Number.isFinite(r.outputReserve) &&
   r.outputReserve >= 0 &&
   text(r.estimateMethod);
+const recovery = (r: any): r is Recovery =>
+  shape(r, [
+    "id",
+    "assignmentId",
+    "assessmentHandoffId",
+    "baseReportRevision",
+    "request",
+    "requestedPaths",
+    "paths",
+    "state",
+    "requestHandoffId",
+    "supplementHandoffId",
+    "supplementRevision",
+    "cancellationReason",
+  ]) &&
+  identity(r.id) &&
+  identity(r.assignmentId) &&
+  identity(r.assessmentHandoffId) &&
+  Number.isSafeInteger(r.baseReportRevision) &&
+  r.baseReportRevision > 0 &&
+  text(r.request) &&
+  Array.isArray(r.requestedPaths) &&
+  r.requestedPaths.length <= 32 &&
+  r.requestedPaths.every((path: unknown) => text(path, 4096)) &&
+  new Set(r.requestedPaths).size === r.requestedPaths.length &&
+  Array.isArray(r.paths) &&
+  r.paths.length <= 32 &&
+  r.paths.every((path: unknown) => text(path, 4096)) &&
+  new Set(r.paths).size === r.paths.length &&
+  ["requested", "reading", "returning", "completed", "cancelled"].includes(r.state) &&
+  identity(r.requestHandoffId) &&
+  (r.supplementHandoffId === undefined || identity(r.supplementHandoffId)) &&
+  Number.isSafeInteger(r.supplementRevision) &&
+  r.supplementRevision >= 0 &&
+  (r.cancellationReason === undefined || text(r.cancellationReason, 2048));
 const handoff = (h: any): h is Handoff =>
   shape(h, [
     "id",
@@ -83,7 +124,7 @@ const handoff = (h: any): h is Handoff =>
   identity(h.executionId) &&
   identity(h.toolCallId) &&
   nullableId(h.basisUserEntryId) &&
-  ["delegate", "return"].includes(h.kind) &&
+  ["delegate", "return", "recovery-request", "recovery-return"].includes(h.kind) &&
   PROFILES.includes(h.from) &&
   PROFILES.includes(h.to) &&
   h.from !== h.to &&
@@ -95,15 +136,21 @@ const handoff = (h: any): h is Handoff =>
   h.limitations.every((x: unknown) => text(x, 2048)) &&
   (h.reason === undefined || text(h.reason, 4096)) &&
   (h.outcome === undefined || ["completed", "partial", "blocked"].includes(h.outcome)) &&
-  (h.kind !== "delegate" || (h.outcome === undefined && h.reportRevision === 0));
+  (["delegate", "recovery-request"].includes(h.kind)
+    ? h.outcome === undefined && h.reportRevision === 0
+    : ["completed", "partial", "blocked"].includes(h.outcome) && h.reportRevision > 0);
 const fields: Record<string, string[]> = {
   "execution-interrupted": ["executionId", "reason"],
   "assignment-resumed": ["assignmentId", "basisUserEntryId"],
   control: ["control", "profile", "reason"],
+  "profile-overrides": ["overrides", "reason"],
   "execution-opened": ["execution"],
   "execution-bound": ["executionId", "assistantEntryId", "resultEntryIds", "outcome"],
   "delegate-accepted": ["unit", "assignment", "handoff", "replacement"],
   "return-accepted": ["handoff"],
+  "recovery-request-accepted": ["recovery", "handoff"],
+  "recovery-supplement-accepted": ["recoveryId", "handoff"],
+  "recovery-cancelled": ["recoveryId", "reason"],
   "handoff-retry-requested": [
     "handoffId",
     "attemptId",
@@ -163,17 +210,21 @@ export function parseRoutingEvent(raw: unknown): RoutingEvent {
         "invalid_control",
       );
       break;
+    case "profile-overrides":
+      check(profileOverrides(d.overrides) && text(d.reason, 4096), "invalid_profile_overrides");
+      break;
     case "execution-opened": {
       const e = d.execution;
       check(
-        shape(e, ["id", "profile", "assignmentId", "basisUserEntryId", "pair", "resultEntryIds"]) &&
+        shape(e, ["id", "profile", "assignmentId", "recoveryId", "basisUserEntryId", "pair", "resultEntryIds"]) &&
           identity(e.id) &&
           ["solo", ...PROFILES].includes(e.profile) &&
           nullableId(e.basisUserEntryId) &&
           pair(e.pair) &&
           uniqueStrings(e.resultEntryIds) &&
           e.resultEntryIds.length === 0 &&
-          (e.assignmentId === undefined || identity(e.assignmentId)),
+          (e.assignmentId === undefined || identity(e.assignmentId)) &&
+          (e.recoveryId === undefined || identity(e.recoveryId)),
         "invalid_execution",
       );
       break;
@@ -221,12 +272,27 @@ export function parseRoutingEvent(raw: unknown): RoutingEvent {
       break;
     }
     case "return-accepted":
+      check(handoff(d.handoff) && d.handoff.kind === "return", "invalid_return");
+      break;
+    case "recovery-request-accepted":
       check(
-        handoff(d.handoff) &&
-          ["completed", "partial", "blocked"].includes(d.handoff.outcome) &&
-          d.handoff.reportRevision > 0,
-        "invalid_return",
+        recovery(d.recovery) &&
+          handoff(d.handoff) &&
+          d.handoff.kind === "recovery-request" &&
+          d.recovery.requestHandoffId === d.handoff.id &&
+          d.recovery.assignmentId === d.handoff.assignmentId &&
+          d.recovery.request === d.handoff.text,
+        "invalid_recovery_request",
       );
+      break;
+    case "recovery-supplement-accepted":
+      check(
+        identity(d.recoveryId) && handoff(d.handoff) && d.handoff.kind === "recovery-return",
+        "invalid_recovery_supplement",
+      );
+      break;
+    case "recovery-cancelled":
+      check(identity(d.recoveryId) && text(d.reason, 2048), "invalid_recovery_cancellation");
       break;
     case "handoff-retry-requested":
       check(
@@ -275,7 +341,10 @@ export function parseRoutingEvent(raw: unknown): RoutingEvent {
       );
       break;
     case "assessment-resumed":
-      check(nullableId(d.basisUserEntryId) && reservation(d.reservation), "invalid_resumption");
+      check(
+        nullableId(d.basisUserEntryId) && (d.reservation === undefined || reservation(d.reservation)),
+        "invalid_resumption",
+      );
       break;
     case "unit-closed":
       check(
@@ -315,6 +384,7 @@ export function initialState(): State {
     units: new Map(),
     assignments: new Map(),
     handoffs: new Map(),
+    recoveries: new Map(),
     executions: new Map(),
     selections: new Map(),
     reservations: new Map(),
@@ -322,6 +392,7 @@ export function initialState(): State {
     exposure: new Map(),
     authors: new Map(),
     resumeBasis: new Map(),
+    profileOverrides: new Map(),
     events: new Map(),
     eventIds: new Map(),
   };
@@ -344,6 +415,7 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
           units: new Map([...state.units].map(([k, v]) => [k, { ...v }])),
           assignments: new Map([...state.assignments].map(([k, v]) => [k, { ...v }])),
           handoffs: new Map([...state.handoffs].map(([k, v]) => [k, { ...v }])),
+          recoveries: new Map([...state.recoveries].map(([k, v]) => [k, { ...v, paths: [...v.paths] }])),
           executions: new Map([...state.executions].map(([k, v]) => [k, { ...v }])),
           selections: new Map(state.selections),
           reservations: new Map(state.reservations),
@@ -351,6 +423,7 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
           exposure: new Map(state.exposure),
           authors: new Map(state.authors),
           resumeBasis: new Map(state.resumeBasis),
+          profileOverrides: new Map(state.profileOverrides),
           events: new Map(state.events),
           eventIds: new Map(state.eventIds),
           assessment: state.assessment ? { ...state.assessment } : undefined,
@@ -361,7 +434,10 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
   const isPending = () => pending() && ["pending", "blocked"].includes(pending()!.state);
   const currentReturn = (id: string) => {
     const h = s.handoffs.get(id);
-    check(h && h.kind === "return" && h.assignmentId === s.assignmentId, "not_current_return");
+    check(
+      h && ["return", "recovery-return"].includes(h.kind) && h.assignmentId === s.assignmentId,
+      "not_current_return",
+    );
     return h;
   };
   switch (d.type) {
@@ -383,6 +459,14 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
     case "control":
       s.control = d.control;
       s.profile = d.profile;
+      break;
+    case "profile-overrides":
+      for (const profile of PROFILES) {
+        if (!Object.hasOwn(d.overrides, profile)) continue;
+        const override = d.overrides[profile];
+        if (override === null) s.profileOverrides.delete(profile);
+        else s.profileOverrides.set(profile, override);
+      }
       break;
     case "execution-opened":
       check(!s.executions.has(d.execution.id), "duplicate_execution");
@@ -493,6 +577,96 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
       };
       break;
     }
+    case "recovery-request-accepted": {
+      const a = assignment(),
+        base = s.handoffs.get(d.recovery.assessmentHandoffId),
+        h = d.handoff;
+      check(
+        s.control === "automatic" &&
+          s.profile === "coordinator" &&
+          a?.state === "returned" &&
+          d.recovery.assignmentId === a.id &&
+          d.recovery.state === "requested" &&
+          d.recovery.supplementRevision === 0 &&
+          d.recovery.supplementHandoffId === undefined &&
+          d.recovery.cancellationReason === undefined &&
+          s.assessment?.handoffId === base?.id &&
+          base?.kind === "return" &&
+          a.returnHandoffId === base.id &&
+          base.state === "configured" &&
+          base.reportRevision === d.recovery.baseReportRevision &&
+          !s.recoveryId &&
+          !isPending() &&
+          h.kind === "recovery-request" &&
+          h.assignmentId === a.id &&
+          h.from === "coordinator" &&
+          h.to === "executor" &&
+          h.state === "pending" &&
+          !s.handoffs.has(h.id) &&
+          !s.recoveries.has(d.recovery.id),
+        "recovery_not_available",
+      );
+      s.recoveries.set(d.recovery.id, d.recovery);
+      s.recoveryId = d.recovery.id;
+      s.handoffs.set(h.id, h);
+      s.pendingId = h.id;
+      s.assessment.view = "suspended";
+      s.assessment.suspensionReason = "recovery";
+      s.assessment.basisUserEntryId = h.basisUserEntryId;
+      s.assessment.problems = [];
+      break;
+    }
+    case "recovery-supplement-accepted": {
+      const a = assignment(),
+        r = s.recoveries.get(d.recoveryId),
+        h = d.handoff,
+        previous = r?.supplementHandoffId ? s.handoffs.get(r.supplementHandoffId) : undefined;
+      check(
+        s.control === "automatic" &&
+          s.profile === "executor" &&
+          a?.state === "returned" &&
+          r?.id === s.recoveryId &&
+          r.assignmentId === a.id &&
+          s.assessment?.handoffId === r.assessmentHandoffId &&
+          s.handoffs.get(r.assessmentHandoffId)?.reportRevision === r.baseReportRevision &&
+          ["reading", "returning"].includes(r.state) &&
+          h.kind === "recovery-return" &&
+          h.assignmentId === a.id &&
+          h.from === "executor" &&
+          h.to === "coordinator" &&
+          h.state === "pending" &&
+          (!previous ? !s.handoffs.has(h.id) : ["pending", "blocked"].includes(previous.state) && previous.id === h.id),
+        "recovery_not_returnable",
+      );
+      const expectedRevision = (previous?.reportRevision ?? 0) + 1;
+      check(h.reportRevision === expectedRevision, "invalid_report_revision");
+      r.state = "returning";
+      r.supplementHandoffId = h.id;
+      r.supplementRevision = h.reportRevision;
+      s.handoffs.set(h.id, h);
+      s.pendingId = h.id;
+      break;
+    }
+    case "recovery-cancelled": {
+      const r = s.recoveries.get(d.recoveryId);
+      check(
+        s.control === "automatic" &&
+          s.profile === "coordinator" &&
+          r?.id === s.recoveryId &&
+          ["requested", "reading", "returning"].includes(r.state),
+        "recovery_not_cancellable",
+      );
+      const p = pending();
+      if (p) {
+        check([r.requestHandoffId, r.supplementHandoffId].includes(p.id), "handoff_pending");
+        p.state = "superseded";
+        s.pendingId = undefined;
+      }
+      r.state = "cancelled";
+      r.cancellationReason = d.reason;
+      s.recoveryId = undefined;
+      break;
+    }
     case "handoff-retry-requested": {
       const h = currentReturn(d.handoffId);
       check(
@@ -517,6 +691,11 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
       check(d.reservation.selectionRevision === (s.selections.get(h.assignmentId)?.revision ?? 0), "stale_selection");
       s.reservations.set(h.id, d.reservation);
       if (s.assessment?.handoffId === h.id) s.assessment.reservation = d.reservation;
+      if (h.kind === "recovery-return") {
+        const recovery = [...s.recoveries.values()].find((candidate) => candidate.supplementHandoffId === h.id);
+        if (recovery && s.assessment?.handoffId === recovery.assessmentHandoffId)
+          s.assessment.reservation = d.reservation;
+      }
       break;
     }
     case "handoff-state": {
@@ -528,6 +707,12 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
         check(d.observedPair, "configuration_unobserved");
         s.profile = h.to;
         s.pendingId = undefined;
+        const r = s.recoveryId ? s.recoveries.get(s.recoveryId) : undefined;
+        if (r && h.id === r.requestHandoffId) r.state = "reading";
+        if (r && h.id === r.supplementHandoffId) {
+          r.state = "completed";
+          s.recoveryId = undefined;
+        }
       }
       if (d.state === "superseded") s.pendingId = undefined;
       break;
@@ -538,7 +723,9 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
         a?.id === d.assignmentId &&
           s.control === "automatic" &&
           s.profile === "executor" &&
-          (a.state === "outstanding" || (a.state === "returned" && isPending())),
+          (a.state === "outstanding" ||
+            (a.state === "returned" &&
+              (isPending() || (s.recoveryId !== undefined && s.recoveries.get(s.recoveryId)?.state === "reading")))),
         "selection_wrong_phase",
       );
       check(d.selection.revision === (s.selections.get(a.id)?.revision ?? 0) + 1, "selection_revision");
@@ -548,6 +735,7 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
     case "assessment-suspended": {
       check(s.assessment?.handoffId === d.handoffId, "assessment_missing");
       s.assessment.view = "suspended";
+      s.assessment.suspensionReason = d.reason;
       s.assessment.basisUserEntryId = d.basisUserEntryId;
       s.assessment.problems = d.problems;
       break;
@@ -556,19 +744,24 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
       check(
         s.control === "automatic" &&
           s.profile === "coordinator" &&
+          !s.recoveryId &&
           s.assessment?.handoffId === d.handoffId &&
           s.assessment.view === "suspended",
-        "assessment_not_suspended",
+        s.recoveryId ? "recovery_outstanding" : "assessment_not_suspended",
       );
-      check(
-        d.reservation.selectionRevision === (s.selections.get(s.assessment.assignmentId)?.revision ?? 0),
-        "stale_selection",
-      );
+      if (d.reservation)
+        check(
+          d.reservation.selectionRevision === (s.selections.get(s.assessment.assignmentId)?.revision ?? 0),
+          "stale_selection",
+        );
       s.assessment.view = "active";
+      s.assessment.suspensionReason = undefined;
       s.assessment.basisUserEntryId = d.basisUserEntryId;
-      s.assessment.reservation = d.reservation;
+      if (d.reservation) {
+        s.assessment.reservation = d.reservation;
+        s.reservations.set(d.handoffId, d.reservation);
+      }
       s.assessment.problems = [];
-      s.reservations.set(d.handoffId, d.reservation);
       break;
     }
     case "unit-closed": {
@@ -578,7 +771,24 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
         s.control === "automatic" && s.profile === "coordinator" && u?.id === s.unitId && u.state === "open",
         "unit_not_open",
       );
-      if (d.outcome === "accepted") check(a?.state !== "outstanding" && !isPending(), "unfinished_work");
+      if (d.outcome === "accepted")
+        check(a?.state !== "outstanding" && !isPending() && !s.recoveryId, "unfinished_work");
+      const recovery = s.recoveryId ? s.recoveries.get(s.recoveryId) : undefined;
+      if (recovery) {
+        check(
+          d.outcome !== "accepted" && ["requested", "reading", "returning"].includes(recovery.state),
+          "unfinished_work",
+        );
+        const transfer = pending();
+        if (transfer) {
+          check([recovery.requestHandoffId, recovery.supplementHandoffId].includes(transfer.id), "handoff_pending");
+          transfer.state = "superseded";
+          s.pendingId = undefined;
+        }
+        recovery.state = "cancelled";
+        recovery.cancellationReason = d.assessment;
+        s.recoveryId = undefined;
+      }
       if (a?.state === "outstanding") {
         check(d.supersededAssignmentId === a.id && d.outcome !== "accepted", "supersession_required");
         a.state = "superseded";

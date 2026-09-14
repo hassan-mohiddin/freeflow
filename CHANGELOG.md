@@ -9,6 +9,8 @@
 
 ### Added
 
+- Adds attached Cognitive Routing evidence recovery with exact-path reads, preserved original reports and assessments, separate supplements, explicit cancellation, and direct selection of eligible occurrence-linked evidence refs.
+- Adds session-only Coordinator and Executor Cognitive Routing profile presets with complete model/effort pairs, inheritance, reset, and local/shared configuration isolation.
 - Adds exact assistant-visible-text evidence refs, bounded saved-work detail/history recovery, snapshot-based inspection pagination, and explicit target limitations in expanded routing output.
 - Adds saved-report retry, explicit same-unit assignment replacement, strict read-only session acknowledgment reconciliation, and assessment-preserving evidence projection with attention suspension and restoration.
 

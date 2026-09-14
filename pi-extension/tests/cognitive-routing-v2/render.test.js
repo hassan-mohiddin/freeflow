@@ -14,6 +14,12 @@ test("evidence inspection renders metadata and gaps without source previews", ()
         kind: "toolResult",
         producer: "executor",
         toolName: "read",
+        locator: {
+          callRef: "ctx:call-source",
+          toolCallId: "call-1",
+          label: "read: evidence.txt (offset 1, limit 20)",
+          truncated: false,
+        },
         assignment: "a1",
         selected: true,
         active: false,
@@ -30,7 +36,15 @@ test("evidence inspection renders metadata and gaps without source previews", ()
     .render(100)
     .join("\n");
   assert.doesNotMatch(rendered, /SOURCE_BODY_MUST_NOT_APPEAR|undefined/);
-  for (const value of ["ctx:old", "executor", "read", "assignment a1", "Required image unsupported"])
+  for (const value of [
+    "ctx:old",
+    "executor",
+    "read",
+    "read: evidence.txt (offset 1, limit 20)",
+    "call-1 (ctx:call-source)",
+    "assignment a1",
+    "Required image unsupported",
+  ])
     assert.ok(rendered.includes(value));
 });
 

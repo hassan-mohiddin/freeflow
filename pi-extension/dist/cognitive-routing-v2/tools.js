@@ -6,24 +6,24 @@ const descriptions = {
   freeflow_delegate:
     "Save a supported assignment contract and request Executor execution. Explicit replace supersedes a quiescent outstanding assignment in the same unit.",
   freeflow_return:
-    "Save or revise the actual assignment report, or retry its saved handoff without resubmitting text. Returning does not accept or close the unit.",
+    "Save or revise the actual assignment report, save an attached recovery supplement, or retry the current saved return without resubmitting text. Returning does not accept or close the unit.",
   freeflow_unit:
-    "Inspect current responsibility, paginated work history, or exact saved contract/report details. Coordinator can also restore a suspended assessment or close a unit without clearing its history.",
+    "Inspect current responsibility, paginated work history, or exact saved communication. Coordinator can restore an assessment, request or cancel attached evidence recovery, or close a unit without clearing history.",
   freeflow_project:
-    "Inspect current selection and scoped candidates, then add or remove exposed Executor task-evidence refs. Strict shapes: inspect uses operation plus optional scope/cursor; add uses operation plus eligible refs only; remove uses operation plus currently selected or unresolved refs plus required reason. Reason is remove-only. #text refs select exact visible assistant text; plain refs retain whole-native meaning.",
+    "Inspect current selection and scoped candidates when needed, then add or remove exposed Executor task-evidence refs. Strict shapes: inspect uses operation plus optional scope/cursor; add uses operation plus eligible refs only; remove uses operation plus currently selected or unresolved refs plus required reason. Reason is remove-only. #text refs select exact visible assistant text; plain refs retain whole-native meaning.",
 };
 const guidance = {
   freeflow_delegate: [
     "freeflow_delegate is Coordinator-only under Automatic control. Put the contract in the input. Use replace only for explicit same-unit replacement; do not supply IDs.",
   ],
   freeflow_return: [
-    "freeflow_return submit saves/revises the actual report; retry completes the saved return without text. Stop ordinary task work after reportSaved. Keep the handoff last; do not batch it with new task tools.",
+    "freeflow_return submit saves/revises the assignment report; supplement saves separate recovery communication; retry completes the current unchanged saved return without text. Stop ordinary task or recovery-read work after its communication is saved. Keep the handoff last; do not batch it with new task tools.",
   ],
   freeflow_unit: [
-    "freeflow_unit inspect defaults to current state; view history returns work refs and view detail with ref reads saved contracts/reports. Coordinator assess restores a suspended evidence obligation; close changes work status without clearing communication or completing a Working Record task.",
+    "freeflow_unit inspect defaults to current state; view history returns work refs and detail reads saved communication. Coordinator recover requests bounded evidence work against the current returned assessment; cancel-recovery ends only that recovery; assess restores a suspended evidence obligation; close changes work status without clearing communication or completing a Working Record task.",
   ],
   freeflow_project: [
-    "Use exactly one shape: inspect {operation, scope?, cursor?}; add {operation, refs} with no reason; remove {operation, refs, reason}. Reason is required only for remove and invalid for add/inspect. For add, inspect first and select only exact refs reported as eligible; never add refs marked not offered for new evidence selection. For remove, use currently selected or unresolved refs; a non-selectable ref may be named only to clear its unresolved request and requires a reason. Use an offered #text ref only when visible assistant text is the intended evidence. Plain refs retain whole-native meaning. Select actual result bodies for execution claims, not merely calls. Correct or explicitly withdraw unresolved items with a limitation. Known previously exposed bodies resolve automatically; target-representation gaps are not successful delivery.",
+    "Use exactly one shape: inspect {operation, scope?, cursor?}; add {operation, refs} with no reason; remove {operation, refs, reason}. Reason is required only for remove and invalid for add/inspect. Add exact eligible visible refs directly when identity and eligibility are clear; inspect when identity, eligibility, representation or selection state is unclear. Never add refs marked not offered for new evidence selection. For remove, use currently selected or unresolved refs; a non-selectable ref may be named only to clear its unresolved request and requires a reason. Use an offered #text ref only when visible assistant text is the intended evidence. Plain refs retain whole-native meaning. Select actual result bodies for execution claims, not merely calls. Correct or explicitly withdraw unresolved items with a limitation. Known previously exposed bodies resolve automatically; target-representation gaps are not successful delivery.",
   ],
 };
 const unitDefinitions = new WeakMap();

@@ -3,9 +3,19 @@ const value = (v) => (typeof v === "string" ? v : v === undefined ? "" : JSON.st
 const text = (v) => (typeof v === "string" ? v : "");
 const count = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const capital = (v) => (v ? v[0].toUpperCase() + v.slice(1) : "");
+const locatorText = (locator) => {
+  if (!locator) return "";
+  const identity = `${locator.toolCallId ?? "unknown call"} (${locator.callRef ?? "unknown source"})`;
+  return locator.label ? `${locator.label}${locator.truncated ? " [truncated]" : ""} · ${identity}` : identity;
+};
 function title(name, operation) {
   if (name === "freeflow_delegate") return operation === "replace" ? "Replace assignment" : "Delegate to Executor";
-  if (name === "freeflow_return") return operation === "retry" ? "Retry return" : "Return to Coordinator";
+  if (name === "freeflow_return")
+    return operation === "retry"
+      ? "Retry return"
+      : operation === "supplement"
+        ? "Return recovery supplement"
+        : "Return to Coordinator";
   if (name === "freeflow_project")
     return (
       {
@@ -21,6 +31,8 @@ function title(name, operation) {
         inspect: "Inspect routing",
         close: "Close unit",
         assess: "Resume assessment",
+        recover: "Recover assessment evidence",
+        "cancel-recovery": "Cancel evidence recovery",
         status: "Routing status",
         history: "Routing history",
       }[operation ?? ""] ?? "Routing unit"
@@ -32,6 +44,7 @@ function draft(name, args, expanded) {
   if (name === "freeflow_delegate") sections.push(text(args.contract));
   if (name === "freeflow_return") sections.push(text(args.report));
   if (name === "freeflow_unit" && args.operation === "close") sections.push(text(args.assessment));
+  if (name === "freeflow_unit" && args.operation === "recover") sections.push(text(args.request));
   // Metadata can arrive before the main text and otherwise occupy the entire
   // trailing preview forever. Keep the live prose moving; expansion keeps all fields.
   if (!expanded && sections.length) return sections.filter(Boolean).join("\n\n");
@@ -53,7 +66,9 @@ export function renderRoutingCall(name, args = {}, context = {}) {
     name === "freeflow_delegate"
       ? "assignment"
       : name === "freeflow_return"
-        ? "report"
+        ? args.operation === "supplement"
+          ? "supplement"
+          : "report"
         : name === "freeflow_unit" && args.operation === "close"
           ? "assessment"
           : undefined;
@@ -79,8 +94,8 @@ function summary(receipt, name, args) {
   const issue = problems.length
     ? `${count(problems.length, "evidence issue")} ${problems.length === 1 ? "needs" : "need"} correction`
     : "Evidence needs correction";
-  if (receipt.reportSaved)
-    return `${operation === "retry" ? "Saved report retained" : "Report saved"}${receipt.ready === false ? ` · ${issue}` : ""}`;
+  if (receipt.reportSaved || receipt.supplementSaved)
+    return `${operation === "retry" ? (receipt.supplementSaved ? "Saved supplement retained" : "Saved report retained") : receipt.supplementSaved ? "Recovery supplement saved" : "Report saved"}${receipt.ready === false ? ` · ${issue}` : ""}`;
   if (receipt.status === "blocked" || receipt.status === "rejected") {
     const reasons = {
       wrong_profile: "This operation belongs to the other profile",
@@ -119,6 +134,8 @@ function summary(receipt, name, args) {
   }
   if (name === "freeflow_unit") {
     if (operation === "close") return capital(receipt.outcome ?? "closed");
+    if (operation === "recover") return "Recovery request saved";
+    if (operation === "cancel-recovery") return "Evidence recovery cancelled";
     if (operation === "assess")
       return receipt.status === "unchanged" ? "Assessment already active" : "Evidence prepared";
     if (receipt.view === "history")
@@ -155,7 +172,7 @@ export function renderRoutingResult(result, options = {}, name = "", context = {
         `Evidence revision ${facts.revision ?? "unknown"}`,
         ...(facts.selected ?? []).map(
           (s) =>
-            `${s.ref} · ${s.kind}${s.producer ? ` · ${s.producer}` : ""}${s.assignment ? ` · assignment ${s.assignment}` : ""}${s.toolName ? ` · ${s.toolName}` : ""}`,
+            `${s.ref} · ${s.kind}${s.producer ? ` · ${s.producer}` : ""}${s.assignment ? ` · assignment ${s.assignment}` : ""}${s.toolName ? ` · ${s.toolName}` : ""}${s.locator ? ` · ${locatorText(s.locator)}` : ""}`,
         ),
         ...(facts.withdrawals ?? []).map((w) => `Withdrawn ${w.ref}: ${w.reason}`),
         ...(facts.unresolved ?? []).map((p) => `Unresolved ${p.ref}: ${p.detail}`),
@@ -170,9 +187,11 @@ export function renderRoutingResult(result, options = {}, name = "", context = {
         : "",
     receipt.report
       ? `Saved report\n${receipt.report}`
-      : args.report
-        ? `${receipt.reportSaved ? "Saved" : "Submitted"} report\n${args.report}`
-        : "",
+      : receipt.supplement
+        ? `Saved recovery supplement\n${receipt.supplement}`
+        : args.report
+          ? `${receipt.supplementSaved ? "Saved recovery supplement" : receipt.reportSaved ? "Saved report" : "Submitted report"}\n${args.report}`
+          : "",
     receipt.assessment ? `Assessment\n${value(receipt.assessment)}` : args.assessment,
     evidence,
     receipt.items
@@ -192,7 +211,7 @@ export function renderRoutingResult(result, options = {}, name = "", context = {
     receipt.candidates
       ?.map(
         (item) =>
-          `${item.ref} · ${item.kind} · ${item.producer}${item.toolName ? ` · ${item.toolName}` : ""}${item.assignment ? ` · assignment ${item.assignment}` : ""}\n${item.selected ? "Selected" : "Not selected"} · ${item.active ? "Active" : "Historical"} · ${item.eligible ? "Eligible" : "Ineligible"} · ${item.targetReady ? "No known item target gap" : "Target needs attention"}${item.retainedSelection ? "\nPreviously selected routing source retained; unavailable for new selections." : ""}\n${item.limitations.map((p) => `${p.code}: ${p.detail}`).join("\n")}`,
+          `${item.ref} · ${item.kind} · ${item.producer}${item.toolName ? ` · ${item.toolName}` : ""}${item.assignment ? ` · assignment ${item.assignment}` : ""}${item.locator ? ` · ${locatorText(item.locator)}` : ""}\n${item.selected ? "Selected" : "Not selected"} · ${item.active ? "Active" : "Historical"} · ${item.eligible ? "Eligible" : "Ineligible"} · ${item.targetReady ? "No known item target gap" : "Target needs attention"}${item.retainedSelection ? "\nPreviously selected routing source retained; unavailable for new selections." : ""}\n${item.limitations.map((p) => `${p.code}: ${p.detail}`).join("\n")}`,
       )
       .join("\n\n"),
     receipt.ref ? `Work ref: ${receipt.ref}` : "",
@@ -208,9 +227,11 @@ export function renderRoutingResult(result, options = {}, name = "", context = {
       "unit",
       "assignment",
       "assignmentRef",
+      "recovery",
       "handoff",
       "revision",
       "reportRevision",
+      "supplementRevision",
       "outcome",
       "stage",
       "transition",

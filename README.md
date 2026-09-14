@@ -261,7 +261,7 @@ Cognitive Routing controls on a qualified native host:
 /freeflow resume
 ```
 
-`/freeflow settings` edits personal overrides, `/freeflow settings session` manages temporary core/context overrides, and `/freeflow settings repo` edits shared repository settings. Cognitive Routing configuration is repository/personal configuration, not a session override. Profile changes and resume require an idle host with the required native model-state APIs.
+`/freeflow settings` edits personal overrides, `/freeflow settings session` manages temporary core/context overrides, and `/freeflow settings repo` edits shared repository settings. On a qualified native Pi host, session settings also expose complete Cognitive Routing profile-pair overrides that take precedence over personal and shared profiles without mutating either config file; profile changes and resume require an idle host with the required native model-state APIs.
 
 When the source adapter exposes the native controls and the host is idle:
 

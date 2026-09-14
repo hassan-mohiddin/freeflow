@@ -29,9 +29,10 @@ export interface Assignment {
   delegateHandoffId: string;
   returnHandoffId?: string;
 }
+export type HandoffKind = "delegate" | "return" | "recovery-request" | "recovery-return";
 export interface Handoff {
   id: string;
-  kind: "delegate" | "return";
+  kind: HandoffKind;
   assignmentId: string;
   text: string;
   from: Profile;
@@ -71,6 +72,7 @@ export interface Execution {
   id: string;
   profile: View;
   assignmentId?: string;
+  recoveryId?: string;
   basisUserEntryId: string | null;
   pair: Pair;
   assistantEntryId?: string;
@@ -82,14 +84,30 @@ export interface Assessment {
   handoffId: string;
   assignmentId: string;
   view: "active" | "suspended";
+  suspensionReason?: "recovery" | "user-attention" | "delivery-gap";
   basisUserEntryId: string | null;
   problems: Problem[];
   reservation?: Reservation;
+}
+export interface Recovery {
+  id: string;
+  assignmentId: string;
+  assessmentHandoffId: string;
+  baseReportRevision: number;
+  request: string;
+  requestedPaths: string[];
+  paths: string[];
+  state: "requested" | "reading" | "returning" | "completed" | "cancelled";
+  requestHandoffId: string;
+  supplementHandoffId?: string;
+  supplementRevision: number;
+  cancellationReason?: string;
 }
 export type EventData =
   | { type: "execution-interrupted"; executionId: string; reason: string }
   | { type: "assignment-resumed"; assignmentId: string; basisUserEntryId: string | null }
   | { type: "control"; control: Control; profile?: Profile; reason: string }
+  | { type: "profile-overrides"; overrides: Partial<Record<Profile, Pair | null>>; reason: string }
   | { type: "execution-opened"; execution: Execution }
   | {
       type: "execution-bound";
@@ -106,6 +124,9 @@ export type EventData =
       replacement?: { assignmentId: string; supersededHandoffId?: string; reason: string };
     }
   | { type: "return-accepted"; handoff: Handoff }
+  | { type: "recovery-request-accepted"; recovery: Recovery; handoff: Handoff }
+  | { type: "recovery-supplement-accepted"; recoveryId: string; handoff: Handoff }
+  | { type: "recovery-cancelled"; recoveryId: string; reason: string }
   | {
       type: "handoff-retry-requested";
       handoffId: string;
@@ -125,7 +146,7 @@ export type EventData =
       basisUserEntryId: string | null;
       problems: Problem[];
     }
-  | { type: "assessment-resumed"; handoffId: string; basisUserEntryId: string | null; reservation: Reservation }
+  | { type: "assessment-resumed"; handoffId: string; basisUserEntryId: string | null; reservation?: Reservation }
   | {
       type: "unit-closed";
       unitId: string;
@@ -169,6 +190,8 @@ export interface State {
   units: Map<string, Unit>;
   assignments: Map<string, Assignment>;
   handoffs: Map<string, Handoff>;
+  recoveries: Map<string, Recovery>;
+  recoveryId?: string;
   executions: Map<string, Execution>;
   selections: Map<string, Selection>;
   reservations: Map<string, Reservation>;
@@ -176,6 +199,7 @@ export interface State {
   exposure: Map<string, string>;
   authors: Map<string, { profile: View; executionId: string; assignmentId?: string }>;
   resumeBasis: Map<string, string | null>;
+  profileOverrides: Map<Profile, Pair>;
   assessment?: Assessment;
   events: Map<string, RoutingEvent>;
   eventIds: Map<string, string>;

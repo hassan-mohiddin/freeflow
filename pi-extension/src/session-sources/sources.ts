@@ -10,6 +10,12 @@ import {
   type Problem,
 } from "../cognitive-routing-v2/types.js";
 
+export interface EvidenceLocator {
+  callRef: string;
+  toolCallId: string;
+  label?: string;
+  truncated?: boolean;
+}
 export interface Source {
   ref: string;
   entry: NativeEntry;
@@ -22,6 +28,15 @@ export interface Source {
   original?: Source;
   reportHandoff?: string;
 }
+export interface NativeToolCall {
+  id: string;
+  name: string;
+  arguments?: unknown;
+}
+export type EvidenceLocatorProvider = (
+  assistant: Source,
+  call: NativeToolCall,
+) => Pick<EvidenceLocator, "label" | "truncated"> | undefined;
 export interface Associated {
   message: any;
   source?: Source;
@@ -45,6 +60,31 @@ interface Exchange {
   results: Map<string, Source[]>;
 }
 const callKey = (id: string, name: string) => JSON.stringify([id, name]);
+const locatorLimit = 160;
+
+function normalizeLabel(value: unknown): Pick<EvidenceLocator, "label" | "truncated"> | undefined {
+  if (typeof value !== "string") return undefined;
+  const clean = value
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!clean) return undefined;
+  if (clean.length <= locatorLimit) return { label: clean, truncated: false };
+  return { label: `${clean.slice(0, locatorLimit - 3)}...`, truncated: true };
+}
+
+function locatorForCall(
+  assistant: Source,
+  call: NativeToolCall,
+  locatorProvider?: EvidenceLocatorProvider,
+): EvidenceLocator | undefined {
+  if (typeof assistant.ref !== "string" || typeof call.id !== "string" || typeof call.name !== "string")
+    return undefined;
+  const locator: EvidenceLocator = { callRef: assistant.ref, toolCallId: call.id };
+  const details = locatorProvider?.(assistant, call);
+  const label = normalizeLabel(details?.label);
+  return label ? { ...locator, ...label, truncated: details?.truncated === true || label.truncated } : locator;
+}
 
 export class Sources {
   readonly byRef = new Map<string, Source>();
@@ -56,7 +96,14 @@ export class Sources {
   private associated?: { messages: readonly any[]; items: Associated[] };
   entries: readonly NativeEntry[] = [];
   private activeIds?: ReadonlySet<string>;
-  constructor(entries: readonly NativeEntry[], state: State, activeIds?: ReadonlySet<string>) {
+  private readonly locatorProvider?: EvidenceLocatorProvider;
+  constructor(
+    entries: readonly NativeEntry[],
+    state: State,
+    activeIds?: ReadonlySet<string>,
+    locatorProvider?: EvidenceLocatorProvider,
+  ) {
+    this.locatorProvider = locatorProvider;
     this.refresh(entries, state, activeIds);
   }
   refresh(entries: readonly NativeEntry[], state: State, activeIds?: ReadonlySet<string>): void {
@@ -89,7 +136,11 @@ export class Sources {
           if (block.type === "text") {
             try {
               const receipt = JSON.parse(block.text);
-              if (receipt.reportSaved && typeof receipt.report === "string" && typeof receipt.handoff === "string")
+              if (
+                ((receipt.reportSaved && typeof receipt.report === "string") ||
+                  (receipt.supplementSaved && typeof receipt.supplement === "string")) &&
+                typeof receipt.handoff === "string"
+              )
                 source.reportHandoff = receipt.handoff;
             } catch {}
           }
@@ -251,6 +302,17 @@ export class Sources {
       else sources.push(results[0]);
     }
     return { sources, problems };
+  }
+  locator(ref: string): EvidenceLocator | undefined {
+    const source = this.byRef.get(ref);
+    if (!source || source.original || source.message.role !== "toolResult") return undefined;
+    const group = this.owners.get(source.ref);
+    if (!group) return undefined;
+    const calls = group.assistant.message.content?.filter((b: any) => b.type === "toolCall") ?? [];
+    const matches = calls.filter(
+      (call: any) => call.id === source.message.toolCallId && call.name === source.message.toolName,
+    );
+    return matches.length === 1 ? locatorForCall(group.assistant, matches[0], this.locatorProvider) : undefined;
   }
   ordered(sources: Iterable<Source>): Source[] {
     const ids = new Set([...sources].map((s) => s.ref));

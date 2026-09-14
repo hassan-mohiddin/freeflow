@@ -99,11 +99,12 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   assert.match(routingSkill, /submits the actual report and stops ordinary task work/);
   assert.match(cognitiveRouting, /project every completed skill and instructional-reference read/);
   assert.match(routingSkill, /Attach recovery to the existing responsibility/);
-  assert.match(
-    routingSkill,
-    /Returned work may use an attached recovery-only phase only if the runtime actually exposes it; otherwise inspect saved communication and stop if insufficient/,
-  );
-  assert.match(routingSkill, /Do not simulate recovery by replacing the assignment or report/);
+  assert.match(routingSkill, /freeflow_unit\(operation: "recover"\)/);
+  assert.match(routingSkill, /same unit, assignment, original report, outcome, revision, selections, and assessment/);
+  assert.match(routingSkill, /read only exact paths admitted by the recovery request/);
+  assert.match(routingSkill, /freeflow_return\(operation: "supplement"\)/);
+  assert.match(routingSkill, /Deliver the supplement or cancel recovery before resuming assessment/);
+  assert.match(routingSkill, /Do not simulate recovery by replacing the assignment\/report or opening a new unit/);
   assert.doesNotMatch(
     conversationHistory,
     /Current user direction, live source truth, and present runtime state remain authoritative/,

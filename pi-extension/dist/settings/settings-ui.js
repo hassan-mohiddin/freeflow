@@ -247,7 +247,7 @@ function createSessionBooleanItem(options) {
   item.displaySuffix = coreDisplaySuffix(item);
   return item;
 }
-function sessionFreeflowItems(state, cognitiveRoutingController) {
+function sessionFreeflowItems(state, cognitiveRoutingController, ctx) {
   const sessionOverrides = state.sessionOverrides;
   const configured = state.configuredCoreConfig;
   const configuredSources = state.configuredSources;
@@ -318,18 +318,47 @@ function sessionFreeflowItems(state, cognitiveRoutingController) {
         displaySuffix: cognitiveRoutingState?.effective ? cognitiveRoutingProfile : "unavailable",
       }
     : undefined;
+  const sessionProfiles = cognitiveRoutingController?.sessionProfileOverrides();
+  const profileItems =
+    state.cognitiveRouting && cognitiveRoutingController
+      ? ["coordinator", "executor"].map((name) =>
+          cognitiveRoutingProfileItem({
+            name,
+            scope: "session",
+            rawConfig: {},
+            localConfig: {},
+            capabilityState: state.cognitiveRouting,
+            ctx,
+            sessionProfiles,
+          }),
+        )
+      : [];
+  const cognitiveRoutingPresets = profileItems.length
+    ? {
+        id: "freeflow.cognitiveRouting.presets",
+        label: "Cognitive Routing presets",
+        description: "Temporarily choose complete Coordinator and Executor model/effort pairs for this Pi session.",
+        kind: "group",
+        value: profileItems.some((item) => item.value !== LOCAL_INHERIT && item.value !== undefined),
+        displaySuffix: `${profileItems.filter((item) => item.value !== LOCAL_INHERIT && item.value !== undefined).length}/2 session overrides`,
+        inactive: freeflowInactive || !state.cognitiveRouting?.effective || cognitiveRoutingController === undefined,
+        children: profileItems,
+      }
+    : undefined;
   return [
     freeflowItem,
     ...(cognitiveRoutingItem ? [cognitiveRoutingItem] : []),
+    ...(cognitiveRoutingPresets ? [cognitiveRoutingPresets] : []),
     {
       id: "freeflow.session.reset",
       label: "Reset session overrides",
-      description: "Clear Freeflow, Context Virtualization, and Conversation History overrides for this Pi session.",
+      description:
+        "Clear Freeflow, Context Virtualization, Conversation History, and routing profile overrides for this Pi session.",
       kind: "enum",
       value: "available",
       values: ["reset"],
       valueLabels: { reset: "Reset all session overrides" },
-      valueDescriptions: { reset: "Return every session setting to its configured value." },
+      valueDescriptions: { reset: "Return every session setting and routing preset to its configured value." },
       format: () => "available",
       transient: true,
     },
@@ -412,12 +441,14 @@ function cognitiveRoutingProfileDisplay(value) {
   return isCognitiveRoutingProfile(value) ? formatCoreValue(value) : "not configured";
 }
 function cognitiveRoutingSettingsSource(source) {
+  if (source === "session") return "session";
   if (source === "repository") return "repository";
   if (source === "personal" || source === "local") return "local";
   return "builtin";
 }
 function cognitiveRoutingProfileDisplaySuffix(source, scope) {
   if (!source) return undefined;
+  if (source === "session") return "(session override)";
   if (source === "personal" && scope === "repository") return "(effective personal)";
   return `(${source})`;
 }
@@ -436,7 +467,16 @@ function cognitiveRoutingConfirmStep(summary) {
     selectedKey: "__save__",
   };
 }
-function createCognitiveRoutingProfileWizard(currentValue, models, allowInherit) {
+function createCognitiveRoutingProfileWizard(
+  currentValue,
+  models,
+  allowInherit,
+  inheritChoice = {
+    label: "Inherit repository preset",
+    description: "Remove the personal override without changing the repository preset.",
+    summary: "inherit repository preset",
+  },
+) {
   const currentProfile = isCognitiveRoutingProfile(currentValue) ? currentValue : undefined;
   const currentModelKey = currentProfile
     ? cognitiveRoutingModelKey(currentProfile.provider, currentProfile.model)
@@ -447,8 +487,8 @@ function createCognitiveRoutingProfileWizard(currentValue, models, allowInherit)
           {
             key: LOCAL_INHERIT,
             value: LOCAL_INHERIT,
-            label: "Inherit repository preset",
-            description: "Remove the personal override without changing the repository preset.",
+            label: inheritChoice.label,
+            description: inheritChoice.description,
           },
         ]
       : []),
@@ -482,7 +522,7 @@ function createCognitiveRoutingProfileWizard(currentValue, models, allowInherit)
       if (selectedValues.length === 1) {
         const selected = selectedValues[0];
         if (selected === LOCAL_INHERIT) {
-          return cognitiveRoutingConfirmStep("inherit repository preset");
+          return cognitiveRoutingConfirmStep(inheritChoice.summary);
         }
         const model = selected;
         if (!model?.key || model.thinkingLevels.length === 0) return undefined;
@@ -521,31 +561,59 @@ function cognitiveRoutingProfileItem(options) {
   const path = ["cognitiveRouting", "profiles", options.name];
   const repositoryProfile = getPath(options.rawConfig, path);
   const localProfile = getPath(options.localConfig, path);
-  const effectiveProfile = options.capabilityState?.profiles?.[options.name] ?? repositoryProfile;
+  const configuredProfile = options.capabilityState?.profiles?.[options.name] ?? repositoryProfile;
+  const sessionPair = options.sessionProfiles?.[options.name];
+  const sessionProfile = sessionPair
+    ? { provider: sessionPair.provider, model: sessionPair.modelId, thinking: sessionPair.thinking }
+    : undefined;
+  const effectiveProfile = sessionProfile ?? configuredProfile;
   const localValue = isCognitiveRoutingProfile(localProfile) ? localProfile : LOCAL_INHERIT;
-  const value = options.scope === "local" ? localValue : repositoryProfile;
-  const source =
+  const value =
+    options.scope === "session"
+      ? (sessionProfile ?? LOCAL_INHERIT)
+      : options.scope === "local"
+        ? localValue
+        : repositoryProfile;
+  const configuredSource =
     options.capabilityState?.profileSources?.[options.name] ??
     (isCognitiveRoutingProfile(repositoryProfile) ? "repository" : undefined);
+  const source = options.scope === "session" ? (sessionProfile ? "session" : configuredSource) : configuredSource;
   const models = cognitiveRoutingModelOptions(options.ctx);
-  const inactive = options.scope === "local" && models.length === 0 && localValue !== LOCAL_INHERIT;
+  const inactive = options.scope !== "repository" && models.length === 0 && value !== LOCAL_INHERIT;
+  const inheritChoice =
+    options.scope === "session"
+      ? {
+          label: "Inherit configured preset",
+          description: "Remove the session override without changing local or repository configuration.",
+          summary: "inherit configured preset",
+        }
+      : undefined;
   return {
     id: `freeflow.cognitiveRouting.${options.name}`,
     label: `${options.name.charAt(0).toUpperCase()}${options.name.slice(1)} preset`,
     description:
-      "Choose an authenticated available model and one effort supported by that model. Confirming writes the complete preset; cancel leaves it unchanged.",
+      options.scope === "session"
+        ? "Temporarily choose the model and effort for this profile in the current Pi session only."
+        : "Choose an authenticated available model and one effort supported by that model. Confirming writes the complete preset; cancel leaves it unchanged.",
     path,
     kind: "string",
     value,
-    format: cognitiveRoutingProfileDisplay,
+    format: (current) => {
+      const inherits = current === LOCAL_INHERIT || (options.scope === "session" && current === undefined);
+      return inherits
+        ? options.scope === "session"
+          ? "inherit configured preset"
+          : "inherit repository preset"
+        : cognitiveRoutingProfileDisplay(current);
+    },
     configScope: options.scope,
     effectiveValue: effectiveProfile,
     effectiveSource: cognitiveRoutingSettingsSource(source),
-    inheritedValue: repositoryProfile,
-    inheritedSource: "repository",
+    inheritedValue: options.scope === "session" ? configuredProfile : repositoryProfile,
+    inheritedSource: cognitiveRoutingSettingsSource(configuredSource ?? "builtin"),
     inactive,
     displaySuffix: cognitiveRoutingProfileDisplaySuffix(source, options.scope),
-    wizard: () => createCognitiveRoutingProfileWizard(value, models, options.scope === "local"),
+    wizard: () => createCognitiveRoutingProfileWizard(value, models, options.scope !== "repository", inheritChoice),
   };
 }
 function isCognitiveRoutingRuntimeAvailable(pi) {
@@ -1079,7 +1147,7 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiv
   let reconcileCognitiveRouting = settingsScope === "session";
   const items =
     settingsScope === "session"
-      ? sessionFreeflowItems(state, cognitiveRoutingController)
+      ? sessionFreeflowItems(state, cognitiveRoutingController, ctx)
       : freeflowItems(raw, {
           scope: settingsScope,
           layers,
@@ -1122,8 +1190,61 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiv
         return { changed: true, reloadRequired: false };
       }
       if (item.id === "freeflow.session.reset") {
-        const result = await resetSessionOverrides(ctx, pi);
-        return { changed: result.changed, reloadRequired: result.reloadRequired };
+        const routingResult = cognitiveRoutingController
+          ? await cognitiveRoutingController.resetSessionProfileOverrides("Reset session overrides")
+          : { status: "unchanged" };
+        if (routingResult.status === "blocked" || routingResult.reason) {
+          ctx.ui.notify(
+            `Cognitive Routing session presets could not be reset: ${routingResult.reason ?? routingResult.status}.`,
+            "warning",
+          );
+          return { changed: false, reloadRequired: false };
+        }
+        try {
+          const result = await resetSessionOverrides(ctx, pi);
+          return {
+            changed: result.changed || routingResult.status !== "unchanged",
+            reloadRequired: result.reloadRequired,
+          };
+        } catch (error) {
+          ctx.ui.notify(
+            `Routing presets were reset, but core/context session overrides could not be reset: ${error instanceof Error ? error.message : String(error)}`,
+            "warning",
+          );
+          return {
+            changed: routingResult.status !== "unchanged",
+            reloadRequired: false,
+          };
+        }
+      }
+      if (item.configScope === "session" && isCognitiveRoutingProfileItem(item)) {
+        if (!cognitiveRoutingController) {
+          ctx.ui.notify("Cognitive Routing is unavailable for this session.", "warning");
+          return { changed: false, reloadRequired: false };
+        }
+        const profile = item.id.endsWith(".coordinator") ? "coordinator" : "executor";
+        const override =
+          value === undefined || value === LOCAL_INHERIT
+            ? null
+            : {
+                provider: value.provider,
+                modelId: value.model,
+                thinking: value.thinking,
+              };
+        const result = await cognitiveRoutingController.setSessionProfileOverride(
+          profile,
+          override,
+          "Session profile settings",
+        );
+        if (result.status === "blocked" || result.reason) {
+          ctx.ui.notify(
+            `Cognitive Routing session preset could not be applied: ${result.reason ?? result.status}.`,
+            "warning",
+          );
+          return { changed: false, reloadRequired: false };
+        }
+        await afterChange(false);
+        return { changed: result.status !== "unchanged", reloadRequired: false };
       }
       if (item.configScope === "session") {
         const keyById = {

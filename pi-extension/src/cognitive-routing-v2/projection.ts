@@ -258,7 +258,25 @@ export function prepareView(options: {
   messages = annotated;
   // Restore exact current communication only when its accepted occurrence is absent.
   const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
-  const report = handoff?.kind === "return" ? handoff : undefined;
+  const baseReport = assessment
+    ? state.handoffs.get(assessment.handoffId)
+    : handoff?.kind === "return"
+      ? handoff
+      : undefined;
+  const recovery = state.recoveryId
+    ? state.recoveries.get(state.recoveryId)
+    : [...state.recoveries.values()]
+        .reverse()
+        .find(
+          (candidate) => candidate.assessmentHandoffId === assessment?.handoffId && candidate.state === "completed",
+        );
+  const recoveryRequest = recovery ? state.handoffs.get(recovery.requestHandoffId) : undefined;
+  const supplement =
+    handoff?.kind === "recovery-return"
+      ? handoff
+      : recovery?.supplementHandoffId
+        ? state.handoffs.get(recovery.supplementHandoffId)
+        : undefined;
   const hasCommunication = (h: any, field: string, value: string, metadata: Record<string, any> = {}) =>
     messages.some((m) => {
       const matches = (payload: any) =>
@@ -290,22 +308,41 @@ export function prepareView(options: {
     if (accepted && !hasCommunication(accepted, "contract", a.contract))
       restore("Current exact assignment", a.id, a.contract);
   }
-  if (report) {
-    const metadata = { outcome: report.outcome, limitations: report.limitations };
-    const hasBody = hasCommunication(report, "report", report.text);
+  if (baseReport) {
+    const metadata = { outcome: baseReport.outcome, limitations: baseReport.limitations };
+    const hasBody = hasCommunication(baseReport, "report", baseReport.text);
     // Tool arguments establish accepted content but do not carry harness-assigned
     // revision/lineage. Old receipts and partially retained calls need metadata too.
-    const complete = hasCommunication(report, "report", report.text, {
+    const complete = hasCommunication(baseReport, "report", baseReport.text, {
       ...metadata,
-      reportRevision: report.reportRevision,
-      assignmentRef: `assignment:${report.assignmentId}`,
-      reportRef: `report:${report.id}:${report.reportRevision}`,
+      reportRevision: baseReport.reportRevision,
+      assignmentRef: `assignment:${baseReport.assignmentId}`,
+      reportRef: `report:${baseReport.id}:${baseReport.reportRevision}`,
     });
     if (!complete)
       restore(
         "Saved report",
-        report.id,
-        `Producer: executor\nAssignment: assignment:${report.assignmentId}\nReport ref: report:${report.id}:${report.reportRevision}\nRevision: ${report.reportRevision}\nOutcome: ${report.outcome}\nLimitations: ${JSON.stringify(report.limitations)}${hasBody ? "\nReport text is present in its accepted native occurrence above." : `\nReport:\n${report.text}`}`,
+        baseReport.id,
+        `Producer: executor\nAssignment: assignment:${baseReport.assignmentId}\nReport ref: report:${baseReport.id}:${baseReport.reportRevision}\nRevision: ${baseReport.reportRevision}\nOutcome: ${baseReport.outcome}\nLimitations: ${JSON.stringify(baseReport.limitations)}${hasBody ? "\nReport text is present in its accepted native occurrence above." : `\nReport:\n${baseReport.text}`}`,
+      );
+  }
+  if (recovery && recoveryRequest && !hasCommunication(recoveryRequest, "request", recovery.request))
+    restore(
+      "Recovery request",
+      recovery.id,
+      `Assignment: assignment:${recovery.assignmentId}\nParent report: report:${recovery.assessmentHandoffId}:${recovery.baseReportRevision}\nAllowed paths: ${JSON.stringify(recovery.paths)}\nRequest:\n${recovery.request}`,
+    );
+  if (recovery && supplement) {
+    const hasBody = hasCommunication(supplement, "report", supplement.text);
+    const complete = hasCommunication(supplement, "report", supplement.text, {
+      outcome: supplement.outcome,
+      limitations: supplement.limitations,
+    });
+    if (!complete)
+      restore(
+        "Recovery supplement",
+        recovery.id,
+        `Assignment: assignment:${recovery.assignmentId}\nParent report: report:${recovery.assessmentHandoffId}:${recovery.baseReportRevision}\nSupplement revision: ${supplement.reportRevision}\nOutcome: ${supplement.outcome}\nLimitations: ${JSON.stringify(supplement.limitations)}${hasBody ? "\nSupplement text is present in its accepted native occurrence above." : `\nSupplement:\n${supplement.text}`}`,
       );
   }
   messages.push(options.runtimeMessage);

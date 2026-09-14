@@ -29,15 +29,16 @@ const evidenceRefs = (description: string) => ({
   items: string(512),
   description,
 });
-const submit = object(
-  {
-    operation: operation("submit"),
-    report: string(),
-    outcome: { type: "string", enum: ["completed", "partial", "blocked"] },
-    limitations: { type: "array", maxItems: 32, items: string(2048) },
-  },
-  ["operation", "report", "outcome"],
-);
+const report = (name: "submit" | "supplement") =>
+  object(
+    {
+      operation: operation(name),
+      report: string(),
+      outcome: { type: "string", enum: ["completed", "partial", "blocked"] },
+      limitations: { type: "array", maxItems: 32, items: string(2048) },
+    },
+    ["operation", "report", "outcome"],
+  );
 export const ROUTING_SCHEMAS: Record<string, any> = {
   freeflow_delegate: {
     oneOf: [
@@ -45,7 +46,7 @@ export const ROUTING_SCHEMAS: Record<string, any> = {
       object({ operation: operation("replace"), contract: string(), reason: string(2048) }),
     ],
   },
-  freeflow_return: { oneOf: [submit, object({ operation: operation("retry") })] },
+  freeflow_return: { oneOf: [report("submit"), report("supplement"), object({ operation: operation("retry") })] },
   freeflow_unit: {
     oneOf: [
       object(
@@ -59,6 +60,15 @@ export const ROUTING_SCHEMAS: Record<string, any> = {
         ["operation"],
       ),
       object({ operation: operation("assess") }),
+      object(
+        {
+          operation: operation("recover"),
+          request: string(),
+          paths: { type: "array", maxItems: 32, items: string(4096) },
+        },
+        ["operation", "request"],
+      ),
+      object({ operation: operation("cancel-recovery"), reason: string(2048) }),
       object({
         operation: operation("close"),
         outcome: { type: "string", enum: ["accepted", "cancelled", "deferred"] },
@@ -86,7 +96,7 @@ export const ROUTING_SCHEMAS: Record<string, any> = {
         {
           operation: operation("add", "Select eligible Executor task-evidence refs; do not include reason."),
           refs: evidenceRefs(
-            "Exact refs returned by freeflow_project inspect as eligible evidence. Never add a ref marked not offered for new evidence selection.",
+            "Exact eligible visible refs for Executor task evidence. Add known eligible refs directly; inspect when identity, eligibility, representation, or selection state is unclear. Never add a ref marked not offered for new evidence selection.",
           ),
         },
         ["operation", "refs"],
@@ -124,7 +134,7 @@ for (const schema of Object.values(ROUTING_SCHEMAS)) {
     schema.properties.refs = {
       ...schema.properties.refs,
       description:
-        "For add, use exact refs returned by freeflow_project inspect as eligible evidence; never add a ref marked not offered for new evidence selection. For remove, use currently selected or unresolved refs; a non-selectable ref may be named to clear its unresolved request and requires reason.",
+        "For add, use exact eligible visible refs directly when their identity and eligibility are clear; inspect when identity, eligibility, representation, or selection state is unclear. Never add refs marked not offered for new evidence selection. For remove, use currently selected or unresolved refs; a non-selectable ref may be named to clear its unresolved request and requires reason.",
     };
 }
 

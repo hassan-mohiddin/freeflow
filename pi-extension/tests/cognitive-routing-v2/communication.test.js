@@ -49,6 +49,92 @@ function prepare(state, entries, messages = entries.map((e) => e.message), view 
   });
 }
 
+test("source locators retain native occurrence identity and accept optional adapter labels", () => {
+  const state = initialState();
+  const assistantWith = (id, name, args) =>
+    entry(id, null, assistant("Observed", [{ type: "toolCall", id, name, arguments: args }]));
+  const result = (id, toolName) =>
+    entry(`${id}-result`, id, {
+      role: "toolResult",
+      toolCallId: id,
+      toolName,
+      content: [{ type: "text", text: "RESULT_BODY" }],
+    });
+  const entries = [
+    assistantWith("read-1", "read", { path: "same.txt", offset: 1, limit: 20 }),
+    result("read-1", "read"),
+    assistantWith("read-2", "read", { path: "same.txt", offset: 1, limit: 20 }),
+    result("read-2", "read"),
+    assistantWith("bash-1", "bash", { command: `printf "bad${String.fromCharCode(0)}${"x".repeat(220)}"` }),
+    result("bash-1", "bash"),
+    assistantWith("unknown-1", "write", { path: "out.txt" }),
+    result("unknown-1", "write"),
+    entry(
+      "ambiguous",
+      null,
+      assistant("Ambiguous", [
+        { type: "toolCall", id: "dup", name: "read", arguments: { path: "one.txt" } },
+        { type: "toolCall", id: "dup", name: "read", arguments: { path: "two.txt" } },
+      ]),
+    ),
+    entry("ambiguous-result", "ambiguous", {
+      role: "toolResult",
+      toolCallId: "dup",
+      toolName: "read",
+      content: [{ type: "text", text: "RESULT_BODY" }],
+    }),
+  ];
+  for (const source of entries)
+    state.authors.set(source.id, { profile: "executor", executionId: "e", assignmentId: "a" });
+  const sources = new Sources(entries, state);
+  assert.deepEqual(sources.locator("ctx:read-1-result"), {
+    callRef: "ctx:read-1",
+    toolCallId: "read-1",
+  });
+  assert.notEqual(sources.locator("ctx:read-1-result").callRef, sources.locator("ctx:read-2-result").callRef);
+  assert.deepEqual(sources.locator("ctx:bash-1-result"), {
+    callRef: "ctx:bash-1",
+    toolCallId: "bash-1",
+  });
+  assert.deepEqual(sources.locator("ctx:unknown-1-result"), {
+    callRef: "ctx:unknown-1",
+    toolCallId: "unknown-1",
+  });
+  assert.equal(sources.locator("ctx:ambiguous-result"), undefined);
+
+  const adapted = new Sources(entries, state, undefined, () => ({
+    label: `adapter${String.fromCharCode(0)}${"x".repeat(220)}`,
+  }));
+  const adaptedLocator = adapted.locator("ctx:bash-1-result");
+  assert.equal(adaptedLocator.truncated, true);
+  assert.ok(adaptedLocator.label.length <= 160);
+  assert.doesNotMatch(adaptedLocator.label, /\u0000/);
+});
+
+test("registered projection accepts a known eligible ref without inspection first", async () => {
+  await fixture((n, _body, manager) => {
+    if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Read evidence and return." });
+    if (n === 2) return call("read", { path: "evidence.txt" });
+    if (n === 3) {
+      const ref = `ctx:${manager.getBranch().find((e) => e.message?.toolName === "read").id}`;
+      return call("freeflow_project", { operation: "add", refs: [ref] });
+    }
+    if (n === 4) {
+      const projects = manager.getBranch().filter((e) => e.message?.toolName === "freeflow_project");
+      assert.equal(projects.length, 1);
+      assert.deepEqual(
+        projects[0].message.details.items.map((item) => item.status),
+        ["added"],
+      );
+      assert.equal(projects[0].message.details.selected.length, 1);
+      return [
+        { name: "freeflow_return", args: { operation: "submit", report: "Evidence ready.", outcome: "completed" } },
+      ];
+    }
+    return [];
+  });
+});
+
 test("provenance covers old sources and complete exchanges, with stable prefixes and unchanged originals", () => {
   const state = initialState();
   const entries = Array.from({ length: 40 }, (_, i) =>

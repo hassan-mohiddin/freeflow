@@ -112,7 +112,7 @@ The source Pi entrypoint:
 - reads both config layers before agent turns;
 - composes the mandatory core prompt and Interaction Contract plus effective optional capability prompts in `before_agent_start`;
 - supplies one unified volatile `Freeflow Runtime State` message at session start, after context reconstruction or loss, and when displayed state changes, preserving it when unchanged;
-- restores only remaining branch-aware session overrides for enablement and optional context capabilities;
+- restores branch-aware session overrides for enablement, optional context capabilities, and complete Cognitive Routing profile pairs;
 - dynamically exposes 24 base model/contributor skills plus effective child capability skills;
 - registers canonical direct commands and the v2 routing tools;
 - activates capability tools and discoverable capability skills only when their individual gates are effective;
@@ -120,7 +120,7 @@ The source Pi entrypoint:
 
 The native entrypoint is wired in source but is not a released or installed host integration. Stock-Pi dispatch, host behavior, and model evaluation remain unverified. The identified PiFlow host path is explicitly gated unavailable by the current source entrypoint.
 
-`/freeflow settings` edits personal core overrides. `/freeflow settings session` manages temporary enablement and optional-context overrides without changing config files. `/freeflow settings repo` edits shared repository settings.
+`/freeflow settings` edits personal core overrides. `/freeflow settings session` manages temporary enablement, optional-context, and complete Cognitive Routing profile-pair overrides without changing config files. `/freeflow settings repo` edits shared repository settings.
 
 Pi source lives under `pi-extension/src/`; the package executes built output under `pi-extension/dist/` through `pi-extension/freeflow/index.js`.
 

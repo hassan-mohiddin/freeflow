@@ -1,4 +1,6 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { RoutingRuntime } from "./cognitive-routing-v2/runtime.js";
 import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-routing-v2/tools.js";
 import { ConversationHistoryRuntime } from "./conversation-history/runtime.js";
@@ -87,7 +89,8 @@ function freeflowCompletions(prefix: string | undefined, routingAvailable: boole
 
 export default function freeflow(pi: FreeflowAPI) {
   const api = pi as any;
-  const routing = new RoutingRuntime(api);
+  const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+  const routing = new RoutingRuntime(api, [packageRoot]);
   let capability: any;
   let prompts: any;
   let context: FreeflowContextRuntime | undefined;

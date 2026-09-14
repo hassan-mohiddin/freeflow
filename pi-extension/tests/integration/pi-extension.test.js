@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 
 import freeflowExtension from "../../dist/index.js";
+import { handleFreeflowCommand } from "../../dist/settings/settings-ui.js";
 import {
   readCapabilityState,
   readFreeflowConfigLayers,
@@ -253,7 +254,7 @@ test("new routing tools and projection state follow the configured contract", as
       );
       assert.deepEqual(
         returning.parameters.oneOf.map((branch) => branch.properties.operation.enum[0]),
-        ["submit", "retry"],
+        ["submit", "supplement", "retry"],
       );
       assert.equal(loaded.activeToolNames().includes("freeflow_project"), scenario.exposesProjection);
 
@@ -289,6 +290,8 @@ test("Pi describes strict evidence-selection operation shapes", () => {
     project.promptGuidelines.join(" "),
     /for add.*never add refs marked not offered.*for remove.*currently selected or unresolved/i,
   );
+  assert.match(project.promptGuidelines.join(" "), /add exact eligible visible refs directly/i);
+  assert.doesNotMatch(project.promptGuidelines.join(" "), /inspect first/i);
   assert.match(project.parameters.properties.reason.description, /only for remove/i);
   assert.match(project.parameters.oneOf[1].properties.refs.description, /never add a ref marked not offered/i);
   assert.match(
@@ -931,6 +934,186 @@ test("Pi Cognitive Routing settings preserve complete presets", async () => {
       thinking: "max",
     });
     assert.equal(settingsCtx.reloads.length, 1);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi session settings expose both routing preset wizards without changing config files", async () => {
+  const cwd = await configuredRepo({
+    cognitiveRouting: {
+      enabled: true,
+      profiles: {
+        coordinator: { provider: "test", model: "model-a", thinking: "low" },
+        executor: { provider: "test", model: "model-b", thinking: "high" },
+      },
+    },
+  });
+  try {
+    const configPath = join(cwd, ".freeflow/config.json");
+    const localPath = join(cwd, ".freeflow/local.json");
+    const originalConfig = await readFile(configPath, "utf8");
+    const originalLocal = await readFile(localPath, "utf8").catch(() => undefined);
+    const { commands } = loadExtension(
+      freeflowExtension,
+      {},
+      {
+        async setModel() {
+          return true;
+        },
+        setThinkingLevel() {},
+      },
+    );
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    assert.ok(freeflowCommand);
+    const settingsCtx = context(cwd);
+    settingsCtx.isIdle = () => true;
+    settingsCtx.modelRegistry = cognitiveRoutingModelRegistry();
+    settingsCtx.ui.custom = async (factory) => {
+      let result;
+      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+        result = value;
+      });
+      const rendered = component.render(180).join("\\n");
+      assert.match(rendered, /Cognitive Routing presets/);
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      const presetRendered = component.render(180).join("\\n");
+      assert.match(presetRendered, /Coordinator preset/);
+      assert.match(presetRendered, /Executor preset/);
+      result = { changed: false };
+      await component.waitForWrites();
+      return result;
+    };
+    await freeflowCommand.definition.handler("settings session", settingsCtx);
+    assert.equal(await readFile(configPath, "utf8"), originalConfig);
+    assert.equal(await readFile(localPath, "utf8").catch(() => undefined), originalLocal);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi session preset wizard applies a complete pair without writing config", async () => {
+  const cwd = await configuredRepo({
+    cognitiveRouting: {
+      enabled: true,
+      profiles: {
+        coordinator: { provider: "test", model: "model-a", thinking: "low" },
+        executor: { provider: "test", model: "model-b", thinking: "high" },
+      },
+    },
+  });
+  try {
+    const configPath = join(cwd, ".freeflow/config.json");
+    const originalConfig = await readFile(configPath, "utf8");
+    const calls = [];
+    const controller = {
+      state: () => ({ effective: true, controlMode: "automatic", activeProfile: "coordinator" }),
+      sessionProfileOverrides: () => ({}),
+      setManualProfile: async () => ({ status: "active" }),
+      setAutomaticControl: async () => ({ status: "automatic" }),
+      setSessionProfileOverride: async (profile, override) => {
+        calls.push({ profile, override });
+        return { status: "active" };
+      },
+      resetSessionProfileOverrides: async () => ({ status: "unchanged" }),
+    };
+    const settingsCtx = context(cwd);
+    settingsCtx.isIdle = () => true;
+    settingsCtx.modelRegistry = cognitiveRoutingModelRegistry();
+    const pi = {
+      host: {},
+      appendEntry() {},
+      async setModel() {
+        return true;
+      },
+      setThinkingLevel() {},
+    };
+    settingsCtx.ui.custom = async (factory) => {
+      let finish;
+      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+        finish = value;
+      });
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\r");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\r");
+      await component.waitForWrites();
+      finish?.({ changed: false });
+      return { changed: false };
+    };
+    await handleFreeflowCommand("settings session", settingsCtx, async () => {}, pi, controller);
+    assert.deepEqual(calls, [
+      {
+        profile: "coordinator",
+        override: { provider: "test", modelId: "model-a", thinking: "low" },
+      },
+    ]);
+    assert.equal(await readFile(configPath, "utf8"), originalConfig);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("session reset preserves core overrides when routing reset fails", async () => {
+  const cwd = await configuredRepo({
+    cognitiveRouting: {
+      enabled: true,
+      profiles: {
+        coordinator: { provider: "test", model: "model-a", thinking: "low" },
+        executor: { provider: "test", model: "model-b", thinking: "high" },
+      },
+    },
+  });
+  try {
+    const configPath = join(cwd, ".freeflow/config.json");
+    const originalConfig = await readFile(configPath, "utf8");
+    const settingsCtx = context(cwd);
+    settingsCtx.isIdle = () => true;
+    settingsCtx.modelRegistry = cognitiveRoutingModelRegistry();
+    const pi = {
+      host: {},
+      appendEntry() {},
+      async setModel() {
+        return true;
+      },
+      setThinkingLevel() {},
+    };
+    await setSessionCoreOverride("contextVirtualization", true, settingsCtx, pi);
+    const controller = {
+      state: () => ({ effective: true, controlMode: "automatic", activeProfile: "coordinator" }),
+      sessionProfileOverrides: () => ({}),
+      setManualProfile: async () => ({ status: "active" }),
+      setAutomaticControl: async () => ({ status: "automatic" }),
+      setSessionProfileOverride: async () => ({ status: "stored" }),
+      resetSessionProfileOverrides: async () => ({ status: "blocked", reason: "fixture failure" }),
+    };
+    settingsCtx.ui.custom = async (factory) => {
+      let finish;
+      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+        finish = value;
+      });
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\r");
+      await component.waitForWrites();
+      finish?.({ changed: false });
+      return { changed: false };
+    };
+    await handleFreeflowCommand("settings session", settingsCtx, async () => {}, pi, controller);
+    const state = await readCapabilityState(cwd, settingsCtx, pi.host);
+    assert.equal(state.contextVirtualization.effective, true);
+    assert.equal(state.sessionOverrides.contextVirtualization, true);
+    assert.equal(await readFile(configPath, "utf8"), originalConfig);
+    assert.match(settingsCtx.notifications.at(-1)?.message ?? "", /fixture failure/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

@@ -1,3 +1,5 @@
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { RoutingRuntime } from "./cognitive-routing-v2/runtime.js";
 import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-routing-v2/tools.js";
 import { ConversationHistoryRuntime } from "./conversation-history/runtime.js";
@@ -82,7 +84,8 @@ function freeflowCompletions(prefix, routingAvailable) {
 }
 export default function freeflow(pi) {
   const api = pi;
-  const routing = new RoutingRuntime(api);
+  const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+  const routing = new RoutingRuntime(api, [packageRoot]);
   let capability;
   let prompts;
   let context;

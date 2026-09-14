@@ -16,6 +16,25 @@ export function isTaskEvidence(source) {
   );
 }
 const callKey = (id, name) => JSON.stringify([id, name]);
+const locatorLimit = 160;
+function normalizeLabel(value) {
+  if (typeof value !== "string") return undefined;
+  const clean = value
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!clean) return undefined;
+  if (clean.length <= locatorLimit) return { label: clean, truncated: false };
+  return { label: `${clean.slice(0, locatorLimit - 3)}...`, truncated: true };
+}
+function locatorForCall(assistant, call, locatorProvider) {
+  if (typeof assistant.ref !== "string" || typeof call.id !== "string" || typeof call.name !== "string")
+    return undefined;
+  const locator = { callRef: assistant.ref, toolCallId: call.id };
+  const details = locatorProvider?.(assistant, call);
+  const label = normalizeLabel(details?.label);
+  return label ? { ...locator, ...label, truncated: details?.truncated === true || label.truncated } : locator;
+}
 export class Sources {
   byRef = new Map();
   ambiguous = new Set();
@@ -26,7 +45,9 @@ export class Sources {
   associated;
   entries = [];
   activeIds;
-  constructor(entries, state, activeIds) {
+  locatorProvider;
+  constructor(entries, state, activeIds, locatorProvider) {
+    this.locatorProvider = locatorProvider;
     this.refresh(entries, state, activeIds);
   }
   refresh(entries, state, activeIds) {
@@ -59,7 +80,11 @@ export class Sources {
           if (block.type === "text") {
             try {
               const receipt = JSON.parse(block.text);
-              if (receipt.reportSaved && typeof receipt.report === "string" && typeof receipt.handoff === "string")
+              if (
+                ((receipt.reportSaved && typeof receipt.report === "string") ||
+                  (receipt.supplementSaved && typeof receipt.supplement === "string")) &&
+                typeof receipt.handoff === "string"
+              )
                 source.reportHandoff = receipt.handoff;
             } catch {}
           }
@@ -221,6 +246,17 @@ export class Sources {
       else sources.push(results[0]);
     }
     return { sources, problems };
+  }
+  locator(ref) {
+    const source = this.byRef.get(ref);
+    if (!source || source.original || source.message.role !== "toolResult") return undefined;
+    const group = this.owners.get(source.ref);
+    if (!group) return undefined;
+    const calls = group.assistant.message.content?.filter((b) => b.type === "toolCall") ?? [];
+    const matches = calls.filter(
+      (call) => call.id === source.message.toolCallId && call.name === source.message.toolName,
+    );
+    return matches.length === 1 ? locatorForCall(group.assistant, matches[0], this.locatorProvider) : undefined;
   }
   ordered(sources) {
     const ids = new Set([...sources].map((s) => s.ref));

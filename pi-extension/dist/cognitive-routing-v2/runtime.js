@@ -1,8 +1,10 @@
 import { schemaForProfile } from "./schemas.js";
 import { randomUUID } from "node:crypto";
+import { existsSync, realpathSync } from "node:fs";
+import { relative, resolve as resolvePath } from "node:path";
 import { EventStore } from "../session-sources/events.js";
 import { Sources, bodyHash, isTaskEvidence } from "../session-sources/sources.js";
-import { pairFromProfile } from "./config.js";
+import { pairFromProfile, resolveCognitiveRoutingState } from "./config.js";
 import { prepareView, changeSelection, representationProblems } from "./projection.js";
 import { initialState } from "./state.js";
 import {
@@ -18,6 +20,7 @@ export const ROUTING_TOOLS = ["freeflow_delegate", "freeflow_return", "freeflow_
 const HANDOFF_TOOLS = new Set(["freeflow_delegate", "freeflow_return"]);
 export class RoutingRuntime {
   pi;
+  packageRoots;
   store;
   ctx;
   capability;
@@ -37,8 +40,9 @@ export class RoutingRuntime {
   manualHold;
   automaticControl = false;
   sourceCache;
-  constructor(pi) {
+  constructor(pi, packageRoots = []) {
     this.pi = pi;
+    this.packageRoots = packageRoots;
   }
   subject() {
     const branch = this.store?.reader.getBranch() ?? [];
@@ -86,6 +90,7 @@ export class RoutingRuntime {
         id: t.id,
         profile: t.profile,
         assignmentId: t.assignmentId,
+        recoveryId: t.recoveryId,
         basisUserEntryId: t.basisUserEntryId,
         pair: t.pair,
         resultEntryIds: [],
@@ -189,10 +194,26 @@ export class RoutingRuntime {
     if (profile) check(state.profile === profile && this.turn?.profile === profile, "wrong_profile");
     if (state.profile) check(samePair(this.observed(), this.profilePair(state.profile)), "configuration_mismatch");
   }
-  profilePair(profile) {
+  configuredProfilePair(profile) {
     const configured = this.capability?.profiles[profile];
     check(configured, "profile_missing");
     return pairFromProfile(configured);
+  }
+  profilePair(profile) {
+    return this.stateData().profileOverrides.get(profile) ?? this.configuredProfilePair(profile);
+  }
+  profilePairs() {
+    return Object.fromEntries(PROFILES.map((profile) => [profile, this.profilePair(profile)]));
+  }
+  async validateProfilePairs(pairs) {
+    const profiles = Object.fromEntries(
+      PROFILES.map((profile) => {
+        const pair = pairs[profile];
+        return [profile, { provider: pair.provider, model: pair.modelId, thinking: pair.thinking }];
+      }),
+    );
+    const result = await resolveCognitiveRoutingState({ cognitiveRouting: { enabled: true, profiles } }, {}, this.ctx);
+    check(result.effective, result.blockingReason.code, result.blockingReason.message);
   }
   model(profile) {
     const pair = this.profilePair(profile);
@@ -222,6 +243,7 @@ export class RoutingRuntime {
     try {
       await this.store.reconcile();
       this.guard(subject);
+      await this.validateProfilePairs(this.profilePairs());
       const state = this.stateData();
       this.manualHold = state.control === "manual" ? state.profile : undefined;
       this.automaticControl = !state.events.size || state.control === "automatic";
@@ -313,6 +335,7 @@ export class RoutingRuntime {
       await this.store.reconcile();
       this.guard(subject);
       this.error = undefined;
+      await this.validateProfilePairs(this.profilePairs());
       this.retireUnbound("Selected historical ancestry ends before execution binding; effects are not replayed.");
       const state = this.stateData();
       if (this.manualHold) {
@@ -322,6 +345,7 @@ export class RoutingRuntime {
           profile: this.manualHold,
           reason: "Current explicit manual hold survives navigation",
         });
+        await this.applyPair(this.profilePair(this.manualHold));
       } else if (
         (this.automaticControl || !state.events.size) &&
         (navigation || !samePair(this.observed(), this.profilePair(state.profile ?? "coordinator")))
@@ -448,6 +472,114 @@ export class RoutingRuntime {
   setManualProfile(profile, _mechanism) {
     return this.control(profile, true);
   }
+  sessionProfileOverrides() {
+    return Object.fromEntries(this.stateData().profileOverrides);
+  }
+  async setSessionProfileOverride(profile, override, mechanism = "Session profile override") {
+    this.revision++;
+    const subject = this.subject();
+    return this.enqueue(async () => {
+      try {
+        check(this.capability?.effective && this.store, "routing_unavailable");
+        check(
+          this.ctx?.isIdle?.() !== false,
+          "host_busy",
+          "Wait for Pi to become idle before changing session presets.",
+        );
+        await this.store.reconcile();
+        this.guard(subject);
+        const state = this.stateData();
+        const previous = state.profileOverrides.get(profile);
+        if ((override === null && !previous) || (override !== null && samePair(previous, override)))
+          return { status: "unchanged" };
+        const target = override ?? this.configuredProfilePair(profile);
+        const pairs = this.profilePairs();
+        pairs[profile] = target;
+        await this.validateProfilePairs(pairs);
+        this.append({
+          type: "profile-overrides",
+          overrides: { [profile]: override },
+          reason: mechanism,
+        });
+        if (state.control !== "inactive" && state.profile === profile) {
+          try {
+            await this.applyPair(target);
+            this.guard(subject);
+          } catch (error) {
+            if (this.current(subject) && !this.externalChange && !this.error && !this.store.blocked) {
+              this.append({
+                type: "profile-overrides",
+                overrides: { [profile]: previous ?? null },
+                reason: "Session profile application failed; prior override retained",
+              });
+            }
+            throw error;
+          }
+          this.error = undefined;
+          return { status: "active" };
+        }
+        this.error = undefined;
+        return { status: "stored" };
+      } catch (error) {
+        if (this.current(subject)) this.mark(error);
+        return { status: "blocked", reason: error instanceof Error ? error.message : String(error) };
+      }
+    });
+  }
+  async resetSessionProfileOverrides(mechanism = "Reset session profile overrides") {
+    this.revision++;
+    const subject = this.subject();
+    return this.enqueue(async () => {
+      try {
+        check(this.capability?.effective && this.store, "routing_unavailable");
+        check(
+          this.ctx?.isIdle?.() !== false,
+          "host_busy",
+          "Wait for Pi to become idle before resetting session presets.",
+        );
+        await this.store.reconcile();
+        this.guard(subject);
+        const state = this.stateData();
+        if (state.profileOverrides.size === 0) return { status: "unchanged" };
+        const previous = Object.fromEntries(state.profileOverrides);
+        const targetPairs = Object.fromEntries(
+          PROFILES.map((profile) => [profile, this.configuredProfilePair(profile)]),
+        );
+        await this.validateProfilePairs(targetPairs);
+        this.append({
+          type: "profile-overrides",
+          overrides: { coordinator: null, executor: null },
+          reason: mechanism,
+        });
+        const active = state.control !== "inactive" ? state.profile : undefined;
+        if (active && previous[active]) {
+          try {
+            await this.applyPair(targetPairs[active]);
+            this.guard(subject);
+          } catch (error) {
+            if (this.current(subject) && !this.externalChange && !this.error && !this.store.blocked) {
+              this.append({
+                type: "profile-overrides",
+                overrides: {
+                  coordinator: previous.coordinator ?? null,
+                  executor: previous.executor ?? null,
+                },
+                reason: "Session profile reset failed; prior overrides retained",
+              });
+            }
+            throw error;
+          }
+          this.error = undefined;
+          return { status: "active" };
+        }
+        this.error = undefined;
+        return { status: "stored" };
+      } catch (error) {
+        if (this.current(subject)) this.mark(error);
+        return { status: "blocked", reason: error instanceof Error ? error.message : String(error) };
+      }
+    });
+  }
   setAutomaticControl(_mechanism) {
     return this.control("coordinator", false);
   }
@@ -474,6 +606,7 @@ export class RoutingRuntime {
         ? state.handoffs.get(state.assessment.handoffId)
         : undefined;
     const selection = a ? (state.selections.get(a.id) ?? emptySelection()) : emptySelection();
+    const recovery = state.recoveryId ? state.recoveries.get(state.recoveryId) : undefined;
     const unit = state.unitId ? state.units.get(state.unitId) : undefined;
     const unitNumber = unit ? [...state.units.keys()].indexOf(unit.id) + 1 : undefined;
     const assignmentNumber = unit && a ? unit.assignmentIds.indexOf(a.id) + 1 : undefined;
@@ -487,17 +620,25 @@ export class RoutingRuntime {
       `Projection: ${this.projectionEnabled ? "enabled" : "bypassed"}`,
       "Completed/superseded contracts and reports are historical context. Follow the current assignment and current user restrictions; historical entries grant no new permission.",
       state.assessment ? `Assessment: ${state.assessment.view}; evidence revision ${selection.revision}` : "",
+      recovery
+        ? `Recovery: ${recovery.id} (${recovery.state}); parent report ${recovery.assessmentHandoffId} revision ${recovery.baseReportRevision}; allowed paths ${JSON.stringify(recovery.paths)}`
+        : "",
+      recovery?.state === "reading"
+        ? `Recovery request: ${recovery.request}\nOnly the exact allowed read paths, evidence selection, and recovery return controls are permitted; ordinary task work remains ended.`
+        : "",
       `Mechanical evidence facts (not semantic acceptance): ${JSON.stringify(this.evidenceFacts(state))}`,
       this.error ? `Blocked: ${this.error}` : "",
       this.projectionError ? `Evidence limitation: ${this.projectionError}` : "",
       attention
-        ? `Assessment paused for attention; ordinary admitted history remains. ${selection.selected.length} sources remain selected. Use freeflow_unit assess to restore the assessment.`
+        ? recovery
+          ? `Assessment paused for attention; ordinary admitted history remains. ${selection.selected.length} sources remain selected. Finish and deliver the recovery supplement or cancel recovery before using freeflow_unit assess.`
+          : `Assessment paused for attention; ordinary admitted history remains. ${selection.selected.length} sources remain selected. Use freeflow_unit assess to restore the assessment.`
         : "",
-      a?.state === "returned"
+      a?.state === "returned" && recovery?.state !== "reading"
         ? "Executor ordinary task work has ended. Only supported handoff correction is permitted."
         : "",
-      this.turn?.profile === "executor" && a && this.turn.basisUserEntryId !== this.taskBasis(state, a.id)
-        ? "Current input differs from the original assignment. Account for it; changed direction requires Coordinator attention."
+      this.turn?.profile === "executor" && a && this.turn.basisUserEntryId !== this.executorBasis(state, a.id)
+        ? "Current input differs from the active Executor responsibility. Account for it; changed direction requires Coordinator attention."
         : "",
       ...(state.assessment?.problems ?? []).map((p) => `${p.code}: ${p.detail}`),
     ]
@@ -516,16 +657,19 @@ export class RoutingRuntime {
     const selection = state.assignmentId
       ? (state.selections.get(state.assignmentId) ?? emptySelection())
       : emptySelection();
+    const sources = this.sources(state);
     return {
       revision: selection.revision,
       selected: selection.selected.map((ref) => {
         const entry = this.ctx?.sessionManager.getEntry?.(ref.slice(4).replace(/#text$/, ""));
+        const locator = sources.locator(ref);
         return {
           ref,
           kind: ref.endsWith("#text") ? "assistant-text" : (entry?.message?.role ?? "unknown"),
           toolName: entry?.message?.toolName,
           producer: state.authors.get(entry?.id)?.profile ?? "common",
           assignment: state.authors.get(entry?.id)?.assignmentId,
+          ...(locator ? { locator } : {}),
         };
       }),
       unresolved: selection.unresolved,
@@ -601,13 +745,14 @@ export class RoutingRuntime {
       // New input reaching an already prepared Executor request cannot be rerouted by changing only the live model.
       const outstanding = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
       const interrupted =
-        state.profile === "executor" && user !== (outstanding ? this.taskBasis(state, outstanding.id) : undefined);
+        state.profile === "executor" && user !== (outstanding ? this.executorBasis(state, outstanding.id) : undefined);
       if (!this.turn || this.turn.bound) {
         this.receipts.clear();
         const execution = {
           id: randomUUID(),
           profile: state.profile,
           assignmentId: state.assignmentId,
+          recoveryId: state.recoveryId,
           basisUserEntryId: user,
           pair: this.observed(),
           resultEntryIds: [],
@@ -617,6 +762,7 @@ export class RoutingRuntime {
           id: execution.id,
           profile: execution.profile,
           assignmentId: execution.assignmentId,
+          recoveryId: execution.recoveryId,
           basisUserEntryId: user,
           before,
           pair: execution.pair,
@@ -680,6 +826,57 @@ export class RoutingRuntime {
   contextOperation(name, input) {
     return name === "freeflow_context" && ["archive", "restore", "search", "retrieve"].includes(input?.operation);
   }
+  handoffOperation(name, input) {
+    if (name === "freeflow_delegate") return true;
+    if (name === "freeflow_return") return ["submit", "supplement", "retry"].includes(input?.operation);
+    return name === "freeflow_unit" && input?.operation === "recover";
+  }
+  stableRecoveryPath(path) {
+    return (
+      !path.startsWith("@") &&
+      path !== "~" &&
+      !path.startsWith("~/") &&
+      !path.startsWith("file://") &&
+      !/[\u00a0\u2000-\u200a\u202f\u205f\u3000]/u.test(path) &&
+      !(process.platform === "win32" && /^\/(?:mnt\/|cygdrive\/)?[a-z](?:\/|$)/i.test(path))
+    );
+  }
+  canonicalRecoveryPath(path) {
+    check(this.stableRecoveryPath(path), "recovery_path_unsupported", `Recovery path spelling is unsupported: ${path}`);
+    const requested = resolvePath(this.ctx.cwd, path);
+    check(existsSync(requested), "recovery_path_unavailable", `Recovery path is unavailable: ${path}`);
+    try {
+      return realpathSync(requested);
+    } catch {
+      throw new RoutingError("recovery_path_unavailable", `Recovery path is unavailable: ${path}`);
+    }
+  }
+  packagedInstruction(path) {
+    return this.packageRoots.some((root) => {
+      const inside = relative(root, path);
+      if (!inside || inside.startsWith("..") || resolvePath(root, inside) !== path) return false;
+      return (
+        /^(?:skills|capabilities)\/[^/]+\/SKILL\.md$/.test(inside) ||
+        /^(?:skills|capabilities)\/[^/]+\/references\/[^/]+\.md$/.test(inside)
+      );
+    });
+  }
+  recoveryReadAllowed(state, name, input) {
+    if (name !== "read" || typeof input?.path !== "string" || !state.recoveryId) return false;
+    const recovery = state.recoveries.get(state.recoveryId);
+    if (!recovery || recovery.state !== "reading" || !this.stableRecoveryPath(input.path)) return false;
+    try {
+      const path = this.canonicalRecoveryPath(input.path);
+      return recovery.paths.includes(path) || this.packagedInstruction(path);
+    } catch {
+      return false;
+    }
+  }
+  executorBasis(state, assignmentId) {
+    const recovery = state.recoveryId ? state.recoveries.get(state.recoveryId) : undefined;
+    if (recovery?.state === "reading") return state.handoffs.get(recovery.requestHandoffId)?.basisUserEntryId ?? null;
+    return this.taskBasis(state, assignmentId);
+  }
   batch(callId, name) {
     check(this.turn?.message, "batch_unavailable");
     const matches = this.ctx.sessionManager
@@ -699,14 +896,16 @@ export class RoutingRuntime {
     this.turn.sourceFingerprint = fingerprint;
     this.turn.message = structuredClone(matches[0].message);
     const calls = (this.turn.message.content ?? []).filter((b) => b.type === "toolCall");
-    const handoffs = calls.filter((b) => HANDOFF_TOOLS.has(b.name));
+    const handoffs = calls.filter((b) => this.handoffOperation(b.name, b.arguments));
     check(
       !handoffs.length ||
         (handoffs.length === 1 &&
-          HANDOFF_TOOLS.has(calls.at(-1)?.name) &&
+          this.handoffOperation(calls.at(-1)?.name, calls.at(-1)?.arguments) &&
           calls.every(
             (b) =>
-              HANDOFF_TOOLS.has(b.name) || b.name === "freeflow_project" || this.contextOperation(b.name, b.arguments),
+              this.handoffOperation(b.name, b.arguments) ||
+              b.name === "freeflow_project" ||
+              this.contextOperation(b.name, b.arguments),
           )),
       "invalid_handoff_batch",
       "A handoff must be last and cannot accompany ordinary task tools.",
@@ -732,12 +931,16 @@ export class RoutingRuntime {
       this.openTurn();
       if (this.turn?.profile === "executor" && !isRouting && !this.contextOperation(name, event.input)) {
         const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
-        check(
+        const ordinary =
           a?.state === "outstanding" &&
-            this.turn.basisUserEntryId === this.taskBasis(state, a.id) &&
-            state.profile === "executor",
-          "executor_task_phase_ended",
-        );
+          this.turn.basisUserEntryId === this.taskBasis(state, a.id) &&
+          state.profile === "executor";
+        const recovery =
+          a?.state === "returned" &&
+          this.turn.basisUserEntryId === this.executorBasis(state, a.id) &&
+          state.profile === "executor" &&
+          this.recoveryReadAllowed(state, name, event.input);
+        check(ordinary || recovery, "executor_task_phase_ended");
       }
       return undefined;
     } catch (error) {
@@ -773,7 +976,7 @@ export class RoutingRuntime {
               : name === "freeflow_project"
                 ? this.project(input, op)
                 : name === "freeflow_unit"
-                  ? this.unit(input, op)
+                  ? this.unit(input, callId, op)
                   : undefined;
         if (value !== undefined) {
           this.receipts.set(op, { input: canonical(input), value: structuredClone(value) });
@@ -813,7 +1016,14 @@ export class RoutingRuntime {
     return [...this.stateData().events.values()].find(
       (e) =>
         e.operationId === op &&
-        ["delegate-accepted", "return-accepted", "handoff-retry-requested"].includes(e.data.type),
+        [
+          "delegate-accepted",
+          "return-accepted",
+          "recovery-request-accepted",
+          "recovery-supplement-accepted",
+          "recovery-cancelled",
+          "handoff-retry-requested",
+        ].includes(e.data.type),
     );
   }
   delegate(input, callId, op) {
@@ -832,7 +1042,10 @@ export class RoutingRuntime {
     const old = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
     if (input.operation === "replace") check(old?.state === "outstanding" && !this.applying, "no_quiescent_assignment");
     else
-      check(input.operation === "assign" && old?.state !== "outstanding" && !state.pendingId, "assignment_outstanding");
+      check(
+        input.operation === "assign" && old?.state !== "outstanding" && !state.pendingId && !state.recoveryId,
+        "assignment_outstanding",
+      );
     const assignmentId = randomUUID(),
       id = randomUUID();
     const assignment = {
@@ -897,25 +1110,27 @@ export class RoutingRuntime {
     const state = this.stateData(),
       a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
     check(a, "assignment_missing");
-    const saved = a.returnHandoffId ? state.handoffs.get(a.returnHandoffId) : undefined;
+    const recovery = state.recoveryId ? state.recoveries.get(state.recoveryId) : undefined;
+    const original = a.returnHandoffId ? state.handoffs.get(a.returnHandoffId) : undefined;
+    const supplement = recovery?.supplementHandoffId ? state.handoffs.get(recovery.supplementHandoffId) : undefined;
+    const retryingSupplement = input.operation === "retry" && recovery?.state === "returning";
+    const saved = retryingSupplement || input.operation === "supplement" ? supplement : original;
     const selection = state.selections.get(a.id) ?? emptySelection();
     const duplicate = this.duplicate(op);
     if (duplicate) {
       if (input.operation === "retry") check(duplicate.data.type === "handoff-retry-requested", "operation_conflict");
-      else
+      else {
+        const expected = input.operation === "supplement" ? "recovery-supplement-accepted" : "return-accepted";
         check(
-          duplicate.data.type === "return-accepted" &&
+          duplicate.data.type === expected &&
             duplicate.data.handoff.text === input.report &&
             duplicate.data.handoff.outcome === input.outcome &&
             canonical(duplicate.data.handoff.limitations) === canonical(input.limitations ?? []),
           "operation_conflict",
         );
-      return {
-        status: "accepted",
-        reportSaved: true,
-        unchanged: true,
-        handoff: duplicate.data.handoffId ?? duplicate.data.handoff.id,
-      };
+      }
+      const handoff = duplicate.data.handoffId ?? duplicate.data.handoff.id;
+      return { ...this.returnReadiness(handoff), unchanged: true };
     }
     if (input.operation === "retry") {
       check(saved && ["blocked", "pending"].includes(saved.state), "saved_return_missing");
@@ -931,15 +1146,45 @@ export class RoutingRuntime {
         },
         op,
       );
-      return { ...this.returnReadiness(saved.id), reportUnchanged: true };
+      return {
+        ...this.returnReadiness(saved.id),
+        reportUnchanged: true,
+        supplementUnchanged: saved.kind === "recovery-return",
+      };
+    }
+    if (input.operation === "supplement") {
+      check(
+        recovery &&
+          ["reading", "returning"].includes(recovery.state) &&
+          (!supplement || ["pending", "blocked"].includes(supplement.state)),
+        "recovery_not_returnable",
+      );
+      const h = {
+        id: supplement?.id ?? randomUUID(),
+        kind: "recovery-return",
+        assignmentId: a.id,
+        text: input.report,
+        from: "executor",
+        to: "coordinator",
+        executionId: this.turn.id,
+        toolCallId: callId,
+        basisUserEntryId: this.turn.basisUserEntryId,
+        state: "pending",
+        reportRevision: (supplement?.reportRevision ?? 0) + 1,
+        outcome: input.outcome,
+        limitations: input.limitations ?? [],
+      };
+      this.append({ type: "recovery-supplement-accepted", recoveryId: recovery.id, handoff: h }, op);
+      return this.returnReadiness(h.id);
     }
     check(input.operation === "submit", "invalid_return_operation");
     check(
-      a.state === "outstanding" || (a.state === "returned" && saved && ["pending", "blocked"].includes(saved.state)),
+      a.state === "outstanding" ||
+        (a.state === "returned" && original && ["pending", "blocked"].includes(original.state)),
       "assignment_task_ended",
     );
     const h = {
-      id: saved?.id ?? randomUUID(),
+      id: original?.id ?? randomUUID(),
       kind: "return",
       assignmentId: a.id,
       text: input.report,
@@ -949,7 +1194,7 @@ export class RoutingRuntime {
       toolCallId: callId,
       basisUserEntryId: this.turn.basisUserEntryId,
       state: "pending",
-      reportRevision: (saved?.reportRevision ?? 0) + 1,
+      reportRevision: (original?.reportRevision ?? 0) + 1,
       outcome: input.outcome,
       limitations: input.limitations ?? [],
     };
@@ -957,15 +1202,24 @@ export class RoutingRuntime {
     return this.returnReadiness(h.id);
   }
   returnReadiness(id) {
-    const h = this.stateData().handoffs.get(id);
+    const state = this.stateData();
+    const h = state.handoffs.get(id);
     const prepared = this.prepared("coordinator", this.messages, id);
+    const isSupplement = h.kind === "recovery-return";
+    const recovery = isSupplement
+      ? [...state.recoveries.values()].find((candidate) => candidate.supplementHandoffId === h.id)
+      : undefined;
     return {
       status: "accepted",
-      reportSaved: true,
+      reportSaved: !isSupplement,
+      supplementSaved: isSupplement,
       handoff: id,
-      reportRevision: h.reportRevision,
+      ...(recovery ? { recovery: recovery.id } : {}),
+      ...(isSupplement ? { supplementRevision: h.reportRevision } : { reportRevision: h.reportRevision }),
       assignmentRef: `assignment:${h.assignmentId}`,
-      reportRef: `report:${h.id}:${h.reportRevision}`,
+      ...(isSupplement
+        ? { supplementRef: `supplement:${recovery?.id ?? "unknown"}:${h.reportRevision}` }
+        : { reportRef: `report:${h.id}:${h.reportRevision}` }),
       producer: "executor",
       outcome: h.outcome,
       limitations: h.limitations,
@@ -977,8 +1231,8 @@ export class RoutingRuntime {
       finalExchangePending: true,
       provisional:
         "The finalized handoff exchange, target configuration and budget are revalidated at turn_end; this is not delivery evidence.",
-      report: h.text,
-      evidence: this.evidenceFacts(this.stateData()),
+      ...(isSupplement ? { supplement: h.text } : { report: h.text }),
+      evidence: this.evidenceFacts(state),
     };
   }
   project(input, op) {
@@ -1027,12 +1281,14 @@ export class RoutingRuntime {
                 s.message.content?.some((b) => b.type === "text" && b.text?.trim())),
           )
           .map((s) => {
+            const locator = sources.locator(s.ref);
             return {
               ref: s.ref,
               kind: s.original ? "assistant-text" : s.message.role,
               producer: s.producer,
               assignment: s.assignmentId,
               toolName: s.message.toolName,
+              ...(locator ? { locator } : {}),
               active: s.active,
               selected: next.selected.includes(s.ref),
               retainedSelection: next.selected.includes(s.ref) && !isTaskEvidence(s),
@@ -1109,10 +1365,40 @@ export class RoutingRuntime {
       estimate: { tokens: prepared.estimatedTokens, method: prepared.estimateMethod },
     };
   }
-  unit(input, op) {
+  unit(input, callId, op) {
     const state = this.stateData();
     const prior = [...state.events.values()].find((e) => e.operationId === op);
     if (prior) {
+      if (input.operation === "recover") {
+        check(
+          prior.data.type === "recovery-request-accepted" &&
+            prior.data.recovery.request === input.request &&
+            canonical(prior.data.recovery.requestedPaths) === canonical([...new Set(input.paths ?? [])]),
+          "operation_conflict",
+        );
+        const { recovery, handoff } = prior.data;
+        return {
+          status: "accepted",
+          unchanged: true,
+          recovery: recovery.id,
+          handoff: handoff.id,
+          assignmentRef: `assignment:${recovery.assignmentId}`,
+          reportRef: `report:${recovery.assessmentHandoffId}:${recovery.baseReportRevision}`,
+          request: recovery.request,
+          paths: recovery.paths,
+          transition: handoff.state,
+        };
+      }
+      if (input.operation === "cancel-recovery") {
+        check(prior.data.type === "recovery-cancelled" && prior.data.reason === input.reason, "operation_conflict");
+        return {
+          status: "cancelled",
+          unchanged: true,
+          recovery: prior.data.recoveryId,
+          reason: prior.data.reason,
+          assessment: state.assessment?.handoffId,
+        };
+      }
       check(
         (input.operation === "assess" && prior.data.type === "assessment-resumed") ||
           (input.operation === "close" &&
@@ -1123,18 +1409,94 @@ export class RoutingRuntime {
       );
       return { status: "unchanged", operation: input.operation };
     }
+    if (input.operation === "recover") {
+      const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
+      const base = a?.returnHandoffId ? state.handoffs.get(a.returnHandoffId) : undefined;
+      check(
+        state.unitId &&
+          a?.state === "returned" &&
+          base?.kind === "return" &&
+          base.state === "configured" &&
+          state.assessment?.handoffId === base.id &&
+          !state.pendingId &&
+          !state.recoveryId &&
+          !this.applying,
+        "recovery_not_available",
+      );
+      const id = randomUUID(),
+        handoffId = randomUUID();
+      const paths = [...new Set((input.paths ?? []).map((path) => this.canonicalRecoveryPath(path)))];
+      const recovery = {
+        id,
+        assignmentId: a.id,
+        assessmentHandoffId: base.id,
+        baseReportRevision: base.reportRevision,
+        request: input.request,
+        requestedPaths: [...new Set(input.paths ?? [])],
+        paths,
+        state: "requested",
+        requestHandoffId: handoffId,
+        supplementRevision: 0,
+      };
+      const handoff = {
+        id: handoffId,
+        kind: "recovery-request",
+        assignmentId: a.id,
+        text: input.request,
+        from: "coordinator",
+        to: "executor",
+        executionId: this.turn.id,
+        toolCallId: callId,
+        basisUserEntryId: this.turn.basisUserEntryId,
+        state: "pending",
+        reportRevision: 0,
+        limitations: [],
+      };
+      this.append({ type: "recovery-request-accepted", recovery, handoff }, op);
+      return {
+        status: "accepted",
+        recovery: id,
+        handoff: handoffId,
+        assignmentRef: `assignment:${a.id}`,
+        reportRef: `report:${base.id}:${base.reportRevision}`,
+        request: input.request,
+        paths,
+        transition: "pending",
+      };
+    }
+    if (input.operation === "cancel-recovery") {
+      check(state.recoveryId && !this.applying, "recovery_not_cancellable");
+      check(
+        ![...state.executions.values()].some(
+          (execution) =>
+            execution.recoveryId === state.recoveryId &&
+            execution.profile === "executor" &&
+            !execution.assistantEntryId &&
+            !execution.interrupted,
+        ),
+        "recovery_not_cancellable",
+      );
+      this.append({ type: "recovery-cancelled", recoveryId: state.recoveryId, reason: input.reason }, op);
+      return {
+        status: "cancelled",
+        recovery: state.recoveryId,
+        reason: input.reason,
+        assessment: state.assessment?.handoffId,
+      };
+    }
     if (input.operation === "assess") {
       check(state.assessment, "assessment_missing");
+      check(!state.recoveryId, "recovery_outstanding");
       if (state.assessment.view === "active") return { status: "unchanged", ready: true };
       const prepared = this.prepared("coordinator", this.messages, state.assessment.handoffId, true);
       if (!prepared.ready) return { status: "suspended", ready: false, problems: prepared.problems };
-      check(prepared.reservation, "reservation_missing");
+      if (this.projectionEnabled) check(prepared.reservation, "reservation_missing");
       this.append(
         {
           type: "assessment-resumed",
           handoffId: state.assessment.handoffId,
           basisUserEntryId: this.turn.basisUserEntryId,
-          reservation: prepared.reservation,
+          ...(prepared.reservation ? { reservation: prepared.reservation } : {}),
         },
         op,
       );
@@ -1149,6 +1511,19 @@ export class RoutingRuntime {
     check(input.operation === "close" && state.unitId, "unit_missing");
     const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
     check(!this.applying, "not_quiescent");
+    if (state.recoveryId) {
+      check(input.outcome !== "accepted", "unfinished_work");
+      check(
+        ![...state.executions.values()].some(
+          (execution) =>
+            execution.recoveryId === state.recoveryId &&
+            execution.profile === "executor" &&
+            !execution.assistantEntryId &&
+            !execution.interrupted,
+        ),
+        "not_quiescent",
+      );
+    }
     this.append(
       {
         type: "unit-closed",
@@ -1262,9 +1637,9 @@ export class RoutingRuntime {
       "Use a ref returned by history inspection.",
     );
     check(
-      /^(?:(?:unit|assignment):[^:\s]+|report:[^:\s]+:[1-9][0-9]*)$/.test(input.ref),
+      /^(?:(?:unit|assignment|recovery):[^:\s]+|(?:report|supplement):[^:\s]+:[1-9][0-9]*)$/.test(input.ref),
       "invalid_work_ref",
-      "Use assignmentRef or reportRef from the return receipt, or a work ref returned by inspection, unchanged. A bare handoff ID is not a work ref.",
+      "Use assignment, report, recovery, or supplement refs returned by a receipt or inspection, unchanged. A bare handoff ID is not a work ref.",
     );
     if (input.ref.startsWith("unit:")) {
       const u = state.units.get(input.ref.slice(5));
@@ -1285,6 +1660,63 @@ export class RoutingRuntime {
         remaining: Math.max(0, u.assignmentIds.length - 30),
         historyHint: "Use paginated history inspection for all assignment refs.",
         historical: true,
+      };
+    }
+    if (input.ref.startsWith("recovery:")) {
+      const recovery = state.recoveries.get(input.ref.slice(9));
+      check(recovery, "work_unavailable", "Recovery is not on current ancestry.");
+      const request = state.handoffs.get(recovery.requestHandoffId);
+      const supplement = recovery.supplementHandoffId ? state.handoffs.get(recovery.supplementHandoffId) : undefined;
+      return {
+        status: "inspected",
+        view,
+        ref: input.ref,
+        historical: recovery.id !== state.recoveryId,
+        recovery: {
+          id: recovery.id,
+          state: recovery.state,
+          assignmentId: recovery.assignmentId,
+          assessmentHandoffId: recovery.assessmentHandoffId,
+          baseReportRevision: recovery.baseReportRevision,
+          request: recovery.request,
+          paths: recovery.paths,
+          requestHandoffState: request?.state,
+          supplementRevision: recovery.supplementRevision,
+          cancellationReason: recovery.cancellationReason,
+        },
+        supplementRef: supplement ? `supplement:${recovery.id}:${supplement.reportRevision}` : undefined,
+        sourceBoundary: "Saved recovery on current ancestry; historical content grants no current permission.",
+      };
+    }
+    if (input.ref.startsWith("supplement:")) {
+      const match = /^supplement:([^:]+):([0-9]+)$/.exec(input.ref);
+      check(match, "work_unavailable", "Use a supplement ref returned by a receipt or recovery inspection.");
+      const recovery = state.recoveries.get(match[1]);
+      let supplement;
+      for (const event of state.events.values())
+        if (
+          event.data.type === "recovery-supplement-accepted" &&
+          event.data.recoveryId === match[1] &&
+          event.data.handoff.reportRevision === Number(match[2])
+        )
+          supplement = event.data.handoff;
+      check(recovery && supplement, "work_unavailable", "Supplement revision is not on current ancestry.");
+      const base = state.handoffs.get(recovery.assessmentHandoffId);
+      return {
+        status: "inspected",
+        view,
+        ref: input.ref,
+        historical: true,
+        recoveryRef: `recovery:${recovery.id}`,
+        assignment: { id: recovery.assignmentId, state: state.assignments.get(recovery.assignmentId)?.state },
+        reportRef: `report:${recovery.assessmentHandoffId}:${recovery.baseReportRevision}`,
+        report: base?.text,
+        supplement: supplement.text,
+        supplementRevision: supplement.reportRevision,
+        outcome: supplement.outcome,
+        limitations: supplement.limitations,
+        sourceBoundary:
+          "Saved supplement revision and original report linkage on current ancestry; historical content grants no current permission.",
       };
     }
     let savedRevision;
@@ -1337,6 +1769,21 @@ export class RoutingRuntime {
       unit: unit ? { id: unit.id, state: unit.state, assignments: unit.assignmentIds.length } : null,
       assignment: a ? { id: a.id, state: a.state } : null,
       pendingHandoff: state.pendingId ?? null,
+      recovery: state.recoveryId
+        ? (() => {
+            const recovery = state.recoveries.get(state.recoveryId);
+            return recovery
+              ? {
+                  id: recovery.id,
+                  state: recovery.state,
+                  assignmentId: recovery.assignmentId,
+                  assessmentHandoffId: recovery.assessmentHandoffId,
+                  paths: recovery.paths,
+                  supplementRevision: recovery.supplementRevision,
+                }
+              : null;
+          })()
+        : null,
       assessment: state.assessment
         ? { handoffId: state.assessment.handoffId, view: state.assessment.view, problems: state.assessment.problems }
         : null,
@@ -1423,23 +1870,29 @@ export class RoutingRuntime {
       "source_exchange_incomplete",
       "The saved handoff has an incomplete native exchange; reconcile or explicitly dispose of it.",
     );
-    if (h.kind === "return" && this.projectionEnabled) {
+    let attentionProblems = [];
+    if (["return", "recovery-return"].includes(h.kind) && this.projectionEnabled) {
       const prepared = this.prepared("coordinator", inputs, h.id);
       if (!prepared.ready) {
+        const attentionFallback = h.kind === "recovery-return" && h.outcome !== "completed";
         this.projectionError = prepared.problems.map((p) => p.code).join(", ");
-        this.append({
-          type: "handoff-state",
-          handoffId: h.id,
-          state: "blocked",
-          reason: prepared.problems
-            .map((p) => p.detail)
-            .join("; ")
-            .slice(0, 4096),
-        });
-        return;
+        if (attentionFallback) attentionProblems = prepared.problems;
+        else {
+          this.append({
+            type: "handoff-state",
+            handoffId: h.id,
+            state: "blocked",
+            reason: prepared.problems
+              .map((p) => p.detail)
+              .join("; ")
+              .slice(0, 4096),
+          });
+          return;
+        }
+      } else {
+        check(prepared.reservation, "reservation_missing");
+        this.append({ type: "handoff-prepared", handoffId: h.id, reservation: prepared.reservation });
       }
-      check(prepared.reservation, "reservation_missing");
-      this.append({ type: "handoff-prepared", handoffId: h.id, reservation: prepared.reservation });
     }
     try {
       const current = this.stateData();
@@ -1449,6 +1902,28 @@ export class RoutingRuntime {
       this.append({ type: "handoff-state", handoffId: h.id, state: "configured", observedPair: this.observed() });
       const completed = this.stateData();
       const reservation = completed.reservations.get(h.id);
+      const recovery =
+        h.kind === "recovery-return"
+          ? [...completed.recoveries.values()].find((candidate) => candidate.supplementHandoffId === h.id)
+          : undefined;
+      if (h.kind === "recovery-return" && recovery && completed.assessment?.view === "suspended") {
+        if (attentionProblems.length) {
+          this.append({
+            type: "assessment-suspended",
+            handoffId: recovery.assessmentHandoffId,
+            reason: "delivery-gap",
+            basisUserEntryId: this.lastDeliveredUser(this.sources(completed), inputs),
+            problems: attentionProblems,
+          });
+        } else if (completed.assessment.suspensionReason === "recovery") {
+          this.append({
+            type: "assessment-resumed",
+            handoffId: recovery.assessmentHandoffId,
+            basisUserEntryId: this.lastDeliveredUser(this.sources(completed), inputs),
+            ...(reservation ? { reservation } : {}),
+          });
+        }
+      }
       if (h.kind === "return" && completed.assessment?.view === "suspended" && reservation) {
         this.append({
           type: "assessment-resumed",
@@ -1457,7 +1932,7 @@ export class RoutingRuntime {
           reservation,
         });
       }
-      this.projectionError = undefined;
+      if (!attentionProblems.length) this.projectionError = undefined;
     } catch (error) {
       if (this.current(subject) && !this.store?.blocked && !this.error && this.stateData().pendingId === h.id) {
         this.append({
@@ -1467,7 +1942,7 @@ export class RoutingRuntime {
           reason: error instanceof Error ? error.message.slice(0, 4096) : "configuration_failed",
         });
         this.ctx.ui?.notify?.(
-          `Couldn’t switch to ${h.to === "coordinator" ? "Coordinator" : "Executor"} — ${h.kind === "return" ? "report" : "assignment"} saved.`,
+          `Couldn’t switch to ${h.to === "coordinator" ? "Coordinator" : "Executor"} — ${["return", "recovery-return"].includes(h.kind) ? "report" : "assignment"} saved.`,
           "warning",
         );
       } else throw error;
@@ -1503,7 +1978,7 @@ export class RoutingRuntime {
       this.guard(subject);
       if (this.stateData().pendingId) {
         check(
-          pending.kind === "return" && this.projectionError,
+          ["return", "recovery-return"].includes(pending.kind) && this.projectionError,
           "handoff_still_blocked",
           "Saved transfer is still blocked; reconcile its configuration before retrying.",
         );
@@ -1523,7 +1998,21 @@ export class RoutingRuntime {
         (x) =>
           x.profile === "coordinator" && x.basisUserEntryId === user && x.assistantEntryId && x.outcome === "completed",
       );
-      if (assignment?.state === "outstanding") {
+      const recovery = state.recoveryId ? state.recoveries.get(state.recoveryId) : undefined;
+      if (assignment?.state === "returned" && recovery?.state === "reading") {
+        check(
+          user === this.executorBasis(state, assignment.id) || coordinatorSawInput,
+          "input_unreconciled",
+          "New input needs Coordinator attention before evidence recovery can resume.",
+        );
+        this.append({
+          type: "control",
+          control: "automatic",
+          profile: "executor",
+          reason: "Explicit user resume of unchanged evidence recovery; ordinary assignment work remains ended",
+        });
+        await this.applyPair(this.profilePair("executor"));
+      } else if (assignment?.state === "outstanding") {
         check(
           user === this.taskBasis(state, assignment.id) || coordinatorSawInput,
           "input_unreconciled",

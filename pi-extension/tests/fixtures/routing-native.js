@@ -81,6 +81,8 @@ export async function fixture(script, projection = true, after, withUI = true, o
   );
   await writeFile(join(cwd, "evidence.txt"), "EXACT_EVIDENCE_BODY_81");
   await writeFile(join(cwd, "unselected.txt"), "UNSELECTED_PRIVATE_BODY_93");
+  await writeFile(join(cwd, "recovery.txt"), "FRESH_RECOVERY_BODY_57");
+  await writeFile(join(cwd, "@recovery.txt"), "LITERAL_AT_FILE_BODY_68");
   await writeFile(
     join(agentDir, "models.json"),
     JSON.stringify({ providers: { openai: { baseUrl: "https://fixture.invalid/v1" } } }),
