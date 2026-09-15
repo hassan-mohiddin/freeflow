@@ -208,9 +208,23 @@ test("mutation persistence failure returns an error without publishing projectio
   assert.match(next.messages[0].content.at(-1).text, /ctx:tool-1/);
 });
 
-test("disabled projection bypasses stored state and adds no marker", async () => {
+test("disabled projection keeps original content and the stable reference marker", async () => {
   const { runtime } = createFixture();
   const result = await runtime.project([toolMessage()], false);
-  assert.equal(result.changed, false);
-  assert.deepEqual(result.messages[0].content, [{ type: "text", text: "secret raw output" }]);
+  assert.equal(result.changed, true);
+  assert.deepEqual(result.messages[0].content.slice(0, -1), [{ type: "text", text: "secret raw output" }]);
+  assert.match(result.messages[0].content.at(-1).text, /context-ref: ctx:tool-1/);
+});
+
+test("unavailable decoration leaves the already projected view intact", () => {
+  const { runtime } = createFixture();
+  runtime.setContext({
+    sessionManager: {
+      getBranch() {
+        throw Error("unavailable");
+      },
+    },
+  });
+  const current = [{ role: "custom", customType: "blocked", content: "Only this safe view" }];
+  assert.equal(runtime.decorate(current), current);
 });

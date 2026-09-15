@@ -56,7 +56,7 @@ Workflow chooses the current owner. A linked skill does not run automatically, a
 
 | Package or archive | Role | Delivery |
 | --- | --- | --- |
-| [`cognitive-routing`](../capabilities/cognitive-routing/SKILL.md) | Coordinator/Executor assignments, saved returns, projection and bounded recovery; manual unsplit control | Discoverable only when Cognitive Routing is effective; its conditional cue requires the current body before another Freeflow skill or task/evidence work without changing prompt order. |
+| [`cognitive-routing`](../capabilities/cognitive-routing/SKILL.md) | Mode-aware Coordinator/Helper/Executor work placement, saved returns, worker evidence projection and bounded recovery; manual unsplit control | Discoverable only when Cognitive Routing is effective; its conditional cue requires the current body before another Freeflow skill or task/evidence work without changing prompt order. |
 | [`conversation-history`](../capabilities/conversation-history/SKILL.md) | Bounded search or retrieval of exact missing prior-conversation evidence | Discoverable only when Conversation History is effective; its conditional cue owns activation. |
 | [`context-virtualization`](../capabilities/context-virtualization/SKILL.md) | Continued residency of consumed tool evidence | Discoverable only when Context Virtualization is effective; its conditional cue owns activation. |
 | [`delegation-harness`](../.deprecated/delegation-harness/README.md) | Retired implementation and historical evidence | Excluded from the live package, Setup, commands, runtime context, and active model-skill discovery. |

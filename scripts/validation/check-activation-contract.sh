@@ -78,7 +78,7 @@ require_text "$interaction_contract" 'Interpret requested intent, not sentence f
 require_text "$core_prompt" '## Shared Terms'
 require_text "$core_prompt" '## Load The Selected Method'
 require_text "$core_prompt" 'Verification establishes what direct evidence proves'
-require_text "$cognitive_routing_prompt" 'Before relying on automatic routing, read the complete cognitive-routing skill if its body is absent.'
+require_text "$cognitive_routing_prompt" 'Before relying on Automatic routing, read the complete cognitive-routing skill if its body is absent.'
 require_text "$cognitive_routing_prompt" 'This bootstrap read is the only environment call in that response.'
 require_text "$cognitive_routing_prompt" 'If unavailable, stop and report the missing method.'
 require_text "$cognitive_routing_prompt" 'Reload it after context loss before applying remembered routing rules.'

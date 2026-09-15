@@ -19,7 +19,7 @@ const locatorText = (locator: any) => {
 };
 
 function title(name: string, operation?: string): string {
-  if (name === "freeflow_delegate") return operation === "replace" ? "Replace assignment" : "Delegate to Executor";
+  if (name === "freeflow_delegate") return operation === "replace" ? "Replace assignment" : "Delegate assignment";
   if (name === "freeflow_return")
     return operation === "retry"
       ? "Retry return"

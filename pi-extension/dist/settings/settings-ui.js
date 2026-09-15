@@ -12,6 +12,7 @@ import {
 } from "../runtime/runtime-context.js";
 import { PiSettingsComponent } from "./settings-tui.js";
 import { isPiFlowHost } from "../runtime/runtime-identity.js";
+import { isWorkerProfile, workersForDelegation } from "../cognitive-routing-v2/types.js";
 const DEFAULT_FREEFLOW_ENABLED = true;
 const DEFAULT_CONTEXT_VIRTUALIZATION_ENABLED = false;
 const DEFAULT_CONVERSATION_HISTORY_ENABLED = false;
@@ -191,6 +192,68 @@ function createScopedBooleanItem(options) {
   item.displaySuffix = coreDisplaySuffix(item);
   return item;
 }
+function createScopedDelegationItem(options) {
+  const path = ["cognitiveRouting", "delegation"];
+  const repositoryValue = getPath(options.rawConfig, path);
+  const inheritedValue = ["executor", "helper", "both"].includes(repositoryValue) ? repositoryValue : "executor";
+  const inheritedSource = repositoryValue === undefined ? "builtin" : "repository";
+  const localValue = getPath(options.localConfig, path);
+  const descriptions = {
+    executor: "Coordinator delegates assignments to Executor.",
+    helper: "Coordinator delegates supporting assignments to Helper and keeps production implementation.",
+    both: "Coordinator chooses Helper or Executor for each assignment.",
+  };
+  const item =
+    options.scope === "local"
+      ? {
+          id: "freeflow.cognitiveRouting.delegation",
+          label: "Delegation method",
+          description:
+            "Choose enabled workers for automatic routing. Inherit uses the repository value; this setting does not rank model presets.",
+          path,
+          kind: "enum",
+          value: ["executor", "helper", "both"].includes(localValue) ? localValue : LOCAL_INHERIT,
+          values: [LOCAL_INHERIT, "executor", "helper", "both"],
+          valueLabels: {
+            inherit: "Inherit repository",
+            executor: "Executor only",
+            helper: "Helper only",
+            both: "Helper and Executor",
+          },
+          valueDescriptions: {
+            inherit: `Use ${inheritedValue} from ${inheritedSource}.`,
+            ...descriptions,
+          },
+          configScope: "local",
+          configValues: { inherit: undefined, executor: "executor", helper: "helper", both: "both" },
+          effectiveValue: options.effectiveValue,
+          effectiveSource: options.effectiveSource,
+          inheritedValue,
+          inheritedSource,
+        }
+      : {
+          id: "freeflow.cognitiveRouting.delegation",
+          label: "Delegation method",
+          description: "Choose enabled workers for automatic routing. This edits shared .freeflow/config.json.",
+          path,
+          kind: "enum",
+          value: inheritedValue,
+          values: ["executor", "helper", "both"],
+          valueLabels: {
+            executor: "Executor only",
+            helper: "Helper only",
+            both: "Helper and Executor",
+          },
+          valueDescriptions: descriptions,
+          defaultValue: "executor",
+          configScope: "repository",
+          effectiveValue: options.effectiveValue,
+          effectiveSource: options.effectiveSource,
+          localOverrideValue: ["executor", "helper", "both"].includes(localValue) ? localValue : undefined,
+        };
+  item.displaySuffix = coreDisplaySuffix(item);
+  return item;
+}
 function resolveSettingsCoreView(rawConfig, layers) {
   const localConfig = layers?.local.valid && isRecord(layers.local.parsed) ? layers.local.parsed : {};
   const fallbackCore = {
@@ -289,30 +352,30 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx) {
   contextVirtualizationItem.inactive = freeflowInactive;
   conversationHistoryItem.inactive = freeflowInactive;
   const cognitiveRoutingState = cognitiveRoutingController?.state();
-  const cognitiveRoutingProfile =
-    cognitiveRoutingState?.controlMode === "manual-executor"
-      ? "executor"
-      : cognitiveRoutingState?.controlMode === "manual-coordinator"
-        ? "coordinator"
-        : "auto";
+  const delegation = state.cognitiveRouting?.delegation ?? "executor";
+  const heldProfile = cognitiveRoutingState?.controlMode.startsWith("manual-")
+    ? cognitiveRoutingState.activeProfile
+    : undefined;
+  const availableProfiles = ["coordinator", ...workersForDelegation(delegation)];
+  if (heldProfile === "coordinator" || isWorkerProfile(heldProfile)) availableProfiles.push(heldProfile);
+  const manualProfiles = [...new Set(availableProfiles)];
+  const cognitiveRoutingProfile = heldProfile && manualProfiles.includes(heldProfile) ? heldProfile : "auto";
   const cognitiveRoutingItem = state.cognitiveRouting
     ? {
         id: "freeflow.cognitiveRouting.profile",
         label: "Cognitive Routing",
-        description: "Hold a profile manually or release the hold for automatic model control.",
+        description: "Hold an enabled profile manually or release the hold for automatic model control.",
         kind: "enum",
         value: cognitiveRoutingProfile,
-        values: ["auto", "executor", "coordinator"],
-        valueLabels: {
-          auto: "automatic",
-          executor: "manual · executor",
-          coordinator: "manual · coordinator",
-        },
-        valueDescriptions: {
-          auto: "Release the manual hold and return to Coordinator reconciliation.",
-          executor: "Hold the executor profile until /freeflow profile auto.",
-          coordinator: "Hold the coordinator profile until /freeflow profile auto.",
-        },
+        values: ["auto", ...manualProfiles],
+        valueLabels: Object.fromEntries([
+          ["auto", "automatic"],
+          ...manualProfiles.map((profile) => [profile, `manual · ${profile}`]),
+        ]),
+        valueDescriptions: Object.fromEntries([
+          ["auto", "Release the manual hold and return to Coordinator reconciliation."],
+          ...manualProfiles.map((profile) => [profile, `Hold the ${profile} profile until /freeflow profile auto.`]),
+        ]),
         inactive: freeflowInactive || !state.cognitiveRouting.effective || cognitiveRoutingController === undefined,
         runtimeInactive: state.cognitiveRouting.blockingReason?.code === "runtime_disabled",
         displaySuffix: cognitiveRoutingState?.effective ? cognitiveRoutingProfile : "unavailable",
@@ -321,7 +384,7 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx) {
   const sessionProfiles = cognitiveRoutingController?.sessionProfileOverrides();
   const profileItems =
     state.cognitiveRouting && cognitiveRoutingController
-      ? ["coordinator", "executor"].map((name) =>
+      ? manualProfiles.map((name) =>
           cognitiveRoutingProfileItem({
             name,
             scope: "session",
@@ -337,10 +400,10 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx) {
     ? {
         id: "freeflow.cognitiveRouting.presets",
         label: "Cognitive Routing presets",
-        description: "Temporarily choose complete Coordinator and Executor model/effort pairs for this Pi session.",
+        description: "Temporarily choose complete model/effort pairs for profiles enabled in this Pi session.",
         kind: "group",
         value: profileItems.some((item) => item.value !== LOCAL_INHERIT && item.value !== undefined),
-        displaySuffix: `${profileItems.filter((item) => item.value !== LOCAL_INHERIT && item.value !== undefined).length}/2 session overrides`,
+        displaySuffix: `${profileItems.filter((item) => item.value !== LOCAL_INHERIT && item.value !== undefined).length}/${profileItems.length} session overrides`,
         inactive: freeflowInactive || !state.cognitiveRouting?.effective || cognitiveRoutingController === undefined,
         children: profileItems,
       }
@@ -625,7 +688,7 @@ function isCognitiveRoutingRuntimeAvailable(pi) {
   );
 }
 function freeflowItems(rawConfig, options = {}) {
-  const scope = options.scope ?? "repository";
+  const scope = options.scope === "local" ? "local" : "repository";
   const layers = options.layers;
   const { localConfig, core, sources } = resolveSettingsCoreView(rawConfig, layers);
   const freeflowItem = createScopedBooleanItem({
@@ -686,6 +749,15 @@ function freeflowItems(rawConfig, options = {}) {
     });
     cognitiveRoutingEnabledItem.inactive = freeflowInactive || cognitiveRoutingRuntimeDisabled;
     cognitiveRoutingEnabledItem.runtimeInactive = cognitiveRoutingRuntimeDisabled;
+    const cognitiveRoutingDelegationItem = createScopedDelegationItem({
+      scope,
+      rawConfig,
+      localConfig,
+      effectiveValue: cognitiveRoutingState?.delegation ?? "executor",
+      effectiveSource: cognitiveRoutingSettingsSource(cognitiveRoutingState?.delegationSource),
+    });
+    cognitiveRoutingDelegationItem.inactive = freeflowInactive || cognitiveRoutingRuntimeDisabled;
+    cognitiveRoutingDelegationItem.runtimeInactive = cognitiveRoutingRuntimeDisabled;
     const cognitiveRoutingProjectionItem = createScopedBooleanItem({
       scope,
       rawConfig,
@@ -693,7 +765,7 @@ function freeflowItems(rawConfig, options = {}) {
       id: "freeflow.cognitiveRouting.projection",
       label: "Context projection",
       description:
-        "Select Executor evidence for Coordinator; disable projection to keep ordinary Pi context in both profiles.",
+        "Select worker evidence for Coordinator; disable projection to keep ordinary Pi context in all enabled profiles.",
       path: ["cognitiveRouting", "projection"],
       effectiveValue: cognitiveRoutingState?.projection ?? false,
       effectiveSource: cognitiveRoutingSettingsSource(cognitiveRoutingState?.projectionSource),
@@ -701,7 +773,7 @@ function freeflowItems(rawConfig, options = {}) {
     });
     cognitiveRoutingProjectionItem.inactive = freeflowInactive || cognitiveRoutingRuntimeDisabled;
     cognitiveRoutingProjectionItem.runtimeInactive = cognitiveRoutingRuntimeDisabled;
-    const cognitiveRoutingProfiles = ["executor", "coordinator"].map((name) =>
+    const cognitiveRoutingProfiles = ["coordinator", "helper", "executor"].map((name) =>
       cognitiveRoutingProfileItem({
         name: name,
         scope,
@@ -729,12 +801,17 @@ function freeflowItems(rawConfig, options = {}) {
       label: "Cognitive Routing",
       description: cognitiveRoutingRuntimeDisabled
         ? "Cognitive Routing configuration is visible for inspection but requires a host model-state control API."
-        : "Configure the Executor and Coordinator profiles and choose whether Freeflow may manage model state for this repository.",
+        : "Configure Coordinator, Helper, and Executor profiles plus the workers available for delegation.",
       kind: "group",
       value: cognitiveRoutingRuntimeDisabled ? false : (cognitiveRoutingState?.enabled ?? false),
       inactive: freeflowInactive,
       displaySuffix: cognitiveRoutingStatus,
-      children: [cognitiveRoutingEnabledItem, ...cognitiveRoutingProfiles, cognitiveRoutingProjectionItem],
+      children: [
+        cognitiveRoutingEnabledItem,
+        cognitiveRoutingDelegationItem,
+        ...cognitiveRoutingProfiles,
+        cognitiveRoutingProjectionItem,
+      ],
     };
   })();
   return [
@@ -756,6 +833,7 @@ function pruneKnownDefaults(config) {
     { path: ["enabled"], value: DEFAULT_FREEFLOW_ENABLED },
     { path: ["contextVirtualization"], value: DEFAULT_CONTEXT_VIRTUALIZATION_ENABLED },
     { path: ["conversationHistory"], value: DEFAULT_CONVERSATION_HISTORY_ENABLED },
+    { path: ["cognitiveRouting", "delegation"], value: "executor" },
   ];
   for (const item of defaultPaths) {
     if (valuesEqual(getPath(config, item.path), item.value)) {
@@ -829,7 +907,7 @@ async function updateConfig(cwd, item, value, scope = item.configScope ?? "repos
   await writeFile(join(cwd, ".freeflow/config.json"), `${JSON.stringify(next, null, 2)}\n`, "utf8");
 }
 function isCognitiveRoutingProfileItem(item) {
-  return item.id === "freeflow.cognitiveRouting.executor" || item.id === "freeflow.cognitiveRouting.coordinator";
+  return ["coordinator", "helper", "executor"].some((profile) => item.id === `freeflow.cognitiveRouting.${profile}`);
 }
 function valueForDisplay(item) {
   let value;
@@ -869,10 +947,11 @@ function refreshSettingsDerivedState(items) {
   const freeflowInactive = freeflowItem ? effectiveItemValue(freeflowItem) !== true : false;
   const cognitiveRoutingGroup = findSettingsItem(items, "freeflow.cognitiveRouting");
   const cognitiveRoutingEnabledItem = findSettingsItem(items, "freeflow.cognitiveRouting.enabled");
-  const cognitiveRoutingProfiles = [
-    findSettingsItem(items, "freeflow.cognitiveRouting.executor"),
-    findSettingsItem(items, "freeflow.cognitiveRouting.coordinator"),
-  ];
+  const cognitiveRoutingDelegationItem = findSettingsItem(items, "freeflow.cognitiveRouting.delegation");
+  const delegation = cognitiveRoutingDelegationItem ? effectiveItemValue(cognitiveRoutingDelegationItem) : "executor";
+  const cognitiveRoutingProfiles = ["coordinator", ...workersForDelegation(delegation)].map((profile) =>
+    findSettingsItem(items, `freeflow.cognitiveRouting.${profile}`),
+  );
   if (cognitiveRoutingGroup && cognitiveRoutingEnabledItem) {
     const enabled = effectiveItemValue(cognitiveRoutingEnabledItem) === true;
     const profilesConfigured = cognitiveRoutingProfiles.every((item) =>
@@ -1222,7 +1301,7 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiv
           ctx.ui.notify("Cognitive Routing is unavailable for this session.", "warning");
           return { changed: false, reloadRequired: false };
         }
-        const profile = item.id.endsWith(".coordinator") ? "coordinator" : "executor";
+        const profile = item.id.split(".").at(-1);
         const override =
           value === undefined || value === LOCAL_INHERIT
             ? null

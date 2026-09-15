@@ -35,6 +35,8 @@ The projection uses current-session references and append-only journal/history s
 
 Conversation History retrieves missing prior-conversation evidence. Context Virtualization changes residency after evidence has been consumed and narrowed. They may compose, but Context Virtualization does not retrieve archived content and Conversation History does not decide residency.
 
+Archive and restore also change the future request content at the affected point. That can shorten, invalidate, or re-establish a compatible cache prefix; it does not guarantee a provider cache hit and must not archive evidence merely to chase token savings.
+
 ## Limits
 
 Context Virtualization does not:

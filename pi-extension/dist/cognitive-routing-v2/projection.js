@@ -1,6 +1,7 @@
+import { annotateSources } from "../session-sources/provenance.js";
 import { randomUUID } from "node:crypto";
-import { textRef, isTaskEvidence } from "../session-sources/sources.js";
-import { canonical, emptySelection, requireCondition as check } from "./types.js";
+import { textRef } from "../session-sources/sources.js";
+import { canonical, emptySelection, isWorkerProfile, requireCondition as check } from "./types.js";
 import { estimateRequest } from "./budget.js";
 export function changeSelection(prior, input, sources, state) {
   check(
@@ -92,7 +93,7 @@ export function prepareView(options) {
     if (!item.source) continue;
     if (
       !selective ||
-      item.source.producer !== "executor" ||
+      !isWorkerProfile(item.source.producer) ||
       admitted.has(item.source.ref) ||
       (item.source.reportHandoff && state.handoffs.has(item.source.reportHandoff))
     )
@@ -145,7 +146,7 @@ export function prepareView(options) {
     if (full.has(source.ref) || source.message.role !== "toolResult") return message;
     return {
       ...structuredClone(source.message),
-      content: [{ type: "text", text: "[Executor result omitted from this view]" }],
+      content: [{ type: "text", text: "[Worker result omitted from this view]" }],
       details: undefined,
     };
   };
@@ -182,36 +183,7 @@ export function prepareView(options) {
   }
   while (cursor < historical.length) emit(historical[cursor++]);
   const fullSources = [...full.values()];
-  // Stable provenance belongs with every represented occurrence, not a rolling
-  // catalog. Insert before whole exchanges, never between native calls/results.
-  const annotated = [];
-  for (let i = 0; i < messages.length;) {
-    const group = [messages[i++]];
-    while (i < messages.length && messages[i].role === "toolResult") group.push(messages[i++]);
-    const rows = group.flatMap((message) => {
-      const s = renderedSources.get(message);
-      if (!s) return [];
-      const representation = full.has(s.ref) ? "full" : "structural only; omitted result bodies are not evidence";
-      const selection =
-        s.producer === "executor" && isTaskEvidence(s) && full.has(s.ref)
-          ? "task evidence; selection checks apply"
-          : "not offered for new evidence selection";
-      return [
-        `${s.ref} | producer: ${s.producer === "common" ? "unknown/common (no observed routing profile)" : s.producer} | ${s.original ? "assistant-text" : s.message.role}${s.message.toolName ? ` | ${s.message.toolName}` : ""}${s.assignmentId ? ` | assignment: ${s.assignmentId}` : ""} | ${representation} | ${selection}${!s.original && full.has(s.ref) && sources.byRef.has(textRef(s.ref)) ? ` | visible text: ${textRef(s.ref)}` : ""}`,
-      ];
-    });
-    if (rows.length)
-      annotated.push({
-        role: "custom",
-        customType: "freeflow-routing-v2-refs",
-        display: false,
-        content: `Source provenance for the following message/exchange:\n${rows.join("\n")}`,
-        details: { routingInstance: options.instance },
-        timestamp: 0,
-      });
-    annotated.push(...group);
-  }
-  messages = annotated;
+  messages = annotateSources(messages, renderedSources, new Set(full.keys()), sources, options.instance);
   // Restore exact current communication only when its accepted occurrence is absent.
   const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
   const baseReport = assessment
@@ -279,7 +251,7 @@ export function prepareView(options) {
       restore(
         "Saved report",
         baseReport.id,
-        `Producer: executor\nAssignment: assignment:${baseReport.assignmentId}\nReport ref: report:${baseReport.id}:${baseReport.reportRevision}\nRevision: ${baseReport.reportRevision}\nOutcome: ${baseReport.outcome}\nLimitations: ${JSON.stringify(baseReport.limitations)}${hasBody ? "\nReport text is present in its accepted native occurrence above." : `\nReport:\n${baseReport.text}`}`,
+        `Producer: ${baseReport.from}\nAssignment: assignment:${baseReport.assignmentId}\nReport ref: report:${baseReport.id}:${baseReport.reportRevision}\nRevision: ${baseReport.reportRevision}\nOutcome: ${baseReport.outcome}\nLimitations: ${JSON.stringify(baseReport.limitations)}${hasBody ? "\nReport text is present in its accepted native occurrence above." : `\nReport:\n${baseReport.text}`}`,
       );
   }
   if (recovery && recoveryRequest && !hasCommunication(recoveryRequest, "request", recovery.request))

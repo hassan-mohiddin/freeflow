@@ -6,247 +6,344 @@ import { fixture } from "../fixtures/routing-native.js";
 import { replay } from "../../dist/cognitive-routing-v2/state.js";
 import { RoutingRuntime } from "../../dist/cognitive-routing-v2/runtime.js";
 
-test(
-  "attached recovery reuses omitted evidence, gates exact native reads, and blocks post-supplement work",
-  { timeout: 30000 },
-  async () => {
-    let assignmentId, baseReportId, baseReportRevision, omittedRef, supplementRef, recoveryRef, cwd;
-    const originalInvoke = RoutingRuntime.prototype.invoke;
-    const replayed = new Set();
-    RoutingRuntime.prototype.invoke = async function (name, id, input, signal, ctx) {
-      const intercepted =
-        name === "freeflow_unit" && input.operation === "recover"
-          ? { ...input, request: `${input.request} [accepted]` }
-          : name === "freeflow_return" && input.operation === "supplement"
-            ? { ...input, report: `${input.report} [accepted]` }
-            : input;
-      const first = await originalInvoke.call(this, name, id, intercepted, signal, ctx);
-      const key = `${name}:${input.operation}`;
-      if (
-        ((name === "freeflow_unit" && input.operation === "recover") ||
-          (name === "freeflow_return" && input.operation === "supplement")) &&
-        !replayed.has(key)
-      ) {
-        replayed.add(key);
-        this.receipts.clear();
-        const repeated = await originalInvoke.call(this, name, id, intercepted, signal, ctx);
-        assert.deepEqual(repeated, first, "same accepted operation returns the recorded receipt");
-        this.receipts.clear();
-        const changed = await originalInvoke.call(
-          this,
-          name,
-          id,
-          { ...intercepted, [input.operation === "recover" ? "request" : "report"]: "CHANGED_PAYLOAD" },
-          signal,
-          ctx,
-        );
-        assert.equal(changed.details.code, "operation_conflict");
-      }
-      return first;
-    };
-    try {
-      await fixture(
-        async (n, body, manager) => {
-          if (n === 1)
-            return [
-              { name: "freeflow_delegate", args: { operation: "assign", contract: "Read two files and report." } },
-            ];
-          if (n === 2)
-            return [
-              { name: "read", args: { path: "evidence.txt" } },
-              { name: "read", args: { path: "unselected.txt" } },
-            ];
-          if (n === 3) {
-            const reads = manager.getBranch().filter((e) => e.message?.toolName === "read" && !e.message.isError);
-            omittedRef = `ctx:${reads[1].id}`;
-            return [
-              { name: "freeflow_project", args: { operation: "add", refs: [`ctx:${reads[0].id}`] } },
-              {
-                name: "freeflow_return",
-                args: { operation: "submit", report: "BASE_REPORT_UNCHANGED_41", outcome: "completed" },
-              },
-            ];
-          }
-          if (n === 4) {
-            const state = replay(manager.getBranch());
-            assignmentId = state.assignmentId;
-            baseReportId = state.assignments.get(assignmentId).returnHandoffId;
-            baseReportRevision = state.handoffs.get(baseReportId).reportRevision;
-            const wire = JSON.stringify(body);
-            assert.match(wire, /BASE_REPORT_UNCHANGED_41/);
-            assert.match(wire, /EXACT_EVIDENCE_BODY_81/);
-            assert.doesNotMatch(wire, /UNSELECTED_PRIVATE_BODY_93/);
-            return [
-              {
-                name: "freeflow_unit",
-                args: {
-                  operation: "recover",
-                  request: "Select the omitted result and read the approved third file only.",
-                  paths: ["recovery.txt"],
-                },
-              },
-            ];
-          }
-          if (n === 5) {
-            assert.equal(body.model, "gpt-4.1-mini");
-            assert.match(
-              JSON.stringify(body),
-              /Select the omitted result and read the approved third file only\. \[accepted\]/,
-            );
-            return [
-              { name: "read", args: { path: "recovery.txt" } },
-              { name: "read", args: { path: "@recovery.txt" } },
-              { name: "read", args: { path: "evidence.txt" } },
-              { name: "write", args: { path: "recovery-write.txt", content: "forbidden" } },
-              { name: "bash", args: { command: "touch recovery-bash.txt" } },
-            ];
-          }
-          if (n === 6) {
-            const recent = manager
-              .getBranch()
-              .filter((e) => ["read", "write", "bash"].includes(e.message?.toolName))
-              .slice(-5);
-            const allowed = recent.find(
-              (e) =>
-                e.message.toolName === "read" &&
-                !e.message.isError &&
-                JSON.stringify(e.message).includes("FRESH_RECOVERY_BODY_57"),
-            );
-            assert.ok(allowed, "the exact approved native read executes");
-            assert.equal(
-              recent.filter((e) => e !== allowed).every((e) => e.message.isError),
-              true,
-            );
-            await assert.rejects(access(join(cwd, "recovery-write.txt")));
-            await assert.rejects(access(join(cwd, "recovery-bash.txt")));
-            assert.equal(await readFile(join(cwd, "@recovery.txt"), "utf8"), "LITERAL_AT_FILE_BODY_68");
-            assert.equal(
-              recent.some((e) => JSON.stringify(e.message).includes("LITERAL_AT_FILE_BODY_68")),
-              false,
-              "Pi never reaches either @-transformed or literal resource for a rejected alias",
-            );
-            return [
-              {
-                name: "freeflow_project",
-                args: { operation: "add", refs: [omittedRef, `ctx:${allowed.id}`, "ctx:missing"] },
-              },
-              {
-                name: "freeflow_return",
-                args: { operation: "supplement", report: "RECOVERY_SUPPLEMENT_73", outcome: "completed" },
-              },
-            ];
-          }
-          if (n === 7) return [{ name: "read", args: { path: "recovery.txt" } }];
-          if (n === 8) {
-            const postSupplement = manager
-              .getBranch()
-              .filter((e) => e.message?.toolName === "read")
-              .at(-1);
-            assert.equal(postSupplement.message.isError, true, "a saved supplement ends recovery read permission");
-            return [
-              {
-                name: "freeflow_project",
-                args: { operation: "remove", refs: ["ctx:missing"], reason: "Fixture removes the unresolved request." },
-              },
-              { name: "freeflow_return", args: { operation: "retry" } },
-            ];
-          }
-          assert.equal(body.model, "gpt-4o");
-          const wire = JSON.stringify(body);
-          const state = replay(manager.getBranch());
-          if (n === 14) {
-            assert.equal(state.assessment.view, "suspended");
-            assert.equal(state.assessment.suspensionReason, "user-attention");
-            assert.doesNotMatch(wire, /EXACT_EVIDENCE_BODY_81/);
-            assert.match(wire, /NEW_USER_ATTENTION_29/);
-            return [{ name: "freeflow_unit", args: { operation: "assess" } }];
-          }
-          for (const value of [
-            "BASE_REPORT_UNCHANGED_41",
-            "RECOVERY_SUPPLEMENT_73 [accepted]",
-            "EXACT_EVIDENCE_BODY_81",
-            "UNSELECTED_PRIVATE_BODY_93",
-            "FRESH_RECOVERY_BODY_57",
-          ])
-            assert.ok(wire.includes(value), `missing ${value}`);
-          if (n === 15) {
-            assert.equal(state.assessment.view, "active");
-            return [];
-          }
-          assert.equal(state.assignmentId, assignmentId);
-          assert.equal(state.assignments.get(assignmentId).state, "returned");
-          assert.equal(state.assignments.get(assignmentId).returnHandoffId, baseReportId);
-          assert.equal(state.handoffs.get(baseReportId).text, "BASE_REPORT_UNCHANGED_41");
-          assert.equal(state.handoffs.get(baseReportId).outcome, "completed");
-          assert.equal(state.handoffs.get(baseReportId).reportRevision, baseReportRevision);
-          assert.equal(state.assessment.handoffId, baseReportId);
-          assert.equal(state.assessment.view, "active");
-          assert.equal(state.recoveryId, undefined);
-          const completedRecovery = [...state.recoveries.values()].at(-1);
-          assert.equal(completedRecovery.state, "completed");
-          supplementRef = `supplement:${completedRecovery.id}:${completedRecovery.supplementRevision}`;
-          recoveryRef = `recovery:${completedRecovery.id}`;
-          assert.equal(
-            state.selections.get(assignmentId).selected.includes(omittedRef),
-            true,
-            "the originally omitted result is selected",
+for (const recoveryWorker of ["executor", "helper"]) {
+  const cognitiveRouting =
+    recoveryWorker === "helper"
+      ? {
+          enabled: true,
+          delegation: "helper",
+          projection: true,
+          profiles: {
+            coordinator: { provider: "openai", model: "gpt-4o", thinking: "off" },
+            helper: { provider: "openai", model: "gpt-4.1-mini", thinking: "off" },
+          },
+        }
+      : undefined;
+  test(
+    `attached ${recoveryWorker} recovery reuses omitted evidence, gates exact native reads, and blocks returned work`,
+    { timeout: 30000 },
+    async () => {
+      let assignmentId, baseReportId, baseReportRevision, omittedRef, supplementRef, recoveryRef, cwd;
+      const originalInvoke = RoutingRuntime.prototype.invoke;
+      const replayed = new Set();
+      RoutingRuntime.prototype.invoke = async function (name, id, input, signal, ctx) {
+        const intercepted =
+          name === "freeflow_unit" && input.operation === "recover"
+            ? { ...input, request: `${input.request} [accepted]` }
+            : name === "freeflow_return" && input.operation === "supplement"
+              ? { ...input, report: `${input.report} [accepted]` }
+              : input;
+        const first = await originalInvoke.call(this, name, id, intercepted, signal, ctx);
+        const key = `${name}:${input.operation}`;
+        if (
+          ((name === "freeflow_unit" && input.operation === "recover") ||
+            (name === "freeflow_return" && input.operation === "supplement")) &&
+          !replayed.has(key)
+        ) {
+          replayed.add(key);
+          this.receipts.clear();
+          const repeated = await originalInvoke.call(this, name, id, intercepted, signal, ctx);
+          assert.deepEqual(repeated, first, "same accepted operation returns the recorded receipt");
+          this.receipts.clear();
+          const changed = await originalInvoke.call(
+            this,
+            name,
+            id,
+            { ...intercepted, [input.operation === "recover" ? "request" : "report"]: "CHANGED_PAYLOAD" },
+            signal,
+            ctx,
           );
-          for (const marker of ["EXACT_EVIDENCE_BODY_81", "UNSELECTED_PRIVATE_BODY_93"])
-            assert.equal(
-              manager
+          assert.equal(changed.details.code, "operation_conflict");
+        }
+        return first;
+      };
+      try {
+        await fixture(
+          async (n, body, manager) => {
+            if (n === 1)
+              return [
+                { name: "freeflow_delegate", args: { operation: "assign", contract: "Read two files and report." } },
+              ];
+            if (n === 2) {
+              assert.equal(replay(manager.getBranch()).profile, recoveryWorker);
+              return [
+                { name: "read", args: { path: "evidence.txt" } },
+                { name: "read", args: { path: "unselected.txt" } },
+              ];
+            }
+            if (n === 3) {
+              const reads = manager.getBranch().filter((e) => e.message?.toolName === "read" && !e.message.isError);
+              omittedRef = `ctx:${reads[1].id}`;
+              return [
+                { name: "freeflow_project", args: { operation: "add", refs: [`ctx:${reads[0].id}`] } },
+                {
+                  name: "freeflow_return",
+                  args: { operation: "submit", report: "BASE_REPORT_UNCHANGED_41", outcome: "completed" },
+                },
+              ];
+            }
+            if (n === 4) {
+              const state = replay(manager.getBranch());
+              assignmentId = state.assignmentId;
+              baseReportId = state.assignments.get(assignmentId).returnHandoffId;
+              baseReportRevision = state.handoffs.get(baseReportId).reportRevision;
+              const wire = JSON.stringify(body);
+              assert.match(wire, /BASE_REPORT_UNCHANGED_41/);
+              assert.match(wire, /EXACT_EVIDENCE_BODY_81/);
+              assert.doesNotMatch(wire, /UNSELECTED_PRIVATE_BODY_93/);
+              return [
+                {
+                  name: "freeflow_unit",
+                  args: {
+                    operation: "recover",
+                    request: "Select the omitted result and read the approved third file only.",
+                    paths: ["recovery.txt"],
+                  },
+                },
+              ];
+            }
+            if (n === 5) {
+              assert.equal(body.model, "gpt-4.1-mini");
+              assert.equal(replay(manager.getBranch()).profile, recoveryWorker);
+              assert.match(
+                JSON.stringify(body),
+                /Select the omitted result and read the approved third file only\. \[accepted\]/,
+              );
+              return [
+                { name: "read", args: { path: "recovery.txt" } },
+                { name: "read", args: { path: "@recovery.txt" } },
+                { name: "read", args: { path: "evidence.txt" } },
+                { name: "write", args: { path: "recovery-write.txt", content: "forbidden" } },
+                { name: "bash", args: { command: "touch recovery-bash.txt" } },
+              ];
+            }
+            if (n === 6) {
+              const recent = manager
                 .getBranch()
-                .filter(
-                  (e) =>
-                    e.message?.toolName === "read" && !e.message.isError && JSON.stringify(e.message).includes(marker),
-                ).length,
-              1,
-              `${marker} was not replayed`,
+                .filter((e) => ["read", "write", "bash"].includes(e.message?.toolName))
+                .slice(-5);
+              const allowed = recent.find(
+                (e) =>
+                  e.message.toolName === "read" &&
+                  !e.message.isError &&
+                  JSON.stringify(e.message).includes("FRESH_RECOVERY_BODY_57"),
+              );
+              assert.ok(allowed, "the exact approved native read executes");
+              assert.equal(
+                recent.filter((e) => e !== allowed).every((e) => e.message.isError),
+                true,
+              );
+              await assert.rejects(access(join(cwd, "recovery-write.txt")));
+              await assert.rejects(access(join(cwd, "recovery-bash.txt")));
+              assert.equal(await readFile(join(cwd, "@recovery.txt"), "utf8"), "LITERAL_AT_FILE_BODY_68");
+              assert.equal(
+                recent.some((e) => JSON.stringify(e.message).includes("LITERAL_AT_FILE_BODY_68")),
+                false,
+                "Pi never reaches either @-transformed or literal resource for a rejected alias",
+              );
+              return [
+                {
+                  name: "freeflow_project",
+                  args: { operation: "add", refs: [omittedRef, `ctx:${allowed.id}`, "ctx:missing"] },
+                },
+                {
+                  name: "freeflow_return",
+                  args: { operation: "supplement", report: "RECOVERY_SUPPLEMENT_73", outcome: "completed" },
+                },
+              ];
+            }
+            if (n === 7) return [{ name: "read", args: { path: "recovery.txt" } }];
+            if (n === 8) {
+              const postSupplement = manager
+                .getBranch()
+                .filter((e) => e.message?.toolName === "read")
+                .at(-1);
+              assert.equal(postSupplement.message.isError, true, "a saved supplement ends recovery read permission");
+              assert.equal(postSupplement.message.content[0].text, "worker_task_phase_ended");
+              return [
+                {
+                  name: "freeflow_project",
+                  args: {
+                    operation: "remove",
+                    refs: ["ctx:missing"],
+                    reason: "Fixture removes the unresolved request.",
+                  },
+                },
+                { name: "freeflow_return", args: { operation: "retry" } },
+              ];
+            }
+            assert.equal(body.model, "gpt-4o");
+            const wire = JSON.stringify(body);
+            const state = replay(manager.getBranch());
+            if (n === 14) {
+              assert.equal(state.assessment.view, "suspended");
+              assert.equal(state.assessment.suspensionReason, "user-attention");
+              assert.doesNotMatch(wire, /EXACT_EVIDENCE_BODY_81/);
+              assert.match(wire, /NEW_USER_ATTENTION_29/);
+              return [{ name: "freeflow_unit", args: { operation: "assess" } }];
+            }
+            for (const value of [
+              "BASE_REPORT_UNCHANGED_41",
+              "RECOVERY_SUPPLEMENT_73 [accepted]",
+              "EXACT_EVIDENCE_BODY_81",
+              "UNSELECTED_PRIVATE_BODY_93",
+              "FRESH_RECOVERY_BODY_57",
+            ])
+              assert.ok(wire.includes(value), `missing ${value}`);
+            assert.match(wire, new RegExp(`producer: ${recoveryWorker}`));
+            if (n === 15) {
+              assert.equal(state.assessment.view, "active");
+              return [];
+            }
+            assert.equal(state.assignmentId, assignmentId);
+            assert.equal(state.assignments.get(assignmentId).state, "returned");
+            assert.equal(state.assignments.get(assignmentId).returnHandoffId, baseReportId);
+            assert.equal(state.handoffs.get(baseReportId).text, "BASE_REPORT_UNCHANGED_41");
+            assert.equal(state.handoffs.get(baseReportId).outcome, "completed");
+            assert.equal(state.handoffs.get(baseReportId).reportRevision, baseReportRevision);
+            assert.equal(state.assessment.handoffId, baseReportId);
+            assert.equal(state.assessment.view, "active");
+            assert.equal(state.recoveryId, undefined);
+            const completedRecovery = [...state.recoveries.values()].at(-1);
+            assert.equal(completedRecovery.state, "completed");
+            supplementRef = `supplement:${completedRecovery.id}:${completedRecovery.supplementRevision}`;
+            recoveryRef = `recovery:${completedRecovery.id}`;
+            assert.equal(
+              state.selections.get(assignmentId).selected.includes(omittedRef),
+              true,
+              "the originally omitted result is selected",
             );
-          if (n === 9)
-            return [{ name: "freeflow_unit", args: { operation: "inspect", view: "detail", ref: supplementRef } }];
-          if (n === 10) {
+            for (const marker of ["EXACT_EVIDENCE_BODY_81", "UNSELECTED_PRIVATE_BODY_93"])
+              assert.equal(
+                manager
+                  .getBranch()
+                  .filter(
+                    (e) =>
+                      e.message?.toolName === "read" &&
+                      !e.message.isError &&
+                      JSON.stringify(e.message).includes(marker),
+                  ).length,
+                1,
+                `${marker} was not replayed`,
+              );
+            if (n === 9)
+              return [{ name: "freeflow_unit", args: { operation: "inspect", view: "detail", ref: supplementRef } }];
+            if (n === 10) {
+              const detail = manager
+                .getBranch()
+                .filter((e) => e.message?.toolName === "freeflow_unit")
+                .at(-1).message.details;
+              assert.equal(detail.supplement, "RECOVERY_SUPPLEMENT_73 [accepted]");
+              assert.equal(detail.report, "BASE_REPORT_UNCHANGED_41");
+              assert.equal(detail.reportRef, `report:${baseReportId}:${baseReportRevision}`);
+              return [{ name: "freeflow_unit", args: { operation: "inspect", view: "detail", ref: recoveryRef } }];
+            }
             const detail = manager
               .getBranch()
               .filter((e) => e.message?.toolName === "freeflow_unit")
               .at(-1).message.details;
-            assert.equal(detail.supplement, "RECOVERY_SUPPLEMENT_73 [accepted]");
-            assert.equal(detail.report, "BASE_REPORT_UNCHANGED_41");
-            assert.equal(detail.reportRef, `report:${baseReportId}:${baseReportRevision}`);
-            return [{ name: "freeflow_unit", args: { operation: "inspect", view: "detail", ref: recoveryRef } }];
-          }
-          const detail = manager
+            assert.equal(detail.recovery.state, "completed");
+            assert.equal(detail.supplementRef, supplementRef);
+            return [];
+          },
+          true,
+          async ({ session, manager, requests }) => {
+            await session.prompt("/freeflow resume");
+            await session.waitForIdle();
+            assert.equal(requests.length, 12);
+            await session.compact();
+            assert.equal(
+              manager.buildSessionContext().messages.some((message) => message.role === "user"),
+              false,
+            );
+            await session.reload();
+            await session.prompt("/freeflow resume");
+            await session.waitForIdle();
+            await session.prompt("NEW_USER_ATTENTION_29");
+            await session.waitForIdle();
+            assert.equal(requests.length, 15);
+          },
+          true,
+          { beforePrompt: (fixtureState) => (cwd = fixtureState.cwd), cognitiveRouting },
+        );
+      } finally {
+        RoutingRuntime.prototype.invoke = originalInvoke;
+      }
+    },
+  );
+}
+
+for (const returnedWorker of ["executor", "helper"]) {
+  const cognitiveRouting =
+    returnedWorker === "helper"
+      ? {
+          enabled: true,
+          delegation: "helper",
+          projection: true,
+          profiles: {
+            coordinator: { provider: "openai", model: "gpt-4o", thinking: "off" },
+            helper: { provider: "openai", model: "gpt-4.1-mini", thinking: "off" },
+          },
+        }
+      : undefined;
+  test(`a blocked ${returnedWorker} return denies ordinary work before retry`, { timeout: 30000 }, async () => {
+    let assignmentId;
+    const result = await fixture(
+      (n, body, manager) => {
+        if (n === 1)
+          return [
+            { name: "freeflow_delegate", args: { operation: "assign", contract: "Return with a delivery gap." } },
+          ];
+        if (n === 2) {
+          const state = replay(manager.getBranch());
+          assignmentId = state.assignmentId;
+          assert.equal(state.profile, returnedWorker);
+          return [
+            { name: "freeflow_project", args: { operation: "add", refs: ["ctx:missing"] } },
+            {
+              name: "freeflow_return",
+              args: { operation: "submit", report: "RETURNED_WORKER_REPORT_67", outcome: "completed" },
+            },
+          ];
+        }
+        if (n === 3) {
+          const state = replay(manager.getBranch());
+          assert.equal(state.profile, returnedWorker);
+          assert.equal(state.assignments.get(assignmentId).state, "returned");
+          assert.equal(state.handoffs.get(state.assignments.get(assignmentId).returnHandoffId).state, "blocked");
+          return [{ name: "read", args: { path: "evidence.txt" } }];
+        }
+        if (n === 4) {
+          const denied = manager
             .getBranch()
-            .filter((e) => e.message?.toolName === "freeflow_unit")
-            .at(-1).message.details;
-          assert.equal(detail.recovery.state, "completed");
-          assert.equal(detail.supplementRef, supplementRef);
-          return [];
-        },
-        true,
-        async ({ session, manager, requests }) => {
-          await session.prompt("/freeflow resume");
-          await session.waitForIdle();
-          assert.equal(requests.length, 12);
-          await session.compact();
-          assert.equal(
-            manager.buildSessionContext().messages.some((message) => message.role === "user"),
-            false,
-          );
-          await session.reload();
-          await session.prompt("/freeflow resume");
-          await session.waitForIdle();
-          await session.prompt("NEW_USER_ATTENTION_29");
-          await session.waitForIdle();
-          assert.equal(requests.length, 15);
-        },
-        true,
-        { beforePrompt: (fixtureState) => (cwd = fixtureState.cwd) },
-      );
-    } finally {
-      RoutingRuntime.prototype.invoke = originalInvoke;
-    }
-  },
-);
+            .filter((entry) => entry.message?.toolName === "read")
+            .at(-1);
+          assert.equal(denied.message.isError, true);
+          assert.equal(denied.message.content[0].text, "worker_task_phase_ended");
+          return [
+            {
+              name: "freeflow_project",
+              args: { operation: "remove", refs: ["ctx:missing"], reason: "Resolve the fixture delivery gap." },
+            },
+            { name: "freeflow_return", args: { operation: "retry" } },
+          ];
+        }
+        assert.equal(body.model, "gpt-4o");
+        const state = replay(manager.getBranch());
+        assert.equal(state.assignmentId, assignmentId);
+        assert.equal(state.assignments.get(assignmentId).state, "returned");
+        assert.equal(state.handoffs.get(state.assignments.get(assignmentId).returnHandoffId).state, "configured");
+        assert.match(JSON.stringify(body), /RETURNED_WORKER_REPORT_67/);
+        return [];
+      },
+      true,
+      undefined,
+      true,
+      { cognitiveRouting, maxRequests: 7 },
+    );
+    assert.equal(result.requests.length, 5);
+  });
+}
 
 test(
   "partial recovery supplement delivers communication while evidence remains suspended",
@@ -420,7 +517,12 @@ test("assessment waits for recovery cancellation before resuming", { timeout: 30
         assert.equal(state.recoveryId, undefined);
         assert.equal(state.assessment.view, "suspended");
         assert.match(wire, /Use freeflow_unit assess to restore the assessment/);
-        assert.doesNotMatch(wire, /Finish and deliver the recovery supplement or cancel recovery/);
+        assert.doesNotMatch(
+          JSON.stringify(
+            body.input.filter((item) => JSON.stringify(item).includes("# Cognitive Routing Runtime State")).at(-1),
+          ),
+          /Finish and deliver the recovery supplement or cancel recovery/,
+        );
         return [{ name: "freeflow_unit", args: { operation: "assess" } }];
       }
       const state = replay(manager.getBranch());
@@ -884,9 +986,16 @@ test(
         if (n === 3) {
           assert.equal(body.model, "gpt-4.1-mini");
           assert.match(JSON.stringify(body), /New delivered user input requires Coordinator attention/);
-          assert.ok(!body.tools.some((t) => t.name === "freeflow_delegate"));
+          assert.ok(
+            body.tools.some((t) => t.name === "freeflow_delegate"),
+            "stable catalog retains definitions; runtime gates still deny wrong-role effects",
+          );
           assert.deepEqual(body.tools.find((t) => t.name === "freeflow_unit").parameters.properties.operation.enum, [
             "inspect",
+            "assess",
+            "recover",
+            "cancel-recovery",
+            "close",
           ]);
           return [{ name: "read", args: { path: "unselected.txt" } }];
         }
@@ -906,7 +1015,9 @@ test(
           ];
         }
         assert.equal(body.model, "gpt-4o");
-        assert.ok(!body.tools.some((t) => t.name === "freeflow_return" || t.name === "freeflow_project"));
+        assert.ok(
+          body.tools.some((t) => t.name === "freeflow_return") && body.tools.some((t) => t.name === "freeflow_project"),
+        );
         assert.match(JSON.stringify(body), /Stop further reads/);
         return [];
       },

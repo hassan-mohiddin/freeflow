@@ -28,7 +28,7 @@ The extension supplies one compact volatile Runtime State record at session star
 
 - whether Freeflow is active, inactive, unavailable, or awaiting setup;
 - optional capability availability;
-- Cognitive Routing `Control` and `Profile`.
+- Cognitive Routing `Control`, `Profile`, and `Delegation`.
 
 Runtime State is current-state data, not stable policy. It does not replace the prompt fragments, contain hidden reasoning, authorize a tool call, or reconstruct state from earlier transition history.
 
@@ -102,26 +102,28 @@ Interaction Lifecycle
 └─ Workflow Feedback Loop
    ├─ establishes agreement, owner, and slice
    └─ Cognitive Routing — automatic control only
-      ├─ Coordinator saves an assignment through freeflow_delegate
-      ├─ Executor performs it and saves its actual freeflow_return report
+      ├─ Coordinator selects the responsible worker for the next result
+      │  ├─ Helper: ordinary support, preparation, checks, and settled mechanics
+      │  └─ Executor: substantive or consequential results
       ├─ Coordinator compares acceptance with actual evidence
-      │  ├─ continue or explicitly replace an assignment within an open unit
+      │  ├─ continue, change worker, or explicitly replace an assignment within an open unit
       │  └─ close the supported unit through freeflow_unit
       └─ Action Selection bounds environment interactions
 ```
 
-Manual control runs the ordinary unsplit Workflow. Automatic Coordinator owns user-facing judgment; Executor works within its current assignment. A saved report ends Executor task permission without accepting the unit. Explicit retry preserves the saved report, and replacement preserves prior effects; routing does not add a second Workflow or model-authored boundary ledger. Attached recovery lets Coordinator request missing evidence while preserving the returned assignment, original report, selection, and assessment; Executor receives only bounded selection/exact-read work and returns a distinct supplement. Unsettled recovery must complete or be cancelled before `assess` resumes the assessment. Late user input reaching a prepared Executor request requires an interrupted return before task tools. Projection selects Executor evidence and preserves its assessment obligation through compaction until disposition, with explicit suspension for newer attention; compaction retains the last observed delivered-user basis rather than treating stored-but-undelivered history as new input. These operations do not change user authority or make an internal handback the user-facing endpoint.
+Manual control runs the ordinary unsplit Workflow for the held profile. Automatic Coordinator owns user-facing judgment and places work by delegation mode: Coordinator implements in `helper`, Executor-only delegates environment work to Executor, and `both` uses Helper by default while commissioning Executor for substantive or consequential results. Only Coordinator delegates one worker at a time; `both` requires an explicit worker choice. A unit may contain sequential assignments to different workers, but preparation and follow-up are optional routes. A saved report ends the assigned worker's task permission without accepting the unit or closing a Slice. Explicit retry preserves the saved report, and replacement preserves prior effects; routing does not add a second Workflow or model-authored boundary ledger. Attached recovery lets Coordinator request missing evidence while preserving the returned assignment, original report, selection, and assessment; the assignment's recorded worker receives only bounded selection/exact-read work and returns a distinct supplement. Unsettled recovery must complete or be cancelled before `assess` resumes the assessment. Late user input reaching a prepared worker request requires an interrupted return before task tools. With projection enabled, Helper and Executor share ordinary active history while Coordinator receives selected worker evidence with original producer attribution; compaction retains the last observed delivered-user basis rather than treating stored-but-undelivered history as new input. Under automatic control, Coordinator must assess a supported Slice result and explicitly direct completed Track Work closure; Manual follows ordinary Workflow and Track Work instead. These operations do not change user authority or make an internal handback the user-facing endpoint.
 
 ## Failure and recovery boundaries
 
 - Missing `core.md` or `interaction-contract.md`: preserve the host’s base prompt, hide base skills and optional capabilities, and report Freeflow guidance unavailable.
-- Missing optional fragment or capability: omit only the affected cue, skill, and tools; report unavailable rather than fabricating active state.
-- Disabled Freeflow: preserve the host prompt, hide Freeflow skills and tools, and retain only compact inactive Runtime State.
+- Missing optional capability: report the capability unavailable. On the Pi source surface, stable reference definitions may remain catalog-visible while active execution gates reject unavailable operations; presence is not authority.
+- Disabled Freeflow: preserve the host prompt and block Freeflow operations. Pi's stable reference catalog may remain dormant in the assembled surface; capability state and execution gates still determine applicability.
 - Historical bootstrap entries: filter them from current projection; do not create new one-time bootstrap messages.
 - Runtime State unavailable: do not infer it from model identity, response style, or old transition history.
+- Native Pi request replay preserves Freeflow-generated snapshots only when the permitted ancestry and rendered prefix remain compatible; model/provider, tool/schema, instruction, earlier-content, compaction, navigation, or unsupported effort changes may shorten reuse. Provider cache hits remain outside the local assembly contract.
 - Configuration establishes activation but does not prove host delivery.
 - After context loss, the core cue requires complete `full` Working Record recovery when a record exists, current capability/owner methods, and reconciliation with current direction and live evidence. An intact session uses bounded readback instead of repeating full recovery.
-- Attached recovery is not general Coordinator task access: the runtime permits only selected existing evidence, exact admitted task-file reads, packaged Freeflow methods, and recovery return controls. Fresh attention does not finish that recovery; supplement or cancellation precedes assessment resumption.
+- Attached recovery is not general task access: the recorded worker receives only selected existing evidence, exact admitted task-file reads, packaged Freeflow methods, and recovery return controls. Fresh attention does not finish that recovery; supplement or cancellation precedes assessment resumption.
 - A Runtime State refresh alone is not a user interruption or a replacement execution contract.
 
 ## Evidence boundary

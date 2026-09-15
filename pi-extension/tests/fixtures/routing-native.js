@@ -69,7 +69,7 @@ export async function fixture(script, projection = true, after, withUI = true, o
   await writeFile(
     join(cwd, ".freeflow/config.json"),
     JSON.stringify({
-      cognitiveRouting: {
+      cognitiveRouting: options.cognitiveRouting ?? {
         enabled: true,
         projection,
         profiles: {

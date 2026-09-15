@@ -9,7 +9,7 @@ const locatorText = (locator) => {
   return locator.label ? `${locator.label}${locator.truncated ? " [truncated]" : ""} · ${identity}` : identity;
 };
 function title(name, operation) {
-  if (name === "freeflow_delegate") return operation === "replace" ? "Replace assignment" : "Delegate to Executor";
+  if (name === "freeflow_delegate") return operation === "replace" ? "Replace assignment" : "Delegate assignment";
   if (name === "freeflow_return")
     return operation === "retry"
       ? "Retry return"

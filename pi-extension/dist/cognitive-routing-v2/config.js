@@ -1,4 +1,4 @@
-import { EFFORTS, PROFILES, canonical, isObject } from "./types.js";
+import { DELEGATION_MODES, EFFORTS, PROFILES, canonical, isObject, workersForDelegation } from "./types.js";
 export const supportsCognitiveRoutingModelRegistry = (host) =>
   typeof host?.modelRegistry?.find === "function" && typeof host?.modelRegistry?.getApiKeyAndHeaders === "function";
 export const pairFromProfile = (profile) => ({
@@ -8,24 +8,29 @@ export const pairFromProfile = (profile) => ({
 });
 function parseLayer(raw) {
   if (raw === undefined) return {};
-  if (!isObject(raw) || Object.keys(raw).some((k) => !["enabled", "projection", "profiles"].includes(k)))
+  if (
+    !isObject(raw) ||
+    Object.keys(raw).some((key) => !["enabled", "delegation", "projection", "profiles"].includes(key))
+  )
     throw new Error(
-      "Routing requires the new enabled/projection/profiles schema; experimental legacy configuration is not migrated.",
+      "Routing requires the enabled/delegation/projection/profiles schema; experimental legacy configuration is not migrated.",
     );
   for (const key of ["enabled", "projection"])
     if (raw[key] !== undefined && typeof raw[key] !== "boolean") throw new Error(`${key} must be boolean.`);
+  if (raw.delegation !== undefined && !DELEGATION_MODES.includes(raw.delegation))
+    throw new Error("delegation must be executor, helper, or both.");
   if (raw.profiles !== undefined) {
-    if (!isObject(raw.profiles) || Object.keys(raw.profiles).some((k) => !PROFILES.includes(k)))
-      throw new Error("Profiles must be coordinator/executor.");
-    for (const p of Object.values(raw.profiles)) {
+    if (!isObject(raw.profiles) || Object.keys(raw.profiles).some((key) => !PROFILES.includes(key)))
+      throw new Error("Profiles must be coordinator, helper, or executor.");
+    for (const profile of Object.values(raw.profiles)) {
       if (
-        !isObject(p) ||
-        Object.keys(p).some((k) => !["provider", "model", "thinking"].includes(k)) ||
-        typeof p.provider !== "string" ||
-        !p.provider.trim() ||
-        typeof p.model !== "string" ||
-        !p.model.trim() ||
-        !EFFORTS.includes(p.thinking)
+        !isObject(profile) ||
+        Object.keys(profile).some((key) => !["provider", "model", "thinking"].includes(key)) ||
+        typeof profile.provider !== "string" ||
+        !profile.provider.trim() ||
+        typeof profile.model !== "string" ||
+        !profile.model.trim() ||
+        !EFFORTS.includes(profile.thinking)
       )
         throw new Error("Each profile requires provider, model, and supported thinking.");
     }
@@ -39,6 +44,8 @@ export async function resolveCognitiveRoutingState(repository, personal, ctx) {
     enabled: false,
     effective: false,
     enabledSource: "default",
+    delegation: "executor",
+    delegationSource: "default",
     projection: false,
     projectionSource: "default",
     profiles: {},
@@ -54,6 +61,10 @@ export async function resolveCognitiveRoutingState(repository, personal, ctx) {
       if (layer.enabled !== undefined) {
         state.enabled = layer.enabled;
         state.enabledSource = source;
+      }
+      if (layer.delegation !== undefined) {
+        state.delegation = layer.delegation;
+        state.delegationSource = source;
       }
       if (layer.projection !== undefined) {
         state.projection = layer.projection;
@@ -78,7 +89,8 @@ export async function resolveCognitiveRoutingState(repository, personal, ctx) {
       ...state,
       blockingReason: { code: "host_unsupported", message: "Required public Pi model registry is unavailable." },
     };
-  for (const name of PROFILES) {
+  const requiredProfiles = ["coordinator", ...workersForDelegation(state.delegation)];
+  for (const name of requiredProfiles) {
     const profile = state.profiles[name];
     if (!profile)
       return { ...state, blockingReason: { code: "profile_missing", message: `Configure the ${name} profile.` } };
@@ -111,10 +123,14 @@ export async function resolveCognitiveRoutingState(repository, personal, ctx) {
       };
     }
   }
-  if (canonical(state.profiles.coordinator) === canonical(state.profiles.executor))
-    return {
-      ...state,
-      blockingReason: { code: "profiles_identical", message: "Configure distinct effective model/effort pairs." },
-    };
+  for (const worker of workersForDelegation(state.delegation))
+    if (canonical(state.profiles.coordinator) === canonical(state.profiles[worker]))
+      return {
+        ...state,
+        blockingReason: {
+          code: "profiles_identical",
+          message: `Configure distinct Coordinator and ${worker} model/effort pairs.`,
+        },
+      };
   return { ...state, effective: true, blockingReason: { code: "", message: "" } };
 }

@@ -75,10 +75,6 @@ export class ContextVirtualizationRuntime {
     return !projection || projection.mode === "full";
   }
   async project(messages, enabled) {
-    if (!enabled) {
-      this.freeflowContext.clearRequest();
-      return { messages, changed: false, available: true };
-    }
     if (!(await this.recover(this.ctx))) {
       return { messages, changed: false, available: false };
     }
@@ -92,18 +88,44 @@ export class ContextVirtualizationRuntime {
       const ref = contextRefForEntry(source.source.entryId);
       refs.set(ref, source);
       const state = this.projectionState.get(source.source.entryId);
-      const projection = sourceProjection(state);
+      const projection = enabled ? sourceProjection(state) : { mode: "full" };
       const nextMessage = projectToolResultMessage(message, source.source, projection);
       if (!safeJsonEqual(nextMessage.content, message.content)) changed = true;
       return nextMessage;
     });
-    const request = this.freeflowContext.recordRequest(refs);
+    const request = enabled ? this.freeflowContext.recordRequest(refs) : undefined;
+    if (!enabled) this.freeflowContext.clearRequest();
     return {
       messages: changed ? projected : messages,
       changed,
       available: true,
-      generation: request.generation,
+      generation: request?.generation,
     };
+  }
+  decorate(messages) {
+    try {
+      const sources = this.freeflowContext.resolver.toolResultSources();
+      return messages.map((message) => {
+        if (message?.role !== "toolResult") return message;
+        const source = sources.get(message.toolCallId);
+        if (!source) return message;
+        const marker = `[context-ref: ${contextRefForEntry(source.source.entryId)}]`;
+        if (
+          (Array.isArray(message.content) ? message.content : []).some(
+            (part) =>
+              part.type === "text" &&
+              typeof part.text === "string" &&
+              (part.text === marker ||
+                part.text.startsWith(`[context archived: ${contextRefForEntry(source.source.entryId)}]`)),
+          )
+        )
+          return message;
+        return projectToolResultMessage(message, source.source, { mode: "full" });
+      });
+    } catch {
+      // Decoration must not make Pi fall back to an unprojected context.
+      return messages;
+    }
   }
   async archive(targets) {
     try {

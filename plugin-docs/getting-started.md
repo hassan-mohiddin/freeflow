@@ -142,16 +142,18 @@ For a future qualified native host, Cognitive Routing uses this v2 configuration
 {
   "cognitiveRouting": {
     "enabled": true,
+    "delegation": "both",
     "projection": false,
     "profiles": {
       "coordinator": { "provider": "openai", "model": "gpt-4o", "thinking": "off" },
-      "executor": { "provider": "openai", "model": "gpt-4.1-mini", "thinking": "off" }
+      "helper": { "provider": "openai", "model": "gpt-4.1-mini", "thinking": "off" },
+      "executor": { "provider": "openai", "model": "gpt-4.1", "thinking": "off" }
     }
   }
 }
 ```
 
-`projection` defaults to `false`. Only `coordinator` and `executor` profiles are supported. Older experimental routing names or fields such as `standard`, `reasoning`, `contextProjection`, and `sessionStart` are unsupported and have no migration; rewrite them manually. Configuration does not establish host availability or model evaluation.
+`delegation` accepts `executor`, `helper`, or `both` and defaults to `executor`; `projection` defaults to `false`. Profiles are `coordinator`, `helper`, and `executor`. Coordinator must differ from each worker enabled by the selected mode; Helper and Executor may share a pair. Repository delegation can be overridden personally, but there is no session delegation-mode override. Older experimental routing names or fields such as `standard`, `reasoning`, `contextProjection`, and `sessionStart` are unsupported and have no migration; rewrite them manually. Configuration does not establish host availability or model evaluation.
 
 Setup does not write Freeflow instructions into `AGENTS.md`, `CLAUDE.md`, or other repository-owned host files.
 

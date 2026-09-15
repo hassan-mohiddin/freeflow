@@ -241,7 +241,7 @@ test("replacement retains old assignment and requires old execution to be resolv
   });
   assert.throws(
     () => m.apply(replacement),
-    (e) => e.code === "unresolved_executor_execution",
+    (e) => e.code === "unresolved_worker_execution",
   );
   m.apply(bound("e2"));
   m.apply(replacement);
@@ -250,6 +250,144 @@ test("replacement retains old assignment and requires old execution to be resolv
   assert.equal(m.state.assignments.get("a1").contract, "fixture contract");
   assert.equal(m.state.assignmentId, "a2");
 });
+test("worker identity rejects foreign returns and recovery requests", () => {
+  const m = machine();
+  m.apply(control("coordinator"));
+  m.apply(opened("e1", "coordinator"));
+  const helperDelegate = delegated();
+  helperDelegate.handoff.to = "helper";
+  m.apply(helperDelegate);
+  m.apply(bound("e1"));
+  m.apply({ type: "handoff-state", handoffId: "d-a1", state: "configured", observedPair: pair });
+  m.apply(opened("e2", "helper", "a1"));
+  const foreignReturn = returned();
+  assert.throws(
+    () => m.apply(foreignReturn),
+    (error) => error.code === "return_identity_mismatch",
+  );
+  const helperReturn = returned();
+  helperReturn.handoff.from = "helper";
+  m.apply(helperReturn);
+  m.apply(bound("e2"));
+  m.apply({ type: "handoff-state", handoffId: "return", state: "configured", observedPair: pair });
+  m.apply(opened("e3", "coordinator", "a1"));
+  const foreignRecovery = recoveryRequest();
+  assert.throws(
+    () => m.apply(foreignRecovery),
+    (error) => error.code === "recovery_not_available",
+  );
+  foreignRecovery.handoff.to = "helper";
+  m.apply(foreignRecovery);
+  assert.equal(m.state.recoveryId, "recovery");
+  assert.equal(m.state.handoffs.get("recovery-request").to, "helper");
+});
+
+test("wrong-worker return, selection, supplement, and retry events are symmetric and state-preserving", () => {
+  const startedFor = (worker) => {
+    const m = machine();
+    m.apply(control("coordinator"));
+    m.apply(opened("e1", "coordinator"));
+    const delegation = delegated();
+    delegation.handoff.to = worker;
+    m.apply(delegation);
+    m.apply(bound("e1"));
+    m.apply({ type: "handoff-state", handoffId: "d-a1", state: "configured", observedPair: pair });
+    return m;
+  };
+  const returnFrom = (worker) => {
+    const value = returned();
+    value.handoff.from = worker;
+    return value;
+  };
+  const requestTo = (worker) => {
+    const value = recoveryRequest();
+    value.handoff.to = worker;
+    return value;
+  };
+  const supplementFrom = (worker) => {
+    const value = recoverySupplement();
+    value.handoff.from = worker;
+    return value;
+  };
+
+  for (const [worker, foreign] of [
+    ["executor", "helper"],
+    ["helper", "executor"],
+  ]) {
+    const returning = startedFor(worker);
+    returning.apply(opened("e2", worker, "a1"));
+    const beforeReturn = returning.state;
+    assert.throws(
+      () => returning.apply(returnFrom(foreign)),
+      (error) => error.code === "return_identity_mismatch",
+    );
+    assert.equal(returning.state, beforeReturn);
+    assert.equal(returning.state.assignments.get("a1").state, "outstanding");
+
+    const selecting = startedFor(worker);
+    selecting.apply(control(foreign));
+    const beforeSelection = selecting.state;
+    assert.throws(
+      () =>
+        selecting.apply({
+          type: "selection-changed",
+          assignmentId: "a1",
+          selection: { revision: 1, selected: [], unresolved: [], withdrawals: [] },
+        }),
+      (error) => error.code === "selection_wrong_phase",
+    );
+    assert.equal(selecting.state, beforeSelection);
+    assert.equal(selecting.state.selections.has("a1"), false);
+
+    const retrying = startedFor(worker);
+    retrying.apply(opened("e2", worker, "a1"));
+    retrying.apply(returnFrom(worker));
+    retrying.apply({ type: "handoff-state", handoffId: "return", state: "blocked", reason: "fixture gap" });
+    retrying.apply(control(foreign));
+    const beforeRetry = retrying.state;
+    assert.throws(
+      () =>
+        retrying.apply({
+          type: "handoff-retry-requested",
+          handoffId: "return",
+          attemptId: "retry",
+          executionId: "e2",
+          toolCallId: "retry-call",
+          reportRevision: 1,
+          selectionRevision: 0,
+        }),
+      (error) => error.code === "invalid_return_retry",
+    );
+    assert.equal(retrying.state, beforeRetry);
+    assert.equal(retrying.state.handoffs.get("return").state, "blocked");
+    assert.equal(retrying.state.attempts.has("return"), false);
+
+    const supplementing = startedFor(worker);
+    supplementing.apply(opened("e2", worker, "a1"));
+    supplementing.apply(returnFrom(worker));
+    supplementing.apply(bound("e2"));
+    supplementing.apply({ type: "handoff-state", handoffId: "return", state: "configured", observedPair: pair });
+    supplementing.apply(opened("e3", "coordinator", "a1"));
+    supplementing.apply(requestTo(worker));
+    supplementing.apply(bound("e3"));
+    supplementing.apply({
+      type: "handoff-state",
+      handoffId: "recovery-request",
+      state: "configured",
+      observedPair: pair,
+    });
+    supplementing.apply(opened("e4", worker, "a1"));
+    const beforeSupplement = supplementing.state;
+    assert.throws(
+      () => supplementing.apply(supplementFrom(foreign)),
+      (error) => error.code === "recovery_not_returnable",
+    );
+    assert.equal(supplementing.state, beforeSupplement);
+    assert.equal(supplementing.state.recoveries.get("recovery").state, "reading");
+    assert.equal(supplementing.state.handoffs.has("recovery-return"), false);
+  }
+});
+
 test("saved report revisions and retries preserve exact earlier events", () => {
   const m = started();
   m.apply(opened("e2", "executor", "a1"));

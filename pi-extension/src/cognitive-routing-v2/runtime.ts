@@ -1,4 +1,6 @@
-import { schemaForProfile } from "./schemas.js";
+import { estimateRequest } from "./budget.js";
+import { annotateSources } from "../session-sources/provenance.js";
+import { ROUTING_SCHEMAS } from "./schemas.js";
 import { randomUUID } from "node:crypto";
 import { existsSync, realpathSync } from "node:fs";
 import { relative, resolve as resolvePath } from "node:path";
@@ -15,9 +17,12 @@ import {
   canonical,
   emptySelection,
   idFor,
+  isWorkerProfile,
   requireCondition as check,
   samePair,
+  workersForDelegation,
   type Profile,
+  type WorkerProfile,
   type View,
   type Pair,
   type State,
@@ -116,6 +121,29 @@ export class RoutingRuntime {
       ? state.resumeBasis.get(assignmentId)
       : state.assignments.get(assignmentId)?.basisUserEntryId;
   }
+  private enabledWorkers(): readonly WorkerProfile[] {
+    return workersForDelegation(this.capability?.delegation ?? "executor");
+  }
+  private assignedWorker(state: State, assignmentId = state.assignmentId): WorkerProfile {
+    const assignment = assignmentId ? state.assignments.get(assignmentId) : undefined;
+    const handoff = assignment ? state.handoffs.get(assignment.delegateHandoffId) : undefined;
+    check(
+      handoff?.kind === "delegate" && handoff.assignmentId === assignment?.id && isWorkerProfile(handoff.to),
+      "assignment_worker_missing",
+      "The current assignment has no valid recorded worker.",
+    );
+    return handoff.to;
+  }
+  private requiredProfiles(state = this.stateData()): Profile[] {
+    const profiles = new Set<Profile>(["coordinator", ...this.enabledWorkers()]);
+    if (state.profile) profiles.add(state.profile);
+    if (this.manualHold) profiles.add(this.manualHold);
+    const assignment = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
+    if (assignment?.state === "outstanding" || state.recoveryId) profiles.add(this.assignedWorker(state));
+    const pending = state.pendingId ? state.handoffs.get(state.pendingId) : undefined;
+    if (pending && isWorkerProfile(pending.to)) profiles.add(pending.to);
+    return [...profiles];
+  }
   private retireUnbound(reason: string): void {
     for (const execution of this.stateData().executions.values()) {
       if (!execution.assistantEntryId && !execution.interrupted)
@@ -148,7 +176,7 @@ export class RoutingRuntime {
   async beforeRun(ctx: any): Promise<void> {
     this.ctx = ctx;
     if (!this.store || !this.supported() || this.store.blocked || this.error) return;
-    if (this.stateData().control === "automatic" && this.stateData().profile === "executor") {
+    if (this.stateData().control === "automatic" && isWorkerProfile(this.stateData().profile)) {
       const result = await this.control("coordinator", false);
       check(result.status !== "blocked", "reconciliation_required", result.reason);
     }
@@ -194,6 +222,7 @@ export class RoutingRuntime {
     return {
       effective: this.supported() && state.control !== "inactive" && !blocked,
       activeProfile: state.profile,
+      delegation: this.capability?.delegation ?? "executor",
       controlMode: state.control === "manual" ? `manual-${state.profile}` : state.control,
       runtimeStatus: blocked
         ? ("blocked" as const)
@@ -248,17 +277,26 @@ export class RoutingRuntime {
   private profilePair(profile: Profile): Pair {
     return this.stateData().profileOverrides.get(profile) ?? this.configuredProfilePair(profile);
   }
-  private profilePairs(): Record<Profile, Pair> {
-    return Object.fromEntries(PROFILES.map((profile) => [profile, this.profilePair(profile)])) as Record<Profile, Pair>;
+  private profilePairs(profiles = this.requiredProfiles()): Partial<Record<Profile, Pair>> {
+    return Object.fromEntries(profiles.map((profile) => [profile, this.profilePair(profile)]));
   }
-  private async validateProfilePairs(pairs: Record<Profile, Pair>): Promise<void> {
+  private async validateProfilePairs(pairs: Partial<Record<Profile, Pair>>): Promise<void> {
+    check(pairs.coordinator, "profile_missing", "Configure the coordinator profile.");
+    const helper = pairs.helper !== undefined;
+    const executor = pairs.executor !== undefined;
+    check(helper || executor, "profile_missing", "Configure an enabled worker profile.");
+    const delegation = helper && executor ? "both" : helper ? "helper" : "executor";
     const profiles = Object.fromEntries(
-      PROFILES.map((profile) => {
-        const pair = pairs[profile];
-        return [profile, { provider: pair.provider, model: pair.modelId, thinking: pair.thinking }];
-      }),
+      Object.entries(pairs).map(([profile, pair]) => [
+        profile,
+        { provider: pair!.provider, model: pair!.modelId, thinking: pair!.thinking },
+      ]),
     );
-    const result = await resolveCognitiveRoutingState({ cognitiveRouting: { enabled: true, profiles } }, {}, this.ctx);
+    const result = await resolveCognitiveRoutingState(
+      { cognitiveRouting: { enabled: true, delegation, profiles } },
+      {},
+      this.ctx,
+    );
     check(result.effective, result.blockingReason.code, result.blockingReason.message);
   }
   private model(profile: Profile) {
@@ -272,6 +310,8 @@ export class RoutingRuntime {
     this.ctx = ctx;
     this.capability = capability;
     this.turn = undefined;
+    this.manualHold = undefined;
+    this.automaticControl = false;
     this.messages = [];
     this.sourceCache = undefined;
     this.receipts.clear();
@@ -281,7 +321,7 @@ export class RoutingRuntime {
     this.error = undefined;
     this.projectionError = undefined;
     this.operations = Promise.resolve();
-    this.targetSignature = canonical(capability.profiles);
+    this.targetSignature = canonical({ delegation: capability.delegation, profiles: capability.profiles });
     this.suppressed = startup && process.argv.some((a) => /^(--model|--thinking)(=|$)/.test(a));
     this.store = new EventStore(this.pi, ctx.sessionManager as SessionReader);
     const subject = this.subject();
@@ -289,10 +329,10 @@ export class RoutingRuntime {
     try {
       await this.store.reconcile();
       this.guard(subject);
-      await this.validateProfilePairs(this.profilePairs());
       const state = this.stateData();
       this.manualHold = state.control === "manual" ? state.profile : undefined;
       this.automaticControl = !state.events.size || state.control === "automatic";
+      await this.validateProfilePairs(this.profilePairs(this.requiredProfiles(state)));
       this.retireUnbound("Session rebind found an unfinished execution; no task effects replayed.");
       if (!state.events.size) {
         this.append({
@@ -333,7 +373,7 @@ export class RoutingRuntime {
   async refresh(ctx: any, capability: CognitiveRoutingCapabilityState): Promise<void> {
     this.ctx = ctx;
     const was = this.capability?.effective === true;
-    const signature = canonical(capability.profiles);
+    const signature = canonical({ delegation: capability.delegation, profiles: capability.profiles });
     if (this.capability && (was !== capability.effective || signature !== this.targetSignature)) this.revision++;
     this.capability = capability;
     if (!capability.effective) {
@@ -365,7 +405,8 @@ export class RoutingRuntime {
     } else if (this.targetSignature && signature !== this.targetSignature) {
       this.error = "configuration_changed: reconcile profile configuration before automatic execution";
     }
-    if (canonical(this.capability?.profiles) === signature) this.targetSignature = signature;
+    if (canonical({ delegation: this.capability?.delegation, profiles: this.capability?.profiles }) === signature)
+      this.targetSignature = signature;
   }
   async ancestryChanged(ctx: any, navigation = true): Promise<void> {
     this.revision++;
@@ -381,9 +422,9 @@ export class RoutingRuntime {
       await this.store.reconcile();
       this.guard(subject);
       this.error = undefined;
-      await this.validateProfilePairs(this.profilePairs());
-      this.retireUnbound("Selected historical ancestry ends before execution binding; effects are not replayed.");
       const state = this.stateData();
+      await this.validateProfilePairs(this.profilePairs(this.requiredProfiles(state)));
+      this.retireUnbound("Selected historical ancestry ends before execution binding; effects are not replayed.");
       if (this.manualHold) {
         this.append({
           type: "control",
@@ -473,6 +514,12 @@ export class RoutingRuntime {
     return this.enqueue(async () => {
       try {
         check(this.capability?.effective && this.store, "routing_unavailable");
+        if (manual && isWorkerProfile(profile))
+          check(
+            this.enabledWorkers().includes(profile),
+            "worker_disabled",
+            `${profile} is not enabled by delegation mode.`,
+          );
         await this.store.reconcile();
         this.guard(subject);
         this.error = undefined;
@@ -510,7 +557,8 @@ export class RoutingRuntime {
         this.automaticControl = !manual;
         return { status: manual ? "active" : "automatic" };
       } catch (error) {
-        if (this.current(subject)) this.mark(error);
+        if (this.current(subject) && !(error instanceof RoutingError && error.code === "worker_disabled"))
+          this.mark(error);
         return { status: "blocked", reason: error instanceof Error ? error.message : String(error) };
       }
     });
@@ -543,7 +591,9 @@ export class RoutingRuntime {
         if ((override === null && !previous) || (override !== null && samePair(previous, override)))
           return { status: "unchanged" };
         const target = override ?? this.configuredProfilePair(profile);
-        const pairs = this.profilePairs();
+        const profiles = new Set(this.requiredProfiles(state));
+        profiles.add(profile);
+        const pairs = this.profilePairs([...profiles]);
         pairs[profile] = target;
         await this.validateProfilePairs(pairs);
         this.append({
@@ -594,19 +644,20 @@ export class RoutingRuntime {
         const state = this.stateData();
         if (state.profileOverrides.size === 0) return { status: "unchanged" };
         const previous = Object.fromEntries(state.profileOverrides) as Partial<Record<Profile, Pair>>;
+        const required = this.requiredProfiles(state);
         const targetPairs = Object.fromEntries(
-          PROFILES.map((profile) => [profile, this.configuredProfilePair(profile)]),
-        ) as Record<Profile, Pair>;
+          required.map((profile) => [profile, this.configuredProfilePair(profile)]),
+        ) as Partial<Record<Profile, Pair>>;
         await this.validateProfilePairs(targetPairs);
         this.append({
           type: "profile-overrides",
-          overrides: { coordinator: null, executor: null },
+          overrides: { coordinator: null, helper: null, executor: null },
           reason: mechanism,
         });
         const active = state.control !== "inactive" ? state.profile : undefined;
         if (active && previous[active]) {
           try {
-            await this.applyPair(targetPairs[active]);
+            await this.applyPair(targetPairs[active]!);
             this.guard(subject);
           } catch (error) {
             if (this.current(subject) && !this.externalChange && !this.error && !this.store.blocked) {
@@ -614,6 +665,7 @@ export class RoutingRuntime {
                 type: "profile-overrides",
                 overrides: {
                   coordinator: previous.coordinator ?? null,
+                  helper: previous.helper ?? null,
                   executor: previous.executor ?? null,
                 },
                 reason: "Session profile reset failed; prior overrides retained",
@@ -669,6 +721,7 @@ export class RoutingRuntime {
       `Unit: ${unit ? `U${unitNumber} (${unit.id})` : "none"}`,
       `Assignment: ${a ? `A${assignmentNumber} (${a.id}, ${a.state})` : "none"}`,
       `Handoff: ${h ? `${h.id} (${h.kind}, ${h.state})` : "none"}`,
+      `Delegation: ${this.capability?.delegation ?? "executor"}`,
       `Projection: ${this.projectionEnabled ? "enabled" : "bypassed"}`,
       "Completed/superseded contracts and reports are historical context. Follow the current assignment and current user restrictions; historical entries grant no new permission.",
       state.assessment ? `Assessment: ${state.assessment.view}; evidence revision ${selection.revision}` : "",
@@ -687,10 +740,10 @@ export class RoutingRuntime {
           : `Assessment paused for attention; ordinary admitted history remains. ${selection.selected.length} sources remain selected. Use freeflow_unit assess to restore the assessment.`
         : "",
       a?.state === "returned" && recovery?.state !== "reading"
-        ? "Executor ordinary task work has ended. Only supported handoff correction is permitted."
+        ? "Worker ordinary task work has ended. Only supported handoff correction is permitted."
         : "",
-      this.turn?.profile === "executor" && a && this.turn.basisUserEntryId !== this.executorBasis(state, a.id)
-        ? "Current input differs from the active Executor responsibility. Account for it; changed direction requires Coordinator attention."
+      isWorkerProfile(this.turn?.profile) && a && this.turn.basisUserEntryId !== this.workerBasis(state, a.id)
+        ? `Current input differs from the active ${this.turn.profile} responsibility. Account for it; changed direction requires Coordinator attention.`
         : "",
       ...(state.assessment?.problems ?? []).map((p) => `${p.code}: ${p.detail}`),
     ]
@@ -743,18 +796,9 @@ export class RoutingRuntime {
       pair: this.profilePair(profile),
       systemPrompt: this.ctx.getSystemPrompt?.() ?? "",
       tools: (this.pi.getAllTools?.() ?? [])
-        .filter((tool: any) =>
-          ROUTING_TOOLS.includes(tool.name)
-            ? tool.name === "freeflow_unit" ||
-              (profile === "coordinator"
-                ? tool.name === "freeflow_delegate"
-                : tool.name === "freeflow_return" || (tool.name === "freeflow_project" && this.projectionEnabled))
-            : this.pi.getActiveTools?.().includes(tool.name),
-        )
+        .filter((tool: any) => this.pi.getActiveTools?.().includes(tool.name))
         .map((tool: any) =>
-          ROUTING_TOOLS.includes(tool.name)
-            ? { ...tool, parameters: schemaForProfile(tool.name, profile === "coordinator") }
-            : tool,
+          ROUTING_TOOLS.includes(tool.name) ? { ...tool, parameters: ROUTING_SCHEMAS[tool.name] } : tool,
         ),
       runtimeMessage: this.runtimeMessage(
         state,
@@ -764,6 +808,35 @@ export class RoutingRuntime {
       preparingReturn: handoffId,
       restoring,
     });
+  }
+  budgetNotice(messages: any[], ctx: any): any | undefined {
+    if (!this.supported()) return;
+    const tools = (this.pi.getAllTools?.() ?? []).filter((tool: any) => this.pi.getActiveTools?.().includes(tool.name));
+    const estimate = estimateRequest(ctx.getSystemPrompt?.() ?? "", tools, messages, ctx.model);
+    if (!estimate.warnings.length) return;
+    return {
+      role: "custom",
+      customType: "freeflow-routing-budget",
+      display: false,
+      content: estimate.warnings.map((warning) => warning.detail).join("\n"),
+      timestamp: 0,
+    };
+  }
+  private ordinaryContext(input: any[]): any[] {
+    try {
+      const sources = this.sources(),
+        associated = sources.associate(input);
+      const mapped = new Map(associated.filter((item) => item.source).map((item) => [item.message, item.source!]));
+      return annotateSources(
+        input,
+        mapped,
+        new Set([...mapped.values()].map((source) => source.ref)),
+        sources,
+        this.token,
+      );
+    } catch {
+      return input;
+    }
   }
   async context(ctx: any, incoming: any[]): Promise<any[]> {
     this.ctx = ctx;
@@ -775,10 +848,10 @@ export class RoutingRuntime {
         ),
     );
     this.messages = input;
-    if (!this.supported() || !this.store) return input;
+    if (!this.supported() || !this.store) return this.ordinaryContext(input);
     try {
       const state = this.stateData();
-      if (state.control !== "automatic") return input;
+      if (state.control !== "automatic") return this.ordinaryContext(input);
       check(!this.error && !this.store.blocked && state.profile, "routing_blocked", this.error ?? this.store.blocked);
       check(samePair(this.observed(), this.profilePair(state.profile!)), "prepared_pair_mismatch");
       const sources = this.sources(state),
@@ -794,10 +867,12 @@ export class RoutingRuntime {
           },
           JSON.stringify(["attention", state.assessment.handoffId, user]),
         );
-      // New input reaching an already prepared Executor request cannot be rerouted by changing only the live model.
+      // New input reaching an already prepared worker request cannot be rerouted by changing only the live model.
       const outstanding = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
+      const worker = outstanding ? this.assignedWorker(state, outstanding.id) : undefined;
       const interrupted =
-        state.profile === "executor" && user !== (outstanding ? this.executorBasis(state, outstanding.id) : undefined);
+        isWorkerProfile(state.profile) &&
+        (state.profile !== worker || user !== (outstanding ? this.workerBasis(state, outstanding.id) : undefined));
       if (!this.turn || this.turn.bound) {
         this.receipts.clear();
         const execution: Execution = {
@@ -837,12 +912,12 @@ export class RoutingRuntime {
       check(prepared.ready, "context_unavailable", prepared.problems.map((p) => p.detail).join("; "));
       const known = this.stateData().exposure;
       const added = prepared.fullSources.filter((s) => known.get(s.ref) !== s.hash);
-      if (this.turn.profile === "executor")
+      if (isWorkerProfile(this.turn.profile))
         for (let i = 0; i < added.length; i += 128)
           this.append({
             type: "sources-exposed",
             executionId: this.turn.id,
-            view: "executor",
+            view: this.turn.profile,
             sources: added.slice(i, i + 128).map((s) => ({ ref: s.ref, bodyHash: s.hash })),
           });
       if (interrupted)
@@ -859,7 +934,7 @@ export class RoutingRuntime {
     } catch (error) {
       this.mark(error);
       ctx.abort?.();
-      // Do not send an accidental full Executor history on a projection failure.
+      // Do not send an accidental full worker history on a projection failure.
       return [
         {
           role: "custom",
@@ -867,7 +942,7 @@ export class RoutingRuntime {
           content: `Automatic request blocked: ${this.error}`,
           display: false,
           timestamp: 0,
-          details: { routingInstance: this.token },
+          details: { routingInstance: this.token, routingRequestBlocked: true },
         },
       ];
     }
@@ -924,7 +999,7 @@ export class RoutingRuntime {
       return false;
     }
   }
-  private executorBasis(state: State, assignmentId: string): string | null {
+  private workerBasis(state: State, assignmentId: string): string | null {
     const recovery = state.recoveryId ? state.recoveries.get(state.recoveryId) : undefined;
     if (recovery?.state === "reading") return state.handoffs.get(recovery.requestHandoffId)?.basisUserEntryId ?? null;
     return this.taskBasis(state, assignmentId);
@@ -979,18 +1054,21 @@ export class RoutingRuntime {
       this.batch(event.toolCallId, name);
       check(!this.error && !this.store?.blocked, "routing_blocked");
       this.openTurn();
-      if (this.turn?.profile === "executor" && !isRouting && !this.contextOperation(name, event.input)) {
+      if (isWorkerProfile(this.turn?.profile) && !isRouting && !this.contextOperation(name, event.input)) {
         const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
+        const worker = a ? this.assignedWorker(state, a.id) : undefined;
         const ordinary =
           a?.state === "outstanding" &&
           this.turn.basisUserEntryId === this.taskBasis(state, a.id) &&
-          state.profile === "executor";
+          state.profile === worker &&
+          this.turn.profile === worker;
         const recovery =
           a?.state === "returned" &&
-          this.turn.basisUserEntryId === this.executorBasis(state, a.id) &&
-          state.profile === "executor" &&
+          this.turn.basisUserEntryId === this.workerBasis(state, a.id) &&
+          state.profile === worker &&
+          this.turn.profile === worker &&
           this.recoveryReadAllowed(state, name, event.input);
-        check(ordinary || recovery, "executor_task_phase_ended");
+        check(ordinary || recovery, "worker_task_phase_ended");
       }
       return undefined;
     } catch (error) {
@@ -1010,8 +1088,14 @@ export class RoutingRuntime {
       this.ctx = ctx;
       try {
         check(!signal?.aborted, "cancelled");
-        if (name === "freeflow_unit" && input.operation === "inspect") return this.result(this.inspectUnit(input));
-        this.assertAvailable(name === "freeflow_delegate" || name === "freeflow_unit" ? "coordinator" : "executor");
+        if (name === "freeflow_unit" && input.operation === "inspect") {
+          check(this.supported(), "routing_unavailable");
+          return this.result(this.inspectUnit(input));
+        }
+        const state = this.stateData();
+        const expected =
+          name === "freeflow_delegate" || name === "freeflow_unit" ? "coordinator" : this.assignedWorker(state);
+        this.assertAvailable(expected);
         const op = this.callOperation(callId, name);
         const cached = this.receipts.get(op);
         if (cached) {
@@ -1045,7 +1129,13 @@ export class RoutingRuntime {
               ? undefined
               : name === "freeflow_delegate" || name === "freeflow_unit"
                 ? "coordinator"
-                : "executor",
+                : (() => {
+                    try {
+                      return this.assignedWorker(this.stateData());
+                    } catch {
+                      return undefined;
+                    }
+                  })(),
           recoveryAction:
             error instanceof RoutingError &&
             [
@@ -1080,12 +1170,24 @@ export class RoutingRuntime {
     const prior = this.duplicate(op);
     if (prior) {
       check(
-        prior.data.type === "delegate-accepted" && prior.data.assignment.contract === input.contract,
+        prior.data.type === "delegate-accepted" &&
+          prior.data.assignment.contract === input.contract &&
+          (input.worker === undefined || prior.data.handoff.to === input.worker),
         "operation_conflict",
       );
       return { status: "accepted", handoff: prior.data.handoff.id, unchanged: true };
     }
     const state = this.stateData();
+    const enabled = this.enabledWorkers();
+    let worker: WorkerProfile;
+    if (input.worker === undefined) {
+      check(enabled.length === 1, "worker_required", "Delegation mode 'both' requires choosing helper or executor.");
+      worker = enabled[0]!;
+    } else {
+      check(isWorkerProfile(input.worker), "invalid_worker");
+      worker = input.worker;
+    }
+    check(enabled.includes(worker), "worker_disabled", `${worker} is not enabled by delegation mode.`);
     const unit = state.unitId
       ? state.units.get(state.unitId)!
       : { id: randomUUID(), objective: input.contract, state: "open" as const, assignmentIds: [] };
@@ -1112,7 +1214,7 @@ export class RoutingRuntime {
       assignmentId,
       text: input.contract,
       from: "coordinator",
-      to: "executor",
+      to: worker,
       executionId: this.turn!.id,
       toolCallId: callId,
       basisUserEntryId: this.turn!.basisUserEntryId,
@@ -1142,6 +1244,7 @@ export class RoutingRuntime {
       status: "accepted",
       unit: unit.id,
       assignment: assignmentId,
+      worker,
       handoff: id,
       transition: "pending",
       contract: input.contract,
@@ -1160,6 +1263,7 @@ export class RoutingRuntime {
     const state = this.stateData(),
       a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
     check(a, "assignment_missing");
+    const worker = this.assignedWorker(state, a.id);
     const recovery = state.recoveryId ? state.recoveries.get(state.recoveryId) : undefined;
     const original = a.returnHandoffId ? state.handoffs.get(a.returnHandoffId) : undefined;
     const supplement = recovery?.supplementHandoffId ? state.handoffs.get(recovery.supplementHandoffId) : undefined;
@@ -1214,7 +1318,7 @@ export class RoutingRuntime {
         kind: "recovery-return",
         assignmentId: a.id,
         text: input.report,
-        from: "executor",
+        from: worker,
         to: "coordinator",
         executionId: this.turn!.id,
         toolCallId: callId,
@@ -1238,7 +1342,7 @@ export class RoutingRuntime {
       kind: "return",
       assignmentId: a.id,
       text: input.report,
-      from: "executor",
+      from: worker,
       to: "coordinator",
       executionId: this.turn!.id,
       toolCallId: callId,
@@ -1270,7 +1374,7 @@ export class RoutingRuntime {
       ...(isSupplement
         ? { supplementRef: `supplement:${recovery?.id ?? "unknown"}:${h.reportRevision}` }
         : { reportRef: `report:${h.id}:${h.reportRevision}` }),
-      producer: "executor",
+      producer: h.from,
       outcome: h.outcome,
       limitations: h.limitations,
       ready: prepared.ready,
@@ -1317,7 +1421,7 @@ export class RoutingRuntime {
         [...sources.byRef.values()]
           .filter(
             (s) =>
-              s.producer === "executor" &&
+              isWorkerProfile(s.producer) &&
               (isTaskEvidence(s) || (scope === "selected" && next.selected.includes(s.ref))) &&
               (scope === "selected"
                 ? next.selected.includes(s.ref)
@@ -1363,7 +1467,7 @@ export class RoutingRuntime {
           },
           otherAssignments: [...sources.byRef.values()].filter(
             (s) =>
-              s.producer === "executor" && s.assignmentId !== a.id && isTaskEvidence(s) && checksFor(s).targetReady,
+              isWorkerProfile(s.producer) && s.assignmentId !== a.id && isTaskEvidence(s) && checksFor(s).targetReady,
           ).length,
         }),
       );
@@ -1473,6 +1577,7 @@ export class RoutingRuntime {
           !this.applying,
         "recovery_not_available",
       );
+      const worker = this.assignedWorker(state, a.id);
       const id = randomUUID(),
         handoffId = randomUUID();
       const paths = [...new Set<string>((input.paths ?? []).map((path: string) => this.canonicalRecoveryPath(path)))];
@@ -1494,7 +1599,7 @@ export class RoutingRuntime {
         assignmentId: a.id,
         text: input.request,
         from: "coordinator",
-        to: "executor",
+        to: worker,
         executionId: this.turn!.id,
         toolCallId: callId,
         basisUserEntryId: this.turn!.basisUserEntryId,
@@ -1520,7 +1625,7 @@ export class RoutingRuntime {
         ![...state.executions.values()].some(
           (execution) =>
             execution.recoveryId === state.recoveryId &&
-            execution.profile === "executor" &&
+            isWorkerProfile(execution.profile) &&
             !execution.assistantEntryId &&
             !execution.interrupted,
         ),
@@ -1567,7 +1672,7 @@ export class RoutingRuntime {
         ![...state.executions.values()].some(
           (execution) =>
             execution.recoveryId === state.recoveryId &&
-            execution.profile === "executor" &&
+            isWorkerProfile(execution.profile) &&
             !execution.assistantEntryId &&
             !execution.interrupted,
         ),
@@ -1664,6 +1769,7 @@ export class RoutingRuntime {
         [...state.assignments.values()].reverse().map((a) => {
           const u = state.units.get(a.unitId),
             h = a.returnHandoffId ? state.handoffs.get(a.returnHandoffId) : undefined;
+          const delegate = state.handoffs.get(a.delegateHandoffId);
           return {
             ref: `assignment:${a.id}`,
             unitRef: `unit:${a.unitId}`,
@@ -1675,8 +1781,8 @@ export class RoutingRuntime {
             summary: a.contract.slice(0, 160),
             reportAvailable: !!h,
             outcome: h?.outcome,
-            from: "coordinator",
-            to: "executor",
+            from: delegate?.from,
+            to: delegate?.to,
           };
         });
       const page = this.page("work-history", rows, input.cursor, input.limit ?? 20);
@@ -1825,7 +1931,7 @@ export class RoutingRuntime {
     return {
       ...this.state(),
       unit: unit ? { id: unit.id, state: unit.state, assignments: unit.assignmentIds.length } : null,
-      assignment: a ? { id: a.id, state: a.state } : null,
+      assignment: a ? { id: a.id, state: a.state, worker: this.assignedWorker(state, a.id) } : null,
       pendingHandoff: state.pendingId ?? null,
       recovery: state.recoveryId
         ? (() => {
@@ -2000,7 +2106,7 @@ export class RoutingRuntime {
           reason: error instanceof Error ? error.message.slice(0, 4096) : "configuration_failed",
         });
         this.ctx.ui?.notify?.(
-          `Couldn’t switch to ${h.to === "coordinator" ? "Coordinator" : "Executor"} — ${["return", "recovery-return"].includes(h.kind) ? "report" : "assignment"} saved.`,
+          `Couldn’t switch to ${h.to.charAt(0).toUpperCase()}${h.to.slice(1)} — ${["return", "recovery-return"].includes(h.kind) ? "report" : "assignment"} saved.`,
           "warning",
         );
       } else throw error;
@@ -2026,7 +2132,7 @@ export class RoutingRuntime {
     check(
       !ctx.hasPendingMessages?.(),
       "pending_input",
-      "Queued input must be delivered and reconciled before resuming Executor.",
+      "Queued input must be delivered and reconciled before resuming a worker.",
     );
     const pending = state.pendingId ? state.handoffs.get(state.pendingId) : undefined;
     if (pending) {
@@ -2040,13 +2146,14 @@ export class RoutingRuntime {
           "handoff_still_blocked",
           "Saved transfer is still blocked; reconcile its configuration before retrying.",
         );
+        const worker = this.assignedWorker(this.stateData(), pending.assignmentId);
         this.append({
           type: "control",
           control: "automatic",
-          profile: "executor",
+          profile: worker,
           reason: "Explicit resume of saved-return evidence correction only; ordinary assignment work remains ended",
         });
-        await this.applyPair(this.profilePair("executor"));
+        await this.applyPair(this.profilePair(worker));
       }
     } else {
       const assignment = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
@@ -2057,19 +2164,20 @@ export class RoutingRuntime {
           x.profile === "coordinator" && x.basisUserEntryId === user && x.assistantEntryId && x.outcome === "completed",
       );
       const recovery = state.recoveryId ? state.recoveries.get(state.recoveryId) : undefined;
+      const worker = assignment ? this.assignedWorker(state, assignment.id) : undefined;
       if (assignment?.state === "returned" && recovery?.state === "reading") {
         check(
-          user === this.executorBasis(state, assignment.id) || coordinatorSawInput,
+          user === this.workerBasis(state, assignment.id) || coordinatorSawInput,
           "input_unreconciled",
           "New input needs Coordinator attention before evidence recovery can resume.",
         );
         this.append({
           type: "control",
           control: "automatic",
-          profile: "executor",
+          profile: worker!,
           reason: "Explicit user resume of unchanged evidence recovery; ordinary assignment work remains ended",
         });
-        await this.applyPair(this.profilePair("executor"));
+        await this.applyPair(this.profilePair(worker!));
       } else if (assignment?.state === "outstanding") {
         check(
           user === this.taskBasis(state, assignment.id) || coordinatorSawInput,
@@ -2080,10 +2188,10 @@ export class RoutingRuntime {
         this.append({
           type: "control",
           control: "automatic",
-          profile: "executor",
+          profile: worker!,
           reason: "Explicit user resume of the unchanged assignment; current restrictions remain applicable",
         });
-        await this.applyPair(this.profilePair("executor"));
+        await this.applyPair(this.profilePair(worker!));
       } else await this.applyPair(this.profilePair("coordinator"));
     }
     this.guard(subject);
@@ -2120,7 +2228,7 @@ export class RoutingRuntime {
       check(
         words.length === 2 && [...PROFILES, "auto"].includes(words[1]),
         "invalid_profile_command",
-        "Use /freeflow profile coordinator|executor|auto|history, or /freeflow resume.",
+        "Use /freeflow profile coordinator|helper|executor|auto|history, or /freeflow resume.",
       );
       const result =
         words[1] === "auto" ? await this.setAutomaticControl() : await this.setManualProfile(words[1] as Profile);

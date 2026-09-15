@@ -7,6 +7,7 @@ import {
   eventKey,
   eventValue,
   isObject,
+  isWorkerProfile,
   requireCondition as check,
   refFor,
   type RoutingEvent,
@@ -430,6 +431,12 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
         },
     d = e.data;
   const assignment = () => (s.assignmentId ? s.assignments.get(s.assignmentId) : undefined);
+  const assignmentWorker = () => {
+    const a = assignment();
+    const h = a ? s.handoffs.get(a.delegateHandoffId) : undefined;
+    check(h?.kind === "delegate" && h.assignmentId === a?.id && isWorkerProfile(h.to), "assignment_worker_missing");
+    return h.to;
+  };
   const pending = () => (s.pendingId ? s.handoffs.get(s.pendingId) : undefined);
   const isPending = () => pending() && ["pending", "blocked"].includes(pending()!.state);
   const currentReturn = (id: string) => {
@@ -501,7 +508,7 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
       check(
         h.kind === "delegate" &&
           h.from === "coordinator" &&
-          h.to === "executor" &&
+          isWorkerProfile(h.to) &&
           h.state === "pending" &&
           h.text === d.assignment.contract &&
           h.assignmentId === d.assignment.id &&
@@ -519,9 +526,9 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
         check(a?.state === "outstanding" && a.id === d.replacement.assignmentId && u, "no_replaceable_assignment");
         check(
           ![...s.executions.values()].some(
-            (x) => x.assignmentId === a.id && x.profile === "executor" && !x.assistantEntryId && !x.interrupted,
+            (x) => x.assignmentId === a.id && isWorkerProfile(x.profile) && !x.assistantEntryId && !x.interrupted,
           ),
-          "unresolved_executor_execution",
+          "unresolved_worker_execution",
         );
         check(
           !isPending() || (pending()!.kind === "delegate" && d.replacement.supersededHandoffId === pending()!.id),
@@ -540,14 +547,14 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
       break;
     }
     case "return-accepted": {
-      check(s.control === "automatic" && s.profile === "executor", "wrong_control");
+      check(s.control === "automatic" && s.profile === assignmentWorker(), "wrong_control");
       const a = assignment(),
         h = d.handoff;
       check(
         a &&
           h.assignmentId === a.id &&
           h.kind === "return" &&
-          h.from === "executor" &&
+          h.from === assignmentWorker() &&
           h.to === "coordinator" &&
           h.state === "pending",
         "return_identity_mismatch",
@@ -600,7 +607,7 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
           h.kind === "recovery-request" &&
           h.assignmentId === a.id &&
           h.from === "coordinator" &&
-          h.to === "executor" &&
+          h.to === assignmentWorker() &&
           h.state === "pending" &&
           !s.handoffs.has(h.id) &&
           !s.recoveries.has(d.recovery.id),
@@ -623,7 +630,7 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
         previous = r?.supplementHandoffId ? s.handoffs.get(r.supplementHandoffId) : undefined;
       check(
         s.control === "automatic" &&
-          s.profile === "executor" &&
+          s.profile === assignmentWorker() &&
           a?.state === "returned" &&
           r?.id === s.recoveryId &&
           r.assignmentId === a.id &&
@@ -632,7 +639,7 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
           ["reading", "returning"].includes(r.state) &&
           h.kind === "recovery-return" &&
           h.assignmentId === a.id &&
-          h.from === "executor" &&
+          h.from === assignmentWorker() &&
           h.to === "coordinator" &&
           h.state === "pending" &&
           (!previous ? !s.handoffs.has(h.id) : ["pending", "blocked"].includes(previous.state) && previous.id === h.id),
@@ -671,7 +678,7 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
       const h = currentReturn(d.handoffId);
       check(
         s.control === "automatic" &&
-          s.profile === "executor" &&
+          s.profile === assignmentWorker() &&
           ["blocked", "pending"].includes(h.state) &&
           h.reportRevision === d.reportRevision &&
           (s.selections.get(h.assignmentId)?.revision ?? 0) === d.selectionRevision,
@@ -722,7 +729,7 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
       check(
         a?.id === d.assignmentId &&
           s.control === "automatic" &&
-          s.profile === "executor" &&
+          s.profile === assignmentWorker() &&
           (a.state === "outstanding" ||
             (a.state === "returned" &&
               (isPending() || (s.recoveryId !== undefined && s.recoveries.get(s.recoveryId)?.state === "reading")))),
@@ -812,7 +819,7 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
     case "sources-exposed": {
       const x = s.executions.get(d.executionId);
       check(x && x.profile === d.view, "exposure_execution_missing");
-      if (d.view === "executor") for (const source of d.sources) s.exposure.set(source.ref, source.bodyHash);
+      if (isWorkerProfile(d.view)) for (const source of d.sources) s.exposure.set(source.ref, source.bodyHash);
       break;
     }
   }

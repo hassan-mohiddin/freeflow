@@ -8,7 +8,7 @@ import { RoutingRuntime } from "../../dist/cognitive-routing-v2/runtime.js";
 import { EventStore } from "../../dist/session-sources/events.js";
 import { replay } from "../../dist/cognitive-routing-v2/state.js";
 
-const modelIds = ["coordinator", "executor", "coordinator-fast", "executor-cheap"];
+const modelIds = ["coordinator", "helper", "executor", "coordinator-fast", "helper-fast", "executor-cheap"];
 const models = Object.fromEntries(
   modelIds.map((id) => [
     id,
@@ -31,6 +31,13 @@ const cap = {
     ["coordinator", "executor"].map((id) => [id, { provider: "fixture", model: id, thinking: "off" }]),
   ),
   blockingReason: { code: "", message: "" },
+};
+const helperCap = {
+  ...cap,
+  delegation: "helper",
+  profiles: Object.fromEntries(
+    ["coordinator", "helper"].map((id) => [id, { provider: "fixture", model: id, thinking: "off" }]),
+  ),
 };
 async function environment(run) {
   const root = await mkdtemp(join(tmpdir(), "routing-runtime-"));
@@ -132,6 +139,32 @@ test("delayed old control cannot change or poison a newly bound session", async 
       EventStore.prototype.reconcile = original;
     }
   }));
+
+for (const [name, firstCapability, heldWorker, secondCapability] of [
+  ["Helper to Executor", helperCap, "helper", cap],
+  ["Executor to Helper", cap, "executor", helperCap],
+]) {
+  test(`binding a fresh ${name} session does not inherit the prior manual hold`, async () =>
+    environment(async ({ runtime, make, activate }) => {
+      const first = make(`${name}-first`);
+      activate(first);
+      await runtime.bind(first, firstCapability);
+      assert.equal((await runtime.setManualProfile(heldWorker)).status, "active");
+      const firstEntryCount = first.sessionManager.getEntries().length;
+
+      const second = make(`${name}-second`);
+      activate(second);
+      await runtime.bind(second, secondCapability);
+
+      assert.equal(runtime.state().runtimeStatus, "active");
+      assert.equal(runtime.state().controlMode, "automatic");
+      assert.equal(runtime.state().activeProfile, "coordinator");
+      assert.equal(second.model.id, "coordinator");
+      assert.equal(first.sessionManager.getEntries().length, firstEntryCount);
+      assert.equal(replay(first.sessionManager.getBranch()).control, "manual");
+      assert.equal(replay(first.sessionManager.getBranch()).profile, heldWorker);
+    }));
+}
 
 test("settled unbound attempt is retired truthfully and next request has a new identity", async () =>
   environment(async ({ runtime, make, activate }) => {
@@ -239,6 +272,38 @@ test("session profile overrides apply only to the selected pair and restore conf
     activate(ctx);
     await runtime.bind(ctx, cap);
     assert.equal(ctx.model.id, "executor");
+  }));
+
+test("Helper session presets apply through the same guarded profile path", async () =>
+  environment(async ({ runtime, make, activate }) => {
+    const ctx = make("session-helper-profile");
+    activate(ctx);
+    await runtime.bind(ctx, helperCap);
+    const helperOverride = { provider: "fixture", modelId: "helper-fast", thinking: "high" };
+    assert.equal((await runtime.setSessionProfileOverride("helper", helperOverride)).status, "stored");
+    assert.equal(ctx.model.id, "coordinator");
+    assert.equal((await runtime.setManualProfile("helper")).status, "active");
+    assert.equal(ctx.model.id, "helper-fast");
+    assert.equal(ctx.thinkingLevel, "high");
+    assert.deepEqual(replay(ctx.sessionManager.getBranch()).profileOverrides.get("helper"), helperOverride);
+    assert.equal((await runtime.resetSessionProfileOverrides()).status, "active");
+    assert.equal(ctx.model.id, "helper");
+    assert.equal(ctx.thinkingLevel, "off");
+    assert.equal(replay(ctx.sessionManager.getBranch()).profileOverrides.size, 0);
+    assert.equal(runtime.state().controlMode, "manual-helper");
+  }));
+
+test("manual control rejects a disabled worker without poisoning routing", async () =>
+  environment(async ({ runtime, make, activate }) => {
+    const ctx = make("disabled-manual-worker");
+    activate(ctx);
+    await runtime.bind(ctx, helperCap);
+    const result = await runtime.setManualProfile("executor");
+    assert.equal(result.status, "blocked");
+    assert.match(result.reason, /not enabled/);
+    assert.equal(runtime.state().runtimeStatus, "active");
+    assert.equal(runtime.state().activeProfile, "coordinator");
+    assert.equal(ctx.model.id, "coordinator");
   }));
 
 test("invalid session profile overrides preserve the native pair and routing state", async () =>

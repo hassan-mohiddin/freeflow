@@ -290,7 +290,7 @@ test("Cognitive Routing preset cancellation preserves the previous repository va
       });
       component.handleInput("\u001b[B");
       component.handleInput("\r");
-      component.handleInput("\u001b[B");
+      for (let index = 0; index < 4; index += 1) component.handleInput("\u001b[B");
       component.handleInput("\r");
       component.handleInput("\u001b");
       component.handleInput("\u001b");
@@ -339,7 +339,7 @@ test("Cognitive Routing settings refresh after enabling the capability", async (
       component.handleInput("\r");
       await component.waitForWrites();
       component.handleInput("\u001b");
-      assert.match(component.render(120).join("\n"), /Cognitive Routing\s+enabled \(4\) configured/);
+      assert.match(component.render(120).join("\n"), /Cognitive Routing\s+enabled \(6\) configured/);
       component.handleInput("\u001b");
       return result;
     };
@@ -383,7 +383,7 @@ test("Cognitive Routing settings can disable projection without disabling routin
       });
       component.handleInput("\u001b[B");
       component.handleInput("\r");
-      for (let index = 0; index < 3; index += 1) component.handleInput("\u001b[B");
+      for (let index = 0; index < 5; index += 1) component.handleInput("\u001b[B");
       component.handleInput("\r");
       component.handleInput("\u001b[B");
       component.handleInput("\r");

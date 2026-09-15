@@ -24,6 +24,11 @@ const evidenceRefs = (description) => ({
   items: string(512),
   description,
 });
+const worker = {
+  type: "string",
+  enum: ["helper", "executor"],
+  description: "Worker for this assignment. Required when delegation mode enables both workers.",
+};
 const report = (name) =>
   object(
     {
@@ -37,8 +42,12 @@ const report = (name) =>
 export const ROUTING_SCHEMAS = {
   freeflow_delegate: {
     oneOf: [
-      object({ operation: operation("assign"), contract: string() }),
-      object({ operation: operation("replace"), contract: string(), reason: string(2048) }),
+      object({ operation: operation("assign"), contract: string(), worker }, ["operation", "contract"]),
+      object({ operation: operation("replace"), contract: string(), reason: string(2048), worker }, [
+        "operation",
+        "contract",
+        "reason",
+      ]),
     ],
   },
   freeflow_return: { oneOf: [report("submit"), report("supplement"), object({ operation: operation("retry") })] },
@@ -89,9 +98,9 @@ export const ROUTING_SCHEMAS = {
       ),
       object(
         {
-          operation: operation("add", "Select eligible Executor task-evidence refs; do not include reason."),
+          operation: operation("add", "Select eligible worker task-evidence refs; do not include reason."),
           refs: evidenceRefs(
-            "Exact eligible visible refs for Executor task evidence. Add known eligible refs directly; inspect when identity, eligibility, representation, or selection state is unclear. Never add a ref marked not offered for new evidence selection.",
+            "Exact eligible visible refs for worker task evidence. Add known eligible refs directly; inspect when identity, eligibility, representation, or selection state is unclear. Never add a ref marked not offered for new evidence selection.",
           ),
         },
         ["operation", "refs"],

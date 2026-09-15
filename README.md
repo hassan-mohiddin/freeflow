@@ -42,13 +42,14 @@ Interaction Lifecycle
 └─ Workflow Feedback Loop
    ├─ establishes authority, owner, and slice
    └─ Cognitive Routing — experimental, when a qualified host is available
-      ├─ Coordinator assigns a decision-complete assignment
-      ├─ Executor performs it and returns an actual report
+      ├─ Helper: normal delegate for supporting work when enabled
+      ├─ Executor: commissioned for substantive or consequential results
+      └─ helper mode: Coordinator implements with bounded Helper support
       └─ Coordinator assesses evidence, continues, or closes the unit
          └─ Action Selection bounds uncertain environment interactions
 ```
 
-Under automatic Cognitive Routing control, Coordinator owns new user direction; input reaching an already prepared Executor request requires an interrupted return before task tools. Under manual control, the selected profile runs the ordinary unsplit Workflow. Cognitive Routing changes compute and context placement only. It never changes authority, ownership, task scope, evidence requirements, or review independence.
+Under automatic Cognitive Routing control, Coordinator owns new user direction; input reaching an already prepared worker request requires an interrupted return before task tools. Under manual control, the selected profile runs the ordinary unsplit Workflow. Cognitive Routing changes compute and context placement only. It never changes authority, ownership, task scope, evidence requirements, or review independence.
 
 The Workflow owner may be Discuss, Track Work, Execute Work, Verify Work, Review Work, Review Artifact, Diagnose Failure, or another focused method. These methods compose when their conditions apply; they are not a mandatory phase pipeline.
 
@@ -82,7 +83,7 @@ Freeflow owns workflow policy, portable prompt fragments, the 24-skill distribut
 
 ### Optional host capabilities
 
-- **[Cognitive Routing](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/cognitive-routing.md)** places compute between Coordinator and Executor in one agent under automatic control. The current source path is experimental and host availability is not established by installation alone.
+- **[Cognitive Routing](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/cognitive-routing.md)** places work among Coordinator and enabled Helper or Executor profiles in one agent under automatic control: Helper normally handles supporting work, while Executor is commissioned for substantive or consequential results. The current source path is experimental and host availability is not established by installation alone. See the [Pi cache reuse boundaries](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/integrations/pi.md#cache-reuse-boundaries) for prefix and provider limits.
 - **[Context Virtualization](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/context-virtualization.md)** classifies consumed tool evidence as Full, Retained, or Reference-only for future context while leaving canonical history unchanged.
 - **[Conversation History](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/conversation-history.md)** performs bounded retrieval of exact missing prior-conversation evidence from the current active branch.
 
@@ -190,7 +191,7 @@ Freeflow’s model-facing surface has four coordinated parts:
 
 1. **Core guidance** in `runtime/prompts/core.md` contains identity, shared terms, loops, Workflow, Action Selection, and Supported Exit cues.
 2. **Interaction Contract** in `runtime/prompts/interaction-contract.md` remains a separate mandatory fragment so its behavior can be revised independently.
-3. **Runtime State** reports current capability availability and v2 Cognitive Routing `Control`/`Profile` at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the current provider context.
+3. **Runtime State** reports current capability availability and v2 Cognitive Routing `Control`/`Profile`/`Delegation` at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the current provider context.
 4. **Discoverable skills and tools** provide the 24 base methods and individually gated optional capability operations.
 
 The core guidance and Interaction Contract are always delivered together when Freeflow is enabled. Optional capability content is omitted and reported unavailable rather than fabricated. One effective-state snapshot determines prompt assembly, discovery, tools, and projection.
@@ -255,17 +256,18 @@ Cognitive Routing controls on a qualified native host:
 /freeflow settings local
 /freeflow settings repo
 /freeflow profile coordinator
+/freeflow profile helper
 /freeflow profile executor
 /freeflow profile auto
 /freeflow profile history
 /freeflow resume
 ```
 
-`/freeflow settings` edits personal overrides, `/freeflow settings session` manages temporary core/context overrides, and `/freeflow settings repo` edits shared repository settings. On a qualified native Pi host, session settings also expose complete Cognitive Routing profile-pair overrides that take precedence over personal and shared profiles without mutating either config file; profile changes and resume require an idle host with the required native model-state APIs.
+`/freeflow settings` edits personal overrides, `/freeflow settings session` manages temporary core/context overrides, and `/freeflow settings repo` edits shared repository settings. On a qualified native Pi host, session settings also expose complete Cognitive Routing overrides for profiles enabled in that session that take precedence over personal and shared profiles without mutating either config file; profile changes and resume require an idle host with the required native model-state APIs.
 
 When the source adapter exposes the native controls and the host is idle:
 
-- `Ctrl+Shift+R` cycles the manual Coordinator/Executor hold.
+- `Ctrl+Shift+R` cycles Coordinator and the workers enabled by the delegation mode.
 - `Ctrl+Shift+A` releases a manual hold to automatic Coordinator control; repeating it while already automatic is idempotent.
 
 These commands are host controls, not proof of installed-host delivery or model evaluation.

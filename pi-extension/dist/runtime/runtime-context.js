@@ -50,6 +50,12 @@ export const FREEFLOW_MODEL_SKILL_NAMES = [
   "write-skill",
   "write-spec",
 ];
+export const STABLE_FREEFLOW_SURFACE = Object.freeze({
+  enabled: true,
+  cognitiveRouting: { effective: true },
+  contextVirtualization: { effective: true },
+  conversationHistory: { effective: true },
+});
 export const FREEFLOW_CAPABILITY_SKILL_NAMES = ["cognitive-routing", "context-virtualization", "conversation-history"];
 export function freeflowSkillPath(skillName) {
   return fileURLToPath(new URL(`../../../skills/${skillName}/SKILL.md`, import.meta.url));
@@ -498,11 +504,7 @@ export function setFreeflowStatus(
     active.push(`cognitive blocked · ${cognitiveRoutingRuntime?.runtimeReason ?? "runtime_blocked"}`);
   } else if (cognitiveRoutingActive) {
     const profile = cognitiveRoutingRuntime.activeProfile;
-    const control =
-      cognitiveRoutingRuntime.controlMode === "manual-executor" ||
-      cognitiveRoutingRuntime.controlMode === "manual-coordinator"
-        ? "manual hold"
-        : "automatic";
+    const control = String(cognitiveRoutingRuntime.controlMode).startsWith("manual-") ? "manual hold" : "automatic";
     active.push(`${profile} · ${control}`);
   } else if (cognitiveRouting?.enabled === true) {
     if (cognitiveRouting.blockingReason?.code === "runtime_disabled") {
@@ -537,12 +539,12 @@ export function skillPrompt(skill, args) {
 }
 function publicCognitiveRoutingControl(controlMode) {
   if (controlMode === "automatic") return "automatic";
-  if (controlMode === "manual-executor" || controlMode === "manual-coordinator") return "manual";
+  if (["manual-helper", "manual-executor", "manual-coordinator"].includes(controlMode)) return "manual";
   return "unavailable";
 }
 function publicCognitiveRoutingProfile(activeProfile, effective) {
   if (effective !== true) return "unavailable";
-  return activeProfile === "executor" || activeProfile === "coordinator" ? activeProfile : "unavailable";
+  return ["helper", "executor", "coordinator"].includes(activeProfile) ? activeProfile : "unavailable";
 }
 function publicCapabilityStatus(capability) {
   if (capability?.effective === true) return "active";
@@ -558,9 +560,7 @@ function publicCognitiveRoutingStatus(capability, runtime) {
 function publicCognitiveRoutingProjectionMode(capability, runtime, projectionFailure) {
   if (capability?.projection !== true) return "disabled";
   if (capability?.effective !== true) return "unavailable";
-  if (runtime?.controlMode === "manual-executor" || runtime?.controlMode === "manual-coordinator") {
-    return "manual-bypass";
-  }
+  if (String(runtime?.controlMode).startsWith("manual-")) return "manual-bypass";
   if (projectionFailure) return "blocked";
   if (runtime?.runtimeStatus === "inactive" || runtime?.runtimeStatus === "blocked") return "unavailable";
   if (runtime?.effective === true && runtime.controlMode === "automatic") return "enabled";
@@ -612,6 +612,7 @@ export function freeflowRuntimeStateMessage(
       "Cognitive Routing:",
       `- Control: \`${control}\``,
       `- Profile: \`${profile}\``,
+      `- Delegation: \`${capabilityState?.cognitiveRouting?.delegation ?? "executor"}\``,
       `- Projection: \`${projectionMode}\``,
     ].join("\n"),
     display: false,
@@ -663,6 +664,24 @@ export function withFreeflowRuntimeState(
     runtimeStateIndex === (expectedRuntimeStateIndex < 0 ? withoutRuntimeState.length : expectedRuntimeStateIndex);
   if (unchanged) return source;
   return insertRuntimeStateBeforeLatestUser(withoutRuntimeState, runtimeState);
+}
+export function stableRuntimeContext(context) {
+  const sections = [
+    ["Freeflow core", context?.corePrompt],
+    ["Freeflow core", context?.interactionContractPrompt],
+    ["Cognitive Routing", context?.cognitiveRoutingPrompt],
+    ["Context Virtualization", context?.contextVirtualizationPrompt],
+    ["Conversation History", context?.conversationHistoryPrompt],
+  ];
+  return [
+    "# Freeflow availability contract",
+    "Freeflow keeps a fixed reference catalog of its instructions, skills, and tools to preserve prompt caching. Presence in this catalog does not mean a feature is active or an operation is permitted.",
+    "Apply the following guidance and Freeflow skills only when the latest extension-generated Freeflow Runtime State marks the corresponding feature active. When Freeflow is inactive, unavailable, or not configured, its core and capability guidance is dormant; do not bootstrap or follow it merely because it is listed. Explicit user instructions retain their normal authority.",
+    "For Cognitive Routing, follow the latest control/profile/responsibility snapshots on this branch. Earlier snapshots and notices are historical; they grant no current permission. Tool permissions are checked by the runtime, even though all definitions remain visible. Never call a disabled operation.",
+    ...sections
+      .filter(([, text]) => isPromptAvailable(text))
+      .map(([feature, text]) => `## Reference guidance: ${feature}\n\n${text.trim()}`),
+  ].join("\n\n");
 }
 export function runtimeContext(freeflowContext, capabilityState) {
   if (

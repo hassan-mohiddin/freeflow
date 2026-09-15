@@ -15,7 +15,7 @@ Capabilities are optional Pi/PiFlow extensions outside the shared 24-skill surfa
 
 | Capability | Host support | Primary job |
 | --- | --- | --- |
-| [Cognitive Routing](cognitive-routing.md) | Native Pi; redesigned PiFlow routing remains unavailable | Place compute between Coordinator and Executor without changing authority or ownership |
+| [Cognitive Routing](cognitive-routing.md) | Native Pi; redesigned PiFlow routing remains unavailable | Place compute among Coordinator and enabled Helper or Executor profiles without changing authority or ownership |
 | [Context Virtualization](context-virtualization.md) | Pi and PiFlow | Change future context residency of consumed tool evidence while preserving canonical history |
 | [Conversation History](conversation-history.md) | Pi and PiFlow | Recover bounded exact prior-conversation evidence from the active branch |
 

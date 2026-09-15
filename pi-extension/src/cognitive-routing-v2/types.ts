@@ -1,9 +1,17 @@
 export const ROUTING_ENTRY = "freeflow-routing-v2";
 export const ROUTING_MESSAGE = "freeflow-routing-v2-state";
-export const PROFILES = ["coordinator", "executor"] as const;
+export const WORKER_PROFILES = ["helper", "executor"] as const;
+export const PROFILES = ["coordinator", ...WORKER_PROFILES] as const;
+export const DELEGATION_MODES = ["executor", "helper", "both"] as const;
 export const EFFORTS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+export type WorkerProfile = (typeof WORKER_PROFILES)[number];
 export type Profile = (typeof PROFILES)[number];
+export type DelegationMode = (typeof DELEGATION_MODES)[number];
 export type Effort = (typeof EFFORTS)[number];
+export const isWorkerProfile = (value: unknown): value is WorkerProfile =>
+  WORKER_PROFILES.includes(value as WorkerProfile);
+export const workersForDelegation = (mode: DelegationMode): readonly WorkerProfile[] =>
+  mode === "both" ? WORKER_PROFILES : [mode];
 export type View = Profile | "solo";
 export type Control = "automatic" | "manual" | "inactive";
 export type Delivery = "pending" | "blocked" | "configured" | "superseded";

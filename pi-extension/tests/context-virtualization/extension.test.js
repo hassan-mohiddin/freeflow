@@ -169,7 +169,7 @@ function renderComponent(component) {
   return component.render(120).join("\\n");
 }
 
-test("disabled Freeflow Context does not publish an empty oneOf schema", async () => {
+test("disabled Freeflow Context retains valid full operation schemas", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-context-disabled-schema-"));
   try {
     await writeConfig(cwd, {});
@@ -178,8 +178,17 @@ test("disabled Freeflow Context does not publish an empty oneOf schema", async (
 
     const contextTool = harness.tools.find((tool) => tool.name === "freeflow_context");
     assert.ok(contextTool);
-    assert.deepEqual(contextTool.parameters.properties, {});
-    assert.equal(Object.hasOwn(contextTool.parameters, "oneOf"), false);
+    assert.equal(contextTool.parameters.type, "object");
+    assert.deepEqual(
+      contextTool.parameters.oneOf.map((v) => v.properties.operation.const),
+      ["archive", "restore", "search", "retrieve"],
+    );
+    const denied = await contextTool.execute(
+      "disabled",
+      { operation: "archive", targets: [{ ref: "ctx:tool-1" }] },
+      undefined,
+    );
+    assert.equal(denied.details.result.status, "rejected");
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -205,7 +214,7 @@ test("enabled Context Virtualization registers, projects, archives, restores, an
 
     const contextTool = harness.tools.find((tool) => tool.name === "freeflow_context");
     assert.ok(contextTool);
-    assert.doesNotMatch(contextTool.description, /conversation history/i);
+    assert.match(contextTool.description, /conversation history/i);
     const staleSearch = await contextTool.execute(
       "context-stale-search",
       { operation: "search", query: "not enabled" },
@@ -291,7 +300,7 @@ test("enabled Context Virtualization registers, projects, archives, restores, an
   }
 });
 
-test("enabled Conversation History exposes only search and retrieve operations", async () => {
+test("enabled Conversation History permits search and retrieve within the stable catalog", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-conversation-history-extension-"));
   try {
     await writeConfig(cwd, { conversationHistory: true });
@@ -303,7 +312,7 @@ test("enabled Conversation History exposes only search and retrieve operations",
     assert.ok(contextTool);
     assert.deepEqual(
       contextTool.parameters.oneOf.map((variant) => variant.properties.operation.const),
-      ["search", "retrieve"],
+      ["archive", "restore", "search", "retrieve"],
     );
     assert.equal(typeof contextTool.renderCall, "function");
     assert.equal(typeof contextTool.renderResult, "function");
@@ -365,7 +374,7 @@ test("enabled Conversation History exposes only search and retrieve operations",
     assert.match(renderComponent(expandedResult), /ctx:render-source/);
     assert.match(renderComponent(expandedResult), /database timeout was recovered/);
     assert.match(contextTool.description, /hidden conversation history/i);
-    assert.doesNotMatch(contextTool.description, /future context projections/i);
+    assert.match(contextTool.description, /future context projections/i);
     const before = await harness.handlers.get("before_agent_start")({ systemPrompt: "base" }, harness.ctx);
     assert.match(before.systemPrompt, /## Conversation History Cue/);
     assert.doesNotMatch(before.systemPrompt, /# Conversation History$/m);
@@ -744,20 +753,21 @@ test("visible invalid sources do not make an empty hidden corpus partial", async
   }
 });
 
-test("disabled Context Virtualization hides the tool and leaves tool results unchanged", async () => {
+test("disabled Context Virtualization blocks execution while preserving definitions and reference labels", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-context-disabled-"));
   try {
     await writeConfig(cwd, false);
     const harness = createHarness(cwd, [toolResultEntry()]);
     await harness.handlers.get("session_start")({ reason: "startup" }, harness.ctx);
 
-    assert.ok(!harness.activeToolNames().includes("freeflow_context"));
+    assert.ok(harness.activeToolNames().includes("freeflow_context"));
     const contextResult = await harness.handlers.get("context")(
       { messages: [harness.entries[0].message] },
       harness.ctx,
     );
     assert.ok(contextResult);
-    assert.deepEqual(contextResult.messages[0], harness.entries[0].message);
+    assert.deepEqual(contextResult.messages[0].content.slice(0, -1), harness.entries[0].message.content);
+    assert.match(contextResult.messages[0].content.at(-1).text, /context-ref:/);
     assert.equal(contextResult.messages.at(-1).customType, "freeflow-runtime-state");
   } finally {
     await rm(cwd, { recursive: true, force: true });

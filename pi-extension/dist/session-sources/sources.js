@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { sessionEntryToContextMessages } from "@earendil-works/pi-coding-agent";
-import { canonical, idFor, refFor } from "../cognitive-routing-v2/types.js";
+import { canonical, idFor, isWorkerProfile, refFor } from "../cognitive-routing-v2/types.js";
 export const bodyHash = (value) => createHash("sha256").update(canonical(value)).digest("hex");
 export const textRef = (ref) => `${ref}#text`;
 const routingTools = new Set(["freeflow_delegate", "freeflow_return", "freeflow_project", "freeflow_unit"]);
@@ -148,7 +148,15 @@ export class Sources {
     this.ambiguous.clear();
     for (const source of this.byRef.values()) source.active = false;
     const used = new Set(),
-      hashes = messages.map(bodyHash),
+      hashes = messages.map((message) => {
+        const direct = bodyHash(message);
+        if (this.byBody.has(direct) || message?.role !== "toolResult" || !Array.isArray(message.content)) return direct;
+        const last = message.content.at(-1);
+        if (last?.type !== "text") return direct;
+        const original = bodyHash({ ...message, content: message.content.slice(0, -1) });
+        // Freeflow's stable reference decoration does not change the native evidence body.
+        return this.byBody.get(original)?.some((s) => last.text === `[context-ref: ${s.ref}]`) ? original : direct;
+      }),
       remaining = new Map();
     for (const hash of hashes) remaining.set(hash, (remaining.get(hash) ?? 0) + 1);
     const items = messages.map((message, index) => {
@@ -187,13 +195,13 @@ export class Sources {
         code: "source_changed",
         detail: "The captured source changed; reconcile evidence before delivery.",
       };
-    if (source.producer !== "executor")
-      return { ref, code: "source_origin", detail: "Selection requires observed Executor attribution." };
+    if (!isWorkerProfile(source.producer))
+      return { ref, code: "source_origin", detail: "Selection requires observed worker attribution." };
     if (state.exposure.get(original.ref) !== original.hash && state.exposure.get(source.ref) !== source.hash)
       return {
         ref,
         code: "source_unexposed",
-        detail: "The captured body has not been fully exposed to Executor on this ancestry.",
+        detail: "The captured body has not been fully exposed to a worker on this ancestry.",
       };
     return undefined;
   }

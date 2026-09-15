@@ -20,7 +20,7 @@ host session enablement -> personal override -> repository value -> built-in def
 
 Configurations containing the removed `defaultMode`, `interactionContract`, or `skills` keys are invalid. An invalid existing local config fails closed instead of silently inheriting shared settings. Session state cannot bypass missing or invalid repository activation.
 
-Pi and PiFlow `/freeflow settings` edit personal overrides; `/freeflow settings session` edits temporary enablement and optional-context overrides; `/freeflow settings repo` edits shared configuration. On a qualified native Pi host, session settings also expose complete Cognitive Routing profile-pair overrides that do not mutate either config file, take precedence over personal and repository profiles, and can inherit or reset independently. The current Freeflow PiFlow Cognitive Routing adapter is explicitly unavailable.
+Pi and PiFlow `/freeflow settings` edit personal overrides; `/freeflow settings session` edits temporary enablement and optional-context overrides; `/freeflow settings repo` edits shared configuration. On a qualified native Pi host, session settings also expose complete overrides for Cognitive Routing profiles enabled in that session that do not mutate either config file, take precedence over personal and repository profiles, and can inherit or reset independently. The current Freeflow PiFlow Cognitive Routing adapter is explicitly unavailable.
 
 ## Interaction Lifecycle
 
@@ -83,15 +83,16 @@ Interaction Lifecycle
 └─ Workflow Feedback Loop
    ├─ establishes authority, owner, and slice
    └─ Cognitive Routing — automatic control only, when available
-      ├─ Coordinator interprets direction and saves one assignment
-      ├─ Executor performs the assignment and returns its actual report
-      ├─ Coordinator assesses the report and eligible evidence
-      │  ├─ continues or replaces a quiescent outstanding assignment
-      │  └─ closes the supported unit
-      └─ Action Selection bounds uncertain environment interactions
+      ├─ Coordinator selects the responsible worker for the next result
+      │  ├─ Helper: ordinary support, preparation, checks, and settled mechanics
+      │  └─ Executor: substantive or consequential results
+      ├─ Coordinator compares acceptance with actual evidence
+      │  ├─ continue, change worker, or explicitly replace an assignment within an open unit
+      │  └─ close the supported unit through freeflow_unit
+      └─ Action Selection bounds environment interactions
 ```
 
-Automatic Cognitive Routing transfers compute, not ownership: Coordinator interprets user direction, preserves the authority envelope, directs the current assignment, and assesses its result; Executor works within that assignment and returns an actual report with limitations. A saved return ends ordinary Executor work for that assignment but does not accept or close the unit. Manual Cognitive Routing control runs the ordinary unsplit Workflow. Late user input reaching a prepared Executor request requires an interrupted return before further task tools. Projection, when enabled, selects eligible Executor evidence for Coordinator and preserves the assessment obligation through compaction until disposition, with explicit suspension for newer attention. These operations do not change user authority or make an internal handback the user-facing endpoint.
+Manual control runs the ordinary unsplit Workflow for the held profile. Automatic Coordinator owns user-facing judgment and places work by delegation mode: Coordinator implements in `helper`, Executor-only delegates environment work to Executor, and `both` uses Helper by default while commissioning Executor for substantive or consequential results. Only Coordinator delegates one worker at a time; `both` requires an explicit worker choice. A unit may contain sequential assignments to different workers, but preparation and follow-up are optional routes. A saved report ends the assigned worker's task permission without accepting the unit or closing a Slice. Explicit retry preserves the saved report, and replacement preserves prior effects; routing does not add a second Workflow or model-authored boundary ledger. Attached recovery lets Coordinator request missing evidence while preserving the returned assignment, original report, selection, and assessment; the assignment's recorded worker receives only bounded selection/exact-read work and returns a distinct supplement. Unsettled recovery must complete or be cancelled before `assess` resumes the assessment. Late user input reaching a prepared worker request requires an interrupted return before task tools. With projection enabled, Helper and Executor share ordinary active history while Coordinator receives selected worker evidence with original producer attribution; compaction retains the last observed delivered-user basis rather than treating stored-but-undelivered history as new input. Under automatic control, Coordinator must assess a supported Slice result and explicitly direct completed Track Work closure; Manual follows ordinary Workflow and Track Work instead. These operations do not change user authority or make an internal handback the user-facing endpoint.
 
 ### Workflow ownership and composition
 
@@ -100,8 +101,9 @@ Workflow Feedback Loop
 └─ current owner
    ├─ Discuss ↔ Track Work for direction and durable state
    ├─ Cognitive Routing places compute without changing the owner
-   │  ├─ Coordinator directs and assesses under automatic control
-   │  └─ Executor executes the current owner's contract
+   │  ├─ Coordinator directs, assesses, and implements in helper mode
+   │  ├─ Helper normally handles supporting assignments when enabled
+   │  └─ Executor handles substantive or consequential assignments
    ├─ Execute Work supplies execution methods
    ├─ Verify Work establishes factual support
    ├─ Review Work / Artifact supply judgment when applicable

@@ -1,7 +1,11 @@
 export const ROUTING_ENTRY = "freeflow-routing-v2";
 export const ROUTING_MESSAGE = "freeflow-routing-v2-state";
-export const PROFILES = ["coordinator", "executor"];
+export const WORKER_PROFILES = ["helper", "executor"];
+export const PROFILES = ["coordinator", ...WORKER_PROFILES];
+export const DELEGATION_MODES = ["executor", "helper", "both"];
 export const EFFORTS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+export const isWorkerProfile = (value) => WORKER_PROFILES.includes(value);
+export const workersForDelegation = (mode) => (mode === "both" ? WORKER_PROFILES : [mode]);
 export class RoutingError extends Error {
   code;
   problems;

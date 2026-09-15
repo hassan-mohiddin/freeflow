@@ -252,22 +252,28 @@ test("new routing tools and projection state follow the configured contract", as
         delegate.parameters.oneOf.map((branch) => branch.properties.operation.enum[0]),
         ["assign", "replace"],
       );
+      assert.deepEqual(delegate.parameters.properties.worker.enum, ["helper", "executor"]);
+      assert.equal(
+        delegate.parameters.oneOf.every((branch) => !branch.required.includes("worker")),
+        true,
+      );
       assert.deepEqual(
         returning.parameters.oneOf.map((branch) => branch.properties.operation.enum[0]),
         ["submit", "supplement", "retry"],
       );
-      assert.equal(loaded.activeToolNames().includes("freeflow_project"), scenario.exposesProjection);
+      assert.equal(loaded.activeToolNames().includes("freeflow_project"), true);
 
       const providerContext = await loaded.handlers.get("context")({ messages: [] }, ctx);
+      assert.match(providerContext.messages[0].content, /Delegation: `executor`/);
       assert.match(providerContext.messages[0].content, new RegExp("Projection: `" + scenario.expectedMode + "`"));
 
       await loaded.commands.find((command) => command.name === "freeflow").definition.handler("profile executor", ctx);
       const manualContext = await loaded.handlers.get("context")({ messages: [] }, ctx);
       assert.match(
-        manualContext.messages[0].content,
+        manualContext.messages.findLast((message) => message.customType === "freeflow-runtime-state").content,
         new RegExp("Projection: `" + (scenario.projection ? "manual-bypass" : "disabled") + "`"),
       );
-      assert.equal(loaded.activeToolNames().includes("freeflow_project"), false);
+      assert.equal(loaded.activeToolNames().includes("freeflow_project"), true);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -372,9 +378,9 @@ test("PiFlow keeps Cognitive Routing unavailable while exposing its configuratio
     const ctx = context(cwd);
     await handlers.get("session_start")({ type: "session_start" }, ctx);
     assert.match(ctx.statuses.at(-1).value, /cognitive blocked ·/);
-    assert.ok(!activeToolNames().some((name) => name.startsWith("freeflow_delegate") || name === "freeflow_return"));
+    assert.ok(activeToolNames().includes("freeflow_delegate"));
     const before = await handlers.get("before_agent_start")({ systemPrompt: "base" }, ctx);
-    assert.doesNotMatch(before.systemPrompt, /Cognitive Routing/);
+    assert.match(before.systemPrompt, /guidance is dormant/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -408,12 +414,186 @@ test("normal Pi settings expose active Cognitive Routing configuration", async (
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
       const rootText = renderText(component);
-      assert.match(rootText, /Cognitive Routing\s+enabled \(4\) active/);
+      assert.match(rootText, /Cognitive Routing\s+enabled \(6\) active/);
       assert.doesNotMatch(rootText, /PiFlow only/);
       return undefined;
     };
 
     await freeflowCommand.definition.handler("settings", settingsCtx);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi settings persist delegation mode without rewriting complete presets", async () => {
+  const initial = {
+    cognitiveRouting: {
+      enabled: true,
+      profiles: {
+        coordinator: { provider: "test", model: "model-a", thinking: "low" },
+        helper: { provider: "test", model: "model-b", thinking: "high" },
+        executor: { provider: "test", model: "model-b", thinking: "max" },
+      },
+    },
+  };
+  const cwd = await configuredRepo(initial);
+  try {
+    const { commands } = loadExtension(freeflowExtension, null, {
+      appendEntry() {},
+      async setModel() {
+        return true;
+      },
+      setThinkingLevel() {},
+    });
+    const command = commands.find((candidate) => candidate.name === "freeflow");
+    const settingsCtx = context(cwd);
+    settingsCtx.isIdle = () => true;
+    settingsCtx.modelRegistry = cognitiveRoutingModelRegistry();
+    settingsCtx.ui.custom = async (factory) => {
+      let result;
+      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+        result = value;
+      });
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      await component.waitForWrites();
+      component.handleInput("\u001b");
+      component.handleInput("\u001b");
+      return result;
+    };
+    await command.definition.handler("settings repo", settingsCtx);
+    const saved = JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8"));
+    assert.equal(saved.cognitiveRouting.delegation, "both");
+    assert.deepEqual(saved.cognitiveRouting.profiles, initial.cognitiveRouting.profiles);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("personal delegation override and inherit preserve repository mode and other local presets", async () => {
+  const repository = {
+    cognitiveRouting: {
+      enabled: true,
+      delegation: "helper",
+      profiles: {
+        coordinator: { provider: "test", model: "model-a", thinking: "low" },
+        helper: { provider: "test", model: "model-b", thinking: "high" },
+        executor: { provider: "test", model: "model-b", thinking: "max" },
+      },
+    },
+  };
+  const local = {
+    contextVirtualization: true,
+    cognitiveRouting: {
+      profiles: {
+        helper: { provider: "test", model: "model-b", thinking: "medium" },
+      },
+    },
+  };
+  const cwd = await configuredRepo(repository);
+  const repositoryPath = join(cwd, ".freeflow/config.json");
+  const localPath = join(cwd, ".freeflow/local.json");
+  await writeFile(localPath, JSON.stringify(local, null, 2), "utf8");
+  try {
+    const { commands, pi } = loadExtension(freeflowExtension, null, {
+      appendEntry() {},
+      async setModel() {
+        return true;
+      },
+      setThinkingLevel() {},
+    });
+    const command = commands.find((candidate) => candidate.name === "freeflow");
+    const settingsCtx = context(cwd);
+    settingsCtx.isIdle = () => true;
+    settingsCtx.modelRegistry = cognitiveRoutingModelRegistry();
+
+    const chooseDelegation = async (direction, commit = true) => {
+      settingsCtx.ui.custom = async (factory) => {
+        let result;
+        const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+          result = value;
+        });
+        component.handleInput("\u001b[B");
+        component.handleInput("\r");
+        component.handleInput("\u001b[B");
+        component.handleInput("\r");
+        component.handleInput(direction);
+        component.handleInput(commit ? "\r" : "\u001b");
+        if (commit) await component.waitForWrites();
+        component.handleInput("\u001b");
+        component.handleInput("\u001b");
+        return result;
+      };
+      await command.definition.handler("settings", settingsCtx);
+    };
+
+    await chooseDelegation("\u001b[B");
+    let saved = JSON.parse(await readFile(localPath, "utf8"));
+    assert.equal(saved.cognitiveRouting.delegation, "executor");
+    assert.deepEqual(saved.cognitiveRouting.profiles, local.cognitiveRouting.profiles);
+    assert.deepEqual(JSON.parse(await readFile(repositoryPath, "utf8")), repository);
+    assert.equal((await readCapabilityState(cwd, settingsCtx, pi.host)).cognitiveRouting.delegation, "executor");
+
+    await chooseDelegation("\u001b[A");
+    saved = JSON.parse(await readFile(localPath, "utf8"));
+    assert.equal(saved.cognitiveRouting.delegation, undefined);
+    assert.deepEqual(saved.cognitiveRouting.profiles, local.cognitiveRouting.profiles);
+    assert.equal((await readCapabilityState(cwd, settingsCtx, pi.host)).cognitiveRouting.delegation, "helper");
+
+    const beforeCancel = await readFile(localPath, "utf8");
+    await chooseDelegation("\u001b[B", false);
+    assert.equal(await readFile(localPath, "utf8"), beforeCancel);
+    assert.deepEqual(JSON.parse(await readFile(repositoryPath, "utf8")), repository);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("both mode session settings expose Helper and both existing profile presets", async () => {
+  const cwd = await configuredRepo({
+    cognitiveRouting: {
+      enabled: true,
+      delegation: "both",
+      profiles: {
+        coordinator: { provider: "test", model: "model-a", thinking: "low" },
+        helper: { provider: "test", model: "model-b", thinking: "high" },
+        executor: { provider: "test", model: "model-b", thinking: "max" },
+      },
+    },
+  });
+  try {
+    const { commands } = loadExtension(freeflowExtension, null, {
+      appendEntry() {},
+      async setModel() {
+        return true;
+      },
+      setThinkingLevel() {},
+    });
+    const command = commands.find((candidate) => candidate.name === "freeflow");
+    const settingsCtx = context(cwd);
+    settingsCtx.isIdle = () => true;
+    settingsCtx.modelRegistry = cognitiveRoutingModelRegistry();
+    settingsCtx.ui.custom = async (factory) => {
+      let result;
+      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+        result = value;
+      });
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      const presets = component.render(180).join("\n");
+      assert.match(presets, /Coordinator preset/);
+      assert.match(presets, /Helper preset/);
+      assert.match(presets, /Executor preset/);
+      result = { changed: false };
+      return result;
+    };
+    await command.definition.handler("settings session", settingsCtx);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -534,7 +714,8 @@ test("Pi describes the mode-free Freeflow argument surface and manual profile co
   ]);
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("profile "), [
     { value: "profile coordinator", label: "coordinator", description: "Hold Coordinator manually" },
-    { value: "profile executor", label: "executor", description: "Hold Executor manually" },
+    { value: "profile helper", label: "helper", description: "Hold Helper manually when enabled" },
+    { value: "profile executor", label: "executor", description: "Hold Executor manually when enabled" },
     { value: "profile auto", label: "auto", description: "Return to automatic Coordinator reconciliation" },
     { value: "profile history", label: "history", description: "Read routing observations" },
   ]);
@@ -552,11 +733,13 @@ test("Pi exposes 24 base skills without TDD, a mode skill, or compatibility alia
   try {
     const { handlers, commands, sentMessages, sentMessageOptions } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    const skillNames = resources.skillPaths.map((path) => {
-      const match = path.match(/[\\/]skills[\\/]([^\\/]+)\/SKILL\.md$/);
-      assert.ok(match, `unexpected skill path: ${path}`);
-      return match[1];
-    });
+    const skillNames = resources.skillPaths
+      .filter((path) => path.includes("/skills/"))
+      .map((path) => {
+        const match = path.match(/[\\/]skills[\\/]([^\\/]+)\/SKILL\.md$/);
+        assert.ok(match, `unexpected skill path: ${path}`);
+        return match[1];
+      });
     assert.equal(skillNames.length, 24);
     assert.ok(skillNames.includes("workflow"));
     assert.ok(!skillNames.includes("tdd"));
@@ -602,10 +785,11 @@ test("Pi keeps Freeflow inactive until repository activation exists", async () =
   try {
     const { handlers } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 1);
-    assert.match(resources.skillPaths[0], /setup-freeflow\/SKILL\.md$/);
+    assert.equal(resources.skillPaths.length, 27);
+    assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
     const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, context(cwd));
-    assert.equal(result.systemPrompt, "base prompt");
+    assert.ok(result.systemPrompt.startsWith("base prompt\n\n"));
+    assert.match(result.systemPrompt, /guidance is dormant/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -630,10 +814,11 @@ test("Pi treats invalid configuration as inactive", async () => {
   try {
     const { handlers, commands } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 1);
-    assert.match(resources.skillPaths[0], /setup-freeflow\/SKILL\.md$/);
+    assert.equal(resources.skillPaths.length, 27);
+    assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
     const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, context(cwd));
-    assert.equal(result.systemPrompt, "base prompt");
+    assert.ok(result.systemPrompt.startsWith("base prompt\n\n"));
+    assert.match(result.systemPrompt, /guidance is dormant/);
     const freeflowCommand = commands.find((command) => command.name === "freeflow");
     const statusCtx = context(cwd);
     await freeflowCommand.definition.handler("status", statusCtx);
@@ -728,8 +913,8 @@ test("Pi fails closed when an existing local override is invalid", async () => {
     assert.equal(state.enabled, false);
     const { handlers } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 1);
-    assert.match(resources.skillPaths[0], /setup-freeflow\/SKILL\.md$/);
+    assert.equal(resources.skillPaths.length, 27);
+    assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -748,22 +933,23 @@ test("Pi local enablement overrides the repository master switch", async () => {
   }
 });
 
-test("Pi master Freeflow toggle suppresses core prompts, skills, and capabilities", async () => {
+test("Pi master Freeflow toggle makes features inactive while preserving their reference surface", async () => {
   const cwd = await configuredRepo({ enabled: false });
   try {
     const { handlers, activeToolNames } = loadExtension();
     const ctx = context(cwd);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.deepEqual(resources.skillPaths, []);
+    assert.equal(resources.skillPaths.length, 27);
     const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.equal(result.systemPrompt, "base prompt");
+    assert.ok(result.systemPrompt.startsWith("base prompt\n\n"));
+    assert.match(result.systemPrompt, /guidance is dormant/);
     const providerContext = await handlers.get("context")({ messages: [] }, ctx);
     assert.match(lastRuntimeState(providerContext.messages).content, /Freeflow: inactive/);
     assert.doesNotMatch(
       lastRuntimeState(providerContext.messages).content,
       /Default mode|Active mode|Interaction Contract|Skills/,
     );
-    assert.ok(!activeToolNames().includes("freeflow_context"));
+    assert.ok(activeToolNames().includes("freeflow_context"));
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -917,7 +1103,7 @@ test("Pi Cognitive Routing settings preserve complete presets", async () => {
       });
       component.handleInput("\u001b[B");
       component.handleInput("\r");
-      component.handleInput("\u001b[B");
+      for (let index = 0; index < 4; index++) component.handleInput("\u001b[B");
       component.handleInput("\r");
       component.handleInput("\r");
       for (let index = 0; index < 1; index++) component.handleInput("\u001b[B");
@@ -1061,6 +1247,76 @@ test("Pi session preset wizard applies a complete pair without writing config", 
   }
 });
 
+test("both mode session wizard applies a Helper pair without writing config", async () => {
+  const cwd = await configuredRepo({
+    cognitiveRouting: {
+      enabled: true,
+      delegation: "both",
+      profiles: {
+        coordinator: { provider: "test", model: "model-a", thinking: "low" },
+        helper: { provider: "test", model: "model-b", thinking: "high" },
+        executor: { provider: "test", model: "model-b", thinking: "max" },
+      },
+    },
+  });
+  try {
+    const configPath = join(cwd, ".freeflow/config.json");
+    const originalConfig = await readFile(configPath, "utf8");
+    const calls = [];
+    const controller = {
+      state: () => ({ effective: true, controlMode: "automatic", activeProfile: "coordinator" }),
+      sessionProfileOverrides: () => ({}),
+      setManualProfile: async () => ({ status: "active" }),
+      setAutomaticControl: async () => ({ status: "automatic" }),
+      setSessionProfileOverride: async (profile, override) => {
+        calls.push({ profile, override });
+        return { status: "stored" };
+      },
+      resetSessionProfileOverrides: async () => ({ status: "unchanged" }),
+    };
+    const settingsCtx = context(cwd);
+    settingsCtx.isIdle = () => true;
+    settingsCtx.modelRegistry = cognitiveRoutingModelRegistry();
+    const pi = {
+      host: {},
+      appendEntry() {},
+      async setModel() {
+        return true;
+      },
+      setThinkingLevel() {},
+    };
+    settingsCtx.ui.custom = async (factory) => {
+      let finish;
+      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+        finish = value;
+      });
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\r");
+      await component.waitForWrites();
+      finish?.({ changed: false });
+      return { changed: false };
+    };
+    await handleFreeflowCommand("settings session", settingsCtx, async () => {}, pi, controller);
+    assert.deepEqual(calls, [
+      {
+        profile: "helper",
+        override: { provider: "test", modelId: "model-a", thinking: "low" },
+      },
+    ]);
+    assert.equal(await readFile(configPath, "utf8"), originalConfig);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("session reset preserves core overrides when routing reset fails", async () => {
   const cwd = await configuredRepo({
     cognitiveRouting: {
@@ -1141,7 +1397,7 @@ test("Pi filters persisted Workflow and Cognitive Routing bootstrap entries with
   }
 });
 
-test("Pi preserves the host prompt when a mandatory prompt file is missing", async () => {
+test("Pi preserves the host prompt prefix and dormant contract when a mandatory file is missing", async () => {
   const root = await mkdtemp(join(tmpdir(), "freeflow-pi-missing-prompt-"));
   const cwd = await configuredRepo();
   try {
@@ -1155,9 +1411,10 @@ test("Pi preserves the host prompt when a mandatory prompt file is missing", asy
     ).default;
     const { handlers } = loadExtension(extension);
     const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, context(cwd));
-    assert.equal(before.systemPrompt, "base prompt");
+    assert.ok(before.systemPrompt.startsWith("base prompt\n\n"));
+    assert.match(before.systemPrompt, /guidance is dormant/);
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.deepEqual(resources.skillPaths, []);
+    assert.equal(resources.skillPaths.length, 27);
   } finally {
     await rm(cwd, { recursive: true, force: true });
     await rm(root, { recursive: true, force: true });

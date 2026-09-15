@@ -173,7 +173,7 @@ test("provenance covers old sources and complete exchanges, with stable prefixes
   assert.ok(annotations.some((m) => m.content.includes("ctx:unknown | producer: unknown/common")));
   const callIndex = prepared.messages.findIndex((m) => m.role === "assistant" && m.content.some((b) => b.id === "c"));
   assert.equal(prepared.messages[callIndex + 1].toolCallId, "c", "no annotation splits a call/result exchange");
-  assert.match(prepared.messages[callIndex - 1].content, /ctx:result.*producer: executor/);
+  assert.match(prepared.messages[callIndex + 2].content, /ctx:result.*producer: executor/);
   const extended = prepare(state, [...entries, entry("later", "result", assistant("Later observation"))]);
   assert.deepEqual(
     extended.messages.slice(0, prepared.messages.length - 1),

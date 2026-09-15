@@ -1,7 +1,10 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { RequestHistory } from "./runtime/request-history.js";
+import { registerProviderSupport } from "./provider-support/index.js";
 import { RoutingRuntime } from "./cognitive-routing-v2/runtime.js";
+import { workersForDelegation, type Profile } from "./cognitive-routing-v2/types.js";
 import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-routing-v2/tools.js";
 import { ConversationHistoryRuntime } from "./conversation-history/runtime.js";
 import { FreeflowContextRuntime } from "./freeflow-context/runtime.js";
@@ -21,7 +24,8 @@ import {
   readCapabilityState,
   refreshRuntimeContext,
   restoreSessionOverrides,
-  runtimeContext,
+  stableRuntimeContext,
+  STABLE_FREEFLOW_SURFACE,
   filterBootstrapMessage,
   setFreeflowStatus,
   skillPrompt,
@@ -58,7 +62,8 @@ function freeflowCompletions(prefix: string | undefined, routingAvailable: boole
     : query.startsWith("profile ") && routingAvailable
       ? [
           ["profile coordinator", "coordinator", "Hold Coordinator manually"],
-          ["profile executor", "executor", "Hold Executor manually"],
+          ["profile helper", "helper", "Hold Helper manually when enabled"],
+          ["profile executor", "executor", "Hold Executor manually when enabled"],
           ["profile auto", "auto", "Return to automatic Coordinator reconciliation"],
           ["profile history", "history", "Read routing observations"],
         ]
@@ -88,9 +93,11 @@ function freeflowCompletions(prefix: string | undefined, routingAvailable: boole
 }
 
 export default function freeflow(pi: FreeflowAPI) {
+  registerProviderSupport(pi);
   const api = pi as any;
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
   const routing = new RoutingRuntime(api, [packageRoot]);
+  const requestHistory = new RequestHistory(api);
   let capability: any;
   let prompts: any;
   let context: FreeflowContextRuntime | undefined;
@@ -108,7 +115,7 @@ export default function freeflow(pi: FreeflowAPI) {
   async function loadSurface(ctx: any) {
     const generation = surfaceGeneration;
     const next = await readCapabilityState(ctx.cwd, ctx, pi.host);
-    const loaded = await getRuntimeContext(next);
+    const loaded = await getRuntimeContext(STABLE_FREEFLOW_SURFACE);
     if (generation !== surfaceGeneration) throw new Error("Discarded surface preparation for a replaced session.");
     if (!hasUsableMandatoryPrompts(loaded)) {
       for (const key of ["cognitiveRouting", "contextVirtualization", "conversationHistory"])
@@ -156,9 +163,7 @@ export default function freeflow(pi: FreeflowAPI) {
     );
     if (api.getActiveTools && api.setActiveTools) {
       const current = new Set<string>(api.getActiveTools());
-      if (capability?.contextVirtualization?.effective || capability?.conversationHistory?.effective)
-        current.add(CONTEXT_VIRTUALIZATION_TOOL_NAME);
-      else current.delete(CONTEXT_VIRTUALIZATION_TOOL_NAME);
+      current.add(CONTEXT_VIRTUALIZATION_TOOL_NAME);
       const next = [...current];
       if (JSON.stringify(next) !== JSON.stringify(api.getActiveTools())) api.setActiveTools(next);
     }
@@ -185,18 +190,18 @@ export default function freeflow(pi: FreeflowAPI) {
 
   pi.on("resources_discover", async (event, ctx) => {
     const state = capability ?? (await loadSurface(ctx ?? { cwd: (event as any)?.cwd ?? process.cwd() }));
-    if (!state.configured) return { skillPaths: [freeflowSkillPath("setup-freeflow")] };
-    return { skillPaths: state.enabled && hasUsableMandatoryPrompts(prompts) ? freeflowModelSkillPaths(state) : [] };
+    return { skillPaths: freeflowModelSkillPaths(STABLE_FREEFLOW_SURFACE) };
   });
   pi.on("session_start", async (event, ctx) => {
     const generation = ++surfaceGeneration;
+    requestHistory.reset();
     routing.unbind();
     capability = undefined;
     prompts = undefined;
     refreshState = true;
     restoreSessionOverrides(ctx);
     const initial = await readCapabilityState(ctx.cwd, ctx, pi.host);
-    await refreshRuntimeContext(initial);
+    await refreshRuntimeContext(STABLE_FREEFLOW_SURFACE);
     if (generation !== surfaceGeneration) return;
     await loadSurface(ctx);
     context = new FreeflowContextRuntime(ctx);
@@ -213,6 +218,7 @@ export default function freeflow(pi: FreeflowAPI) {
   });
   pi.on("session_shutdown", async () => {
     surfaceGeneration++;
+    requestHistory.reset();
     routing.unbind();
     context = undefined;
     virtualization = undefined;
@@ -225,7 +231,7 @@ export default function freeflow(pi: FreeflowAPI) {
     await update(ctx);
     await routing.beforeRun(ctx);
     status(ctx);
-    const text = runtimeContext(prompts, capability);
+    const text = stableRuntimeContext(prompts);
     return { systemPrompt: text ? `${event.systemPrompt}\n\n${text}` : event.systemPrompt };
   });
   pi.on("message_end", (event) => routing.messageEnd((event as any).message));
@@ -271,9 +277,19 @@ export default function freeflow(pi: FreeflowAPI) {
       projectionFailure: routing.state().projectionFailure,
     });
     refreshState = false;
-    return { messages: await routing.context(ctx, messages) };
+    const routed = await routing.context(ctx, messages);
+    const projected = virtualization?.decorate(routed) ?? routed;
+    const state = routing.state();
+    if (projected.some((message) => message.details?.routingRequestBlocked === true)) return { messages: projected };
+    const view = routing.projectionEnabled && state.activeProfile === "coordinator" ? "coordinator" : "ordinary";
+    return {
+      messages: await requestHistory.assemble(projected, view, ctx, (assembled) =>
+        routing.budgetNotice(assembled, ctx),
+      ),
+    };
   });
   const restore = async (ctx: any, navigation = true) => {
+    requestHistory.reset();
     restoreSessionOverrides(ctx);
     refreshState = true;
     if (virtualization) {
@@ -298,13 +314,16 @@ export default function freeflow(pi: FreeflowAPI) {
     typeof api.setThinkingLevel === "function"
   ) {
     pi.registerShortcut("ctrl+shift+r", {
-      description: "Cycle the Coordinator/Executor manual hold",
+      description: "Cycle enabled Cognitive Routing manual holds",
       handler: async (ctx) => {
         if (!ctx.isIdle()) {
           ctx.ui.notify("Wait for Pi to become idle before changing control.", "warning");
           return;
         }
-        const target = routing.state().activeProfile === "coordinator" ? "executor" : "coordinator";
+        const state = routing.state();
+        const profiles: Profile[] = ["coordinator", ...workersForDelegation(state.delegation)];
+        const current = profiles.indexOf(state.activeProfile ?? "coordinator");
+        const target = profiles[(current + 1) % profiles.length]!;
         ctx.ui.notify(JSON.stringify(await routing.setManualProfile(target)), "info");
         await update(ctx);
       },

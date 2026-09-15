@@ -185,7 +185,7 @@ test("native projection omits an unselected sibling body but preserves its excha
       assert.equal(body.model, "gpt-4o");
       assert.match(JSON.stringify(body), /EXACT_EVIDENCE_BODY_81/);
       assert.doesNotMatch(JSON.stringify(body), /UNSELECTED_PRIVATE_BODY_93/);
-      assert.match(JSON.stringify(body), /Executor result omitted/);
+      assert.match(JSON.stringify(body), /Worker result omitted/);
       return [];
     },
     true,
