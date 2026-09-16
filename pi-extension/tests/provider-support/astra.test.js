@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { AstraAdapter, requestKey } from "../../dist/provider-support/astra/adapter.js";
-import { ENTRY_TYPE } from "../../dist/provider-support/astra/history.js";
+import { ENTRY_TYPE, assemble } from "../../dist/provider-support/astra/history.js";
 
 const model = {
   id: "gpt-6-astra",
@@ -165,8 +165,12 @@ test("selected ancestry, new sessions, model changes and compaction isolate effo
   f.manager.appendModelChange("openai-codex", "gpt-5.6-luna");
   f.manager.appendModelChange(model.provider, model.id);
   const reset = await f.adapter.adapt(request([u("new")], "high"), f.ctx);
-  assert.equal(reset.reasoning.effort, "high");
-  assert.deepEqual(updates(reset), []);
+  assert.equal(reset.reasoning.effort, "low");
+  assert.deepEqual(updates(reset), [{ index: 0, effort: "high" }]);
+  assert.deepEqual(
+    reset.input.filter((x) => x.type !== "configuration_update"),
+    [u("new")],
+  );
   f.adapter.setCompacting(true);
   const summary = request([u("summary")], "low");
   assert.equal(await f.adapter.adapt(summary, f.ctx), summary);
@@ -221,6 +225,77 @@ test("queued request from a replaced session passes through without a native app
   f.adapter.reset();
   assert.equal(await pending, p);
   assert.equal(f.manager.getEntries().length, 0);
+});
+
+for (const returnEffort of ["high", "low"]) {
+  test(`model round trip preserves original Low anchor through ${returnEffort} return and reload`, async () => {
+    const f = fixture();
+    f.manager.appendModelChange(model.provider, model.id);
+    const h = [u("start")];
+    await f.adapter.adapt(request(h, "high"), f.ctx);
+    h.push(a("first"), u("low"));
+    const low = await f.adapter.adapt(request(h), f.ctx);
+    f.manager.appendModelChange(model.provider, "gpt-5.6-luna");
+    const luna = request(h);
+    luna.model = "gpt-5.6-luna";
+    assert.equal(await f.adapter.adapt(luna, { ...f.ctx, model: { ...model, id: luna.model } }), luna);
+    f.manager.appendModelChange(model.provider, model.id);
+    h.push(a("second"), u("return"));
+    const resumed = await new AstraAdapter(f.pi).adapt(request(h, returnEffort), f.ctx);
+    assert.equal(resumed.reasoning.effort, "high");
+    assert.deepEqual(resumed.input.slice(0, low.input.length), low.input);
+    h.push(a("third"), u("low again"));
+    const again = await f.adapter.adapt(request(h), f.ctx);
+    assert.deepEqual(again.input.slice(0, resumed.input.length), resumed.input);
+    assert.equal(updates(again)[0].index, 2);
+  });
+}
+
+test("legacy model-generation records survive a round trip without rewriting persisted metadata", async () => {
+  const root = await mkdtemp(join(tmpdir(), "astra-legacy-"));
+  try {
+    const f = fixture(SessionManager.create(root, root));
+    f.manager.appendMessage({ role: "user", content: "legacy", timestamp: 1 });
+    f.manager.appendMessage({
+      role: "assistant",
+      content: [{ type: "text", text: "legacy" }],
+      api: model.api,
+      provider: model.provider,
+      model: model.id,
+      usage: {
+        input: 1,
+        output: 1,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 2,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: "stop",
+      timestamp: 2,
+    });
+    const oldGeneration = f.manager.appendModelChange(model.provider, model.id);
+    const key = requestKey(request([]), model);
+    const h = [u("legacy")];
+    const first = assemble(request(h, "high"), key, oldGeneration, f.manager.getLeafId(), []);
+    f.manager.appendCustomEntry(ENTRY_TYPE, first.record);
+    h.push(a("one"), u("two"));
+    const second = assemble(request(h), key, oldGeneration, f.manager.getLeafId(), [first.record]);
+    f.manager.appendCustomEntry(ENTRY_TYPE, second.record);
+    const saved = JSON.stringify(f.manager.getEntries());
+    f.manager.appendModelChange(model.provider, "gpt-5.6-luna");
+    f.manager.appendModelChange(model.provider, model.id);
+    const loaded = fixture(SessionManager.open(f.manager.getSessionFile()));
+    const resumed = await loaded.adapter.adapt(request([...h, a("two"), u("three")]), loaded.ctx);
+    assert.equal(resumed.reasoning.effort, "high");
+    assert.deepEqual(resumed.input.slice(0, second.payload.input.length), second.payload.input);
+    assert.equal(JSON.stringify(f.manager.getEntries().slice(0, JSON.parse(saved).length)), saved);
+    const again = fixture(SessionManager.open(loaded.manager.getSessionFile()));
+    const reloaded = await again.adapter.adapt(request([...h, a("two"), u("three"), a("three"), u("four")]), again.ctx);
+    assert.deepEqual(reloaded.input.slice(0, resumed.input.length), resumed.input);
+    assert.equal(JSON.stringify(again.manager.getEntries().slice(0, JSON.parse(saved).length)), saved);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("session reset clears adapter status without changing the next requested effort", async () => {

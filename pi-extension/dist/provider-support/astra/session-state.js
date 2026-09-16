@@ -25,6 +25,21 @@ export class SessionState {
   async records() {
     if (this.fault) throw new Error(this.fault);
     const branch = this.branch();
+    // Model visits are not history replacement. Derive both identities from the
+    // selected native ancestry so old v1 records remain readable without rewriting them.
+    const boundaries = new Map();
+    let epoch = "root",
+      legacy = "root",
+      model;
+    for (const entry of branch) {
+      if (entry.type === "compaction" || entry.type === "branch_summary") epoch = legacy = entry.id;
+      if (entry.type === "model_change") {
+        const next = `${entry.provider}/${entry.modelId}`;
+        if (model !== next) legacy = entry.id;
+        model = next;
+      }
+      boundaries.set(entry.id, { epoch, legacy });
+    }
     const entries = branch.filter((e) => e.type === "custom" && e.customType === ENTRY_TYPE);
     const records = entries.map((e) => {
       const record = parseAttempt(e.data);
@@ -33,7 +48,10 @@ export class SessionState {
         !(this.reader.getHeader?.()?.parentSession && !branch.some((entry) => entry.id === record.basis))
       )
         throw new Error("Astra attempt anchor mismatch");
-      return record;
+      const boundary = boundaries.get(e.id);
+      if (record.generation !== boundary.epoch && record.generation !== boundary.legacy)
+        throw new Error("Astra history generation unavailable");
+      return { ...record, generation: boundary.epoch };
     });
     if (new Set(records.map((r) => r.id)).size !== records.length) throw new Error("Duplicate Astra attempt");
     const parents = new Map();
@@ -72,15 +90,9 @@ export class SessionState {
     return records;
   }
   generation() {
-    let generation = "root",
-      model;
+    let generation = "root";
     for (const entry of this.branch()) {
       if (entry.type === "compaction" || entry.type === "branch_summary") generation = entry.id;
-      if (entry.type === "model_change") {
-        const next = `${entry.provider}/${entry.modelId}`;
-        if (model !== next) generation = entry.id;
-        model = next;
-      }
     }
     return generation;
   }
