@@ -1,26 +1,161 @@
 # Cognitive Routing
 
-Cognitive Routing is an experimental Pi/PiFlow capability for placing compute among a **Coordinator** and enabled **Helper** or **Executor** worker profiles inside one active agent and one canonical session. It optimizes task quality, reasoning continuity, responsiveness and total cost together. It does not create another agent, transfer Workflow ownership, widen authority, or replace verification and review.
+Cognitive Routing places work across configured **Coordinator**, **Helper**, and **Executor** compute profiles inside one active Freeflow agent and one canonical Pi session. It is designed to balance task quality, reasoning continuity, responsiveness, and total cost without creating a second agent, a second Workflow, or a new source of authority.
 
-## Current status and host boundary
+This page is the public operating reference for the current `cognitive-routing-v2` contract. It describes user-visible behavior, configuration, controls, evidence flow, continuity, and failure boundaries. Internal implementation sketches and historical design proposals are not part of this contract.
 
-The current implementation is the `cognitive-routing-v2` source path. Its native Pi entrypoint is wired in the source tree, but it is not a released or installed host integration. Source inspection alone does not prove dispatch. Local SDK and bundled-CLI fixtures exercise native dispatch at captured request boundaries; they do not establish installed-user behavior, universal transport support, or model quality.
+## Current status
 
-The redesigned PiFlow adapter is explicitly unavailable in the current source entrypoint. Installing PiFlow or Freeflow does not make Cognitive Routing available there. PiFlow remains a separate host with its own launch, package, session, and update lifecycle; see [PiFlow integration](../integrations/piflow.md).
+Cognitive Routing is an experimental native-Pi capability.
 
-On a qualified host, routing is effective only when:
+- The native Pi entrypoint is wired in the source tree.
+- Local SDK, bundled-CLI, and deterministic request fixtures exercise named source and request boundaries.
+- Source and fixture evidence do not establish installation into a user's Pi host, universal provider behavior, model quality, or production readiness.
+- The redesigned PiFlow adapter is explicitly unavailable in the current source entrypoint.
+- Cognitive Routing is not delivered to the non-Pi hosts that consume only Freeflow's shared skill surface.
 
-1. Freeflow repository activation is valid and enabled;
-2. Cognitive Routing is enabled in configuration;
-3. Coordinator and every worker required by the selected delegation mode resolve to available, authenticated models with exactly supported thinking levels;
-4. Coordinator differs from each enabled worker; and
-5. the host exposes the model registry, native model/thinking controls, session entries, and session ancestry needed by the adapter.
+Installing Freeflow or writing a valid configuration does not prove that routing is effective. Use `/freeflow status` on the target host and treat an unavailable capability as unavailable rather than impersonating a profile or bypassing its gate.
 
-Missing required profiles, unavailable or unauthenticated required models, unsupported or clamped thinking levels, identical Coordinator/worker pairs, invalid configuration, missing host APIs, or a deliberately unavailable adapter leave routing unavailable rather than partially active. Helper and Executor may share a pair. A well-formed unused worker preset may be unavailable without blocking the selected mode, but malformed configuration remains invalid.
+## What Cognitive Routing changes
+
+Cognitive Routing changes **where the next computation runs**. It does not change:
+
+- the user's authority over goals and consequential decisions;
+- the current Workflow owner or work agreement;
+- repository instructions, host permissions, or tool safety;
+- the evidence required to support a result;
+- the distinction between verification, self-review, and independent review;
+- Track Work task or Slice state;
+- commit, integration, release, or publication authorization.
+
+Coordinator, Helper, and Executor are sequential compute profiles, not independent agents. They share one canonical session and ordinary history according to the active projection policy. They do not share private reasoning. Switching profiles does not create independent review.
+
+## Mental model
+
+### Terms
+
+| Term | Meaning |
+| --- | --- |
+| **Profile** | A configured provider, model, and thinking-level combination used as Coordinator, Helper, or Executor. |
+| **Coordinator** | Owns user-facing interpretation, governing direction, delegation, assessment, and acceptance. |
+| **Worker** | Helper or Executor while carrying one accepted assignment. |
+| **Helper** | Normal delegate for supporting work when enabled. |
+| **Executor** | Producer commissioned for substantive or consequential work. |
+| **Delegation mode** | Which workers are enabled for automatic routing: `helper`, `executor`, or `both`. |
+| **Automatic control** | Coordinator receives new user direction and assigns bounded worker responsibilities. |
+| **Manual control** | One selected profile runs the ordinary unsplit Workflow until the user releases the hold. |
+| **Unit** | One runtime outcome under Coordinator judgment. A unit may contain multiple sequential assignments. |
+| **Assignment** | One saved contract for one worker. Only one worker assignment executes at a time. |
+| **Handoff** | A saved assignment request, worker report, recovery request, or recovery supplement plus its transfer state. |
+| **Assessment** | Coordinator judgment of a returned result and its supporting evidence. |
+| **Projection** | Optional worker-to-Coordinator evidence selection. It is not a separate transcript or privacy boundary. |
+| **Recovery** | A bounded lookup attached to an existing returned assessment; it is not a new implementation assignment. |
+
+### Ownership nesting
+
+```text
+Interaction Lifecycle
+└─ Workflow Feedback Loop
+   ├─ establishes authority, current owner, and required result
+   └─ Cognitive Routing — when effective
+      ├─ Coordinator selects the next producer
+      │  ├─ Helper: support, preparation, checks, settled mechanics
+      │  └─ Executor: substantive or consequential results
+      ├─ selected worker executes one bounded assignment
+      └─ Coordinator assesses evidence and continues, corrects, or closes
+```
+
+Cognitive Routing operates inside the current Workflow owner. A routing unit is not a Track Work Slice. Closing a unit does not complete a Slice, task, commit, release, or launch.
+
+## Profiles and responsibilities
+
+### Coordinator
+
+Coordinator:
+
+- interprets new user direction and material changes;
+- keeps outcome, scope, constraints, and return boundary coherent;
+- chooses Helper or Executor according to responsibility and consequence;
+- writes a usable assignment contract without pre-solving the worker's work;
+- assesses returned claims against actual evidence;
+- decides whether to continue, correct, replace, defer, cancel, or close;
+- authorizes completed Track Work Slice closure only after supported assessment under automatic control.
+
+Outside Helper-only mode, Coordinator normally delegates separable environment work. Direct Coordinator action in automatic `executor` or `both` mode is limited to routing controls, required instructional reads, effective view controls, explicitly user-selected Coordinator artifact authorship, or genuinely inseparable judgment and action under the documented ACT_BOUNDED exception.
+
+### Helper
+
+Helper is the normal delegate for supporting work when enabled. Suitable responsibilities include:
+
+- bounded repository or source investigation;
+- context gathering and discussion preparation;
+- routine checks and validation;
+- Working Record maintenance;
+- separable follow-through;
+- small, settled, low-risk mechanical changes with direct checks.
+
+Helper is not restricted to copying facts. It may reason, compare evidence, choose local mechanics, and correct understood local errors within its assignment. It should return rather than turn a finding into unassigned substantive work.
+
+### Executor
+
+Executor owns commissioned substantive or consequential results, including:
+
+- meaningful implementation;
+- substantial artifacts;
+- difficult diagnosis;
+- broad audits or reviews;
+- unfamiliar or branching execution;
+- small changes whose failure consequences require substantive ownership.
+
+Executor investigates and implements resourcefully within the assignment, runs applicable checks, self-reviews the result, and returns actual work, evidence, and limitations. A completed Executor report is not Coordinator acceptance.
+
+### Placement rule
+
+Choose a worker by the responsibility being transferred and the consequence of failure—not by file type, line count, read/write status, tool count, model identity, or price alone.
+
+## Delegation modes
+
+The JSON values remain `helper`, `executor`, and `both`. The labels below describe intended positioning, not measured guarantees.
+
+| Mode | Positioning | Automatic behavior | Best fit | Main tradeoff |
+| --- | --- | --- | --- | --- |
+| `helper` | **Quality-first — maximum performance and output-quality potential** | Coordinator implements the authorized outcome and delegates bounded support to Helper. | Work where a strong Coordinator should retain the main implementation while receiving preparation, checks, and follow-through. | Additional support can improve continuity and quality, but also adds model work and latency. |
+| `executor` | **Savings-first — maximum savings potential** | Coordinator directs and assesses; delegated environment work goes to Executor. | Work where an appropriately selected Executor preset can perform most execution at lower cost while preserving the required quality. | A preset that causes rework or weak evidence can cost more overall. |
+| `both` | **Balanced** | Helper is the normal support delegate; Executor is commissioned for substantive or consequential work. Coordinator explicitly selects each assignment's worker. | Mixed tasks needing economical support plus substantive execution ownership. | Total cost depends on actual assignment mix; implementation-heavy work often trends toward the Executor preset. |
+
+“Maximum” describes the intended optimization direction and potential. Freeflow does not guarantee that one mode is universally faster, cheaper, or higher quality than a solo agent or another mode. Evaluate total cost per supported outcome, including retries, handoffs, recovery, corrections, latency, and user intervention.
+
+## Activation requirements
+
+Routing becomes effective only when all required conditions hold:
+
+1. Freeflow repository activation is valid and enabled.
+2. Cognitive Routing is enabled.
+3. The native host exposes the required model registry, authentication lookup, model/thinking controls, session entries, and ancestry APIs.
+4. Coordinator and every worker enabled by the selected delegation mode have complete profiles.
+5. Every required model is available and authenticated.
+6. Every requested thinking level is supported exactly; silent clamping is rejected.
+7. Coordinator differs from each enabled worker as a complete provider/model/thinking pair.
+
+Helper and Executor may use the same pair. A well-formed unavailable profile that is not required by the selected mode does not block that mode. Malformed configuration still fails closed.
+
+Common unavailable states include:
+
+- missing or invalid repository activation;
+- routing disabled;
+- missing profile;
+- unavailable or unauthenticated model;
+- unsupported thinking level;
+- identical Coordinator and enabled-worker pairs;
+- unsupported host APIs;
+- incompatible capability composition;
+- deliberately unavailable PiFlow adapter.
+
+The runtime reports the reason rather than partially enabling routing or silently choosing another model.
 
 ## Configuration
 
-Cognitive Routing uses this schema under `.freeflow/config.json` or `.freeflow/local.json`:
+Configure Cognitive Routing in shared `.freeflow/config.json` or personal `.freeflow/local.json`:
 
 ```json
 {
@@ -30,121 +165,72 @@ Cognitive Routing uses this schema under `.freeflow/config.json` or `.freeflow/l
     "projection": false,
     "profiles": {
       "coordinator": {
-        "provider": "openai",
-        "model": "gpt-4o",
-        "thinking": "off"
+        "provider": "provider-id",
+        "model": "coordinator-model-id",
+        "thinking": "high"
       },
       "helper": {
-        "provider": "openai",
-        "model": "gpt-4.1-mini",
-        "thinking": "off"
+        "provider": "provider-id",
+        "model": "helper-model-id",
+        "thinking": "low"
       },
       "executor": {
-        "provider": "openai",
-        "model": "gpt-4.1",
-        "thinking": "off"
+        "provider": "provider-id",
+        "model": "executor-model-id",
+        "thinking": "medium"
       }
     }
   }
 }
 ```
 
-`delegation` accepts `executor`, `helper`, or `both` and defaults to `executor` when omitted. `projection` defaults to `false`. The accepted profile names are `coordinator`, `helper`, and `executor`; each configured profile requires `provider`, `model`, and a supported `thinking` value: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Coordinator must differ from each worker enabled by the selected mode, while Helper and Executor may share a pair.
+### Fields
 
-Repository configuration is the shared baseline. A valid personal layer can override `enabled`, `delegation`, `projection`, or complete profiles; omitted values inherit from the repository layer. Use `/freeflow settings` or `/freeflow settings local` for personal settings and `/freeflow settings repo` for shared settings. There is no session delegation-mode override. On a qualified native Pi host, `/freeflow settings session` can temporarily override complete profiles enabled for that session without changing the config files. Effective profile precedence is session override, then personal/local profile, then repository profile. Session overrides are complete `{ provider, model, thinking }` pairs, support an explicit inherit choice, are stored in native routing session state, and reset with the session override reset control. Changing the active profile applies while idle; changing an inactive profile is stored for its next transition. Direct native `/model` or thinking changes remain external changes rather than rewriting session presets.
-
-Only the v2 `enabled`/`delegation`/`projection`/`profiles` shape is supported. Older experimental routing names or fields such as `standard`, `reasoning`, `contextProjection`, and `sessionStart` are intentionally unsupported. There is no migration: rewrite the configuration manually using the schema above. Invalid layers fail closed; the runtime does not guess or partially apply them.
-
-## Coordinator and workers
-
-Coordinator, Helper, and Executor are sequential compute profiles, not independent agents or independent reviewers:
-
-- **Coordinator** interprets user direction, preserves the authority envelope, places work, selects or requests evidence, assesses worker results, closes the unit, and handles substantive user-facing interaction.
-- **Helper** is the normal delegate for supporting work when enabled: investigation, preparation, checks, task-memory maintenance, separable follow-up, and small settled mechanical changes.
-- **Executor** is commissioned for substantive or consequential results: meaningful implementation, substantial artifacts, difficult diagnosis, audits/reviews, unfamiliar or branching execution, and small changes with material consequences.
-
-Worker placement follows responsibility and consequence—not read/write status, file type, line count, tool count, price, or model identity:
-
-| Mode | Coordinator | Worker placement |
+| Field | Meaning | Default |
 | --- | --- | --- |
-| `executor` | Directs and assesses | Executor handles delegated environment work |
-| `helper` | Implements the authorized outcome | Helper handles bounded supporting work |
-| `both` | Directs, chooses, and assesses each assignment | Helper is the default delegate; Executor is commissioned for substantive or consequential results |
+| `enabled` | Enables Cognitive Routing when the host and required profiles qualify. | `false` |
+| `delegation` | Enables `helper`, `executor`, or `both`. | `executor` |
+| `projection` | Enables explicit worker-evidence selection for Coordinator. | `false` |
+| `profiles.<name>.provider` | Provider identifier known to Pi. | Required for configured profile |
+| `profiles.<name>.model` | Model identifier known to that provider. | Required for configured profile |
+| `profiles.<name>.thinking` | Exact thinking level: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. | Required for configured profile |
 
-Only Coordinator delegates, and only one worker assignment runs at a time. In `both`, Coordinator explicitly chooses `helper` or `executor` for each assignment. A unit may contain sequential assignments to different workers, but preparation and follow-up are optional routes rather than mandatory phases. Worker choice follows the required result, not a fixed task taxonomy.
-
-All profiles share the canonical session, accepted intent, Workflow owner, authority, ordinary worker history, and evidence requirements. They do not share private reasoning. A profile switch is not independent review, and a report is not acceptance of the unit.
-
-## Automatic and manual control
-
-Under automatic control, Coordinator owns new user direction; input reaching an already prepared worker request requires an interrupted return before task tools. The assignment loop is adaptive:
+### Configuration precedence
 
 ```text
-Workflow establishes authority, owner, and unit
--> Coordinator establishes the next useful result and selects the responsible producer
--> Helper or Executor executes its bounded assignment and returns its actual report
--> Coordinator receives the saved report and eligible evidence
--> Coordinator assesses, continues, changes producer, or closes the unit
+session profile override
+-> personal .freeflow/local.json
+-> shared .freeflow/config.json
+-> built-in default
 ```
 
-In `helper`, Coordinator implements the authorized outcome directly and may delegate bounded supporting results to Helper. Direct Coordinator implementation uses the producing skill's ordinary verification and self-review; it does not require a synthetic assignment or ACT_BOUNDED. In `executor`, delegated environment work goes to Executor. In `both`, Helper is the normal supporting delegate and Executor is commissioned when the assigned result is substantive or consequential. A worker return ends that worker's assignment work; under automatic control it does not accept or close the unit or a Track Work Slice.
+Personal configuration may override `enabled`, `delegation`, `projection`, or complete profiles. Omitted values inherit from the repository layer.
 
-`freeflow_delegate` creates or replaces a worker assignment. `freeflow_return` saves or retries that worker's handoff. Returning ends ordinary worker work for the assignment; it does not accept or close the unit. The accepted delegate handoff remains authoritative for return, retry, resume, and attached recovery even if configuration later selects another mode. An unavailable required worker blocks continuation rather than falling back to another profile.
+Session settings may override complete profiles enabled for that session. They do not mutate personal or repository files and can be reset or set to inherit. Delegation mode has no session override.
 
-While routing-call arguments stream, collapsed receipts keep the current contract or report visible. Limitations and assignment-replacement reasons remain available in the expanded view without obscuring the live prose.
+Changing the active profile's session preset applies at an idle boundary. Changing an inactive profile stores the preset for its next transition. Direct native `/model` or thinking changes are external changes; they do not rewrite a Freeflow preset and may require reconciliation or release automatic control.
 
-Manual control keeps one selected profile active and runs the ordinary unsplit Workflow. Automatic handoffs and projection are bypassed. Manual control does not grant extra authority or make the held profile a separate agent.
+### Unsupported legacy configuration
 
-## Routing tools
+Only the v2 `enabled` / `delegation` / `projection` / `profiles` shape is accepted. Earlier experimental names or fields such as `standard`, `reasoning`, `contextProjection`, and `sessionStart` are not migrated. Rewrite legacy configuration manually.
 
-Routing operations follow capability, control, assigned-worker, and assignment-phase gates. Shared `freeflow_unit` inspection remains read-only; visibility of an operation is not authority to use it, and ordinary task tools are not made safe or authorized by these controls.
+## Settings and user controls
 
-| Tool | Operations | Purpose and boundary |
-| --- | --- | --- |
-| `freeflow_delegate` | `assign`, `replace` | Coordinator saves a worker contract. `both` requires `worker: "helper"` or `worker: "executor"`; a sole enabled worker may be inferred. `replace` requires an explicit reason and a quiescent outstanding assignment; prior effects and evidence remain. |
-| `freeflow_return` | `submit`, `supplement`, `retry` | The assigned worker saves or deliberately revises an assignment report, returns a distinct recovery supplement, or retries the current saved handoff without resubmitting text. `submit` and `supplement` take `report`, `outcome` (`completed`, `partial`, or `blocked`), and optional `limitations`. A handoff must be last in its batch. |
-| `freeflow_unit` | `inspect`, `assess`, `recover`, `cancel-recovery`, `close` | Shared `inspect` defaults to current state; `view: "history"` returns paginated work refs, and `view: "detail", ref` reads saved communication. Coordinator can request bounded evidence recovery against the current returned assessment, cancel only that recovery, restore a suspended assessment, or close the unit. Cancelled/deferred closure disposes an attached recovery; accepted closure cannot conceal one. Closure preserves ordinary communication and does not complete a Track Work task or authorize delivery. |
-| `freeflow_project` | `inspect`, `add`, `remove` | The assigned worker inspects selection and candidates with `scope: "selected"`, `"assignment"` (default), `"active"`, or `"history"`. `add` selects exposed refs; `remove` requires a reason. Plain `ctx:<entry>` refs retain whole-native meaning; `ctx:<entry>#text` selects exact visible assistant text. |
+### Settings scopes
 
-Saved work detail returns `reportRef` and, when available, `previousReportRef`; pass either to detail inspection to read that exact report revision. Assignment and selection metadata describe their current recorded state separately from that historical report.
+| Command | Scope |
+| --- | --- |
+| `/freeflow settings` | Opens personal overrides for the current repository. |
+| `/freeflow settings local` | Same personal/local settings scope. |
+| `/freeflow settings repo` | Edits shared `.freeflow/config.json`. |
+| `/freeflow settings session` | Edits temporary session enablement/context settings and complete enabled-profile overrides. |
+| `/freeflow status` | Shows effective Freeflow and capability state. |
 
-Return and retry receipts include the accepted report, outcome, limitations, revision, `assignmentRef`, and `reportRef`. Coordinator assesses the communication already received; a return, retry, or unit closure does not require an inspection call. Missing required report communication is restored with its metadata. Detail inspection accepts the returned work refs unchanged; a bare handoff ID produces an invalid-ref error, distinct from unavailable work on the current ancestry.
+Settings that change routing profiles require an idle host. Repository or personal changes may require `/reload` before every surface reflects the new effective state.
 
-Project inspection returns 30 candidates per page; work history defaults to 20 assignments (`limit` 1–100). Pass returned cursors unchanged. Pagination uses a frozen snapshot while new entries append; changed scope/ancestry, reload, or an expired cached snapshot requires restarting without a cursor. Normal assignment/active/history candidate scopes show only sources that pass selection and known representation checks; selected scope retains saved selections and their diagnostics even when those checks fail. Counts and historical-availability hints follow the filtered candidates. Evidence inspection contains source refs, kind, producer, assignment, tool name and status, without source-content previews in either the model receipt or expanded UI. Empty selected counts do not mean no candidates exist.
+### Profile controls
 
-`selectedCount`, `scopeCounts`, and `pageCounts` distinguish selected evidence, all candidates in the inspection scope, and candidates returned on this page. `otherAssignments` counts previously exposed task-evidence candidates in other assignments on the applicable ancestry and supplies a history hint when present. These counts describe the inspection snapshot, not model understanding.
-
-The harness owns operation and event identities. Do not create a parallel ledger or supply IDs. Projection changes, a saved return, and one final handoff may share a bounded batch; do not mix a handoff with new ordinary task work.
-
-## Context projection
-
-Projection is disabled by default. With `projection: false`, all enabled profiles receive ordinary Pi active context and `freeflow_project` is unavailable. With projection enabled, Helper and Executor share ordinary active context while Coordinator receives common context plus selected worker evidence. Selection is evidence selection, not an isolated context window or a pin against compaction. All profiles retain ordinary admitted communication across close, replacement and return. Current contracts/status are distinguished from history, with additional runtime copies avoided when the exact accepted occurrence is already visible. Native call arguments and receipts can themselves contain the same value; canonical messages are not rewritten just to remove that protocol duplication.
-
-A selected item must be an actually exposed, completed source on the active native ancestry. Selecting a call envelope does not select its result body. Native dependencies and the complete relevant call exchange are retained automatically; unselected result bodies may appear only as an omission marker, never as the original result. A valid selection remains saved when another item fails, while unresolved, stale, adverse, or target-representation problems remain explicit. A readiness result is not semantic proof of the report or exact provider capacity. Candidate eligibility checks source identity/exposure; known item target limitations are reported separately. Exact visible assistant text has its own labelled representation and does not claim transfer of signed reasoning. Failed/aborted whole assistant sources and unsupported images retain explicit target limits.
-
-New selections and normal candidate discovery require observed Helper or Executor attribution and task evidence. Routing receipts and whole assistant messages containing routing calls are excluded; substantive visible assistant text remains selectable through its `#text` ref. Existing routing-source selections retain their original delivery semantics and remain inspectable in selected scope until explicitly withdrawn. Routing communication and required native dependencies are preserved independently of this discovery filter.
-
-Every identified source represented in any profile's request carries stable provenance beside its complete message/exchange, including older sources and visible-text representations. Labels distinguish producer, assignment where known, and full versus structural representation. Unknown/common history is labelled without inventing a routing profile. These request-local annotations do not rewrite canonical bodies or split native call/result exchanges; evidence summaries also include source producer and assignment. Attribution is separate from eligibility, so Coordinator sources can be labelled in worker context without being selectable.
-
-The current successful handoff and required native dependencies are retained automatically. On a corrected retry, the earlier substantive saved report must be restored when it is needed; a short retry explanation is not a replacement for that report. Saved reports and selections are persisted routing state independent of whether a later profile switch succeeds.
-
-The new routing projection is not qualified in composition with the legacy Context Virtualization or Conversation History transforms. Do not enable either legacy capability together with `projection: true`. Context Virtualization and Conversation History remain independently available as standalone capabilities, and may still be used when Cognitive Routing projection is disabled.
-
-## Persistence, uncertainty, and recovery
-
-Routing state is recorded as native `freeflow-routing-v2` session entries. The runtime validates each transition before appending, reads the native append back from the live branch, and replays the selected ancestry for state. Native entries preserve assignments, reports, selections, assessments, controls, minimal automatic-profile authorship, and transition evidence across switching and reloads; they are not a second task-memory store.
-
-When existing or uncertain routing state must be reconciled, the runtime reads the persisted native session file through a strict read-only snapshot: bounded regular-file read, complete UTF-8/JSONL parsing, session identity and ancestry checks, and live-branch comparison. The reader decodes JSONL incrementally rather than retaining a full byte/string copy alongside the parsed tree. Resource limits are 512 MiB per file, 128 MiB per entry, and 250,000 JSONL records including the header. Oversize and integrity failures are explicit. These are processing limits, not a guarantee of equal latency or memory use for every history within them. It does not patch the host session file, claim `fsync`, or promise exactly-once behavior. If persisted readback cannot establish an attempted event or the snapshot is divergent, routing blocks with explicit uncertainty. Do not repeat a potentially completed effect blindly.
-
-Native compaction may remove user messages from the active view. Routing retains the last observed delivered-user basis: stored-but-undelivered user entries do not trigger attention, while genuinely delivered new input does. Compaction followed by explicit `/freeflow resume` therefore preserves an outstanding assignment without treating the compaction artifact as new direction.
-
-New user attention suspends the assessment obligation while retaining ordinary admitted history, including accepted reports and still-active selected evidence. It pauses forced restoration of compacted assessment sources; the notice is not delivery of missing bodies. Once the saved assessment is again the intended activity, use `freeflow_unit` with `{"operation":"assess"}`; readiness and reservation checks must succeed before it resumes. A failed restoration leaves the assessment suspended.
-
-After context loss, ancestry change, native model/thinking override, or an uncertain transition, recover Runtime State, the current unit and assignment, saved report, partial effects, selected evidence, and stopping conditions before task work. `/freeflow resume` is an explicit idle-host recovery command; it does not bypass reconciliation or authorize a new outcome.
-
-## Controls and history
-
-While the qualified host is idle, use:
+While the qualified host is idle:
 
 ```text
 /freeflow profile coordinator
@@ -152,35 +238,448 @@ While the qualified host is idle, use:
 /freeflow profile executor
 /freeflow profile auto
 /freeflow profile history
+/freeflow profile history diagnostics
 /freeflow resume
 ```
 
-`coordinator`, `helper`, and `executor` create manual holds when that profile is available. `auto` releases the hold and reconciles automatic Coordinator control. `history` displays work-oriented history; `/freeflow profile history diagnostics` shows the raw event tail. `/freeflow resume` resumes the saved routing responsibility after the runtime can establish the persisted state. Profile changes and resume are unavailable while the host is running.
+- `coordinator`, `helper`, and `executor` create a manual hold when that profile is enabled.
+- `auto` releases a manual hold and returns to automatic Coordinator reconciliation.
+- `history` shows work-oriented routing history.
+- `history diagnostics` shows the raw routing-event tail.
+- `resume` reconciles and resumes the one supported saved responsibility; it does not create a new assignment or release manual control.
 
-The current source also wires `Ctrl+Shift+R` to cycle Coordinator and the workers enabled by the delegation mode and `Ctrl+Shift+A` to release the hold to automatic Coordinator control when the native controls are present. This source wiring is not proof that an installed or stock host dispatches the behavior.
+When native controls are available:
 
-## Recovery policy boundary
+- `Ctrl+Shift+R` cycles Coordinator and workers enabled by the delegation mode.
+- `Ctrl+Shift+A` releases a manual hold to automatic Coordinator control.
 
-Environment access follows the delegation mode: Coordinator performs implementation reads and checks directly in `helper`, while implementation work is delegated in `executor` and `both`. When Coordinator lacks material evidence for a returned assessment, `recover` attaches a bounded lookup to the same unit, assignment, original report, selection, and assessment. The assignment's recorded worker—not the worker selected for new work—performs that recovery. It may select previously exposed evidence and use native `read` only for exact task-file paths named by Coordinator or packaged Freeflow skill/reference Markdown, then returns a distinct `supplement`. It cannot resume ordinary task work, edit, search broadly, run commands/tests, or read after saving the supplement.
+Source wiring for a command or shortcut is not proof that an installed host dispatches it.
 
-A completed supplement returns to the original assessment after evidence readiness is revalidated. Partial or blocked communication may arrive while the full evidence obligation stays suspended. Fresh user attention does not settle an attached recovery. While recovery remains requested, reading, or returning, `assess` is rejected; Coordinator must receive the supplement or use `cancel-recovery` first. Cancellation and cancelled/deferred unit closure preserve the original report, selections, recovery history, and explicit disposition.
+## Automatic and manual control
 
-Recovery events extend the existing v2 native session stream. Current code reads earlier supported v2 history, but older binaries may reject sessions containing the new event kinds; no downgrade migration or silent event omission is promised.
+### Automatic control
 
-## Request planning
+Automatic control starts and returns through Coordinator. Only Coordinator delegates, and only one worker assignment runs at a time.
 
-The local estimate counts text, schemas and message framing and uses an approximate image allowance instead of treating base64 bytes as text tokens. Provider output allocation and final image tokenization remain provider-dependent. Prior assistant usage counts are cleared only in request-local copies, so Pi estimates the newly assembled view instead of using another profile’s prior usage to restrict output; canonical usage and billing history remain unchanged. Large estimates generate a planning warning; they do not alone block an otherwise representable request. Unknown model capacity and actual source/representation gaps still block. Native provider overflow/retry/compaction remains Pi-owned; Freeflow never silently truncates required evidence or starts a competing retry loop.
+```text
+Coordinator accepts new direction
+-> Coordinator defines the next useful result
+-> Coordinator assigns Helper or Executor
+-> assigned worker executes and checks the bounded responsibility
+-> worker saves a report and prepares evidence
+-> Coordinator assesses the actual result
+-> Coordinator continues, corrects, replaces, defers, cancels, or closes
+```
+
+In `both`, every assignment identifies its worker. A unit may use Helper for preparation, Executor for production, and Helper for follow-through, but these are available routes rather than required phases.
+
+New user input always belongs to Coordinator. If it reaches a worker request that was already prepared, the worker stops ordinary task tools and returns available partial state instead of adopting the new direction.
+
+### Manual control
+
+A manual hold runs the ordinary unsplit Workflow in the selected profile. Automatic delegation and projection are bypassed. The held profile is not restricted to its automatic worker role, and the hold remains until the user releases it.
+
+Manual control does not grant additional task authority or erase outstanding routing history. Returning to automatic control first reconciles current direction, saved responsibility, and partial effects.
+
+## Unit and assignment lifecycle
+
+A unit represents one outcome under Coordinator judgment. It may contain several assignments.
+
+```text
+no open unit
+  -> assign: create unit U1 and assignment A1
+  -> worker executes A1
+  -> submit: save A1 report and return to Coordinator
+  -> Coordinator assesses
+       -> assign: create A2 in U1
+       -> replace: supersede a quiescent outstanding assignment
+       -> close: accept, cancel, or defer U1
+```
+
+### Assignment contract
+
+A useful contract communicates:
+
+- the required result and why it matters;
+- established facts and remaining questions;
+- scope, permitted effects, constraints, and local freedom;
+- evidence needed for assessment;
+- the return condition, including changed premises that require stopping.
+
+A preparation assignment names what must be learned rather than guessing the patch. A production assignment transfers enough direction to act safely without turning the worker into a transcription step.
+
+### Return and assessment
+
+A worker report records actual work, evidence, limitations, changed assumptions, and partial effects. Once the report is saved, ordinary task work for that assignment ends. The worker may correct the handoff, but it cannot continue implementation merely because delivery is blocked.
+
+Coordinator compares material completion claims with:
+
+- the accepted property;
+- the actual observer;
+- decisive assertions;
+- candidate identity;
+- returned result and limitations.
+
+A passing check or confident report cannot fill a missing evidence link. Coordinator may accept supported work, request focused evidence, commission correction, revise an invalidated approach, or return a user-owned choice.
+
+### Replacement
+
+`replace` supersedes a quiescent outstanding assignment in the same unit. It requires an explicit reason and preserves prior effects, evidence, and uncertainty. It is not a way to discard a returned report or disguise a changed objective.
+
+### Closure
+
+Coordinator may close a unit as accepted, cancelled, or deferred when its preconditions hold. Closure preserves communication and history. It does not:
+
+- complete a Track Work Slice or task;
+- create a commit;
+- integrate a branch;
+- authorize migration, release, or launch;
+- delete admitted context.
+
+## Routing tools
+
+The model-facing routing tools have distinct responsibilities:
+
+| Tool | Operations | Responsibility |
+| --- | --- | --- |
+| `freeflow_delegate` | `assign`, `replace` | Coordinator saves a worker contract and requests execution. In `both`, Coordinator supplies `worker`. |
+| `freeflow_return` | `submit`, `supplement`, `retry` | The recorded worker saves or revises its report, returns a separate recovery supplement, or retries the unchanged saved handoff. |
+| `freeflow_unit` | `inspect`, `assess`, `recover`, `cancel-recovery`, `close` | Reads saved work, manages attached recovery/assessment, or records Coordinator disposition. |
+| `freeflow_project` | `inspect`, `add`, `remove` | Manages worker task-evidence selection when projection is effective. |
+
+Routing tools are controls, not permission grants. The runtime checks capability state, control mode, assigned worker, current phase, and operation shape even if a definition remains visible.
+
+The harness owns unit, assignment, handoff, and event identities. Models use returned work refs for inspection; they do not maintain a parallel ledger or invent IDs.
+
+## Context projection
+
+Projection is optional and disabled by default.
+
+### Projection off
+
+With `projection: false`:
+
+- enabled profiles receive Pi's ordinary active context;
+- routing still records responsibility and saved communication;
+- `freeflow_project` is unavailable;
+- a report can return without an evidence-selection ceremony.
+
+### Projection on
+
+With `projection: true` under automatic control:
+
+- Helper and Executor share ordinary active worker history;
+- Coordinator receives common context plus selected worker evidence;
+- accepted reports and required native dependencies are retained automatically;
+- omitted worker result bodies are not copied merely to create a cache match;
+- selections and saved reports survive profile changes and reload according to current ancestry.
+
+Projection is evidence selection, not an isolated security boundary, transcript deletion, or proof that a model understood the evidence.
+
+The current routing projection is not qualified together with legacy Context Virtualization or Conversation History transforms. Keep those capabilities standalone, or keep routing projection disabled. This limit does not describe the planned Context Control v2 architecture, which remains in development and is unavailable in this release.
+
+## Evidence selection
+
+### Select known refs directly
+
+When a worker already has a visible, eligible evidence ref, it may add that ref directly. Inspection is for a concrete question about identity, eligibility, representation, history, or current selection state—not a mandatory step before every addition.
+
+### Ref meanings
+
+- `ctx:<entry>` selects the whole supported native occurrence.
+- `ctx:<entry>#text` selects exact visible assistant text as a distinct representation.
+
+Visible text excludes private reasoning and native tool calls. It does not claim to transfer signed reasoning.
+
+A tool-call envelope and its result are different sources. Select the result body for claims about what execution produced. Selecting a call proves only the captured call content, not the result of every sibling operation.
+
+### Candidate scopes
+
+Inspection can use:
+
+- `assignment`: candidates from the current assignment;
+- `active`: currently active eligible evidence;
+- `history`: eligible exposed evidence from applicable history;
+- `selected`: saved selections, including their diagnostics.
+
+Normal candidate scopes show usable sources with identity metadata, not source-content previews. Selected scope preserves saved problem diagnostics. Pagination cursors bind to the inspection snapshot; changed ancestry, reload, or expiration requires a fresh inspection.
+
+### Native dependencies and representations
+
+For selected tool evidence, the runtime retains the native assistant call envelope and required call/result structure. Unselected sibling result bodies may appear as explicit omission placeholders. They are not fabricated evidence.
+
+Every represented source carries stable producer provenance when known. Unknown/common history remains unknown rather than being assigned a profile from model identity or marker-shaped text.
+
+### Readiness and limitations
+
+A ref can be valid while delivery is not ready. Preparation also checks:
+
+- canonical source availability and identity;
+- required native exchanges;
+- receiver configuration;
+- target representation support;
+- whole-request planning constraints.
+
+Unsupported images, failed/aborted assistant sources, changed or missing bodies, and unqualified target conversion remain explicit limitations. Valid selections survive another item's failure. Do not remove adverse or unresolved evidence merely to obtain a clean receipt.
+
+`ready: true` means the runtime found no known preparation problem at that boundary. It does not prove:
+
+- semantic support for the worker's claim;
+- current external truth;
+- provider receipt or understanding;
+- an actual cache hit;
+- model quality;
+- Coordinator acceptance.
+
+## Attached evidence recovery
+
+Attached recovery lets Coordinator request missing assessment evidence without replacing the assignment, revising the original report, or reopening ordinary worker execution.
+
+```text
+worker report returned
+-> Coordinator identifies a material evidence gap
+-> freeflow_unit recover saves a bounded request
+-> the assignment's recorded worker receives recovery scope
+-> worker selects exposed evidence and/or reads exact admitted files
+-> freeflow_return supplement saves separate communication
+-> Coordinator receives the supplement or cancels recovery
+-> freeflow_unit assess may resume the original assessment
+```
+
+### Recovery scope
+
+Recovery may use:
+
+- previously exposed eligible evidence;
+- exact task-file paths named by Coordinator;
+- packaged Freeflow skill or reference Markdown required for the recovery method;
+- routing and recovery-return controls.
+
+It may not use broad search, edits, tests, builds, scripts, arbitrary wrappers, or resumed task work. Reads stop after the supplement is saved.
+
+The worker recorded on the original assignment owns recovery even if configuration later selects another mode. If that worker is unavailable, continuation blocks rather than silently substituting another profile.
+
+### Supplement and cancellation
+
+A supplement is separate from the original report and preserves its identity, revision, outcome, and selection. Partial or blocked supplements may communicate an evidence gap without pretending full evidence arrived.
+
+Fresh user attention does not settle recovery. Coordinator must receive the supplement or use `cancel-recovery` before resuming the assessment. Cancellation preserves the original report, recovery history, selections, and reason.
+
+## Persistence and continuity
+
+Routing state is stored in native `freeflow-routing-v2` session entries on the selected ancestry. It includes assignments, reports, selections, assessments, controls, profile overrides, recovery, and transition evidence. It is routing continuity—not a second task-memory system.
+
+### Append and reconciliation boundary
+
+The runtime validates transitions, appends native events, and checks readback. When state is existing or uncertain, it can use a strict read-only persisted-session snapshot with session identity, ancestry, UTF-8/JSONL, size, and divergence checks.
+
+Current processing limits are:
+
+- 512 MiB per session file;
+- 128 MiB per entry;
+- 250,000 JSONL records including the header.
+
+These are accepted processing bounds, not latency or memory guarantees. Freeflow does not patch session files, claim `fsync`, or promise exactly-once arbitrary tool execution. An uncertain append or divergent snapshot blocks affected automatic work rather than permitting blind repetition.
+
+### Compaction
+
+Native compaction may remove active user or evidence bodies while canonical session history remains. Routing preserves the last observed delivered-user basis so stored-but-undelivered entries do not look like new input.
+
+A configured outstanding assignment can be resumed explicitly after compaction. Required selected evidence may be recovered from known canonical sources when available. Compaction is not task completion, permission renewal, or automatic restoration of every historical body.
+
+### New user attention
+
+New user attention belongs to Coordinator. During a returned assessment, it suspends the forced assessment-evidence obligation while retaining ordinary admitted history, the saved report, selections, and current responsibility. A later `assess` operation must re-establish readiness before the heavy assessment view resumes.
+
+During outstanding worker execution, new direction requires the worker to stop ordinary task tools and return available partial state.
+
+### Reload, navigation, and external changes
+
+After reload, tree navigation, context loss, external model/thinking change, or uncertain transition, recover:
+
+- current Runtime State;
+- control mode and active profile;
+- unit and assignment;
+- saved report and partial effects;
+- selected evidence and limitations;
+- stopping condition.
+
+Navigation replays only the selected ancestry and never re-executes historical environment tools. Manual holds survive navigation according to recorded/current control. External model or thinking changes are reconciled as external state, not silently written into presets.
+
+## Request planning and cache-aware reuse
+
+Cognitive Routing plans the entire receiving request rather than counting only selected bodies. The local estimate includes text, tool schemas, message framing, routing communication, selected dependencies, and an approximate image allowance. Output allocation and final image tokenization remain provider-dependent.
+
+A large estimate produces a planning warning; it does not alone prove provider overflow. Unknown model capacity and concrete source/representation gaps can still block preparation. Pi retains ownership of provider overflow, retry, and native compaction. Freeflow does not silently truncate required evidence or start a competing retry loop.
+
+### Prefix stability
+
+Freeflow keeps stable reference definitions and tool schemas while execution gates determine availability. RequestHistory preserves compatible Freeflow-generated runtime-state and communication occurrences at their historical positions and appends changed current state at the tail. It never imports excluded evidence merely to preserve an older prefix.
+
+Compatible prefixes may shorten or restart when:
+
+- model, provider, API, or unsupported effort route changes;
+- earlier projected content changes;
+- evidence is archived, restored, selected, or withdrawn;
+- tool schemas or instructions change;
+- compaction or navigation changes active history;
+- capability configuration changes permitted content.
+
+A matching local prefix is not proof of a provider cache hit.
+
+### Astra cache-aware effort history
+
+For qualified `gpt-6-astra` requests on supported OpenAI Responses or OpenAI-Codex Responses routes, Freeflow can keep the original request-level effort as a stable baseline and insert trusted `configuration_update` items at validated historical positions when effective effort changes.
+
+The adapter:
+
+- accepts only supported model, provider/API, endpoint, effort, storage, and request shapes;
+- fingerprints the request envelope and complete serialized input prefix;
+- records compact native attempt metadata rather than opaque reasoning bodies;
+- isolates incompatible ancestry, compaction, branch-summary, and request-envelope changes;
+- preserves compatible effort history across supported model round trips and reloads;
+- returns the untouched request with its native requested effort when adaptation is unavailable or uncertain.
+
+Local tests cover request construction, Low/High transitions, branch and reload behavior, compaction boundaries, append uncertainty, and prefix preservation. They do not establish a server cache hit, a billing discount, provider-wide support, model quality, or a universal cost saving.
+
+## Practical mode recipes
+
+### Quality-sensitive implementation
+
+Use Helper-only when Coordinator should retain the main implementation and a second profile can gather context, run checks, or maintain task memory.
+
+```json
+{
+  "cognitiveRouting": {
+    "enabled": true,
+    "delegation": "helper",
+    "projection": false,
+    "profiles": {
+      "coordinator": { "provider": "provider-id", "model": "primary-model", "thinking": "high" },
+      "helper": { "provider": "provider-id", "model": "support-model", "thinking": "medium" }
+    }
+  }
+}
+```
+
+### Cost-sensitive delegated execution
+
+Use Executor-only when an appropriate Executor preset can own most environment work while Coordinator retains direction and assessment.
+
+```json
+{
+  "cognitiveRouting": {
+    "enabled": true,
+    "delegation": "executor",
+    "projection": true,
+    "profiles": {
+      "coordinator": { "provider": "provider-id", "model": "coordinator-model", "thinking": "high" },
+      "executor": { "provider": "provider-id", "model": "executor-model", "thinking": "low" }
+    }
+  }
+}
+```
+
+Projection may reduce Coordinator's worker-history view, but evidence selection and handoff overhead are part of total cost. Start with projection off when debugging context behavior.
+
+### Mixed support and substantive execution
+
+Use Both when the task benefits from economical preparation/follow-through and a separate substantive producer.
+
+```json
+{
+  "cognitiveRouting": {
+    "enabled": true,
+    "delegation": "both",
+    "projection": true,
+    "profiles": {
+      "coordinator": { "provider": "provider-id", "model": "coordinator-model", "thinking": "high" },
+      "helper": { "provider": "provider-id", "model": "helper-model", "thinking": "low" },
+      "executor": { "provider": "provider-id", "model": "executor-model", "thinking": "medium" }
+    }
+  }
+}
+```
+
+Both mode does not require a Helper preparation assignment before every Executor assignment. Coordinator uses the producer that matches the next coherent result.
+
+### Debugging with a manual hold
+
+Use a manual hold to run an unsplit Workflow in one enabled profile while inspecting behavior. Release it with `/freeflow profile auto`. A manual hold is not an alternative automatic policy and does not erase the saved assignment.
+
+## Troubleshooting
+
+### Routing reports unavailable
+
+Check `/freeflow status`, then verify:
+
+- valid `.freeflow/config.json` activation;
+- `cognitiveRouting.enabled: true`;
+- selected delegation mode;
+- complete required profiles;
+- exact supported thinking levels;
+- model authentication;
+- distinct Coordinator/worker pairs;
+- native Pi rather than the currently unsupported PiFlow adapter;
+- no incompatible routing-projection and legacy-context-capability combination.
+
+### A configured worker is not used
+
+A worker must be enabled by the delegation mode. In `both`, Coordinator must choose the worker for each assignment. An unused well-formed profile does not force itself into the route.
+
+### A session preset does not apply
+
+Wait until Pi is idle. Confirm the profile is enabled for the session. Active-profile changes apply immediately at the supported idle boundary; inactive-profile changes are stored for the next transition. Use session reset/inherit to return to personal or repository configuration.
+
+### A worker returned but work did not close
+
+This is expected. Worker return saves communication and ends worker task permission. Coordinator must assess the result and explicitly close the routing unit or continue with another assignment. Track Work Slice closure is separate.
+
+### Evidence is missing from Coordinator
+
+Determine whether projection is enabled. Confirm the worker selected the result body, not only the call envelope. Inspect selected-scope diagnostics for unavailable, target-representation, or ancestry problems. Recover existing evidence through the attached recovery path rather than rerunning historical effects.
+
+### Resume is blocked
+
+`/freeflow resume` works only at an idle, supported, reconciled boundary. It does not release a manual hold, consume unseen new input, guess an assignment after ancestry changes, or override an unavailable recorded worker.
+
+### Cache status does not show savings
+
+Request-prefix preservation and Astra effort-history adaptation are compatibility mechanisms. Provider expiry, eviction, minimum cacheable length, pricing, and actual cache hits remain provider-owned. Use provider-reported usage at a qualified boundary before making billing claims.
+
+## Planned Context Control boundary
+
+Context Control v2 is planned source-aware residency and bounded recovery work. It is not implemented or available in this release, and this page does not define its future commands or settings.
+
+The existing Context Virtualization and Conversation History capabilities remain separate legacy capabilities. They must not be described as Context Control v2, and their transforms are not qualified together with Cognitive Routing projection.
 
 ## Evidence boundary
 
-Documentation and deterministic source/fixture checks can establish the v2 schema, native-entry mechanics, gating, projection rules, and failure contracts at their observed boundaries. They do not establish stock-Pi installation, PiFlow availability, universal model behavior, optimal routing, or production readiness. Pi-specific cache-prefix and provider-reuse limits are documented in [Pi cache reuse boundaries](../integrations/pi.md#cache-reuse-boundaries).
+Current deterministic source and fixture checks can establish:
+
+- configuration and gating rules;
+- assignment, report, assessment, recovery, and closure transitions;
+- native-entry persistence and named recovery boundaries;
+- projection structure and source identity;
+- request construction and Astra adapter behavior at their observed boundaries.
+
+They do not establish:
+
+- stock-Pi or PiFlow installed-host behavior;
+- universal provider or transport compatibility;
+- independent review from a profile switch;
+- optimal worker selection;
+- provider cache hits or billing savings;
+- universal model quality;
+- production readiness.
 
 ## Related documentation
 
 - [Capabilities](README.md)
-- [System prompt architecture](../prompt-architecture.md)
 - [Workflow](../workflow.md)
+- [System prompt architecture](../prompt-architecture.md)
 - [Pi integration](../integrations/pi.md)
 - [PiFlow integration](../integrations/piflow.md)
+- [Getting Started](../getting-started.md)
 - [Architecture](../architecture.md)
 - [Release evidence](../release-evidence/README.md)

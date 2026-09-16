@@ -176,6 +176,7 @@ Activation is not proof of runtime delivery. Setup reports delivery as `confirme
 
 ## What to read next
 
+- [Using Freeflow Effectively](using-freeflow.md)
 - [Pi integration](integrations/pi.md)
 - [PiFlow integration](integrations/piflow.md)
 - [Architecture](architecture.md)

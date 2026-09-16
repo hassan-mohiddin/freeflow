@@ -2,12 +2,12 @@
 
 These docs describe the public plugin behavior.
 
-Start with [Getting Started](getting-started.md) for host-specific installation, repository activation, and first-session verification. This page is a navigation hub; detailed behavior belongs in the linked integration, architecture, workflow, routing, and release pages.
+Start with [Getting Started](getting-started.md) for host-specific installation, repository activation, and first-session verification. Then use [Using Freeflow Effectively](using-freeflow.md) for prompting, skills, Workflow, Track Work, settings, Cognitive Routing modes, and practical operating guidance. This page is a navigation hub; detailed behavior belongs in the linked user, integration, architecture, workflow, routing, and release pages.
 
 ## Integrations
 
 - [Pi integration](integrations/pi.md): normal Pi installation, activation, capabilities, and native host controls.
-- [PiFlow integration](integrations/piflow.md): separate PiFlow installation, ownership boundaries, and Cognitive Routing.
+- [PiFlow integration](integrations/piflow.md): separate PiFlow installation, ownership boundaries, and current Cognitive Routing unavailability.
 
 ## Capabilities
 
@@ -18,6 +18,7 @@ Start with [Getting Started](getting-started.md) for host-specific installation,
 
 ## Documentation
 
+- [Using Freeflow Effectively](using-freeflow.md): prompt well, choose skills and routing modes, manage Workflow and task memory, configure settings, and interpret evidence/cost limits.
 - [Getting Started](getting-started.md): install, activate, and verify Freeflow on each supported host.
 - [Workflow](workflow.md): the adaptive Workflow, entry points, loops, and the compact workflow map.
 - [Skill routing](skill-routing.md): shipped skills, ownership, sibling routes, and reference dependencies.

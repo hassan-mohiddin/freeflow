@@ -1,10 +1,35 @@
 # Freeflow
 
-**A feedback-based control system for coding agents.**
+**Memory. Context. Compute. A feedback-based workflow layer for coding agents.**
 
-Freeflow helps coding agents do consequential work without turning every task into a rigid ceremony. It gives the agent a clear Interaction Contract, adaptive Workflow, focused methods, durable task memory, and controlled delivery boundaries.
+Freeflow helps coding agents do consequential work without turning every task into a rigid ceremony. It gives the active agent a clear Interaction Contract, one adaptive Workflow, durable task memory, focused engineering methods, and controlled delivery boundaries.
 
-The host agent still owns tools, permissions, and execution. Freeflow helps it choose the right next action—and know when to stop, ask, verify, or hand work back.
+The host agent still owns tools, permissions, and execution. Freeflow helps it understand the request, choose the right next action, preserve continuity, use evidence honestly, place compute deliberately, and know when to continue, ask, defer, or stop.
+
+- **New to Freeflow?** Read [Using Freeflow Effectively](plugin-docs/using-freeflow.md).
+- **Installing it?** Start with [Getting Started](plugin-docs/getting-started.md).
+- **Using Cognitive Routing?** Read the detailed [Cognitive Routing reference](plugin-docs/capabilities/cognitive-routing.md).
+
+## Memory · Context · Compute
+
+| Pillar | What it provides | Status |
+| --- | --- | --- |
+| **Memory — Track Work** | Working Records that preserve current context, one Current Slice, decisions, evidence limits, future work, and the next useful action. | Available through the shared skill surface. |
+| **Context — Context Control** | Planned source-aware residency, representation, and bounded recovery for admitted context. | Planned/in development; unavailable in this release. |
+| **Compute — Cognitive Routing** | Coordinator, Helper, and Executor profiles in one agent/session, with mode-aware work placement and optional worker-evidence projection. | Experimental native-Pi capability; current PiFlow adapter unavailable. |
+
+Current optional **Context Virtualization** and **Conversation History** capabilities remain separate legacy Pi/PiFlow features. They are not Context Control v2, and their transforms are not qualified together with Cognitive Routing projection.
+
+## Astra cache-aware reuse
+
+Freeflow's Pi extension includes cache-aware request history and a qualified Astra effort-history adapter:
+
+- compatible Freeflow-generated state stays at stable historical positions where possible;
+- changed runtime state is appended instead of rewriting earlier generated context;
+- qualified `gpt-6-astra` routes can retain a request-level effort baseline and insert trusted effort changes at validated historical positions;
+- unsupported or uncertain requests fall back to the untouched native request.
+
+This is request-construction and compatibility behavior—not proof of a provider cache hit, billing reduction, model quality improvement, or universal provider support. See the [Pi cache reuse boundaries](plugin-docs/integrations/pi.md#cache-reuse-boundaries).
 
 ## Why Freeflow
 
@@ -12,46 +37,70 @@ Coding agents commonly fail at control boundaries:
 
 | Pressure | Freeflow response |
 | --- | --- |
-| A question or tentative idea becomes an edit. | The Interaction Contract answers first and waits for clear action authority. |
-| A prompt conflicts with tests, policy, or accepted behavior. | Decision Gate names the conflict before mutation. |
-| New evidence invalidates the plan. | Workflow routes from evidence and preserves unaffected work. |
-| Every task receives unnecessary ceremony. | Workflow enters at the narrowest useful owner and scales pressure to risk. |
-| A passing command becomes an unsupported completion claim. | Verify Work matches evidence to the exact claim and boundary. |
-| Compaction loses task state. | Track Work restores a Working Record and reconciles it with live state. |
-| Tool output consumes future context. | Context Virtualization can archive consumed evidence while preserving session history. |
-
-## Contents
-
-- [How it works](#how-it-works)
-- [Host support](#host-support)
-- [Capabilities](#capabilities)
-- [Quick start](#quick-start)
-- [Workflow](#workflow)
-- [System prompt architecture](#system-prompt-architecture)
-- [Evidence and limits](#evidence-and-limits)
-- [Commands](#commands)
-- [Documentation and development](#documentation-and-development)
-- [What Freeflow is not](#what-freeflow-is-not)
+| A question or tentative idea becomes an edit. | The Interaction Contract distinguishes discussion from authorization. |
+| A prompt conflicts with policy, tests, or accepted behavior. | Decision Gate exposes the material conflict before mutation. |
+| New evidence invalidates the chosen approach. | Workflow re-enters only the affected owner and preserves valid work. |
+| Every task receives the same heavy process. | Workflow scales pressure to consequence, uncertainty, interaction, and reversibility. |
+| A passing command becomes an unsupported completion claim. | Verify Work ties the claim to the actual observer and evidence boundary. |
+| Context loss erases decisions and partial work. | Track Work restores a complete Working Record and reconciles it with live state. |
+| Expensive models perform routine supporting work. | Cognitive Routing can place bounded support and substantive execution on configured profiles. |
+| Request history changes destroy reusable prefixes unnecessarily. | RequestHistory and qualified Astra adaptation preserve compatible request structure. |
 
 ## How it works
 
-Freeflow uses one active agent, one shared context, and nested feedback loops:
+Freeflow uses one active agent and one adaptive Workflow:
 
 ```text
 Interaction Lifecycle
 └─ Workflow Feedback Loop
-   ├─ establishes authority, owner, and slice
-   └─ Cognitive Routing — experimental, when a qualified host is available
-      ├─ Helper: normal delegate for supporting work when enabled
-      ├─ Executor: commissioned for substantive or consequential results
-      └─ helper mode: Coordinator implements with bounded Helper support
-      └─ Coordinator assesses evidence, continues, or closes the unit
-         └─ Action Selection bounds uncertain environment interactions
+   ├─ interpret authority and establish the work agreement
+   ├─ choose the narrowest current owner
+   ├─ discuss, act, test, or observe
+   ├─ determine what the evidence supports
+   ├─ self-review the supported result
+   └─ continue, correct, diagnose, ask, defer, or stop
 ```
 
-Under automatic Cognitive Routing control, Coordinator owns new user direction; input reaching an already prepared worker request requires an interrupted return before task tools. Under manual control, the selected profile runs the ordinary unsplit Workflow. Cognitive Routing changes compute and context placement only. It never changes authority, ownership, task scope, evidence requirements, or review independence.
+Focused methods own different results: Discuss, Track Work, Execute Work, Diagnose Failure, Verify Work, Review Work, Review Artifact, Write Spec, Write Plan, Release Work, and others. They compose when their conditions apply; they are not mandatory phases.
 
-The Workflow owner may be Discuss, Track Work, Execute Work, Verify Work, Review Work, Review Artifact, Diagnose Failure, or another focused method. These methods compose when their conditions apply; they are not a mandatory phase pipeline.
+On a qualified native Pi host, automatic Cognitive Routing sits inside the current Workflow owner:
+
+```text
+Coordinator receives user direction
+-> Helper handles normal supporting assignments when enabled
+-> Executor handles substantive or consequential assignments
+-> assigned worker returns actual work and evidence
+-> Coordinator assesses, continues, corrects, or closes
+```
+
+Only one worker assignment runs at a time. A profile switch is not another agent or independent review. A worker report does not complete a Track Work Slice, task, commit, integration, release, or launch.
+
+## Cognitive Routing modes
+
+The labels describe intended optimization direction and potential, not guarantees.
+
+| Mode | Positioning | Behavior |
+| --- | --- | --- |
+| **Helper only** | Quality-first — maximum performance and output-quality potential | Coordinator implements; Helper gathers context, prepares, checks, maintains task memory, and performs settled support. |
+| **Executor only** | Savings-first — maximum savings potential | Coordinator directs and assesses; Executor owns delegated environment work. |
+| **Both** | Balanced | Helper handles frequent routine support; Executor is commissioned for substantive or consequential work. |
+
+A comparatively economical but capable Helper can contribute much of Both mode's potential savings because many routine assignments go through it. The detailed guide includes [recommended OpenAI subscription starting presets](plugin-docs/using-freeflow.md#recommended-openai-subscription-starting-presets) and the limits on those recommendations.
+
+## Availability
+
+| Surface | Availability |
+| --- | --- |
+| Interaction Contract, Workflow, and 24 base skills | Shared supported package surface when Freeflow is effectively activated |
+| Track Work / Working Records | Shared skill surface |
+| Context Virtualization | Optional Pi/PiFlow capability; legacy, separately gated |
+| Conversation History | Optional Pi/PiFlow capability; separately gated |
+| Context Control v2 | Planned/in development; not available in this release |
+| Cognitive Routing | Experimental native Pi source candidate |
+| Cognitive Routing on PiFlow | Explicitly unavailable in the current adapter |
+| Astra cache-aware effort history | Narrow source/fixture-qualified native Pi route; provider savings unverified |
+
+Configuration or installation alone does not establish runtime delivery.
 
 ## Host support
 
@@ -59,39 +108,22 @@ Freeflow is one package with different host boundaries:
 
 | Host | Freeflow support | Cognitive Routing |
 | --- | --- | --- |
-| Codex | Shared skills and Codex `SessionStart` hook | Not available; Pi/PiFlow capabilities are not delivered |
-| Claude Code | Shared skills and Claude Code `SessionStart` hook | Not available; Pi/PiFlow capabilities are not delivered |
-| Gemini CLI | Gemini extension manifest, shared skills, and Gemini `SessionStart` hook | Not available; Pi/PiFlow capabilities are not delivered |
-| Cursor | Agent Plugins 1.0 skills plus Cursor-specific hook delivery | Not available; Pi/PiFlow capabilities are not delivered |
-| GitHub Copilot / VS Code | Agent Plugins 1.0 skills plus Copilot-specific hook delivery | Not available; Pi/PiFlow capabilities are not delivered |
-| Kiro | Agent Plugins 1.0 Power and shared skills | Not available; no Kiro-specific runtime adapter is claimed |
-| OpenCode v2 | Canonical `skills/` through OpenCode’s project skill source | Not available; skills-only support |
+| Codex | Shared skills and Codex `SessionStart` hook | Not available |
+| Claude Code | Shared skills and Claude Code `SessionStart` hook | Not available |
+| Gemini CLI | Gemini extension, shared skills, and Gemini `SessionStart` hook | Not available |
+| Cursor | Agent Plugins 1.0 skills plus Cursor-specific hook delivery | Not available |
+| GitHub Copilot / VS Code | Agent Plugins 1.0 skills plus Copilot/VS Code hook delivery | Not available |
+| Kiro | Agent Plugins 1.0 Power and shared skills | Not available; skills-only claim |
+| OpenCode v2 | Canonical `skills/` through a documented project skill source | Not available; skills-only support |
 | Hermes Agent | Agent Plugins 1.0 package and canonical skills | Not available; skills-only support |
-| Pi | Shared skills and the Pi extension source entrypoint | Cognitive Routing is an unreleased experimental candidate; native SDK and bundled-CLI dispatch are exercised by isolated local fixtures; installed-user and model-behavior acceptance remain separate |
-| PiFlow | Freeflow package can be hosted by the separate PiFlow distribution | Cognitive Routing is explicitly unavailable in the current source adapter |
+| Pi | Shared skills and native extension source entrypoint | Experimental source candidate; installed-user and model-behavior evidence remain separate |
+| PiFlow | PiFlow-hosted Freeflow package and shared surface | Explicitly unavailable in the current source adapter |
 
-Freeflow owns workflow policy, portable prompt fragments, the 24-skill distribution kernel, host adapters, capability source, and the Pi extension. Each host owns its launch, package installation, session state, and updates. Native host behavior and model quality require separate installed-host evidence; PiFlow routing is not currently available.
-
-## Capabilities
-
-### Workflow and task memory
-
-- **Workflow** coordinates authority, owner selection, evidence-driven re-entry, and Supported Exit.
-- **Action Selection** bounds uncertain or broad Environment Interactions while preserving the current owner.
-- **Track Work** maintains a Working Record when decisions, evidence, blockers, or the next action must survive context loss.
-- **Verify Work, Review Work, Review Artifact, and Diagnose Failure** separate factual support, judgment, artifact fitness, and unsupported causes.
-
-### Optional host capabilities
-
-- **[Cognitive Routing](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/cognitive-routing.md)** places work among Coordinator and enabled Helper or Executor profiles in one agent under automatic control: Helper normally handles supporting work, while Executor is commissioned for substantive or consequential results. The current source path is experimental and host availability is not established by installation alone. See the [Pi cache reuse boundaries](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/integrations/pi.md#cache-reuse-boundaries) for prefix and provider limits.
-- **[Context Virtualization](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/context-virtualization.md)** classifies consumed tool evidence as Full, Retained, or Reference-only for future context while leaving canonical history unchanged.
-- **[Conversation History](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/conversation-history.md)** performs bounded retrieval of exact missing prior-conversation evidence from the current active branch.
-
-The three capabilities are individually gated and default-off or unavailable unless their configuration and host conditions are effective. None grants authority or replaces Workflow.
+Freeflow owns workflow policy, portable prompts, skills, capability source, host adapters, and the Pi extension. Each host owns launch, package installation, session state, trust, and updates.
 
 ## Quick start
 
-For complete host-specific setup, see [Getting Started](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/getting-started.md).
+For complete instructions and delivery checks, use [Getting Started](plugin-docs/getting-started.md).
 
 ### Codex
 
@@ -117,17 +149,24 @@ Trust the Freeflow hook from `/hooks`, then start a new session.
 gemini extensions install https://github.com/hassan-mohiddin/freeflow
 ```
 
-Restart Gemini CLI after installation or updates. The extension uses the root `gemini-extension.json`, shared `skills/`, and its Gemini-specific `SessionStart` hook adapter.
+Restart Gemini CLI after installation or updates.
 
-### Cursor, GitHub Copilot, VS Code, Kiro, OpenCode, and Hermes Agent
+### Cursor, GitHub Copilot, VS Code, Kiro, OpenCode, and Hermes
 
-These hosts consume the root Agent Plugins 1.0 manifest and the same `skills/` directory. Cursor also reads `.cursor-plugin/plugin.json` for its host-specific hook surface; GitHub Copilot and VS Code read the `com.github.copilot/` extension namespace. Install from each host’s documented plugin source or marketplace UI. For Copilot CLI, the direct repository form is:
+These hosts consume the root Agent Plugins 1.0 manifest and canonical `skills/` surface through their documented plugin or skill-source workflows. Copilot CLI can install directly:
 
 ```bash
 copilot plugin install hassan-mohiddin/freeflow
 ```
 
-VS Code provides **Chat: Install Plugin From Source**. Kiro exposes compatible Agent Plugins as Powers and can import a GitHub source through its Powers UI. OpenCode v2 can add the checkout or package’s `skills/` directory to the documented `skills` array in `opencode.json`; it does not receive a native Freeflow plugin runtime. Hermes can install the root portable package with `hermes plugins install hassan-mohiddin/freeflow --no-enable`, then enable it with `hermes plugins enable freeflow`, or use its documented skills source workflow. A host’s install/trust UI and marketplace availability are external to this repository’s deterministic checks.
+OpenCode can point its `skills` array at the installed package's `skills/` directory. Hermes can install the portable package with:
+
+```bash
+hermes plugins install hassan-mohiddin/freeflow --no-enable
+hermes plugins enable freeflow
+```
+
+See [Getting Started](plugin-docs/getting-started.md) for host-specific claims and limits.
 
 ### Pi
 
@@ -141,82 +180,48 @@ Or:
 pi install git:github.com/hassan-mohiddin/freeflow
 ```
 
-The repository's current development dependency is Pi 0.85.1. The native entrypoint is wired in the source tree, but local fixtures exercise native SDK and bundled-CLI integration without installing this candidate into the user’s host; version-specific host acceptance belongs to separate release evidence.
+Restart Pi or use `/reload` after installation or updates.
 
 ### PiFlow
-
-Install PiFlow separately, then install Freeflow into it:
 
 ```bash
 npm install -g --ignore-scripts @hassangameryt/piflow
 piflow install npm:@hassangameryt/freeflow
 ```
 
-For a Git source:
+The current PiFlow adapter does not provide Cognitive Routing.
 
-```bash
-piflow install git:github.com/hassan-mohiddin/freeflow
-```
+### Activate a repository
 
-The current source entrypoint explicitly marks the redesigned PiFlow Cognitive Routing adapter unavailable. Installing the package still does not establish routing availability.
-
-In the target repository, run:
+Run:
 
 ```text
 /setup-freeflow
 ```
 
-Setup creates `.freeflow/config.json`, the required shared activation boundary. Minimal activation is `{}`. `.freeflow/local.json` is an optional personal override and cannot activate Freeflow by itself.
+This creates the required shared `.freeflow/config.json` activation boundary. Minimal activation is `{}`. Optional `.freeflow/local.json` personal overrides cannot activate Freeflow alone.
 
-## Workflow
+## Use Freeflow effectively
 
-Freeflow always uses one adaptive Workflow. The Interaction Contract interprets the whole user turn; Workflow then chooses the narrowest owner and scales coordination to consequence, uncertainty, interaction, and reversibility.
-
-A question or tentative idea remains discussion until clear action authority exists. A direct request covers only its bounded outcome and entailed effects. Risk-sensitive work receives stronger decisions, evidence, verification, and checkpoints through the same Workflow rather than through a separate selectable process.
-
-Every bounded activity follows the same Feedback Loop:
+A clear prompt normally needs:
 
 ```text
-orient to accepted intent, task memory, and live evidence
--> use the narrowest owner
--> act, discuss, test, or observe
--> verify what the evidence proves
--> self-review the supported result
--> continue, correct, diagnose, revise, ask, defer, or stop
+Outcome: what should be true?
+Scope: what may change?
+Exclusions: what must not happen?
+Sources and constraints: what governs?
+Evidence: what should support the result?
+User-owned choices: what must come back to me?
+Stop and return: where should the agent stop?
 ```
 
-## System prompt architecture
+Natural language is preferred. Direct calls such as `/discuss`, `/execute-work`, `/diagnose-failure`, `/verify-work`, `/review-work`, `/track-work`, and `/release-work` are useful when they make the intended method clear. A skill is a method, not an authority grant or required phase.
 
-Freeflow’s model-facing surface has four coordinated parts:
-
-1. **Core guidance** in `runtime/prompts/core.md` contains identity, shared terms, loops, Workflow, Action Selection, and Supported Exit cues.
-2. **Interaction Contract** in `runtime/prompts/interaction-contract.md` remains a separate mandatory fragment so its behavior can be revised independently.
-3. **Runtime State** reports current capability availability and v2 Cognitive Routing `Control`/`Profile`/`Delegation` at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the current provider context.
-4. **Discoverable skills and tools** provide the 24 base methods and individually gated optional capability operations.
-
-The core guidance and Interaction Contract are always delivered together when Freeflow is enabled. Optional capability content is omitted and reported unavailable rather than fabricated. One effective-state snapshot determines prompt assembly, discovery, tools, and projection.
-
-Read the full [System Prompt Architecture](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/prompt-architecture.md) and [Workflow](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/workflow.md) docs for the complete contract.
-
-## Evidence and limits
-
-Freeflow is explicit about what its checks prove:
-
-- deterministic checks prove structure, assembly, package boundaries, and selected delivery behavior;
-- host-manifest and adapter checks prove the Agent Plugins 1.0, Gemini, Cursor, and Copilot/VS Code package shapes, not native host dispatch;
-- OpenCode and Hermes compatibility checks cover the canonical Agent Skills/Agent Plugins package shape, not native host plugin APIs or runtime prompt delivery;
-- release evidence is versioned and records source, checks, artifacts, deferred evidence, and limits;
-- local installation does not prove remote host installation or registry propagation;
-- deterministic skill/runtime checks do not prove model behavior or universal skill readiness;
-- Cognitive Routing remains experimental pending behavioral acceptance.
-
-The deprecated Output Router is removed and no longer available. Its implementation and evidence remain archived under `.deprecated/output-router/`.
-
-See [Release Process](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/release.md) and [Release Evidence](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/release-evidence/README.md).
+Read [Using Freeflow Effectively](plugin-docs/using-freeflow.md) for prompt examples, Workflow management, Track Work, settings, mode selection, preset recommendations, cache/cost boundaries, and troubleshooting.
 
 ## Commands
 
-Natural language is preferred. Pi registers these canonical direct calls:
+Canonical Pi direct calls include:
 
 ```text
 /discuss
@@ -247,10 +252,11 @@ Contributor calls:
 /evaluate-skill
 ```
 
-Cognitive Routing controls on a qualified native host:
+Qualified native-Pi Cognitive Routing controls:
 
 ```text
 /freeflow
+/freeflow status
 /freeflow settings
 /freeflow settings session
 /freeflow settings local
@@ -263,37 +269,47 @@ Cognitive Routing controls on a qualified native host:
 /freeflow resume
 ```
 
-`/freeflow settings` edits personal overrides, `/freeflow settings session` manages temporary core/context overrides, and `/freeflow settings repo` edits shared repository settings. On a qualified native Pi host, session settings also expose complete Cognitive Routing overrides for profiles enabled in that session that take precedence over personal and shared profiles without mutating either config file; profile changes and resume require an idle host with the required native model-state APIs.
+Profile changes and resume require an idle host. These commands do not prove installed-host delivery or authorize task work.
 
-When the source adapter exposes the native controls and the host is idle:
+## Evidence and limits
 
-- `Ctrl+Shift+R` cycles Coordinator and the workers enabled by the delegation mode.
-- `Ctrl+Shift+A` releases a manual hold to automatic Coordinator control; repeating it while already automatic is idempotent.
+Freeflow is explicit about what observations prove:
 
-These commands are host controls, not proof of installed-host delivery or model evaluation.
+- deterministic checks can establish source structure, prompt assembly, schemas, package boundaries, and named fixtures;
+- package shape does not prove native host dispatch, trust UI, or marketplace availability;
+- request-prefix compatibility does not prove a provider cache hit;
+- model/profile availability does not prove quality or cost improvement;
+- local release preparation is not publication;
+- publication is not production deployment.
 
-## Documentation and development
+Cognitive Routing remains experimental pending broader behavioral acceptance. Context Control v2 remains planned. The deprecated Output Router is removed and archived outside the active runtime.
 
-- [Documentation hub](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/README.md)
-- [Getting Started](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/getting-started.md)
-- [Architecture](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/architecture.md)
-- [System Prompt Architecture](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/prompt-architecture.md)
-- [Capabilities](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/README.md)
-- [PiFlow integration](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/integrations/piflow.md)
-- [Skill routing](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/skill-routing.md)
-- [Release Process](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/release.md)
+## Documentation
+
+- [Using Freeflow Effectively](plugin-docs/using-freeflow.md)
+- [Getting Started](plugin-docs/getting-started.md)
+- [Workflow](plugin-docs/workflow.md)
+- [Cognitive Routing](plugin-docs/capabilities/cognitive-routing.md)
+- [Pi integration](plugin-docs/integrations/pi.md)
+- [PiFlow integration](plugin-docs/integrations/piflow.md)
+- [Architecture](plugin-docs/architecture.md)
+- [System prompt architecture](plugin-docs/prompt-architecture.md)
+- [Skill routing](plugin-docs/skill-routing.md)
+- [Capabilities](plugin-docs/capabilities/README.md)
+- [Release process](plugin-docs/release.md)
+- [Release evidence](plugin-docs/release-evidence/README.md)
 - [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 
-For local development, use committed Freeflow snapshots with `npm run snapshot:refresh`. A snapshot identifies a committed Freeflow revision; an installed package is a separate host artifact and identity. Do not treat an uncommitted working tree as a production package source. Snapshot handling does not patch host files, claim `fsync`, or promise exactly-once delivery. PiFlow owns any host development launcher and state synchronization.
+For local Pi/PiFlow development, refresh a development snapshot only from a committed Freeflow revision with `npm run snapshot:refresh`. A snapshot is not a production install or release.
 
 ## What Freeflow is not
 
 - Not a new agent or workflow engine.
 - Not a rigid phase pipeline.
-- Not a permission or CLI enforcement framework.
+- Not a permission or enforcement framework.
 - Not a replacement for repository instructions, tests, policies, or review culture.
-- Not proof that the current candidate is behaviorally ready.
+- Not proof that a configured model, cache path, or candidate is behaviorally ready.
 
 ## License
 

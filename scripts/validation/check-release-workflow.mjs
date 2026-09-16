@@ -107,6 +107,11 @@ export function inspectReleaseWorkflow(workflow) {
   requireText("RELEASE_SHASUM", "Release workflow must compare registry and local artifact checksums.");
   requireText(".shasum", "Release workflow must read the registry tarball checksum.");
   requireText(".attestations.provenance.predicateType", "Release workflow must verify npm provenance metadata.");
+  requireText("registry_attempts=18", "Release workflow must bound registry propagation polling.");
+  requireText("registry_delay_seconds=10", "Release workflow must use an explicit registry polling delay.");
+  requireText("E404|404 Not Found", "Release workflow must retry only expected not-yet-visible registry responses.");
+  requireText('sleep "$registry_delay_seconds"', "Release workflow must wait between bounded registry attempts.");
+  requireText("registry_predicate", "Release workflow must inspect provenance after registry visibility.");
   requireText('test -z "$(git status --porcelain)"', "Release workflow must reject post-test worktree changes.");
 
   requireOrder(

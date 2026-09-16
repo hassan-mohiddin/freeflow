@@ -157,16 +157,42 @@ jobs:
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#v}"
-          registry_dist="$RUNNER_TEMP/freeflow-release/published-dist.json"
-          npm view "$PACKAGE_NAME@$version" dist --json > "$registry_dist"
-          jq -e \
-            --arg shasum "$RELEASE_SHASUM" \
-            --arg integrity "$RELEASE_INTEGRITY" \
-            '.shasum == $shasum
-             and .integrity == $integrity
-             and .attestations.provenance.predicateType
-                 == "https://slsa.dev/provenance/v1"' \
-            "$registry_dist" >/dev/null
+          release_dir="$RUNNER_TEMP/freeflow-release"
+          registry_dist="$release_dir/published-dist.json"
+          registry_error="$release_dir/published-error.log"
+          registry_attempts=18
+          registry_delay_seconds=10
+          for attempt in $(seq 1 "$registry_attempts"); do
+            if npm view "$PACKAGE_NAME@$version" dist --json \
+              > "$registry_dist" 2> "$registry_error"; then
+              registry_shasum="$(jq -r '.shasum // empty' "$registry_dist")"
+              registry_integrity="$(jq -r '.integrity // empty' "$registry_dist")"
+              if [ "$registry_shasum" != "$RELEASE_SHASUM" ] ||
+                [ "$registry_integrity" != "$RELEASE_INTEGRITY" ]; then
+                echo "Published artifact checksum or integrity does not match the tag artifact." >&2
+                cat "$registry_dist" >&2
+                exit 1
+              fi
+              registry_predicate="$(jq -r '.attestations.provenance.predicateType // empty' "$registry_dist")"
+              if [ "$registry_predicate" = "https://slsa.dev/provenance/v1" ]; then
+                echo "Published npm artifact verified on attempt $attempt."
+                exit 0
+              fi
+              echo "Artifact metadata matches, but npm provenance is not visible yet (attempt $attempt/$registry_attempts)."
+            else
+              if ! rg -q 'E404|404 Not Found' "$registry_error"; then
+                cat "$registry_error" >&2
+                exit 1
+              fi
+              echo "Published npm version is not visible yet (attempt $attempt/$registry_attempts)."
+            fi
+            if [ "$attempt" -eq "$registry_attempts" ]; then
+              echo "Timed out waiting for the published npm artifact and provenance to become visible." >&2
+              cat "$registry_error" >&2 || true
+              exit 1
+            fi
+            sleep "$registry_delay_seconds"
+          done
 
       - name: Create GitHub Release if absent
         env:

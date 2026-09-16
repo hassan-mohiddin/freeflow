@@ -42,24 +42,9 @@ In the target repository, run:
 
 This creates the shared `.freeflow/config.json` activation boundary. Minimal activation is `{}`. `.freeflow/local.json` is an optional personal override and cannot activate Freeflow by itself.
 
-The v2 routing configuration, when being prepared for a future qualified host, is:
+Do not add or change Cognitive Routing configuration merely to make the current PiFlow adapter activate it. The active routing schema and operating reference belong to the native [Pi integration](pi.md) and [Cognitive Routing](../capabilities/cognitive-routing.md) pages; they do not establish equivalent PiFlow support. A future PiFlow adapter must qualify its own host controls, lifecycle, configuration delivery, and installed behavior before this page publishes setup instructions.
 
-```json
-{
-  "cognitiveRouting": {
-    "enabled": true,
-    "projection": false,
-    "profiles": {
-      "coordinator": { "provider": "openai", "model": "gpt-4o", "thinking": "off" },
-      "executor": { "provider": "openai", "model": "gpt-4.1-mini", "thinking": "off" }
-    }
-  }
-}
-```
-
-`projection` defaults to `false`. The only profile names are `coordinator` and `executor`; each requires `provider`, `model`, and a supported thinking level. Older experimental routing fields or names such as `standard`, `reasoning`, `contextProjection`, and `sessionStart` are unsupported and are not migrated. Rewrite them manually if encountered.
-
-Do not treat this configuration as proof of PiFlow availability. On the current PiFlow path, `/freeflow` should report Cognitive Routing unavailable rather than partially applying it.
+On the current PiFlow path, `/freeflow` should report Cognitive Routing unavailable rather than partially applying it. A repository configuration that is also used by native Pi does not become PiFlow support simply because PiFlow can read the package.
 
 ## Ownership and evidence boundary
 
@@ -87,7 +72,7 @@ Use the PiFlow development launcher or a released PiFlow host with temporary sta
 
 - **Cognitive Routing is unavailable:** this is expected on the current PiFlow adapter path. Do not work around it by impersonating a profile or editing host state.
 - **Freeflow is not delivered:** verify PiFlow's native package installation, project trust, reload, and session lifecycle using PiFlow documentation. Installation alone is not delivery evidence.
-- **Configuration is rejected:** use only the v2 `enabled`/`projection`/`profiles` schema and rewrite unsupported legacy routing fields manually.
+- **Cognitive Routing remains unavailable despite valid native-Pi configuration:** this is expected on the current PiFlow adapter. Do not rewrite the configuration or copy another schema to bypass the host gate.
 - **A package update is not visible:** use PiFlow's native update/reload behavior or restart it at its lifecycle boundary; do not infer the installed identity from a different checkout or snapshot.
 
 ## Related documentation

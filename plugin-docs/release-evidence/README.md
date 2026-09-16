@@ -22,6 +22,7 @@ After a release is frozen, its version record is historical evidence. Do not rew
 - [Freeflow v0.6.0 candidate](v0.6.0.md): prepared local candidate evidence; commit, tag, publication, and consumer verification remain pending.
 - [Freeflow v0.7.0 candidate](v0.7.0.md): prepared local candidate evidence; deterministic checks and exact package inspection passed, while commit/tag/publication and consumer verification remain pending.
 - [Freeflow v0.7.1](v0.7.1.md): multi-host distribution release evidence; local checks and the exact package boundary are recorded, while external consumer evidence remains host-specific.
+- [Freeflow v0.7.2](v0.7.2.md): Cognitive Routing release candidate evidence; preparation and artifact checks are recorded as they complete, while the immutable tag, publication, and consumer evidence remain pending.
 
 ## Related documentation
 

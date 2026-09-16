@@ -2,17 +2,36 @@
 
 ## Unreleased
 
-### Breaking Changes
-
-- Consolidates experimental routing reads into `freeflow_project inspect` with scoped candidates and `freeflow_unit inspect` with current/history/detail views; earlier `list`, `status`, and `history` operation names are no longer advertised or accepted.
-- Replaces the experimental Cognitive Routing switch/boundary protocol with Coordinator and enabled-worker assignments, separate delegate/return/unit/projection tools, and `delegation`/`projection`/`thinking` configuration. Old experimental configuration and tools are not migrated; redesigned PiFlow routing and composition with legacy context transforms remain unavailable pending qualification.
-
 ### Added
 
 - Adds an optional Cognitive Routing Helper profile and `executor`, `helper`, and `both` delegation modes with mode-aware presets, manual holds, durable worker-specific continuation, and shared worker history.
-- Adds cache-aware Pi request assembly with stable Freeflow reference surfaces, native-ancestry replay metadata, source provenance, and independent Astra effort adaptation; provider cache hits and model-quality or billing savings remain unguaranteed.
+- Adds cache-aware Pi request assembly and qualified Astra effort-history adaptation; provider cache hits, billing savings, and model-quality improvements remain unguaranteed.
 - Adds attached Cognitive Routing evidence recovery with exact-path reads, preserved original reports and assessments, separate supplements, explicit cancellation, and direct selection of eligible occurrence-linked evidence refs.
-- Adds session-only Cognitive Routing profile presets for Coordinator and enabled workers, with complete model/effort pairs, inheritance, reset, and local/shared configuration isolation.
+- Adds session-only Cognitive Routing profile presets for Coordinator and enabled workers with complete model/effort pairs, inheritance, reset, and local/shared configuration isolation.
+- Adds a practical Freeflow user guide for prompting, skill selection, Workflow and Track Work management, settings, Cognitive Routing presets, and evidence and cost boundaries.
+
+### Changed
+
+- Clarifies mode-aware Coordinator/Helper/Executor ownership, implementation boundaries, evidence projection, recovery, and Coordinator assessment responsibilities.
+- Batches worker evidence selection during return preparation while preserving saved reports, unresolved evidence, and handoff limits.
+- Repositions Freeflow around Memory, planned Context, and Compute, and expands Cognitive Routing and PiFlow documentation with qualified preset and cache-reuse boundaries.
+
+### Fixed
+
+- Clears session-local Cognitive Routing manual-hold state before validating a newly bound session.
+- Clarifies evidence-selection operation shapes, remove-only withdrawal reasons, and the distinction between eligible result bodies and routing controls.
+- Prevents pre-prompt `/reload` and Cognitive Routing preset changes from blocking on Pi's not-yet-materialized session file.
+- Preserves Astra effort-history replay across temporary model round trips and reloads when the qualified request lineage remains compatible.
+
+## 0.7.2 - 2026-09-11
+
+### Breaking Changes
+
+- Consolidates experimental routing reads into `freeflow_project inspect` with scoped candidates and `freeflow_unit inspect` with current/history/detail views; earlier `list`, `status`, and `history` operation names are no longer advertised or accepted.
+- Replaces the experimental Cognitive Routing switch/boundary protocol with Coordinator/Executor assignments, separate delegate/return/unit/projection tools, and `projection`/`thinking` configuration. Old experimental configuration and tools are not migrated; redesigned PiFlow routing and composition with legacy context transforms remain unavailable pending qualification.
+
+### Added
+
 - Adds exact assistant-visible-text evidence refs, bounded saved-work detail/history recovery, snapshot-based inspection pagination, and explicit target limitations in expanded routing output.
 - Adds saved-report retry, explicit same-unit assignment replacement, strict read-only session acknowledgment reconciliation, and assessment-preserving evidence projection with attention suspension and restoration.
 
@@ -20,13 +39,10 @@
 
 - Retires the old experimental routing source and tests into the historical archive, adds replacement-contract regression suites, and cleans generated extension output before building.
 - Shows live routing tool arguments in a six-line trailing preview with full expansion, and replaces internal collapsed receipt labels with readable operation outcomes and evidence counts.
-- Clarifies Cognitive Routing's mode-aware Coordinator/Helper/Executor assignment boundary, implementation ownership, design-decision transfer, selective worker evidence projection, and Coordinator assessment responsibilities in the shipped guidance.
+- Clarifies Cognitive Routing's Coordinator/Executor assignment boundary, design-decision transfer, selective evidence projection, and Coordinator assessment responsibilities in the shipped guidance.
 
 ### Fixed
 
-- Clears session-local Cognitive Routing manual-hold state before validating a newly bound session, preventing a previous Helper or Executor hold from blocking an unrelated valid session.
-- Clarifies Cognitive Routing evidence-selection operation shapes, remove-only withdrawal reasons, and the distinction between adding eligible refs and withdrawing unresolved non-selectable refs.
-- Prevents pre-prompt `/reload` and Cognitive Routing preset changes from blocking on Pi's not-yet-materialized session file.
 - Limits normal evidence inspection to usable candidates and removes source-content previews, while preserving saved-selection diagnostics.
 - Preserves delivered-user identity across native compaction and explicit resume, so stored-but-undelivered history does not interrupt an outstanding Executor assignment while genuinely new input still does.
 - Keeps streamed routing contracts and reports visible in collapsed receipts; limitations and replacement reasons remain available in expanded views instead of obscuring current prose.

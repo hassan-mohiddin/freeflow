@@ -117,13 +117,24 @@ test("rejects line-ending changes in released sections", () => {
   assert.match(result.errors.join("\n"), /released changelog sections are immutable/i);
 });
 
-test("ignores a missing terminal newline when comparing released sections", () => {
+test("preserves non-final separators while ignoring only the document terminal newline", () => {
+  const twoReleaseBase =
+    "# Changelog\n\n## Unreleased\n\n## 0.7.0 - 2026-09-01\n- New release\n## 0.6.0 - 2026-08-01\n- Old release\n";
+  const boundaryChanged = twoReleaseBase.replace("- New release\n## 0.6.0", "- New release\r\n## 0.6.0");
+  const boundaryResult = validateChangelogDeclaration({
+    body: internalBody,
+    changedPaths: ["CHANGELOG.md"],
+    currentChangelog: boundaryChanged,
+    baseChangelog: twoReleaseBase,
+  });
+  assert.match(boundaryResult.errors.join("\n"), /released changelog sections are immutable/i);
+
   assert.deepEqual(
     validateChangelogDeclaration({
       body: internalBody,
       changedPaths: ["CHANGELOG.md"],
-      currentChangelog: baseChangelog,
-      baseChangelog: baseChangelog.trimEnd(),
+      currentChangelog: twoReleaseBase.replace(/\n$/, ""),
+      baseChangelog: twoReleaseBase,
     }),
     { declaration: "internal", errors: [] },
   );
