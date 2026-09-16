@@ -133,7 +133,7 @@ Challenge unsupported premises and report better supported approaches. A governi
 
 For unexplained or repeatedly stalled failure, use [Diagnose Failure](../../skills/diagnose-failure/SKILL.md) within scope or return. Distinguish a defective observer, missing evidence, and an invalidated implementation premise. Do not build a subsystem or weaken a requirement just to rescue the chosen approach.
 
-Run routine tools directly. Do not narrate planning labels or every tool call. Return questions requiring the user to Coordinator rather than starting a separate discussion.
+Run routine tools directly and put findings in the return report. Do not emit planning labels, tool announcements, or routine progress messages. Return questions requiring the user to Coordinator rather than starting a separate discussion.
 
 Verify the actual candidate and self-review through the producing method. Preserve failed, stale, incomplete, and inconclusive evidence. If a test changes, expose the difference in what its old and new setup and assertions establish; a valid local assertion repair can still displace another required scenario.
 
@@ -145,9 +145,11 @@ Helper and Executor share ordinary active history, including each other's work. 
 
 With projection on, Coordinator receives its own/common context plus admitted worker evidence—not every body the workers saw. Select enough original context for understanding and judgment, not the execution trail. Unknown authorship stays unknown. A shared source, report, ref, filename, call envelope, or nearby result is not automatically the evidence for a claim.
 
+Prepare evidence when the assignment reaches its return boundary, including a required stop or interruption—not after each tool call or skill read. Normally, finish the bounded work, select the needed evidence directly, check the receipt, and submit.
+
 1. **Reconcile the result.** Compare the contract with actual work, changed assumptions, partial effects, missing checks, and contrary findings. Ensure source, artifact, and test captures describe the reported candidate after any later edits.
 2. **Choose useful context.** Start with Coordinator's requests and what it already has. Add governing background, material discoveries, and counterevidence needed to assess the result or choose what follows. Eligibility alone is not a reason to select a source.
-3. **Select the supporting bodies.** When projection is on, select every completed skill and instructional-reference read, including the bootstrap and all parts needed for a complete method. Reuse retained methods and existing selections. Task files are evidence, not automatically shared instructional references. Select the other original bodies needed for assessment, preserving producer attribution when selecting another worker's work.
+3. **Add the supporting bodies.** When projection is on, add skill reads, including the bootstrap and reference parts needed for complete methods. Reuse retained methods and existing selections. Add the original task-evidence bodies needed for assessment, preserving producer attribution when selecting another worker's work. Skill reads are instructional context; this does not mean adding all tool results. Group the needed refs in the return-preparation selection rather than adding them after each read.
 4. **Check receipts.** Resolve supported identity or representation problems. Withdraw unavailable or unnecessary requests only with reasons, preserving material gaps. Removing a selection does not resolve a required evidence gap. Do not rerun work or reread files solely to manufacture a selectable receipt.
 5. **Submit the actual communication.** Use `freeflow_return(operation: "submit")` for the result, evidence and limits, changed assumptions, partial effects, and reason for return. Attached recovery uses `supplement` instead. After saving either communication, stop ordinary task or recovery-read work.
 
@@ -155,9 +157,9 @@ With projection on, Coordinator receives its own/common context plus admitted wo
 
 Use visible source refs and producer labels with `freeflow_project` add. Prefer tool-result bodies for execution claims and exact assistant `#text` when a finding or draft is itself the object of judgment. Plain refs retain whole-native meaning. Let the harness resolve native dependencies and eligible historical sources; do not guess refs.
 
-Inspect candidates only to answer a specific identity, eligibility, representation, or selection-state question. Choose the relevant scope and continue pagination while that question remains unresolved. Once the needed refs are found, use them; the remaining candidate count is not a work queue. Metadata does not replace source bodies.
+Use `freeflow_project inspect` only when evidence identity, eligibility, representation, or selection state is unclear—for example, locating needed results after a large assignment, resolving a selection problem, or correcting an evidence-related submission failure. Assignment size alone does not require inspection. Choose the relevant scope and continue pagination only while that question remains unresolved. Once the needed refs are found, add them directly; the remaining candidate count is not a work queue. Metadata does not replace source bodies.
 
-Select incrementally when useful, then reconcile the final set. No new task-evidence selection is needed when Coordinator already has adequate evidence or the result is self-contained. An interrupted return must preserve what is unavailable. With projection off, skip projection tools, not verification or honest reporting.
+Reconcile the selection at return preparation; do not maintain it turn by turn. Correct supported receipt problems before submitting, without restarting task work. No new task-evidence selection is needed when Coordinator already has adequate evidence or the result is self-contained. An interrupted return must preserve what is unavailable. With projection off, skip projection tools, not verification or honest reporting.
 
 Optional Context Control cleanup follows preparation of promised evidence. If cleanup fails, keep the extra context and continue a valid handoff. Batch already-decided selection changes and one return last only when the report does not depend on an unread receipt. Never combine new task work with a return that assumes its unseen outcome.
 
