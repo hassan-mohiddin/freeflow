@@ -1,14 +1,16 @@
 # Freeflow
 
-**Memory. Context. Compute. A feedback-based workflow layer for coding agents.**
+**A feedback-based control system for coding agents.**
+
+**Memory. Context. Compute.**
 
 Freeflow helps coding agents do consequential work without turning every task into a rigid ceremony. It gives the active agent a clear Interaction Contract, one adaptive Workflow, durable task memory, focused engineering methods, and controlled delivery boundaries.
 
 The host agent still owns tools, permissions, and execution. Freeflow helps it understand the request, choose the right next action, preserve continuity, use evidence honestly, place compute deliberately, and know when to continue, ask, defer, or stop.
 
-- **New to Freeflow?** Read [Using Freeflow Effectively](plugin-docs/using-freeflow.md).
-- **Installing it?** Start with [Getting Started](plugin-docs/getting-started.md).
-- **Using Cognitive Routing?** Read the detailed [Cognitive Routing reference](plugin-docs/capabilities/cognitive-routing.md).
+- **New to Freeflow?** Read [Using Freeflow Effectively](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/using-freeflow.md).
+- **Installing it?** Start with [Getting Started](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/getting-started.md).
+- **Using Cognitive Routing?** Read the detailed [Cognitive Routing reference](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/cognitive-routing.md).
 
 ## Memory · Context · Compute
 
@@ -29,7 +31,7 @@ Freeflow's Pi extension includes cache-aware request history and a qualified Ast
 - qualified `gpt-6-astra` routes can retain a request-level effort baseline and insert trusted effort changes at validated historical positions;
 - unsupported or uncertain requests fall back to the untouched native request.
 
-This is request-construction and compatibility behavior—not proof of a provider cache hit, billing reduction, model quality improvement, or universal provider support. See the [Pi cache reuse boundaries](plugin-docs/integrations/pi.md#cache-reuse-boundaries).
+This is request-construction and compatibility behavior—not proof of a provider cache hit, billing reduction, model quality improvement, or universal provider support. See the [Pi cache reuse boundaries](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/integrations/pi.md#cache-reuse-boundaries).
 
 ## Why Freeflow
 
@@ -85,7 +87,7 @@ The labels describe intended optimization direction and potential, not guarantee
 | **Executor only** | Savings-first — maximum savings potential | Coordinator directs and assesses; Executor owns delegated environment work. |
 | **Both** | Balanced | Helper handles frequent routine support; Executor is commissioned for substantive or consequential work. |
 
-A comparatively economical but capable Helper can contribute much of Both mode's potential savings because many routine assignments go through it. The detailed guide includes [recommended OpenAI subscription starting presets](plugin-docs/using-freeflow.md#recommended-openai-subscription-starting-presets) and the limits on those recommendations.
+A comparatively economical but capable Helper can contribute much of Both mode's potential savings because many routine assignments go through it. The detailed guide includes [recommended OpenAI subscription starting presets](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/using-freeflow.md#recommended-openai-subscription-starting-presets) and the limits on those recommendations.
 
 ## Availability
 
@@ -123,7 +125,7 @@ Freeflow owns workflow policy, portable prompts, skills, capability source, host
 
 ## Quick start
 
-For complete instructions and delivery checks, use [Getting Started](plugin-docs/getting-started.md).
+For complete instructions and delivery checks, use [Getting Started](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/getting-started.md).
 
 ### Codex
 
@@ -166,7 +168,7 @@ hermes plugins install hassan-mohiddin/freeflow --no-enable
 hermes plugins enable freeflow
 ```
 
-See [Getting Started](plugin-docs/getting-started.md) for host-specific claims and limits.
+See [Getting Started](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/getting-started.md) for host-specific claims and limits.
 
 ### Pi
 
@@ -217,7 +219,7 @@ Stop and return: where should the agent stop?
 
 Natural language is preferred. Direct calls such as `/discuss`, `/execute-work`, `/diagnose-failure`, `/verify-work`, `/review-work`, `/track-work`, and `/release-work` are useful when they make the intended method clear. A skill is a method, not an authority grant or required phase.
 
-Read [Using Freeflow Effectively](plugin-docs/using-freeflow.md) for prompt examples, Workflow management, Track Work, settings, mode selection, preset recommendations, cache/cost boundaries, and troubleshooting.
+Read [Using Freeflow Effectively](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/using-freeflow.md) for prompt examples, Workflow management, Track Work, settings, mode selection, preset recommendations, cache/cost boundaries, and troubleshooting.
 
 ## Commands
 
@@ -286,18 +288,18 @@ Cognitive Routing remains experimental pending broader behavioral acceptance. Co
 
 ## Documentation
 
-- [Using Freeflow Effectively](plugin-docs/using-freeflow.md)
-- [Getting Started](plugin-docs/getting-started.md)
-- [Workflow](plugin-docs/workflow.md)
-- [Cognitive Routing](plugin-docs/capabilities/cognitive-routing.md)
-- [Pi integration](plugin-docs/integrations/pi.md)
-- [PiFlow integration](plugin-docs/integrations/piflow.md)
-- [Architecture](plugin-docs/architecture.md)
-- [System prompt architecture](plugin-docs/prompt-architecture.md)
-- [Skill routing](plugin-docs/skill-routing.md)
-- [Capabilities](plugin-docs/capabilities/README.md)
-- [Release process](plugin-docs/release.md)
-- [Release evidence](plugin-docs/release-evidence/README.md)
+- [Using Freeflow Effectively](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/using-freeflow.md)
+- [Getting Started](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/getting-started.md)
+- [Workflow](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/workflow.md)
+- [Cognitive Routing](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/cognitive-routing.md)
+- [Pi integration](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/integrations/pi.md)
+- [PiFlow integration](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/integrations/piflow.md)
+- [Architecture](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/architecture.md)
+- [System prompt architecture](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/prompt-architecture.md)
+- [Skill routing](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/skill-routing.md)
+- [Capabilities](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/README.md)
+- [Release process](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/release.md)
+- [Release evidence](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/release-evidence/README.md)
 - [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 

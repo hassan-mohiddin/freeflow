@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.7.3 - 2026-09-16
+
 ### Added
 
 - Adds an optional Cognitive Routing Helper profile and `executor`, `helper`, and `both` delegation modes with mode-aware presets, manual holds, durable worker-specific continuation, and shared worker history.
