@@ -9,6 +9,7 @@ import { resolveToolExecutionConfig } from "../../dist/tool-runtime/config.js";
 import { ToolRuntime } from "../../dist/tool-runtime/index.js";
 import { ProgramHost } from "../../dist/tool-runtime/program/host.js";
 import { QuickJSRunner } from "../../dist/tool-runtime/program/quickjs.js";
+import { ToolProgressReporter } from "../../dist/tool-runtime/progress.js";
 
 function capability(mode = "reduction") {
   return resolveToolExecutionConfig(
@@ -309,6 +310,8 @@ test("post-start cancellation publishes one settled manifest", async () => {
   });
   try {
     const controller = new AbortController();
+    const updates = [];
+    const progress = new ToolProgressReporter((update) => updates.push(update), 0);
     const pending = f.host.run(
       "post-start-cancel",
       {
@@ -321,6 +324,7 @@ test("post-start cancellation publishes one settled manifest", async () => {
       },
       controller.signal,
       f.ctx,
+      progress,
     );
     await startedPromise;
     controller.abort();
@@ -328,6 +332,17 @@ test("post-start cancellation publishes one settled manifest", async () => {
     assert.equal(cancelled.details.freeflowRun.programStatus, "cancelled");
     assert.equal(cancelled.details.freeflowRun.calls.started, 1);
     assert.equal(cancelled.details.freeflowRun.calls.cancelled, 1);
+    const snapshots = updates.map((update) => update.details.freeflowProgress);
+    assert.equal(
+      snapshots.some((snapshot) => snapshot.phase === "cancelling"),
+      true,
+    );
+    assert.equal(
+      snapshots.some((snapshot) => snapshot.current?.status === "succeeded"),
+      false,
+    );
+    assert.equal(snapshots.at(-1).counts.cancelled, 1);
+    progress.close();
     const manifests = f.manager
       .getBranch()
       .filter(

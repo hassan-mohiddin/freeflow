@@ -13,6 +13,7 @@ import {
 import { PiSettingsComponent } from "./settings-tui.js";
 import { isPiFlowHost } from "../runtime/runtime-identity.js";
 import { isWorkerProfile, workersForDelegation } from "../cognitive-routing-v2/types.js";
+import { DEFAULT_TOOL_EXECUTION_CONFIG } from "../tool-runtime/config.js";
 const DEFAULT_FREEFLOW_ENABLED = true;
 const DEFAULT_CONTEXT_VIRTUALIZATION_ENABLED = false;
 const DEFAULT_CONVERSATION_HISTORY_ENABLED = false;
@@ -76,7 +77,7 @@ function setConfigValue(config, item, value) {
   if (!item.path?.length) {
     throw new Error(`${item.label} is a settings group, not a writable setting.`);
   }
-  if (item.defaultValue !== undefined && valuesEqual(value, item.defaultValue)) {
+  if (value === undefined || (item.defaultValue !== undefined && valuesEqual(value, item.defaultValue))) {
     deletePath(config, item.path);
     return;
   }
@@ -118,7 +119,8 @@ function coreDisplaySuffix(item, inactive = false) {
 }
 function updateScopedItemState(item, value) {
   if (!item.configScope) return;
-  const configValue = configValueForChoice(item, value);
+  const selectedValue = configValueForChoice(item, value);
+  const configValue = selectedValue === undefined || isEmptyValue(selectedValue) ? undefined : selectedValue;
   if (item.configScope === "session" || item.configScope === "local") {
     item.effectiveValue = configValue === undefined ? item.inheritedValue : configValue;
     item.effectiveSource = configValue === undefined ? (item.inheritedSource ?? "builtin") : item.configScope;
@@ -191,6 +193,114 @@ function createScopedBooleanItem(options) {
   }
   item.displaySuffix = coreDisplaySuffix(item);
   return item;
+}
+function createScopedToolItem(options) {
+  const repositoryRaw = getPath(options.rawConfig, options.path);
+  const repositoryValue = options.accept(repositoryRaw) ? repositoryRaw : options.defaultValue;
+  const inheritedSource = options.accept(repositoryRaw) ? "repository" : "builtin";
+  const localRaw = getPath(options.localConfig, options.path);
+  const hasLocalOverride = options.accept(localRaw);
+  const localValue = hasLocalOverride ? localRaw : undefined;
+  const format = options.format ?? ((value) => String(value ?? ""));
+  const editFormat = options.editFormat ?? format;
+  let item;
+  if (options.scope === "local") {
+    if (options.kind === "enum") {
+      const values = options.values ?? [];
+      item = {
+        id: options.id,
+        label: options.label,
+        description: `${options.description} Choose inherit to use the repository value; use /freeflow settings repo to edit shared defaults.`,
+        path: options.path,
+        kind: "enum",
+        value: hasLocalOverride ? String(localValue) : LOCAL_INHERIT,
+        values: [LOCAL_INHERIT, ...values],
+        valueLabels: { inherit: "Inherit repository", ...(options.valueLabels ?? {}) },
+        valueDescriptions: {
+          inherit: `Use ${format(repositoryValue)} from ${inheritedSource}.`,
+          ...(options.valueDescriptions ?? {}),
+        },
+        configScope: "local",
+        configValues: Object.fromEntries([[LOCAL_INHERIT, undefined], ...values.map((value) => [value, value])]),
+        effectiveValue: options.effectiveValue,
+        effectiveSource: hasLocalOverride ? "local" : inheritedSource,
+        inheritedValue: repositoryValue,
+        inheritedSource,
+      };
+    } else {
+      item = {
+        id: options.id,
+        label: options.label,
+        description: `${options.description} Leave the editor blank to inherit the repository value.`,
+        path: options.path,
+        kind: options.kind,
+        value: localValue,
+        parse: (text) => (text.trim() === "" ? undefined : (options.parse?.(text) ?? text)),
+        format,
+        editInitialValue: () => (hasLocalOverride ? editFormat(localValue) : ""),
+        configScope: "local",
+        effectiveValue: options.effectiveValue,
+        effectiveSource: hasLocalOverride ? "local" : inheritedSource,
+        inheritedValue: repositoryValue,
+        inheritedSource,
+      };
+    }
+  } else {
+    item = {
+      id: options.id,
+      label: options.label,
+      description: `${options.description} This edits shared .freeflow/config.json.`,
+      path: options.path,
+      kind: options.kind,
+      value: repositoryValue,
+      defaultValue: options.defaultValue,
+      values: options.values,
+      valueLabels: options.valueLabels,
+      valueDescriptions: options.valueDescriptions,
+      parse: options.parse,
+      format,
+      editInitialValue: () => editFormat(repositoryValue),
+      configScope: "repository",
+      effectiveValue: options.effectiveValue,
+      effectiveSource: hasLocalOverride ? "local" : inheritedSource,
+      localOverrideValue: localValue,
+    };
+  }
+  item.displaySuffix = coreDisplaySuffix(item);
+  return item;
+}
+function boundedInteger(label, minimum, maximum, fallback) {
+  return (text) => {
+    if (text.trim() === "") return fallback;
+    const value = Number(text);
+    if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
+      throw new Error(`${label} must be an integer between ${minimum} and ${maximum}`);
+    }
+    return value;
+  };
+}
+function stringList(label, maximum, pattern) {
+  return (text) => {
+    if (text.trim() === "") return [];
+    let value;
+    try {
+      value = JSON.parse(text);
+    } catch {
+      throw new Error(`${label} must be a JSON array of strings`);
+    }
+    if (
+      !Array.isArray(value) ||
+      value.length > maximum ||
+      new Set(value).size !== value.length ||
+      !value.every(
+        (item) =>
+          typeof item === "string" && item.length > 0 && item.length <= 4096 && (!pattern || pattern.test(item)),
+      )
+    ) {
+      throw new Error(`${label} must contain at most ${maximum} unique valid strings`);
+    }
+    return value;
+  };
 }
 function createScopedDelegationItem(options) {
   const path = ["cognitiveRouting", "delegation"];
@@ -816,8 +926,8 @@ function freeflowItems(rawConfig, options = {}) {
   })();
   const toolExecutionState = options.toolExecution;
   const toolSource = (path) => {
-    if (typeof getPath(localConfig, path) === "boolean") return "local";
-    if (typeof getPath(rawConfig, path) === "boolean") return "repository";
+    if (getPath(localConfig, path) !== undefined) return "local";
+    if (getPath(rawConfig, path) !== undefined) return "repository";
     return "builtin";
   };
   const toolExecutionEnabledItem = createScopedBooleanItem({
@@ -846,6 +956,111 @@ function freeflowItems(rawConfig, options = {}) {
     effectiveSource: toolSource(["toolExecution", "capture", "enabled"]),
     defaultValue: false,
   });
+  const captureInlineItem = createScopedToolItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.toolExecution.capture.maxInlineBytes",
+    label: "Inline result budget (bytes)",
+    description: "Maximum bounded native result presentation before exact recovery is required.",
+    path: ["toolExecution", "capture", "maxInlineBytes"],
+    kind: "integer",
+    effectiveValue: toolExecutionState?.capture.maxInlineBytes ?? DEFAULT_TOOL_EXECUTION_CONFIG.capture.maxInlineBytes,
+    defaultValue: DEFAULT_TOOL_EXECUTION_CONFIG.capture.maxInlineBytes,
+    accept: (value) => Number.isSafeInteger(value) && Number(value) >= 256 && Number(value) <= 1_048_576,
+    parse: boundedInteger("Inline result budget", 256, 1_048_576, DEFAULT_TOOL_EXECUTION_CONFIG.capture.maxInlineBytes),
+  });
+  const captureStoredItem = createScopedToolItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.toolExecution.capture.maxStoredBytes",
+    label: "Maximum captured result (bytes)",
+    description: "Maximum immutable sidecar size accepted for a single captured result.",
+    path: ["toolExecution", "capture", "maxStoredBytes"],
+    kind: "integer",
+    effectiveValue: toolExecutionState?.capture.maxStoredBytes ?? DEFAULT_TOOL_EXECUTION_CONFIG.capture.maxStoredBytes,
+    defaultValue: DEFAULT_TOOL_EXECUTION_CONFIG.capture.maxStoredBytes,
+    accept: (value) => Number.isSafeInteger(value) && Number(value) >= 4_194_304 && Number(value) <= 4_294_967_296,
+    parse: boundedInteger(
+      "Maximum captured result",
+      4_194_304,
+      4_294_967_296,
+      DEFAULT_TOOL_EXECUTION_CONFIG.capture.maxStoredBytes,
+    ),
+  });
+  const captureGroup = {
+    id: "freeflow.toolExecution.capture",
+    label: "Capture and recovery",
+    description: "Configure bounded native Bash capture and immutable exact recovery limits.",
+    kind: "group",
+    value: toolExecutionState?.capture.enabled ?? false,
+    displaySuffix: toolExecutionState?.capture.effective
+      ? `active · ${toolExecutionState.capture.maxInlineBytes} inline bytes`
+      : "inactive",
+    children: [captureEnabledItem, captureInlineItem, captureStoredItem],
+  };
+  const programModes = ["off", "reduction", "adapters"];
+  const programModeItem = createScopedToolItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.toolExecution.programs.mode",
+    label: "Program mode",
+    description: "Choose off, captured-data-only reduction, or adapters mode for declared revisioned live operations.",
+    path: ["toolExecution", "programs", "mode"],
+    kind: "enum",
+    effectiveValue: toolExecutionState?.programs.mode ?? DEFAULT_TOOL_EXECUTION_CONFIG.programs.mode,
+    defaultValue: DEFAULT_TOOL_EXECUTION_CONFIG.programs.mode,
+    accept: (value) => programModes.includes(value),
+    values: programModes,
+    valueLabels: { off: "Off", reduction: "Captured data only", adapters: "Live adapters" },
+    valueDescriptions: {
+      off: "Disable freeflow_run.",
+      reduction: "Allow only explicitly granted captured-result reads.",
+      adapters: "Also allow declared live operations after routing, policy, and effect checks.",
+    },
+  });
+  const programTimeoutItem = createScopedToolItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.toolExecution.programs.timeoutMs",
+    label: "Program timeout (ms)",
+    description: "Default wall-clock deadline for a bounded QuickJS program.",
+    path: ["toolExecution", "programs", "timeoutMs"],
+    kind: "integer",
+    effectiveValue: toolExecutionState?.programs.timeoutMs ?? DEFAULT_TOOL_EXECUTION_CONFIG.programs.timeoutMs,
+    defaultValue: DEFAULT_TOOL_EXECUTION_CONFIG.programs.timeoutMs,
+    accept: (value) => Number.isSafeInteger(value) && Number(value) >= 100 && Number(value) <= 120_000,
+    parse: boundedInteger("Program timeout", 100, 120_000, DEFAULT_TOOL_EXECUTION_CONFIG.programs.timeoutMs),
+  });
+  const parallelReadsItem = createScopedToolItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.toolExecution.programs.maxParallelReads",
+    label: "Parallel program reads",
+    description: "Maximum independent read operations a program may overlap.",
+    path: ["toolExecution", "programs", "maxParallelReads"],
+    kind: "integer",
+    effectiveValue:
+      toolExecutionState?.programs.maxParallelReads ?? DEFAULT_TOOL_EXECUTION_CONFIG.programs.maxParallelReads,
+    defaultValue: DEFAULT_TOOL_EXECUTION_CONFIG.programs.maxParallelReads,
+    accept: (value) => Number.isSafeInteger(value) && Number(value) >= 1 && Number(value) <= 32,
+    parse: boundedInteger("Parallel program reads", 1, 32, DEFAULT_TOOL_EXECUTION_CONFIG.programs.maxParallelReads),
+  });
+  const programsGroup = {
+    id: "freeflow.toolExecution.programs",
+    label: "Programs",
+    description: "Configure restricted QuickJS execution and read concurrency.",
+    kind: "group",
+    value: (toolExecutionState?.programs.mode ?? "off") !== "off",
+    displaySuffix: toolExecutionState?.programs.effective
+      ? `${toolExecutionState.programs.mode} · ${toolExecutionState.programs.timeoutMs} ms`
+      : "off",
+    children: [programModeItem, programTimeoutItem, parallelReadsItem],
+  };
   const workspaceEnabledItem = createScopedBooleanItem({
     scope,
     rawConfig,
@@ -859,6 +1074,65 @@ function freeflowItems(rawConfig, options = {}) {
     effectiveSource: toolSource(["toolExecution", "workspace", "enabled"]),
     defaultValue: false,
   });
+  const workspaceWriteItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.toolExecution.workspace.write",
+    label: "Exact workspace replacement",
+    description:
+      "Allow one hash-guarded exact replacement inside the configured workspace. This does not enable arbitrary writes or deletion.",
+    path: ["toolExecution", "workspace", "write"],
+    effectiveValue: toolExecutionState?.workspace.write ?? false,
+    effectiveSource: toolSource(["toolExecution", "workspace", "write"]),
+    defaultValue: false,
+  });
+  const workspaceRootItem = createScopedToolItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.toolExecution.workspace.root",
+    label: "Workspace root",
+    description: "Optional local execution root. Blank uses the activated repository root.",
+    path: ["toolExecution", "workspace", "root"],
+    kind: "string",
+    effectiveValue: toolExecutionState?.workspace.root ?? "",
+    defaultValue: "",
+    accept: (value) => typeof value === "string" && value.length > 0,
+    parse: (text) => text.trim(),
+    format: (value) => (typeof value === "string" && value ? value : "activated repository root"),
+    editFormat: (value) => (typeof value === "string" ? value : ""),
+  });
+  const denyPathsItem = createScopedToolItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.toolExecution.workspace.denyPaths",
+    label: "Denied workspace paths",
+    description: "JSON array of denied relative path prefixes. .git is always denied.",
+    path: ["toolExecution", "workspace", "denyPaths"],
+    kind: "list",
+    effectiveValue: toolExecutionState?.workspace.denyPaths ?? DEFAULT_TOOL_EXECUTION_CONFIG.workspace.denyPaths,
+    defaultValue: DEFAULT_TOOL_EXECUTION_CONFIG.workspace.denyPaths,
+    accept: (value) =>
+      Array.isArray(value) &&
+      value.length <= 128 &&
+      new Set(value).size === value.length &&
+      value.every((item) => typeof item === "string" && item.length > 0 && item.length <= 4096),
+    parse: stringList("Denied workspace paths", 128),
+    format: (value) => JSON.stringify(Array.isArray(value) ? value : []),
+  });
+  const workspaceGroup = {
+    id: "freeflow.toolExecution.workspace",
+    label: "Workspace",
+    description: "Configure bounded local reads, exact replacement, root, and denied paths.",
+    kind: "group",
+    value: toolExecutionState?.workspace.enabled ?? false,
+    displaySuffix: toolExecutionState?.workspace.effective
+      ? `reads active · writes ${toolExecutionState.workspace.write ? "enabled" : "disabled"}`
+      : "inactive",
+    children: [workspaceEnabledItem, workspaceWriteItem, workspaceRootItem, denyPathsItem],
+  };
   const discoveryEnabledItem = createScopedBooleanItem({
     scope,
     rawConfig,
@@ -871,6 +1145,34 @@ function freeflowItems(rawConfig, options = {}) {
     effectiveSource: toolSource(["toolExecution", "discovery", "enabled"]),
     defaultValue: false,
   });
+  const adapterAllowItem = createScopedToolItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.toolExecution.adapters.allow",
+    label: "Allowed cooperating adapters",
+    description: "JSON array of trusted announced adapter IDs permitted to activate.",
+    path: ["toolExecution", "adapters", "allow"],
+    kind: "list",
+    effectiveValue: toolExecutionState?.adapters.allow ?? DEFAULT_TOOL_EXECUTION_CONFIG.adapters.allow,
+    defaultValue: DEFAULT_TOOL_EXECUTION_CONFIG.adapters.allow,
+    accept: (value) =>
+      Array.isArray(value) &&
+      value.length <= 64 &&
+      new Set(value).size === value.length &&
+      value.every((item) => typeof item === "string" && /^[a-z][a-zA-Z0-9._-]{0,127}$/.test(item)),
+    parse: stringList("Allowed cooperating adapters", 64, /^[a-z][a-zA-Z0-9._-]{0,127}$/),
+    format: (value) => JSON.stringify(Array.isArray(value) ? value : []),
+  });
+  const adaptersGroup = {
+    id: "freeflow.toolExecution.adapters",
+    label: "Cooperating adapters",
+    description: "Allow only trusted in-process adapter IDs that are also announced by loaded extensions.",
+    kind: "group",
+    value: (toolExecutionState?.adapters.allow.length ?? 0) > 0,
+    displaySuffix: `${toolExecutionState?.adapters.allow.length ?? 0} allowed`,
+    children: [adapterAllowItem],
+  };
   const accountingEnabledItem = createScopedBooleanItem({
     scope,
     rawConfig,
@@ -884,35 +1186,54 @@ function freeflowItems(rawConfig, options = {}) {
     effectiveSource: toolSource(["toolExecution", "accounting", "enabled"]),
     defaultValue: false,
   });
-  for (const item of [
+  const toolExecutionPresetItem = {
+    id: "freeflow.toolExecution.preset",
+    label: "Configuration preset",
+    description: `Atomically configure the ${scope === "local" ? "personal override" : "shared repository"} for off, read-only local, or all local built-ins. Existing limits, roots, denied paths, and adapter allowlists are preserved.`,
+    kind: "enum",
+    value: "available",
+    values: ["off", "read-only", "full-local"],
+    valueLabels: {
+      off: "Off",
+      "read-only": "Read-only local",
+      "full-local": "All local built-ins",
+    },
+    valueDescriptions: {
+      off: "Disable Tool Execution while retaining its detailed settings.",
+      "read-only":
+        "Enable capture, discovery, accounting, live read programs, and workspace reads; keep replacement disabled.",
+      "full-local": "Enable the read-only preset plus hash-guarded exact workspace replacement.",
+    },
+    format: () => "choose preset",
+    transient: true,
+  };
+  const toolExecutionItems = [
     toolExecutionEnabledItem,
-    captureEnabledItem,
-    workspaceEnabledItem,
+    toolExecutionPresetItem,
+    captureGroup,
+    programsGroup,
+    workspaceGroup,
     discoveryEnabledItem,
+    adaptersGroup,
     accountingEnabledItem,
-  ]) {
+  ];
+  walkSettingsItems(toolExecutionItems, (item) => {
     item.inactive = freeflowInactive;
-  }
+  });
   const toolExecutionGroup = {
     id: "freeflow.toolExecution",
     label: "Tool Execution",
     description:
-      "Configure stable execution facades, verified result capture/recovery, and bounded accounting. Captured bytes persist until explicit deletion.",
+      "Configure stable execution facades, verified result capture/recovery, restricted programs, local operations, cooperating adapters, streaming progress, and bounded accounting.",
     kind: "group",
     value: toolExecutionState?.enabled ?? false,
     inactive: freeflowInactive,
     displaySuffix: toolExecutionState?.effective
-      ? `capture ${toolExecutionState.capture.effective ? "active" : "inactive"} · workspace ${toolExecutionState.workspace.effective ? "active" : "inactive"} · discovery ${toolExecutionState.discovery.effective ? "active" : "inactive"} · accounting ${toolExecutionState.accounting.effective ? "active" : "inactive"}`
+      ? `capture ${toolExecutionState.capture.effective ? "active" : "inactive"} · programs ${toolExecutionState.programs.mode} · workspace ${toolExecutionState.workspace.effective ? (toolExecutionState.workspace.write ? "read/write" : "read-only") : "inactive"} · discovery ${toolExecutionState.discovery.effective ? "active" : "inactive"} · adapters ${toolExecutionState.adapters.allow.length} allowed · accounting ${toolExecutionState.accounting.effective ? "active" : "inactive"}`
       : toolExecutionState?.enabled
         ? "inactive"
         : "disabled",
-    children: [
-      toolExecutionEnabledItem,
-      captureEnabledItem,
-      workspaceEnabledItem,
-      discoveryEnabledItem,
-      accountingEnabledItem,
-    ],
+    children: toolExecutionItems,
   };
   return [
     freeflowItem,
@@ -935,11 +1256,28 @@ function pruneKnownDefaults(config) {
     { path: ["contextVirtualization"], value: DEFAULT_CONTEXT_VIRTUALIZATION_ENABLED },
     { path: ["conversationHistory"], value: DEFAULT_CONVERSATION_HISTORY_ENABLED },
     { path: ["cognitiveRouting", "delegation"], value: "executor" },
-    { path: ["toolExecution", "enabled"], value: false },
-    { path: ["toolExecution", "capture", "enabled"], value: false },
-    { path: ["toolExecution", "workspace", "enabled"], value: false },
-    { path: ["toolExecution", "discovery", "enabled"], value: false },
-    { path: ["toolExecution", "accounting", "enabled"], value: false },
+    { path: ["toolExecution", "enabled"], value: DEFAULT_TOOL_EXECUTION_CONFIG.enabled },
+    { path: ["toolExecution", "capture", "enabled"], value: DEFAULT_TOOL_EXECUTION_CONFIG.capture.enabled },
+    {
+      path: ["toolExecution", "capture", "maxInlineBytes"],
+      value: DEFAULT_TOOL_EXECUTION_CONFIG.capture.maxInlineBytes,
+    },
+    {
+      path: ["toolExecution", "capture", "maxStoredBytes"],
+      value: DEFAULT_TOOL_EXECUTION_CONFIG.capture.maxStoredBytes,
+    },
+    { path: ["toolExecution", "programs", "mode"], value: DEFAULT_TOOL_EXECUTION_CONFIG.programs.mode },
+    { path: ["toolExecution", "programs", "timeoutMs"], value: DEFAULT_TOOL_EXECUTION_CONFIG.programs.timeoutMs },
+    {
+      path: ["toolExecution", "programs", "maxParallelReads"],
+      value: DEFAULT_TOOL_EXECUTION_CONFIG.programs.maxParallelReads,
+    },
+    { path: ["toolExecution", "workspace", "enabled"], value: DEFAULT_TOOL_EXECUTION_CONFIG.workspace.enabled },
+    { path: ["toolExecution", "workspace", "write"], value: DEFAULT_TOOL_EXECUTION_CONFIG.workspace.write },
+    { path: ["toolExecution", "workspace", "denyPaths"], value: DEFAULT_TOOL_EXECUTION_CONFIG.workspace.denyPaths },
+    { path: ["toolExecution", "adapters", "allow"], value: DEFAULT_TOOL_EXECUTION_CONFIG.adapters.allow },
+    { path: ["toolExecution", "discovery", "enabled"], value: DEFAULT_TOOL_EXECUTION_CONFIG.discovery.enabled },
+    { path: ["toolExecution", "accounting", "enabled"], value: DEFAULT_TOOL_EXECUTION_CONFIG.accounting.enabled },
   ];
   for (const item of defaultPaths) {
     if (valuesEqual(getPath(config, item.path), item.value)) {
@@ -980,6 +1318,32 @@ async function ensureLocalConfigIgnored(cwd) {
   const prefix = existing && !existing.endsWith("\n") ? "\n" : "";
   await appendFile(excludePath, `${prefix}${rule}\n`, "utf8");
 }
+function applyToolExecutionPreset(config, preset) {
+  setPath(config, ["toolExecution", "enabled"], preset !== "off");
+  if (preset === "off") return;
+  setPath(config, ["toolExecution", "capture", "enabled"], true);
+  setPath(config, ["toolExecution", "programs", "mode"], "adapters");
+  setPath(config, ["toolExecution", "workspace", "enabled"], true);
+  setPath(config, ["toolExecution", "workspace", "write"], preset === "full-local");
+  setPath(config, ["toolExecution", "discovery", "enabled"], true);
+  setPath(config, ["toolExecution", "accounting", "enabled"], true);
+}
+async function updateToolExecutionPreset(cwd, scope, preset) {
+  const current = scope === "local" ? await readFreeflowLocalConfig(cwd) : await readFreeflowConfig(cwd);
+  const next = cloneJson(current);
+  applyToolExecutionPreset(next, preset);
+  if (scope === "repository") pruneKnownDefaults(next);
+  if (valuesEqual(current, next)) return false;
+  if (scope === "local") {
+    await ensureLocalConfigIgnored(cwd);
+    await mkdir(join(cwd, ".freeflow"), { recursive: true });
+    await writeFile(join(cwd, ".freeflow/local.json"), `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  } else {
+    await mkdir(join(cwd, ".freeflow"), { recursive: true });
+    await writeFile(join(cwd, ".freeflow/config.json"), `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  }
+  return true;
+}
 async function updateConfig(cwd, item, value, scope = item.configScope ?? "repository") {
   if (scope === "local") {
     if (!item.path?.length) {
@@ -1018,6 +1382,8 @@ function isCognitiveRoutingProfileItem(item) {
 function valueForDisplay(item) {
   let value;
   if (isCognitiveRoutingProfileItem(item) && item.format) {
+    value = item.format(effectiveItemValue(item));
+  } else if ((item.configScope === "local" || item.configScope === "session") && item.format && item.kind !== "enum") {
     value = item.format(effectiveItemValue(item));
   } else if (item.configScope === "local" || item.configScope === "session") {
     value = formatCoreValue(effectiveItemValue(item));
@@ -1081,15 +1447,49 @@ function refreshSettingsDerivedState(items) {
   }
   const toolExecutionGroup = findSettingsItem(items, "freeflow.toolExecution");
   const toolExecutionEnabled = findSettingsItem(items, "freeflow.toolExecution.enabled");
+  const captureGroup = findSettingsItem(items, "freeflow.toolExecution.capture");
   const captureEnabled = findSettingsItem(items, "freeflow.toolExecution.capture.enabled");
+  const captureInline = findSettingsItem(items, "freeflow.toolExecution.capture.maxInlineBytes");
+  const programsGroup = findSettingsItem(items, "freeflow.toolExecution.programs");
+  const programMode = findSettingsItem(items, "freeflow.toolExecution.programs.mode");
+  const programTimeout = findSettingsItem(items, "freeflow.toolExecution.programs.timeoutMs");
+  const workspaceGroup = findSettingsItem(items, "freeflow.toolExecution.workspace");
   const workspaceEnabled = findSettingsItem(items, "freeflow.toolExecution.workspace.enabled");
+  const workspaceWrite = findSettingsItem(items, "freeflow.toolExecution.workspace.write");
   const discoveryEnabled = findSettingsItem(items, "freeflow.toolExecution.discovery.enabled");
+  const adaptersGroup = findSettingsItem(items, "freeflow.toolExecution.adapters");
+  const adaptersAllow = findSettingsItem(items, "freeflow.toolExecution.adapters.allow");
   const accountingEnabled = findSettingsItem(items, "freeflow.toolExecution.accounting.enabled");
+  if (captureGroup && captureEnabled) {
+    captureGroup.value = effectiveItemValue(captureEnabled) === true;
+    captureGroup.displaySuffix = captureGroup.value
+      ? `active · ${effectiveItemValue(captureInline)} inline bytes`
+      : "inactive";
+  }
+  if (programsGroup && programMode) {
+    const mode = String(effectiveItemValue(programMode) ?? "off");
+    programsGroup.value = mode !== "off";
+    programsGroup.displaySuffix = `${mode}${mode === "off" ? "" : ` · ${effectiveItemValue(programTimeout)} ms`}`;
+  }
+  if (workspaceGroup && workspaceEnabled) {
+    workspaceGroup.value = effectiveItemValue(workspaceEnabled) === true;
+    workspaceGroup.displaySuffix = workspaceGroup.value
+      ? `reads active · writes ${effectiveItemValue(workspaceWrite) === true ? "enabled" : "disabled"}`
+      : "inactive";
+  }
+  if (adaptersGroup && adaptersAllow) {
+    const allowed = effectiveItemValue(adaptersAllow);
+    const count = Array.isArray(allowed) ? allowed.length : 0;
+    adaptersGroup.value = count > 0;
+    adaptersGroup.displaySuffix = `${count} allowed`;
+  }
   if (toolExecutionGroup && toolExecutionEnabled) {
     const enabled = !freeflowInactive && effectiveItemValue(toolExecutionEnabled) === true;
+    const mode = String(effectiveItemValue(programMode) ?? "off");
+    const adapters = effectiveItemValue(adaptersAllow);
     toolExecutionGroup.value = effectiveItemValue(toolExecutionEnabled) === true;
     toolExecutionGroup.displaySuffix = enabled
-      ? `capture ${effectiveItemValue(captureEnabled) === true ? "active" : "inactive"} · workspace ${effectiveItemValue(workspaceEnabled) === true ? "active" : "inactive"} · discovery ${effectiveItemValue(discoveryEnabled) === true ? "active" : "inactive"} · accounting ${effectiveItemValue(accountingEnabled) === true ? "active" : "inactive"}`
+      ? `capture ${effectiveItemValue(captureEnabled) === true ? "active" : "inactive"} · programs ${mode} · workspace ${effectiveItemValue(workspaceEnabled) === true ? (effectiveItemValue(workspaceWrite) === true ? "read/write" : "read-only") : "inactive"} · discovery ${effectiveItemValue(discoveryEnabled) === true ? "active" : "inactive"} · adapters ${Array.isArray(adapters) ? adapters.length : 0} allowed · accounting ${effectiveItemValue(accountingEnabled) === true ? "active" : "inactive"}`
       : effectiveItemValue(toolExecutionEnabled) === true
         ? "inactive"
         : "disabled";
@@ -1106,6 +1506,27 @@ function refreshSettingsDerivedState(items) {
       candidate.inactive = candidate.runtimeInactive === true || freeflowInactive;
     }
   });
+}
+function reflectToolExecutionPreset(items, preset, scope) {
+  const setBoolean = (id, value) => {
+    const item = findSettingsItem(items, id);
+    if (!item) return;
+    const selected = scope === "local" ? String(value) : value;
+    item.value = selected;
+    updateScopedItemState(item, selected);
+  };
+  setBoolean("freeflow.toolExecution.enabled", preset !== "off");
+  if (preset === "off") return;
+  setBoolean("freeflow.toolExecution.capture.enabled", true);
+  setBoolean("freeflow.toolExecution.workspace.enabled", true);
+  setBoolean("freeflow.toolExecution.workspace.write", preset === "full-local");
+  setBoolean("freeflow.toolExecution.discovery.enabled", true);
+  setBoolean("freeflow.toolExecution.accounting.enabled", true);
+  const mode = findSettingsItem(items, "freeflow.toolExecution.programs.mode");
+  if (mode) {
+    mode.value = "adapters";
+    updateScopedItemState(mode, "adapters");
+  }
 }
 function settingsChoices(item) {
   if (item.kind === "boolean") {
@@ -1147,7 +1568,7 @@ function settingsEntries(items, rootItems, onChange) {
     edit:
       !item.children && !["boolean", "enum", "group"].includes(item.kind)
         ? {
-            initialValue: () => valueForDisplay(item),
+            initialValue: () => item.editInitialValue?.() ?? valueForDisplay(item),
             parse: (text) => (item.parse ? item.parse(text) : text),
           }
         : undefined,
@@ -1227,7 +1648,7 @@ function freeflowStatusText(state, cognitiveRoutingController, toolExecutionRunt
     `Freeflow: ${state.enabled ? "enabled" : "disabled"}${sessionSuffix(state.configSources.enabled)}`,
     `context: ${contextEnabled ? "enabled" : "disabled"} (virtualization ${state.contextVirtualization?.effective ? "enabled" : "disabled"}, history ${state.conversationHistory?.effective ? "enabled" : "disabled"})`,
     ...(cognitiveRoutingStatus ? [`cognitive routing: ${cognitiveRoutingStatus}`] : []),
-    `tool execution: ${state.toolExecution?.effective ? "enabled" : "disabled"} (capture ${state.toolExecution?.capture?.effective ? "enabled" : "disabled"}, verified reader ${state.toolExecution?.effective ? "enabled" : "disabled"}, workspace ${state.toolExecution?.workspace?.effective ? "enabled" : "disabled"}, programs ${state.toolExecution?.programs?.mode ?? "off"}, live effects ${toolExecutionRuntime?.unresolvedEffects ? `fenced (${toolExecutionRuntime.unresolvedEffects})` : "settled"}, discovery ${state.toolExecution?.discovery?.effective ? "enabled" : "disabled"}, catalog ${toolExecutionRuntime?.catalog?.operations ?? 0} operations/${toolExecutionRuntime?.catalog?.metadataBytes ?? 0} bytes, adapters ${toolExecutionRuntime?.adapters?.announced?.filter((adapter) => adapter.active).length ?? 0} active/${toolExecutionRuntime?.adapters?.allowed?.length ?? 0} allowed, accounting ${state.toolExecution?.accounting?.effective ? "enabled" : "disabled"}; native Bash is built in, custom tools require adapters; captured files are retained until explicit deletion${toolIssue?.code ? `; latest ${toolExecutionRuntime?.lastFailure ? "program" : toolExecutionRuntime?.failures?.length ? "capture" : "adapter"} issue ${toolIssue.code}${toolIssue.message ? `: ${toolIssue.message}` : ""}` : ""})`,
+    `tool execution: ${state.toolExecution?.effective ? "enabled" : "disabled"} (capture ${state.toolExecution?.capture?.effective ? "enabled" : "disabled"}, verified reader ${state.toolExecution?.effective ? "enabled" : "disabled"}, workspace ${state.toolExecution?.workspace?.effective ? (state.toolExecution.workspace.write ? "read/write" : "read-only") : "disabled"}, programs ${state.toolExecution?.programs?.mode ?? "off"}, live effects ${toolExecutionRuntime?.unresolvedEffects ? `fenced (${toolExecutionRuntime.unresolvedEffects})` : "settled"}, discovery ${state.toolExecution?.discovery?.effective ? "enabled" : "disabled"}, catalog ${toolExecutionRuntime?.catalog?.operations ?? 0} operations/${toolExecutionRuntime?.catalog?.metadataBytes ?? 0} bytes, adapters ${toolExecutionRuntime?.adapters?.announced?.filter((adapter) => adapter.active).length ?? 0} active/${toolExecutionRuntime?.adapters?.allowed?.length ?? 0} allowed, accounting ${state.toolExecution?.accounting?.effective ? "enabled" : "disabled"}; native Bash is built in, custom tools require adapters; captured files are retained until explicit deletion${toolIssue?.code ? `; latest ${toolExecutionRuntime?.lastFailure ? "program" : toolExecutionRuntime?.failures?.length ? "capture" : "adapter"} issue ${toolIssue.code}${toolIssue.message ? `: ${toolIssue.message}` : ""}` : ""})`,
     ...(toolExecutionRuntime?.queued ? [`capture publications queued: ${toolExecutionRuntime.queued}`] : []),
   ].join("; ");
 }
@@ -1471,6 +1892,38 @@ export async function handleFreeflowCommand(
         const override = value === LOCAL_INHERIT ? null : value === "true";
         const result = await setSessionCoreOverride(key, override, ctx, pi);
         return { changed: result.changed, reloadRequired: result.reloadRequired === true };
+      }
+      if (item.id === "freeflow.toolExecution.preset") {
+        if (!["off", "read-only", "full-local"].includes(value)) {
+          throw new Error("Unknown Tool Execution preset.");
+        }
+        if (value === "full-local") {
+          if (typeof ctx.ui?.confirm !== "function") {
+            ctx.ui?.notify?.("Enabling all local built-ins requires confirmation in Pi TUI mode.", "warning");
+            return { changed: false, reloadRequired: false };
+          }
+          const confirmed = await ctx.ui.confirm(
+            "Enable all local Tool Execution built-ins?",
+            "This enables adapters-mode programs, local workspace reads, and hash-guarded project.replaceExact@1 mutations. It does not enable arbitrary writes or deletion.",
+          );
+          if (!confirmed) return { changed: false, reloadRequired: false };
+        }
+        const targetScope = settingsScope === "local" ? "local" : "repository";
+        const changed = await updateToolExecutionPreset(ctx.cwd, targetScope, value);
+        if (changed) reflectToolExecutionPreset(items, value, targetScope);
+        return { changed, reloadRequired: changed };
+      }
+      const configuredValue = configValueForChoice(item, value);
+      if (item.id === "freeflow.toolExecution.workspace.write" && configuredValue === true) {
+        if (typeof ctx.ui?.confirm !== "function") {
+          ctx.ui?.notify?.("Enabling workspace replacement requires confirmation in Pi TUI mode.", "warning");
+          return { changed: false, reloadRequired: false };
+        }
+        const confirmed = await ctx.ui.confirm(
+          "Enable exact workspace replacement?",
+          "This permits hash-guarded project.replaceExact@1 mutations inside the configured workspace. It does not enable arbitrary writes or deletion.",
+        );
+        if (!confirmed) return { changed: false, reloadRequired: false };
       }
       await updateConfig(ctx.cwd, item, value, item.configScope ?? "repository");
       if (!item.id.startsWith("freeflow.cognitiveRouting.sessionStart.")) {

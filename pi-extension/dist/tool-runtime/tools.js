@@ -1,3 +1,5 @@
+import { ToolProgressReporter } from "./progress.js";
+import { renderToolRuntimeCall, renderToolRuntimeResult } from "./renderers.js";
 export const TOOL_RUNTIME_TOOL_NAMES = ["freeflow_tools", "freeflow_run", "freeflow_result"];
 const string = (maxLength, description) => ({
   type: "string",
@@ -161,6 +163,19 @@ const descriptions = {
   freeflow_run: "Run bounded JavaScript with only explicitly granted operation and captured-result capabilities.",
   freeflow_result: "Read an exact bounded byte range from a verified captured Freeflow result.",
 };
+function initialProgress(name, input) {
+  const activity =
+    name === "freeflow_run"
+      ? "Preparing restricted program"
+      : name === "freeflow_result"
+        ? "Verifying captured result"
+        : input?.operation === "call"
+          ? `Admitting ${input?.operationKey?.id ?? "operation"}`
+          : input?.operation === "describe"
+            ? "Loading operation contracts"
+            : "Searching operation catalog";
+  return { version: 1, tool: name, phase: "preparing", activity };
+}
 export function registerToolRuntimeTools(pi, state, handlers = {}) {
   for (const name of TOOL_RUNTIME_TOOL_NAMES) {
     pi.registerTool({
@@ -169,24 +184,33 @@ export function registerToolRuntimeTools(pi, state, handlers = {}) {
       description: descriptions[name],
       parameters: TOOL_RUNTIME_SCHEMAS[name],
       executionMode: "sequential",
-      async execute(_id, input, signal, _update, ctx) {
+      renderCall: (args, theme, context) => renderToolRuntimeCall(name, args, theme, context),
+      renderResult: (result, options, theme, context) => renderToolRuntimeResult(name, result, options, theme, context),
+      async execute(_id, input, signal, update, ctx) {
         if (!validToolRuntimeInput(name, input)) throw new Error(`Invalid ${name} arguments; no operation accepted.`);
         const current = state();
-        if (name === "freeflow_tools" && current?.effective && handlers.invokeTools) {
-          return handlers.invokeTools(_id, input, signal, ctx);
+        const progress = new ToolProgressReporter(update);
+        try {
+          progress.publish(initialProgress(name, input), true);
+          if (name === "freeflow_tools" && current?.effective && handlers.invokeTools) {
+            return await handlers.invokeTools(_id, input, signal, ctx, progress);
+          }
+          if (name === "freeflow_run" && current?.programs.effective && handlers.runProgram) {
+            return await handlers.runProgram(_id, input, signal, ctx, progress);
+          }
+          if (name === "freeflow_result" && current?.effective && handlers.readResult) {
+            return await handlers.readResult(input, signal, ctx, progress);
+          }
+          const reason = !current?.effective
+            ? "Tool Execution is disabled."
+            : name === "freeflow_run" && !current.programs.effective
+              ? "Programs are disabled."
+              : "This operation is not available in the current implementation phase.";
+          throw new Error(`Freeflow ${name} unavailable: ${reason}`);
+        } finally {
+          progress.flush();
+          progress.close();
         }
-        if (name === "freeflow_run" && current?.programs.effective && handlers.runProgram) {
-          return handlers.runProgram(_id, input, signal, ctx);
-        }
-        if (name === "freeflow_result" && current?.effective && handlers.readResult) {
-          return handlers.readResult(input, signal, ctx);
-        }
-        const reason = !current?.effective
-          ? "Tool Execution is disabled."
-          : name === "freeflow_run" && !current.programs.effective
-            ? "Programs are disabled."
-            : "This operation is not available in the current implementation phase.";
-        throw new Error(`Freeflow ${name} unavailable: ${reason}`);
       },
     });
   }

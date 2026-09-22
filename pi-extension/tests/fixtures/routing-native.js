@@ -95,7 +95,8 @@ export async function fixture(script, projection = true, after, withUI = true, o
     errors = [],
     contexts = [],
     transportFailures = [],
-    notices = [];
+    notices = [],
+    toolUpdates = [];
   let session;
   const manager = SessionManager.create(cwd, join(root, "sessions"));
   globalThis.fetch = async (url, init) => {
@@ -148,6 +149,9 @@ export async function fixture(script, projection = true, after, withUI = true, o
               tokensBefore: 100,
             },
           }));
+          pi.on("tool_execution_update", (event) => {
+            toolUpdates.push(structuredClone(event));
+          });
         },
       ],
     });
@@ -174,7 +178,7 @@ export async function fixture(script, projection = true, after, withUI = true, o
     await session.prompt("Complete the fixture assignment.");
     await session.waitForIdle();
     assert.deepEqual(errors, [], "extension lifecycle errors");
-    if (after) await after({ session, manager, requests, contexts, cwd, notices });
+    if (after) await after({ session, manager, requests, contexts, cwd, notices, toolUpdates });
     assert.deepEqual(errors, [], "post-lifecycle errors");
     assert.deepEqual(transportFailures, [], "scripted provider assertions must not be swallowed as provider errors");
     assert.notEqual(
@@ -182,7 +186,7 @@ export async function fixture(script, projection = true, after, withUI = true, o
       "error",
       `fixture completes without provider failure: ${session.messages.at(-1)?.errorMessage ?? ""}`,
     );
-    return { requests, state: replay(manager.getBranch()), entries: manager.getEntries(), contexts };
+    return { requests, state: replay(manager.getBranch()), entries: manager.getEntries(), contexts, toolUpdates };
   } finally {
     session?.dispose();
     globalThis.fetch = priorFetch;

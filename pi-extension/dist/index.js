@@ -234,9 +234,28 @@ export default function freeflow(pi) {
     { contextVirtualization: false, conversationHistory: false },
   );
   registerToolRuntimeTools(api, () => capability?.toolExecution, {
-    invokeTools: (callId, input, signal, ctx) => toolRuntime.invokeTools(callId, input, signal, ctx),
-    runProgram: (callId, input, signal, ctx) => programs.run(callId, input, signal, ctx),
-    readResult: (input, signal, ctx) => results.read(input, signal, ctx),
+    invokeTools: (callId, input, signal, ctx, progress) =>
+      toolRuntime.invokeTools(callId, input, signal, ctx, progress),
+    runProgram: (callId, input, signal, ctx, progress) => programs.run(callId, input, signal, ctx, progress),
+    readResult: async (input, signal, ctx, progress) => {
+      progress?.publish({
+        version: 1,
+        tool: "freeflow_result",
+        phase: "running",
+        activity: "Reading verified captured bytes",
+      });
+      const result = await results.read(input, signal, ctx);
+      progress?.publish(
+        {
+          version: 1,
+          tool: "freeflow_result",
+          phase: "settling",
+          activity: "Verified captured range",
+        },
+        true,
+      );
+      return result;
+    },
   });
   pi.on("resources_discover", async (event, ctx) => {
     const state = capability ?? (await loadSurface(ctx ?? { cwd: event?.cwd ?? process.cwd() }));

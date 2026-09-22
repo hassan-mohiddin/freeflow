@@ -41,7 +41,7 @@ export class ProgramHost {
     }
     return result;
   }
-  async run(callId, raw, signal, ctx) {
+  async run(callId, raw, signal, ctx, progress) {
     const state = this.state();
     if (!state?.effective || state.programs.mode === "off")
       throw new ProgramLimitError("programs_disabled", "Freeflow programs are disabled.");
@@ -60,6 +60,24 @@ export class ProgramHost {
     const captures = new Set(request.captures);
     const inputJson = canonicalJson(request.input);
     const emitted = [];
+    const initialCounts = {
+      submitted: 0,
+      started: 0,
+      succeeded: 0,
+      denied: 0,
+      failed: 0,
+      cancelled: 0,
+      unknown: 0,
+    };
+    progress?.publish({
+      version: 1,
+      tool: "freeflow_run",
+      phase: "running",
+      activity: "Starting restricted program",
+      runId,
+      counts: initialCounts,
+      emittedCount: 0,
+    });
     let emittedBytes = 0;
     let emitSequence = 0;
     let terminal;
@@ -74,10 +92,40 @@ export class ProgramHost {
     const result = new Promise((resolve) => {
       finish = resolve;
     });
+    let lastCurrent;
+    const publishSchedulerProgress = (snapshot) => {
+      const current = snapshot.current;
+      if (current) lastCurrent = current;
+      const settledCurrent = current && current.status !== "running";
+      progress?.publish({
+        version: 1,
+        tool: "freeflow_run",
+        phase: settledCurrent ? "settling" : "running",
+        activity: current
+          ? `${current.status === "running" ? "Running" : "Settled"} ${current.operation.id}`
+          : "Running restricted program",
+        runId,
+        counts: snapshot.counts,
+        emittedCount: emitted.length,
+        ...(current ? { current } : {}),
+      });
+    };
     const finalize = async () => {
       if (settled || finalizing || !scheduler || (!terminal && !terminalStatus)) return;
       finalizing = true;
+      progress?.flush();
+      progress?.publish({
+        version: 1,
+        tool: "freeflow_run",
+        phase: "settling",
+        activity: "Settling program operations",
+        runId,
+        counts: { ...scheduler.counts },
+        emittedCount: emitted.length,
+        ...(lastCurrent ? { current: lastCurrent } : {}),
+      });
       await scheduler.drain();
+      progress?.flush();
       settled = true;
       const status =
         scheduler.counts.unknown > 0
@@ -117,6 +165,19 @@ export class ProgramHost {
         ...(envelope.error ? { error: envelope.error } : {}),
       };
       let manifestRef;
+      progress?.publish(
+        {
+          version: 1,
+          tool: "freeflow_run",
+          phase: "settling",
+          activity: status === "completed" ? "Finalizing settled program" : `Finalizing ${status} program`,
+          runId,
+          counts: { ...scheduler.counts },
+          emittedCount: emitted.length,
+          ...(lastCurrent ? { current: lastCurrent } : {}),
+        },
+        true,
+      );
       try {
         this.pi.appendEntry?.(RUN_MANIFEST_ENTRY, manifest);
         const matches = (ctx.sessionManager?.getBranch?.() ?? []).filter(
@@ -138,6 +199,7 @@ export class ProgramHost {
       Math.min(state.programs.maxParallelReads, PROGRAM_LIMITS.parallelReads),
       ctx,
       (outcome) => interruptForModel(outcome.context ?? null),
+      publishSchedulerProgress,
     );
     try {
       worker = new Worker(new URL("./worker.js", import.meta.url), {
@@ -154,6 +216,19 @@ export class ProgramHost {
     const abort = (code, message, context) => {
       if (settled || terminalStatus) return;
       terminalStatus = code;
+      progress?.publish(
+        {
+          version: 1,
+          tool: "freeflow_run",
+          phase: "cancelling",
+          activity: context === undefined ? `Stopping program: ${code}` : "Stopping for model decision",
+          runId,
+          counts: scheduler ? { ...scheduler.counts } : initialCounts,
+          emittedCount: emitted.length,
+          ...(lastCurrent ? { current: lastCurrent } : {}),
+        },
+        true,
+      );
       terminalError = { code: context === undefined ? code : "needs_model", message };
       if (context !== undefined) modelContext = freezeJson(context);
       scheduler.cancel(message);
@@ -182,6 +257,16 @@ export class ProgramHost {
             return;
           }
           emitted.push(value);
+          progress?.publish({
+            version: 1,
+            tool: "freeflow_run",
+            phase: "running",
+            activity: "Program emitted an observation",
+            runId,
+            counts: scheduler ? { ...scheduler.counts } : initialCounts,
+            emittedCount: emitted.length,
+            ...(lastCurrent ? { current: lastCurrent } : {}),
+          });
         } else {
           terminal = frame;
           scheduler.closeAdmission();

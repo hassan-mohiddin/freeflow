@@ -10,6 +10,7 @@ export class ProgramScheduler {
   parallelReads;
   host;
   onControl;
+  onProgress;
   counts = {
     submitted: 0,
     started: 0,
@@ -37,7 +38,18 @@ export class ProgramScheduler {
   lane = Promise.resolve();
   lanePending = 0;
   flushScheduled = false;
-  constructor(runtime, scope, operations, captures, send, runId, parallelReads, host, onControl = () => {}) {
+  constructor(
+    runtime,
+    scope,
+    operations,
+    captures,
+    send,
+    runId,
+    parallelReads,
+    host,
+    onControl = () => {},
+    onProgress = () => {},
+  ) {
     this.runtime = runtime;
     this.scope = scope;
     this.operations = operations;
@@ -47,6 +59,10 @@ export class ProgramScheduler {
     this.parallelReads = parallelReads;
     this.host = host;
     this.onControl = onControl;
+    this.onProgress = onProgress;
+  }
+  progress(current) {
+    this.onProgress({ counts: { ...this.counts }, ...(current ? { current } : {}) });
   }
   get signal() {
     return this.controller.signal;
@@ -209,6 +225,13 @@ export class ProgramScheduler {
     this.active += 1;
     this.inFlight.set(pending.frame.seq, { pending, call });
     if (pending.concurrency === "exclusive") this.exclusiveActive = true;
+    this.progress({
+      seq: pending.frame.seq,
+      operation: pending.key,
+      status: "running",
+      effect: call.effect,
+      effectState: "pending",
+    });
     this.runtime
       .executePrepared(call, this.controller.signal)
       .then((outcome) => {
@@ -307,6 +330,13 @@ export class ProgramScheduler {
         status: outcome.status,
         effectState: outcome.effectState,
         ...(outcome.error ? { error: outcome.error.code } : {}),
+      });
+      this.progress({
+        seq: pending.frame.seq,
+        operation: pending.key,
+        status: outcome.status,
+        ...(outcome.effect ? { effect: outcome.effect } : {}),
+        effectState: outcome.effectState,
       });
       if (outcome.status === "needs-model") this.onControl(outcome);
       else if (!this.controller.signal.aborted)

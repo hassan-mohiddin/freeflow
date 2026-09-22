@@ -19,6 +19,17 @@ export type CallCounts = {
   unknown: number;
 };
 
+export type ProgramSchedulerProgress = Readonly<{
+  counts: CallCounts;
+  current?: Readonly<{
+    seq: number;
+    operation: OperationKey;
+    status: string;
+    effect?: string;
+    effectState?: string;
+  }>;
+}>;
+
 export class ProgramScheduler {
   readonly counts: CallCounts = {
     submitted: 0,
@@ -59,7 +70,12 @@ export class ProgramScheduler {
     private readonly parallelReads: number,
     private readonly host: unknown,
     private readonly onControl: (outcome: CallOutcome) => void = () => {},
+    private readonly onProgress: (progress: ProgramSchedulerProgress) => void = () => {},
   ) {}
+
+  private progress(current?: ProgramSchedulerProgress["current"]): void {
+    this.onProgress({ counts: { ...this.counts }, ...(current ? { current } : {}) });
+  }
 
   get signal(): AbortSignal {
     return this.controller.signal;
@@ -229,6 +245,13 @@ export class ProgramScheduler {
     this.active += 1;
     this.inFlight.set(pending.frame.seq, { pending, call });
     if (pending.concurrency === "exclusive") this.exclusiveActive = true;
+    this.progress({
+      seq: pending.frame.seq,
+      operation: pending.key,
+      status: "running",
+      effect: call.effect,
+      effectState: "pending",
+    });
     this.runtime
       .executePrepared(call, this.controller.signal)
       .then((outcome) => {
@@ -331,6 +354,13 @@ export class ProgramScheduler {
         status: outcome.status,
         effectState: outcome.effectState,
         ...(outcome.error ? { error: outcome.error.code } : {}),
+      });
+      this.progress({
+        seq: pending.frame.seq,
+        operation: pending.key,
+        status: outcome.status,
+        ...(outcome.effect ? { effect: outcome.effect } : {}),
+        effectState: outcome.effectState,
       });
       if (outcome.status === "needs-model") this.onControl(outcome);
       else if (!this.controller.signal.aborted)

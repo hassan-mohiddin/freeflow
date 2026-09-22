@@ -20,8 +20,8 @@ const config = {
   },
 };
 
-test("native freeflow_run emits bounded guest observations without exposing hidden return values", async () => {
-  await fixture(
+test("native freeflow_run streams bounded progress without exposing hidden values", async () => {
+  const observed = await fixture(
     (request, wire, manager) => {
       if (request === 1)
         return call("freeflow_run", {
@@ -56,6 +56,21 @@ test("native freeflow_run emits bounded guest observations without exposing hidd
     false,
     { cognitiveRouting: { enabled: false }, freeflowConfig: config },
   );
+  const updates = observed.toolUpdates.filter((event) => event.toolName === "freeflow_run");
+  assert.ok(updates.length >= 2);
+  assert.equal(
+    updates.every((event) => event.partialResult.details.freeflowProgress.version === 1),
+    true,
+  );
+  assert.equal(
+    updates.some((event) => event.partialResult.details.freeflowProgress.phase === "preparing"),
+    true,
+  );
+  assert.equal(
+    updates.some((event) => event.partialResult.details.freeflowProgress.phase === "settling"),
+    true,
+  );
+  assert.equal(JSON.stringify(updates.map((event) => event.partialResult)).includes("HIDDEN_INTERMEDIATE"), false);
 });
 
 test("native program reads only an explicitly granted capture and emits an exact selected range", async () => {
@@ -99,7 +114,7 @@ test("native program reads only an explicitly granted capture and emits an exact
   );
 });
 
-test("native adapter-mode program searches and replaces a guarded local file", async () => {
+test("native adapter-mode program streams mutation success only after effect settlement", async () => {
   const body = "NATIVE_P4_TARGET\n";
   const expectedSha256 = createHash("sha256").update(body).digest("hex");
   const adapterConfig = {
@@ -109,7 +124,7 @@ test("native adapter-mode program searches and replaces a guarded local file", a
       workspace: { enabled: true, write: true },
     },
   };
-  await fixture(
+  const observed = await fixture(
     (request, _wire, manager) => {
       if (request === 1)
         return call("freeflow_run", {
@@ -145,6 +160,22 @@ test("native adapter-mode program searches and replaces a guarded local file", a
       freeflowConfig: adapterConfig,
       beforePrompt: async ({ cwd }) => writeFile(join(cwd, "workspace-p4.txt"), body),
     },
+  );
+  const progress = observed.toolUpdates
+    .filter((event) => event.toolName === "freeflow_run")
+    .map((event) => event.partialResult.details.freeflowProgress);
+  const mutationUpdates = progress.filter((update) => update.current?.operation?.id === "project.replaceExact");
+  assert.equal(
+    mutationUpdates.some(
+      (update) => update.current.status === "succeeded" && update.current.effectState === "completed",
+    ),
+    true,
+  );
+  assert.equal(
+    mutationUpdates.some(
+      (update) => update.current.status === "succeeded" && update.current.effectState !== "completed",
+    ),
+    false,
   );
 });
 

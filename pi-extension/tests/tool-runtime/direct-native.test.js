@@ -22,8 +22,8 @@ const enabled = {
   },
 };
 
-test("native stable facade performs search, describe, and exact direct workspace read", async () => {
-  await fixture(
+test("native stable facade streams progress for search, describe, and direct workspace read", async () => {
+  const observed = await fixture(
     (request, wire, manager) => {
       if (request === 1) return call("freeflow_tools", { operation: "search", query: "workspace text", limit: 5 });
       if (request === 2) {
@@ -61,6 +61,22 @@ test("native stable facade performs search, describe, and exact direct workspace
       freeflowConfig: enabled,
       beforePrompt: async ({ cwd }) => writeFile(join(cwd, "workspace.txt"), "DIRECT_NATIVE_WORKSPACE_BODY"),
     },
+  );
+  const progress = observed.toolUpdates
+    .filter((event) => event.toolName === "freeflow_tools")
+    .map((event) => event.partialResult.details.freeflowProgress);
+  assert.equal(
+    progress.some((update) => update.phase === "preparing"),
+    true,
+  );
+  assert.equal(
+    progress.some(
+      (update) =>
+        update.current?.operation?.id === "project.readText" &&
+        update.current.status === "succeeded" &&
+        update.current.effectState === "completed",
+    ),
+    true,
   );
 });
 

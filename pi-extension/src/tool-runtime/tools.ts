@@ -1,4 +1,6 @@
 import type { ToolExecutionState } from "./config.js";
+import { ToolProgressReporter, type ToolProgressUpdate } from "./progress.js";
+import { renderToolRuntimeCall, renderToolRuntimeResult } from "./renderers.js";
 
 export const TOOL_RUNTIME_TOOL_NAMES = ["freeflow_tools", "freeflow_run", "freeflow_result"] as const;
 
@@ -180,9 +182,35 @@ const descriptions: Record<ToolRuntimeToolName, string> = {
 };
 
 export interface ToolRuntimeHandlers {
-  invokeTools?(callId: string, input: unknown, signal: AbortSignal | undefined, ctx: any): Promise<any>;
-  runProgram?(callId: string, input: unknown, signal: AbortSignal | undefined, ctx: any): Promise<any>;
-  readResult?(input: unknown, signal: AbortSignal | undefined, ctx: any): Promise<any>;
+  invokeTools?(
+    callId: string,
+    input: unknown,
+    signal: AbortSignal | undefined,
+    ctx: any,
+    progress?: ToolProgressReporter,
+  ): Promise<any>;
+  runProgram?(
+    callId: string,
+    input: unknown,
+    signal: AbortSignal | undefined,
+    ctx: any,
+    progress?: ToolProgressReporter,
+  ): Promise<any>;
+  readResult?(input: unknown, signal: AbortSignal | undefined, ctx: any, progress?: ToolProgressReporter): Promise<any>;
+}
+
+function initialProgress(name: ToolRuntimeToolName, input: any) {
+  const activity =
+    name === "freeflow_run"
+      ? "Preparing restricted program"
+      : name === "freeflow_result"
+        ? "Verifying captured result"
+        : input?.operation === "call"
+          ? `Admitting ${input?.operationKey?.id ?? "operation"}`
+          : input?.operation === "describe"
+            ? "Loading operation contracts"
+            : "Searching operation catalog";
+  return { version: 1 as const, tool: name, phase: "preparing" as const, activity };
 }
 
 export function registerToolRuntimeTools(
@@ -197,24 +225,40 @@ export function registerToolRuntimeTools(
       description: descriptions[name],
       parameters: TOOL_RUNTIME_SCHEMAS[name],
       executionMode: "sequential",
-      async execute(_id: string, input: unknown, signal: AbortSignal | undefined, _update: unknown, ctx: any) {
+      renderCall: (args: any, theme: any, context: any) => renderToolRuntimeCall(name, args, theme, context),
+      renderResult: (result: any, options: any, theme: any, context: any) =>
+        renderToolRuntimeResult(name, result, options, theme, context),
+      async execute(
+        _id: string,
+        input: unknown,
+        signal: AbortSignal | undefined,
+        update: ToolProgressUpdate | undefined,
+        ctx: any,
+      ) {
         if (!validToolRuntimeInput(name, input)) throw new Error(`Invalid ${name} arguments; no operation accepted.`);
         const current = state();
-        if (name === "freeflow_tools" && current?.effective && handlers.invokeTools) {
-          return handlers.invokeTools(_id, input, signal, ctx);
+        const progress = new ToolProgressReporter(update);
+        try {
+          progress.publish(initialProgress(name, input), true);
+          if (name === "freeflow_tools" && current?.effective && handlers.invokeTools) {
+            return await handlers.invokeTools(_id, input, signal, ctx, progress);
+          }
+          if (name === "freeflow_run" && current?.programs.effective && handlers.runProgram) {
+            return await handlers.runProgram(_id, input, signal, ctx, progress);
+          }
+          if (name === "freeflow_result" && current?.effective && handlers.readResult) {
+            return await handlers.readResult(input, signal, ctx, progress);
+          }
+          const reason = !current?.effective
+            ? "Tool Execution is disabled."
+            : name === "freeflow_run" && !current.programs.effective
+              ? "Programs are disabled."
+              : "This operation is not available in the current implementation phase.";
+          throw new Error(`Freeflow ${name} unavailable: ${reason}`);
+        } finally {
+          progress.flush();
+          progress.close();
         }
-        if (name === "freeflow_run" && current?.programs.effective && handlers.runProgram) {
-          return handlers.runProgram(_id, input, signal, ctx);
-        }
-        if (name === "freeflow_result" && current?.effective && handlers.readResult) {
-          return handlers.readResult(input, signal, ctx);
-        }
-        const reason = !current?.effective
-          ? "Tool Execution is disabled."
-          : name === "freeflow_run" && !current.programs.effective
-            ? "Programs are disabled."
-            : "This operation is not available in the current implementation phase.";
-        throw new Error(`Freeflow ${name} unavailable: ${reason}`);
       },
     });
   }

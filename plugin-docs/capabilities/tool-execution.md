@@ -44,7 +44,9 @@ Configure Tool Execution under `toolExecution` in `.freeflow/config.json` or `.f
 }
 ```
 
-Omitted Tool Execution settings default disabled. `programs.mode` accepts:
+Use `/freeflow settings local` for personal overrides or `/freeflow settings repo` for shared defaults. The Settings TUI exposes the full Tool Execution schema in Capture and recovery, Programs, Workspace, Cooperating adapters, discovery, and accounting groups. Quick presets atomically select Off, Read-only local, or All local built-ins while preserving advanced limits, roots, denied paths, and adapter allowlists. Local leaves can independently inherit repository values. Enabling exact workspace replacement, directly or through the full-local preset, requires an explicit confirmation; saving settings reloads the runtime when the host supports reload.
+
+Omitted Tool Execution feature gates default disabled; omitted limit fields use the bounded values shown above. `programs.mode` accepts:
 
 | Mode | Guest capabilities |
 | --- | --- |
@@ -68,6 +70,8 @@ Tool Execution registers three stable Pi tools:
 | `freeflow_run` | Execute bounded JavaScript in a fresh QuickJS/WASM Worker with explicit capabilities and explicit `emit`. |
 | `freeflow_result` | Read a verified exact byte range from a captured result without rerunning its producer. |
 
+All three tools have concise collapsed call/result views and expanded detail views. They publish bounded diagnostic progress through Pi's native tool-update channel: catalog/direct-call activity, program child counts and emissions, and captured-range verification. Progress is throttled, omits program inputs and child outputs, and is never canonical state. Final tool results, run manifests, and settled effect facts remain authoritative; mutation success is not shown before the kernel returns a settled effect.
+
 Discovery does not add every operation schema as a native Pi tool. Search returns bounded metadata; describe returns complete contracts or an explicit limit error. Exact operation revisions are required for calls and programs. Registry/config changes produce a new catalog generation and revoke stale admission.
 
 A simple known operation should normally be called directly. Use discovery when its current revision/contract is missing. Use a program for mechanical dependent work whose next steps are already determined.
@@ -88,7 +92,7 @@ Captured files are retained until explicit deletion. Disabling new capture does 
 
 ## Restricted programs
 
-`freeflow_run` accepts the body of an async JavaScript function. Guest return values are hidden; only `emit(value)` becomes model-visible.
+`freeflow_run` accepts the body of an async JavaScript function. Guest return values are hidden; only `emit(value)` becomes model-visible in the final canonical result. While a run is active, the TUI may stream bounded counts and lifecycle status, but not emitted values or hidden intermediates.
 
 ```js
 const captured = await results.read(input.captureId, {

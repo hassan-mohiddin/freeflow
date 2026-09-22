@@ -74,11 +74,17 @@ export class ToolRuntime {
   admitProgram(scope) {
     return this.routing.admitProgram?.(scope.routing, scope) ?? { kind: "allowed" };
   }
-  async invokeTools(parentCallId, input, signal, ctx) {
+  async invokeTools(parentCallId, input, signal, ctx, progress) {
     const current = this.state();
     if (!current?.effective) throw new Error("tool_execution_disabled: Tool Execution is disabled.");
     if (input.operation === "search") {
       if (!current.discovery.effective) throw new Error("discovery_disabled: Operation discovery is disabled.");
+      progress?.publish({
+        version: 1,
+        tool: "freeflow_tools",
+        phase: "running",
+        activity: "Searching operation catalog",
+      });
       const snapshot = this.registry.snapshot();
       return jsonResult({
         status: "searched",
@@ -96,6 +102,12 @@ export class ToolRuntime {
     }
     if (input.operation === "describe") {
       if (!current.discovery.effective) throw new Error("discovery_disabled: Operation discovery is disabled.");
+      progress?.publish({
+        version: 1,
+        tool: "freeflow_tools",
+        phase: "running",
+        activity: "Loading operation contracts",
+      });
       const snapshot = this.registry.snapshot();
       const value = {
         status: "described",
@@ -118,7 +130,29 @@ export class ToolRuntime {
     }
     if (input.operation !== "call") throw new Error("invalid_operation: Unknown freeflow_tools operation.");
     const scope = this.createProgramScope(parentCallId, ctx);
+    progress?.publish({
+      version: 1,
+      tool: "freeflow_tools",
+      phase: "running",
+      activity: `Executing ${input.operationKey.id}`,
+      current: { operation: input.operationKey, status: "running" },
+    });
     const outcome = await this.kernel.execute(input.operationKey, input.input, scope, "direct", signal, ctx);
+    progress?.publish(
+      {
+        version: 1,
+        tool: "freeflow_tools",
+        phase: "settling",
+        activity: `Settled ${input.operationKey.id}`,
+        current: {
+          operation: input.operationKey,
+          status: outcome.status,
+          ...(outcome.effect ? { effect: outcome.effect } : {}),
+          effectState: outcome.effectState,
+        },
+      },
+      true,
+    );
     return jsonResult({ status: "called", outcome: outcome });
   }
   classifyProgrammatic(key, input, scope) {

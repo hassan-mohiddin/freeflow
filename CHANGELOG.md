@@ -10,6 +10,7 @@
 - Adds session-only Cognitive Routing profile presets for Coordinator and enabled workers with complete model/effort pairs, inheritance, reset, and local/shared configuration isolation.
 - Adds a practical Freeflow user guide for prompting, skill selection, Workflow and Track Work management, settings, Cognitive Routing presets, and evidence and cost boundaries.
 - Adds experimental native-Pi Tool Execution with recoverable bounded Bash output, restricted QuickJS programs, revisioned direct/live operations, deterministic discovery, configured cooperating adapters, effect fencing, factual efficiency export, and extracted Worker/WASM qualification.
+- Adds complete local/shared Tool Execution settings with safe quick presets and confirmed workspace-write enablement, bounded native progress streaming, and concise collapsed plus expanded views for all three Tool Execution facade tools.
 
 ### Changed
 

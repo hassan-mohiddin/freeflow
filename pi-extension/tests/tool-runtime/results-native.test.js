@@ -91,6 +91,21 @@ test("native Bash capture publishes immutable bytes, bounded history, and exact 
     { cognitiveRouting: { enabled: false }, freeflowConfig: config, beforePrompt: setup },
   );
   assert.equal(output.requests.length, 3);
+  const progress = output.toolUpdates
+    .filter((event) => event.toolName === "freeflow_result")
+    .map((event) => event.partialResult.details.freeflowProgress);
+  assert.equal(
+    progress.some((update) => update.phase === "preparing"),
+    true,
+  );
+  assert.equal(
+    progress.some((update) => update.phase === "settling"),
+    true,
+  );
+  assert.equal(
+    progress.every((update) => JSON.stringify(update).includes("EXACT_MIDDLE_SENTINEL") === false),
+    true,
+  );
 });
 
 test("an extension-owned Bash override remains native and is not qualified by its name", async () => {
