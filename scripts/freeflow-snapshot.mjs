@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFile as execFileCallback } from "node:child_process";
-import { access, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, relative, resolve, sep, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -112,6 +112,53 @@ async function worktreeIsDirty(sourceRoot) {
 async function extractTar(archivePath, destination, gzip = false) {
   await mkdir(destination, { recursive: true });
   await run("tar", [gzip ? "-xzf" : "-xf", archivePath, "-C", destination]);
+}
+
+async function installRuntimeDependencies(archiveRoot, packageJson) {
+  const names = Object.keys(packageJson.dependencies ?? {}).sort();
+  if (names.length === 0) return { installed: false, packageLockSha256: undefined, records: [] };
+  const lockPath = join(archiveRoot, "package-lock.json");
+  if (!(await isFile(lockPath))) {
+    throw new Error("Committed package-lock.json is required when the snapshot package has runtime dependencies");
+  }
+  const lockBuffer = await readFile(lockPath);
+  const lock = JSON.parse(lockBuffer.toString("utf8"));
+  const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+  await run(npmCommand, ["ci", "--omit=dev", "--ignore-scripts", "--legacy-peer-deps", "--no-audit", "--no-fund"], {
+    cwd: archiveRoot,
+  });
+  const records = [];
+  for (const name of names) {
+    const manifestPath = join(archiveRoot, "node_modules", ...name.split("/"), "package.json");
+    const manifest = await readJson(manifestPath, `installed runtime dependency ${name}`);
+    const lockEntry = lock.packages?.[`node_modules/${name}`];
+    records.push({
+      name,
+      requested: packageJson.dependencies[name],
+      version: manifest.version,
+      ...(typeof lockEntry?.integrity === "string" ? { integrity: lockEntry.integrity } : {}),
+      ...(typeof manifest.license === "string" ? { license: manifest.license } : {}),
+    });
+  }
+  return {
+    installed: true,
+    packageLockSha256: digest(lockBuffer, "sha256"),
+    records,
+  };
+}
+
+async function validateRuntimeDependencies(packageRoot, packageJson) {
+  const names = Object.keys(packageJson.dependencies ?? {}).sort();
+  for (const name of names) {
+    const manifest = await readJson(
+      join(packageRoot, "node_modules", ...name.split("/"), "package.json"),
+      `snapshot runtime dependency ${name}`,
+    );
+    if (typeof manifest.version !== "string" || !manifest.version) {
+      throw new Error(`Snapshot runtime dependency ${name} has no version`);
+    }
+  }
+  return names;
 }
 
 async function packageWithNpm(archiveRoot, destination) {
@@ -282,15 +329,26 @@ export async function refreshSnapshot(options = {}) {
     await extractTar(archivePath, archiveRoot);
 
     failAt("package", config.failAt);
+    const sourcePackageJson = await readJson(join(archiveRoot, "package.json"), "committed package metadata");
+    const runtimeInstallation = await installRuntimeDependencies(archiveRoot, sourcePackageJson);
     const { record: packRecord, tarballPath } = await packageWithNpm(archiveRoot, packageTarballRoot);
     const tarball = await readFile(tarballPath);
     await extractTar(tarballPath, packageExtractRoot, true);
     const packageRoot = join(packageExtractRoot, "package");
     const packageJson = await validatePackage(packageRoot, config);
+    if (runtimeInstallation.installed) {
+      await cp(join(archiveRoot, "node_modules"), join(packageRoot, "node_modules"), {
+        recursive: true,
+        dereference: true,
+        preserveTimestamps: true,
+      });
+    }
+    await validateRuntimeDependencies(packageRoot, packageJson);
     let packageFileCount;
     if (typeof packRecord.entryCount === "number") packageFileCount = packRecord.entryCount;
     else if (Array.isArray(packRecord.files)) packageFileCount = packRecord.files.length;
     else packageFileCount = await countFiles(packageRoot);
+    const installedFileCount = await countFiles(packageRoot);
 
     const metadata = {
       schemaVersion: 1,
@@ -302,13 +360,18 @@ export async function refreshSnapshot(options = {}) {
       sourceWorktreeDirty: dirtyWorktree,
       committedContentOnly: true,
       ignoredFilesExcluded: true,
-      construction: "git archive <commit> followed by npm pack --ignore-scripts",
+      construction:
+        "git archive <commit>, npm ci --omit=dev --ignore-scripts for declared runtime dependencies, then npm pack --ignore-scripts",
       packageName: packageJson.name,
       packageVersion: packageJson.version,
       npmPackIntegrity: `sha512-${digest(tarball, "sha512", "base64")}`,
       npmPackShasum: digest(tarball, "sha1"),
       tarballSha256: digest(tarball, "sha256"),
-      fileCount: packageFileCount,
+      packageFileCount,
+      fileCount: installedFileCount,
+      runtimeDependenciesInstalled: runtimeInstallation.installed,
+      runtimeDependencies: runtimeInstallation.records,
+      packageLockSha256: runtimeInstallation.packageLockSha256,
       target: config.target,
       operation,
       previousTargetPresent,
@@ -337,7 +400,8 @@ export async function refreshSnapshot(options = {}) {
     await rename(metadataTemp, config.metadata);
     metadataInstalled = true;
     failAt("publication-after-metadata", config.failAt);
-    await validatePackage(config.target, config);
+    const publishedPackageJson = await validatePackage(config.target, config);
+    await validateRuntimeDependencies(config.target, publishedPackageJson);
     published = true;
   } catch (error) {
     if (targetBackedUp || metadataBackedUp || targetInstalled || metadataInstalled) {

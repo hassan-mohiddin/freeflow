@@ -30,6 +30,12 @@ async function createFixture() {
   await runGit(root, ["config", "user.email", "freeflow-tests@example.invalid"]);
   await runGit(root, ["config", "user.name", "Freeflow Tests"]);
   await mkdir(join(root, "pi-extension", "freeflow"), { recursive: true });
+  await mkdir(join(root, "vendor", "snapshot-runtime-dep"), { recursive: true });
+  await writeFile(
+    join(root, "vendor", "snapshot-runtime-dep", "package.json"),
+    `${JSON.stringify({ name: "snapshot-runtime-dep", version: "1.0.0", type: "module", main: "index.js" }, null, 2)}\n`,
+  );
+  await writeFile(join(root, "vendor", "snapshot-runtime-dep", "index.js"), "export const runtime = 'installed';\n");
   await writeFile(
     join(root, "package.json"),
     `${JSON.stringify(
@@ -37,6 +43,7 @@ async function createFixture() {
         name: FREEFLOW_PACKAGE_NAME,
         version: "0.5.0",
         files: ["README.md", "pi-extension/**"],
+        dependencies: { "snapshot-runtime-dep": "file:vendor/snapshot-runtime-dep" },
         pi: { extensions: ["pi-extension/freeflow/index.js"] },
       },
       null,
@@ -45,7 +52,12 @@ async function createFixture() {
   );
   await writeFile(join(root, "README.md"), "fixture\n");
   await writeFile(join(root, "pi-extension", "freeflow", "index.js"), "export const version = 'first';\n");
-  await writeFile(join(root, ".gitignore"), "ignored.js\n");
+  await writeFile(join(root, ".gitignore"), "ignored.js\nnode_modules/\n");
+  await execFile(
+    "npm",
+    ["install", "--package-lock-only", "--ignore-scripts", "--legacy-peer-deps", "--no-audit", "--no-fund"],
+    { cwd: root },
+  );
   await runGit(root, ["add", "."]);
   await runGit(root, ["commit", "-qm", "first snapshot"]);
   const firstCommit = await runGit(root, ["rev-parse", "HEAD"]);
@@ -57,6 +69,7 @@ async function createFixture() {
         name: FREEFLOW_PACKAGE_NAME,
         version: "0.6.0",
         files: ["README.md", "pi-extension/**"],
+        dependencies: { "snapshot-runtime-dep": "file:vendor/snapshot-runtime-dep" },
         pi: { extensions: ["pi-extension/freeflow/index.js"] },
       },
       null,
@@ -64,6 +77,11 @@ async function createFixture() {
     )}\n`,
   );
   await writeFile(join(root, "pi-extension", "freeflow", "index.js"), "export const version = 'second';\n");
+  await execFile(
+    "npm",
+    ["install", "--package-lock-only", "--ignore-scripts", "--legacy-peer-deps", "--no-audit", "--no-fund"],
+    { cwd: root },
+  );
   await runGit(root, ["add", "."]);
   await runGit(root, ["commit", "-qm", "second snapshot"]);
   const secondCommit = await runGit(root, ["rev-parse", "HEAD"]);
@@ -76,6 +94,7 @@ async function readSnapshot(target, metadata) {
     index: await readFile(join(target, "pi-extension", "freeflow", "index.js"), "utf8"),
     metadata: JSON.parse(await readFile(metadata, "utf8")),
     package: JSON.parse(await readFile(join(target, "package.json"), "utf8")),
+    runtimeDependency: await readFile(join(target, "node_modules", "snapshot-runtime-dep", "index.js"), "utf8"),
   };
 }
 
@@ -100,6 +119,7 @@ test("refreshes committed content only and records exact provenance", async () =
     assert.equal(result.sourceCommit, fixture.firstCommit);
     assert.equal(snapshot.index, "export const version = 'first';\n");
     assert.equal(snapshot.package.version, "0.5.0");
+    assert.equal(snapshot.runtimeDependency, "export const runtime = 'installed';\n");
     assert.equal(snapshot.metadata.sourceCommit, fixture.firstCommit);
     assert.equal(snapshot.metadata.sourceTree.length, 40);
     assert.equal(snapshot.metadata.packageName, FREEFLOW_PACKAGE_NAME);
@@ -109,6 +129,16 @@ test("refreshes committed content only and records exact provenance", async () =
     assert.equal(snapshot.metadata.sourceWorktreeDirty, true);
     assert.equal(snapshot.metadata.committedContentOnly, true);
     assert.equal(snapshot.metadata.ignoredFilesExcluded, true);
+    assert.equal(snapshot.metadata.runtimeDependenciesInstalled, true);
+    assert.match(snapshot.metadata.packageLockSha256, /^[0-9a-f]{64}$/);
+    assert.deepEqual(snapshot.metadata.runtimeDependencies, [
+      {
+        name: "snapshot-runtime-dep",
+        requested: "file:vendor/snapshot-runtime-dep",
+        version: "1.0.0",
+      },
+    ]);
+    assert.ok(snapshot.metadata.fileCount > snapshot.metadata.packageFileCount);
     assert.equal(await exists(join(target, "pi-extension", "freeflow", "untracked.js")), false);
     assert.equal(await exists(join(target, "ignored.js")), false);
   } finally {
@@ -130,6 +160,7 @@ test("defaults to HEAD and atomically replaces the prior snapshot", async () => 
     assert.equal(firstResult.operation, "first-installation");
     assert.equal(first.package.version, "0.6.0");
     assert.equal(first.index, "export const version = 'second';\n");
+    assert.equal(first.runtimeDependency, "export const runtime = 'installed';\n");
 
     const result = await refreshSnapshot({
       commit: fixture.firstCommit,

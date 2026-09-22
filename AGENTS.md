@@ -39,7 +39,7 @@ Pi and PiFlow development consume a committed Freeflow snapshot, not this checko
 npm run snapshot:refresh
 ```
 
-Commit intended Freeflow changes before refreshing. The tool archives the selected Git revision, packs it with `npm pack --ignore-scripts`, records provenance, and replaces the target atomically. It excludes uncommitted and ignored files and does not mutate host state. Snapshots are development-only; production uses ordinary npm/Git sources. Read `plugin-docs/integrations/piflow.md` for current PiFlow ownership and integration; use `.deprecated/project-docs/guides/tooling/freeflow-development-snapshot.md` only for detailed historical snapshot mechanics.
+Commit intended Freeflow changes before refreshing. The tool archives the selected Git revision, installs only its declared runtime dependencies from the committed lockfile with scripts disabled, packs it with `npm pack --ignore-scripts`, records source/package/dependency provenance, and replaces the self-contained target atomically. It excludes uncommitted and ignored source files and does not mutate host state. Snapshots are development-only; production uses ordinary npm/Git sources. Read `plugin-docs/integrations/piflow.md` for current PiFlow ownership and integration; use `.deprecated/project-docs/guides/tooling/freeflow-development-snapshot.md` only for detailed historical snapshot mechanics.
 
 PiFlow launch, import, and update behavior remains PiFlow-owned; Freeflow supplies policy and the development package snapshot.
 

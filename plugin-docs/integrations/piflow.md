@@ -55,7 +55,7 @@ On the current PiFlow path, `/freeflow` should report Cognitive Routing and Tool
 | Repository activation and personal overrides | Freeflow configuration in the target repository |
 | PiFlow Cognitive Routing and Tool Execution availability | Current Freeflow source gates; currently unavailable |
 
-A development snapshot identifies a committed Freeflow revision; an installed package and the PiFlow host are separate identities. Refreshing a snapshot does not patch a host, `fsync` a session, or promise exactly-once delivery. PiFlow owns host synchronization, while Freeflow's native routing events and saved reports—when a qualified adapter exists—remain distinct from host package state.
+A development snapshot identifies a committed Freeflow revision; an installed package and the PiFlow host are separate identities. The snapshot assembler installs only declared runtime dependencies from that revision's committed lockfile with package scripts disabled, records their provenance, and publishes one self-contained target. Refreshing a snapshot does not patch a host, `fsync` a session, or promise exactly-once delivery. PiFlow owns host synchronization, while Freeflow's native routing events and saved reports—when a qualified adapter exists—remain distinct from host package state.
 
 ## Development and clean installs
 
