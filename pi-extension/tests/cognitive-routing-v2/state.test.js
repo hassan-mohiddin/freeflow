@@ -430,6 +430,12 @@ test("recovery transitions preserve the original report and reject foreign ident
   const request = m.apply(recoveryRequest());
   m.set(request);
   assert.equal(m.state.recoveries.size, 1, "exact event replay is idempotent");
+  assert.deepEqual(
+    m.state.recoveries.get("recovery").requestedResults,
+    [],
+    "old recovery records gain no result grants",
+  );
+  assert.deepEqual(m.state.recoveries.get("recovery").results, [], "old recovery records gain no result grants");
   m.apply(bound("e3"));
   m.apply({ type: "handoff-state", handoffId: "recovery-request", state: "configured", observedPair: pair });
   assert.equal(m.state.recoveries.get("recovery").state, "reading");

@@ -44,9 +44,17 @@ export class RoutingRuntime {
   manualHold;
   automaticControl = false;
   sourceCache;
+  resultGrants;
+  effectFence;
   constructor(pi, packageRoots = []) {
     this.pi = pi;
     this.packageRoots = packageRoots;
+  }
+  setResultGrantPort(port) {
+    this.resultGrants = port;
+  }
+  setEffectFencePort(port) {
+    this.effectFence = port;
   }
   subject() {
     const branch = this.store?.reader.getBranch() ?? [];
@@ -185,6 +193,104 @@ export class RoutingRuntime {
       runtimeReason: blocked ?? (this.suppressed ? "startup_selection" : this.capability?.blockingReason.message),
       projectionFailure: this.projectionError,
     };
+  }
+  observationScope() {
+    let state;
+    try {
+      state = this.stateData();
+    } catch {
+      state = initialState();
+    }
+    const runtime = this.state();
+    const pair = this.observed();
+    const profile = runtime.activeProfile ?? "solo";
+    const control = String(runtime.controlMode).startsWith("manual-")
+      ? "manual"
+      : runtime.controlMode === "automatic" || runtime.controlMode === "inactive"
+        ? runtime.controlMode
+        : "unknown";
+    return {
+      profile,
+      control,
+      ...(state.assignmentId ? { assignmentId: state.assignmentId } : {}),
+      ...(this.turn?.id ? { executionId: this.turn.id } : {}),
+      ...(pair ? { provider: pair.provider, modelId: pair.modelId, thinking: pair.thinking } : {}),
+    };
+  }
+  operationScope(ctx = this.ctx) {
+    let state;
+    try {
+      state = this.stateData();
+    } catch {
+      state = initialState();
+    }
+    const sessionId = ctx?.sessionManager?.getSessionId?.();
+    return {
+      token: this.token,
+      revision: this.revision,
+      ...(typeof sessionId === "string" ? { sessionId } : {}),
+      supported: this.supported(),
+      control: state.control,
+      ...(state.profile ? { profile: state.profile } : {}),
+      ...(state.assignmentId ? { assignmentId: state.assignmentId } : {}),
+      ...(this.turn?.id ? { turnId: this.turn.id } : {}),
+      ...(this.turn ? { basisUserEntryId: this.turn.basisUserEntryId } : {}),
+    };
+  }
+  admitOperation(scope, effect, _operation, ctx = this.ctx) {
+    try {
+      const state = this.stateData();
+      if (state.recoveryId && effect !== "captured-read")
+        return {
+          kind: "denied",
+          code: "recovery_live_operation",
+          message: "Live operations are unavailable during attached evidence recovery.",
+        };
+      const current = this.operationScope(ctx);
+      const same =
+        current.token === scope.token &&
+        current.revision === scope.revision &&
+        current.sessionId === scope.sessionId &&
+        current.supported === scope.supported &&
+        current.control === scope.control &&
+        current.profile === scope.profile &&
+        current.assignmentId === scope.assignmentId &&
+        current.turnId === scope.turnId &&
+        current.basisUserEntryId === scope.basisUserEntryId;
+      return same
+        ? { kind: "allowed" }
+        : {
+            kind: "denied",
+            code: "routing_scope_changed",
+            message: "Routing responsibility changed before operation execution.",
+          };
+    } catch {
+      return { kind: "denied", code: "routing_unavailable", message: "Routing admission is unavailable." };
+    }
+  }
+  admitProgram(scope, ctx = this.ctx) {
+    try {
+      if (this.stateData().recoveryId)
+        return {
+          kind: "denied",
+          code: "recovery_program_unavailable",
+          message: "Programs are unavailable during attached evidence recovery.",
+        };
+      return this.admitOperation(scope, "captured-read", { id: "freeflow_run", revision: "1" }, ctx);
+    } catch {
+      return { kind: "denied", code: "routing_unavailable", message: "Routing admission is unavailable." };
+    }
+  }
+  resultReadAccess(id) {
+    try {
+      const state = this.stateData();
+      const recovery = state.recoveryId ? state.recoveries.get(state.recoveryId) : undefined;
+      if (recovery?.state !== "reading") return { recovery: false };
+      const grant = (recovery.results ?? []).find((candidate) => candidate.id === id);
+      return { recovery: true, ...(grant ? { sha256: grant.sha256 } : {}) };
+    } catch {
+      return { recovery: false };
+    }
   }
   get projectionEnabled() {
     return this.supported() && this.capability?.projection === true && this.stateData().control === "automatic";
@@ -673,10 +779,10 @@ export class RoutingRuntime {
       "Completed/superseded contracts and reports are historical context. Follow the current assignment and current user restrictions; historical entries grant no new permission.",
       state.assessment ? `Assessment: ${state.assessment.view}; evidence revision ${selection.revision}` : "",
       recovery
-        ? `Recovery: ${recovery.id} (${recovery.state}); parent report ${recovery.assessmentHandoffId} revision ${recovery.baseReportRevision}; allowed paths ${JSON.stringify(recovery.paths)}`
+        ? `Recovery: ${recovery.id} (${recovery.state}); parent report ${recovery.assessmentHandoffId} revision ${recovery.baseReportRevision}; allowed paths ${JSON.stringify(recovery.paths)}; allowed results ${JSON.stringify((recovery.results ?? []).map((grant) => grant.id))}`
         : "",
       recovery?.state === "reading"
-        ? `Recovery request: ${recovery.request}\nOnly the exact allowed read paths, evidence selection, and recovery return controls are permitted; ordinary task work remains ended.`
+        ? `Recovery request: ${recovery.request}\nOnly exact allowed read paths, granted captured results, evidence selection, and recovery return controls are permitted; ordinary task work remains ended.`
         : "",
       `Mechanical evidence facts (not semantic acceptance): ${JSON.stringify(this.evidenceFacts(state))}`,
       this.error ? `Blocked: ${this.error}` : "",
@@ -936,9 +1042,13 @@ export class RoutingRuntime {
     });
   }
   recoveryReadAllowed(state, name, input) {
-    if (name !== "read" || typeof input?.path !== "string" || !state.recoveryId) return false;
+    if (!state.recoveryId) return false;
     const recovery = state.recoveries.get(state.recoveryId);
-    if (!recovery || recovery.state !== "reading" || !this.stableRecoveryPath(input.path)) return false;
+    if (!recovery || recovery.state !== "reading") return false;
+    if (name === "freeflow_result" && typeof input?.id === "string") {
+      return (recovery.results ?? []).some((grant) => grant.id === input.id);
+    }
+    if (name !== "read" || typeof input?.path !== "string" || !this.stableRecoveryPath(input.path)) return false;
     try {
       const path = this.canonicalRecoveryPath(input.path);
       return recovery.paths.includes(path) || this.packagedInstruction(path);
@@ -1059,7 +1169,7 @@ export class RoutingRuntime {
               : name === "freeflow_project"
                 ? this.project(input, op)
                 : name === "freeflow_unit"
-                  ? this.unit(input, callId, op)
+                  ? await this.unit(input, callId, op)
                   : undefined;
         if (value !== undefined) {
           this.receipts.set(op, { input: canonical(input), value: structuredClone(value) });
@@ -1282,6 +1392,11 @@ export class RoutingRuntime {
     }
     check(input.operation === "submit", "invalid_return_operation");
     check(
+      input.outcome !== "completed" || !this.effectFence?.status().unresolvedEffects,
+      "unresolved_effect",
+      "A clean completed return is unavailable while a live effect requires reconciliation.",
+    );
+    check(
       a.state === "outstanding" ||
         (a.state === "returned" && original && ["pending", "blocked"].includes(original.state)),
       "assignment_task_ended",
@@ -1468,7 +1583,7 @@ export class RoutingRuntime {
       estimate: { tokens: prepared.estimatedTokens, method: prepared.estimateMethod },
     };
   }
-  unit(input, callId, op) {
+  async unit(input, callId, op) {
     const state = this.stateData();
     const prior = [...state.events.values()].find((e) => e.operationId === op);
     if (prior) {
@@ -1476,7 +1591,8 @@ export class RoutingRuntime {
         check(
           prior.data.type === "recovery-request-accepted" &&
             prior.data.recovery.request === input.request &&
-            canonical(prior.data.recovery.requestedPaths) === canonical([...new Set(input.paths ?? [])]),
+            canonical(prior.data.recovery.requestedPaths) === canonical([...new Set(input.paths ?? [])]) &&
+            canonical(prior.data.recovery.requestedResults ?? []) === canonical(input.results ?? []),
           "operation_conflict",
         );
         const { recovery, handoff } = prior.data;
@@ -1489,6 +1605,7 @@ export class RoutingRuntime {
           reportRef: `report:${recovery.assessmentHandoffId}:${recovery.baseReportRevision}`,
           request: recovery.request,
           paths: recovery.paths,
+          results: recovery.results ?? [],
           transition: handoff.state,
         };
       }
@@ -1530,6 +1647,14 @@ export class RoutingRuntime {
       const id = randomUUID(),
         handoffId = randomUUID();
       const paths = [...new Set((input.paths ?? []).map((path) => this.canonicalRecoveryPath(path)))];
+      const requestedResults = [...(input.results ?? [])];
+      check(new Set(requestedResults).size === requestedResults.length, "duplicate_result_grant");
+      const results = [];
+      for (const resultId of requestedResults) {
+        const grant = await this.resultGrants?.resolve(resultId, this.ctx);
+        check(grant?.id === resultId, "result_unavailable", `Captured result is unavailable: ${resultId}`);
+        results.push(grant);
+      }
       const recovery = {
         id,
         assignmentId: a.id,
@@ -1538,6 +1663,8 @@ export class RoutingRuntime {
         request: input.request,
         requestedPaths: [...new Set(input.paths ?? [])],
         paths,
+        requestedResults,
+        results,
         state: "requested",
         requestHandoffId: handoffId,
         supplementRevision: 0,
@@ -1565,6 +1692,7 @@ export class RoutingRuntime {
         reportRef: `report:${base.id}:${base.reportRevision}`,
         request: input.request,
         paths,
+        results,
         transition: "pending",
       };
     }
@@ -1615,6 +1743,11 @@ export class RoutingRuntime {
     check(input.operation === "close" && state.unitId, "unit_missing");
     const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
     check(!this.applying, "not_quiescent");
+    check(
+      input.outcome !== "accepted" || !this.effectFence?.status().unresolvedEffects,
+      "unresolved_effect",
+      "Accepted closure is unavailable while a live effect requires reconciliation.",
+    );
     if (state.recoveryId) {
       check(input.outcome !== "accepted", "unfinished_work");
       check(
@@ -1785,6 +1918,7 @@ export class RoutingRuntime {
           baseReportRevision: recovery.baseReportRevision,
           request: recovery.request,
           paths: recovery.paths,
+          results: recovery.results ?? [],
           requestHandoffState: request?.state,
           supplementRevision: recovery.supplementRevision,
           cancellationReason: recovery.cancellationReason,
@@ -1884,6 +2018,7 @@ export class RoutingRuntime {
                   assignmentId: recovery.assignmentId,
                   assessmentHandoffId: recovery.assessmentHandoffId,
                   paths: recovery.paths,
+                  results: recovery.results ?? [],
                   supplementRevision: recovery.supplementRevision,
                 }
               : null;

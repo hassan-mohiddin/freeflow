@@ -814,9 +814,110 @@ function freeflowItems(rawConfig, options = {}) {
       ],
     };
   })();
+  const toolExecutionState = options.toolExecution;
+  const toolSource = (path) => {
+    if (typeof getPath(localConfig, path) === "boolean") return "local";
+    if (typeof getPath(rawConfig, path) === "boolean") return "repository";
+    return "builtin";
+  };
+  const toolExecutionEnabledItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.toolExecution.enabled",
+    label: "Enabled",
+    description:
+      "Enable the Tool Execution capability. Disabling it denies captured reads but does not erase retained files.",
+    path: ["toolExecution", "enabled"],
+    effectiveValue: toolExecutionState?.enabled ?? false,
+    effectiveSource: toolSource(["toolExecution", "enabled"]),
+    defaultValue: false,
+  });
+  const captureEnabledItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.toolExecution.capture.enabled",
+    label: "Capture new Bash text results",
+    description:
+      "Opt in to qualified bounded Bash-text capture. Disabling new capture retains sidecar files and permits existing verified reads while Tool Execution remains enabled.",
+    path: ["toolExecution", "capture", "enabled"],
+    effectiveValue: toolExecutionState?.capture.enabled ?? false,
+    effectiveSource: toolSource(["toolExecution", "capture", "enabled"]),
+    defaultValue: false,
+  });
+  const workspaceEnabledItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.toolExecution.workspace.enabled",
+    label: "Local workspace reads",
+    description:
+      "Allow typed read-only operations inside the configured local workspace root. Custom or remote native read semantics are not inherited.",
+    path: ["toolExecution", "workspace", "enabled"],
+    effectiveValue: toolExecutionState?.workspace.enabled ?? false,
+    effectiveSource: toolSource(["toolExecution", "workspace", "enabled"]),
+    defaultValue: false,
+  });
+  const discoveryEnabledItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.toolExecution.discovery.enabled",
+    label: "Operation discovery",
+    description: "Allow bounded search and complete description of the configured revisioned operation catalog.",
+    path: ["toolExecution", "discovery", "enabled"],
+    effectiveValue: toolExecutionState?.discovery.enabled ?? false,
+    effectiveSource: toolSource(["toolExecution", "discovery", "enabled"]),
+    defaultValue: false,
+  });
+  const accountingEnabledItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.toolExecution.accounting.enabled",
+    label: "Accounting observations",
+    description:
+      "Record bounded request, response-header, assistant-usage, and tool-usage facts without prompt bodies.",
+    path: ["toolExecution", "accounting", "enabled"],
+    effectiveValue: toolExecutionState?.accounting.enabled ?? false,
+    effectiveSource: toolSource(["toolExecution", "accounting", "enabled"]),
+    defaultValue: false,
+  });
+  for (const item of [
+    toolExecutionEnabledItem,
+    captureEnabledItem,
+    workspaceEnabledItem,
+    discoveryEnabledItem,
+    accountingEnabledItem,
+  ]) {
+    item.inactive = freeflowInactive;
+  }
+  const toolExecutionGroup = {
+    id: "freeflow.toolExecution",
+    label: "Tool Execution",
+    description:
+      "Configure stable execution facades, verified result capture/recovery, and bounded accounting. Captured bytes persist until explicit deletion.",
+    kind: "group",
+    value: toolExecutionState?.enabled ?? false,
+    inactive: freeflowInactive,
+    displaySuffix: toolExecutionState?.effective
+      ? `capture ${toolExecutionState.capture.effective ? "active" : "inactive"} · workspace ${toolExecutionState.workspace.effective ? "active" : "inactive"} · discovery ${toolExecutionState.discovery.effective ? "active" : "inactive"} · accounting ${toolExecutionState.accounting.effective ? "active" : "inactive"}`
+      : toolExecutionState?.enabled
+        ? "inactive"
+        : "disabled",
+    children: [
+      toolExecutionEnabledItem,
+      captureEnabledItem,
+      workspaceEnabledItem,
+      discoveryEnabledItem,
+      accountingEnabledItem,
+    ],
+  };
   return [
     freeflowItem,
     ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []),
+    toolExecutionGroup,
     {
       id: "freeflow.context",
       label: "Freeflow Context",
@@ -834,6 +935,11 @@ function pruneKnownDefaults(config) {
     { path: ["contextVirtualization"], value: DEFAULT_CONTEXT_VIRTUALIZATION_ENABLED },
     { path: ["conversationHistory"], value: DEFAULT_CONVERSATION_HISTORY_ENABLED },
     { path: ["cognitiveRouting", "delegation"], value: "executor" },
+    { path: ["toolExecution", "enabled"], value: false },
+    { path: ["toolExecution", "capture", "enabled"], value: false },
+    { path: ["toolExecution", "workspace", "enabled"], value: false },
+    { path: ["toolExecution", "discovery", "enabled"], value: false },
+    { path: ["toolExecution", "accounting", "enabled"], value: false },
   ];
   for (const item of defaultPaths) {
     if (valuesEqual(getPath(config, item.path), item.value)) {
@@ -973,6 +1079,21 @@ function refreshSettingsDerivedState(items) {
     contextGroup.value = enabledCount > 0;
     contextGroup.displaySuffix = `${enabledCount}/${contextGroup.children.length} enabled`;
   }
+  const toolExecutionGroup = findSettingsItem(items, "freeflow.toolExecution");
+  const toolExecutionEnabled = findSettingsItem(items, "freeflow.toolExecution.enabled");
+  const captureEnabled = findSettingsItem(items, "freeflow.toolExecution.capture.enabled");
+  const workspaceEnabled = findSettingsItem(items, "freeflow.toolExecution.workspace.enabled");
+  const discoveryEnabled = findSettingsItem(items, "freeflow.toolExecution.discovery.enabled");
+  const accountingEnabled = findSettingsItem(items, "freeflow.toolExecution.accounting.enabled");
+  if (toolExecutionGroup && toolExecutionEnabled) {
+    const enabled = !freeflowInactive && effectiveItemValue(toolExecutionEnabled) === true;
+    toolExecutionGroup.value = effectiveItemValue(toolExecutionEnabled) === true;
+    toolExecutionGroup.displaySuffix = enabled
+      ? `capture ${effectiveItemValue(captureEnabled) === true ? "active" : "inactive"} · workspace ${effectiveItemValue(workspaceEnabled) === true ? "active" : "inactive"} · discovery ${effectiveItemValue(discoveryEnabled) === true ? "active" : "inactive"} · accounting ${effectiveItemValue(accountingEnabled) === true ? "active" : "inactive"}`
+      : effectiveItemValue(toolExecutionEnabled) === true
+        ? "inactive"
+        : "disabled";
+  }
   walkSettingsItems(items, (candidate) => {
     if (candidate.id === "freeflow.session.reset") {
       candidate.inactive = false;
@@ -1077,7 +1198,7 @@ async function openSettings(options) {
   await component?.waitForWrites();
   return component?.sessionResult() ?? { changed: false, configChanged: false, failed: false };
 }
-function freeflowStatusText(state, cognitiveRoutingController) {
+function freeflowStatusText(state, cognitiveRoutingController, toolExecutionRuntime) {
   if (!state.configured) {
     return state.configExists
       ? `Freeflow: inactive (invalid config: ${state.parseError ?? "unknown parse error"}); run /setup-freeflow or fix .freeflow/config.json`
@@ -1098,10 +1219,16 @@ function freeflowStatusText(state, cognitiveRoutingController) {
           : "disabled"
     : undefined;
   const contextEnabled = state.contextVirtualization?.effective || state.conversationHistory?.effective;
+  const toolIssue =
+    toolExecutionRuntime?.lastFailure ??
+    toolExecutionRuntime?.failures?.at(-1) ??
+    toolExecutionRuntime?.adapters?.failures?.at(-1);
   return [
     `Freeflow: ${state.enabled ? "enabled" : "disabled"}${sessionSuffix(state.configSources.enabled)}`,
     `context: ${contextEnabled ? "enabled" : "disabled"} (virtualization ${state.contextVirtualization?.effective ? "enabled" : "disabled"}, history ${state.conversationHistory?.effective ? "enabled" : "disabled"})`,
     ...(cognitiveRoutingStatus ? [`cognitive routing: ${cognitiveRoutingStatus}`] : []),
+    `tool execution: ${state.toolExecution?.effective ? "enabled" : "disabled"} (capture ${state.toolExecution?.capture?.effective ? "enabled" : "disabled"}, verified reader ${state.toolExecution?.effective ? "enabled" : "disabled"}, workspace ${state.toolExecution?.workspace?.effective ? "enabled" : "disabled"}, programs ${state.toolExecution?.programs?.mode ?? "off"}, live effects ${toolExecutionRuntime?.unresolvedEffects ? `fenced (${toolExecutionRuntime.unresolvedEffects})` : "settled"}, discovery ${state.toolExecution?.discovery?.effective ? "enabled" : "disabled"}, catalog ${toolExecutionRuntime?.catalog?.operations ?? 0} operations/${toolExecutionRuntime?.catalog?.metadataBytes ?? 0} bytes, adapters ${toolExecutionRuntime?.adapters?.announced?.filter((adapter) => adapter.active).length ?? 0} active/${toolExecutionRuntime?.adapters?.allowed?.length ?? 0} allowed, accounting ${state.toolExecution?.accounting?.effective ? "enabled" : "disabled"}; native Bash is built in, custom tools require adapters; captured files are retained until explicit deletion${toolIssue?.code ? `; latest ${toolExecutionRuntime?.lastFailure ? "program" : toolExecutionRuntime?.failures?.length ? "capture" : "adapter"} issue ${toolIssue.code}${toolIssue.message ? `: ${toolIssue.message}` : ""}` : ""})`,
+    ...(toolExecutionRuntime?.queued ? [`capture publications queued: ${toolExecutionRuntime.queued}`] : []),
   ].join("; ");
 }
 const NON_TUI_SETTINGS_GUIDANCE =
@@ -1151,7 +1278,14 @@ async function finalizeSessionSettings(session, ctx, afterChange) {
   await ctx.reload();
   return true;
 }
-export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiveRoutingController) {
+export async function handleFreeflowCommand(
+  args,
+  ctx,
+  afterChange,
+  pi,
+  cognitiveRoutingController,
+  toolExecutionRuntime,
+) {
   const input = (args ?? "settings").trim().toLowerCase() || "settings";
   const [action, ...rest] = input.split(/\s+/);
   const actionValue = rest.join(" ");
@@ -1169,7 +1303,7 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiv
   const configState = layers.repository;
   const raw = configState.valid ? configState.parsed : {};
   if (action === "status") {
-    ctx.ui.notify(freeflowStatusText(state, cognitiveRoutingController), "info");
+    ctx.ui.notify(freeflowStatusText(state, cognitiveRoutingController, toolExecutionRuntime?.status()), "info");
     return { changed: false, reloaded: false };
   }
   if (!configState.valid) {
@@ -1190,6 +1324,7 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiv
       scope: "repository",
       layers,
       cognitiveRouting: state.cognitiveRouting,
+      toolExecution: state.toolExecution,
       ctx,
       runtimeAvailable: isCognitiveRoutingRuntimeAvailable(pi),
     }).find((candidate) => candidate.id === "freeflow.enabled");
@@ -1231,6 +1366,7 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiv
           scope: settingsScope,
           layers,
           cognitiveRouting: state.cognitiveRouting,
+          toolExecution: state.toolExecution,
           ctx,
           runtimeAvailable: isCognitiveRoutingRuntimeAvailable(pi),
         });

@@ -9,6 +9,7 @@ The host agent still owns tools, permissions, and execution. Freeflow helps it u
 - **New to Freeflow?** Read [Using Freeflow Effectively](plugin-docs/using-freeflow.md).
 - **Installing it?** Start with [Getting Started](plugin-docs/getting-started.md).
 - **Using Cognitive Routing?** Read the detailed [Cognitive Routing reference](plugin-docs/capabilities/cognitive-routing.md).
+- **Using bounded tool output or programs on Pi?** Read [Tool Execution](plugin-docs/capabilities/tool-execution.md).
 
 ## Memory · Context · Compute
 
@@ -44,6 +45,7 @@ Coding agents commonly fail at control boundaries:
 | A passing command becomes an unsupported completion claim. | Verify Work ties the claim to the actual observer and evidence boundary. |
 | Context loss erases decisions and partial work. | Track Work restores a complete Working Record and reconciles it with live state. |
 | Expensive models perform routine supporting work. | Cognitive Routing can place bounded support and substantive execution on configured profiles. |
+| Large tool results and mechanical child work repeatedly consume model context. | Tool Execution can capture/recover exact output and run bounded revisioned direct or restricted program operations. |
 | Request history changes destroy reusable prefixes unnecessarily. | RequestHistory and qualified Astra adaptation preserve compatible request structure. |
 
 ## How it works
@@ -99,6 +101,7 @@ A comparatively economical but capable Helper can contribute much of Both mode's
 | Cognitive Routing | Experimental native Pi source candidate |
 | Cognitive Routing on PiFlow | Explicitly unavailable in the current adapter |
 | Astra cache-aware effort history | Narrow source/fixture-qualified native Pi route; provider savings unverified |
+| Tool Execution | Experimental native-Pi candidate; extracted Worker/WASM artifact fixture passes; PiFlow and installed-user/model behavior remain unverified |
 
 Configuration or installation alone does not establish runtime delivery.
 
@@ -116,7 +119,7 @@ Freeflow is one package with different host boundaries:
 | Kiro | Agent Plugins 1.0 Power and shared skills | Not available; skills-only claim |
 | OpenCode v2 | Canonical `skills/` through a documented project skill source | Not available; skills-only support |
 | Hermes Agent | Agent Plugins 1.0 package and canonical skills | Not available; skills-only support |
-| Pi | Shared skills and native extension source entrypoint | Experimental source candidate; installed-user and model-behavior evidence remain separate |
+| Pi | Shared skills and native extension source entrypoint | Experimental Cognitive Routing and Tool Execution candidate; installed-user and model-behavior evidence remain separate |
 | PiFlow | PiFlow-hosted Freeflow package and shared surface | Explicitly unavailable in the current source adapter |
 
 Freeflow owns workflow policy, portable prompts, skills, capability source, host adapters, and the Pi extension. Each host owns launch, package installation, session state, trust, and updates.
@@ -267,6 +270,8 @@ Qualified native-Pi Cognitive Routing controls:
 /freeflow profile auto
 /freeflow profile history
 /freeflow resume
+/freeflow efficiency
+/freeflow efficiency export
 ```
 
 Profile changes and resume require an idle host. These commands do not prove installed-host delivery or authorize task work.
@@ -277,6 +282,7 @@ Freeflow is explicit about what observations prove:
 
 - deterministic checks can establish source structure, prompt assembly, schemas, package boundaries, and named fixtures;
 - package shape does not prove native host dispatch, trust UI, or marketplace availability;
+- the extracted Tool Execution Worker/WASM fixture proves artifact resolution at that boundary, not user-host installation or sandbox audit;
 - request-prefix compatibility does not prove a provider cache hit;
 - model/profile availability does not prove quality or cost improvement;
 - local release preparation is not publication;
@@ -290,6 +296,7 @@ Cognitive Routing remains experimental pending broader behavioral acceptance. Co
 - [Getting Started](plugin-docs/getting-started.md)
 - [Workflow](plugin-docs/workflow.md)
 - [Cognitive Routing](plugin-docs/capabilities/cognitive-routing.md)
+- [Tool Execution](plugin-docs/capabilities/tool-execution.md)
 - [Pi integration](plugin-docs/integrations/pi.md)
 - [PiFlow integration](plugin-docs/integrations/piflow.md)
 - [Architecture](plugin-docs/architecture.md)

@@ -26,6 +26,12 @@ const requiredFiles = [
   "pi-extension/dist/provider-support/astra/adapter.js",
   "pi-extension/dist/provider-support/astra/history.js",
   "pi-extension/dist/provider-support/astra/session-state.js",
+  "pi-extension/dist/efficiency/evaluation.js",
+  "pi-extension/dist/tool-runtime/adapters/protocol.js",
+  "pi-extension/dist/tool-runtime/discovery/index.js",
+  "pi-extension/dist/tool-runtime/program/host.js",
+  "pi-extension/dist/tool-runtime/program/worker.js",
+  "pi-extension/dist/tool-runtime/results/runtime.js",
   "runtime/prompts/core.md",
   "runtime/prompts/interaction-contract.md",
   "runtime/prompts/cognitive-routing.md",
@@ -37,7 +43,7 @@ const requiredFiles = [
   "capabilities/context-virtualization/SKILL.md",
   "capabilities/conversation-history/SKILL.md",
 ];
-const excludedPrefixes = ["plugin-docs/", ".skill-eval/", ".deprecated/", "plans/"];
+const excludedPrefixes = ["plugin-docs/", ".skill-eval/", ".deprecated/", ".freeflow/", "plans/"];
 const forbiddenPrefixes = ["router/", "capabilities/output-router/"];
 
 try {
@@ -47,6 +53,11 @@ try {
     stdio: ["ignore", "pipe", "inherit"],
   });
   const files = new Set(JSON.parse(output)[0].files.map(({ path }) => path));
+  if (
+    packageJson.dependencies?.["quickjs-emscripten-core"] !== "0.32.0" ||
+    packageJson.dependencies?.["@jitl/quickjs-wasmfile-release-sync"] !== "0.32.0"
+  )
+    throw new Error("Tool Execution runtime dependencies must remain exact qualified 0.32.0 versions");
   const missing = requiredFiles.filter((path) => !files.has(path));
   const excluded = [...files].filter((path) => excludedPrefixes.some((prefix) => path.startsWith(prefix)));
   const forbidden = [...files].filter((path) => forbiddenPrefixes.some((prefix) => path.startsWith(prefix)));

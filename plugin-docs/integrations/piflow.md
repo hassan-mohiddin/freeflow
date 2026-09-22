@@ -2,11 +2,11 @@
 
 PiFlow is a separate coding-agent distribution and host repository. Freeflow supplies workflow policy, prompt fragments, skills, capability source, and its Pi extension; PiFlow owns host launch, package installation, session state, import, and updates.
 
-## Current Cognitive Routing status
+## Current Cognitive Routing and Tool Execution status
 
-The redesigned `cognitive-routing-v2` adapter is explicitly unavailable for an identified PiFlow host in the current Freeflow source entrypoint. This page does not claim PiFlow Cognitive Routing support, complete host integration, native model-state control, or model evaluation. Installing PiFlow or Freeflow does not change that gate.
+The redesigned `cognitive-routing-v2` adapter and Tool Execution are explicitly unavailable for an identified PiFlow host in the current Freeflow source entrypoint. This page does not claim PiFlow Cognitive Routing support, complete host integration, native model-state control, or model evaluation. Installing PiFlow or Freeflow does not change that gate.
 
-Freeflow's shared skills and ordinary package surface may still be used through PiFlow's own host lifecycle. Treat Cognitive Routing as unavailable until a separately qualified PiFlow adapter and installed-host evidence exist.
+Freeflow's shared skills and ordinary package surface may still be used through PiFlow's own host lifecycle. Treat Cognitive Routing and Tool Execution as unavailable until separately qualified PiFlow adapters and installed-host evidence exist.
 
 ## Install PiFlow and Freeflow
 
@@ -42,9 +42,9 @@ In the target repository, run:
 
 This creates the shared `.freeflow/config.json` activation boundary. Minimal activation is `{}`. `.freeflow/local.json` is an optional personal override and cannot activate Freeflow by itself.
 
-Do not add or change Cognitive Routing configuration merely to make the current PiFlow adapter activate it. The active routing schema and operating reference belong to the native [Pi integration](pi.md) and [Cognitive Routing](../capabilities/cognitive-routing.md) pages; they do not establish equivalent PiFlow support. A future PiFlow adapter must qualify its own host controls, lifecycle, configuration delivery, and installed behavior before this page publishes setup instructions.
+Do not add or change Cognitive Routing or Tool Execution configuration merely to make the current PiFlow adapter activate it. The active routing schema and operating reference belong to the native [Pi integration](pi.md) and [Cognitive Routing](../capabilities/cognitive-routing.md) pages; they do not establish equivalent PiFlow support. A future PiFlow adapter must qualify its own host controls, lifecycle, configuration delivery, and installed behavior before this page publishes setup instructions.
 
-On the current PiFlow path, `/freeflow` should report Cognitive Routing unavailable rather than partially applying it. A repository configuration that is also used by native Pi does not become PiFlow support simply because PiFlow can read the package.
+On the current PiFlow path, `/freeflow` should report Cognitive Routing and Tool Execution unavailable rather than partially applying them. A repository configuration that is also used by native Pi does not become PiFlow support simply because PiFlow can read the package.
 
 ## Ownership and evidence boundary
 
@@ -53,7 +53,7 @@ On the current PiFlow path, `/freeflow` should report Cognitive Routing unavaila
 | Workflow policy, skills, prompt fragments, capability behavior, and Freeflow package snapshots | Freeflow |
 | Host launch, package installation, session state, import, and updates | PiFlow |
 | Repository activation and personal overrides | Freeflow configuration in the target repository |
-| PiFlow Cognitive Routing adapter availability | Current Freeflow source gate; currently unavailable |
+| PiFlow Cognitive Routing and Tool Execution availability | Current Freeflow source gates; currently unavailable |
 
 A development snapshot identifies a committed Freeflow revision; an installed package and the PiFlow host are separate identities. Refreshing a snapshot does not patch a host, `fsync` a session, or promise exactly-once delivery. PiFlow owns host synchronization, while Freeflow's native routing events and saved reports—when a qualified adapter exists—remain distinct from host package state.
 
@@ -70,7 +70,7 @@ Use the PiFlow development launcher or a released PiFlow host with temporary sta
 
 ## Troubleshooting
 
-- **Cognitive Routing is unavailable:** this is expected on the current PiFlow adapter path. Do not work around it by impersonating a profile or editing host state.
+- **Cognitive Routing or Tool Execution is unavailable:** this is expected on the current PiFlow adapter path. Do not work around it by impersonating a profile, invoking hidden operations, or editing host state.
 - **Freeflow is not delivered:** verify PiFlow's native package installation, project trust, reload, and session lifecycle using PiFlow documentation. Installation alone is not delivery evidence.
 - **Cognitive Routing remains unavailable despite valid native-Pi configuration:** this is expected on the current PiFlow adapter. Do not rewrite the configuration or copy another schema to bypass the host gate.
 - **A package update is not visible:** use PiFlow's native update/reload behavior or restart it at its lifecycle boundary; do not infer the installed identity from a different checkout or snapshot.
@@ -78,6 +78,7 @@ Use the PiFlow development launcher or a released PiFlow host with temporary sta
 ## Related documentation
 
 - [Cognitive Routing](../capabilities/cognitive-routing.md)
+- [Tool Execution](../capabilities/tool-execution.md)
 - [Pi integration](pi.md)
 - [Freeflow architecture](../architecture.md)
 - [Getting Started](../getting-started.md)

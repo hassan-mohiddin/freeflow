@@ -14,7 +14,7 @@ Freeflow is a portable workflow layer for coding agents. Choose the host that ma
 | Kiro | Agent Plugins 1.0 Power and shared skills | Not available; no Kiro-specific runtime adapter |
 | OpenCode v2 | Canonical `skills/` through the documented project skill source | Not available; skills-only support |
 | Hermes Agent | Agent Plugins 1.0 portable package and canonical skills | Not available; skills-only support |
-| Pi | Shared skills and Pi extension source entrypoint, plus optional context capabilities | Cognitive Routing is an unreleased experimental candidate; native SDK and bundled-CLI dispatch are exercised by isolated local fixtures; installed-user and model-behavior acceptance remain separate |
+| Pi | Shared skills and Pi extension source entrypoint, optional context capabilities, and experimental Tool Execution | Cognitive Routing is an unreleased experimental candidate; native SDK/bundled-CLI dispatch and extracted Tool Execution artifact loading are exercised by local fixtures; installed-user and model-behavior acceptance remain separate |
 | PiFlow | PiFlow-hosted Freeflow package and host lifecycle | Cognitive Routing is explicitly unavailable in the current source adapter |
 
 Cognitive Routing is not established merely by configuration or installation. The current source entrypoint is wired for native Pi, but installed-host dispatch and model behavior require separate evidence; the redesigned PiFlow adapter is currently unavailable.
@@ -134,7 +134,7 @@ Run this in the repository where Freeflow should operate:
 
 Setup creates the shared `.freeflow/config.json` activation boundary. Minimal activation is `{}`. `.freeflow/local.json` is an optional personal override and cannot activate Freeflow by itself.
 
-Freeflow's core guidance and separately editable Interaction Contract are delivered together whenever Freeflow is enabled. The 24 base skills are exposed with that core surface. Context Virtualization, Conversation History, and Cognitive Routing remain individually optional capabilities.
+Freeflow's core guidance and separately editable Interaction Contract are delivered together whenever Freeflow is enabled. The 24 base skills are exposed with that core surface. Context Virtualization, Conversation History, Cognitive Routing, and Tool Execution remain individually optional capabilities.
 
 For a future qualified native host, Cognitive Routing uses this v2 configuration under `.freeflow/config.json` or `.freeflow/local.json`:
 
@@ -155,6 +155,22 @@ For a future qualified native host, Cognitive Routing uses this v2 configuration
 
 `delegation` accepts `executor`, `helper`, or `both` and defaults to `executor`; `projection` defaults to `false`. Profiles are `coordinator`, `helper`, and `executor`. Coordinator must differ from each worker enabled by the selected mode; Helper and Executor may share a pair. Repository delegation can be overridden personally, but there is no session delegation-mode override. Older experimental routing names or fields such as `standard`, `reasoning`, `contextProjection`, and `sessionStart` are unsupported and have no migration; rewrite them manually. Configuration does not establish host availability or model evaluation.
 
+Tool Execution is also opt-in. For captured-data programs without live workspace access:
+
+```json
+{
+  "toolExecution": {
+    "enabled": true,
+    "capture": { "enabled": true },
+    "programs": { "mode": "reduction" },
+    "discovery": { "enabled": true },
+    "accounting": { "enabled": true }
+  }
+}
+```
+
+Live local reads/search require `workspace.enabled`; replacement also requires `workspace.write`; trusted external adapters require explicit IDs under `adapters.allow`. Review the retention and execution-world limits in [Tool Execution](capabilities/tool-execution.md) before enabling them.
+
 Setup does not write Freeflow instructions into `AGENTS.md`, `CLAUDE.md`, or other repository-owned host files.
 
 ## Verify delivery
@@ -169,7 +185,7 @@ Use the host-native surface to confirm the installation:
 - **Kiro:** confirm the Power is installed and the shared skills appear in the Agent Steering & Skills surface. Do not infer an always-on prompt adapter from the Power manifest alone.
 - **OpenCode v2:** confirm the configured `skills` array points at the canonical `skills/` directory and inspect the native `skill` catalog. Do not infer runtime prompt delivery.
 - **Hermes Agent:** confirm the portable package is listed/enabled or the checkout is trusted as a skills source, then inspect the skills catalog. Do not infer runtime prompt delivery from portable package installation.
-- **Pi:** use `/freeflow` to inspect settings/status and confirm the core prompt, Interaction Contract, and base skills. The source entrypoint includes v2 native routing wiring, but this does not prove stock-Pi dispatch or model behavior.
+- **Pi:** use `/freeflow` to inspect settings/status and confirm the core prompt, Interaction Contract, and base skills. If Tool Execution is configured, verify its mode, workspace root/policy, catalog and adapter counts, and effect-fence status; use `/freeflow efficiency` only for factual observations. The source entrypoint includes v2 native routing and Tool Execution wiring, but this does not prove stock-Pi dispatch or model behavior.
 - **PiFlow:** use PiFlow's native lifecycle to confirm the package and Freeflow shared surface. The current source explicitly reports Cognitive Routing unavailable; do not configure or exercise it as an active PiFlow capability.
 
 Activation is not proof of runtime delivery. Setup reports delivery as `confirmed`, `unavailable`, or `unconfirmed`.
@@ -178,6 +194,7 @@ Activation is not proof of runtime delivery. Setup reports delivery as `confirme
 
 - [Using Freeflow Effectively](using-freeflow.md)
 - [Pi integration](integrations/pi.md)
+- [Tool Execution](capabilities/tool-execution.md)
 - [PiFlow integration](integrations/piflow.md)
 - [Architecture](architecture.md)
 - [Workflow](workflow.md)

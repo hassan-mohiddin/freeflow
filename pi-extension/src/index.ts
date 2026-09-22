@@ -3,6 +3,14 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { RequestHistory } from "./runtime/request-history.js";
 import { registerProviderSupport } from "./provider-support/index.js";
+import { registerProviderObservation } from "./provider-support/observation.js";
+import { EfficiencyObserver } from "./efficiency/observation.js";
+import { registerToolRuntimeTools } from "./tool-runtime/tools.js";
+import { ToolRuntime } from "./tool-runtime/index.js";
+import { publishCooperatingAdapterEndpoint } from "./tool-runtime/adapters/protocol.js";
+import { EffectRuntime } from "./tool-runtime/effects.js";
+import { ResultRuntime } from "./tool-runtime/results/runtime.js";
+import { ProgramHost } from "./tool-runtime/program/host.js";
 import { RoutingRuntime } from "./cognitive-routing-v2/runtime.js";
 import { workersForDelegation, type Profile } from "./cognitive-routing-v2/types.js";
 import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-routing-v2/tools.js";
@@ -59,34 +67,37 @@ function freeflowCompletions(prefix: string | undefined, routingAvailable: boole
         ["settings local", "local", "Edit personal overrides for this repository"],
         ["settings repo", "repo", "Edit shared repository settings"],
       ]
-    : query.startsWith("profile ") && routingAvailable
-      ? [
-          ["profile coordinator", "coordinator", "Hold Coordinator manually"],
-          ["profile helper", "helper", "Hold Helper manually when enabled"],
-          ["profile executor", "executor", "Hold Executor manually when enabled"],
-          ["profile auto", "auto", "Return to automatic Coordinator reconciliation"],
-          ["profile history", "history", "Read routing observations"],
-        ]
-      : query.startsWith("context ")
+    : query.startsWith("efficiency ")
+      ? [["efficiency export", "export", "Export bounded factual efficiency JSON"]]
+      : query.startsWith("profile ") && routingAvailable
         ? [
-            ["context status", "status", "Show Freeflow Context state"],
-            ["context list", "list", "List archived context projections"],
-            ["context restore", "restore", "Restore one or more context references"],
-            ["context reset all", "reset all", "Reset projection decisions on the active branch"],
+            ["profile coordinator", "coordinator", "Hold Coordinator manually"],
+            ["profile helper", "helper", "Hold Helper manually when enabled"],
+            ["profile executor", "executor", "Hold Executor manually when enabled"],
+            ["profile auto", "auto", "Return to automatic Coordinator reconciliation"],
+            ["profile history", "history", "Read routing observations"],
           ]
-        : [
-            ["settings", "settings", "Open personal override settings"],
-            ["status", "status", "Show effective Freeflow state"],
-            ["context", "context", "Inspect Freeflow Context"],
-            ...(routingAvailable
-              ? [
-                  ["profile", "profile", "Hold or release Cognitive Routing profile control"],
-                  ["resume", "resume", "Resume the current saved routing responsibility"],
-                ]
-              : []),
-            ["enable", "enable", "Enable Freeflow for this repository"],
-            ["disable", "disable", "Disable Freeflow for this repository"],
-          ];
+        : query.startsWith("context ")
+          ? [
+              ["context status", "status", "Show Freeflow Context state"],
+              ["context list", "list", "List archived context projections"],
+              ["context restore", "restore", "Restore one or more context references"],
+              ["context reset all", "reset all", "Reset projection decisions on the active branch"],
+            ]
+          : [
+              ["settings", "settings", "Open personal override settings"],
+              ["status", "status", "Show effective Freeflow state"],
+              ["context", "context", "Inspect Freeflow Context"],
+              ["efficiency", "efficiency", "Show factual Tool Execution and provider observations"],
+              ...(routingAvailable
+                ? [
+                    ["profile", "profile", "Hold or release Cognitive Routing profile control"],
+                    ["resume", "resume", "Resume the current saved routing responsibility"],
+                  ]
+                : []),
+              ["enable", "enable", "Enable Freeflow for this repository"],
+              ["disable", "disable", "Disable Freeflow for this repository"],
+            ];
   return choices
     .filter(([value]) => value.startsWith(query))
     .map(([value, label, description]) => ({ value, label, description }));
@@ -99,6 +110,36 @@ export default function freeflow(pi: FreeflowAPI) {
   const routing = new RoutingRuntime(api, [packageRoot]);
   const requestHistory = new RequestHistory(api);
   let capability: any;
+  const results = new ResultRuntime(
+    api,
+    () => capability?.toolExecution,
+    () => routing.observationScope(),
+    (id) => routing.resultReadAccess(id),
+  );
+  routing.setResultGrantPort({ resolve: (id, ctx) => results.resolveGrant(id, ctx) });
+  const effects = new EffectRuntime(api);
+  routing.setEffectFencePort(effects);
+  const toolRuntime = new ToolRuntime(
+    () => capability?.toolExecution,
+    {
+      scope: (ctx) => routing.operationScope(ctx),
+      responsibility: () => routing.observationScope(),
+      admit: (fence, effect, operation) => routing.admitOperation(fence as any, effect, operation),
+      admitProgram: (fence) => routing.admitProgram(fence as any),
+    },
+    {
+      read: (input, signal, host) => results.readValue(input, signal, host),
+    },
+    effects,
+  );
+  publishCooperatingAdapterEndpoint(toolRuntime.adapters);
+  const programs = new ProgramHost(api, toolRuntime, () => capability?.toolExecution);
+  const efficiency = new EfficiencyObserver(
+    api,
+    () => routing.observationScope(),
+    () => capability?.toolExecution?.effective === true && capability?.toolExecution?.accounting?.effective === true,
+  );
+  registerProviderObservation(api, efficiency);
   let prompts: any;
   let context: FreeflowContextRuntime | undefined;
   let virtualization: ContextVirtualizationRuntime | undefined;
@@ -118,7 +159,7 @@ export default function freeflow(pi: FreeflowAPI) {
     const loaded = await getRuntimeContext(STABLE_FREEFLOW_SURFACE);
     if (generation !== surfaceGeneration) throw new Error("Discarded surface preparation for a replaced session.");
     if (!hasUsableMandatoryPrompts(loaded)) {
-      for (const key of ["cognitiveRouting", "contextVirtualization", "conversationHistory"])
+      for (const key of ["cognitiveRouting", "contextVirtualization", "conversationHistory", "toolExecution"])
         next[key] = unavailable(next[key], "Mandatory Freeflow prompts are unavailable.");
     }
     if (next.cognitiveRouting.effective && !isPromptAvailable(loaded.cognitiveRoutingPrompt))
@@ -146,7 +187,13 @@ export default function freeflow(pi: FreeflowAPI) {
         next.cognitiveRouting,
         "The redesigned PiFlow adapter requires separate qualification.",
       );
+    if (next.toolExecution.enabled && isPiFlowHost(pi.host))
+      next.toolExecution = unavailable(
+        next.toolExecution,
+        "Tool Execution requires separate PiFlow host qualification.",
+      );
     capability = next;
+    toolRuntime.refreshAdapters();
     prompts = loaded;
     sessionContext = ctx;
     return next;
@@ -170,7 +217,14 @@ export default function freeflow(pi: FreeflowAPI) {
   }
   function status(ctx: any) {
     applyRoutingToolVisibility(api, routing, capability?.cognitiveRouting?.effective === true);
-    setFreeflowStatus(ctx, capability, routing.state(), prompts);
+    setFreeflowStatus(ctx, capability, routing.state(), prompts, {
+      toolExecutionRuntime: {
+        ...results.status(),
+        ...programs.status(),
+        ...effects.status(),
+        ...toolRuntime.status(),
+      },
+    });
   }
   async function update(ctx: any) {
     const next = await loadSurface(ctx);
@@ -187,6 +241,11 @@ export default function freeflow(pi: FreeflowAPI) {
     () => history,
     { contextVirtualization: false, conversationHistory: false },
   );
+  registerToolRuntimeTools(api, () => capability?.toolExecution, {
+    invokeTools: (callId, input, signal, ctx) => toolRuntime.invokeTools(callId, input, signal, ctx),
+    runProgram: (callId, input, signal, ctx) => programs.run(callId, input, signal, ctx),
+    readResult: (input, signal, ctx) => results.read(input, signal, ctx),
+  });
 
   pi.on("resources_discover", async (event, ctx) => {
     const state = capability ?? (await loadSurface(ctx ?? { cwd: (event as any)?.cwd ?? process.cwd() }));
@@ -204,6 +263,11 @@ export default function freeflow(pi: FreeflowAPI) {
     await refreshRuntimeContext(STABLE_FREEFLOW_SURFACE);
     if (generation !== surfaceGeneration) return;
     await loadSurface(ctx);
+    efficiency.reset(ctx);
+    results.reset();
+    programs.reset();
+    effects.reset();
+    effects.recover(ctx);
     context = new FreeflowContextRuntime(ctx);
     virtualization = new ContextVirtualizationRuntime(pi, ctx, context);
     history = new ConversationHistoryRuntime(
@@ -220,6 +284,10 @@ export default function freeflow(pi: FreeflowAPI) {
     surfaceGeneration++;
     requestHistory.reset();
     routing.unbind();
+    efficiency.reset();
+    results.reset();
+    programs.reset();
+    effects.reset();
     context = undefined;
     virtualization = undefined;
     history = undefined;
@@ -234,7 +302,10 @@ export default function freeflow(pi: FreeflowAPI) {
     const text = stableRuntimeContext(prompts);
     return { systemPrompt: text ? `${event.systemPrompt}\n\n${text}` : event.systemPrompt };
   });
-  pi.on("message_end", (event) => routing.messageEnd((event as any).message));
+  pi.on("message_end", (event, ctx) => {
+    routing.messageEnd((event as any).message);
+    efficiency.messageEnd((event as any).message, ctx);
+  });
   pi.on("tool_call", (event, ctx) => {
     if (
       (event as any).toolName === CONTEXT_VIRTUALIZATION_TOOL_NAME &&
@@ -242,10 +313,26 @@ export default function freeflow(pi: FreeflowAPI) {
       !capability?.conversationHistory?.effective
     )
       return { block: true, reason: "Freeflow Context is disabled." };
-    return routing.preflight(event, ctx);
+    const gate = routing.preflight(event, ctx);
+    if (!(gate as any)?.block) {
+      try {
+        results.toolCall(event, ctx);
+      } catch {
+        // Optional capture preparation cannot block the admitted native tool.
+      }
+    }
+    return gate;
+  });
+  pi.on("tool_result", async (event, ctx) => {
+    const capture = await results.capture(event, ctx);
+    const direct = toolRuntime.patchResult(event);
+    const program = programs.patchResult(event);
+    return capture || direct || program ? { ...(capture ?? {}), ...(direct ?? {}), ...(program ?? {}) } : undefined;
   });
   pi.on("turn_end", async (event, ctx) => {
     await routing.turnEnd(event, ctx);
+    results.turnEnd(event);
+    efficiency.turnEnd(event, ctx);
     status(ctx);
   });
   pi.on("agent_settled", async (_event, ctx) => {
@@ -275,6 +362,12 @@ export default function freeflow(pi: FreeflowAPI) {
     messages = withFreeflowRuntimeState(messages, capability, routing.state(), prompts, {
       force: refreshState,
       projectionFailure: routing.state().projectionFailure,
+      toolExecutionRuntime: {
+        ...results.status(),
+        ...programs.status(),
+        ...effects.status(),
+        ...toolRuntime.status(),
+      },
     });
     refreshState = false;
     const routed = await routing.context(ctx, messages);
@@ -290,6 +383,11 @@ export default function freeflow(pi: FreeflowAPI) {
   });
   const restore = async (ctx: any, navigation = true) => {
     requestHistory.reset();
+    efficiency.reset(ctx);
+    results.reset();
+    programs.reset();
+    effects.reset();
+    effects.recover(ctx);
     restoreSessionOverrides(ctx);
     refreshState = true;
     if (virtualization) {
@@ -360,7 +458,7 @@ export default function freeflow(pi: FreeflowAPI) {
       handler: (args, ctx) => sendSkillCommand(pi, ctx, skill, args),
     });
   pi.registerCommand("freeflow", {
-    description: "Freeflow settings, status, profile control, saved-operation resume, and context tools",
+    description: "Freeflow settings, status, efficiency, profile control, saved-operation resume, and context tools",
     getArgumentCompletions: (prefix) =>
       freeflowCompletions(
         prefix,
@@ -374,6 +472,17 @@ export default function freeflow(pi: FreeflowAPI) {
         return;
       }
       const input = (args ?? "").trim();
+      if (input === "efficiency" || input === "efficiency export") {
+        if (!capability?.toolExecution?.accounting?.effective) {
+          ctx.ui.notify("Freeflow Tool Execution accounting is disabled.", "warning");
+          return;
+        }
+        ctx.ui.notify(
+          JSON.stringify(input.endsWith("export") ? efficiency.exportData() : efficiency.report(), null, 2),
+          "info",
+        );
+        return;
+      }
       if (input === "context" || input.startsWith("context ")) {
         await handleContextCommand(
           input.slice(7).trim(),
@@ -384,7 +493,9 @@ export default function freeflow(pi: FreeflowAPI) {
         );
         return;
       }
-      await handleFreeflowCommand(args, ctx, async () => update(ctx), pi, routing);
+      await handleFreeflowCommand(args, ctx, async () => update(ctx), pi, routing, {
+        status: () => ({ ...results.status(), ...programs.status(), ...effects.status(), ...toolRuntime.status() }),
+      });
     },
   });
 }

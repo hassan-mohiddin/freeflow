@@ -178,6 +178,7 @@ test("personal settings keep repository state unchanged while editing context", 
       });
       component.handleInput("\u001b[B");
       component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
       component.handleInput("\r");
       component.handleInput("\r");
       component.handleInput("\u001b[B");
@@ -207,6 +208,7 @@ test("context settings refresh their parent summary after a child changes", asyn
         result = value;
       });
       assert.match(component.render(120).join("\n"), /Freeflow Context\s+enabled \(2\) 1\/2 enabled/);
+      component.handleInput("\u001b[B");
       component.handleInput("\u001b[B");
       component.handleInput("\u001b[B");
       component.handleInput("\r");
@@ -243,6 +245,7 @@ test("repository settings show personal effective sources without changing share
       const component = factory({ requestRender() {} }, theme, {}, (value) => {
         result = value;
       });
+      component.handleInput("\u001b[B");
       component.handleInput("\u001b[B");
       component.handleInput("\u001b[B");
       component.handleInput("\r");

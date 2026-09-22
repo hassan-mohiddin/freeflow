@@ -1,6 +1,6 @@
 # Pi Integration
 
-Freeflow can be packaged for Pi. The source tree contains a native entrypoint wired to the v2 routing runtime, but this documentation does not claim that the current checkout is released, installed, or dispatched by stock Pi. Shared skills and ordinary package behavior remain distinct from host acceptance and model evaluation.
+Freeflow can be packaged for Pi. The source tree contains a native entrypoint wired to the v2 routing runtime, but this documentation does not claim that the current checkout is released, installed, or dispatched by stock Pi. Shared skills and ordinary package behavior remain distinct from host acceptance and model evaluation. The current candidate also includes experimental [Tool Execution](../capabilities/tool-execution.md); its extracted-package Worker/WASM fixture is not proof of installation into a user's Pi process.
 
 ## Install
 
@@ -20,7 +20,7 @@ Restart Pi or use `/reload` after installing or updating so its resources are re
 
 ## Supported Pi evidence
 
-The repository's current development dependency is Pi 0.85.1. This is source and fixture context, not a support or behavioral acceptance claim. The native entrypoint requires the host's public model registry/authentication lookup, session-scoped model and thinking controls, native session-entry append/readback, and session ancestry APIs. Stock-Pi dispatch, installed-package behavior, and model quality remain separately unverified.
+The repository's current development dependency is Pi 0.85.1. This is source and fixture context, not a support or behavioral acceptance claim. The native entrypoint requires the host's public model registry/authentication lookup, session-scoped model and thinking controls, native session-entry append/readback, and session ancestry APIs. Stock-Pi dispatch and model quality remain separately unverified. A deterministic temporary installation executes the npm-packed candidate's Tool Execution Worker and QuickJS WASM from a path containing spaces; that qualifies artifact resolution only, not user-host installation or model behavior.
 
 ## Activate Freeflow
 
@@ -32,7 +32,7 @@ In the repository where Freeflow should operate, run:
 
 Setup creates the shared `.freeflow/config.json` activation boundary. Minimal activation is `{}`. An optional `.freeflow/local.json` provides per-checkout personal overrides; it cannot activate Freeflow by itself.
 
-Freeflow's core prompt and separately editable Interaction Contract are delivered together whenever Freeflow is enabled. The 24 base skills are exposed with that core surface. Context Virtualization, Conversation History, and Cognitive Routing remain independently gated capabilities. Session settings can override core/context enablement and complete Cognitive Routing profiles enabled for that session. Session profile overrides do not mutate `.freeflow/config.json` or `.freeflow/local.json`; they take precedence over personal and repository profiles and can be reset or set to inherit. Delegation mode is configured only in repository or personal settings, not as a session override.
+Freeflow's core prompt and separately editable Interaction Contract are delivered together whenever Freeflow is enabled. The 24 base skills are exposed with that core surface. Context Virtualization, Conversation History, Cognitive Routing, and Tool Execution remain independently gated capabilities. Session settings can override core/context enablement and complete Cognitive Routing profiles enabled for that session. Session profile overrides do not mutate `.freeflow/config.json` or `.freeflow/local.json`; they take precedence over personal and repository profiles and can be reset or set to inherit. Delegation mode is configured only in repository or personal settings, not as a session override.
 
 ## Cognitive Routing configuration
 
@@ -69,7 +69,27 @@ On a future qualified native Pi host, configure the v2 shape through `/freeflow 
 
 Older experimental routing fields or names such as `standard`, `reasoning`, `contextProjection`, and `sessionStart` are unsupported. There is no migration; rewrite them manually. Invalid configuration fails closed rather than partially enabling routing.
 
-The current source also rejects Cognitive Routing on the identified PiFlow host path. See [PiFlow integration](piflow.md); do not infer equivalent PiFlow support from this Pi source entrypoint.
+The current source also rejects Cognitive Routing and Tool Execution on the identified PiFlow host path. See [PiFlow integration](piflow.md); do not infer equivalent PiFlow support from this Pi source entrypoint.
+
+## Tool Execution configuration
+
+Tool Execution is disabled by default. A minimal captured-reduction configuration is:
+
+```json
+{
+  "toolExecution": {
+    "enabled": true,
+    "capture": { "enabled": true },
+    "programs": { "mode": "reduction" },
+    "discovery": { "enabled": true },
+    "accounting": { "enabled": true }
+  }
+}
+```
+
+Local live access is separately enabled under `workspace`; writing additionally requires `workspace.write`. Program mode `adapters` enables qualified live children but does not bypass current Cognitive Routing responsibility, workspace policy, effect fences, cancellation, or adapter authorization. Trusted external adapters must be named in `adapters.allow` and use the versioned in-process cooperation contract. Visible schemas grant no permission.
+
+The stable native tools are `freeflow_tools`, `freeflow_run`, and `freeflow_result`. Native Pi Bash is the built-in capture integration; unknown custom Bash definitions retain ordinary Pi behavior. See [Tool Execution](../capabilities/tool-execution.md) for configuration, operation contracts, retention, sandbox and evidence limits.
 
 ## What the source adapter provides
 
@@ -79,6 +99,7 @@ When its host gate is effective, the native entrypoint is designed to provide:
 - refresh-aware Runtime State with v2 routing `Control`, `Profile`, and `Delegation`;
 - Coordinator/Helper/Executor routing state recorded as native `freeflow-routing-v2` session entries;
 - the four v2 routing tools: `freeflow_delegate`, `freeflow_return`, `freeflow_unit`, and `freeflow_project`;
+- the stable Tool Execution facade tools, with execution-time capability gates;
 - optional context capabilities under their separate gates.
 
 These are source-level contracts, not proof of installed-host delivery, stock-Pi dispatch, or model behavior.
@@ -98,9 +119,11 @@ While an effective native host is idle:
 /freeflow profile auto
 /freeflow profile history
 /freeflow resume
+/freeflow efficiency
+/freeflow efficiency export
 ```
 
-`/freeflow settings` and `/freeflow settings local` edit personal overrides; `/freeflow settings repo` edits `.freeflow/config.json`. `coordinator`, `helper`, and `executor` place a manual hold when available, `auto` releases it to automatic Coordinator control, and `history` reads work-oriented routing history (`history diagnostics` retains the raw event view). `/freeflow resume` explicitly resumes saved routing responsibility after reconciliation. These commands require an idle host and do not authorize task work.
+`/freeflow settings` and `/freeflow settings local` edit personal overrides; `/freeflow settings repo` edits `.freeflow/config.json`. `coordinator`, `helper`, and `executor` place a manual hold when available, `auto` releases it to automatic Coordinator control, and `history` reads work-oriented routing history (`history diagnostics` retains the raw event view). `/freeflow resume` explicitly resumes saved routing responsibility after reconciliation. These commands require an idle host and do not authorize task work. Efficiency output reports factual local/provider observations at named boundaries; it does not infer provider cache hits, billing savings, pricing or model quality.
 
 When the source adapter exposes the native controls:
 
@@ -147,6 +170,7 @@ A snapshot identity and an installed package identity are different. Do not trea
 
 ## Related documentation
 
+- [Tool Execution](../capabilities/tool-execution.md)
 - [Cognitive Routing](../capabilities/cognitive-routing.md)
 - [Freeflow architecture](../architecture.md)
 - [Workflow](../workflow.md)

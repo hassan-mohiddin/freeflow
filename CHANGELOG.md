@@ -9,6 +9,7 @@
 - Adds attached Cognitive Routing evidence recovery with exact-path reads, preserved original reports and assessments, separate supplements, explicit cancellation, and direct selection of eligible occurrence-linked evidence refs.
 - Adds session-only Cognitive Routing profile presets for Coordinator and enabled workers with complete model/effort pairs, inheritance, reset, and local/shared configuration isolation.
 - Adds a practical Freeflow user guide for prompting, skill selection, Workflow and Track Work management, settings, Cognitive Routing presets, and evidence and cost boundaries.
+- Adds experimental native-Pi Tool Execution with recoverable bounded Bash output, restricted QuickJS programs, revisioned direct/live operations, deterministic discovery, configured cooperating adapters, effect fencing, factual efficiency export, and extracted Worker/WASM qualification.
 
 ### Changed
 

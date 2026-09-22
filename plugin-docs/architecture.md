@@ -25,7 +25,7 @@ freeflow/
   .skill-eval/
 ```
 
-The npm tarball contains runtime-required files. GitHub also retains plugin docs, project memory, current eval definitions, and deprecated historical evidence. Retired Output Router evidence is preserved under `.deprecated/output-router/`. There is no generated package mirror.
+The npm tarball contains runtime-required files, including the built Pi Tool Execution Worker; declared exact runtime dependencies supply QuickJS core and the selected release-sync WASM variant. GitHub also retains plugin docs, project memory, current eval definitions, and deprecated historical evidence. Retired Output Router evidence is preserved under `.deprecated/output-router/`. There is no generated package mirror.
 
 ## Documentation and source boundaries
 
@@ -53,7 +53,7 @@ host session enablement
 -> built-in default
 ```
 
-`enabled` is the only Freeflow core switch. When it is effective, the core prompt, Interaction Contract, and 24 base skills are present. Context Virtualization, Conversation History, and Cognitive Routing are independently gated capabilities. Configurations containing the removed `defaultMode`, `interactionContract`, or `skills` keys are invalid. An invalid existing personal layer fails closed.
+`enabled` is the only Freeflow core switch. When it is effective, the core prompt, Interaction Contract, and 24 base skills are present. Context Virtualization, Conversation History, Cognitive Routing, and Tool Execution are independently gated capabilities. Configurations containing the removed `defaultMode`, `interactionContract`, or `skills` keys are invalid. An invalid existing personal layer fails closed.
 
 Cognitive Routing has its own v2 shape under `cognitiveRouting`:
 
@@ -72,13 +72,15 @@ Cognitive Routing has its own v2 shape under `cognitiveRouting`:
 
 `delegation` accepts `executor`, `helper`, or `both` and defaults to `executor`; `projection` defaults to `false`. Profile names are `coordinator`, `helper`, and `executor`. Every configured preset must contain `provider`, `model`, and a supported thinking enum. Only profiles required by the selected mode or recorded current responsibility must resolve to available, authenticated models at that exact thinking level; a well-formed unused unavailable preset does not block another valid mode. Coordinator must differ from every enabled worker; Helper and Executor may share a pair. Repository delegation may be overridden personally, but not for one session. Older experimental routing fields or names such as `standard`, `reasoning`, `contextProjection`, and `sessionStart` are rejected as routing configuration and are not migrated. Rewrite them manually. Configuration establishes activation state; it does not prove host runtime delivery or model behavior.
 
+Tool Execution has one layered namespace under `toolExecution`. Its master switch and capture, programs, workspace, discovery, adapter allowlist and accounting leaves default disabled. Reduction programs receive captured-data capabilities only; adapter programs still pass through the revisioned registry, routing/config/adapter admission, effect settlement and cancellation. The stable three-tool native facade is not rewritten when the operation catalog changes.
+
 ## Runtime Guidance
 
 Freeflow has four coordinated model-facing parts:
 
 1. **Core guidance:** `runtime/prompts/core.md` owns stable identity, shared terms, the three nested loops (Interaction Lifecycle, Feedback Loop, and Environment Interaction Loop), recovery, and Workflow, Action Selection, and Supported Exit cues.
 2. **Interaction Contract:** `runtime/prompts/interaction-contract.md` is a separate mandatory fragment for whole-turn interpretation and establishing outcome, scope, and the user-facing return condition without redundant confirmation.
-3. **Runtime State:** the extension supplies current capability availability and Cognitive Routing Control/Profile/Delegation at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the current provider context. It is not system-prompt policy.
+3. **Runtime State:** the extension supplies current capability availability, Tool Execution mode/status, and Cognitive Routing Control/Profile/Delegation at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the current provider context. It is not system-prompt policy.
 4. **Discoverable skills:** 24 base skills under `skills/` are exposed with the core surface; child capability skills under `capabilities/` are exposed only when their own gates are effective.
 
 The Interaction Contract is prompt-only and not discoverable. Full skill and capability bodies are discoverable methods, not persistent bootstrap content. Context loading does not enforce policy, block tools, grant permissions, or replace repository instructions. See [System Prompt Architecture](prompt-architecture.md) for the canonical assembly and gating contract, and [Capabilities](capabilities/README.md) for detailed capability contracts.
@@ -116,11 +118,11 @@ The source Pi entrypoint:
 - supplies one unified volatile `Freeflow Runtime State` message at session start, after context reconstruction or loss, and when displayed state changes, preserving it when unchanged;
 - restores branch-aware session overrides for enablement, optional context capabilities, and complete enabled Cognitive Routing profile pairs;
 - dynamically exposes 24 base model/contributor skills plus effective child capability skills;
-- registers canonical direct commands and the v2 routing tools;
-- activates capability tools and discoverable capability skills only when their individual gates are effective;
+- registers canonical direct commands, the v2 routing tools, and the stable `freeflow_tools` / `freeflow_run` / `freeflow_result` facade;
+- activates capability operations and discoverable capability skills only when their individual gates are effective;
 - when the native source host gate is effective, uses Pi's model registry, session-scoped model/thinking controls, and native session entries for v2 Coordinator/Helper/Executor routing.
 
-The native entrypoint is wired in source but is not a released or installed host integration. Stock-Pi dispatch, host behavior, and model evaluation remain unverified. The identified PiFlow host path is explicitly gated unavailable by the current source entrypoint.
+The native entrypoint is wired in source but is not a released host integration. Stock-Pi dispatch, user-host behavior, and model evaluation remain unverified. A deterministic extracted-package fixture executes Tool Execution's Worker and QuickJS WASM from a temporary path containing spaces; that is artifact-resolution evidence, not production installation. The identified PiFlow host path is explicitly gated unavailable by the current source entrypoint.
 
 `/freeflow settings` edits personal core overrides, including Cognitive Routing delegation mode. `/freeflow settings session` manages temporary enablement, optional-context, and complete enabled-profile overrides without changing config files; delegation has no session override. `/freeflow settings repo` edits shared repository settings.
 
@@ -169,6 +171,8 @@ The v2 Cognitive Routing capability owns Coordinator plus optional Helper and Ex
 The new routing projection is not qualified with legacy Context Virtualization or Conversation History transforms. Those capabilities remain standalone and are not removed. Routing state uses native `freeflow-routing-v2` entries and a strict read-only persisted snapshot for reconciliation; it does not patch host files, claim `fsync`, or promise exactly-once behavior. Pi-specific prefix reuse and cache-breaking boundaries are documented in [Pi cache reuse boundaries](integrations/pi.md#cache-reuse-boundaries).
 
 Delegation Harness is retired from the live package. Its implementation and historical evidence remain under `.deprecated/delegation-harness/`.
+
+Tool Execution owns immutable captured-result sidecars, the exact reader, a shared revisioned operation kernel, restricted QuickJS Worker programs, the finite local workspace adapter, deterministic discovery, configured cooperating adapters, native effect fences and factual efficiency observations. Cognitive Routing remains the responsibility owner; RequestHistory remains the generated-occurrence replay owner; Astra remains the qualified provider-request effort-history owner. Tool Execution does not dispatch arbitrary native tools through private host methods or claim universal native hook parity. See [Tool Execution](capabilities/tool-execution.md).
 
 ## Deferred Enforcement
 

@@ -320,6 +320,17 @@ test("Pi describes strict evidence-selection operation shapes", () => {
   );
 });
 
+test("Pi exposes additive captured-result recovery grants without changing path grants", () => {
+  const { tools } = loadExtension();
+  const unit = tools.find((tool) => tool.name === "freeflow_unit");
+  const recover = unit.parameters.oneOf.find((candidate) => candidate.properties.operation.enum[0] === "recover");
+  assert.deepEqual(Object.keys(recover.properties), ["operation", "request", "paths", "results"]);
+  assert.equal(recover.properties.paths.maxItems, 32);
+  assert.equal(recover.properties.results.maxItems, 32);
+  assert.equal(recover.properties.results.uniqueItems, true);
+  assert.equal(recover.required.includes("results"), false);
+});
+
 test("Pi registers the remaining Freeflow commands without mode controls or retired router tools", () => {
   const { commands, shortcuts, tools } = loadExtension();
   const commandNames = commands.map((command) => command.name);
@@ -336,20 +347,28 @@ test("Pi registers the remaining Freeflow commands without mode controls or reti
   assert.ok(tools.some((tool) => tool.name === "freeflow_context"));
   assert.deepEqual(
     toolNames.filter((name) => name.startsWith("freeflow_")),
-    ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project", "freeflow_context"],
+    [
+      "freeflow_delegate",
+      "freeflow_return",
+      "freeflow_unit",
+      "freeflow_project",
+      "freeflow_context",
+      "freeflow_tools",
+      "freeflow_run",
+      "freeflow_result",
+    ],
   );
   assert.ok(!toolNames.includes("freeflow_switch_profile"));
   assert.ok(!toolNames.includes("freeflow_cognitive_routing_history"));
   assert.ok(freeflowCommand);
   assert.ok(!freeflowCommand.definition.getArgumentCompletions("").some((item) => item.value === "mode"));
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("mode "), []);
-  assert.ok(
-    !toolNames.some((name) => ["freeflow_status", "freeflow_search", "freeflow_run", "freeflow_batch"].includes(name)),
-  );
+  assert.ok(!toolNames.some((name) => ["freeflow_status", "freeflow_search", "freeflow_batch"].includes(name)));
 });
 
 test("PiFlow keeps Cognitive Routing unavailable while exposing its configuration", async () => {
   const cwd = await configuredRepo({
+    toolExecution: { enabled: true, programs: { mode: "reduction" } },
     cognitiveRouting: {
       enabled: true,
       profiles: {
@@ -365,7 +384,16 @@ test("PiFlow keeps Cognitive Routing unavailable while exposing its configuratio
     assert.deepEqual(shortcuts, []);
     assert.deepEqual(
       tools.filter((tool) => tool.name.startsWith("freeflow_")).map((tool) => tool.name),
-      ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project", "freeflow_context"],
+      [
+        "freeflow_delegate",
+        "freeflow_return",
+        "freeflow_unit",
+        "freeflow_project",
+        "freeflow_context",
+        "freeflow_tools",
+        "freeflow_run",
+        "freeflow_result",
+      ],
     );
     assert.ok(!tools.some((tool) => tool.name === "freeflow_switch_profile"));
     assert.ok(!tools.some((tool) => tool.name === "freeflow_cognitive_routing_history"));
@@ -378,6 +406,18 @@ test("PiFlow keeps Cognitive Routing unavailable while exposing its configuratio
     const ctx = context(cwd);
     await handlers.get("session_start")({ type: "session_start" }, ctx);
     assert.match(ctx.statuses.at(-1).value, /cognitive blocked ·/);
+    const run = tools.find((tool) => tool.name === "freeflow_run");
+    await assert.rejects(
+      () =>
+        run.execute(
+          "piflow-run",
+          { code: `emit("unreachable")`, description: "unavailable", operations: [] },
+          undefined,
+          undefined,
+          ctx,
+        ),
+      /programs_disabled/,
+    );
     assert.ok(activeToolNames().includes("freeflow_delegate"));
     const before = await handlers.get("before_agent_start")({ systemPrompt: "base" }, ctx);
     assert.match(before.systemPrompt, /guidance is dormant/);
@@ -420,6 +460,66 @@ test("normal Pi settings expose active Cognitive Routing configuration", async (
     };
 
     await freeflowCommand.definition.handler("settings", settingsCtx);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi settings and status disclose capture retention and verified reader availability", async () => {
+  const cwd = await configuredRepo({
+    toolExecution: {
+      enabled: true,
+      capture: { enabled: true },
+      accounting: { enabled: true },
+    },
+  });
+  try {
+    const { commands } = loadExtension(freeflowExtension, null, {
+      appendEntry() {},
+      async setModel() {
+        return true;
+      },
+      setThinkingLevel() {},
+    });
+    const command = commands.find((candidate) => candidate.name === "freeflow");
+    const settingsCtx = context(cwd);
+    settingsCtx.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+      assert.match(
+        renderText(component),
+        /Tool Execution\s+enabled \(5\) capture active · workspace inactive · discovery inactive · accounting active/,
+      );
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\u001b[B");
+      const detail = renderText(component);
+      assert.match(detail, /Capture new Bash text results/);
+      assert.match(detail, /Disabling new capture retains sidecar files/);
+      return undefined;
+    };
+    await command.definition.handler("settings repo", settingsCtx);
+
+    const statusCtx = context(cwd);
+    await command.definition.handler("status", statusCtx);
+    assert.match(statusCtx.notifications.at(-1).message, /verified reader enabled/);
+    assert.match(statusCtx.notifications.at(-1).message, /native Bash is built in, custom tools require adapters/);
+    assert.match(statusCtx.notifications.at(-1).message, /captured files are retained until explicit deletion/);
+
+    const issueCtx = context(cwd);
+    await handleFreeflowCommand("status", issueCtx, async () => {}, {}, undefined, {
+      status: () => ({
+        queued: 0,
+        failures: [
+          {
+            code: "storage_busy",
+            message: "Native output retained; remove stale .capture-reservation only when no process is active.",
+          },
+        ],
+      }),
+    });
+    assert.match(issueCtx.notifications.at(-1).message, /latest capture issue storage_busy/);
+    assert.match(issueCtx.notifications.at(-1).message, /remove stale \.capture-reservation/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -707,6 +807,11 @@ test("Pi describes the mode-free Freeflow argument surface and manual profile co
     { value: "settings", label: "settings", description: "Open personal override settings" },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
     { value: "context", label: "context", description: "Inspect Freeflow Context" },
+    {
+      value: "efficiency",
+      label: "efficiency",
+      description: "Show factual Tool Execution and provider observations",
+    },
     { value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" },
     { value: "resume", label: "resume", description: "Resume the current saved routing responsibility" },
     { value: "enable", label: "enable", description: "Enable Freeflow for this repository" },
@@ -718,6 +823,9 @@ test("Pi describes the mode-free Freeflow argument surface and manual profile co
     { value: "profile executor", label: "executor", description: "Hold Executor manually when enabled" },
     { value: "profile auto", label: "auto", description: "Return to automatic Coordinator reconciliation" },
     { value: "profile history", label: "history", description: "Read routing observations" },
+  ]);
+  assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("efficiency "), [
+    { value: "efficiency export", label: "export", description: "Export bounded factual efficiency JSON" },
   ]);
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("mode "), []);
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("context "), [
@@ -851,6 +959,47 @@ test("Pi resolves only the remaining layered core values", async () => {
     assert.equal(state.enabled, false);
     assert.equal("skills" in state, false);
     assert.equal("interactionContract" in state, false);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi resolves Tool Execution sub-capabilities and exposes bounded runtime status", async () => {
+  const cwd = await configuredRepo({
+    toolExecution: {
+      enabled: true,
+      accounting: { enabled: true },
+      capture: { enabled: true, maxInlineBytes: 4096 },
+      workspace: { enabled: true },
+      discovery: { enabled: true },
+    },
+  });
+  try {
+    const { handlers } = loadExtension(freeflowExtension, {});
+    const ctx = context(cwd);
+    await handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    const state = await readCapabilityState(cwd, ctx, null);
+    assert.equal(state.toolExecution.effective, true);
+    assert.equal(state.toolExecution.accounting.effective, true);
+    assert.equal(state.toolExecution.workspace.effective, true);
+    assert.equal(state.toolExecution.discovery.effective, true);
+    assert.equal(state.toolExecution.capture.maxInlineBytes, 4096);
+    const providerContext = await handlers.get("context")({ messages: [] }, ctx);
+    assert.match(
+      lastRuntimeState(providerContext.messages).content,
+      /Tool Execution: active · capture active · reader enabled · workspace active · discovery active · accounting active · programs pending/,
+    );
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi rejects invalid Tool Execution configuration", async () => {
+  const cwd = await configuredRepo({ toolExecution: { programs: { mode: "node" } } });
+  try {
+    const layers = await readFreeflowConfigLayers(cwd);
+    assert.equal(layers.configured, false);
+    assert.match(layers.parseError, /programs\.mode must be one of/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

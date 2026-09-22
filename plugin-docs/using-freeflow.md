@@ -25,7 +25,8 @@ Freeflow also includes focused methods for discussion, planning, implementation,
 - preserves durable task memory when continuity matters;
 - separates factual verification from judgment and independent review;
 - keeps commit, integration, release, and launch as controlled boundaries;
-- optionally places compute across configured profiles on a qualified native Pi host.
+- optionally places compute across configured profiles on a qualified native Pi host;
+- optionally captures/reduces tool output and runs bounded revisioned operations through native Pi Tool Execution.
 
 ### What Freeflow does not do
 
@@ -35,7 +36,8 @@ Freeflow also includes focused methods for discussion, planning, implementation,
 - make profile switching an independent review;
 - guarantee lower cost, better model output, or provider cache hits;
 - implement Context Control v2 in the current release;
-- make Cognitive Routing available on every host.
+- make Cognitive Routing or Tool Execution available on every host;
+- turn restricted QuickJS programs into an audited OS sandbox or a universal native-tool dispatcher.
 
 ## Start here
 
@@ -424,6 +426,36 @@ Configuration changes may require `/reload` before every prompt, skill, and tool
 
 Configuration proves neither installation nor effective runtime delivery. Verify the target host through [Getting Started](getting-started.md).
 
+## Use Tool Execution on native Pi
+
+Tool Execution is experimental, opt-in, and currently unavailable on PiFlow. Start with captured-data reduction before enabling live local access:
+
+```json
+{
+  "toolExecution": {
+    "enabled": true,
+    "capture": { "enabled": true },
+    "programs": { "mode": "reduction" },
+    "discovery": { "enabled": true },
+    "accounting": { "enabled": true }
+  }
+}
+```
+
+Use a known direct operation for one call. Use `freeflow_tools` when the exact current operation revision or schema is missing. Use `freeflow_run` only for mechanical dependent work whose next steps are already determined, and explicitly `emit` the bounded value the model needs. A program does not replace semantic engineering judgment.
+
+Enabling `workspace` selects a distinct local execution world. Writing additionally requires `workspace.write`. Custom integrations require an explicitly allowlisted cooperating adapter; arbitrary native or third-party tools remain on their ordinary Pi path. Captured files persist until explicit deletion, and unresolved mutations fence new live effects and clean completion instead of replaying.
+
+Use:
+
+```text
+/freeflow status
+/freeflow efficiency
+/freeflow efficiency export
+```
+
+Efficiency reports separate provider and tool telemetry and label byte/accounting boundaries. They do not prove cache hits, billing savings or model quality. Read the full [Tool Execution reference](capabilities/tool-execution.md) before enabling live adapters or local writes.
+
 ## Choose a Cognitive Routing mode
 
 Cognitive Routing is an experimental native-Pi capability. Read the complete [Cognitive Routing reference](capabilities/cognitive-routing.md) before relying on its recovery or evidence semantics.
@@ -517,6 +549,7 @@ On supported Pi/PiFlow paths, current optional capabilities include:
 
 - **Context Virtualization:** changes future residency of consumed tool evidence while preserving canonical session history.
 - **Conversation History:** performs bounded current-branch recovery of exact missing conversation evidence.
+- **Tool Execution:** preserves exact captured tool evidence and permits only explicitly granted capture reads during attached recovery; it is compute/evidence infrastructure, not Context Control v2.
 
 These are current, separately gated capabilities. They are not Context Control v2.
 
@@ -619,6 +652,7 @@ Keep claims at the boundary actually observed.
 - [Workflow](workflow.md)
 - [Skill routing and dependencies](skill-routing.md)
 - [Cognitive Routing](capabilities/cognitive-routing.md)
+- [Tool Execution](capabilities/tool-execution.md)
 - [Pi integration](integrations/pi.md)
 - [Capabilities](capabilities/README.md)
 - [Release process](release.md)

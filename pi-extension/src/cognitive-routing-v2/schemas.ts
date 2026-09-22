@@ -74,6 +74,7 @@ export const ROUTING_SCHEMAS: Record<string, any> = {
           operation: operation("recover"),
           request: string(),
           paths: { type: "array", maxItems: 32, items: string(4096) },
+          results: { type: "array", maxItems: 32, uniqueItems: true, items: string(256) },
         },
         ["operation", "request"],
       ),

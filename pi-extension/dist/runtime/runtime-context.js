@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveCognitiveRoutingState } from "../cognitive-routing-v2/config.js";
 import { supportsCognitiveRoutingModelRegistry } from "../cognitive-routing-v2/config.js";
+import { resolveToolExecutionConfig, validateToolExecutionConfig } from "../tool-runtime/config.js";
 export const WORKFLOW_COMMANDS = [
   { command: "discuss", skill: "discuss" },
   { command: "action-selection", skill: "action-selection" },
@@ -238,6 +239,7 @@ function validateFreeflowConfigShape(value) {
     "cognitiveRouting",
     "contextVirtualization",
     "conversationHistory",
+    "toolExecution",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -251,6 +253,10 @@ function validateFreeflowConfigShape(value) {
       return `${key} must be an object`;
     }
   }
+  if (value.toolExecution !== undefined) {
+    const error = validateToolExecutionConfig(value.toolExecution);
+    if (error) return error;
+  }
   return null;
 }
 function validateFreeflowLocalConfigShape(value) {
@@ -263,13 +269,17 @@ function validateFreeflowLocalConfigShape(value) {
     "cognitiveRouting",
     "contextVirtualization",
     "conversationHistory",
+    "toolExecution",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       return `unsupported top-level local config key: ${key}`;
     }
   }
-  return validateCoreConfigFields(value);
+  const coreError = validateCoreConfigFields(value);
+  if (coreError) return coreError;
+  if (value.toolExecution !== undefined) return validateToolExecutionConfig(value.toolExecution);
+  return null;
 }
 async function readConfigFileState(path, validate) {
   try {
@@ -429,6 +439,9 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
         effective: false,
         blockingReason: disabledReason,
       };
+  const repositoryConfig = layers.repository.valid ? layers.repository.parsed : {};
+  const localConfig = layers.local.valid ? layers.local.parsed : {};
+  const toolExecution = resolveToolExecutionConfig(repositoryConfig, localConfig, enabled);
   const capabilityState = {
     configured: layers.configured,
     repositoryConfigured: layers.repositoryConfigured,
@@ -449,6 +462,7 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
     conversationHistory: childCapability(conversationHistoryConfigEnabled),
     hostSupportsCognitiveRouting,
     cognitiveRouting,
+    toolExecution,
   };
   if (!subagentContext) return capabilityState;
   return {
@@ -456,6 +470,7 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
     contextVirtualization: disableSubagentCapability(capabilityState.contextVirtualization),
     conversationHistory: disableSubagentCapability(capabilityState.conversationHistory),
     cognitiveRouting: disableSubagentCapability(capabilityState.cognitiveRouting),
+    toolExecution: disableSubagentCapability(capabilityState.toolExecution),
   };
 }
 export const readRuntimeState = readCapabilityState;
@@ -531,6 +546,13 @@ export function setFreeflowStatus(
   if (capabilityState?.contextVirtualization?.effective || capabilityState?.conversationHistory?.effective) {
     active.push("context");
   }
+  const toolIssue =
+    options.toolExecutionRuntime?.lastFailure?.code ??
+    options.toolExecutionRuntime?.failures?.at(-1)?.code ??
+    options.toolExecutionRuntime?.adapters?.failures?.at(-1)?.code;
+  if (capabilityState?.toolExecution?.effective === true && options.toolExecutionRuntime?.unresolvedEffects)
+    active.push(`tools fenced ${options.toolExecutionRuntime.unresolvedEffects}`);
+  else if (capabilityState?.toolExecution?.effective === true && toolIssue) active.push(`tools ${toolIssue}`);
   ctx.ui.setStatus("freeflow", `freeflow: ${active.length > 0 ? active.join(" · ") : "active"}`);
 }
 export function skillPrompt(skill, args) {
@@ -608,6 +630,11 @@ export function freeflowRuntimeStateMessage(
       `- Context Virtualization: ${publicCapabilityStatus(capabilityState?.contextVirtualization)}`,
       `- Conversation History: ${publicCapabilityStatus(capabilityState?.conversationHistory)}`,
       `- Cognitive Routing: ${publicCognitiveRoutingStatus(capabilityState?.cognitiveRouting, cognitiveRoutingRuntime)}`,
+      `- Tool Execution: ${publicCapabilityStatus(capabilityState?.toolExecution)}${
+        capabilityState?.toolExecution?.effective === true
+          ? ` · capture ${capabilityState.toolExecution.capture?.effective === true ? "active" : "inactive"} · reader enabled · workspace ${capabilityState.toolExecution.workspace?.effective === true ? "active" : "inactive"} · discovery ${capabilityState.toolExecution.discovery?.effective === true ? "active" : "inactive"} · accounting ${capabilityState.toolExecution.accounting?.effective === true ? "active" : "inactive"} · programs ${capabilityState.toolExecution.programs?.effective === true ? "active" : "pending"} · catalog ${options.toolExecutionRuntime?.catalog?.operations ?? 0} · adapters ${options.toolExecutionRuntime?.adapters?.announced?.filter((adapter) => adapter.active).length ?? 0}/${options.toolExecutionRuntime?.adapters?.allowed?.length ?? 0} · live effects ${options.toolExecutionRuntime?.unresolvedEffects ? `fenced (${options.toolExecutionRuntime.unresolvedEffects})` : "settled"} · native Bash built-in; custom tools require adapters${options.toolExecutionRuntime?.lastFailure?.code ? ` · last program issue ${options.toolExecutionRuntime.lastFailure.code}` : options.toolExecutionRuntime?.failures?.at(-1)?.code ? ` · last capture issue ${options.toolExecutionRuntime.failures.at(-1).code}` : options.toolExecutionRuntime?.adapters?.failures?.at(-1)?.code ? ` · last adapter issue ${options.toolExecutionRuntime.adapters.failures.at(-1).code}` : ""}`
+          : ""
+      }`,
       "",
       "Cognitive Routing:",
       `- Control: \`${control}\``,
@@ -647,6 +674,7 @@ export function withFreeflowRuntimeState(
   const source = Array.isArray(messages) ? messages : [];
   const runtimeState = freeflowRuntimeStateMessage(capabilityState, cognitiveRoutingRuntime, freeflowContext, {
     projectionFailure: options.projectionFailure,
+    toolExecutionRuntime: options.toolExecutionRuntime,
   });
   const runtimeStateMessages = source.filter(
     (message) =>

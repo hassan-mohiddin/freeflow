@@ -67,41 +67,62 @@ const reservation = (r: any): r is Reservation =>
   Number.isFinite(r.outputReserve) &&
   r.outputReserve >= 0 &&
   text(r.estimateMethod);
-const recovery = (r: any): r is Recovery =>
-  shape(r, [
-    "id",
-    "assignmentId",
-    "assessmentHandoffId",
-    "baseReportRevision",
-    "request",
-    "requestedPaths",
-    "paths",
-    "state",
-    "requestHandoffId",
-    "supplementHandoffId",
-    "supplementRevision",
-    "cancellationReason",
-  ]) &&
-  identity(r.id) &&
-  identity(r.assignmentId) &&
-  identity(r.assessmentHandoffId) &&
-  Number.isSafeInteger(r.baseReportRevision) &&
-  r.baseReportRevision > 0 &&
-  text(r.request) &&
-  Array.isArray(r.requestedPaths) &&
-  r.requestedPaths.length <= 32 &&
-  r.requestedPaths.every((path: unknown) => text(path, 4096)) &&
-  new Set(r.requestedPaths).size === r.requestedPaths.length &&
-  Array.isArray(r.paths) &&
-  r.paths.length <= 32 &&
-  r.paths.every((path: unknown) => text(path, 4096)) &&
-  new Set(r.paths).size === r.paths.length &&
-  ["requested", "reading", "returning", "completed", "cancelled"].includes(r.state) &&
-  identity(r.requestHandoffId) &&
-  (r.supplementHandoffId === undefined || identity(r.supplementHandoffId)) &&
-  Number.isSafeInteger(r.supplementRevision) &&
-  r.supplementRevision >= 0 &&
-  (r.cancellationReason === undefined || text(r.cancellationReason, 2048));
+const recovery = (r: any): r is Recovery => {
+  const requestedResults = r?.requestedResults ?? [];
+  const results = r?.results ?? [];
+  return (
+    shape(r, [
+      "id",
+      "assignmentId",
+      "assessmentHandoffId",
+      "baseReportRevision",
+      "request",
+      "requestedPaths",
+      "paths",
+      "requestedResults",
+      "results",
+      "state",
+      "requestHandoffId",
+      "supplementHandoffId",
+      "supplementRevision",
+      "cancellationReason",
+    ]) &&
+    identity(r.id) &&
+    identity(r.assignmentId) &&
+    identity(r.assessmentHandoffId) &&
+    Number.isSafeInteger(r.baseReportRevision) &&
+    r.baseReportRevision > 0 &&
+    text(r.request) &&
+    Array.isArray(r.requestedPaths) &&
+    r.requestedPaths.length <= 32 &&
+    r.requestedPaths.every((path: unknown) => text(path, 4096)) &&
+    new Set(r.requestedPaths).size === r.requestedPaths.length &&
+    Array.isArray(r.paths) &&
+    r.paths.length <= 32 &&
+    r.paths.every((path: unknown) => text(path, 4096)) &&
+    new Set(r.paths).size === r.paths.length &&
+    Array.isArray(requestedResults) &&
+    requestedResults.length <= 32 &&
+    requestedResults.every((id: unknown) => text(id, 256)) &&
+    new Set(requestedResults).size === requestedResults.length &&
+    Array.isArray(results) &&
+    results.length <= 32 &&
+    results.every(
+      (grant: unknown) =>
+        shape(grant, ["id", "sha256"]) &&
+        text((grant as any).id, 256) &&
+        typeof (grant as any).sha256 === "string" &&
+        /^[a-f0-9]{64}$/.test((grant as any).sha256),
+    ) &&
+    new Set(results.map((grant: any) => grant.id)).size === results.length &&
+    ["requested", "reading", "returning", "completed", "cancelled"].includes(r.state) &&
+    identity(r.requestHandoffId) &&
+    (r.supplementHandoffId === undefined || identity(r.supplementHandoffId)) &&
+    Number.isSafeInteger(r.supplementRevision) &&
+    r.supplementRevision >= 0 &&
+    (r.cancellationReason === undefined || text(r.cancellationReason, 2048))
+  );
+};
 const handoff = (h: any): h is Handoff =>
   shape(h, [
     "id",
@@ -416,7 +437,17 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
           units: new Map([...state.units].map(([k, v]) => [k, { ...v }])),
           assignments: new Map([...state.assignments].map(([k, v]) => [k, { ...v }])),
           handoffs: new Map([...state.handoffs].map(([k, v]) => [k, { ...v }])),
-          recoveries: new Map([...state.recoveries].map(([k, v]) => [k, { ...v, paths: [...v.paths] }])),
+          recoveries: new Map(
+            [...state.recoveries].map(([k, v]) => [
+              k,
+              {
+                ...v,
+                paths: [...v.paths],
+                requestedResults: [...(v.requestedResults ?? [])],
+                results: (v.results ?? []).map((grant) => ({ ...grant })),
+              },
+            ]),
+          ),
           executions: new Map([...state.executions].map(([k, v]) => [k, { ...v }])),
           selections: new Map(state.selections),
           reservations: new Map(state.reservations),
@@ -613,7 +644,11 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
           !s.recoveries.has(d.recovery.id),
         "recovery_not_available",
       );
-      s.recoveries.set(d.recovery.id, d.recovery);
+      s.recoveries.set(d.recovery.id, {
+        ...d.recovery,
+        requestedResults: [...(d.recovery.requestedResults ?? [])],
+        results: (d.recovery.results ?? []).map((grant) => ({ ...grant })),
+      });
       s.recoveryId = d.recovery.id;
       s.handoffs.set(h.id, h);
       s.pendingId = h.id;

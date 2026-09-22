@@ -97,6 +97,10 @@ export interface Assessment {
   problems: Problem[];
   reservation?: Reservation;
 }
+export interface ResultGrant {
+  id: string;
+  sha256: string;
+}
 export interface Recovery {
   id: string;
   assignmentId: string;
@@ -105,6 +109,8 @@ export interface Recovery {
   request: string;
   requestedPaths: string[];
   paths: string[];
+  requestedResults: string[];
+  results: ResultGrant[];
   state: "requested" | "reading" | "returning" | "completed" | "cancelled";
   requestHandoffId: string;
   supplementHandoffId?: string;
