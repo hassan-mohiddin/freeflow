@@ -32,7 +32,7 @@ In the repository where Freeflow should operate, run:
 
 Setup creates the shared `.freeflow/config.json` activation boundary. Minimal activation is `{}`. An optional `.freeflow/local.json` provides per-checkout personal overrides; it cannot activate Freeflow by itself.
 
-Freeflow's core prompt and separately editable Interaction Contract are delivered together whenever Freeflow is enabled. The 24 base skills are exposed with that core surface. Context Virtualization, Conversation History, Cognitive Routing, and Tool Execution remain independently gated capabilities. Session settings can override core/context enablement and complete Cognitive Routing profiles enabled for that session. Session profile overrides do not mutate `.freeflow/config.json` or `.freeflow/local.json`; they take precedence over personal and repository profiles and can be reset or set to inherit. Delegation mode is configured only in repository or personal settings, not as a session override.
+Freeflow's core prompt and separately editable Interaction Contract are delivered together whenever Freeflow is enabled. The 24 base skills are exposed with that core surface. Context Virtualization, Conversation History, Cognitive Routing, and Tool Execution remain independently gated capabilities. Session settings can override core/context enablement, Cognitive Routing delegation mode, and complete Coordinator, Helper, and Executor presets (including a worker not yet enabled by the current mode). Choose a missing worker preset before enabling that worker. Session overrides do not mutate `.freeflow/config.json` or `.freeflow/local.json`; they take precedence over personal and repository settings and can be reset or set to inherit. The footer shows the active profile, automatic/manual control, and effective delegation mode.
 
 ## Cognitive Routing configuration
 
@@ -113,6 +113,7 @@ While an effective native host is idle:
 /freeflow settings
 /freeflow settings local
 /freeflow settings repo
+/freeflow settings session
 /freeflow profile coordinator
 /freeflow profile helper
 /freeflow profile executor
@@ -123,7 +124,7 @@ While an effective native host is idle:
 /freeflow efficiency export
 ```
 
-`/freeflow settings` and `/freeflow settings local` edit personal overrides; `/freeflow settings repo` edits `.freeflow/config.json`. `coordinator`, `helper`, and `executor` place a manual hold when available, `auto` releases it to automatic Coordinator control, and `history` reads work-oriented routing history (`history diagnostics` retains the raw event view). `/freeflow resume` explicitly resumes saved routing responsibility after reconciliation. These commands require an idle host and do not authorize task work. Efficiency output reports factual local/provider observations at named boundaries; it does not infer provider cache hits, billing savings, pricing or model quality.
+`/freeflow settings` and `/freeflow settings local` edit personal overrides; `/freeflow settings repo` edits `.freeflow/config.json`; `/freeflow settings session` edits temporary session overrides. `coordinator`, `helper`, and `executor` place a manual hold when available, `auto` releases it to automatic Coordinator control, and `history` reads work-oriented routing history (`history diagnostics` retains the raw event view). `/freeflow resume` explicitly resumes saved routing responsibility after reconciliation. These commands require an idle host and do not authorize task work. Efficiency output reports factual local/provider observations at named boundaries; it does not infer provider cache hits, billing savings, pricing or model quality.
 
 When the source adapter exposes the native controls:
 

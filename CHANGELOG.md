@@ -14,6 +14,7 @@
 
 ### Changed
 
+- Lets native Pi sessions override the Cognitive Routing delegation mode and stage any profile preset, while showing the effective mode in the footer without changing repository or personal configuration.
 - Clarifies mode-aware Coordinator/Helper/Executor ownership, implementation boundaries, evidence projection, recovery, and Coordinator assessment responsibilities.
 - Batches worker evidence selection during return preparation while preserving saved reports, unresolved evidence, and handoff limits.
 - Repositions Freeflow around Memory, planned Context, and Compute, and expands Cognitive Routing and PiFlow documentation with qualified preset and cache-reuse boundaries.

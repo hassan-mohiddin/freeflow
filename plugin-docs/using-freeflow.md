@@ -397,9 +397,7 @@ edits shared repository configuration. Treat shared changes as team-facing behav
 /freeflow settings session
 ```
 
-manages temporary session enablement and optional-context settings. On a qualified native Pi host, it can also override complete Cognitive Routing profiles enabled for that session. Session profile overrides take precedence over personal and repository profiles without mutating either file.
-
-Delegation mode has no session override.
+manages temporary session enablement and optional-context settings. On a qualified native Pi host, it can also override the Cognitive Routing delegation mode (`executor`, `helper`, or `both`) and complete Coordinator, Helper, and Executor presets. Set a missing worker preset before enabling that worker's mode. Session overrides take precedence over personal and repository settings without mutating either file; reset or inherit restores the configured values. The footer shows the active profile, automatic/manual control, and delegation mode.
 
 ### Effective precedence
 

@@ -908,6 +908,7 @@ test("both mode session settings expose Helper and both existing profile presets
       });
       component.handleInput("\u001b[B");
       component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
       component.handleInput("\r");
       const presets = component.render(180).join("\n");
       assert.match(presets, /Coordinator preset/);
@@ -917,6 +918,66 @@ test("both mode session settings expose Helper and both existing profile presets
       return result;
     };
     await command.definition.handler("settings session", settingsCtx);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("session delegation setting enables Helper in the same panel without writing config", async () => {
+  const cwd = await configuredRepo({
+    cognitiveRouting: {
+      enabled: true,
+      delegation: "executor",
+      profiles: {
+        coordinator: { provider: "test", model: "model-a", thinking: "low" },
+        helper: { provider: "test", model: "model-b", thinking: "high" },
+        executor: { provider: "test", model: "model-b", thinking: "max" },
+      },
+    },
+  });
+  try {
+    const configPath = join(cwd, ".freeflow/config.json");
+    const original = await readFile(configPath, "utf8");
+    let mode = "executor";
+    let override;
+    const controller = {
+      state: () => ({ effective: true, controlMode: "automatic", activeProfile: "coordinator", delegation: mode }),
+      sessionProfileOverrides: () => ({}),
+      sessionDelegationOverride: () => override,
+      setSessionDelegationOverride: async (choice) => {
+        override = choice ?? undefined;
+        mode = choice ?? "executor";
+        return { status: "stored" };
+      },
+    };
+    const ctx = context(cwd);
+    ctx.isIdle = () => true;
+    ctx.modelRegistry = cognitiveRoutingModelRegistry();
+    const pi = {
+      host: {},
+      appendEntry() {},
+      async setModel() {
+        return true;
+      },
+      setThinkingLevel() {},
+    };
+    ctx.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      for (let i = 0; i < 3; i++) component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      await component.waitForWrites();
+      assert.equal(mode, "both");
+      for (let i = 0; i < 3; i++) component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      assert.match(component.render(180).join("\n"), /Helper preset/);
+      return { changed: false };
+    };
+    await handleFreeflowCommand("settings session", ctx, async () => {}, pi, controller);
+    assert.equal(await readFile(configPath, "utf8"), original);
+    assert.equal(await readFile(join(cwd, ".freeflow/local.json"), "utf8").catch(() => undefined), undefined);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -934,11 +995,11 @@ test("Pi statusline reports only dynamic Cognitive Routing and context state", (
       conversationHistory: { effective: false },
       cognitiveRouting: { enabled: true, effective: true, blockingReason: null },
     },
-    { effective: true, activeProfile: "executor", controlMode: "automatic" },
+    { effective: true, activeProfile: "executor", controlMode: "automatic", delegation: "both" },
     readyFreeflowContext,
   );
-  assert.equal(ctx.statuses.at(-1).value, "freeflow: executor · automatic · context");
-  assert.doesNotMatch(ctx.statuses.at(-1).value, /interaction|workflow|mode|skills/i);
+  assert.equal(ctx.statuses.at(-1).value, "freeflow: executor · automatic · both mode · context");
+  assert.doesNotMatch(ctx.statuses.at(-1).value, /interaction|workflow|skills/i);
 });
 
 test("Pi statusline defaults pending activation to the Coordinator profile", () => {
@@ -1536,9 +1597,11 @@ test("Pi session settings expose both routing preset wizards without changing co
       assert.match(rendered, /Cognitive Routing presets/);
       component.handleInput("\u001b[B");
       component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
       component.handleInput("\r");
       const presetRendered = component.render(180).join("\\n");
       assert.match(presetRendered, /Coordinator preset/);
+      assert.match(presetRendered, /Helper preset/);
       assert.match(presetRendered, /Executor preset/);
       result = { changed: false };
       await component.waitForWrites();
@@ -1569,6 +1632,8 @@ test("Pi session preset wizard applies a complete pair without writing config", 
     const controller = {
       state: () => ({ effective: true, controlMode: "automatic", activeProfile: "coordinator" }),
       sessionProfileOverrides: () => ({}),
+      sessionDelegationOverride: () => undefined,
+      setSessionDelegationOverride: async () => ({ status: "unchanged" }),
       setManualProfile: async () => ({ status: "active" }),
       setAutomaticControl: async () => ({ status: "automatic" }),
       setSessionProfileOverride: async (profile, override) => {
@@ -1593,6 +1658,7 @@ test("Pi session preset wizard applies a complete pair without writing config", 
       const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
         finish = value;
       });
+      component.handleInput("\u001b[B");
       component.handleInput("\u001b[B");
       component.handleInput("\u001b[B");
       component.handleInput("\r");
@@ -1638,6 +1704,8 @@ test("both mode session wizard applies a Helper pair without writing config", as
     const controller = {
       state: () => ({ effective: true, controlMode: "automatic", activeProfile: "coordinator" }),
       sessionProfileOverrides: () => ({}),
+      sessionDelegationOverride: () => undefined,
+      setSessionDelegationOverride: async () => ({ status: "unchanged" }),
       setManualProfile: async () => ({ status: "active" }),
       setAutomaticControl: async () => ({ status: "automatic" }),
       setSessionProfileOverride: async (profile, override) => {
@@ -1662,6 +1730,7 @@ test("both mode session wizard applies a Helper pair without writing config", as
       const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
         finish = value;
       });
+      component.handleInput("\u001b[B");
       component.handleInput("\u001b[B");
       component.handleInput("\u001b[B");
       component.handleInput("\r");
@@ -1714,9 +1783,17 @@ test("session reset preserves core overrides when routing reset fails", async ()
       setThinkingLevel() {},
     };
     await setSessionCoreOverride("contextVirtualization", true, settingsCtx, pi);
+    let mode = "both";
+    const changes = [];
     const controller = {
-      state: () => ({ effective: true, controlMode: "automatic", activeProfile: "coordinator" }),
+      state: () => ({ effective: true, controlMode: "automatic", activeProfile: "coordinator", delegation: mode }),
       sessionProfileOverrides: () => ({}),
+      sessionDelegationOverride: () => mode,
+      setSessionDelegationOverride: async (choice) => {
+        changes.push(choice);
+        mode = choice ?? "executor";
+        return { status: "stored" };
+      },
       setManualProfile: async () => ({ status: "active" }),
       setAutomaticControl: async () => ({ status: "automatic" }),
       setSessionProfileOverride: async () => ({ status: "stored" }),
@@ -1730,6 +1807,7 @@ test("session reset preserves core overrides when routing reset fails", async ()
       component.handleInput("\u001b[B");
       component.handleInput("\u001b[B");
       component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
       component.handleInput("\r");
       component.handleInput("\r");
       await component.waitForWrites();
@@ -1740,6 +1818,8 @@ test("session reset preserves core overrides when routing reset fails", async ()
     const state = await readCapabilityState(cwd, settingsCtx, pi.host);
     assert.equal(state.contextVirtualization.effective, true);
     assert.equal(state.sessionOverrides.contextVirtualization, true);
+    assert.deepEqual(changes, [null, "both"]);
+    assert.equal(mode, "both");
     assert.equal(await readFile(configPath, "utf8"), originalConfig);
     assert.match(settingsCtx.notifications.at(-1)?.message ?? "", /fixture failure/);
   } finally {

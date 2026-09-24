@@ -274,6 +274,64 @@ test("session profile overrides apply only to the selected pair and restore conf
     assert.equal(ctx.model.id, "executor");
   }));
 
+test("session delegation switches enabled workers, survives rebind, and inherits without changing configured mode", async () =>
+  environment(async ({ runtime, make, activate }) => {
+    const ctx = make("session-delegation");
+    const configured = {
+      ...cap,
+      delegation: "executor",
+      profiles: { ...cap.profiles, helper: { provider: "fixture", model: "helper", thinking: "off" } },
+    };
+    activate(ctx);
+    await runtime.bind(ctx, configured);
+    assert.equal(runtime.state().delegation, "executor");
+    assert.equal((await runtime.setManualProfile("helper")).status, "blocked");
+    assert.equal((await runtime.setSessionDelegationOverride("both")).status, "stored");
+    assert.equal(runtime.state().delegation, "both");
+    assert.equal(runtime.sessionDelegationOverride(), "both");
+    assert.equal((await runtime.setManualProfile("helper")).status, "active");
+    assert.equal(ctx.model.id, "helper");
+
+    runtime.unbind();
+    activate(ctx);
+    await runtime.bind(ctx, configured);
+    assert.equal(runtime.state().delegation, "both");
+    assert.equal(runtime.state().controlMode, "manual-helper");
+    assert.equal((await runtime.setAutomaticControl()).status, "automatic");
+    assert.equal((await runtime.setSessionDelegationOverride(null)).status, "stored");
+    assert.equal(runtime.state().delegation, "executor");
+    assert.equal(runtime.sessionDelegationOverride(), undefined);
+    assert.equal((await runtime.setManualProfile("helper")).status, "blocked");
+    assert.equal(replay(ctx.sessionManager.getBranch()).delegationOverride, undefined);
+  }));
+
+test("a session Helper preset can be staged before enabling Helper without a configured Helper preset", async () =>
+  environment(async ({ runtime, make, activate }) => {
+    const ctx = make("session-staged-helper");
+    activate(ctx);
+    await runtime.bind(ctx, cap);
+    assert.equal((await runtime.setSessionDelegationOverride("both")).status, "blocked");
+    const helper = { provider: "fixture", modelId: "helper-fast", thinking: "low" };
+    assert.equal((await runtime.setSessionProfileOverride("helper", helper)).status, "stored");
+    assert.equal((await runtime.setSessionDelegationOverride("both")).status, "stored");
+    assert.equal((await runtime.setManualProfile("helper")).status, "active");
+    assert.equal(ctx.model.id, "helper-fast");
+    assert.equal(ctx.thinkingLevel, "low");
+  }));
+
+test("invalid session mode preserves the existing mode and session event history", async () =>
+  environment(async ({ runtime, make, activate }) => {
+    const ctx = make("invalid-session-delegation");
+    activate(ctx);
+    await runtime.bind(ctx, cap);
+    const before = ctx.sessionManager.getEntries().length;
+    const result = await runtime.setSessionDelegationOverride("both");
+    assert.equal(result.status, "blocked");
+    assert.match(result.reason, /profile_missing/);
+    assert.equal(runtime.state().delegation, "executor");
+    assert.equal(ctx.sessionManager.getEntries().length, before);
+  }));
+
 test("Helper session presets apply through the same guarded profile path", async () =>
   environment(async ({ runtime, make, activate }) => {
     const ctx = make("session-helper-profile");

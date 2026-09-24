@@ -198,7 +198,7 @@ Configure Cognitive Routing in shared `.freeflow/config.json` or personal `.free
 ### Configuration precedence
 
 ```text
-session profile override
+session delegation/profile override
 -> personal .freeflow/local.json
 -> shared .freeflow/config.json
 -> built-in default
@@ -206,7 +206,7 @@ session profile override
 
 Personal configuration may override `enabled`, `delegation`, `projection`, or complete profiles. Omitted values inherit from the repository layer.
 
-Session settings may override complete profiles enabled for that session. They do not mutate personal or repository files and can be reset or set to inherit. Delegation mode has no session override.
+Session settings may override delegation mode and complete Coordinator, Helper, or Executor presets, including a worker not yet enabled by the current mode. Choose its preset before enabling that worker if it has no configured preset. Session overrides are stored on the selected Pi session ancestry, take precedence over personal/repository values, and can be reset or set to inherit without changing either file. A mode change affects future assignments; an accepted assignment retains its recorded worker. The footer shows the active profile, automatic/manual control, and current delegation mode.
 
 Changing the active profile's session preset applies at an idle boundary. Changing an inactive profile stores the preset for its next transition. Direct native `/model` or thinking changes are external changes; they do not rewrite a Freeflow preset and may require reconciliation or release automatic control.
 
@@ -223,7 +223,7 @@ Only the v2 `enabled` / `delegation` / `projection` / `profiles` shape is accept
 | `/freeflow settings` | Opens personal overrides for the current repository. |
 | `/freeflow settings local` | Same personal/local settings scope. |
 | `/freeflow settings repo` | Edits shared `.freeflow/config.json`. |
-| `/freeflow settings session` | Edits temporary session enablement/context settings and complete enabled-profile overrides. |
+| `/freeflow settings session` | Edits temporary session enablement/context settings, delegation mode, and complete profile presets. |
 | `/freeflow status` | Shows effective Freeflow and capability state. |
 
 Settings that change routing profiles require an idle host. Repository or personal changes may require `/reload` before every surface reflects the new effective state.
@@ -629,7 +629,7 @@ A worker must be enabled by the delegation mode. In `both`, Coordinator must cho
 
 ### A session preset does not apply
 
-Wait until Pi is idle. Confirm the profile is enabled for the session. Active-profile changes apply immediately at the supported idle boundary; inactive-profile changes are stored for the next transition. Use session reset/inherit to return to personal or repository configuration.
+Wait until Pi is idle. Confirm the profile is configured or has a complete session preset before enabling its delegation mode. Active-profile changes apply immediately at the supported idle boundary; inactive-profile changes are stored for the next transition. Use session reset/inherit to return to personal or repository configuration.
 
 ### A worker returned but work did not close
 

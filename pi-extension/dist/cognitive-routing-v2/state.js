@@ -1,6 +1,7 @@
 import {
   EFFORTS,
   PROFILES,
+  DELEGATION_MODES,
   ROUTING_ENTRY,
   canonical,
   eventKey,
@@ -155,6 +156,7 @@ const fields = {
   "assignment-resumed": ["assignmentId", "basisUserEntryId"],
   control: ["control", "profile", "reason"],
   "profile-overrides": ["overrides", "reason"],
+  "delegation-override": ["delegation", "reason"],
   "execution-opened": ["execution"],
   "execution-bound": ["executionId", "assistantEntryId", "resultEntryIds", "outcome"],
   "delegate-accepted": ["unit", "assignment", "handoff", "replacement"],
@@ -223,6 +225,12 @@ export function parseRoutingEvent(raw) {
       break;
     case "profile-overrides":
       check(profileOverrides(d.overrides) && text(d.reason, 4096), "invalid_profile_overrides");
+      break;
+    case "delegation-override":
+      check(
+        (d.delegation === null || DELEGATION_MODES.includes(d.delegation)) && text(d.reason, 4096),
+        "invalid_delegation_override",
+      );
       break;
     case "execution-opened": {
       const e = d.execution;
@@ -494,6 +502,9 @@ function applyEvent(state, event, owned = false) {
         if (override === null) s.profileOverrides.delete(profile);
         else s.profileOverrides.set(profile, override);
       }
+      break;
+    case "delegation-override":
+      s.delegationOverride = d.delegation ?? undefined;
       break;
     case "execution-opened":
       check(!s.executions.has(d.execution.id), "duplicate_execution");

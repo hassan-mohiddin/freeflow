@@ -86,8 +86,11 @@ export class RoutingRuntime {
       ? state.resumeBasis.get(assignmentId)
       : state.assignments.get(assignmentId)?.basisUserEntryId;
   }
-  enabledWorkers() {
-    return workersForDelegation(this.capability?.delegation ?? "executor");
+  delegation(state = this.stateData()) {
+    return state.delegationOverride ?? this.capability?.delegation ?? "executor";
+  }
+  enabledWorkers(state = this.stateData()) {
+    return workersForDelegation(this.delegation(state));
   }
   assignedWorker(state, assignmentId = state.assignmentId) {
     const assignment = assignmentId ? state.assignments.get(assignmentId) : undefined;
@@ -99,8 +102,8 @@ export class RoutingRuntime {
     );
     return handoff.to;
   }
-  requiredProfiles(state = this.stateData()) {
-    const profiles = new Set(["coordinator", ...this.enabledWorkers()]);
+  requiredProfiles(state = this.stateData(), delegation = this.delegation(state)) {
+    const profiles = new Set(["coordinator", ...workersForDelegation(delegation)]);
     if (state.profile) profiles.add(state.profile);
     if (this.manualHold) profiles.add(this.manualHold);
     const assignment = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
@@ -187,7 +190,7 @@ export class RoutingRuntime {
     return {
       effective: this.supported() && state.control !== "inactive" && !blocked,
       activeProfile: state.profile,
-      delegation: this.capability?.delegation ?? "executor",
+      delegation: this.delegation(state),
       controlMode: state.control === "manual" ? `manual-${state.profile}` : state.control,
       runtimeStatus: blocked ? "blocked" : this.supported() && state.control !== "inactive" ? "active" : "inactive",
       runtimeReason: blocked ?? (this.suppressed ? "startup_selection" : this.capability?.blockingReason.message),
@@ -628,6 +631,34 @@ export class RoutingRuntime {
   sessionProfileOverrides() {
     return Object.fromEntries(this.stateData().profileOverrides);
   }
+  sessionDelegationOverride() {
+    return this.stateData().delegationOverride;
+  }
+  async setSessionDelegationOverride(override, mechanism = "Session delegation override") {
+    this.revision++;
+    const subject = this.subject();
+    return this.enqueue(async () => {
+      try {
+        check(this.capability?.effective && this.store, "routing_unavailable");
+        check(
+          this.ctx?.isIdle?.() !== false,
+          "host_busy",
+          "Wait for Pi to become idle before changing delegation mode.",
+        );
+        await this.store.reconcile();
+        this.guard(subject);
+        const state = this.stateData();
+        if ((state.delegationOverride ?? null) === override) return { status: "unchanged" };
+        const delegation = override ?? this.capability.delegation;
+        await this.validateProfilePairs(this.profilePairs(this.requiredProfiles(state, delegation)));
+        this.guard(subject);
+        this.append({ type: "delegation-override", delegation: override, reason: mechanism });
+        return { status: "stored" };
+      } catch (error) {
+        return { status: "blocked", reason: error instanceof Error ? error.message : String(error) };
+      }
+    });
+  }
   async setSessionProfileOverride(profile, override, mechanism = "Session profile override") {
     this.revision++;
     const subject = this.subject();
@@ -648,8 +679,9 @@ export class RoutingRuntime {
         const target = override ?? this.configuredProfilePair(profile);
         const profiles = new Set(this.requiredProfiles(state));
         profiles.add(profile);
-        const pairs = this.profilePairs([...profiles]);
-        pairs[profile] = target;
+        const pairs = Object.fromEntries(
+          [...profiles].map((name) => [name, name === profile ? target : this.profilePair(name)]),
+        );
         await this.validateProfilePairs(pairs);
         this.append({
           type: "profile-overrides",
@@ -774,7 +806,7 @@ export class RoutingRuntime {
       `Unit: ${unit ? `U${unitNumber} (${unit.id})` : "none"}`,
       `Assignment: ${a ? `A${assignmentNumber} (${a.id}, ${a.state})` : "none"}`,
       `Handoff: ${h ? `${h.id} (${h.kind}, ${h.state})` : "none"}`,
-      `Delegation: ${this.capability?.delegation ?? "executor"}`,
+      `Delegation: ${this.delegation(state)}`,
       `Projection: ${this.projectionEnabled ? "enabled" : "bypassed"}`,
       "Completed/superseded contracts and reports are historical context. Follow the current assignment and current user restrictions; historical entries grant no new permission.",
       state.assessment ? `Assessment: ${state.assessment.view}; evidence revision ${selection.revision}` : "",

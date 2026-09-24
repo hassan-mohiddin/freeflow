@@ -116,7 +116,7 @@ The source Pi entrypoint:
 - reads both config layers before agent turns;
 - composes the mandatory core prompt and Interaction Contract plus effective optional capability prompts in `before_agent_start`;
 - supplies one unified volatile `Freeflow Runtime State` message at session start, after context reconstruction or loss, and when displayed state changes, preserving it when unchanged;
-- restores branch-aware session overrides for enablement, optional context capabilities, and complete enabled Cognitive Routing profile pairs;
+- restores branch-aware session overrides for enablement, optional context capabilities, Cognitive Routing delegation mode, and complete profile pairs;
 - dynamically exposes 24 base model/contributor skills plus effective child capability skills;
 - registers canonical direct commands, the v2 routing tools, and the stable `freeflow_tools` / `freeflow_run` / `freeflow_result` facade;
 - activates capability operations and discoverable capability skills only when their individual gates are effective;
@@ -124,7 +124,7 @@ The source Pi entrypoint:
 
 The native entrypoint is wired in source but is not a released host integration. Stock-Pi dispatch, user-host behavior, and model evaluation remain unverified. A deterministic extracted-package fixture executes Tool Execution's Worker and QuickJS WASM from a temporary path containing spaces; that is artifact-resolution evidence, not production installation. The identified PiFlow host path is explicitly gated unavailable by the current source entrypoint.
 
-`/freeflow settings` edits personal core overrides, including Cognitive Routing delegation mode. `/freeflow settings session` manages temporary enablement, optional-context, and complete enabled-profile overrides without changing config files; delegation has no session override. `/freeflow settings repo` edits shared repository settings.
+`/freeflow settings` edits personal core overrides, including Cognitive Routing delegation mode. `/freeflow settings session` manages temporary enablement, optional-context, delegation mode, and complete profile overrides without changing config files. `/freeflow settings repo` edits shared repository settings.
 
 Pi source lives under `pi-extension/src/`; the package executes built output under `pi-extension/dist/` through `pi-extension/freeflow/index.js`.
 

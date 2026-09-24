@@ -122,6 +122,7 @@ export type EventData =
   | { type: "assignment-resumed"; assignmentId: string; basisUserEntryId: string | null }
   | { type: "control"; control: Control; profile?: Profile; reason: string }
   | { type: "profile-overrides"; overrides: Partial<Record<Profile, Pair | null>>; reason: string }
+  | { type: "delegation-override"; delegation: DelegationMode | null; reason: string }
   | { type: "execution-opened"; execution: Execution }
   | {
       type: "execution-bound";
@@ -214,6 +215,7 @@ export interface State {
   authors: Map<string, { profile: View; executionId: string; assignmentId?: string }>;
   resumeBasis: Map<string, string | null>;
   profileOverrides: Map<Profile, Pair>;
+  delegationOverride?: DelegationMode;
   assessment?: Assessment;
   events: Map<string, RoutingEvent>;
   eventIds: Map<string, string>;
