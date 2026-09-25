@@ -2,6 +2,8 @@
 
 Read this before selecting or running a diagnostic observation when timing, randomness, environmental variance, concurrency, or resource behavior shapes the failure.
 
+This reference is judgment, with one Rule of its own: never stabilize a flaky failure with sleeps, retries, wider timeouts, swallowed errors, or disabled checks unless evidence shows that mechanism addresses the causal timing or availability contract. Suppressing observation is not correction.
+
 Diagnostic measurement explains why variance or resource behavior occurs. After correction, Verify Work establishes whether the representative behavior or performance claim is supported.
 
 ## Flaky Failures
@@ -21,8 +23,6 @@ Choose the repetition count from runtime, cost, side effects, and the estimated 
 One green rerun does not contradict an intermittent-failure hypothesis. One red rerun may establish the symptom but not its cause. Use the aggregate pattern or captured distinguishing event to classify the hypothesis.
 
 Do not loop mutating production behavior merely to improve reproduction.
-
-Do not stabilize a flake with arbitrary sleeps, retries, wider timeouts, swallowed errors, or disabled checks unless evidence shows that mechanism addresses the causal timing or availability contract. Suppressing observation is not correction.
 
 ## Performance Problems
 

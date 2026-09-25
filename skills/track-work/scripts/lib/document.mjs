@@ -11,6 +11,7 @@ import {
   HISTORICAL_SLICE_FIELDS,
   HISTORICAL_SLICE_STATES,
   HISTORY_HEADINGS,
+  LEGACY_CHECKPOINT_TYPES,
   PROPOSED_SLICE_FIELDS,
   SCHEMA_VERSION,
   SLICE_TYPES,
@@ -273,12 +274,35 @@ function parseContext(lines, section) {
   return { ...section, headings: statements };
 }
 
+const CURRENT_WORK_LAYOUTS = [
+  ["Current Slice", "Next useful action"],
+  ["Current Slice", "Recovery sources", "Next useful action"],
+];
+
 function parseCurrentWork(lines, section) {
   const headings = findHeadings(lines, section.start, section.end, 3);
-  if (headings.length !== 2 || headings[0].title !== "Current Slice" || headings[1].title !== "Next useful action")
-    fail("invalid-current-work", "Current Work must contain Current Slice followed by Next useful action");
+  const titles = headings.map((heading) => heading.title);
+  if (!CURRENT_WORK_LAYOUTS.some((layout) => layout.join("\n") === titles.join("\n")))
+    fail(
+      "invalid-current-work",
+      "Current Work must contain Current Slice, optional Recovery sources, then Next useful action",
+    );
+  const nextActionHeading = headings[headings.length - 1];
+  const recoveryHeading = headings.length === 3 ? headings[1] : null;
   const sliceContentStart = headings[0].index + 1;
   const sliceContentEnd = headings[1].index;
+  let recoverySources = null;
+  if (recoveryHeading) {
+    recoverySources = {
+      headingIndex: recoveryHeading.index,
+      start: recoveryHeading.index + 1,
+      end: nextActionHeading.index,
+    };
+    for (let index = recoverySources.start; index < recoverySources.end; index += 1) {
+      if (lineHeading(lines[index]))
+        fail("invalid-recovery-sources", `Recovery sources cannot contain headings: ${lines[index]}`);
+    }
+  }
   const content = nonBlankLines(lines.slice(sliceContentStart, sliceContentEnd));
   let currentSlice = null;
   if (content.length === 1 && content[0] === "None") {
@@ -304,9 +328,11 @@ function parseCurrentWork(lines, section) {
   return {
     ...section,
     sliceHeadingIndex: headings[0].index,
-    nextActionHeadingIndex: headings[1].index,
+    sliceEnd: sliceContentEnd,
+    nextActionHeadingIndex: nextActionHeading.index,
     currentSlice,
-    nextAction: { start: headings[1].index + 1, end: section.end },
+    recoverySources,
+    nextAction: { start: nextActionHeading.index + 1, end: section.end },
   };
 }
 
@@ -384,6 +410,8 @@ function parseHistory(lines, section) {
     ),
   };
 }
+
+const READABLE_CHECKPOINT_TYPES = new Set([...CHECKPOINT_TYPES, ...LEGACY_CHECKPOINT_TYPES]);
 
 function validateChoice(block, field, choices, required = true) {
   const value = scalarValue(block, field);
@@ -469,6 +497,9 @@ export function validateDocument(document) {
     fail("missing-field", "Next useful action must contain meaningful content");
   for (const block of allBlocks(document)) {
     if (block.id && !parseId(block.id, block.kind)) fail("invalid-id", `Invalid ${block.kind} ID ${block.id}`);
+    for (const [name, field] of block.fields) {
+      if (!valueText(field)) fail("empty-field", `Empty field ${name} in ${block.path}; omit fields without a value`);
+    }
   }
 
   const ids = new Set();
@@ -489,7 +520,7 @@ export function validateDocument(document) {
     } else {
       validateFields(item, ["State"], {});
       validateChoice(item, "State", FUTURE_CHECKPOINT_STATES);
-      validateChoice(item, "Type", CHECKPOINT_TYPES);
+      validateChoice(item, "Type", READABLE_CHECKPOINT_TYPES);
       validateFields(item, ["Condition", "Applies to"]);
       if (item.id && !parseId(item.id, "checkpoint")) fail("invalid-id", `Invalid Checkpoint ID ${item.id}`);
       const checkpointState = scalarValue(item, "State");
@@ -530,7 +561,7 @@ export function validateDocument(document) {
 
   for (const checkpoint of history.checkpoints.blocks) {
     validateChoice(checkpoint, "State", HISTORICAL_CHECKPOINT_STATES);
-    validateChoice(checkpoint, "Type", CHECKPOINT_TYPES);
+    validateChoice(checkpoint, "Type", READABLE_CHECKPOINT_TYPES);
     validateFields(checkpoint, ["Condition", "Applies to", "Result", "Task effect"]);
     const state = scalarValue(checkpoint, "State");
     if (state === "cancelled" || state === "replaced") requiredValue(checkpoint, "Reason");

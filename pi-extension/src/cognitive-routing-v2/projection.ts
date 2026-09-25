@@ -1,6 +1,6 @@
 import { annotateSources } from "../session-sources/provenance.js";
 import { randomUUID } from "node:crypto";
-import { Sources, textRef, type Source } from "../session-sources/sources.js";
+import { Sources, bodyHash, textRef, type Source } from "../session-sources/sources.js";
 import {
   canonical,
   emptySelection,
@@ -186,7 +186,14 @@ export function prepareView(options: {
       problems.push(...representationProblems(source, options.model, true));
   const render = (source: Source) => {
     const message = structuredClone(source.message);
-    if (source.message.role === "assistant" && !full.has(source.ref) && full.has(textRef(source.ref)))
+    // A structural worker envelope keeps its calls for the selected results; its narration is only
+    // delivered when selected, either whole or as its own #text source.
+    const structuralWorker = selective && isWorkerProfile(source.producer) && !full.has(source.ref);
+    if (
+      source.message.role === "assistant" &&
+      !full.has(source.ref) &&
+      (full.has(textRef(source.ref)) || structuralWorker)
+    )
       message.content = message.content.filter((b: any) => b.type !== "text");
     if (full.has(source.ref) || source.message.role !== "toolResult") return message;
     return {
@@ -267,6 +274,30 @@ export function prepareView(options: {
         }
       });
     });
+  // Current receipts carry metadata plus a text hash, while the text itself stays in the call arguments.
+  const hashedCommunication = (h: any, field: string, value: string, metadata: Record<string, any>) =>
+    messages.some(
+      (m) =>
+        m.role === "assistant" &&
+        m.content?.some((b: any) => b.type === "toolCall" && b.id === h.toolCallId && b.arguments?.[field] === value),
+    ) &&
+    messages.some(
+      (m) =>
+        m.role === "toolResult" &&
+        m.toolCallId === h.toolCallId &&
+        m.content?.some((b: any) => {
+          if (b.type !== "text") return false;
+          try {
+            const payload = JSON.parse(b.text);
+            return (
+              payload?.[`${field}Sha256`] === bodyHash(value) &&
+              Object.entries(metadata).every(([key, expected]) => canonical(payload?.[key]) === canonical(expected))
+            );
+          } catch {
+            return false;
+          }
+        }),
+    );
   const restore = (kind: string, id: string, body: string) =>
     messages.push({
       role: "custom",
@@ -286,12 +317,15 @@ export function prepareView(options: {
     const hasBody = hasCommunication(baseReport, "report", baseReport.text);
     // Tool arguments establish accepted content but do not carry harness-assigned
     // revision/lineage. Old receipts and partially retained calls need metadata too.
-    const complete = hasCommunication(baseReport, "report", baseReport.text, {
+    const lineage = {
       ...metadata,
       reportRevision: baseReport.reportRevision,
       assignmentRef: `assignment:${baseReport.assignmentId}`,
       reportRef: `report:${baseReport.id}:${baseReport.reportRevision}`,
-    });
+    };
+    const complete =
+      hasCommunication(baseReport, "report", baseReport.text, lineage) ||
+      hashedCommunication(baseReport, "report", baseReport.text, lineage);
     if (!complete)
       restore(
         "Saved report",

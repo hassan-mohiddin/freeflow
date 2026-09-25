@@ -89,4 +89,6 @@ Neither self-review nor independent review grants user acceptance or execution a
 
 Report the Plan path and intended use, source basis, material assumptions or contingent work, invalidation conditions, selected checkpoints, and actual review/acceptance/execution-authority status.
 
+When a Working Record exists and the Plan is accepted for its task, list it under the record's `What defines this task` through [Track Work](../track-work/SKILL.md) so every recovery reads it.
+
 Return the supported strategy to the requesting activity. If the agreement covers implementation, the agent can continue through the normal execution route; if it asks for a Plan first, stop there. Do not begin work outside that agreement or claim an unresolved strategy is ready.

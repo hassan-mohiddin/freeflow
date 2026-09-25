@@ -516,7 +516,9 @@ export function setFreeflowStatus(
   if (cognitiveRoutingInactive) {
     active.push("cognitive inactive");
   } else if (cognitiveRoutingBlocked) {
-    active.push(`cognitive blocked · ${cognitiveRoutingRuntime?.runtimeReason ?? "runtime_blocked"}`);
+    active.push(
+      `cognitive blocked · ${cognitiveRoutingRuntime?.runtimeReason ?? "runtime_blocked"} · /freeflow profile auto`,
+    );
   } else if (cognitiveRoutingActive) {
     const profile = cognitiveRoutingRuntime.activeProfile;
     const control = String(cognitiveRoutingRuntime.controlMode).startsWith("manual-") ? "manual hold" : "automatic";
@@ -640,8 +642,9 @@ export function freeflowRuntimeStateMessage(
       "",
       "Cognitive Routing:",
       `- Control: \`${control}\``,
-      `- Profile: \`${profile}\``,
-      `- Delegation: \`${capabilityState?.cognitiveRouting?.delegation ?? "executor"}\``,
+      // Under Automatic control the routing Runtime State owns the active profile, so switches do not churn this state.
+      ...(control === "automatic" ? [] : [`- Profile: \`${profile}\``]),
+      `- Delegation: \`${cognitiveRoutingRuntime?.delegation ?? capabilityState?.cognitiveRouting?.delegation ?? "executor"}\``,
       `- Projection: \`${projectionMode}\``,
     ].join("\n"),
     display: false,
@@ -655,16 +658,16 @@ export function withoutFreeflowRuntimeState(messages) {
       message?.customType !== COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE,
   );
 }
-function lastUserMessageIndex(messages) {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
+function firstUserMessageIndex(messages) {
+  for (let index = 0; index < messages.length; index += 1) {
     if (messages[index]?.role === "user") return index;
   }
   return -1;
 }
-function insertRuntimeStateBeforeLatestUser(messages, runtimeState) {
-  const latestUserIndex = lastUserMessageIndex(messages);
-  if (latestUserIndex < 0) return [...messages, runtimeState];
-  return [...messages.slice(0, latestUserIndex), runtimeState, ...messages.slice(latestUserIndex)];
+function insertRuntimeStateBeforeFirstUser(messages, runtimeState) {
+  const firstUserIndex = firstUserMessageIndex(messages);
+  if (firstUserIndex < 0) return [...messages, runtimeState];
+  return [...messages.slice(0, firstUserIndex), runtimeState, ...messages.slice(firstUserIndex)];
 }
 export function withFreeflowRuntimeState(
   messages,
@@ -684,7 +687,7 @@ export function withFreeflowRuntimeState(
       message?.customType === COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE,
   );
   const withoutRuntimeState = withoutFreeflowRuntimeState(source);
-  const expectedRuntimeStateIndex = lastUserMessageIndex(withoutRuntimeState);
+  const expectedRuntimeStateIndex = firstUserMessageIndex(withoutRuntimeState);
   const runtimeStateIndex = source.findIndex((message) => message?.customType === FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE);
   const unchanged =
     options.force !== true &&
@@ -693,7 +696,30 @@ export function withFreeflowRuntimeState(
     runtimeStateMessages[0]?.content === runtimeState.content &&
     runtimeStateIndex === (expectedRuntimeStateIndex < 0 ? withoutRuntimeState.length : expectedRuntimeStateIndex);
   if (unchanged) return source;
-  return insertRuntimeStateBeforeLatestUser(withoutRuntimeState, runtimeState);
+  if (options.anchor) return insertAnchoredRuntimeState(withoutRuntimeState, runtimeState, options.anchor);
+  return insertRuntimeStateBeforeFirstUser(withoutRuntimeState, runtimeState);
+}
+// Unchanged state keeps its position so the cached prefix survives; changed state is placed before the
+// latest user message so earlier input is not rewritten, and then stays at that position.
+function insertAnchoredRuntimeState(messages, runtimeState, anchor) {
+  let index;
+  if (anchor.content === runtimeState.content && anchor.index !== undefined && anchor.index <= messages.length)
+    index = anchor.index;
+  else if (anchor.content === undefined) {
+    const first = firstUserMessageIndex(messages);
+    index = first < 0 ? messages.length : first;
+  } else {
+    let latest = messages.length;
+    for (let i = messages.length - 1; i >= 0; i -= 1)
+      if (messages[i]?.role === "user") {
+        latest = i;
+        break;
+      }
+    index = latest;
+  }
+  anchor.content = runtimeState.content;
+  anchor.index = index;
+  return [...messages.slice(0, index), runtimeState, ...messages.slice(index)];
 }
 export function stableRuntimeContext(context) {
   const sections = [

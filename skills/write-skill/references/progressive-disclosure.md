@@ -2,6 +2,8 @@
 
 Read this before adding or reorganizing references, assets, or scripts.
 
+This reference is judgment: adapt it to the skill's goal. Its binding statements restate [Write Skill](../SKILL.md) Rules.
+
 Progressive disclosure should change when content enters context, preserve one canonical owner, or isolate a real lifecycle boundary. Splitting files without one of those benefits adds dependency cost without reducing context.
 
 ## Preserve Dependency Direction
@@ -20,7 +22,7 @@ description
 - stop and return conditions;
 - observable resource read points.
 
-A reference cannot activate itself. Do not hide the rule needed to recognize a reference inside that reference.
+A reference cannot activate itself. Do not hide the instruction needed to recognize a reference inside that reference.
 
 That is progressive reconstruction, not disclosure.
 
@@ -70,7 +72,7 @@ Keep inline:
 - the first-read job;
 - normal route;
 - controlling definitions;
-- rules needed to select resources;
+- instructions needed to select resources;
 - stop and return behavior.
 
 Move depth only when keeping it inline would obscure the normal route and the read point is executable.

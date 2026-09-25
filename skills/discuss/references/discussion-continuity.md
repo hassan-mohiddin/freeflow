@@ -2,6 +2,8 @@
 
 Read this before preserving discussion across context loss, creating or updating durable task memory from discussion, or carrying a proposed or selected checkpoint beyond the current conversational context.
 
+This reference is judgment: adapt it to the discussion. Its binding statements restate [Discuss](../SKILL.md), Workflow, or Track Work Rules.
+
 Discussion state is not automatically a Working Record, Spec, Plan, checkpoint, or authority. Preserve the required outcome separately from the current approach, and distinguish the user's execution agreement from proposals that have not been selected.
 
 ## Keep It In Conversation When Possible
@@ -62,39 +64,17 @@ Preserve only supported state that could affect later interpretation or action. 
 
 When the initial record need arises from discussion, preserve the state that justified the record in the first authorized atomic update. Do not create an empty shell and lose the decisions, proposals, or uncertainty that made continuity necessary.
 
-When a rough route is useful, preserve provisional Slices and their actual dependencies without pretending the later implementation is settled. Keep the current unit concrete and later work directional. Use the existing Current Context, Current Work, Future Work, and History fields; do not add a second phase or context-cycle ledger.
+When a rough route is useful, preserve provisional Slices, the Checkpoints between them, and their actual dependencies without pretending the later implementation is settled. Keep the current unit concrete and later work directional. Use the existing Current Context, Current Work, Future Work, and History fields; do not add a second phase or context-cycle ledger.
 
 Preserve the agreed outcome, scope, and user-facing return condition when losing them could interrupt covered work or permit drift. Authorization to investigate or propose a design is not acceptance of its production consequences. When learning changes the approach, retain the question, strongest evidence and limits, remaining uncertainty, artifact disposition, and affected later work—not the prototype's construction history.
 
 After preservation, return to Discuss unless Workflow established another route. Record mutation does not transfer ownership or authorize execution.
 
-## Carry Proposed And Selected Checkpoints
+## Carry Checkpoints On The Route
 
-A possible checkpoint remains proposed in the current discussion until Workflow selects it.
+A commit, publication, review, user decision, or planned handoff that the discussion anticipates is a Checkpoint on the route, not a Slice. With a record, propose it in Future Work using Track Work's Checkpoint types and states: `proposed` while only anticipated, `pending` once Workflow selects it. Without a record, keep it in the conversation.
 
-For a proposed checkpoint, preserve only:
-
-```text
-Status: Proposed
-Type:
-Purpose:
-Boundary it could protect:
-Authority or selection still needed:
-```
-
-For a selected checkpoint, preserve:
-
-```text
-Status: Selected
-Type:
-Purpose:
-Due boundary:
-Condition:
-Selection source:
-Authority scope:
-```
-
-Persist checkpoint state through Track Work only when durable memory is needed. Keep local commit authority separate from push or integration, and keep migration, release, and launch separately controlled.
+Keep local commit authority separate from push or publication, and keep migration, release, and launch separately controlled.
 
 ## Preserve Re-entry State
 
@@ -111,7 +91,7 @@ Authority or user decision needed:
 
 Do not restart from zero, rewrite unaffected decisions, or narrate completed work.
 
-After context loss, recover the complete record through Track Work's `full` view before relying on it. Compare current sections and relevant History with current user direction, accepted artifacts, and live evidence. Reconcile affected meaning and dependent future work; do not repeat a disproved approach or preserve a stale plan merely because the record contains it. With intact context, use `resume` or targeted reads only when needed.
+After context loss, recover through Track Work's recovery order before relying on the record: the complete record, its defining artifacts, then its Recovery sources. Compare current sections and relevant History with current user direction, accepted artifacts, and live evidence. Reconcile affected meaning and dependent future work; do not repeat a disproved approach or preserve a stale plan merely because the record contains it. With intact context, use `resume` or targeted reads only when needed.
 
 ## Stop
 

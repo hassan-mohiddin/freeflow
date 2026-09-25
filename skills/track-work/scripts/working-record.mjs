@@ -3,7 +3,7 @@
 import { rm } from "node:fs/promises";
 import { cwd } from "node:process";
 import { dirname } from "node:path";
-import { canonicalLines, joinLines, slugify, TASK_STATES } from "./lib/format.mjs";
+import { canonicalLines, joinLines, slugify } from "./lib/format.mjs";
 import { parseDocument, validateDocument } from "./lib/document.mjs";
 import { runTransition } from "./lib/transitions.mjs";
 import {
@@ -64,7 +64,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "init",
-    "Usage: init --root <path> --name <task name> [--state <state>] [--input <file|->]\nInput: Goal and Next useful action required; the seven Current Context headings are accepted. Use --input - to read Markdown fragments from stdin.",
+    "Usage: init --root <path> --name <task name> [--input <file|->]\nInput: Goal and Next useful action required; the seven Current Context headings and Recovery sources are accepted, and every line must sit under one of them. The record starts active. Use --input - to read Markdown fragments from stdin.",
   ],
   ["view", "Usage: view resume|full --record <record.md>"],
   ["validate", "Usage: validate --record <record.md>"],
@@ -95,7 +95,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "checkpoint propose",
-    "Usage: checkpoint propose --record <record.md> --title <title> --input <file|->\nInput: Type, Condition, and Applies to required. Use --input - to read the fragment from stdin.",
+    "Usage: checkpoint propose --record <record.md> --title <title> --input <file|->\nInput: Type (preserve, publish, review, decision, or continuity), Condition, and Applies to required. Use --input - to read the fragment from stdin.",
   ],
   [
     "checkpoint activate",
@@ -159,7 +159,7 @@ function parseOptions(args) {
 function allowedOptions(command, operation) {
   const common = new Set(["--root", "--record", "--input", "--help"]);
   const withNextAction = new Set([...common, "--next-action"]);
-  if (command === "init") return new Set(["--root", "--name", "--state", "--input", "--help"]);
+  if (command === "init") return new Set(["--root", "--name", "--input", "--help"]);
   if (command === "view") return new Set(["--root", "--record", "--view", "--help"]);
   if (command === "validate") return new Set(["--root", "--record", "--help"]);
   if (command === "slice") {
@@ -217,15 +217,20 @@ function initialContent(skeletonLines, input) {
     "Open",
     "Current direction",
     "Boundaries",
+    "Recovery sources",
     "Next useful action",
   ];
   const allowed = new Set(names);
+  let seenHeading = false;
   for (let index = 0; index < inputLines.length; index += 1) {
     const levelThree = /^### (.+?)\s*$/.exec(inputLines[index]);
+    if (!levelThree && !seenHeading && inputLines[index].trim() !== "")
+      throw new CliError(`Initialization text outside a heading would be lost: ${inputLines[index].trim()}`);
     if (levelThree) {
       const name = levelThree[1];
       if (!allowed.has(name)) throw new CliError(`Unknown initialization heading: ${name}`);
       if (targets.has(name)) throw new CliError(`Duplicate initialization heading: ${name}`);
+      seenHeading = true;
       const content = [];
       for (let next = index + 1; next < inputLines.length; next += 1) {
         if (/^### /.test(inputLines[next]) || /^## /.test(inputLines[next])) break;
@@ -255,10 +260,8 @@ function initialContent(skeletonLines, input) {
 async function initialize(options) {
   const root = rootOption(options);
   const name = requireOption(options, "--name");
-  const state = options["--state"] ?? "active";
-  if (!TASK_STATES.has(state)) throw new CliError(`Invalid task state: ${state}`);
   const input = await readInput(options["--input"], cwd());
-  const text = initialContent(canonicalLines(name, state), input);
+  const text = initialContent(canonicalLines(name), input);
   parseDocument(text);
   const created = await createRecordPath(root, name, slugify(name));
   try {

@@ -1404,7 +1404,7 @@ test("run rejects unsupported evaluation types before starting subjects or creat
     });
 
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /supports description and body groups only/);
+    assert.match(result.stderr, /group\.type must be description or body/);
     await assert.rejects(readFile(fakeLog, "utf8"), { code: "ENOENT" });
     await assert.rejects(readFile(path.join(root, ".skill-eval/runs"), "utf8"), { code: "ENOENT" });
   });
@@ -1776,6 +1776,7 @@ test("omitted runtime defaults to an explicit non-session profile", async () => 
     assert.deepEqual(run.resources.runtime, {
       host: "pi",
       session: false,
+      prompt: "isolated",
       environment: { literal: {}, inherit: [] },
       extensions: [],
     });

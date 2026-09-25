@@ -170,7 +170,10 @@ test("provenance covers old sources and complete exchanges, with stable prefixes
     assert.ok(
       annotations.some((m) => m.content.includes(`ctx:m${i} | producer: ${i % 2 ? "executor" : "coordinator"}`)),
     );
-  assert.ok(annotations.some((m) => m.content.includes("ctx:unknown | producer: unknown/common")));
+  assert.ok(
+    annotations.every((m) => !m.content.includes("ctx:unknown |")),
+    "unattributed sources carry no provenance row",
+  );
   const callIndex = prepared.messages.findIndex((m) => m.role === "assistant" && m.content.some((b) => b.id === "c"));
   assert.equal(prepared.messages[callIndex + 1].toolCallId, "c", "no annotation splits a call/result exchange");
   assert.match(prepared.messages[callIndex + 2].content, /ctx:result.*producer: executor/);

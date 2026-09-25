@@ -87,14 +87,12 @@ done
 for expected in \
   '"hookEventName":"SessionStart"' \
   "# Freeflow Stable Guidance" \
-  "## Shared Terms" \
+  "## Terms" \
+  "## Load The Selected Method" \
   "## Recover After Context Loss" \
-  "## Three Nested Loops" \
-  "## Workflow Cue" \
-  "## Action Selection Cue" \
-  "## Supported Exit" \
+  "## Cues" \
   "# Freeflow Interaction Contract" \
-  "Questions, criticism, examples, hypotheses, and tentative ideas do not authorize action by themselves." \
+  "Only a request to act authorizes action." \
   "Freeflow: active"; do
   assert_contains "$codex_output" "$expected" "configured core context"
 done
@@ -122,7 +120,7 @@ rm -rf "$whitespace_root"
 claude_output="$(printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s"}\n' "$tmp_dir" | node "$HOOK_PATH" SessionStart)"
 assert_contains "$claude_output" '"hookEventName":"SessionStart"' "Claude wrapper"
 assert_contains "$claude_output" "# Freeflow Interaction Contract" "Claude core context"
-assert_contains "$claude_output" "## Shared Terms" "Claude core context"
+assert_contains "$claude_output" "## Terms" "Claude core context"
 assert_contains "$claude_output" "Freeflow: active" "Claude core context"
 
 # Every supported lifecycle start receives the same mandatory core surface.

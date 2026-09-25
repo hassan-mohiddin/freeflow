@@ -1,5 +1,6 @@
 import {
   ACTIVE_SLICE_FIELDS,
+  CHECKPOINT_TYPES,
   DECISION_FIELDS,
   HISTORICAL_CHECKPOINT_FIELDS,
   HISTORICAL_CHECKPOINT_STATES,
@@ -331,7 +332,7 @@ async function startSlice(options, input, loaded) {
     { start: proposal.start, end: proposal.end, lines: [] },
     {
       start: document.current.sliceHeadingIndex + 1,
-      end: document.current.nextActionHeadingIndex,
+      end: document.current.sliceEnd,
       lines: ["", ...currentLines, ""],
     },
     nextActionReplacement(document, nextAction),
@@ -393,7 +394,7 @@ async function startDirectSlice(options, input, loaded) {
   const candidate = withLineChanges(document, [
     {
       start: document.current.sliceHeadingIndex + 1,
-      end: document.current.nextActionHeadingIndex,
+      end: document.current.sliceEnd,
       lines: ["", ...currentLines, ""],
     },
     nextActionReplacement(document, nextAction),
@@ -476,7 +477,7 @@ async function closeSlice(options, input, loaded) {
   const candidate = withLineChanges(document, [
     {
       start: document.current.sliceHeadingIndex + 1,
-      end: document.current.nextActionHeadingIndex,
+      end: document.current.sliceEnd,
       lines: ["", "None", ""],
     },
     { start: document.history.slices.end, end: document.history.slices.end, lines: historical },
@@ -528,7 +529,7 @@ async function reopenSlice(options, input, loaded) {
   const candidate = withLineChanges(document, [
     {
       start: document.current.sliceHeadingIndex + 1,
-      end: document.current.nextActionHeadingIndex,
+      end: document.current.sliceEnd,
       lines: ["", ...currentLines, ""],
     },
     nextActionReplacement(document, nextAction),
@@ -546,6 +547,9 @@ async function proposeCheckpoint(options, input, loaded) {
   assertUniqueFutureTitle(document, title);
   const fragment = checkpointInput(input, "checkpoint propose");
   requireFragment(fragment, "Type", "checkpoint propose");
+  const type = fragmentText(fragment, "Type");
+  if (!CHECKPOINT_TYPES.has(type))
+    fail("invalid-type", `Checkpoint Type must be one of ${[...CHECKPOINT_TYPES].join(", ")}; found ${type}`);
   requireFragment(fragment, "Condition", "checkpoint propose");
   requireFragment(fragment, "Applies to", "checkpoint propose");
   const values = {
@@ -616,6 +620,7 @@ async function closeCheckpoint(options, input, loaded) {
     new Set(["Result", "Evidence", "Task effect", "Reason", "Replaced by"]),
     "checkpoint close",
   );
+  if (state === "replaced") assertOpenReplacement(document, id, fragmentText(fragment, "Replaced by"));
   const values = {
     State: state,
     Type: fieldLines(checkpoint, "Type"),
@@ -638,6 +643,13 @@ async function closeCheckpoint(options, input, loaded) {
   if (nextAction) replacements.push(nextAction);
   const candidate = withLineChanges(document, replacements);
   return publish(loaded, candidate, `Closed Checkpoint: ${id} — ${state}`);
+}
+
+// A replacement must still be able to carry the boundary; a closed Checkpoint cannot.
+function assertOpenReplacement(document, id, replacementId) {
+  const replacement = document.future.items.find((item) => item.kind === "checkpoint" && item.id === replacementId);
+  if (!replacement || replacementId === id || !["pending", "deferred"].includes(fieldValue(replacement, "State")))
+    fail("invalid-reference", `Replaced by must name another Checkpoint that is pending or deferred: ${replacementId}`);
 }
 
 function decisionInput(input, command) {

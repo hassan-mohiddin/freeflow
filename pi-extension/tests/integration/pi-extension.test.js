@@ -147,7 +147,7 @@ function lastRuntimeState(messages) {
   return messages.findLast((message) => message.customType === "freeflow-runtime-state");
 }
 
-test("keeps Runtime State before the latest user message during context refreshes", async () => {
+test("keeps Runtime State at a fixed prefix position across refreshes and new turns", async () => {
   const cwd = await configuredRepo();
   try {
     const { handlers } = loadExtension();
@@ -163,28 +163,30 @@ test("keeps Runtime State before the latest user message during context refreshe
     const firstUserIndex = first.messages.findIndex((message) => message.role === "user");
     const firstRuntimeIndex = first.messages.findIndex((message) => message.customType === "freeflow-runtime-state");
     assert.equal(firstRuntimeIndex, firstUserIndex - 1);
+    const cachedPrefix = first.messages.slice(0, firstUserIndex + 1);
     assert.equal(first.messages.at(-1).role, "toolResult");
 
     await handlers.get("session_compact")({ type: "session_compact", reason: "threshold" }, ctx);
-    const refreshed = await contextHandler(handlers)({ messages: first.messages }, ctx);
+    // Pi's context hook is request-time only, so the next call starts from the session transcript.
+    const refreshed = await contextHandler(handlers)({ messages: conversation }, ctx);
     const refreshedUserIndex = refreshed.messages.findIndex((message) => message.role === "user");
     const refreshedRuntimeIndex = refreshed.messages.findIndex(
       (message) => message.customType === "freeflow-runtime-state",
     );
     assert.equal(refreshedRuntimeIndex, refreshedUserIndex - 1);
+    assert.deepEqual(refreshed.messages.slice(0, refreshedUserIndex + 1), cachedPrefix);
     assert.equal(refreshed.messages.at(-1).role, "toolResult");
 
-    const interrupted = await contextHandler(handlers)(
-      {
-        messages: [...refreshed.messages, { role: "user", content: "stop" }],
-      },
-      ctx,
-    );
+    const nextTurn = [...conversation, { role: "assistant", content: "finished" }, { role: "user", content: "stop" }];
+    const interrupted = await contextHandler(handlers)({ messages: nextTurn }, ctx);
+    const firstNextUserIndex = interrupted.messages.findIndex((message) => message.role === "user");
     const latestUserIndex = interrupted.messages.findLastIndex((message) => message.role === "user");
-    const latestRuntimeIndex = interrupted.messages.findIndex(
+    const fixedRuntimeIndex = interrupted.messages.findIndex(
       (message) => message.customType === "freeflow-runtime-state",
     );
-    assert.equal(latestRuntimeIndex, latestUserIndex - 1);
+    assert.equal(fixedRuntimeIndex, firstNextUserIndex - 1);
+    assert.deepEqual(interrupted.messages.slice(0, firstNextUserIndex + 1), cachedPrefix);
+    assert.equal(interrupted.messages[latestUserIndex].content, "stop");
     assert.equal(interrupted.messages.at(-1).content, "stop");
   } finally {
     await rm(cwd, { recursive: true, force: true });

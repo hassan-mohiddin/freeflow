@@ -11,7 +11,8 @@ test("skill-author exposes only the fresh command surface", () => {
   });
 
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /skill-author <init\|validate\|inspect>/);
+  assert.match(result.stdout, /skill-author <init\|validate\|inspect\|similarity>/);
+  assert.match(result.stdout, /similarity reports near-duplicate Markdown files/);
   assert.match(result.stdout, /init creates a minimal SKILL\.md and refuses to overwrite one/);
   assert.match(result.stdout, /validate checks structure and recursive resource containment/);
   assert.match(result.stdout, /inspect reports factual inventory plus validation findings/);

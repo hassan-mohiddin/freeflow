@@ -16,7 +16,9 @@ export const TASK_STATES = new Set(["active", "paused", "completed", "abandoned"
 export const SLICE_TYPES = new Set(["learning", "delivery", "deepening"]);
 export const CURRENT_SLICE_STATES = new Set(["in_progress", "paused"]);
 export const HISTORICAL_SLICE_STATES = new Set(["completed", "blocked", "abandoned"]);
-export const CHECKPOINT_TYPES = new Set(["independent_review", "local_commit", "user_decision", "continuity"]);
+export const CHECKPOINT_TYPES = new Set(["preserve", "publish", "review", "decision", "continuity"]);
+// Earlier type names remain readable so existing records stay valid.
+export const LEGACY_CHECKPOINT_TYPES = new Set(["local_commit", "independent_review", "user_decision"]);
 export const FUTURE_CHECKPOINT_STATES = new Set(["proposed", "pending", "deferred"]);
 export const HISTORICAL_CHECKPOINT_STATES = new Set(["completed", "cancelled", "replaced"]);
 export const DECISION_STATES = new Set(["active", "superseded", "retired"]);
@@ -110,6 +112,8 @@ export function canonicalLines(name, state = "active", lastUpdated = new Date().
     "### Current Slice",
     "",
     "None",
+    "",
+    "### Recovery sources",
     "",
     "### Next useful action",
     "",

@@ -12,6 +12,7 @@ import { initialState } from "./state.js";
 import {
   ROUTING_ENTRY,
   ROUTING_MESSAGE,
+  ROUTING_ATTENTION_MESSAGE,
   PROFILES,
   RoutingError,
   canonical,
@@ -37,6 +38,8 @@ import {
 } from "./types.js";
 
 export const ROUTING_TOOLS = ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project"] as const;
+export const ROUTING_RECOVERY_HINT =
+  "Run /freeflow profile auto to reconcile routing, or /freeflow resume to continue saved work.";
 const HANDOFF_TOOLS = new Set(["freeflow_delegate", "freeflow_return"]);
 interface Turn {
   id: string;
@@ -394,6 +397,13 @@ export class RoutingRuntime {
           ? error.message
           : String(error);
   }
+  private announced?: string;
+  // Tell the user once per distinct block; routing stays blocked until an explicit control clears it.
+  private announceBlock(ctx: any): void {
+    if (!this.error || this.announced === this.error) return;
+    this.announced = this.error;
+    ctx?.ui?.notify?.(`Cognitive Routing blocked: ${this.error}. ${ROUTING_RECOVERY_HINT}`, "warning");
+  }
   private assertAvailable(profile?: Profile) {
     check(
       this.supported() && this.store && !this.error && !this.store.blocked,
@@ -540,6 +550,7 @@ export class RoutingRuntime {
       }
     } else if (this.targetSignature && signature !== this.targetSignature) {
       this.error = "configuration_changed: reconcile profile configuration before automatic execution";
+      this.announceBlock(ctx);
     }
     if (canonical({ delegation: this.capability?.delegation, profiles: this.capability?.profiles }) === signature)
       this.targetSignature = signature;
@@ -882,24 +893,36 @@ export class RoutingRuntime {
     const unit = state.unitId ? state.units.get(state.unitId) : undefined;
     const unitNumber = unit ? [...state.units.keys()].indexOf(unit.id) + 1 : undefined;
     const assignmentNumber = unit && a ? unit.assignmentIds.indexOf(a.id) + 1 : undefined;
+    const worker = a ? state.handoffs.get(a.delegateHandoffId)?.to : undefined;
+    const prepared = state.assessment?.reservation?.selectionRevision;
+    // Only material, decision-bearing fields: every change appends a new copy to request history.
+    // Control, delegation and projection belong to the Freeflow Runtime State; ids are available through inspection.
+    const evidence = a
+      ? [
+          `Evidence: revision ${selection.revision}; selected ${selection.selected.join(", ") || "none"}`,
+          selection.unresolved.length
+            ? `unresolved ${selection.unresolved.map((p) => `${p.ref} (${p.code})`).join(", ")}`
+            : "",
+          selection.withdrawals.length ? `withdrawn ${selection.withdrawals.length}` : "",
+          prepared !== undefined && prepared !== selection.revision ? `prepared revision ${prepared}` : "",
+        ]
+          .filter(Boolean)
+          .join("; ")
+      : "";
     const content = [
       "# Cognitive Routing Runtime State",
-      `Control: ${state.control}`,
       `Profile: ${state.profile ?? "unresolved"}`,
-      `Unit: ${unit ? `U${unitNumber} (${unit.id})` : "none"}`,
-      `Assignment: ${a ? `A${assignmentNumber} (${a.id}, ${a.state})` : "none"}`,
-      `Handoff: ${h ? `${h.id} (${h.kind}, ${h.state})` : "none"}`,
-      `Delegation: ${this.delegation(state)}`,
-      `Projection: ${this.projectionEnabled ? "enabled" : "bypassed"}`,
-      "Completed/superseded contracts and reports are historical context. Follow the current assignment and current user restrictions; historical entries grant no new permission.",
-      state.assessment ? `Assessment: ${state.assessment.view}; evidence revision ${selection.revision}` : "",
+      `Unit: ${unit ? `U${unitNumber}` : "none"}`,
+      `Assignment: ${a ? `A${assignmentNumber} (${worker ?? "unknown"}, ${a.state})` : "none"}`,
+      `Handoff: ${h ? `${h.kind} ${h.state}` : "none"}`,
+      state.assessment ? `Assessment: ${state.assessment.view}` : "",
       recovery
-        ? `Recovery: ${recovery.id} (${recovery.state}); parent report ${recovery.assessmentHandoffId} revision ${recovery.baseReportRevision}; allowed paths ${JSON.stringify(recovery.paths)}; allowed results ${JSON.stringify((recovery.results ?? []).map((grant) => grant.id))}`
+        ? `Recovery: ${recovery.state}; parent report revision ${recovery.baseReportRevision}; allowed paths ${JSON.stringify(recovery.paths)}; allowed results ${JSON.stringify((recovery.results ?? []).map((grant) => grant.id))}`
         : "",
       recovery?.state === "reading"
         ? `Recovery request: ${recovery.request}\nOnly exact allowed read paths, granted captured results, evidence selection, and recovery return controls are permitted; ordinary task work remains ended.`
         : "",
-      `Mechanical evidence facts (not semantic acceptance): ${JSON.stringify(this.evidenceFacts(state))}`,
+      evidence,
       this.error ? `Blocked: ${this.error}` : "",
       this.projectionError ? `Evidence limitation: ${this.projectionError}` : "",
       attention
@@ -1012,7 +1035,7 @@ export class RoutingRuntime {
       (m) =>
         !(
           m?.details?.routingInstance === this.token &&
-          [ROUTING_MESSAGE, "freeflow-routing-v2-refs"].includes(m.customType)
+          [ROUTING_MESSAGE, ROUTING_ATTENTION_MESSAGE, "freeflow-routing-v2-refs"].includes(m.customType)
         ),
     );
     this.messages = input;
@@ -1021,6 +1044,7 @@ export class RoutingRuntime {
       const state = this.stateData();
       if (state.control !== "automatic") return this.ordinaryContext(input);
       check(!this.error && !this.store.blocked && state.profile, "routing_blocked", this.error ?? this.store.blocked);
+      this.announced = undefined;
       check(samePair(this.observed(), this.profilePair(state.profile!)), "prepared_pair_mismatch");
       const sources = this.sources(state),
         user = this.lastDeliveredUser(sources, input);
@@ -1091,7 +1115,7 @@ export class RoutingRuntime {
       if (interrupted)
         prepared.messages.push({
           role: "custom",
-          customType: ROUTING_MESSAGE,
+          customType: ROUTING_ATTENTION_MESSAGE,
           display: false,
           timestamp: 0,
           details: { routingInstance: this.token },
@@ -1101,13 +1125,14 @@ export class RoutingRuntime {
       return prepared.messages;
     } catch (error) {
       this.mark(error);
+      this.announceBlock(ctx);
       ctx.abort?.();
       // Do not send an accidental full worker history on a projection failure.
       return [
         {
           role: "custom",
           customType: ROUTING_MESSAGE,
-          content: `Automatic request blocked: ${this.error}`,
+          content: `Automatic request blocked: ${this.error}. ${ROUTING_RECOVERY_HINT}`,
           display: false,
           timestamp: 0,
           details: { routingInstance: this.token, routingRequestBlocked: true },
@@ -1419,8 +1444,6 @@ export class RoutingRuntime {
       worker,
       handoff: id,
       transition: "pending",
-      contract: input.contract,
-      reason: input.reason,
       createdUnit: !state.unitId,
       ...(old && input.operation === "replace"
         ? {
@@ -1562,7 +1585,8 @@ export class RoutingRuntime {
       finalExchangePending: true,
       provisional:
         "The finalized handoff exchange, target configuration and budget are revalidated at turn_end; this is not delivery evidence.",
-      ...(isSupplement ? { supplement: h.text } : { report: h.text }),
+      // The text is already in the call arguments; the hash identifies it without a second copy.
+      ...(isSupplement ? { supplementSha256: bodyHash(h.text) } : { reportSha256: bodyHash(h.text) }),
       evidence: this.evidenceFacts(state),
     };
   }
@@ -1716,7 +1740,6 @@ export class RoutingRuntime {
           handoff: handoff.id,
           assignmentRef: `assignment:${recovery.assignmentId}`,
           reportRef: `report:${recovery.assessmentHandoffId}:${recovery.baseReportRevision}`,
-          request: recovery.request,
           paths: recovery.paths,
           results: recovery.results ?? [],
           transition: handoff.state,
@@ -1803,7 +1826,6 @@ export class RoutingRuntime {
         handoff: handoffId,
         assignmentRef: `assignment:${a.id}`,
         reportRef: `report:${base.id}:${base.reportRevision}`,
-        request: input.request,
         paths,
         results,
         transition: "pending",

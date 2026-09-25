@@ -479,3 +479,27 @@ for (const operation of ["clear", "reset"]) {
       assert.equal(runtime.state().runtimeStatus, "blocked");
     }));
 }
+
+test("a mid-session configuration change blocks with a recovery hint until reconciled", async () =>
+  environment(async ({ runtime, make, activate }) => {
+    const ctx = make("configuration-change");
+    const notices = [];
+    ctx.ui = { notify: (message, level) => notices.push({ message, level }) };
+    activate(ctx);
+    await runtime.bind(ctx, cap);
+    assert.equal(runtime.state().runtimeStatus, "active");
+    const changed = {
+      ...cap,
+      profiles: { ...cap.profiles, executor: { provider: "fixture", model: "executor-cheap", thinking: "off" } },
+    };
+    await runtime.refresh(ctx, changed);
+    assert.equal(runtime.state().runtimeStatus, "blocked");
+    assert.match(runtime.state().runtimeReason, /configuration_changed/);
+    assert.equal(notices.length, 1, "the user is told once");
+    assert.match(notices[0].message, /\/freeflow profile auto/);
+    const blocked = await runtime.context(ctx, [{ role: "user", content: "next", timestamp: 2 }]);
+    assert.match(JSON.stringify(blocked), /\/freeflow profile auto/);
+    assert.equal(notices.length, 1, "an unchanged block is not re-announced");
+    assert.equal((await runtime.setAutomaticControl()).status, "automatic");
+    assert.equal(runtime.state().runtimeStatus, "active");
+  }));

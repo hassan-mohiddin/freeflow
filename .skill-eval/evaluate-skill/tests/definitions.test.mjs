@@ -82,7 +82,7 @@ test("suite definitions allow parent-relative group references contained by the 
 
 test("group definitions preserve turns, fixtures, environments, expectations, review questions, and model config", async () => {
   await withTempDirectory(async (root) => {
-    const definition = group("integrated-behavior", "end-to-end");
+    const definition = group("integrated-behavior", "body");
     definition.input = { turns: ["Start the task.", "Continue with the new evidence."] };
     definition.fixture = "fixtures/repository";
     definition.tools = ["read", "bash"];
@@ -230,6 +230,80 @@ test("group definitions reject structural contradictions", async () => {
         },
       },
       {
+        name: "unsupported-end-to-end-type",
+        change(definition) {
+          definition.type = "end-to-end";
+        },
+      },
+      {
+        name: "command-tool-without-commands",
+        change(definition) {
+          definition.type = "body";
+          definition.tools = ["read", "run_command"];
+        },
+      },
+      {
+        name: "commands-without-command-tool",
+        change(definition) {
+          definition.type = "body";
+          definition.commands = [{ id: "unit-tests", argv: ["node", "--test"] }];
+        },
+      },
+      {
+        name: "command-tool-on-description",
+        change(definition) {
+          definition.tools = ["read", "run_command"];
+          definition.commands = [{ id: "unit-tests", argv: ["node", "--test"] }];
+        },
+      },
+      {
+        name: "empty-command-argv",
+        change(definition) {
+          definition.type = "body";
+          definition.tools = ["run_command"];
+          definition.commands = [{ id: "unit-tests", argv: [] }];
+        },
+      },
+      {
+        name: "duplicate-command-id",
+        change(definition) {
+          definition.type = "body";
+          definition.tools = ["run_command"];
+          definition.commands = [
+            { id: "unit-tests", argv: ["node", "--test"] },
+            { id: "unit-tests", argv: ["npm", "test"] },
+          ];
+        },
+      },
+      {
+        name: "invalid-command-timeout",
+        change(definition) {
+          definition.type = "body";
+          definition.tools = ["run_command"];
+          definition.commands = [{ id: "unit-tests", argv: ["node", "--test"], timeout_ms: 0 }];
+        },
+      },
+      {
+        name: "unknown-command-field",
+        change(definition) {
+          definition.type = "body";
+          definition.tools = ["run_command"];
+          definition.commands = [{ id: "unit-tests", argv: ["node", "--test"], shell: true }];
+        },
+      },
+      {
+        name: "unknown-runtime-prompt",
+        change(definition) {
+          definition.runtime = {
+            host: "pi",
+            session: false,
+            prompt: "production",
+            extensions: [],
+            environment: { literal: {}, inherit: [] },
+          };
+        },
+      },
+      {
         name: "duplicate-expectation",
         change(definition) {
           definition.expectations = [
@@ -246,6 +320,30 @@ test("group definitions reject structural contradictions", async () => {
       const groupFile = await writeJson(root, `${scenario.name}.json`, definition);
       await assert.rejects(loadDefinition(groupFile, { root }), { name: "DefinitionError" }, scenario.name);
     }
+  });
+});
+
+test("body groups preserve declared commands and the host prompt mode", async () => {
+  await withTempDirectory(async (root) => {
+    const definition = group("command-behavior", "body");
+    definition.tools = ["read", "run_command"];
+    definition.commands = [
+      { id: "unit-tests", argv: ["node", "--test"], timeout_ms: 60000 },
+      { id: "lint", argv: ["npm", "run", "lint"] },
+    ];
+    definition.runtime = {
+      host: "pi",
+      session: false,
+      prompt: "host",
+      extensions: [],
+      environment: { literal: {}, inherit: [] },
+    };
+    const groupFile = await writeJson(root, "command-behavior.json", definition);
+
+    const loaded = await loadDefinition(groupFile, { root });
+
+    assert.deepEqual(loaded.commands, definition.commands);
+    assert.equal(loaded.runtime.prompt, "host");
   });
 });
 

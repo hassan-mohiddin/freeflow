@@ -794,14 +794,10 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
       break;
     }
     case "assessment-resumed": {
-      check(
-        s.control === "automatic" &&
-          s.profile === "coordinator" &&
-          !s.recoveryId &&
-          s.assessment?.handoffId === d.handoffId &&
-          s.assessment.view === "suspended",
-        s.recoveryId ? "recovery_outstanding" : "assessment_not_suspended",
-      );
+      check(s.control === "automatic" && s.profile === "coordinator", "wrong_control");
+      check(!s.recoveryId, "recovery_outstanding");
+      check(s.assessment?.handoffId === d.handoffId, "assessment_missing");
+      check(s.assessment.view === "suspended", "assessment_not_suspended");
       if (d.reservation)
         check(
           d.reservation.selectionRevision === (s.selections.get(s.assessment.assignmentId)?.revision ?? 0),

@@ -106,19 +106,34 @@ function buildSubjectSystemPrompt(options, declaredContext) {
     }
     lines.push("</available_skills>");
   }
-  if (declaredContext.length > 0) {
-    lines.push("", "<declared_context>");
-    for (const entry of declaredContext) {
-      lines.push(`  <context declared-path="${escapeXml(entry.declaredPath)}">`);
-      for (const file of entry.files) {
-        lines.push(`    <file path="${escapeXml(file.path)}">\n${file.content}</file>`);
-      }
-      lines.push("  </context>");
-    }
-    lines.push("</declared_context>");
-  }
+  if (declaredContext.length > 0) lines.push("", renderDeclaredContext(declaredContext));
   lines.push(`Current working directory: ${options.cwd}`);
   return lines.join("\n");
+}
+
+function renderDeclaredContext(declaredContext) {
+  const lines = ["<declared_context>"];
+  for (const entry of declaredContext) {
+    lines.push(`  <context declared-path="${escapeXml(entry.declaredPath)}">`);
+    for (const file of entry.files) {
+      lines.push(`    <file path="${escapeXml(file.path)}">\n${file.content}</file>`);
+    }
+    lines.push("  </context>");
+  }
+  lines.push("</declared_context>");
+  return lines.join("\n");
+}
+
+// "isolated" replaces the host prompt with an evaluator-owned one; "host" keeps the host's own prompt
+// (and anything declared extensions compose onto it) so evidence reflects the production prompt.
+function beforeAgentStartHandler(promptMode, declaredContext) {
+  if (promptMode === "isolated") {
+    return (event) => ({ systemPrompt: buildSubjectSystemPrompt(event.systemPromptOptions, declaredContext) });
+  }
+  return (event) =>
+    declaredContext.length === 0
+      ? undefined
+      : { systemPrompt: `${event.systemPrompt}\n\n${renderDeclaredContext(declaredContext)}` };
 }
 
 export default function registerSkillEvalGuard(pi) {
@@ -128,10 +143,12 @@ export default function registerSkillEvalGuard(pi) {
   const writableRoot = realpathSync(writableRootValue);
   const allowedTools = new Set(parseStringArray(process.env.SKILL_EVAL_ALLOWED_TOOLS));
   const declaredContext = loadDeclaredContext(process.env.SKILL_EVAL_CONTEXT_MANIFEST);
+  const promptMode = process.env.SKILL_EVAL_PROMPT_MODE || "isolated";
+  if (promptMode !== "isolated" && promptMode !== "host") {
+    throw new Error(`SKILL_EVAL_PROMPT_MODE must be isolated or host: ${promptMode}`);
+  }
 
-  pi.on("before_agent_start", (event) => ({
-    systemPrompt: buildSubjectSystemPrompt(event.systemPromptOptions, declaredContext),
-  }));
+  pi.on("before_agent_start", beforeAgentStartHandler(promptMode, declaredContext));
 
   pi.on("tool_call", (event, ctx) => {
     if (!allowedTools.has(event.toolName)) {

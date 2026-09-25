@@ -2,6 +2,8 @@
 
 Read this when authoring or checking schema-version-1 group and suite JSON.
 
+This reference is a contract: the shapes and constraints below are binding as written. Structural violations are rejected before any subject runs; a malformed expectation surfaces afterward as `grade-error` evidence.
+
 This file owns user-authored definition shapes. Read [execution and evidence](execution-and-evidence.md) for commands, path resolution, run states, persistence, views, isolation, and safeguards.
 
 ## Definition Root
@@ -62,13 +64,14 @@ Rules:
 - `input` contains exactly one of:
   - `prompt`: one non-empty string;
   - `turns`: a non-empty ordered array of non-empty strings. Repeated natural turns are allowed.
-- `fixture` is `null` or one contained relative directory/file path.
+- `fixture` is `null` or one contained relative directory path. The directory's contents become the workspace.
 - `tools` is an ordered array with no duplicates.
 - `variants` contains exactly `baseline` and `candidate`.
 - `expectations` is an ordered array with unique expectation IDs.
 - `review_questions` is an ordered string array. Questions are rendered for the reviewer and never sent to the subject.
 - `model` is optional. `model.model` names the provider/model; optional `model.thinking` selects its thinking level. The CLI has no model override.
-- `runtime` is optional. When omitted, the group runs under a plain `pi` host with no declared extensions. When present, it declares the host, ordered extension bundles, and string environment overrides.
+- `runtime` is optional. When omitted, the group runs under a plain `pi` host with the isolated prompt and no declared extensions. When present, it declares the host, prompt mode, ordered extension bundles, and string environment overrides.
+- `commands` is optional and only for body groups that list the `run_command` tool. See [Declared Commands](#declared-commands).
 
 ## Description Group Example
 
@@ -204,7 +207,7 @@ A body group explicitly delivers each target on turn one and observes first-read
 }
 ```
 
-Description groups allow no tools or only built-in `read`. Body groups allow built-in `read`, `write`, and `edit`, plus custom tools declared by a runtime extension bundle. Native `bash`, `powershell`, `grep`, `find`, and `ls` tools are unsupported. A no-target baseline or runtime-only group may use `skills: []` and `target: null`; a candidate that declares skills must identify its target.
+Description groups allow no tools or only built-in `read`. Body groups allow built-in `read`, `write`, and `edit`, the evaluator's `run_command` tool for declared commands, plus custom tools declared by a runtime extension bundle. Native `bash`, `powershell`, `grep`, `find`, and `ls` tools are unsupported. A no-target baseline or runtime-only group may use `skills: []` and `target: null`; a candidate that declares skills must identify its target.
 
 The examples are complete definition shapes. Replace fixture, resource, model, and Git-ref values with paths and identities that exist under your definition root.
 
@@ -233,7 +236,12 @@ A runtime profile is shared by both baseline and candidate variants. It changes 
 }
 ```
 
-`host` is `pi` or `piflow`; the evaluator maps it to the corresponding installed host command and records the selected host. `session` controls whether the variant receives an isolated persistent session directory; it defaults to `false` in omitted runtime profiles. A runtime may declare zero or more bundles. Each bundle has an entry file and one or more directory resources copied under their original relative paths, so sibling imports and multi-tree extensions remain intact. Bundle bytes are snapshotted once and copied identically to both variants.
+`host` is `pi` or `piflow`; the evaluator maps it to the corresponding installed host command and records the selected host. Optional `prompt` is `isolated` (default) or `host`:
+
+- `isolated` replaces the host's system prompt with a minimal evaluator-owned prompt. Use it to isolate the target skill.
+- `host` keeps the host's own system prompt and whatever declared extensions compose onto it, appending declared context. Use it when evidence must reflect the production prompt, for example by declaring the Freeflow Pi extension bundle with a fixture containing `.freeflow/config.json`.
+
+Both modes enforce the same tool and path guards. `session` controls whether the variant receives an isolated persistent session directory; it defaults to `false` in omitted runtime profiles. A runtime may declare zero or more bundles. Each bundle has an entry file and one or more directory resources copied under their original relative paths, so sibling imports and multi-tree extensions remain intact. Bundle bytes are snapshotted once and copied identically to both variants.
 
 `environment.literal` contains non-secret string configuration and is recorded in run evidence. `environment.inherit` names parent-process variables whose values are passed to the child but never persisted; other parent variables are not passed. Missing inherited variables invalidate the variant. The evaluator supplies only a small host-runtime baseline such as `PATH` and `HOME`. Launch-control and loader keys are rejected from inherited values, literal and inherited names must not overlap, and secret-like literal keys are rejected.
 
@@ -355,7 +363,29 @@ Two expectations may share one comparison ID only when they have opposite varian
 
 Definition loading validates common structure and unique IDs. Kind-specific expectation validation occurs during deterministic grading after run persistence. A malformed expectation therefore becomes separate `grade-error` evidence rather than changing the subject run. Use the documented shapes to avoid spending a subject run on an invalid check.
 
-Definition-supplied commands and tests are unsupported.
+Definition-supplied commands run only through the subject's `run_command` tool. Grading never runs commands.
+
+## Declared Commands
+
+A body group that must let the subject run tests or other programs lists the `run_command` tool and declares each allowed command:
+
+```json
+{
+  "tools": ["read", "edit", "run_command"],
+  "commands": [
+    { "id": "unit-tests", "argv": ["node", "--test"], "timeout_ms": 120000 },
+    { "id": "lint", "argv": ["npm", "run", "lint"] }
+  ]
+}
+```
+
+- `run_command` and `commands` require each other and are valid only in body groups.
+- Each command has a unique `id` (group-ID syntax), a non-empty `argv`, and optional integer `timeout_ms` from 1 to 600000 (default 120000).
+- The subject chooses only a declared `id`; it cannot change `argv`. The argv runs without a shell, in the workspace, without evaluator control variables.
+- Output is capped per stream and marked when truncated. A nonzero exit or timeout is an ordinary tool result, not a tool error.
+- Grade calls with `tool-call` expectations, for example `tool: "run_command"` with `argumentContains: ["unit-tests"]`.
+
+Commands are trusted author input with the evaluator's host permissions, like extension bundles; the subject only selects among them.
 
 ## Suite
 

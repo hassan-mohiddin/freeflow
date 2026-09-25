@@ -2,6 +2,8 @@
 
 Read this when creating or revising multiple related skills, shared terminology, cross-skill links, capability activation, direct or routed entry paths, or context-loss recovery.
 
+This reference is judgment: adapt it to the skill's goal. Its binding statements restate [Write Skill](../SKILL.md) Rules.
+
 A multi-skill system is a stateful, partially loaded prompt graph. It is not a mandatory sequence.
 
 ## Identify The Edge Types

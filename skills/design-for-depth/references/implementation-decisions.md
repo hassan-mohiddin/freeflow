@@ -2,7 +2,7 @@
 
 Read this when unresolved representation, identity, ownership, algorithm, dependency, or failure choices could materially change a technical recommendation or invalidate significant dependent work. Apply it before recommending a mechanism during discussion, writing its guiding design, or beginning substantial implementation. Skip it for a supported local change whose remaining mechanics do not alter those boundaries.
 
-Use this method under Design for Depth and the current activity. It does not create another planning phase, document requirement, approval gate, or compute role.
+This reference is judgment, used under Design for Depth and the current activity. It does not create another planning phase, document requirement, approval gate, or compute role.
 
 ## Identify What Implementation Would Still Have To Invent
 

@@ -110,6 +110,7 @@ export async function prepareRuntime({ runtime, root, groupDirectory }) {
   return {
     host: runtime.host,
     session: runtime.session,
+    prompt: runtime.prompt ?? "isolated",
     environment: { ...runtime.environment },
     extensions: bundles,
   };
@@ -145,6 +146,7 @@ export async function materializeRuntime({ runtime, variantDirectory }) {
   return {
     host: runtime.host,
     session: runtime.session,
+    prompt: runtime.prompt ?? "isolated",
     environment: { ...runtime.environment },
     extensions: bundles,
   };

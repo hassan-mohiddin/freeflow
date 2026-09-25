@@ -30,6 +30,7 @@ import {
 } from "./sandbox.mjs";
 
 const guardExtension = fileURLToPath(new URL("../pi-guard.mjs", import.meta.url));
+const commandToolExtension = fileURLToPath(new URL("../pi-command-tool.mjs", import.meta.url));
 const observerExtension = fileURLToPath(new URL("../pi-observer.mjs", import.meta.url));
 const HOST_COMMANDS = { pi: "pi", piflow: "piflow" };
 const BASE_PROCESS_ENVIRONMENT_KEYS = [
@@ -150,6 +151,7 @@ function subjectRun({ group, variant }, subject, observation) {
     completedAt: new Date().toISOString(),
     workspace: subject.workspace,
     tools: [...group.tools],
+    commands: group.commands ?? [],
     model: {
       declared: group.model ?? null,
       observed: observation.model,
@@ -329,9 +331,7 @@ function createProcessEnvironment({
   contextObservationPath,
   requiresContextObservation,
 }) {
-  const processEnvironment = Object.fromEntries(
-    BASE_PROCESS_ENVIRONMENT_KEYS.flatMap((key) => (process.env[key] === undefined ? [] : [[key, process.env[key]]])),
-  );
+  const processEnvironment = baseProcessEnvironment();
   Object.assign(processEnvironment, {
     PWD: workspace,
     ...runtime.environment.literal,
@@ -342,7 +342,9 @@ function createProcessEnvironment({
     SKILL_EVAL_ALLOWED_TOOLS: JSON.stringify(group.tools),
     SKILL_EVAL_CONTEXT_MANIFEST: contextManifestPath ?? "",
     SKILL_EVAL_HOST: runtime.host,
+    SKILL_EVAL_PROMPT_MODE: runtime.prompt,
   });
+  if (group.commands !== undefined) processEnvironment.SKILL_EVAL_COMMANDS = JSON.stringify(group.commands);
   for (const key of runtime.environment.inherit) {
     if (process.env[key] === undefined) {
       throw new VariantSetupError(`inherited runtime environment variable is unavailable: ${key}`);
@@ -351,6 +353,12 @@ function createProcessEnvironment({
   }
   if (requiresContextObservation) processEnvironment.SKILL_EVAL_CONTEXT_OBSERVATION_PATH = contextObservationPath;
   return processEnvironment;
+}
+
+export function baseProcessEnvironment() {
+  return Object.fromEntries(
+    BASE_PROCESS_ENVIRONMENT_KEYS.flatMap((key) => (process.env[key] === undefined ? [] : [[key, process.env[key]]])),
+  );
 }
 
 async function readContextObservations(file, required) {
@@ -426,6 +434,7 @@ function piArguments(group, environment, runtime, mode, observeContext, sessionD
   if (runtime.session) args.push("--session-dir", sessionDirectory);
   else args.push("--no-session");
   args.push("--no-extensions", "--extension", guardExtension);
+  if (group.commands !== undefined) args.push("--extension", commandToolExtension);
   for (const bundle of runtime.extensions) args.push("--extension", bundle.entry);
   if (observeContext) args.push("--extension", observerExtension);
   args.push("--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files", "--no-approve");
@@ -438,7 +447,7 @@ function piArguments(group, environment, runtime, mode, observeContext, sessionD
   return args;
 }
 
-async function runPiProcess({ command, args, cwd, eventsFile, stderrFile, signal, environment }) {
+export async function runPiProcess({ command, args, cwd, eventsFile, stderrFile, signal, environment }) {
   const child = spawn(command, args, {
     cwd,
     detached: process.platform !== "win32",

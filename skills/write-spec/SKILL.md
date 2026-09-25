@@ -89,4 +89,6 @@ Review establishes fitness, not user acceptance or execution authority. Respect 
 
 Report the artifact path, type, intended use, source basis, material unresolved or contingent content, and actual review/acceptance status. Do not label author self-review as independent review or use an approval status without its source.
 
+When a Working Record exists and the Spec is accepted for its task, list it under the record's `What defines this task` through [Track Work](../track-work/SKILL.md) so every recovery reads it.
+
 Stop when the authorized artifact is fit for its stated use or its blocking decision/evidence limit is explicit. Return to the requesting activity; writing a Spec does not begin implementation or authorize another outcome.

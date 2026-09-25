@@ -65,7 +65,7 @@ If safe transfer would require inventing intent, approval, evidence, status, or 
 
 Follow current core and capability recovery guidance before task action. A handoff's earlier route or profile description is not current runtime state.
 
-1. Read the complete Working Record through `view full` when resuming after context loss or into another context. Do not substitute its `resume` view or the handoff's summary. With intact context, follow Track Work's bounded in-session read guidance.
+1. Read the complete Working Record through `view full` when resuming after context loss or into another context, then the artifacts listed under its `What defines this task` and its Recovery sources. Do not substitute its `resume` view or the handoff's summary. With intact context, follow Track Work's bounded in-session read guidance.
 2. Reconcile the record and handoff with current user direction, defining sources, and the relevant live environment. Follow supersession and corrections without silently reviving historical decisions.
 3. Check important completion, verification, review, commit, and artifact-identity claims against their evidence before repeating them. Reuse adequate current evidence; a transfer alone does not require rerunning every check.
 4. Establish the actual partial state, remaining dependencies, accepted work agreement, current assignment, and next useful action. Resolve contradictory old/new instructions from their sources before acting; do not resume editing when the current unit permits inspection only. Reopen only additional sources whose exact content or freshness changes that action.

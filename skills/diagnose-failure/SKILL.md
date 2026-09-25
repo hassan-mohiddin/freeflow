@@ -7,17 +7,32 @@ description: "Use when a bug, failure, regression, performance problem, or repea
 
 Establish what fails and why before selecting a correction. A supported cause distinguishes meaningful alternatives well enough to bound the next action; it does not require impossible certainty.
 
-A plausible path, requested patch, reviewer theory, or favorable rerun is not a supported cause. Diagnosis owns the causal question, interpretation, and correction boundary—not authority to run experiments or change production.
+A plausible path, requested patch, reviewer theory, or favorable rerun is not a supported cause. Diagnosis owns the causal question, interpretation, and correction boundary, not authority to run experiments or change production.
+
+The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
+
+## Rules
+
+- Never invent the expected behavior. When accepted behavior or source truth is unsettled, use [Decision Gate](../../skills/decision-gate/SKILL.md) before diagnosing against it.
+- Before active evidence generation, confirm that the work agreement covers the path, environment, repetition, instrumentation, cost, sensitive-data handling, and cleanup or recovery. Covered bug investigation needs no extra permission solely because it is diagnosis. Otherwise return the proposed observation and stop condition to [Workflow](../../skills/workflow/SKILL.md) and wait.
+- Preserve unfavorable evidence. Never rerun until a failure disappears, and never drop a contradicting observation.
+- Minimize and sanitize logs, traces, payloads, dumps, screenshots, and browser state; never expose credentials or unnecessary private data.
+- Report a mitigation as containment, not resolution. Never claim fixed when only mitigation succeeded or the reported boundary remains unverified.
+- If a remedy changes scope, compatibility, public behavior, failure semantics, or another user-owned boundary, return its concrete consequence and alternatives through Workflow before adopting it.
 
 ## Enter For An Unsettled Cause
 
+Goal: diagnose when the cause is genuinely unknown, and not otherwise.
+
 Use diagnosis for unexplained bugs, failed checks, regressions, flaky or environmental behavior, contradictory observations, and corrections that repeatedly fail or expose related coordination.
 
-Do not investigate an ordinary mistake when fresh evidence already establishes a clear local defect and the accepted remedy. Return that correction to [Workflow](../../skills/workflow/SKILL.md). Finding count or several bugs in one area does not establish a shared structural cause.
+Do not investigate an ordinary mistake when fresh evidence already establishes a clear local defect and the accepted remedy; return that correction to Workflow. Finding count, or several bugs in one area, does not establish a shared structural cause.
 
 Keep diagnosis within the same coherent Slice. Use [Track Work](../../skills/track-work/SKILL.md) when continuity requires preserving the hypothesis, discriminating evidence, rejected approaches, blocker, and next useful action. Do not record every trial.
 
 ## Establish The Failure, Not The Proposed Fix
+
+Goal: know exactly what fails, against what expectation, at what boundary.
 
 Identify only what the investigation needs:
 
@@ -27,13 +42,13 @@ Identify only what the investigation needs:
 - the strongest boundary actually observed;
 - any difference between that boundary and the reported failure.
 
-Prefer the reported path and environment. A nearby symptom may suggest a hypothesis but does not reproduce the reported defect. State reduced-fidelity limits explicitly.
+Prefer the reported path and environment. A nearby symptom may suggest a hypothesis but does not reproduce the reported defect; state reduced-fidelity limits explicitly.
 
-Allowed behavior is not a bug: a cache hit does not establish stale-read failure when caching is permitted. A possible race in source is not the cause without evidence connecting its timing and state to the symptom.
-
-Use [Decision Gate](../../skills/decision-gate/SKILL.md) when accepted behavior or source truth is unsettled. Do not invent an expectation and then diagnose why the implementation violates it.
+Allowed behavior is not a bug: a cache hit does not establish a stale-read failure when caching is permitted. A possible race in source is not the cause without evidence connecting its timing and state to the symptom.
 
 ## Choose A Distinguishing Observation
+
+Goal: the next observation can tell the viable explanations apart.
 
 State a falsifiable leading explanation and only the viable alternatives the next observation must distinguish:
 
@@ -50,13 +65,13 @@ Read [Diagnostic Loop Catalog](references/diagnostic-loop-catalog.md) when the e
 
 Use [Action Selection](../../skills/action-selection/SKILL.md) when tools, targets, or observers for the selected causal question remain uncertain or broad. Stop reading when adequate context supports the experiment; the objective is not exhaustive understanding of the subsystem.
 
-Before active evidence generation, confirm that the agreement covers the path, environment, repetition, instrumentation, cost, sensitive-data handling, and cleanup or recovery. Covered bug investigation needs no extra permission solely because it is diagnosis. Otherwise return the proposed observation and stop condition to Workflow and wait.
-
 If no safe useful observer is available, report the smallest missing input, trace, environment, permission, or instrumentation rather than patching a guess.
 
 ## Interpret One Iteration
 
-Run one covered observation, changing one distinguishing variable at a time. Use [Verify Work](../../skills/verify-work/SKILL.md) for its claim-and-boundary method when needed. Diagnosis retains ownership of causal inference.
+Goal: each observation moves the causal question, and its meaning is not overstated.
+
+Run one covered observation, changing one distinguishing variable at a time. Use [Verify Work](../../skills/verify-work/SKILL.md) for its claim-and-boundary method when needed; diagnosis keeps ownership of causal inference.
 
 Keep three results separate:
 
@@ -64,9 +79,7 @@ Keep three results separate:
 - **Hypothesis result:** Supported, Contradicted, Inconclusive, or Unavailable at the stated observing boundary.
 - **Cause status:** Supported or Unresolved.
 
-A supported hypothesis need not establish the cause. A useful supported cause connects trigger and state through mechanism to the symptom, predicts the observations, materially weakens viable alternatives, and is sufficient to bound a correction without guessing.
-
-If only the strongest remaining hypothesis is supported, say so and identify its missing causal link. Do not claim certainty from one consistent observation.
+A supported hypothesis need not establish the cause. A useful supported cause connects trigger and state through mechanism to the symptom, predicts the observations, materially weakens viable alternatives, and is sufficient to bound a correction without guessing. If only the strongest remaining hypothesis is supported, say so and name its missing causal link; one consistent observation is not certainty.
 
 Route from the result:
 
@@ -81,11 +94,11 @@ Stop when the cause is sufficiently supported or no covered observation can mate
 
 ## Keep The Investigation Inside The Task
 
+Goal: the correction serves the accepted outcome, not the investigation's momentum.
+
 Before following another prerequisite, distinguish a limitation of the current observer or approach from a requirement of the accepted outcome. A failed reproduction method is not proof that production needs new infrastructure, stronger guarantees, or a host change.
 
-Choose the smallest supported correction preserving accepted behavior. If the remedy changes scope, compatibility, public behavior, failure semantics, or another user-owned boundary, return the concrete consequence and alternatives through Workflow before adopting it.
-
-Classify only the owning cause supported by evidence:
+Choose the smallest supported correction that preserves accepted behavior. Classify only the owning cause the evidence supports:
 
 - local implementation defect;
 - invalid, stale, or inadequate check;
@@ -97,17 +110,19 @@ Classify only the owning cause supported by evidence:
 
 Use [Design for Depth](../../skills/design-for-depth/SKILL.md) when causal or direct design evidence establishes structural pressure. It shapes the boundary without re-proving the cause. If design reveals an unsupported causal premise, return to diagnosis with that exact uncertainty.
 
-## Protect Evidence And Contain Harm
+## Contain Harm And Keep Instrumentation Honest
 
-Logs, traces, payloads, dumps, screenshots, and browser state may be sensitive. Minimize and sanitize them; do not expose credentials or unnecessary private data. Bound repetitions by time, cost, effects, and environment safety. Preserve unfavorable evidence rather than rerunning until it disappears.
+Goal: the investigation causes no damage and leaves no hidden residue.
 
-Temporary instrumentation must distinguish hypotheses. Keep it isolated and state its observer, mutation/performance impact, removal condition, and whether it remains afterward.
+Bound repetitions by time, cost, effects, and environment safety. Temporary instrumentation must distinguish hypotheses; keep it isolated and state its observer, its mutation or performance impact, its removal condition, and whether it remains afterward.
 
-When immediate harm needs containment before diagnosis is settled, return one narrower, reversible mitigation to Workflow. It must preserve evidence, define checking and recovery, and avoid settling undefined behavior. Report mitigation as containment, not resolution.
+When immediate harm needs containment before diagnosis is settled, return one narrower, reversible mitigation to Workflow. It must preserve evidence, define checking and recovery, and avoid settling undefined behavior.
 
-A requested experimental patch can generate evidence when authorized as learning. It does not automatically select production behavior or authorize continuing beyond its question.
+A requested experimental patch can generate evidence when authorized as learning. It does not select production behavior or authorize continuing beyond its question.
 
 ## Return A Supported Correction Boundary
+
+Goal: the next owner can correct the failure without re-diagnosing it.
 
 Return proportionately:
 
@@ -115,11 +130,11 @@ Return proportionately:
 - observed diagnostic loop, check result, and hypothesis result;
 - causal chain, alternatives weakened, and remaining uncertainty;
 - owning cause and smallest coherent correction;
-- minimized regression signal and original reported path or strongest available observer;
+- minimized regression signal and the original reported path or strongest available observer;
 - instrumentation, containment, residual effects, and authority limits.
 
-An already-covered correction can return to [Execute Work](../../skills/execute-work/SKILL.md). Preserve the diagnostic evidence and use suitable regression checks without prescribing a formal test-first sequence. Use [Verify Work](../../skills/verify-work/SKILL.md) to design or classify those checks. Use [Simplify Code](../../skills/simplify-code/SKILL.md) only for an accepted behavior-preserving removal of obsolete or workaround machinery, not as a substitute for the fix.
+An already-covered correction can return to [Execute Work](../../skills/execute-work/SKILL.md). Preserve the diagnostic evidence and use suitable regression checks without prescribing a formal test-first sequence; use Verify Work to design or classify those checks. Use [Simplify Code](../../skills/simplify-code/SKILL.md) only for an accepted behavior-preserving removal of obsolete or workaround machinery, not as a substitute for the fix.
 
-After correction, verify the minimized regression signal and the original reported path or strongest available observer. A nearby passing test is insufficient. If the fix fails or reveals related shared-state consequences, re-enter the affected causal question before another patch.
+After correction, verify the minimized regression signal and the original reported path or strongest available observer; a nearby passing test is insufficient. If the fix fails or reveals related shared-state consequences, re-enter the affected causal question before another patch.
 
-Stop with the supported correction, missing evidence, containment boundary, or unresolved decision explicit. Do not claim fixed when only mitigation succeeded or the reported boundary remains unverified.
+Stop with the supported correction, missing evidence, containment boundary, or unresolved decision explicit.

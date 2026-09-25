@@ -38,7 +38,7 @@ Read [Track Work](../../skills/track-work/SKILL.md) before reviewing a Working R
 
 ## Judge The Artifact By Its Job
 
-- **Working Record:** accurate current task memory, recoverable decisions and work, evidence limits, provisional remaining route, and one next useful action.
+- **Working Record:** accurate current task memory, recoverable decisions and work, evidence limits, provisional remaining route, defining artifacts and Recovery sources sufficient for a fresh context to resume, and one next useful action.
 - **Spec or content contract:** the accepted behavior, boundaries, evidence, and uncertainty needed for its intended use.
 - **Plan:** a supported ordered strategy, dependencies, assumptions, checks, and invalidation conditions.
 - **Decision record or ADR:** the choice, owner, source, alternatives, rationale, consequences, and revisit or supersession conditions.

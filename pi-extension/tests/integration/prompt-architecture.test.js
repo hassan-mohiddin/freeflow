@@ -80,10 +80,11 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   assert.match(core, /latest Freeflow Runtime State/);
   assert.match(core, /recovery is not a bypass/);
   assert.match(core, /evidence of prior approval; check that the approval still applies/);
-  assert.match(core, /choose or retain the current owner/);
-  assert.match(core, /apply its method and gather or produce evidence/);
   assert.match(core, /read the complete `full` record/);
-  assert.match(core, /Make material gaps, contradictions, deferrals, and user-owned decisions explicit/);
+  assert.match(core, /Then continue the covered work toward the agreed end/);
+  assert.match(core, /Context loss is not a reason to stop or to ask for permission again/);
+  assert.match(core, /## Terms/);
+  assert.match(core, /## Cues/);
   assert.match(cognitiveRouting, /Before relying on Automatic routing, read the complete cognitive-routing skill/);
   assert.match(cognitiveRouting, /This bootstrap read is the only environment call/);
   assert.match(cognitiveRouting, /If unavailable, stop and report the missing method/);
@@ -134,14 +135,10 @@ test("composes the mandatory core fragments, optional capabilities, discovery, a
     const prompt = before.renderedGuidance;
     const order = [
       "# Freeflow Stable Guidance",
-      "## Shared Terms",
+      "## Terms",
       "## Load The Selected Method",
       "## Recover After Context Loss",
-      "## Three Nested Loops",
-      "## Evidence And Judgment",
-      "## Workflow Cue",
-      "## Action Selection Cue",
-      "## Supported Exit",
+      "## Cues",
       "# Freeflow Interaction Contract",
       "## Context Virtualization Cue",
       "## Conversation History Cue",
@@ -151,18 +148,11 @@ test("composes the mandatory core fragments, optional capabilities, discovery, a
       order,
       [...order].sort((a, b) => a - b),
     );
-    assert.match(
-      prompt,
-      /Before applying a selected skill, read its current body when its exact method is absent from context/,
-    );
-    assert.match(prompt, /Verification establishes what direct evidence proves at the observed boundary/);
-    assert.match(
-      prompt,
-      /Review judges whether work or an artifact is aligned, correct, suitable, and sufficiently evidenced/,
-    );
-    assert.match(prompt, /Interpret requested intent, not sentence form/);
-    assert.match(prompt, /answer the question before any action that depends on it/);
-    assert.match(prompt, /An unresolved question does not automatically suspend independent, clearly authorized work/);
+    assert.match(prompt, /Before applying a selected skill, read its current body when it is not already in context/);
+    assert.match(prompt, /Read the whole turn before acting/);
+    assert.match(prompt, /When a turn mixes questions and requests, answer the questions first/);
+    assert.match(prompt, /Act on a request only when it is clear and none of the answers could change it/);
+    assert.match(prompt, /no reflexive "you're absolutely right"/);
     assert.doesNotMatch(prompt, /## Mode\b|strict-workflow|conversation mode|workflow mode/);
     assert.doesNotMatch(prompt, /Skills prompt/);
     assert.doesNotMatch(prompt, /# Workflow\n/);
@@ -247,7 +237,7 @@ test("provider context reuses the before-agent surface until the next provider t
     const next = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
     assert.equal(next.renderedGuidance, before.renderedGuidance, "settings preserve the complete reference surface");
     assert.match(next.renderedGuidance, /# Freeflow Interaction Contract/);
-    assert.match(next.renderedGuidance, /## Shared Terms/);
+    assert.match(next.renderedGuidance, /## Terms/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

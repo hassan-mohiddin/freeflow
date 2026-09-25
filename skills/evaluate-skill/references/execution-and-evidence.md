@@ -1,14 +1,17 @@
 # Execution And Evidence
 
-Read this when operating `run|view`, resolving paths, interpreting states, or reasoning about Pi execution, isolation, persistence, cancellation, and safeguards.
+Read this when operating `run|view|review`, resolving paths, interpreting states, or reasoning about Pi execution, isolation, persistence, cancellation, and safeguards.
+
+This reference is a contract: it states how the evaluator behaves. Rely on that behavior as written; its binding requirements on you restate [Evaluate Skill](../SKILL.md) Rules.
 
 ## Command And Path Contract
 
 Run commands from the repository or fixture root that owns the definitions:
 
 ```text
-node <evaluate-skill-directory>/scripts/skill-eval.mjs run <suite-or-group-path> [--group <id-or-position>] [--variant baseline|candidate]
+node <evaluate-skill-directory>/scripts/skill-eval.mjs run <suite-or-group-path> [--group <id-or-position>] [--variant baseline|candidate] [--trials <n>] [--max-cost <total>]
 node <evaluate-skill-directory>/scripts/skill-eval.mjs view <result-id-or-directory> [--group <id-or-position>] [--variant baseline|candidate]
+node <evaluate-skill-directory>/scripts/skill-eval.mjs review <result-id-or-directory> --model <provider/model> [--group <id-or-position>] [--thinking <level>]
 ```
 
 - The current working directory is the definition root and result root.
@@ -33,9 +36,9 @@ With no selectors, `run` or `view` selects every suite group and both variants. 
 
 ## Current Execution Boundary
 
-`run` executes description and body groups. Unsupported group types are rejected before subject execution. Description groups allow no tools or `read`; body groups allow no tools or path-guarded `read`, `write`, and `edit`, plus non-native custom tools supplied by a declared runtime extension bundle. Native `bash`, `powershell`, `grep`, `find`, and `ls` tools and definition-supplied commands are unsupported.
+`run` executes description and body groups. Unsupported group types are rejected before subject execution. Description groups allow no tools or `read`; body groups allow no tools or path-guarded `read`, `write`, and `edit`, the evaluator's `run_command` tool for declared commands, plus non-native custom tools supplied by a declared runtime extension bundle. Native `bash`, `powershell`, `grep`, `find`, and `ls` tools are unsupported.
 
-A runtime profile selects the installed `pi` or `piflow` host, whether the variant uses an isolated persistent session directory, zero or more ordered extension bundles, and declarative environment sources. Literal values are non-secret configuration; only explicitly inherited parent variables are passed to the child without being persisted, alongside a small host-runtime baseline. Missing inherited variables invalidate the variant. Launch-control and loader keys are rejected from inherited values, and literal and inherited names must not overlap. For body runs, delivery remains `unavailable` until target setup succeeds; `natural-prompt` or `explicit-skill-command` records a prompt attempt. When a group declares context assertions, the evaluator launches the base guard first, declared extensions second, and a final non-mutating observer last. The observer records both the effective `before_agent_start` system prompt and each provider-neutral `context` message projection; it does not replace or sanitize extension injections after the base guard has established evaluator-owned isolation.
+A runtime profile selects the installed `pi` or `piflow` host, the `isolated` or `host` prompt mode, whether the variant uses an isolated persistent session directory, zero or more ordered extension bundles, and declarative environment sources. Literal values are non-secret configuration; only explicitly inherited parent variables are passed to the child without being persisted, alongside a small host-runtime baseline. Missing inherited variables invalidate the variant. Launch-control and loader keys are rejected from inherited values, and literal and inherited names must not overlap. For body runs, delivery remains `unavailable` until target setup succeeds; `natural-prompt` or `explicit-skill-command` records a prompt attempt. The evaluator launches the base guard first, its command tool when the group declares commands, declared extensions next, and, when a group declares context assertions, a final non-mutating observer last. The observer records both the effective `before_agent_start` system prompt and each provider-neutral `context` message projection; it does not replace or sanitize extension injections after the base guard has established evaluator-owned isolation.
 
 Use fresh JSON-mode execution for one-shot descriptions. Use one persistent RPC process per selected variant for ordered description turns and all body groups. RPC correlates responses, waits for `agent_settled`, disables automatic retry and compaction, preserves directly observed partial-turn evidence, and cleans the process tree.
 
@@ -85,6 +88,24 @@ Use ordinary file tools for raw `run.json`, events, transcript, final response, 
 
 ## Safeguards And Limits
 
-Normal completion follows settlement. Path guards, no-progress detection, cancellation, process-tree cleanup, and very high emergency ceilings stop runaway or unsafe infrastructure. Do not impose ordinary guessed turn, token, spend, output, or short time caps.
+Normal completion follows settlement. Path guards, no-progress detection, cancellation, process-tree cleanup, and very high emergency ceilings stop runaway or unsafe infrastructure. Subjects run until they settle, with no turn, token, output, or short time cap, because a guessed cap cuts off the behavior the evaluation is trying to observe.
+
+`--max-cost <total>` is an explicit spend ceiling, not a subject cap. After each subject finishes, its host-reported `usage.cost.total` is added to the invocation's spend; once spend reaches the ceiling, no further subject starts and queued variants become `cancelled`. The subject already running completes, so spend can exceed the ceiling by one subject. The summary records `budget` with the ceiling, spend, and whether it was exhausted. A host that reports no cost never exhausts the ceiling.
+
+## Trials
+
+`--trials <n>` runs the selection as `n` independent complete invocations. Each trial is an ordinary result with its own ID. A separate aggregate under `.skill-eval/runs/<aggregate-id>/aggregate.json` lists the trials and, per group, counts pass, fail, and unavailable for every deterministic check and comparison, plus comparison transitions. `--max-cost` is shared across trials, and exhaustion stops starting further trials. `view <aggregate-id>` renders the counts; view an individual trial for its evidence.
+
+## Advisory Review
+
+`review` answers each group's `review_questions` with a separate reviewer model:
+
+- only groups with review questions and two complete runs are reviewed;
+- the reviewer sees the task turns, each run's responses, tool calls, and changed paths as Run A and Run B in random order, and never sees variant names or deterministic grades;
+- it runs without tools, skills, extensions, context files, or session, with only the base process environment;
+- `groups/<id>/semantic-grade.json` records the label mapping, prompt hash, answers mapped back to variants, and errors; `groups/<id>/review/` keeps the prompt, events, final response, and stderr;
+- malformed or incomplete reviewer output becomes `review-error` with the raw response preserved.
+
+A review is advisory. It never changes run or deterministic grade evidence, and rerunning it replaces only the previous advisory review.
 
 When an unsupported operation changes the question, reject it or run a clearly separate direct comparison with explicit limits. Never invoke archived evaluators as a fallback.

@@ -2,7 +2,7 @@
 
 Read this when correctness materially depends on canonical state, partial effects, atomic visibility, concurrency, cancellation, retries, recovery, reconciliation, or evidence of the final outcome.
 
-Do not apply this reference to a simple local value change whose state owner and failure behavior are already sound.
+This reference is judgment. Do not apply it to a simple local value change whose state owner and failure behavior are already sound.
 
 ## Name Canonical State
 
@@ -122,15 +122,4 @@ A passing happy-path test does not prove partial-failure safety.
 
 ## Return
 
-Return:
-
-- canonical state and owner;
-- material invariants;
-- transition and visibility boundary;
-- failure unit;
-- forbidden partial outcomes;
-- retry, resume, replay, and recovery capabilities actually required;
-- evidence and remaining uncertainty;
-- narrowest supported route.
-
-Stop when state and failure ownership are sufficient for the current design decision. Do not design every theoretical failure mode.
+Return the canonical state and owner, material invariants, the failure unit and its forbidden partial outcomes, the retry, resume, replay, and recovery capabilities actually required, and remaining uncertainty. Stop when state and failure ownership are sufficient for the current decision; do not design every theoretical failure mode.

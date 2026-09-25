@@ -17,7 +17,7 @@ Use Bypass only when the user explicitly asks to skip or reduce workflow pressur
 
 Establish:
 
-- the already-authorized bounded activity;
+- the already-authorized activity;
 - the specific pressure the user wants removed;
 - whether the requested scope is `next` or `task`;
 - the authority, evidence, checkpoints, and stop conditions that remain;
@@ -50,7 +50,7 @@ Bypass does not remove or override:
 
 - the user’s authority over product behavior, scope, priorities, public interfaces, compatibility, permissions, security, privacy, billing, data loss, migration direction, deployment, or another hard-to-reverse outcome;
 - conflicts among the request, code, tests, docs, policies, requirements, accepted behavior, or another source of truth;
-- the accepted authority envelope or separately controlled effects;
+- the authority the user granted or separately controlled effects;
 - host safety, sandbox, permission, approval, or tool controls;
 - mode boundaries or active capability protocols;
 - the distinction between available evidence and supported claims;

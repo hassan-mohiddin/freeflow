@@ -116,8 +116,8 @@ test("core and the separately editable Interaction Contract are mandatory prompt
     const loaded = await getRuntimeContext(state);
     assert.match(loaded.corePrompt, /# Freeflow Stable Guidance/);
     assert.match(loaded.corePrompt, /## Recover After Context Loss/);
-    assert.match(loaded.corePrompt, /## Shared Terms/);
-    assert.match(loaded.corePrompt, /Report the outcome, evidence, limits, and current route\./);
+    assert.match(loaded.corePrompt, /## Terms/);
+    assert.match(loaded.corePrompt, /Then continue the covered work toward the agreed end/);
     assert.equal(loaded.skillsPrompt, undefined);
     assert.match(loaded.interactionContractPrompt, /# Freeflow Interaction Contract/);
     assert.match(runtimeContext(loaded, state), /# Freeflow Stable Guidance/);
@@ -152,7 +152,7 @@ test("Pi exposes base skills without mode or Skills controls", async () => {
     const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base" }, ctx);
     assert.match(before.renderedGuidance, /# Freeflow Stable Guidance/);
     assert.match(before.renderedGuidance, /# Freeflow Interaction Contract/);
-    assert.match(before.renderedGuidance, /## Shared Terms/);
+    assert.match(before.renderedGuidance, /## Terms/);
     assert.doesNotMatch(before.renderedGuidance, /## Mode\b|strict-workflow|conversation mode|workflow mode/);
     assert.doesNotMatch(before.renderedGuidance, /Skills prompt/);
 

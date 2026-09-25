@@ -9,7 +9,7 @@ Preserve one supported repository state as a coherent local Git checkpoint.
 
 Commit Work normally follows execution, verification, self-review, and any selected independent review. It preserves that supported state; it does not establish correctness, close the Slice, authorize another Slice, or imply push, integration, release, or launch.
 
-A commit is not mandatory merely because work finished. Enter only when the user explicitly requests a local commit or [Workflow](../workflow/SKILL.md) selects an authorized Local commit checkpoint.
+A commit is not mandatory merely because work finished. Enter only when the user explicitly requests a local commit or [Workflow](../workflow/SKILL.md) selects an authorized `preserve` Checkpoint.
 
 An explicitly requested preservation checkpoint may capture incomplete, failing, or inconclusive work. Describe that state honestly and do not treat the commit as permission to cross the unresolved boundary.
 
@@ -121,7 +121,7 @@ Report:
 - any hook, signing, identity, or repository limitation;
 - the route returned to Workflow.
 
-Return the checkpoint result to Workflow. When a Working Record exists, Workflow may route [Track Work](../track-work/SKILL.md) to record `commit:<sha>`, settle the selected checkpoint, and reconcile the Current Slice.
+Return the checkpoint result to Workflow. When a Working Record exists, Workflow may route [Track Work](../track-work/SKILL.md) to record `commit:<sha>` in the Current Slice's Material updates, close the selected `preserve` Checkpoint, and reconcile the Current Slice. A commit is never a Slice of its own.
 
 Do not stage leftovers, begin another Slice, push, integrate, release, or clean up merely because the commit succeeded.
 

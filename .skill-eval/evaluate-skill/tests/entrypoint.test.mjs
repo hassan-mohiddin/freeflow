@@ -22,6 +22,11 @@ test("skill-eval exposes only the fresh command surface", () => {
   assert.match(result.stdout, /Working-tree or Git-backed ordered skills\/context/);
   assert.match(result.stdout, /optional fresh fixture copies/);
   assert.match(result.stdout, /body tools: read, write, edit/);
+  assert.match(result.stdout, /skill-eval review <result-id-or-directory> --model <provider\/model>/);
+  assert.match(result.stdout, /--trials <n>/);
+  assert.match(result.stdout, /--max-cost <total>/);
+  assert.match(result.stdout, /run_command for declared commands/);
+  assert.match(result.stdout, /isolated or host system prompt/);
   assert.doesNotMatch(result.stdout, /doctor|evaluate|grade|plan-only|semantic/);
 });
 

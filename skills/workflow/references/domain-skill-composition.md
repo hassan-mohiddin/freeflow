@@ -2,11 +2,13 @@
 
 Read this when specialized engineering guidance must support the current owner.
 
-Freeflow owns authority interpretation, current ownership, route changes, evidence honesty, checkpoints, continuity, and Supported Exit. Domain guidance supplies specialized engineering method. It does not become another Workflow, current owner, or authority source.
+This reference is judgment: adapt it to the task. Its binding statements restate [Workflow](../SKILL.md) Rules.
+
+Freeflow owns authority interpretation, current ownership, route changes, evidence honesty, checkpoints, continuity, and deciding when the work is done. Domain guidance supplies specialized engineering method. It does not become another Workflow, current owner, or authority source.
 
 ## Compose One Current Owner
 
-For the current bounded activity:
+For the current piece of work:
 
 1. keep one Freeflow current owner;
 2. add only the domain guidance required by the concrete technology, behavior, environment, or risk;
@@ -26,7 +28,7 @@ It does not override:
 
 - user-owned product, scope, or risk decisions;
 - repository instructions or accepted behavior;
-- the authority envelope;
+- the authority the user granted;
 - source truth, failure contracts, or evidence requirements;
 - the current owner’s result and return conditions;
 - selected checkpoints or separately controlled effects;

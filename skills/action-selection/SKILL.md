@@ -5,53 +5,52 @@ description: "Use when choosing or bounding an environment interaction, especial
 
 # Action Selection
 
-Choose one covered environment interaction that advances the current question or result, observe what it actually changes, and return the changed evidence to the current owner.
+Choose environment interactions that advance the current question or result, observe what they actually change, and return the changed evidence to the current owner.
 
-An environment interaction is a bounded tool-mediated observation or effect. A current activity can need several interactions; a tool call is not a task phase, Slice, or reason to change ownership.
+An environment interaction is a bounded tool-mediated observation or effect. A current activity can need many of them; a tool call is not a task phase, a Slice, or a reason to change ownership.
 
-Action Selection does not decide the user's outcome, work agreement, execution method, Slice, checkpoint, or Workflow route. It serves the owner responsible for those judgments and cannot accept the whole result.
+The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 
-## Identify The Immediate Need
+## Rules
 
-Before touching the environment, identify what this interaction must answer or produce. Reuse evidence already available and current enough for that purpose.
+- Action Selection serves the current owner. It never changes the outcome, work agreement, execution method, scope, Slice, Checkpoint, or route, accepts no result, and an available tool grants no authority. Return changed authority, scope, ownership, direction, evidence boundary, or stop conditions to [Workflow](../workflow/SKILL.md).
+- Never present a simulated, predicted, sampled, or truncated result as a complete observation. State truncation and sampling explicitly; a partial result does not show that omitted matches are irrelevant or that a search was exhaustive.
+- Never report an interaction's success as proof of a wider claim. A successful read is not understanding, a successful write is not correctness, and a passing tool result is not the claim it was meant to support; return the evidence for interpretation.
+- Do not emit candidate tables, scores, or speculative tool-call sequences unless a user-owned choice is exposed.
 
-The need may be:
+## Know What The Step Must Establish
 
-- understanding the required outcome or reported symptom;
-- establishing the mechanism, dependency, or approach;
-- applying an understood change;
-- observing whether a claim holds;
-- reconstructing missing continuation state.
+Goal: every interaction answers a question the owner actually has.
 
-Use these purposes to focus the action, not to print phase labels or restart planning. Ask: what is the minimum sufficient context or effect for this next decision? Minimum means sufficient, not merely short.
+Before touching the environment, identify what the interaction must answer or produce, and reuse evidence already available and current enough for that purpose. The need may be understanding the outcome or symptom, establishing a mechanism or dependency, applying an understood change, observing whether a claim holds, or reconstructing missing continuation state. Use these to focus the action, not to print phase labels or restart planning.
 
-Do not collect information because it may be useful later. Do not confuse the existence of a source or reference with having its necessary contents available.
+Aim for the minimum sufficient context or effect for the next decision; minimum means sufficient, not merely short. Do not collect information because it may be useful later, and do not mistake a source or reference existing for its contents being available.
 
-## Take The Fast Path When The Action Is Known
+## Run Settled Steps; Select Uncertain Ones
 
-Use the direct tool when the target, purpose, scope, and observing boundary are already supported and the action is covered, mechanical, and directly verifiable.
+Goal: spend judgment where the next step is genuinely open, and none on steps that are already decided.
 
-Examples include reading a known function or range, applying an exact selected edit, running an already-chosen focused check, or inspecting its resulting diff.
+When the target, purpose, scope, and observing boundary are supported and the action is covered and directly checkable, act directly: read a known function or range, apply a selected edit, run a chosen focused check, inspect its diff.
 
-Do not manufacture alternative tools or repeat the action-selection method for an obvious continuation. A command being easy to run does not make its target or hypothesis well chosen.
+When the owner's route or [Execute Work](../execute-work/SKILL.md)'s forecast already fixes a sequence, run the sequence without reconsidering each call. Issue independent reads together, apply coupled edits before their shared check, and run that check once. Select again only when a result contradicts the forecast, is unexpected, or opens a new question.
 
-## Compare Only Meaningful Alternatives
+Select deliberately when the target, observer, or scope is uncertain, the likely output is broad, the action is destructive, expensive, or hard to recover, or recent work has stalled:
 
-When the target, observer, or scope is uncertain, likely output is broad, the action is destructive, expensive, or difficult to recover, or recent work has stalled:
-
-1. Identify the fact or effect the current owner needs.
+1. Identify the fact or effect the owner needs.
 2. Check whether existing evidence already supplies it.
 3. Consider only a few materially different ways to obtain it.
-4. Reject unchanged rereads, equivalent searches, eliminated approaches, and information without a current use.
+4. Reject unchanged rereads, equivalent searches, eliminated approaches, and information with no current use.
 5. Prefer the most direct action that distinguishes the plausible answers.
 6. Among equally useful actions, prefer proportionate output, side effects, context residue, and recovery cost.
-7. Execute the selected action once; choose the next interaction from its actual result.
+7. Execute it, then choose what follows from the actual result.
 
-Keep this comparison internal unless a user-owned choice is exposed. Do not emit candidate tables, numeric scores, simulated results, or a speculative sequence of tool calls.
-
-A good observation can change the owner's belief or next action whether it supports or contradicts the leading explanation. An exact mutation can advance a settled result without testing a new hypothesis.
+Keep this comparison internal. A command being easy to run does not make its target or hypothesis well chosen. A good observation can change the owner's belief or next action whether it supports or contradicts the leading explanation; an exact mutation can advance a settled result without testing a hypothesis.
 
 ## Bound The Tool And Its Output
+
+Goal: get the needed evidence at the lowest total cost, counting what the output costs after it arrives.
+
+Everything an interaction returns stays in context and is paid for again on every later turn until compaction, so one broad read can cost more than several focused ones. Each separate call also costs a model turn, so batching independent calls saves turns. Weigh both.
 
 Use the simplest operation that can establish the required relationship:
 
@@ -62,39 +61,32 @@ Use the simplest operation that can establish the required relationship:
 - understood effect -> narrow direct mutation;
 - unknown location -> bounded discovery, then narrow from its result.
 
-Choose scope before execution: directory, source kind, pattern, range, test target, time window, result count, fields, affected state, or recovery scope. Exclude unrelated history, generated output, and dependencies unless the current question needs them.
+Choose scope before running: directory, source kind, pattern, range, test target, time window, result count, fields, affected state, or recovery scope. Exclude unrelated history, generated output, and dependencies unless the question needs them. When volume is uncertain, run a location or count query before requesting all matching bodies, and prefer bounded output with an accessible full result.
 
-Use a location or count query before requesting all matching bodies when volume is uncertain. Prefer bounded output with an accessible full result. Truncation or a sampled result must remain explicit; it is not proof that omitted matches are irrelevant or that a search was exhaustive.
+When Runtime State shows Tool Execution active, recover exact captured output with `freeflow_result` instead of rerunning its command, and use a `freeflow_run` program when a settled loop over many results (filter, parse, compare, aggregate) would otherwise take many model turns. A program runs known steps; return to ordinary calls when a result needs a new decision.
 
-Context cost includes instructions, results, repeated material, and the capacity still needed for implementation, checking, correction, and continuation. Use host-supplied usage when available; do not invent token measurements or treat the provider maximum as a promise that a unit will fit.
-
-The owner selects the work horizon. Return unexpectedly large context needs to it instead of reading the entire dependency tree or silently shrinking acceptance.
+Use host-supplied usage when available; do not invent token counts or treat the provider maximum as a promise that the work will fit. The owner chooses the work horizon: return an unexpectedly large context need to it instead of reading the whole dependency tree or silently shrinking acceptance.
 
 ## Observe Before Continuing
 
-After the interaction, determine:
+Goal: know what changed before deciding what comes next.
 
-- what actually ran or was returned;
-- what changed in evidence, hypotheses, implementation, or task state;
-- whether the intended question was answered or effect produced;
-- which uncertainty, partial effect, or contradictory observation remains.
+After an interaction, establish what actually ran or was returned, what changed in evidence, hypotheses, implementation, or task state, whether the intended question was answered or effect produced, and what uncertainty, partial effect, or contradiction remains. New content is not automatically useful evidence.
 
-New content is not automatically useful evidence. A successful read is not understanding; a successful write is not correctness; a passing tool result is not proof of the wider claim. Return evidence to its owner for interpretation at the required boundary.
+When a read settles the question, stop that investigation. An invalidated implementation premise needs reassessment before dependent effects; ordinary local continuation can proceed.
 
-When a read settles the question, stop that investigation. Ordinary local continuation may be obvious; an invalidated implementation premise needs reassessment before dependent effects.
+## Notice A Stall Early
 
-If the result did not advance the question, do not repeat it using synonyms, nearby files, a wider equivalent search, or another tool. Change the question or observer, or report the missing evidence.
+Goal: stop spending interactions that no longer change anything.
 
-When two or more recent interactions have not materially changed understanding, advanced the covered effect, or supported a new branch, read [Trajectory Stalls](references/trajectory-stalls.md) before another interaction.
+If an interaction did not advance the question, do not repeat it with synonyms, nearby files, a wider equivalent search, or another tool with the same evidence relationship. Change the question or the kind of observer, or report the missing evidence.
 
-## Return Without Expanding The Work
+The common stalls are rerunning a check against unchanged state, rereading an unchanged source without a new question, widening a search without narrowing the hypothesis, and alternating edits, failures, and reversions without a supported cause. When two or more recent interactions have not changed understanding, advanced the covered effect, or supported a new branch, read [Trajectory Stalls](references/trajectory-stalls.md) before another interaction.
 
-Return the observation and material state change to the same current owner. Action Selection does not transfer compute profiles, accept an implementation, or create authority.
+For unexplained repeated failure, use [Diagnose Failure](../diagnose-failure/SKILL.md).
 
-When an experiment reveals a new prerequisite, report what it blocks: the current observer, chosen approach, or required outcome. Do not convert a blocked tool or prototype into permission to build a subsystem.
+## Return
 
-Use [Diagnose Failure](../diagnose-failure/SKILL.md) for unexplained repeated failures. Return changed authority, scope, ownership, direction, evidence boundary, or stop conditions to [Workflow](../workflow/SKILL.md).
+Return the observation and material state change to the same owner. Stop when the immediate need is satisfied, the active contract requires return, no useful covered interaction remains, or another activity must settle the next choice. Reuse adequate evidence instead of generating new calls to justify completion.
 
-Stop when the immediate need is satisfied, the active contract requires return, no useful covered interaction remains, or another activity must settle the next choice. Reuse adequate evidence instead of generating new calls to justify completion.
-
-The goal is fewer low-value interactions while preserving sufficient evidence and the agreed outcome—not fewer calls at any cost.
+The goal is fewer low-value interactions while preserving sufficient evidence and the agreed outcome, not fewer calls at any cost.

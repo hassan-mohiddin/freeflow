@@ -105,7 +105,7 @@ const args = process.argv.slice(2);
 const skills = args.flatMap((arg, index) => arg === "--skill" ? [args[index + 1]] : []);
 const log = (value) => appendFileSync(process.env.FAKE_PI_LOG, JSON.stringify(value) + "\\n");
 const emit = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
-log({ host: path.basename(process.argv[1]), kind: "spawn", args, cwd: process.cwd(), allowedRoots: JSON.parse(process.env.SKILL_EVAL_ALLOWED_ROOTS), contextManifest: process.env.SKILL_EVAL_CONTEXT_MANIFEST || null });
+log({ host: path.basename(process.argv[1]), kind: "spawn", args, cwd: process.cwd(), allowedRoots: JSON.parse(process.env.SKILL_EVAL_ALLOWED_ROOTS), contextManifest: process.env.SKILL_EVAL_CONTEXT_MANIFEST || null, commands: process.env.SKILL_EVAL_COMMANDS || null, promptMode: process.env.SKILL_EVAL_PROMPT_MODE || null });
 if (process.env.FAKE_RPC_EXTENSION_ERROR === "1") {
   emit({
     type: "extension_error",
@@ -892,6 +892,110 @@ test("body evaluation preserves declared tool activity and exact workspace effec
     assert.match(viewed.stdout, /changes\tcreated\tresult\.txt/);
     assert.match(viewed.stdout, /^ {2}changes\tmodified$/m);
     assert.match(viewed.stdout, /^ {2}changes\tdeleted$/m);
+  });
+});
+
+test("declared commands load the evaluator command tool immediately after the guard", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakeRpcPi(root);
+    await writeSkill(root, "skills/release-route");
+    const group = bodyGroup();
+    group.tools = ["read", "run_command"];
+    group.commands = [{ id: "unit-tests", argv: ["node", "--test"], timeout_ms: 30000 }];
+    const definition = await writeJson(root, "groups/body-commands.json", group);
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    const spawns = (await readJsonLines(fakeLog, "fake Pi log")).filter((entry) => entry.kind === "spawn");
+    assert.equal(spawns.length, 2);
+    for (const spawned of spawns) {
+      const guardIndex = spawned.args.findIndex((value) => /pi-guard\.mjs$/.test(value));
+      const commandIndex = spawned.args.findIndex((value) => /pi-command-tool\.mjs$/.test(value));
+      assert.ok(guardIndex >= 0);
+      assert.ok(commandIndex === guardIndex + 2, "command tool loads immediately after the guard");
+      assert.equal(spawned.args[spawned.args.indexOf("--tools") + 1], "read,run_command");
+      assert.deepEqual(JSON.parse(spawned.commands), group.commands);
+    }
+    const candidate = parseJson(
+      await readFile(path.join(resultDirectory, "groups/body-behavior/candidate/run.json"), "utf8"),
+      "candidate body run",
+    );
+    assert.deepEqual(candidate.commands, group.commands);
+  });
+});
+
+test("groups without declared commands do not load the command tool", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakeRpcPi(root);
+    await writeSkill(root, "skills/release-route");
+    const definition = await writeJson(root, "groups/body.json", bodyGroup());
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const spawns = (await readJsonLines(fakeLog, "fake Pi log")).filter((entry) => entry.kind === "spawn");
+    for (const spawned of spawns) {
+      assert.equal(
+        spawned.args.some((value) => /pi-command-tool\.mjs$/.test(value)),
+        false,
+      );
+      assert.equal(spawned.commands, null);
+      assert.equal(spawned.promptMode, "isolated");
+    }
+  });
+});
+
+test("the host prompt mode reaches the guard and is recorded in run evidence", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakeRpcPi(root);
+    await writeSkill(root, "skills/release-route");
+    const group = bodyGroup();
+    group.runtime.prompt = "host";
+    const definition = await writeJson(root, "groups/body-host.json", group);
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    const spawns = (await readJsonLines(fakeLog, "fake Pi log")).filter((entry) => entry.kind === "spawn");
+    assert.deepEqual(
+      spawns.map((entry) => entry.promptMode),
+      ["host", "host"],
+    );
+    const candidate = parseJson(
+      await readFile(path.join(resultDirectory, "groups/body-behavior/candidate/run.json"), "utf8"),
+      "candidate body run",
+    );
+    assert.equal(candidate.resources.runtime.prompt, "host");
   });
 });
 

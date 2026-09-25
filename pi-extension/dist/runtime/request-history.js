@@ -5,9 +5,12 @@ const TRANSIENT = new Set([
   "freeflow-runtime-state",
   "freeflow-cognitive-routing-runtime-state",
   "freeflow-routing-v2-state",
+  "freeflow-routing-attention",
   "freeflow-routing-budget",
   "freeflow-routing-communication",
 ]);
+// Situational notices describe a condition, not standing state; once absent, the next occurrence is new.
+const SITUATIONAL = new Set(["freeflow-routing-attention"]);
 const hash = (value) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 function fingerprint(message) {
   const { usage: _usage, timestamp: _timestamp, details: _details, ...body } = message;
@@ -152,6 +155,13 @@ export class RequestHistory {
       if (kind === "freeflow-routing-communication") seenRetained.add(signature);
       else states[kind] = signature;
     }
+    const present = new Set(current.map((message) => message.customType));
+    let cleared = false;
+    for (const kind of SITUATIONAL)
+      if (states[kind] && !present.has(kind)) {
+        delete states[kind];
+        cleared = true;
+      }
     const injections = [];
     const chain = [];
     for (let cursor = prior; cursor; cursor = cursor.parent ? byId.get(cursor.parent) : undefined)
@@ -183,7 +193,7 @@ export class RequestHistory {
         }
       }
     }
-    if (!prior || prior.length !== base.length || additions.length) {
+    if (!prior || prior.length !== base.length || additions.length || cleared) {
       const frame = {
         version: 1,
         id: randomUUID(),

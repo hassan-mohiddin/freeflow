@@ -2,7 +2,7 @@
 
 Read this before comparing materially different interfaces or settling an important correctness boundary where ownership is consequential.
 
-Use only evidence and criteria capable of distinguishing viable boundaries. Do not emit a full checklist unless the artifact itself requires one.
+This reference is judgment. Use only evidence and criteria capable of distinguishing viable boundaries; the numbered steps are an order of thinking, not output to emit.
 
 ## 1. Frame The Complete Outcome
 
@@ -19,19 +19,7 @@ Do not begin from existing flags, storage paths, classes, or temporary states. T
 
 ## 2. Define The Failure Unit
 
-Name the coherent outcome treated as one success, failure, and recovery boundary.
-
-Define material:
-
-- terminal states and observers;
-- canonical and diagnostic state;
-- evidence written;
-- forbidden partial outcomes;
-- safe restart and recovery;
-- required proof;
-- whether partial reuse is required or merely an optimization.
-
-When correctness materially depends on canonical state, partial effects, atomic visibility, concurrency, cancellation, retries, recovery, reconciliation, or evidence of the final outcome, read [State And Failure Boundaries](state-and-failure-boundaries.md).
+Name the failure unit as Design for Depth's Bound Success And Failure describes, including whether partial reuse is required or merely an optimization. When correctness depends on canonical state, partial effects, atomic visibility, concurrency, cancellation, retries, recovery, reconciliation, or final-outcome evidence, read [State And Failure Boundaries](state-and-failure-boundaries.md).
 
 ## 3. Inventory Material Caller Knowledge
 
@@ -55,16 +43,9 @@ For each fact ask:
 
 The goal is not zero interface knowledge. It is the smallest honest contract.
 
-## 4. Classify Capability Maturity
+## 4. Classify What Each Mechanism Is For
 
-Separate:
-
-- required trust and safety;
-- accepted efficiency or scale;
-- demonstrated portability;
-- speculative flexibility.
-
-Do not defer required correctness to obtain a simpler-looking interface. Do not promote hypothetical efficiency, scale, or portability into present architecture.
+Separate required trust and safety from efficiency, scale, and portability, as [Design Pressure Signals](design-pressure-signals.md) describes. Do not defer required correctness for a simpler-looking interface, or promote hypothetical efficiency, scale, or portability into present architecture.
 
 ## 5. Produce Alternatives Only When Real
 
@@ -121,16 +102,4 @@ The learning slice answers the design question. It does not quietly implement th
 
 ## 8. Return The Supported Boundary
 
-Return:
-
-- structural evidence;
-- selected boundary and hidden decision;
-- caller-owned contract;
-- module and dependency implications;
-- failure unit and material failure behavior;
-- rejected alternatives and discriminating reason, when alternatives were real;
-- unresolved user-owned decisions;
-- assumptions and required evidence;
-- narrowest next route.
-
-Stop once a boundary is supported or a bounded learning question is identified. Recommendation does not authorize implementation.
+Return the selected boundary with its structural evidence, hidden decision, caller-owned contract, failure behavior, the discriminating reason when alternatives were real, unresolved user-owned decisions, and the narrowest next route. Stop once a boundary is supported or a bounded learning question is identified.

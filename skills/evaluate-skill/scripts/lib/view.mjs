@@ -22,6 +22,13 @@ class ViewError extends Error {
 
 export async function renderResult(target, selectors = DEFAULT_SELECTORS, { root = process.cwd() } = {}) {
   const resultDirectory = await resolveResult(target, root);
+  const aggregateFile = path.join(resultDirectory, "aggregate.json");
+  if (await stat(aggregateFile).catch(() => null)) {
+    if (selectors.group !== null || selectors.variant !== null) {
+      throw new ViewError("selectors are not supported for an aggregate; view an individual trial instead");
+    }
+    return renderAggregate(resultDirectory, await readJson(aggregateFile, "aggregate"));
+  }
   const summary = await readJson(path.join(resultDirectory, "summary.json"), "result summary");
   let groups = Array.isArray(summary.groups) ? summary.groups : [];
   if (summary.definitionKind === "group" && selectors.group !== null) {
@@ -56,6 +63,7 @@ async function renderGroup(resultDirectory, group, selectedVariant) {
 
   appendSharedEvidence(lines, definition);
   appendGradeEvidence(lines, grade, group, definition, selectedVariant);
+  await appendAdvisoryReview(lines, groupDirectory, selectedVariant);
   for (const variant of variants) {
     await appendVariantEvidence(lines, resultDirectory, groupDirectory, group.id, variant);
   }
@@ -135,6 +143,64 @@ function appendGradeEvidence(lines, grade, group, definition, selectedVariant) {
   }
 }
 
+// Advisory answers stay visually separate from deterministic grades; they are not canonical evidence.
+async function appendAdvisoryReview(lines, groupDirectory, selectedVariant) {
+  const file = path.join(groupDirectory, "semantic-grade.json");
+  if (!(await stat(file).catch(() => null))) return;
+  const review = await readJson(file, "advisory review");
+  lines.push(`Advisory review [${review.state}] model=${review.model} (not canonical evidence)`);
+  const variants = selectedVariant === null ? VARIANTS : [selectedVariant];
+  for (const [index, answer] of (review.answers ?? []).entries()) {
+    lines.push(
+      compactRow("review", [
+        `Q${index + 1}`,
+        ...variants.map((variant) => `${variant}=${answer[variant]}`),
+        answer.rationale,
+      ]),
+    );
+  }
+  for (const error of review.errors ?? []) lines.push(compactRow("error", ["review", error]));
+}
+
+function renderAggregate(resultDirectory, aggregate) {
+  const lines = [
+    `Aggregate ${aggregate.id} [${aggregate.state}] trials=${aggregate.trials.length}/${aggregate.requestedTrials}`,
+    `Path: ${escapeCell(resultDirectory)}`,
+  ];
+  if (aggregate.budget) {
+    lines.push(
+      compactRow("budget", [
+        `max-cost=${formatNumber(aggregate.budget.maxCost)}`,
+        `spent=${formatNumber(aggregate.budget.spent)}`,
+        `exhausted=${aggregate.budget.exhausted}`,
+      ]),
+    );
+  }
+  for (const trial of aggregate.trials) lines.push(compactRow("trial", [trial.id, trial.state]));
+  for (const group of aggregate.groups) {
+    lines.push("", `Group ${group.id} trials=${group.trials}`);
+    for (const comparison of group.comparisons) {
+      lines.push(
+        compactRow("comparison", [
+          comparison.id,
+          comparison.kind,
+          `baseline=${passRate(comparison.baseline)}`,
+          `candidate=${passRate(comparison.candidate)}`,
+          ...Object.entries(comparison.transitions).map(([transition, count]) => `${transition}=${count}`),
+        ]),
+      );
+    }
+    for (const check of group.checks) {
+      lines.push(compactRow("check", [check.id, check.variant, check.kind, `pass=${passRate(check)}`]));
+    }
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function passRate(counts) {
+  return `${counts.pass}/${counts.pass + counts.fail + counts.unavailable}`;
+}
+
 function selectedGradeErrors(errors, definition, selectedVariant) {
   if (!Array.isArray(errors)) return [];
   if (selectedVariant === null) return errors;
@@ -185,7 +251,7 @@ async function appendVariantEvidence(lines, resultDirectory, groupDirectory, gro
   );
 }
 
-async function resolveResult(target, root) {
+export async function resolveResult(target, root) {
   const explicit = path.resolve(root, target);
   const stored = path.join(root, ".skill-eval", "runs", target);
   const isPath = path.isAbsolute(target) || target.includes("/") || target.includes("\\") || target.startsWith(".");

@@ -194,3 +194,114 @@ test("Pi guard permits only declared tools and reads contained by canonical root
     }
   });
 });
+
+async function withGuardEnvironment(values, run) {
+  const original = Object.fromEntries(Object.keys(values).map((key) => [key, process.env[key]]));
+  Object.assign(process.env, values);
+  try {
+    await run();
+  } finally {
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
+test("Pi guard keeps the host system prompt in host prompt mode", async () => {
+  await withTempDirectory(async (root) => {
+    await withGuardEnvironment(
+      {
+        SKILL_EVAL_ALLOWED_ROOTS: JSON.stringify([root]),
+        SKILL_EVAL_WRITABLE_ROOT: root,
+        SKILL_EVAL_ALLOWED_TOOLS: JSON.stringify(["read"]),
+        SKILL_EVAL_CONTEXT_MANIFEST: "",
+        SKILL_EVAL_PROMPT_MODE: "host",
+      },
+      async () => {
+        const beforeAgentStart = installGuard().get("before_agent_start");
+        const result = beforeAgentStart({
+          systemPrompt: "NATIVE HOST PROMPT",
+          systemPromptOptions: { selectedTools: ["read"], cwd: root, skills: [] },
+        });
+        assert.equal(result, undefined);
+      },
+    );
+  });
+});
+
+test("Pi guard appends declared context to the host system prompt in host prompt mode", async () => {
+  await withTempDirectory(async (root) => {
+    const content = "Declared contract.\n";
+    const manifest = path.join(root, "context-delivery.json");
+    await writeFile(
+      manifest,
+      JSON.stringify({
+        schema_version: 1,
+        entries: [
+          {
+            declaredPath: "runtime/contract.md",
+            files: [{ path: "contract.md", sha256: createHash("sha256").update(content).digest("hex"), content }],
+          },
+        ],
+      }),
+    );
+    await withGuardEnvironment(
+      {
+        SKILL_EVAL_ALLOWED_ROOTS: JSON.stringify([root]),
+        SKILL_EVAL_WRITABLE_ROOT: root,
+        SKILL_EVAL_ALLOWED_TOOLS: JSON.stringify([]),
+        SKILL_EVAL_CONTEXT_MANIFEST: manifest,
+        SKILL_EVAL_PROMPT_MODE: "host",
+      },
+      async () => {
+        const beforeAgentStart = installGuard().get("before_agent_start");
+        const result = beforeAgentStart({
+          systemPrompt: "NATIVE HOST PROMPT",
+          systemPromptOptions: { selectedTools: [], cwd: root, skills: [] },
+        });
+        assert.match(result.systemPrompt, /^NATIVE HOST PROMPT\n\n<declared_context>/);
+        assert.ok(result.systemPrompt.includes(content));
+      },
+    );
+  });
+});
+
+test("Pi guard enforces declared tools and paths in host prompt mode", async () => {
+  await withTempDirectory(async (root) => {
+    await withGuardEnvironment(
+      {
+        SKILL_EVAL_ALLOWED_ROOTS: JSON.stringify([root]),
+        SKILL_EVAL_WRITABLE_ROOT: root,
+        SKILL_EVAL_ALLOWED_TOOLS: JSON.stringify(["read"]),
+        SKILL_EVAL_CONTEXT_MANIFEST: "",
+        SKILL_EVAL_PROMPT_MODE: "host",
+      },
+      async () => {
+        const guard = installGuard().get("tool_call");
+        assert.match(guard({ toolName: "bash", input: { command: "pwd" } }, { cwd: root }).reason, /not declared/);
+        assert.match(
+          guard({ toolName: "read", input: { path: "/etc/hosts" } }, { cwd: root }).reason,
+          /escapes the evaluation environment/,
+        );
+      },
+    );
+  });
+});
+
+test("Pi guard rejects an unknown prompt mode", async () => {
+  await withTempDirectory(async (root) => {
+    await withGuardEnvironment(
+      {
+        SKILL_EVAL_ALLOWED_ROOTS: JSON.stringify([root]),
+        SKILL_EVAL_WRITABLE_ROOT: root,
+        SKILL_EVAL_ALLOWED_TOOLS: JSON.stringify([]),
+        SKILL_EVAL_CONTEXT_MANIFEST: "",
+        SKILL_EVAL_PROMPT_MODE: "production",
+      },
+      async () => {
+        assert.throws(() => installGuard(), /SKILL_EVAL_PROMPT_MODE/);
+      },
+    );
+  });
+});

@@ -2,6 +2,8 @@
 
 Read this after canonical evidence and deterministic grades exist, when evidence conflicts, meaning remains unresolved, the failed boundary must be classified, or revision and rerun scope must be chosen.
 
+This reference is judgment: adapt it to the evidence in hand. Its rerun and no-edit requirements restate [Evaluate Skill](../SKILL.md) Rules.
+
 ## Use The Strongest Evidence
 
 Prefer, in order:
@@ -76,7 +78,7 @@ After a measured skill revision or resolved infrastructure cause:
 - do not use partial evidence as a comparable full result;
 - do not rerun merely to erase failure.
 
-For variance, use independent complete invocations rather than repeated preferred variants.
+For variance, use `--trials` to run independent complete invocations rather than repeated preferred variants.
 
 ## Report
 

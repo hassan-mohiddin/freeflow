@@ -2,9 +2,12 @@ import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
-const EVALUATION_TYPES = new Set(["description", "body", "end-to-end"]);
+const EVALUATION_TYPES = new Set(["description", "body"]);
 const VARIANTS = ["baseline", "candidate"];
 const EVALUATION_HOSTS = new Set(["pi", "piflow"]);
+const PROMPT_MODES = new Set(["isolated", "host"]);
+export const COMMAND_TOOL = "run_command";
+const MAX_COMMAND_TIMEOUT_MS = 10 * 60 * 1000;
 const RESERVED_ENVIRONMENT_KEYS = new Set([
   "PATH",
   "HOME",
@@ -147,12 +150,15 @@ function validateRuntime(value, definitionPath) {
   const runtime = requireExactKeys(
     value,
     ["host", "extensions", "environment", "session"],
-    [],
+    ["prompt"],
     "group.runtime",
     definitionPath,
   );
   if (!EVALUATION_HOSTS.has(runtime.host)) {
     fail("invalid-definition", "group.runtime.host must be pi or piflow", definitionPath);
+  }
+  if (Object.hasOwn(runtime, "prompt") && !PROMPT_MODES.has(runtime.prompt)) {
+    fail("invalid-definition", "group.runtime.prompt must be isolated or host", definitionPath);
   }
   if (!Array.isArray(runtime.extensions)) {
     fail("invalid-definition", "group.runtime.extensions must be an array", definitionPath);
@@ -253,6 +259,42 @@ function validateExpectations(value, definitionPath) {
   }
 }
 
+// Declared commands are fixed by the definition author; the subject may only choose which one runs.
+function validateCommands(group, definitionPath) {
+  const toolDeclared = group.tools.includes(COMMAND_TOOL);
+  if (!Object.hasOwn(group, "commands")) {
+    if (toolDeclared) fail("invalid-definition", `${COMMAND_TOOL} requires declared group.commands`, definitionPath);
+    return;
+  }
+  if (!toolDeclared) fail("invalid-definition", `group.commands requires the ${COMMAND_TOOL} tool`, definitionPath);
+  if (group.type !== "body")
+    fail("invalid-definition", "group.commands are supported only by body groups", definitionPath);
+  if (!Array.isArray(group.commands) || group.commands.length === 0) {
+    fail("invalid-definition", "group.commands must be a non-empty array", definitionPath);
+  }
+  const ids = new Set();
+  for (const [index, entry] of group.commands.entries()) {
+    const label = `group.commands[${index}]`;
+    const command = requireExactKeys(entry, ["id", "argv"], ["timeout_ms"], label, definitionPath);
+    requireId(command.id, `${label}.id`, definitionPath);
+    if (ids.has(command.id))
+      fail("invalid-definition", `group.commands contains duplicate ID ${command.id}`, definitionPath);
+    ids.add(command.id);
+    const argv = requireStringArray(command.argv, `${label}.argv`, definitionPath);
+    if (argv.length === 0) fail("invalid-definition", `${label}.argv must not be empty`, definitionPath);
+    if (
+      Object.hasOwn(command, "timeout_ms") &&
+      (!Number.isInteger(command.timeout_ms) || command.timeout_ms < 1 || command.timeout_ms > MAX_COMMAND_TIMEOUT_MS)
+    ) {
+      fail(
+        "invalid-definition",
+        `${label}.timeout_ms must be an integer from 1 to ${MAX_COMMAND_TIMEOUT_MS}`,
+        definitionPath,
+      );
+    }
+  }
+}
+
 function validateModel(value, definitionPath) {
   const model = requireExactKeys(value, ["model"], ["thinking"], "group.model", definitionPath);
   requireString(model.model, "group.model.model", definitionPath);
@@ -274,7 +316,7 @@ function validateGroup(value, definitionPath) {
       "expectations",
       "review_questions",
     ],
-    ["model", "runtime"],
+    ["model", "runtime", "commands"],
     "group",
     definitionPath,
   );
@@ -282,11 +324,12 @@ function validateGroup(value, definitionPath) {
   if (group.kind !== "group") fail("invalid-definition", "group.kind must be group", definitionPath);
   requireId(group.id, "group.id", definitionPath);
   if (!EVALUATION_TYPES.has(group.type)) {
-    fail("invalid-definition", "group.type must be description, body, or end-to-end", definitionPath);
+    fail("invalid-definition", "group.type must be description or body", definitionPath);
   }
   validateInput(group.input, definitionPath);
   if (group.fixture !== null) requireSafeRelativePath(group.fixture, "group.fixture", definitionPath);
   requireStringArray(group.tools, "group.tools", definitionPath, { unique: true });
+  validateCommands(group, definitionPath);
   if (Object.hasOwn(group, "runtime")) validateRuntime(group.runtime, definitionPath);
   const variants = requireExactKeys(group.variants, VARIANTS, [], "group.variants", definitionPath);
   for (const variant of VARIANTS) validateEnvironment(variants[variant], `group.variants.${variant}`, definitionPath);

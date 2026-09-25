@@ -1,5 +1,5 @@
 import { ROUTING_TOOLS } from "./runtime.js";
-import { ROUTING_SCHEMAS, matches } from "./schemas.js";
+import { ROUTING_SCHEMAS, explainRoutingArguments, matches } from "./schemas.js";
 export { ROUTING_SCHEMAS } from "./schemas.js";
 import { renderRoutingCall, renderRoutingResult } from "./render.js";
 const descriptions = {
@@ -38,8 +38,7 @@ export function registerRoutingTools(pi, runtime) {
       renderCall: (args, _theme, context) => renderRoutingCall(name, args, context),
       renderResult: (result, options, _theme, context) => renderRoutingResult(result, options, name, context),
       async execute(id, input, signal, _update, ctx) {
-        if (!matches(input, ROUTING_SCHEMAS[name]))
-          throw new Error("Invalid routing arguments; no operation accepted.");
+        if (!matches(input, ROUTING_SCHEMAS[name])) throw new Error(explainRoutingArguments(name, input));
         return runtime.invoke(name, id, input, signal, ctx);
       },
     };

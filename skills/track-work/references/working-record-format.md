@@ -1,12 +1,26 @@
 # Working Record Format
 
-This is the canonical Markdown shape for a Schema 4 Working Record. Read it before directly editing structured content or preparing Markdown for a lifecycle command. It defines format and mechanical invariants; it does not authorize work or settle task meaning.
+This reference owns the exact Schema 4 shape: sections, fields, states, lifecycle transitions, and the command contract. Read it before editing structure or preparing input for a command. It defines format, not what is worth recording; [Track Work](../SKILL.md) owns that judgment.
 
-The record is a compact current-state projection with append-oriented Slice history. It is not a transcript, a second Spec, a Plan, or a source of truth for the live environment.
+## Task Directory
 
-## Canonical Skeleton
+Each task has one directory:
 
-Initialization creates every structural heading, including empty headings:
+```text
+.freeflow/tasks/task-NNN-<short-name>/
+  record.md    the Working Record
+  specs/       task-local Specs
+  plans/       task-local Plans
+  sources/     saved copies of material that exists only in conversation
+```
+
+`NNN` is three or more digits. A new task takes the next number after the highest existing one; numbers are never reused. `specs/`, `plans/`, and `sources/` are created only when needed. The directory must be ignored by Git and untracked.
+
+A Spec or Plan may instead live in the repository's own documentation; the record points to it either way.
+
+## Skeleton
+
+`init` creates every structural heading:
 
 ```markdown
 # Working Record: <task name>
@@ -37,6 +51,8 @@ Last updated: <UTC ISO-8601 timestamp>
 
 None
 
+### Recovery sources
+
 ### Next useful action
 
 ## Future Work
@@ -52,476 +68,284 @@ None
 ## Notes
 ```
 
-The header contains the task name, `Schema`, task `State`, and script-maintained `Last updated`. `init` creates the timestamp and every successful lifecycle mutation refreshes it. Views, validation, failed commands, no-ops, and direct Markdown edits do not refresh it. It is advisory recency metadata, not proof of validity, freshness, authority, or semantic truth.
+The five top-level sections are fixed, in this order: Current Context, Current Work, Future Work, History, Notes. `### Recovery sources` is optional; records created before it existed remain valid without it.
 
-The five top-level sections and their order are fixed:
+The header holds the task name, `Schema`, task `State`, and `Last updated`. `init` and every successful lifecycle command set `Last updated`; views, validation, failed commands, and direct edits do not. It records recency only, not validity or truth.
 
-```text
-Current Context
-Current Work
-Future Work
-History
-Notes
+## Field Syntax
+
+Structured entities use compact field rows:
+
+```markdown
+- Field: one-line value
+- Field:
+  - first item
+  - second item
 ```
 
-Do not create another top-level section or remove an empty structural heading. The `Notes` section is last and opaque to structured parsing; ordinary Markdown inside it is retained as inert content.
-
-## General Rules
-
-- Known structured blocks use only the field names defined here.
-- Omit optional fields when they carry no useful information; do not emit empty labels or `[empty]` markers.
-- `Current Slice` uses the literal `None` when no Slice is current.
-- Field values may be multiline. Use ordinary Markdown bullets for concise lists.
-- Lifecycle-created structured entities use compact field-list rows. A one-value field is `- Field: value`; multiple or block values use `- Field:` followed by two-space-indented lines. Keep fields contiguous so the preview remains a compact list.
-- Expanded Schema 4 fields (`Field:` followed by values) remain accepted for backward reads and direct maintenance. Do not mix expanded and compact field styles within one entity block.
-- Proposed Slices and proposed Checkpoints have no durable ID. Their titles must be unique across all Future Work items.
-- Current and historical Slices use script-assigned `S-NNN` IDs.
-- Accepted Checkpoints use script-assigned `C-NNN` IDs.
-- Decisions use script-assigned `D-NNN` IDs.
-- Durable IDs appear in headings and are never changed by direct edits.
-- A lifecycle command either publishes one complete valid transition or leaves the source unchanged. If publication is uncertain, stop and inspect `full` before retrying.
+- Multi-line values are indented two spaces under their field.
+- The older expanded style (`Field: value` without the leading dash) is still read. Do not mix the two styles within one entity; commands rewrite entities they change in compact style.
+- Use only the fields defined for the entity. Omit an optional field that has no value; never write an empty label such as `- Type:`.
+- Every line inside a structured entity belongs to a field or a permitted nested heading. Stray text is invalid.
+- Durable IDs are assigned by commands: `S-NNN` Slices, `C-NNN` Checkpoints, `D-NNN` Decisions. They appear in headings and never change or get reused.
+- Proposed Slices and proposed Checkpoints have no ID. Their titles must be unique across Future Work.
 
 ## Current Context
 
-Current Context is present understanding, not an event stream. Keep it concise and use bullets under exactly these seven headings:
+Present understanding, as bullets under exactly these seven headings:
 
-```markdown
-## Current Context
+| Heading | Holds |
+| --- | --- |
+| Goal | The outcome or central question; not the current mechanism. |
+| What defines this task | Pointers to the artifacts that define the task, such as its Spec, Plan, issue, or user-supplied brief. Every entry is read on each recovery. |
+| Settled | Facts and accepted understanding that still affect the work. |
+| Tentative | Hypotheses and provisional approaches. |
+| Open | Unresolved questions that could change the work. |
+| Current direction | The remaining approach and why; not a history of completed work. |
+| Boundaries | Scope exclusions, constraints, evidence limits, user-facing return conditions, and separately controlled actions. |
 
-### Goal
-
-- The durable outcome or central question.
-
-### What defines this task
-
-- Accepted artifacts, user decisions, constraints, and source pointers that determine interpretation.
-
-### Settled
-
-- Supported facts or accepted choices that still affect the task.
-
-### Tentative
-
-- Provisional hypotheses or assumptions.
-
-### Open
-
-- Unresolved questions capable of changing the next action.
-
-### Current direction
-
-- The remaining strategy, not a completed-work narrative.
-
-### Boundaries
-
-- Scope exclusions, evidence limits, stop conditions, and separately controlled actions.
-```
-
-`Settled` should not copy Decision rationale. `What defines this task` may point to accepted artifacts and sources without copying their content. Remove completed Slice narration, test inventories, hashes, stale failures, and live-run detail once their active consequence has an owner elsewhere.
-
-Change Context only when its present meaning changes. A Slice or Checkpoint transition alone does not require a Context rewrite. Concise does not mean lossy: retain detail when removing it could change the next valid action.
-
-Preserve the agreed outcome separately from the current approach. Use the existing Goal, defining-source pointers, Current direction, and Boundaries to retain the execution scope and user-facing return condition; do not add a contract or phase section. An accepted amendment or new finding may require reconciling affected Current Work and Future Work as well as Context. Record unresolved dependencies as unresolved rather than converting the current mechanism into a requirement.
+Keep only pointers under `What defines this task`; accepted choices go in Decisions and constraints in Boundaries. Change Current Context only when present meaning changes; a lifecycle transition alone does not require it. Remove narration once its consequence is recorded elsewhere.
 
 ## Current Work
 
-Current Work contains only one Current Slice and one next useful action:
-
-```markdown
-## Current Work
+Current Work holds one Current Slice or `None`, optional Recovery sources, and one Next useful action.
 
 ### Current Slice
 
-#### S-001 — <title>
+```markdown
+#### S-004 — Draft the migration guide
 - State: in_progress
 - Type: delivery
-- Intended result: The accepted outcome.
-- Authority source: The request or approval covering this Slice.
-- Scope: The permitted work boundary.
-- Expected evidence: The evidence required before closure.
-- Stop condition: The condition requiring pause or return for direction.
-- Starting state: The relevant current code or artifact state.
-- Reopened from: S-004
+- Intended result: A guide existing users can follow to move to v2.
+- Authority source: User request in this conversation.
+- Scope: docs/migration.md only.
+- Expected evidence: Every v1 option maps to a v2 option or a stated removal.
+- Stop condition: A v1 option with no v2 equivalent and no accepted removal.
+- Starting state: docs/migration.md does not exist.
 
 ##### Material updates
 
-- Extension — authority: user request; added scope: legacy adapter; added evidence: integration check.
-- Evidence — claim: adapter preserves the response shape; observer/boundary: focused integration test; result: supported; proves: local compatibility; does not prove: production behavior; pointer: file:test/compatibility.test.mjs
-- Paused — reason: compatibility policy is unresolved; resume when: the user selects a policy.
-- Resumed — resolution source: user selected backward compatibility.
-
-### Next useful action
-
-- Inspect the named adapter before changing it.
+- Evidence — claim: all 14 options mapped; observer/boundary: diff against v1 option list; result: supported; proves: coverage of listed options; does not prove: undocumented options; pointer: docs/migration.md
 ```
 
-Required active Slice fields:
+| Field | Required | Values |
+| --- | --- | --- |
+| State | yes | `in_progress`, `paused` |
+| Intended result | yes | |
+| Authority source | yes | |
+| Scope | yes | |
+| Expected evidence | yes | |
+| Stop condition | yes | |
+| Starting state | yes | The state of what this Slice will change. |
+| Type | no | `learning`, `delivery`, `deepening` |
+| Dependencies | no | |
+| Reopened from | no | `S-NNN` of a historical Slice |
 
-- `State: in_progress | paused`;
-- `Intended result`;
-- `Authority source`;
-- `Scope`;
-- `Expected evidence`;
-- `Stop condition`;
-- `Starting state`.
+`in_progress` means the Slice's result is being pursued. `paused` means it is still current but safe continuation is suspended; an ordinary turn, feedback, or context boundary is not a pause.
 
-Optional active Slice fields:
-
-- `Type: learning | delivery | deepening`;
-- `Dependencies`;
-- `Reopened from: S-NNN`.
-
-`Material updates` is optional and bullet-only. It is append-oriented, not a second entity schema. Add an entry only when losing it could affect safe continuation or truthful closure. Useful forms are:
+`##### Material updates` is optional and holds bullets only. Use these prefixes when they fit; the rest of each line is prose:
 
 ```text
-- Extension — authority: ...; added scope: ...; added evidence: ...; stop-condition change: ...
+- Extension — authority: ...; added scope: ...; added evidence: ...
 - Evidence — claim: ...; observer/boundary: ...; result: supported | contradicted | inconclusive | unavailable; proves: ...; does not prove: ...; pointer: ...
+- Result — identity: ...  (for example a commit SHA, document version, or sent message ID)
 - Paused — reason: ...; resume when: ...
 - Resumed — resolution source: ...
-- Blocker — why unsafe: ...; required resolution: ...; resume when: ...
-- Blocker resolved — resolution source: ...
+- Blocker — why unsafe: ...; required resolution: ...
 - Contradiction — ...
-- Review — judgment and task effect: ...
+- Review — judgment and effect: ...
 - Correction — ...
 ```
 
-These prefixes make important information recoverable without creating global Blocker or Evidence entities. They are compact conventions; the whole update remains ordinary Markdown prose. If an attempt fails, is rolled back, or leaves residual effects that change the next decision, preserve the attempt, reason, Evidence, and residual state here or in the historical Slice summary.
+An Evidence entry identifies the state it observed well enough to tell it apart from later versions. When later edits leave a result's applicability unresolved, say so rather than carrying the earlier result forward. Append counterevidence as a new entry instead of rewriting the earlier one. A missing output is unavailable evidence, not proof the check never ran. Label a report you did not observe as a report.
 
-Before context loss, retain any unverified edits, unresolved process outcome, relevant rejected approach, and prerequisite for the next action that would otherwise be lost. Preserve the current assignment's source and consequences separately from superseded instructions. Evidence prose should distinguish an observed result for an identified state from its unresolved applicability after later edits; keep real output pointers when available, and label unsupported reports as reports. Do not turn requested corrections into completed facts.
+When no Slice is current, the section contains the single line `None`.
 
-A learning result records its question, evidence limits, and consequence for later work; it does not silently establish production acceptance. These are semantic contents of existing fields, not new lifecycle states, contract entities, or event types.
+### Recovery sources
 
-When there is no active Slice:
-
-```markdown
-### Current Slice
-
-None
-```
-
-`Next useful action` is one concise action or an honest wait/stop condition. It is not a progress log. Slice lifecycle and task-state commands replace it atomically with agent-supplied text; Checkpoint commands may replace it when their transition changes the route.
-
-Before any consequential action, especially after recovery, confirm the task State, Current Slice, active Decisions, pending or deferred Checkpoints, Next useful action, applicable authority/scope/stop condition, unresolved Evidence, and contradictions. Reconcile the projection from the Working Record, selected exact History, accepted artifacts under `What defines this task`, the live environment, and current human intent and authority. Do not act from the Working Record alone.
-
-Do not begin Slice work until the start transition has successfully persisted and validated the Current Slice and Next useful action. Record an accepted extension before executing its expanded scope.
-
-A Current Slice may be `in_progress` or `paused` only. `paused` means the same outcome remains current but safe continuation is suspended; a turn boundary or ordinary feedback is not a pause. To remove an unresolved paused attempt from Current Work, close it historically as `blocked`. Close as historical `blocked` only from a paused Current Slice; close as `abandoned` only with explicit authority and a reason; close as `completed` only after required Evidence and applicable Checkpoints are settled.
-
-### Direct Start
-
-When an immediately authorized outcome does not need Future Work ordering or recovery, `slice start-direct` may create a detailed Current Slice without consuming or changing any Future Work item:
+What the next context must read to resume the current work, one bullet per source:
 
 ```markdown
-#### S-001 — Immediate outcome
-- State: in_progress
-- Intended result: The immediate accepted outcome.
-- Authority source: The request or approval covering this Slice.
-- Scope: The permitted work boundary.
-- Expected evidence: The evidence required before closure.
-- Stop condition: The condition requiring pause or return for direction.
-- Starting state: The relevant starting code or artifact state.
+### Recovery sources
+
+- docs/api-v2.pdf — the accepted response shape; sections 3–4 govern the current Slice.
+- .freeflow/tasks/task-007-report/sources/layout.png — the user's layout; the header spacing is binding.
+- conversation:turn-42 — the user's exception for legacy clients.
 ```
 
-Direct start requires the same authority and write-ahead contract as proposal start. Its title must not conflict with a Future Work item; if a proposal should be selected, use proposal start instead.
+Each entry is a pointer, then what it establishes. A pointer is a path relative to the repository root, an absolute path, a URL, or a host history reference when the host can retrieve it. Material that exists only in the conversation is saved under the task's `sources/` directory first. Recovery sources apply to Current Work only and do not carry into History.
+
+### Next useful action
+
+One concise action or an honest wait or stop condition, as a single bullet. Slice and task-state commands replace it with the `--next-action` text; Checkpoint commands replace it when `--next-action` is given.
 
 ## Future Work
 
-Future Work is one ordered mixed sequence of proposed Slices and non-terminal Checkpoints. Order recommends a sequence; it is not fixed execution order or authority.
-
-Preserve a useful provisional route when one emerges rather than waiting for every implementation detail. Keep the immediate outcome concrete and later outcomes directional. Use the existing Dependencies field for prerequisites or ordering constraints, including uncertainty when material. Reconcile affected proposals after learning or accepted changes; neither their order nor a preceding Slice's completion proves their prerequisites.
-
-All Future Work titles are unique across both kinds of item. A proposed item may be edited, reordered, or removed. A proposed item has no authority and cannot be selected merely because it exists.
+One ordered sequence of proposed Slices and non-terminal Checkpoints. Order is a recommendation; it confers no authority and may be revised at any time.
 
 ### Proposed Slice
 
 ```markdown
-### Slice — <unique title>
+### Slice — Add the CLI
 - State: proposed
-- Type: learning
-- Intended result: The candidate outcome.
-- Expected evidence: The evidence that would settle it.
-- Dependencies: A prerequisite or ordering constraint.
+- Intended result: A CLI that exposes the parser.
+- Expected evidence: CLI tests for each subcommand.
+- Dependencies: Implement the parser.
 ```
 
-Required:
-
-- unique title in the heading;
-- `State: proposed`;
-- `Intended result`.
-
-Optional:
-
-- `Type: learning | delivery | deepening`;
-- `Expected evidence`;
-- `Dependencies`.
-
-Starting removes this block from Future Work and creates a detailed Current Slice with a new `S-NNN`. The start operation must resolve any Checkpoint `Applies to` reference that named this proposed Slice.
+Required: `State: proposed` and `Intended result`. Optional: `Type`, `Expected evidence`, `Dependencies`.
 
 ### Checkpoint
 
-A Checkpoint belongs to one Slice. Its state is explicit even though its storage location remains Future Work until terminal:
-
-```text
-proposed -> pending <-> deferred
-pending | deferred -> completed | cancelled | replaced
-```
-
-A proposed Checkpoint has no ID:
-
 ```markdown
-### Checkpoint — <unique title>
-- State: proposed
-- Type: independent_review
-- Condition: The boundary that must be crossed or assessed.
-- Applies to: <proposed Slice title>
+### Checkpoint C-002 — Commit the parser
+- State: pending
+- Type: preserve
+- Condition: The parser Slice's checks pass.
+- Applies to: S-004
 ```
 
-Required fields:
+A proposed Checkpoint has no ID in its heading (`### Checkpoint — <title>`). Required fields: `State` (`proposed`, `pending`, `deferred`), `Type`, `Condition`, `Applies to`. `Applies to` names a proposed Slice by exact title until that Slice starts, then its `S-NNN`. Every Checkpoint belongs to one Slice; there are no task-wide Checkpoints.
 
-- unique title;
-- `State: proposed | pending | deferred`;
-- `Type: independent_review | local_commit | user_decision | continuity`;
-- `Condition`;
-- `Applies to`.
+| State | Meaning |
+| --- | --- |
+| `proposed` | Anticipated only. It has no ID and no authority, and may be removed directly. |
+| `pending` | Authorized or selected and due. Work that depends on it must not cross it, and its Slice cannot close until it is closed. |
+| `deferred` | Accepted but dormant until its condition. It is not cancelled, and it still blocks its Slice's closure. |
 
-`Applies to` uses the exact proposed Slice title until that Slice receives an ID, then becomes `S-NNN`. A task-wide Checkpoint is not part of this format; use a Slice that owns the continuity boundary.
+An accepted Checkpoint leaves Future Work only through `checkpoint close`; never drop one by editing.
 
-When the Checkpoint becomes accepted, activation requires explicit selection or authority, assigns `C-NNN`, and changes its state to `pending`. A proposal or recommendation is not acceptance. `pending` means the obligation is due and dependent work must not cross it. `deferred` means it remains accepted but dormant until its condition. An accepted Checkpoint cannot be removed by direct editing and cannot leave Future Work except through a lifecycle command.
-
-A proposed Checkpoint can be removed without History. A pending or deferred Checkpoint cannot be silently dropped. A Slice cannot close while an applicable Checkpoint is pending or deferred; resolve it first or keep the Slice current/paused.
+| Type | Boundary | Earlier name, still read |
+| --- | --- | --- |
+| `preserve` | Save a recoverable point: commit, draft version, snapshot. | `local_commit` |
+| `publish` | Make work available beyond the workspace: push, pull request, publication, sending. | |
+| `review` | Independent judgment of the work. | `independent_review` |
+| `decision` | A user-owned choice that later work depends on. | `user_decision` |
+| `continuity` | A planned pause, handoff, or transfer. | |
 
 ## History
 
-History always has these subsections in this order:
-
-```markdown
-## History
+Three subsections in this order: Decisions, Checkpoints, Slices. History is append-oriented: commands add entries and move terminal state into it; terminal entries are never deleted, reactivated, or rewritten.
 
 ### Decisions
-
-### Checkpoints
-
-### Slices
-```
-
-History is append-oriented, not strictly immutable: lifecycle commands may change an active Decision to a terminal state or move a current Slice/Checkpoint into History. Terminal content is never silently deleted, reactivated, or replaced. A clerical correction appends a correction record without erasing the prior value.
-
-### Decisions
-
-Decisions are accepted choices, not tentative hypotheses. Add one with a script-assigned `D-NNN`:
 
 ```markdown
 #### D-001 — Keep the Markdown record canonical
 - State: active
-- Decision: `record.md` remains the canonical task projection.
-- Established by: The user’s accepted direction.
-- Rationale: Agents need a readable selective recovery surface.
-- Source references: file:...#...
-- Consequences: Views can project one record without duplicating state.
+- Decision: record.md remains the canonical task memory.
+- Established by: The user's accepted direction on 2026-09-25.
+- Rationale: Agents need one readable recovery surface.
+- Consequences: Views project the same file.
 - Revisit when: The storage boundary changes.
 ```
 
-Fields:
+Required: `State` (`active`, `superseded`, `retired`), `Decision`, `Established by`, `Rationale`, `Consequences`, `Revisit when`. Optional: `Source references`. `Superseded by: D-NNN` is required when superseded; `Retired because` when retired.
 
-- `State: active | superseded | retired` — required;
-- `Decision` — required;
-- `Established by` — required;
-- `Rationale` — required;
-- `Consequences` — required;
-- `Revisit when` — required;
-- `Source references` — optional;
-- `Superseded by: D-NNN` — required when `superseded`;
-- `Retired because` — required when `retired`.
-
-Lifecycle:
-
-```text
-active -> superseded | retired
-```
-
-A clerical clarification may edit an active Decision directly without changing its meaning. A material change creates a new Decision and supersedes the old one. The old Decision names the replacement. Terminal Decisions are never reactivated; adopting an old choice again creates a new active Decision.
+- Record only what the user actually accepted. When the difference matters, keep a source reference that distinguishes the accepted choice from the proposal.
+- A clerical clarification may edit an active Decision directly. A change in meaning is a new Decision that supersedes the old one.
+- Retire a Decision that no longer governs, with the reason. Adopting a superseded or retired choice again is a new Decision.
 
 ### Checkpoints
 
-Only terminal Checkpoints appear in History:
+A closed Checkpoint keeps its future fields and adds `Result` and `Task effect`. `State` is `completed`, `cancelled`, or `replaced`. `Evidence` is optional; `Reason` is required for cancelled and replaced; `Replaced by: C-NNN` for replaced, naming a Checkpoint that is still pending or deferred.
 
-```markdown
-#### C-001 — Review the compatibility boundary
-- State: completed
-- Type: independent_review
-- Condition: Review the integrated result before dependent work proceeds.
-- Applies to: S-001
-- Result: Review completed; one non-blocking concern remains outside this Slice.
-- Evidence: review:compatibility-review
-- Task effect: The Slice may proceed.
-```
+`completed` means the boundary happened, not that its judgment was favorable.
 
-Required terminal fields:
+### Slices
 
-- `State: completed | cancelled | replaced`;
-- `Type`;
-- `Condition`;
-- `Applies to`;
-- `Result`;
-- `Task effect`.
+A closed Slice keeps `Intended result` and, when present, `Type`, `Authority source`, and `Reopened from`. It adds `Result`, `Evidence and limits`, and `Task effect`. `State` is `completed`, `blocked`, or `abandoned`; `Resume when` is required for blocked and `Reason` for abandoned. `Residual effects` is optional.
 
-Conditional or optional fields:
+Closing does not keep Scope, Stop condition, Starting state, Dependencies, Material updates, or Recovery sources. Anything among them that still matters belongs in `Evidence and limits` or `Task effect` before closing.
 
-- `Evidence` — required when the result depends on an observation or review;
-- `Reason` — required when `cancelled` or `replaced`;
-- `Replaced by: C-NNN` — required when `replaced`.
+| State | Meaning |
+| --- | --- |
+| `completed` | The intended result and its required evidence are settled. |
+| `blocked` | A paused attempt that could not continue left Current Work; `Resume when` says what would allow it. |
+| `abandoned` | Explicit authority ended the pursuit; `Reason` says why. |
 
-`completed` means the boundary occurred, not that its judgment was favorable. A failed or blocking review is a completed Checkpoint whose Result records the adverse judgment and effect.
+Reopen a completed or blocked Slice only when the new work still belongs to the same intended result; reopening creates a new Slice and leaves the historical entry unchanged. After an abandoned Slice, propose a new one instead.
 
-### Historical Slices
+### Corrections
 
-Closure compacts the Current Slice and its Material updates into one historical entry:
-
-```markdown
-#### S-001 — Implement the compatibility layer
-- State: completed
-- Type: delivery
-- Intended result: Existing clients remain compatible.
-- Authority source: User request in the current conversation.
-- Result: The adapter was updated and the accepted behavior was verified locally.
-- Evidence and limits: Focused integration checks passed; production behavior was not observed.
-- Task effect: The next consumer can be migrated.
-```
-
-Required historical fields:
-
-- `State: completed | blocked | abandoned`;
-- `Intended result`;
-- `Result`;
-- `Evidence and limits`;
-- `Task effect`.
-
-Optional or conditional fields:
-
-- `Type: learning | delivery | deepening`;
-- `Authority source`;
-- `Reopened from: S-NNN`;
-- `Resume when` — required when `blocked`;
-- `Reason` — required when `abandoned`;
-- `Residual effects` — useful when abandonment or rollback leaves consequences.
-
-A historical `blocked` Slice is the unresolved parked attempt that left Current Work. A historical `completed` Slice may be reopened only when later authorized work still belongs to the same original outcome. An abandoned outcome is normally followed by a new proposed Slice.
-
-Before a `completed` result is accepted, every material completion claim must have supporting Evidence at its required boundary, the live state must not contradict the result, no authority conflict or material contradiction may remain unresolved, and all applicable Checkpoints must be terminal. These are semantic judgments for the agent; the command can enforce only structural preconditions.
-
-Reopening creates a new Current Slice with a new ID and fresh:
-
-- authority;
-- scope;
-- expected evidence;
-- stop condition;
-- starting state.
-
-It adds `Reopened from: S-old` and leaves the historical entry unchanged. A Current paused Slice is resumed; historical work is reopened. These are different transitions.
-
-### Historical Corrections
-
-A correction does not replace an old value silently. Append this optional block inside the affected historical Decision, Checkpoint, or Slice:
+A clerical fix to a terminal entry is appended inside it, never applied by overwriting:
 
 ```markdown
 ##### Corrections
 
-- Field: Result; before: local checks passed; after: local checks passed but production remains unobserved; reason: clerical clarification; source: file:verification.md#production-boundary
+- Field: Result; before: checks passed; after: local checks passed, production unobserved; reason: clarification; source: file:notes.md#run-3
 ```
 
-A correction may change a displayed clerical value, but it cannot change the entity’s lifecycle state, erase prior meaning, settle a new Decision, or authorize work.
-
-## Notes
-
-Notes have no field schema. Everything after `## Notes` is retained ordinary Markdown:
-
-```markdown
-## Notes
-
-The user prefers compact records and low-ceremony transitions.
-
-This note is inert context, not an instruction or authority source.
-```
-
-Append or edit Notes directly. Remove a user-authored Note only on request; remove other Notes only when authorized maintenance clearly covers the correction. Do not use Notes as overflow History. If content affects scope, priority, completion, blockers, evidence, or the next action, move it to its structured owner.
+A correction cannot change an entry's state, ID, or meaning.
 
 ## Task State
-
-The header uses:
 
 ```text
 active <-> paused
 active | paused -> completed | abandoned
-completed | abandoned -> active only by explicit user reopening
+completed | abandoned -> active
 ```
 
-Only the user changes task state. A task-level `paused` state pauses its Current Slice first when one exists; reactivating the task does not automatically resume that Slice. A terminal task has no Current Slice and no pending or deferred Checkpoint. Proposed Future Work may remain only when it is clearly retained as non-obligating future material; otherwise reconcile or remove it before the terminal transition.
+Only the user changes task state. A new record starts `active`. Pausing a task pauses its Current Slice; reactivating the task does not resume the Slice. A completed or abandoned task has no Current Slice and no pending or deferred Checkpoint. Completing a Slice never completes the task.
 
-Task completion is not implied by a completed Slice. A task-level terminal transition does not select another Slice.
+Before completing or abandoning a task, keep a proposed Future Work item only if it is clearly non-binding; otherwise reconcile it first. Reactivating a task selects no work.
 
-## Direct Edits And Lifecycle Commands
+## Lifecycle Commands
 
-Direct edits are appropriate for:
+Run `working-record.mjs <group> <operation> --help` for each command's options and input fields. `--input -` reads the input fragment from stdin. Commands that change the Current Slice or task state require `--next-action`.
 
-- bullets in Current Context;
-- allowed prose and optional fields in Future Work, Current Work, and active History blocks;
-- proposed-item ordering or removal;
-- Next useful action;
-- appending Material updates;
+| Transition | Command |
+| --- | --- |
+| Create the record | `init --name <task name> --input <fragment>` (Goal and Next useful action required) |
+| Propose a Slice | `slice propose` |
+| Start a proposed Slice → `in_progress`, assigns `S-NNN` | `slice start --title <proposal title>` |
+| Start a Slice that was never proposed | `slice start-direct` |
+| `in_progress` → `paused` | `slice pause` |
+| `paused` → `in_progress` | `slice resume` |
+| Current → History `completed` / `blocked` (from paused) / `abandoned` | `slice close --state <state>` |
+| Continue a completed or blocked historical Slice as a new Slice | `slice reopen --id <S-NNN>` |
+| Propose a Checkpoint | `checkpoint propose` |
+| `proposed` → `pending`, assigns `C-NNN` | `checkpoint activate` |
+| `pending` ↔ `deferred` | `checkpoint defer`, `checkpoint resume` |
+| `pending` / `deferred` → History | `checkpoint close --state <completed|cancelled|replaced>` |
+| Add, supersede, or retire a Decision | `decision add`, `decision supersede`, `decision retire` |
+| Change task state | `task set-state --state <state>` |
+
+Use `slice start` for a proposed Slice and `slice start-direct` only for work that was never proposed. Starting any Slice records it before its first effect; it does not authorize the work.
+
+Every command validates the record before and after the change and publishes one complete valid result or nothing.
+
+| Exit code | Meaning |
+| --- | --- |
+| 0 | The change was published, or there was nothing to change. |
+| 1 | Nothing was written. The error says why. |
+| 2 | The outcome is uncertain: the write may have happened. Read `view full` before retrying or editing. |
+
+## Direct Edits
+
+Edit directly:
+
+- Current Context bullets;
+- optional fields and wording in active entities;
+- Material updates, Recovery sources, and the Next useful action;
+- the order, wording, or removal of proposed items;
 - Notes;
-- the defined correction block.
+- Corrections blocks in History.
 
-Use lifecycle commands for:
+Never edit directly: IDs, `State` fields, which section an entity is in, or any terminal History entry apart from Corrections. `validate` checks structure only; it cannot detect a hand-made state change or a deleted entry, so those edits are forbidden rather than checked.
 
-- initialization;
-- creating proposed Slices or Checkpoints;
-- assigning `S-NNN`, `C-NNN`, or `D-NNN`;
-- moving a Slice between Future Work, Current Work, and History;
-- changing Slice, Checkpoint, Decision, or task state;
-- converting a proposed-title reference to `S-NNN`;
-- creating a linked continuation Slice;
-- atomically superseding a Decision.
+After editing headings, fields, or entity structure, run `validate --record <record.md>`. Prose-only edits need no validation.
 
-A direct edit must not change a durable ID, lifecycle state, entity kind, or owning top-level section. It must not reactivate, silently delete, or replace terminal History. Unknown fields and invented headings are invalid inside structured blocks.
+## Views
 
-Prose-only bullet edits need no extra validation. After changing headings, fields, references, or other structured blocks, run `validate` before consequential work. Every lifecycle command validates both its source and candidate.
+Both views are plain Markdown and change nothing.
 
-The lifecycle executable is [working-record.mjs](../scripts/working-record.mjs). Read the format reference before preparing structured content, then run the complete operation help as `working-record.mjs <group> <operation> --help`; group help lists operations and operation help lists options and fragment fields. Use `--input -` for stdin when convenient. Command help is the transport contract for the operations described here and does not replace this format reference. It is not normally necessary to inspect the implementation source.
+- `view full` returns the file exactly as stored. It does not require the record to be valid, so use it to inspect malformed or unsupported records.
+- `view resume` returns the header, Current Context, active Decisions, Current Work, Future Work, and Notes. It omits terminal History and is not sufficient after context loss.
 
-## View Contract
+## Notes
 
-The canonical file is Markdown. Both public views render its content as human-readable text rather than JSON. `full` preserves the complete Markdown content and order; a host may render it visually. Neither view follows external pointers or mutates the record.
-
-### `resume`
-
-`resume` contains:
-
-1. record name, Schema, and task State;
-2. all seven Current Context headings and their bullets;
-3. active Decisions derived from History/Decisions, without duplicating them in Current Context;
-4. complete Current Work;
-5. all Future Work in stored order, including proposed, pending, and deferred items;
-6. all Notes.
-
-It omits terminal History entries. Use it for active-state readback during intact-session continuation. A new conversational turn or ordinary pause does not require a reread by itself. Use a bounded entity or section read when that is sufficient. Do not substitute `resume` for the complete record after context loss.
-
-### `full`
-
-`full` contains the entire canonical record in order:
-
-1. header;
-2. Current Context;
-3. Current Work;
-4. Future Work;
-5. History with Decisions, Checkpoints, and Slices in that order;
-6. Notes.
-
-Read it completely after context loss, including compaction, context-replacing summarization, clear, session resume or navigation, transfer into another context, or uncertain continuity. It is also the view for audit, dispute, migration, malformed-record inspection, and uncertain mutation results.
-
-If output is truncated, continue bounded reads of the same canonical source until the whole record has been read. If full recovery cannot be completed within available context or access, report the limitation and stop affected work; do not silently replace it with `resume` or claim unseen History was recovered.
-
-A full read does not follow defining-source pointers or establish live correctness. Reconcile current direction, source evidence, task state, and authorization before acting. Once recovery is complete, use bounded in-session reads rather than repeatedly loading all History.
+Everything under `## Notes` is ordinary Markdown with no structure. Notes do not authorize, prioritize, block, or prove anything. Anything that affects scope, evidence, or the next action belongs in its structured section instead. Remove a user-written Note only when the user asks.
 
 ## Legacy Records
 
-A record with another schema version is not a Schema 4 record. Do not reinterpret or directly mutate it as Schema 4. Inspect it read-only, preserve its original source, and use a separately authorized migration operation that can report any unmapped or ambiguous content.
+A record with another `Schema` value is not a Schema 4 record. Read it through `view full` only; do not edit or transition it. Migration is a separate, authorized operation.

@@ -1,5 +1,6 @@
 export const ROUTING_ENTRY = "freeflow-routing-v2";
 export const ROUTING_MESSAGE = "freeflow-routing-v2-state";
+export const ROUTING_ATTENTION_MESSAGE = "freeflow-routing-attention";
 export const WORKER_PROFILES = ["helper", "executor"] as const;
 export const PROFILES = ["coordinator", ...WORKER_PROFILES] as const;
 export const DELEGATION_MODES = ["executor", "helper", "both"] as const;

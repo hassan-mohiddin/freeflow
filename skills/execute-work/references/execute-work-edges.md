@@ -2,6 +2,8 @@
 
 Read this when execution resumes from uncertain prior state, changes the Slice boundary, reaches a selected checkpoint, or exposes separately controlled follow-on work.
 
+This reference is judgment: adapt it to the work. Its binding statements restate [Execute Work](../SKILL.md) or Workflow Rules.
+
 The main skill owns the normal bounded-action loop. This reference covers transitions that leave, resume, or constrain that loop.
 
 ## Resume Safely
@@ -48,7 +50,15 @@ Stop before dependent work, use the checkpoint’s owner, and return its result 
 - [Handoff](../../handoff/SKILL.md) for selected continuity transfer;
 - [Finish Branch](../../finish-branch/SKILL.md), [Release Work](../../release-work/SKILL.md), or [Launch Work](../../launch-work/SKILL.md) for their separately authorized boundaries.
 
-When durable memory exists, Track Work preserves the checkpoint’s selection, condition, result, and task effect.
+When durable memory exists, Track Work preserves the checkpoint’s selection, condition, result, and task effect. Its Checkpoint types map to these owners:
+
+| Type | Owner |
+| --- | --- |
+| `preserve` | Commit Work |
+| `publish` | Commit Work for a simple push; otherwise Finish Branch or Release Work |
+| `review` | Review Work or Review Artifact |
+| `decision` | Decision Gate |
+| `continuity` | Handoff |
 
 Do not create a checkpoint merely because an action or Slice ended. Do not force a stale checkpoint when its condition, evidence, or protected boundary no longer holds; return the discrepancy for a supported cancellation, replacement, deferral, or revision before dependent work.
 

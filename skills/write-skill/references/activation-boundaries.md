@@ -2,6 +2,8 @@
 
 Read this when activation is unclear or evidence shows missed, late, early, task-hijacking, or retained-interference behavior.
 
+This reference is judgment: adapt it to the skill's goal. Its binding statements restate [Write Skill](../SKILL.md) Rules.
+
 A description should make the skill available at the earliest useful decision without requiring language introduced by the skill itself.
 
 ## Diagnose The First Read

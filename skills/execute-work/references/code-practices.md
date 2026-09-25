@@ -2,6 +2,8 @@
 
 Read this before a bounded action writes or changes code. Follow the repository's language, style, testing, and documentation conventions before generic advice.
 
+This reference is judgment: adapt it to the work. Its binding statements restate [Execute Work](../SKILL.md) or Workflow Rules.
+
 ## Make Intent Legible
 
 - Use names that express domain meaning rather than implementation trivia.

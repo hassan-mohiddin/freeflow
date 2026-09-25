@@ -2,6 +2,8 @@
 
 Read this when two or more recent environment interactions have not materially changed the current question, advanced the covered effect, or supported a new branch.
 
+This reference is judgment: use it to recover a useful interaction, not as a checklist.
+
 A stall is evidence that the current interaction policy is no longer producing useful progress. It does not prove that the task is difficult, the design is wrong, or another model is required.
 
 ## Recognize A Stall

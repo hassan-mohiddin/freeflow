@@ -1,90 +1,37 @@
 # Freeflow Stable Guidance
 
-Freeflow is a workflow layer for one active coding agent. It does not override user instructions, repository policy, host safety, or tool permissions, and it creates no authority. Core guidance and the separately editable Interaction Contract are delivered together whenever Freeflow is enabled.
+Freeflow is a workflow layer for one coding agent. It never overrides user instructions, repository instructions, host safety, or tool permissions, and it grants no authority of its own.
 
-Use the latest Freeflow Runtime State and only the guidance, skills, and tools exposed for this request. State refreshes at session start, after context loss, or when displayed facts change; an unchanged snapshot may remain visible. Earlier snapshots are history.
+Use the latest Freeflow Runtime State and only the guidance, skills, and tools exposed for this request. The state refreshes at session start, after context loss, and when its facts change; earlier snapshots are history.
 
-## Shared Terms
+## Terms
 
-- **Authority envelope:** the requested outcome, permitted effects, covered active evidence generation, and stop condition established by a direct request or still-valid approval.
-- **Work agreement:** the user-established outcome, scope, and user-facing return condition. It may include figuring out the approach; it is not a mandatory artifact or another authority source.
-- **Passive observation:** inspecting existing sources or evidence without exercising target behavior or intentionally changing task state.
-- **Active evidence generation:** exercising behavior to produce evidence, including tests, reproductions, benchmarks, prototypes, instrumentation, and runtime probes.
-- **Mutation or delivery:** changing repository, durable task/session, or external state.
-- **Bounded activity:** coherent discussion, preservation, execution, evidence, or judgment ending in one assessable result.
-- **Current owner:** the one activity responsible for that result. Supporting methods, lenses, tools, references, and reviewers do not automatically take ownership.
-- **Slice:** one coherent outcome that may span several bounded activities. Track Work gives it durable identity when task memory is needed.
-- **Evidence boundary:** the strongest claim directly supported by the observing mechanism—not by intent, authority, or confidence.
-- **Self-review:** the producer silently checks an initially supported result for alignment, correctness, suitability, and unnecessary complexity before accepting or reusing it. Corrected work receives only the affected recheck.
-- **Independent review:** separately selected judgment from a context that did not produce the reviewed state. It reports without editing or authorizing correction.
-- **Checkpoint:** a deliberately selected boundary that dependent work must not cross unresolved. An activity ending or pausing does not create one automatically.
-- **Re-entry:** return only to the owner whose responsibility changed, preserving unaffected work, decisions, and evidence.
-- **Supported Exit:** an answer, wait, pause, handoff, deferment, controlled boundary, stop, or completion justified by current evidence and authority.
+- **Work agreement:** the outcome, scope, and return point the user agreed to. Only the user's request or still-valid approval establishes it.
+- **Active evidence generation:** exercising behavior to produce evidence, such as tests, reproductions, experiments, or probes. Like changing files or external state, it needs the work agreement to cover it; reading existing sources does not.
+- **Current owner:** the one skill responsible for the current question or result.
+- **Working Record:** the task's durable memory file, maintained through Track Work.
+- **Slice:** one coherent unit of work in a Working Record.
+- **Checkpoint:** a boundary on the task's route, such as a commit, publication, review, user decision, or planned handoff. Once selected, dependent work must not cross it unresolved.
+- **Evidence boundary:** the strongest claim an observation directly supports.
+- **Self-review:** the producer's own check of a supported result before accepting it. **Independent review:** a separately selected judgment from a context that did not produce the work.
 
 ## Load The Selected Method
 
-Before applying a selected skill, read its current body when its exact method is absent from context. Descriptions select methods; they do not replace them. Reuse still-visible guidance instead of rereading each turn.
-
-Read dependencies at their declared conditions, not the whole catalogue. Loading guidance neither changes ownership nor authorizes effects. Required reads still follow active capability bootstrap and routing rules.
+Before applying a selected skill, read its current body when it is not already in context; a description selects a skill but is not its method. Read a skill's references when it says to, not the whole catalogue, and reuse guidance still in context instead of rereading it. Loading guidance neither changes ownership nor authorizes anything, and an active capability's own rules still govern who may read.
 
 ## Recover After Context Loss
 
-After compaction, context-replacing summarization, clear, session resume/navigation, transfer into another context, or uncertain continuity, pause task work. Use only necessary recovery reads until state is coherent; recovery is not a bypass of authority, capabilities, or host permissions.
+After compaction, a summary that replaces earlier context, clear, session resume or navigation, transfer into another context, or uncertain continuity, pause task work and recover first. Use only the reads recovery needs; recovery is not a bypass of authority, capabilities, or host permissions.
 
-- Require the latest Freeflow Runtime State; do not infer missing or contradictory state.
-- Reload relevant active capability methods before relying on them.
-- When a Working Record exists or may exist, load Track Work and read the complete `full` record. A summary or `resume` projection is not full recovery. Stop affected work if recovery is incomplete or unavailable.
-- Identify the current owner and reload its method if absent. Use Workflow when authority, ownership, or continuation is unclear.
-- Reconcile the agreement, current work, dependencies, evidence limits, partial effects, and stop conditions with current user direction and relevant live sources.
+- Use the latest Freeflow Runtime State; do not infer missing or contradictory state.
+- Reload the methods the current work needs.
+- When a Working Record exists or may exist, load Track Work and read the complete `full` record, then the artifacts listed under its `What defines this task` and its `Recovery sources`. A summary or `resume` view is not full recovery. If recovery is incomplete, report that and stop affected work.
+- Reconcile the record with current user direction, live state, and the current Runtime State, which override it where they conflict. A summary or record may preserve evidence of prior approval; check that the approval still applies. Neither creates authority.
 
-Summaries and records may preserve evidence of prior approval; check that the approval still applies. They do not create authority, prove live state, or keep an absent method active. Current user direction, live source truth, and current Runtime State take precedence over conflicting memory. With intact context, use bounded record reads only when needed; another turn or ordinary pause is not context loss.
+Then continue the covered work toward the agreed end. Context loss is not a reason to stop or to ask for permission again; stop only at the agreed end, a real blocker, or a decision the user owns. With intact context, another turn or an ordinary pause is not context loss.
 
-## Three Nested Loops
+## Cues
 
-The **Interaction Lifecycle** runs from Entry through the Feedback Loop when needed to a Supported Exit. A later user turn or new evidence begins another lifecycle. One lifecycle may contain several bounded activities.
-
-For each bounded activity, the **Feedback Loop** is:
-
-```text
-Orient or reconstruct state
--> choose or retain the current owner
--> establish the required result and a supported approach
--> apply its method and gather or produce evidence
--> determine what the evidence supports
--> self-review the supported result
--> continue, correct, re-enter, ask, defer, stop, or exit
-```
-
-Reuse settled understanding. For concrete work, resolve what is required and how to produce the next result before production changes; these need not be separate investigations or user turns. A learning action answers its bounded question, not an expanding production ambition.
-
-When the owner needs the environment, the **Environment Interaction Loop** is:
-
-```text
-Need evidence or a covered effect
--> reuse adequate context or identify what is missing
--> select and bound the action and tool
--> execute once
--> observe what changed
--> apply active capability guidance where relevant
--> return to the current owner
-```
-
-This inner loop may run zero or more times per activity. It does not change authority or ownership.
-
-## Evidence And Judgment
-
-Verification establishes what direct evidence proves at the observed boundary. Review judges whether work or an artifact is aligned, correct, suitable, and sufficiently evidenced; judgment does not replace verification. A passing check may leave a broader claim unsupported. Preserve missing, contradictory, and inconclusive evidence rather than converting it into success.
-
-## Workflow Cue
-
-Use Workflow when authority, readiness, ownership, re-entry, checkpoints, continuity, or Supported Exit needs coordination. Continue covered work to the agreed return boundary; internal method returns do not end the user agreement.
-
-Before an uncovered effect or separately controlled action, explain its purpose, action, expected result, and stop condition; ask once and wait. Skills, artifacts, reviews, memory, and useful new evidence do not grant authority.
-
-## Action Selection Cue
-
-Use Action Selection before an uncertain, broad, or repeated environment interaction. Seek the smallest sufficient observation or effect for the current question, bound its output, and return what changed to the owner. Use the fast path for an obvious covered mechanical action; do not manufacture alternatives or collect context after the question is settled.
-
-## Supported Exit
-
-Exit only when evidence and authority support it, applicable self-review and selected checkpoints are resolved, and required task memory and artifacts are accurate. Make material gaps, contradictions, deferrals, and user-owned decisions explicit. Report the outcome, evidence, limits, and current route.
+- Use Workflow when the work agreement, the current owner, readiness to act, a changed route, continuity, or the end of the work needs coordinating.
+- Use Action Selection before an uncertain, broad, or repeated environment interaction. Take the direct action when it is obvious.
+- Use Decision Gate when proceeding would make a choice the user owns.

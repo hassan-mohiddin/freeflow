@@ -2,7 +2,7 @@
 
 Read this when module decomposition, cohesion, dependency direction, cycles, layering, policy-versus-infrastructure ownership, or change propagation materially affects the design.
 
-Do not use this reference merely because the codebase has many files or dependencies.
+This reference is judgment. Do not use it merely because the codebase has many files or dependencies.
 
 ## Decompose Around Coherent Decisions
 
@@ -112,36 +112,6 @@ Before extracting shared code, ask:
 
 Some duplication is cheaper than a shared abstraction with unclear ownership.
 
-## Test Through Module Contracts
-
-Module tests should protect:
-
-- coherent behavior;
-- invariants;
-- public failure semantics;
-- dependency contracts;
-- real seams.
-
-Question module shape when tests must:
-
-- construct many internals;
-- reproduce dependency ordering;
-- mock several owned collaborators;
-- inspect states callers should not know.
-
-Do not make production architecture imitate the test framework.
-
 ## Return
 
-Return:
-
-- affected modules and responsibilities;
-- policy, state, or failure ownership;
-- dependency direction;
-- cycle or layering pressure;
-- proposed boundary and caller contract;
-- variation or migration justifying seams;
-- evidence and unresolved decisions;
-- narrowest supported route.
-
-Stop when dependencies support the selected outcome without unnecessary coordination. Do not reorganize the entire codebase for conceptual purity.
+Test module shape through its contract, as Design for Depth's Check Through The Intended Interface describes; do not make production architecture imitate the test framework. Return the affected responsibilities, policy/state/failure ownership, dependency direction, any cycle or layering pressure, and the proposed boundary with the variation or migration that justifies its seams. Stop when dependencies support the outcome without unnecessary coordination; do not reorganize the codebase for conceptual purity.

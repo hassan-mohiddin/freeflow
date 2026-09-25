@@ -2,16 +2,7 @@
 
 Read this before choosing or materially changing the behavioral question, evidence class, group shape, pressure, or baseline/candidate boundary.
 
-## Keep Roles Distinct
-
-- **Subject:** performs the declared task under one variant.
-- **Evaluator:** isolates subjects and preserves canonical evidence.
-- **Deterministic grader:** derives fixed mechanical facts after run persistence.
-- **Reviewer:** the active agent or user judges unresolved meaning.
-- **Author:** uses Write Skill to revise one measured pressure point.
-- **User:** decides whether to revise, use, publish, or reject the skill.
-
-The evaluator does not revise the skill, launch an automatic semantic grader, or own readiness, promotion, or production status.
+This reference is judgment: adapt it to the question being answered. Its binding statements restate [Evaluate Skill](../SKILL.md) Rules or the definition schema.
 
 ## Map Claims To Evidence
 
@@ -60,6 +51,8 @@ For a new skill, baseline has no target.
 
 For a revision, baseline names an exact immutable previous package. If no exact baseline exists, return to Write Skill before revision.
 
+To learn whether a skill's body, not just its description, changes behavior, add a separate group whose baseline is a neutral package: the same name and description with a placeholder body. A candidate that matches the neutral baseline gains nothing from its body under that pressure.
+
 For a description-only revision, body and resources remain byte-identical.
 
 Freeze prompts or turns, fixture, tools, model, thinking, other skills, context, runtime, and criteria across variants.
@@ -101,12 +94,11 @@ A useful group:
 - distinguishes baseline from candidate behavior;
 - remains realistic enough that passing behavior is useful.
 
-If both variants pass, the pressure may be weak or the baseline sufficient.
+Choose the pressure by the kind of instruction under test:
 
-If both fail, classify skill, fixture, dependency, environment, host, isolation, or criterion before editing.
+- **A Rule:** make breaking it the easy or rewarded path, such as urgency, a user request that conflicts with it, or a shortcut that saves work. The candidate passes only if the Rule holds.
+- **Judgment:** include at least one case where following the default literally is the worse choice, next to a case where the default is right. The candidate passes on the outcome in both, so a variant that only obeys the default cannot pass.
 
-## Reuse Existing Evidence
-
-When saved canonical evidence already answers the fixed question, inspect it through views and raw artifacts. Do not rerun merely to demonstrate process.
+## Keep Separate Conclusions Separate
 
 An explicitly delivered body may support first-read behavior while a natural prompt still fails activation. Preserve both conclusions; one does not repair the other.

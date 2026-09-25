@@ -2,6 +2,8 @@
 
 Read this when the exact distinguishing loop is not obvious or several loop shapes remain plausible.
 
+This reference is judgment: adapt it to the failure in front of you.
+
 Use it to select the smallest observation whose possible outcomes differ between meaningful hypotheses at the required boundary.
 
 ## Common Loops

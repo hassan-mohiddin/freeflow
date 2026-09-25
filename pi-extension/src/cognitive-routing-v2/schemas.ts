@@ -146,6 +146,50 @@ for (const schema of Object.values(ROUTING_SCHEMAS)) {
       description:
         "For add, use exact eligible visible refs directly when their identity and eligibility are clear; inspect when identity, eligibility, representation, or selection state is unclear. Never add refs marked not offered for new evidence selection. For remove, use currently selected or unresolved refs; a non-selectable ref may be named to clear its unresolved request and requires reason.",
     };
+  // The provider sees one flattened root, so each field names the operations whose strict shape accepts it.
+  const operations = schema.oneOf.map((branch: any) => branch.properties.operation.enum[0]);
+  for (const [field, property] of Object.entries<any>(schema.properties)) {
+    if (field === "operation") continue;
+    const accepting = operations.filter((_op: string, i: number) => Object.hasOwn(schema.oneOf[i].properties, field));
+    if (accepting.length === operations.length) continue;
+    const scope = `Only for operation: ${accepting.join(", ")}.`;
+    schema.properties[field] = {
+      ...property,
+      description: property.description ? `${property.description} ${scope}` : scope,
+    };
+  }
+}
+
+const expected = (schema: any): string =>
+  schema.enum
+    ? `one of ${schema.enum.join(", ")}`
+    : schema.type === "string"
+      ? `a non-empty string of at most ${schema.maxLength} characters`
+      : schema.type === "array"
+        ? `an array of at most ${schema.maxItems} items`
+        : schema.type === "integer"
+          ? `an integer from ${schema.minimum} to ${schema.maximum}`
+          : `type ${schema.type}`;
+
+/** Explain why routing arguments match no strict operation shape, naming what to change. */
+export function explainRoutingArguments(name: string, input: unknown): string {
+  const schema = ROUTING_SCHEMAS[name];
+  const operations = schema.oneOf.map((branch: any) => branch.properties.operation.enum[0]);
+  const operation = isObject(input) ? input.operation : undefined;
+  const branch = schema.oneOf.find((b: any) => b.properties.operation.enum[0] === operation);
+  if (!isObject(input) || !branch)
+    return `Invalid ${name} arguments: operation must be one of ${operations.join(", ")}. No operation was accepted.`;
+  const allowed = Object.keys(branch.properties);
+  const problems: string[] = [];
+  const unknown = Object.keys(input).filter((field) => !allowed.includes(field));
+  if (unknown.length) problems.push(`remove field${unknown.length > 1 ? "s" : ""} ${unknown.join(", ")}`);
+  const missing = branch.required.filter((field: string) => !Object.hasOwn(input, field));
+  if (missing.length) problems.push(`missing required field${missing.length > 1 ? "s" : ""} ${missing.join(", ")}`);
+  for (const field of allowed)
+    if (Object.hasOwn(input, field) && !matches(input[field], branch.properties[field]))
+      problems.push(`${field} must be ${expected(branch.properties[field])}`);
+  if (!problems.length) problems.push("arguments do not match this operation's shape");
+  return `Invalid ${name} arguments for operation ${operation}: ${problems.join("; ")}. Allowed fields: ${allowed.join(", ")}. No operation was accepted.`;
 }
 
 export function matches(value: any, schema: any): boolean {
@@ -170,12 +214,4 @@ export function matches(value: any, schema: any): boolean {
   if (schema.type === "integer")
     return Number.isSafeInteger(value) && value >= schema.minimum && value <= schema.maximum;
   return false;
-}
-
-export function schemaForProfile(name: string, coordinator: boolean): any {
-  const schema = ROUTING_SCHEMAS[name];
-  if (name !== "freeflow_unit" || coordinator) return schema;
-  const branches = schema.oneOf.filter((b: any) => b.properties.operation.enum[0] === "inspect");
-  const properties = Object.assign({}, ...branches.map((b: any) => b.properties));
-  return { ...schema, properties, oneOf: branches };
 }

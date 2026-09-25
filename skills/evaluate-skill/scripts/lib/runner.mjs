@@ -1,7 +1,7 @@
 import { mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 
-import { loadDefinition, selectDefinition } from "./definitions.mjs";
+import { COMMAND_TOOL, loadDefinition, selectDefinition } from "./definitions.mjs";
 import { createInvocationId, fileIdentity, writeJson, writeText } from "./evidence.mjs";
 import { gradeDeterministic } from "./grade.mjs";
 import { runBody, runDescription, VariantSetupError } from "./pi.mjs";
@@ -12,14 +12,24 @@ const DESCRIPTION_TOOLS = new Set(["read"]);
 const BODY_TOOLS = new Set(["read", "write", "edit"]);
 // Native tools must be separated from extension tools before CLI tool selection is built.
 const NATIVE_TOOLS = new Set(["read", "bash", "powershell", "edit", "write", "grep", "find", "ls"]);
-const DEFAULT_RUNTIME = { host: "pi", session: false, extensions: [], environment: { literal: {}, inherit: [] } };
+const DEFAULT_RUNTIME = {
+  host: "pi",
+  session: false,
+  prompt: "isolated",
+  extensions: [],
+  environment: { literal: {}, inherit: [] },
+};
 
 /**
  * @param {string} definitionFile
  * @param {any} selectors
- * @param {{root?: string, signal?: AbortSignal}} options
+ * @param {{root?: string, signal?: AbortSignal, budget?: {maxCost: number, spent: number, exhausted: boolean} | null}} options
  */
-export async function runEvaluation(definitionFile, selectors = {}, { root = process.cwd(), signal } = {}) {
+export async function runEvaluation(
+  definitionFile,
+  selectors = {},
+  { root = process.cwd(), signal, budget = null } = {},
+) {
   const definitionPath = await realpath(path.resolve(root, definitionFile));
   const definition = await loadDefinition(definitionPath, { root });
   const selection = selectDefinition(definition, selectors);
@@ -45,9 +55,27 @@ export async function runEvaluation(definitionFile, selectors = {}, { root = pro
     startedAt: new Date().toISOString(),
   });
 
+  // Budget exhaustion cancels only queued subjects; a subject already running completes and is charged.
+  const controller = new AbortController();
+  const onParentAbort = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", onParentAbort, { once: true });
+  const charge = (run) => {
+    if (budget === null) return;
+    budget.spent += run.usage?.cost?.total ?? 0;
+    if (budget.spent >= budget.maxCost) {
+      budget.exhausted = true;
+      controller.abort();
+    }
+  };
+
   const groups = [];
-  for (const selected of selection.groups) {
-    groups.push(await runGroup({ selected, root, resultDirectory, signal }));
+  try {
+    for (const selected of selection.groups) {
+      groups.push(await runGroup({ selected, root, resultDirectory, signal: controller.signal, charge }));
+    }
+  } finally {
+    signal?.removeEventListener("abort", onParentAbort);
   }
   const state = batchState(groups);
   const summary = {
@@ -58,6 +86,7 @@ export async function runEvaluation(definitionFile, selectors = {}, { root = pro
     groups,
     completedAt: new Date().toISOString(),
   };
+  if (budget !== null) summary.budget = budgetEvidence(budget);
   await writeJson(path.join(resultDirectory, "summary.json"), summary);
   return { id: invocationId, path: resultDirectory, state, summary };
 }
@@ -76,7 +105,10 @@ function assertSupportedSelection(selection) {
     if (unsupportedNativeTools.length > 0) {
       throw new Error(`${group.type} execution does not support native tools: ${unsupportedNativeTools.join(", ")}`);
     }
-    const customTools = group.tools.filter((tool) => !NATIVE_TOOLS.has(tool) && !supportedTools.has(tool));
+    // The evaluator supplies run_command itself when the definition declares commands.
+    const customTools = group.tools.filter(
+      (tool) => !NATIVE_TOOLS.has(tool) && !supportedTools.has(tool) && tool !== COMMAND_TOOL,
+    );
     if (group.type === "description" && customTools.length > 0) {
       throw new Error(`${group.type} execution does not support custom tools: ${customTools.join(", ")}`);
     }
@@ -88,7 +120,11 @@ function assertSupportedSelection(selection) {
   }
 }
 
-async function runGroup({ selected, root, resultDirectory, signal }) {
+export function budgetEvidence(budget) {
+  return { maxCost: budget.maxCost, spent: Number(budget.spent.toFixed(10)), exhausted: budget.exhausted };
+}
+
+async function runGroup({ selected, root, resultDirectory, signal, charge }) {
   const { group } = selected;
   const groupDirectory = path.join(resultDirectory, "groups", group.id);
   await mkdir(groupDirectory, { recursive: true });
@@ -121,6 +157,7 @@ async function runGroup({ selected, root, resultDirectory, signal }) {
       runs[variant] = cancelledRun(group, variant);
     } else if (resourceError === null) {
       runs[variant] = await executeVariant({ group, variant, root, variantDirectory, fixture, runtime, signal });
+      charge(runs[variant]);
     } else {
       runs[variant] = invalidRun(group, variant, resourceError);
     }

@@ -138,8 +138,11 @@ export class Sources {
             try {
               const receipt = JSON.parse(block.text);
               if (
-                ((receipt.reportSaved && typeof receipt.report === "string") ||
-                  (receipt.supplementSaved && typeof receipt.supplement === "string")) &&
+                // Current receipts carry a text hash; older receipts carried the text itself.
+                ((receipt.reportSaved &&
+                  (typeof receipt.report === "string" || typeof receipt.reportSha256 === "string")) ||
+                  (receipt.supplementSaved &&
+                    (typeof receipt.supplement === "string" || typeof receipt.supplementSha256 === "string"))) &&
                 typeof receipt.handoff === "string"
               )
                 source.reportHandoff = receipt.handoff;

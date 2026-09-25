@@ -115,3 +115,27 @@ test("ending a restoration obligation retains already admitted communication unt
   );
   assert.equal(again.filter((message) => message.content === "accepted report").length, 1);
 });
+test("an attention notice appends once per interruption and again after it clears", async () => {
+  const f = fixture();
+  const attention = {
+    role: "custom",
+    customType: "freeflow-routing-attention",
+    content: "New delivered user input requires Coordinator attention.",
+    display: false,
+  };
+  const notices = (messages) => messages.filter((m) => m.customType === "freeflow-routing-attention").length;
+  const one = await f.history.assemble([user("one"), attention], "ordinary", f.ctx);
+  const two = await f.history.assemble([user("one"), user("two"), attention], "ordinary", f.ctx);
+  assert.equal(notices(two), 1, "an unchanged notice is not duplicated");
+  assert.deepEqual(two.slice(0, one.length), one);
+  const three = await f.history.assemble([user("one"), user("two"), user("three")], "ordinary", f.ctx);
+  assert.equal(notices(three), 1, "the earlier occurrence stays in place");
+  const four = await f.history.assemble(
+    [user("one"), user("two"), user("three"), user("four"), attention],
+    "ordinary",
+    f.ctx,
+  );
+  assert.deepEqual(four.slice(0, three.length), three);
+  assert.equal(notices(four), 2, "a new interruption appends a new notice");
+  assert.equal(four.at(-1).customType, "freeflow-routing-attention");
+});

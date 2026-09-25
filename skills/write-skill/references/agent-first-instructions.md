@@ -2,6 +2,8 @@
 
 Read this when a concrete first-read or retained-use failure involves wording, placement, undeclared context, author explanation, or competing instructions.
 
+This reference is judgment: adapt it to the skill's goal. Its binding statements restate [Write Skill](../SKILL.md) Rules.
+
 ## Reconstruct The Reader’s Context
 
 Assume the agent is seeing the skill for the first time.
@@ -35,7 +37,7 @@ Keep a sentence only when it:
 - makes a dependency executable;
 - provides a compact example resolving likely misclassification.
 
-Translate rationale into a direct rule plus only the why needed to generalize.
+Translate rationale into a direct instruction plus only the why needed to generalize.
 
 Translate debate into the selected boundary and stop condition.
 
@@ -43,9 +45,9 @@ Translate a measured failure into the smallest transferable guard that prevents 
 
 Omit rejected drafts, conversation history, fixture narration, evaluation status, and explanation whose only audience is the author.
 
-## Strengthen Rules
+## Make Instructions Concrete
 
-A useful rule names:
+A useful Rule names:
 
 ```text
 observable trigger or pressure
@@ -61,9 +63,19 @@ Over:
 
 > Keep evaluation efficient and aligned with best practices.
 
-Concrete rules reduce the judgment the agent must reconstruct.
+Concrete Rules reduce the judgment the agent must reconstruct.
 
-## Pair Negative Rules With The Route
+This applies to Rules. Judgment gets concrete differently: a sharper goal, clearer signals for deviating, and a realistic example on each side of the line. Turning judgment into an absolute makes it easier to follow and worse to follow.
+
+Prefer:
+
+> Start a Slice for work that would leave partial state to reconcile if interrupted. An investigation across many sources can qualify; a discussion whose results land directly in the record usually does not.
+
+Over:
+
+> Start a Slice for every activity.
+
+## Pair Negative Instructions With The Route
 
 Bad:
 
@@ -81,21 +93,21 @@ Better:
 
 > Return the recommendation to the owning workflow. Implementation requires separate authorization.
 
-A negative rule may preserve an invariant directly when the positive route is already clear:
+A negative instruction may preserve an invariant directly when the positive route is already clear:
 
 > Preserve the accepted scope. Do not split it into MVP or roadmap phases without approval.
 
 ## Fix Placement Before Adding Prose
 
-Put a rule where the agent first makes the affected choice.
+Put an instruction where the agent first makes the affected choice.
 
 A late caveat rarely defeats an early command. Move or sharpen the controlling sentence before adding another section.
 
-When an early rule and later exception conflict, restructure the route rather than adding another disclaimer.
+When an early instruction and a later exception conflict, restructure the route rather than adding another disclaimer.
 
 ## Repeat Local Guards Deliberately
 
-Repeat a shared rule only when local presence protects:
+Repeat a shared instruction only when local presence protects:
 
 - an independently activated path;
 - a distinct decision point;
@@ -118,4 +130,4 @@ State stop, return, or exit conditions clearly enough that retained instructions
 
 A first-turn exit is insufficient when later turns still show method hijacking.
 
-After editing, rerun the same first-read and retained-use pressure while keeping unrelated rules stable.
+After editing, rerun the same first-read and retained-use pressure while keeping unrelated instructions stable.

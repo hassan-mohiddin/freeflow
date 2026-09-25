@@ -38,6 +38,7 @@ import {
   setFreeflowStatus,
   skillPrompt,
   withFreeflowRuntimeState,
+  type RuntimeStateAnchor,
 } from "./runtime/runtime-context.js";
 
 type FreeflowAPI = ExtensionAPI & { host?: unknown };
@@ -109,6 +110,13 @@ export default function freeflow(pi: FreeflowAPI) {
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
   const routing = new RoutingRuntime(api, [packageRoot]);
   const requestHistory = new RequestHistory(api);
+  // Where the Freeflow Runtime State was last placed on paths that bypass request history.
+  const runtimeStateAnchor: RuntimeStateAnchor = {};
+  const resetHistory = () => {
+    requestHistory.reset();
+    delete runtimeStateAnchor.content;
+    delete runtimeStateAnchor.index;
+  };
   let capability: any;
   const results = new ResultRuntime(
     api,
@@ -272,7 +280,7 @@ export default function freeflow(pi: FreeflowAPI) {
   });
   pi.on("session_start", async (event, ctx) => {
     const generation = ++surfaceGeneration;
-    requestHistory.reset();
+    resetHistory();
     routing.unbind();
     capability = undefined;
     prompts = undefined;
@@ -301,7 +309,7 @@ export default function freeflow(pi: FreeflowAPI) {
   });
   pi.on("session_shutdown", async () => {
     surfaceGeneration++;
-    requestHistory.reset();
+    resetHistory();
     routing.unbind();
     efficiency.reset();
     results.reset();
@@ -381,6 +389,7 @@ export default function freeflow(pi: FreeflowAPI) {
     }
     messages = withFreeflowRuntimeState(messages, capability, routing.state(), prompts, {
       force: refreshState,
+      anchor: runtimeStateAnchor,
       projectionFailure: routing.state().projectionFailure,
       toolExecutionRuntime: {
         ...results.status(),
@@ -407,7 +416,7 @@ export default function freeflow(pi: FreeflowAPI) {
     };
   });
   const restore = async (ctx: any, navigation = true) => {
-    requestHistory.reset();
+    resetHistory();
     efficiency.reset(ctx);
     results.reset();
     programs.reset();

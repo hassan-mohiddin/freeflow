@@ -140,7 +140,7 @@ Do not copy full reviewer output when a stable pointer exists. A new context or 
 
 ## Resume Checklist
 
-- After context loss or transfer into another context, read the complete Working Record through `view full` when one exists. A summary or `resume` projection is not a substitute. Use Track Work's bounded reads for intact-session continuation.
+- After context loss or transfer into another context, read the complete Working Record through `view full` when one exists, then its defining artifacts and Recovery sources. A summary or `resume` projection is not a substitute. Use Track Work's bounded reads for intact-session continuation.
 - Reconcile the record and handoff with current user direction and relevant live state; reopen named source truth where exact meaning or freshness matters.
 - Confirm artifact, environment, commit, and configuration identity where claims depend on them.
 - Check important completion and evidence claims before repeating them; distinguish that a run occurred from whether it applies to the current candidate. Reuse adequate evidence rather than rerun every check merely because a transfer occurred.

@@ -96,7 +96,7 @@ export function resolveRecordPath(root, supplied) {
   if (!inside(tasks, canonicalRecord) || basename(canonicalRecord) !== "record.md")
     fail("unsafe-path", `Record must be a record.md below ${tasks}`);
   const taskDirectory = basename(dirname(canonicalRecord));
-  if (!/^task-\d{3}-[a-z0-9][a-z0-9-]*$/.test(taskDirectory))
+  if (!/^task-\d{3,}-[a-z0-9][a-z0-9-]*$/.test(taskDirectory))
     fail("unsafe-path", `Invalid task directory: ${taskDirectory}`);
   return canonicalRecord;
 }
@@ -144,14 +144,13 @@ async function nextTaskNumber(tasks) {
   } catch (error) {
     if (error?.code !== "ENOENT") throw error;
   }
-  const used = new Set();
+  // Numbers are never reused, so an old reference to a deleted task cannot point at a new one.
+  let highest = 0;
   for (const entry of entries) {
-    const match = /^task-(\d{3})-/.exec(entry.name);
-    if (entry.isDirectory() && match) used.add(Number(match[1]));
+    const match = /^task-(\d{3,})-/.exec(entry.name);
+    if (entry.isDirectory() && match) highest = Math.max(highest, Number(match[1]));
   }
-  let number = 1;
-  while (used.has(number)) number += 1;
-  return number;
+  return highest + 1;
 }
 
 export async function createRecordPath(root, taskName, slug) {

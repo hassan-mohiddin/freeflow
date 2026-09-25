@@ -1061,7 +1061,7 @@ test("Checkpoint lifecycle assigns identity, follows its Slice, and blocks closu
         await runScript(
           workspace,
           ["checkpoint", "propose", "--record", recordPath, "--title", "Review result", "--input", "-"],
-          "Type: independent_review\nCondition:\n- Review before closure.\nApplies to: Deliver result\n",
+          "Type: review\nCondition:\n- Review before closure.\nApplies to: Deliver result\n",
         )
       ).exitCode,
       0,
@@ -1311,13 +1311,13 @@ test("Checkpoint cancellation and replacement preserve terminal history", async 
     const checkpoint = await runScript(
       workspace,
       ["checkpoint", "propose", "--record", recordPath, "--title", "Review result", "--input", "-"],
-      "Type: independent_review\nCondition:\n- Review before closure.\nApplies to: Deliver result\n",
+      "Type: review\nCondition:\n- Review before closure.\nApplies to: Deliver result\n",
     );
     assert.equal(checkpoint.exitCode, 0, checkpoint.stderr);
     const replacement = await runScript(
       workspace,
       ["checkpoint", "propose", "--record", recordPath, "--title", "Replacement review", "--input", "-"],
-      "Type: independent_review\nCondition:\n- Use the replacement boundary.\nApplies to: Deliver result\n",
+      "Type: review\nCondition:\n- Use the replacement boundary.\nApplies to: Deliver result\n",
     );
     assert.equal(replacement.exitCode, 0, replacement.stderr);
     assert.equal(
