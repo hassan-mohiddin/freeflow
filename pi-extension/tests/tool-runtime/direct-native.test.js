@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -78,6 +79,44 @@ test("native stable facade streams progress for search, describe, and direct wor
     ),
     true,
   );
+});
+
+test("native workspace search denies an intermediate symlink before reading outside the root", async () => {
+  const outside = await mkdtemp(join(tmpdir(), "freeflow-native-search-outside-"));
+  try {
+    await mkdir(join(outside, "subdir"));
+    await writeFile(join(outside, "subdir", "marker.txt"), "EXTERNAL_NATIVE_MARKER\n");
+    await fixture(
+      (request, wire, manager) => {
+        if (request === 1)
+          return call("freeflow_tools", {
+            operation: "call",
+            operationKey: { id: "project.searchText", revision: "1" },
+            input: { query: "EXTERNAL_NATIVE_MARKER", paths: ["alias/subdir"] },
+          });
+        if (request === 2) {
+          const outcome = details(manager, "freeflow_tools").outcome;
+          assert.equal(outcome.status, "denied");
+          assert.equal(outcome.bodyStarted, false);
+          assert.equal(outcome.error.code, "path_unsupported");
+          assert.equal(JSON.stringify(wire).includes("EXTERNAL_NATIVE_MARKER"), true, "query itself is recorded");
+          assert.equal(JSON.stringify(outcome).includes("marker.txt"), false, "external file was not returned");
+          return [];
+        }
+        assert.fail(`unexpected request ${request}`);
+      },
+      false,
+      undefined,
+      false,
+      {
+        cognitiveRouting: { enabled: false },
+        freeflowConfig: enabled,
+        beforePrompt: async ({ cwd }) => symlink(outside, join(cwd, "alias")),
+      },
+    );
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+  }
 });
 
 test("native direct mutation failure preserves effect facts and receives error status", async () => {

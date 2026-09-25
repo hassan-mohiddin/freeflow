@@ -105,7 +105,9 @@ function exactRange(
   if (offsetBytes < buffer.length && endBytes === offsetBytes) {
     throw new ResultRuntimeError("invalid_range", "Requested byte budget cannot fit the next UTF-8 code point.");
   }
-  const text = new TextDecoder("utf-8", { fatal: true }).decode(buffer.subarray(offsetBytes, endBytes));
+  const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+    buffer.subarray(offsetBytes, endBytes),
+  );
   return {
     id: descriptor.id,
     text,
@@ -152,7 +154,9 @@ function renderRead(
         `Coverage: ${descriptor.capture.externalCoverage} at tool-result-hook`,
         "Payload:",
       ].join("\n") + "\n";
-    const payload = new TextDecoder("utf-8", { fatal: true }).decode(buffer.subarray(offsetBytes, endBytes));
+    const payload = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      buffer.subarray(offsetBytes, endBytes),
+    );
     const footer = endBytes < buffer.length ? `\nNext offset: ${endBytes}` : "\nEnd of captured result.";
     content = `${header}${payload}${footer}`;
   }

@@ -286,7 +286,7 @@ export default function freeflow(pi: FreeflowAPI) {
     results.reset();
     programs.reset();
     effects.reset();
-    effects.recover(ctx);
+    await effects.recover(ctx);
     context = new FreeflowContextRuntime(ctx);
     virtualization = new ContextVirtualizationRuntime(pi, ctx, context);
     history = new ConversationHistoryRuntime(
@@ -318,8 +318,9 @@ export default function freeflow(pi: FreeflowAPI) {
     await update(ctx);
     await routing.beforeRun(ctx);
     status(ctx);
-    const text = stableRuntimeContext(prompts);
-    return { systemPrompt: text ? `${event.systemPrompt}\n\n${text}` : event.systemPrompt };
+    // Pi 0.87 records changed sections at their native transcript position.
+    // Returning systemPrompt would force one replacement head for every request.
+    event.systemPromptOptions.sections.freeflow_guidance = stableRuntimeContext(prompts);
   });
   pi.on("message_end", (event, ctx) => {
     routing.messageEnd((event as any).message);
@@ -366,7 +367,7 @@ export default function freeflow(pi: FreeflowAPI) {
     await routing.nativeChange(ctx);
     status(ctx);
   });
-  pi.on("context", async (event, ctx) => {
+  pi.on("context_with_system", async (event, ctx) => {
     if (!capability) await loadSurface(ctx);
     let messages = event.messages.map(filterBootstrapMessage).filter(Boolean);
     if (virtualization) {
@@ -392,7 +393,12 @@ export default function freeflow(pi: FreeflowAPI) {
     const routed = await routing.context(ctx, messages);
     const projected = virtualization?.decorate(routed) ?? routed;
     const state = routing.state();
-    if (projected.some((message) => message.details?.routingRequestBlocked === true)) return { messages: projected };
+    if (projected.some((message) => message.details?.routingRequestBlocked === true)) {
+      // Routing must not expose hidden worker history on failure, but Pi's full-
+      // transcript hook still requires the leading system prompt/tool state.
+      const head = event.messages[0]?.role === "system" ? [event.messages[0]] : [];
+      return { messages: [...head, ...projected] };
+    }
     const view = routing.projectionEnabled && state.activeProfile === "coordinator" ? "coordinator" : "ordinary";
     return {
       messages: await requestHistory.assemble(projected, view, ctx, (assembled) =>
@@ -406,7 +412,7 @@ export default function freeflow(pi: FreeflowAPI) {
     results.reset();
     programs.reset();
     effects.reset();
-    effects.recover(ctx);
+    await effects.recover(ctx);
     restoreSessionOverrides(ctx);
     refreshState = true;
     if (virtualization) {

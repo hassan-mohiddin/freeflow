@@ -392,8 +392,9 @@ export class EfficiencyObserver {
       ...efficiencyReport(this.ledger.all()),
       measurement: {
         bytes: "serialized UTF-8 bytes at named local boundaries",
-        usage: "host-normalized provider records and separately grouped tool-reported records",
-        cost: "observed host/tool records only; no price-table estimates",
+        usage:
+          "numeric fields are known sums; per-field availability distinguishes zero from missing, with host-normalized provider and tool-reported records grouped separately",
+        cost: "known sums with per-field availability; no price-table estimates",
         providerCacheHits: "not inferred",
       },
       persistenceFailures: this.persistenceFailures,

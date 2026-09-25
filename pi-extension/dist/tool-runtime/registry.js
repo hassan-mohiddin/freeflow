@@ -158,6 +158,15 @@ export class OperationRegistry {
     });
     return Object.freeze({ generation, descriptors: Object.freeze([...descriptors]) });
   }
+  isCurrent(resolved, generation) {
+    const entry = this.entries.get(keyOf(resolved.operation.key));
+    return (
+      entry?.active === true &&
+      entry.operation === resolved.operation &&
+      generation === resolved.generation &&
+      this.snapshot().generation === generation
+    );
+  }
   resolve(key) {
     const entry = this.entries.get(keyOf(key));
     if (!entry?.active) {

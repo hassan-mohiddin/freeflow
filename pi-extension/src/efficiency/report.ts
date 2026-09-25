@@ -8,26 +8,48 @@ function finite(value: unknown): number {
 
 type UsageTotals = EfficiencyReport["usage"];
 type CostTotals = EfficiencyReport["cost"];
+const USAGE_FIELDS = [
+  "input",
+  "output",
+  "reasoning",
+  "cacheRead",
+  "cacheWrite",
+  "cacheWrite1h",
+  "totalTokens",
+] as const;
+const COST_FIELDS = ["input", "output", "cacheRead", "cacheWrite", "total"] as const;
+
+function totals(fields: readonly string[]) {
+  return {
+    ...Object.fromEntries(fields.map((key) => [key, 0])),
+    observedRecords: 0,
+    availability: Object.fromEntries(
+      fields.map((key) => [key, { knownSum: 0, observed: 0, missing: 0, complete: false }]),
+    ),
+  };
+}
+
+function observeFields(target: any, fields: readonly string[], source: object | undefined): void {
+  for (const key of fields) {
+    const value = (source as Record<string, unknown> | undefined)?.[key];
+    const metric = target.availability[key];
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+      target[key] += value;
+      metric.knownSum += value;
+      metric.observed += 1;
+    } else {
+      metric.missing += 1;
+    }
+    metric.complete = metric.observed > 0 && metric.missing === 0;
+  }
+}
 
 function addUsage(totals: UsageTotals, costs: CostTotals, usage: UsageObservation | undefined): void {
-  if (!usage) return;
-  (totals as any).input += finite(usage.input);
-  (totals as any).output += finite(usage.output);
-  // Reasoning is reported separately and is already a subset of output.
-  (totals as any).reasoning += finite(usage.reasoning);
-  (totals as any).cacheRead += finite(usage.cacheRead);
-  (totals as any).cacheWrite += finite(usage.cacheWrite);
-  (totals as any).cacheWrite1h += finite(usage.cacheWrite1h);
-  (totals as any).totalTokens += finite(usage.totalTokens);
-  (totals as any).observedRecords += 1;
-  if (usage.cost) {
-    (costs as any).input += finite(usage.cost.input);
-    (costs as any).output += finite(usage.cost.output);
-    (costs as any).cacheRead += finite(usage.cost.cacheRead);
-    (costs as any).cacheWrite += finite(usage.cost.cacheWrite);
-    (costs as any).total += finite(usage.cost.total);
-    (costs as any).observedRecords += 1;
-  }
+  // Numeric fields are known sums; availability says whether they are complete.
+  observeFields(totals, USAGE_FIELDS, usage);
+  observeFields(costs, COST_FIELDS, usage?.cost);
+  if (usage) (totals as any).observedRecords += 1;
+  if (usage?.cost) (costs as any).observedRecords += 1;
 }
 
 function sortedCounts(values: Map<string, number>, key: string): any[] {
@@ -39,28 +61,10 @@ function sortedCounts(values: Map<string, number>, key: string): any[] {
 
 export function efficiencyReport(observations: readonly EfficiencyObservation[]): EfficiencyReport {
   const attempts = new Set<string>();
-  const usage: any = {
-    input: 0,
-    output: 0,
-    reasoning: 0,
-    cacheRead: 0,
-    cacheWrite: 0,
-    cacheWrite1h: 0,
-    totalTokens: 0,
-    observedRecords: 0,
-  };
-  const toolUsage: any = {
-    input: 0,
-    output: 0,
-    reasoning: 0,
-    cacheRead: 0,
-    cacheWrite: 0,
-    cacheWrite1h: 0,
-    totalTokens: 0,
-    observedRecords: 0,
-  };
-  const cost: any = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, observedRecords: 0 };
-  const toolCost: any = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, observedRecords: 0 };
+  const usage: any = totals(USAGE_FIELDS);
+  const toolUsage: any = totals(USAGE_FIELDS);
+  const cost: any = totals(COST_FIELDS);
+  const toolCost: any = totals(COST_FIELDS);
   const tooling = {
     argumentBytes: 0,
     resultBytes: 0,

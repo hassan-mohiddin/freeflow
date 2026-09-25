@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Breaking Changes
+
+- Requires native Pi 0.87.1 or a compatible 0.87.x host for the Pi extension; Pi 0.85.x is no longer supported.
+
 ### Added
 
 - Adds an optional Cognitive Routing Helper profile and `executor`, `helper`, and `both` delegation modes with mode-aware presets, manual holds, durable worker-specific continuation, and shared worker history.
@@ -21,6 +25,9 @@
 
 ### Fixed
 
+- Preserves Pi 0.87.1's historical system-prompt and tool timeline by contributing Freeflow guidance as a structured section and composing the full request transcript rather than forcing a replacement system head.
+- Rejects workspace searches through intermediate symlinks and operations revoked during asynchronous authorization; keeps failed effect-settlement appends fenced until persisted ancestry confirms their outcome.
+- Preserves BOM/line endings and exact byte ranges in workspace and captured-result operations, bounds legal long-query search excerpts, and reports per-field usage/cost missingness instead of treating absence as reported zero.
 - Clears session-local Cognitive Routing manual-hold state before validating a newly bound session.
 - Clarifies evidence-selection operation shapes, remove-only withdrawal reasons, and the distinction between eligible result bodies and routing controls.
 - Prevents pre-prompt `/reload` and Cognitive Routing preset changes from blocking on Pi's not-yet-materialized session file.

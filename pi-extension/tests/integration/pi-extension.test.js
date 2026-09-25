@@ -19,6 +19,7 @@ import {
 } from "../../dist/runtime/runtime-context.js";
 import { PIFLOW_HOST } from "../fixtures/pi-host.js";
 import { matches } from "../../dist/cognitive-routing-v2/schemas.js";
+import { contextHandler, beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -158,14 +159,14 @@ test("keeps Runtime State before the latest user message during context refreshe
       { role: "assistant", content: "delegating" },
       { role: "toolResult", toolName: "freeflow_delegate", content: [] },
     ];
-    const first = await handlers.get("context")({ messages: conversation }, ctx);
+    const first = await contextHandler(handlers)({ messages: conversation }, ctx);
     const firstUserIndex = first.messages.findIndex((message) => message.role === "user");
     const firstRuntimeIndex = first.messages.findIndex((message) => message.customType === "freeflow-runtime-state");
     assert.equal(firstRuntimeIndex, firstUserIndex - 1);
     assert.equal(first.messages.at(-1).role, "toolResult");
 
     await handlers.get("session_compact")({ type: "session_compact", reason: "threshold" }, ctx);
-    const refreshed = await handlers.get("context")({ messages: first.messages }, ctx);
+    const refreshed = await contextHandler(handlers)({ messages: first.messages }, ctx);
     const refreshedUserIndex = refreshed.messages.findIndex((message) => message.role === "user");
     const refreshedRuntimeIndex = refreshed.messages.findIndex(
       (message) => message.customType === "freeflow-runtime-state",
@@ -173,7 +174,7 @@ test("keeps Runtime State before the latest user message during context refreshe
     assert.equal(refreshedRuntimeIndex, refreshedUserIndex - 1);
     assert.equal(refreshed.messages.at(-1).role, "toolResult");
 
-    const interrupted = await handlers.get("context")(
+    const interrupted = await contextHandler(handlers)(
       {
         messages: [...refreshed.messages, { role: "user", content: "stop" }],
       },
@@ -237,7 +238,7 @@ test("new routing tools and projection state follow the configured contract", as
         stopReason: "stop",
       });
       await loaded.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
-      await loaded.handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+      await beforeAgentStartHandler(loaded.handlers)({ systemPrompt: "base prompt" }, ctx);
 
       const toolNames = loaded.tools.map((tool) => tool.name);
       assert.deepEqual(
@@ -263,12 +264,12 @@ test("new routing tools and projection state follow the configured contract", as
       );
       assert.equal(loaded.activeToolNames().includes("freeflow_project"), true);
 
-      const providerContext = await loaded.handlers.get("context")({ messages: [] }, ctx);
+      const providerContext = await contextHandler(loaded.handlers)({ messages: [] }, ctx);
       assert.match(providerContext.messages[0].content, /Delegation: `executor`/);
       assert.match(providerContext.messages[0].content, new RegExp("Projection: `" + scenario.expectedMode + "`"));
 
       await loaded.commands.find((command) => command.name === "freeflow").definition.handler("profile executor", ctx);
-      const manualContext = await loaded.handlers.get("context")({ messages: [] }, ctx);
+      const manualContext = await contextHandler(loaded.handlers)({ messages: [] }, ctx);
       assert.match(
         manualContext.messages.findLast((message) => message.customType === "freeflow-runtime-state").content,
         new RegExp("Projection: `" + (scenario.projection ? "manual-bypass" : "disabled") + "`"),
@@ -419,8 +420,8 @@ test("PiFlow keeps Cognitive Routing unavailable while exposing its configuratio
       /programs_disabled/,
     );
     assert.ok(activeToolNames().includes("freeflow_delegate"));
-    const before = await handlers.get("before_agent_start")({ systemPrompt: "base" }, ctx);
-    assert.match(before.systemPrompt, /guidance is dormant/);
+    const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base" }, ctx);
+    assert.match(before.renderedGuidance, /guidance is dormant/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -1179,9 +1180,9 @@ test("Pi keeps Freeflow inactive until repository activation exists", async () =
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
     assert.equal(resources.skillPaths.length, 27);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
-    const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, context(cwd));
-    assert.ok(result.systemPrompt.startsWith("base prompt\n\n"));
-    assert.match(result.systemPrompt, /guidance is dormant/);
+    const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, context(cwd));
+    assert.equal(result.systemPrompt, "base prompt");
+    assert.match(result.renderedGuidance, /guidance is dormant/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -1208,9 +1209,9 @@ test("Pi treats invalid configuration as inactive", async () => {
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
     assert.equal(resources.skillPaths.length, 27);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
-    const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, context(cwd));
-    assert.ok(result.systemPrompt.startsWith("base prompt\n\n"));
-    assert.match(result.systemPrompt, /guidance is dormant/);
+    const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, context(cwd));
+    assert.equal(result.systemPrompt, "base prompt");
+    assert.match(result.renderedGuidance, /guidance is dormant/);
     const freeflowCommand = commands.find((command) => command.name === "freeflow");
     const statusCtx = context(cwd);
     await freeflowCommand.definition.handler("status", statusCtx);
@@ -1268,7 +1269,7 @@ test("Pi resolves Tool Execution sub-capabilities and exposes bounded runtime st
     assert.equal(state.toolExecution.workspace.effective, true);
     assert.equal(state.toolExecution.discovery.effective, true);
     assert.equal(state.toolExecution.capture.maxInlineBytes, 4096);
-    const providerContext = await handlers.get("context")({ messages: [] }, ctx);
+    const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(
       lastRuntimeState(providerContext.messages).content,
       /Tool Execution: active · capture active · reader enabled · workspace read-only · discovery active · accounting active · programs off/,
@@ -1373,10 +1374,10 @@ test("Pi master Freeflow toggle makes features inactive while preserving their r
     const ctx = context(cwd);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.equal(resources.skillPaths.length, 27);
-    const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.ok(result.systemPrompt.startsWith("base prompt\n\n"));
-    assert.match(result.systemPrompt, /guidance is dormant/);
-    const providerContext = await handlers.get("context")({ messages: [] }, ctx);
+    const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.equal(result.systemPrompt, "base prompt");
+    assert.match(result.renderedGuidance, /guidance is dormant/);
+    const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(lastRuntimeState(providerContext.messages).content, /Freeflow: inactive/);
     assert.doesNotMatch(
       lastRuntimeState(providerContext.messages).content,
@@ -1837,7 +1838,7 @@ test("Pi filters persisted Workflow and Cognitive Routing bootstrap entries with
       { role: "custom", customType: "freeflow-cognitive-routing-bootstrap", content: "old routing", display: false },
       userMessage,
     ];
-    const result = await handlers.get("context")({ messages }, context(cwd));
+    const result = await contextHandler(handlers)({ messages }, context(cwd));
     assert.deepEqual(
       result.messages.filter((message) => message.customType !== "freeflow-runtime-state"),
       [userMessage],
@@ -1862,9 +1863,9 @@ test("Pi preserves the host prompt prefix and dormant contract when a mandatory 
       await import(`${new URL(`file://${join(root, "pi-extension", "dist", "index.js")}`).href}?missing=${Date.now()}`)
     ).default;
     const { handlers } = loadExtension(extension);
-    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, context(cwd));
-    assert.ok(before.systemPrompt.startsWith("base prompt\n\n"));
-    assert.match(before.systemPrompt, /guidance is dormant/);
+    const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, context(cwd));
+    assert.equal(before.systemPrompt, "base prompt");
+    assert.match(before.renderedGuidance, /guidance is dormant/);
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
     assert.equal(resources.skillPaths.length, 27);
   } finally {

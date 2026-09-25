@@ -9,6 +9,7 @@ import { promisify } from "node:util";
 import freeflowExtension from "../../dist/index.js";
 import { resetSessionOverrides, setSessionCoreOverride } from "../../dist/runtime/runtime-context.js";
 import { PIFLOW_HOST } from "../fixtures/pi-host.js";
+import { beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -410,14 +411,14 @@ test("session settings preserve mandatory prompts through compaction and resume"
   try {
     const { handlers } = loadExtension();
     const ctx = context(cwd);
-    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.match(before.systemPrompt, /# Freeflow Interaction Contract/);
+    const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.match(before.renderedGuidance, /# Freeflow Interaction Contract/);
     await handlers.get("session_compact")({ reason: "manual" }, ctx);
-    const afterCompact = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.match(afterCompact.systemPrompt, /# Freeflow Interaction Contract/);
+    const afterCompact = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.match(afterCompact.renderedGuidance, /# Freeflow Interaction Contract/);
     await handlers.get("session_start")({ reason: "resume" }, ctx);
-    const afterResume = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.match(afterResume.systemPrompt, /# Freeflow Interaction Contract/);
+    const afterResume = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.match(afterResume.renderedGuidance, /# Freeflow Interaction Contract/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -428,9 +429,9 @@ test("retired router-shaped configuration remains inert while core activation wo
   try {
     const { handlers } = loadExtension();
     const ctx = context(cwd);
-    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.match(before.systemPrompt, /# Freeflow Interaction Contract/);
-    assert.doesNotMatch(before.systemPrompt, /Output Router|freeflow_(search|run|batch)/i);
+    const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.match(before.renderedGuidance, /# Freeflow Interaction Contract/);
+    assert.doesNotMatch(before.renderedGuidance, /Output Router|freeflow_(search|run|batch)/i);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

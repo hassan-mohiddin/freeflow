@@ -105,7 +105,7 @@ pi install git:github.com/hassan-mohiddin/freeflow
 
 Restart Pi or use `/reload` after installing or updating the package.
 
-The repository's current development dependency is Pi 0.85.1. This is source/dependency context, not proof of a released or installed native integration; version-specific host acceptance requires separate evidence.
+Native Pi 0.87.1 is the minimum supported version (within the package's 0.87.x peer range); Pi 0.85.x is unsupported. The development dependency is 0.87.1. Scripted host and extracted-package checks qualify bounded source/artifact behavior, not a released or installed user integration, provider cache hits, billing or model quality.
 
 ### PiFlow
 

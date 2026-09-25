@@ -20,7 +20,7 @@ Restart Pi or use `/reload` after installing or updating so its resources are re
 
 ## Supported Pi evidence
 
-The repository's current development dependency is Pi 0.85.1. This is source and fixture context, not a support or behavioral acceptance claim. The native entrypoint requires the host's public model registry/authentication lookup, session-scoped model and thinking controls, native session-entry append/readback, and session ancestry APIs. Stock-Pi dispatch and model quality remain separately unverified. A deterministic temporary installation executes the npm-packed candidate's Tool Execution Worker and QuickJS WASM from a path containing spaces; that qualifies artifact resolution only, not user-host installation or model behavior.
+The minimum supported native Pi version is 0.87.1 (the package's 0.87.x peer range); Pi 0.85.x is unsupported. The development dependency is Pi 0.87.1. Native scripted fixtures exercise request assembly, routing, Tool Execution and the extracted Worker/WASM against the identified 0.87.1 artifact. They do not establish live provider cache behavior, billing, model quality, publication or installation into a user's Pi process. The native entrypoint requires the host's public model registry/authentication lookup, session-scoped model and thinking controls, native session-entry append/readback, and session ancestry APIs.
 
 ## Activate Freeflow
 
@@ -36,7 +36,7 @@ Freeflow's core prompt and separately editable Interaction Contract are delivere
 
 ## Cognitive Routing configuration
 
-On a future qualified native Pi host, configure the v2 shape through `/freeflow settings` or the JSON layers:
+On a supported native Pi host, configure the v2 shape through `/freeflow settings` or the JSON layers:
 
 ```json
 {
@@ -143,7 +143,7 @@ The v2 projection is not qualified with the legacy Context Virtualization or Con
 
 ## Cache reuse boundaries
 
-The Pi candidate keeps Freeflow reference definitions, tool schemas, and generated runtime snapshots stable while feature gates control whether operations may execute. Helper and Executor share ordinary active history, and compatible worker/Coordinator views reuse only matching permitted prefixes; Freeflow does not copy excluded evidence to manufacture a cache match. Native ancestry replay preserves Freeflow-generated snapshots when their fingerprints and permitted history still apply.
+On Pi 0.87.1, Freeflow contributes stable guidance as a structured prompt section and composes the full transcript in `context_with_system`, retaining Pi's earlier system/tool patches at their original positions. A native two-turn fixture exercises that timeline; it does not prove server cache hits, and another extension can still change the final request. The Pi candidate keeps Freeflow reference definitions, tool schemas, and generated runtime snapshots stable while feature gates control whether operations may execute. Helper and Executor share ordinary active history, and compatible worker/Coordinator views reuse only matching permitted prefixes; Freeflow does not copy excluded evidence to manufacture a cache match. Native ancestry replay preserves Freeflow-generated snapshots when their fingerprints and permitted history still apply.
 
 Reuse may shorten or restart when the active model/provider or unsupported effort path changes, earlier evidence is archived/restored/withdrawn or otherwise changes the view, native compaction or navigation replaces history, Freeflow or host instructions/tool schemas change, or a capability change alters permitted content. Provider expiry, eviction, minimum cacheable length, and actual server cache hits remain outside Freeflow's control. The independent Astra effort adapter preserves the supported request baseline and records effective changes at its qualified boundary; this source/fixture evidence is not a billing or model-quality guarantee.
 

@@ -136,7 +136,7 @@ export async function fixture(script, projection = true, after, withUI = true, o
       noContextFiles: true,
       extensionFactories: [
         ...(options.beforeExtensions ?? []),
-        freeflow,
+        ...(!options.skipFreeflow ? [freeflow] : []),
         ...(options.extensions ?? []),
         (pi) => {
           pi.on("context", (event) => {

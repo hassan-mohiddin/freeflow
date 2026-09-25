@@ -100,6 +100,13 @@ export type ToolCompletionObservation = ObservationBase &
 export type EfficiencyObservation =
   PreparedRequestObservation | ResponseHeadersObservation | AssistantCompletionObservation | ToolCompletionObservation;
 
+export type MetricAvailability = Readonly<{
+  knownSum: number;
+  observed: number;
+  missing: number;
+  complete: boolean;
+}>;
+
 export type EfficiencyReport = Readonly<{
   observations: number;
   attempts: number;
@@ -119,6 +126,12 @@ export type EfficiencyReport = Readonly<{
     cacheWrite1h: number;
     totalTokens: number;
     observedRecords: number;
+    availability: Readonly<
+      Record<
+        "input" | "output" | "reasoning" | "cacheRead" | "cacheWrite" | "cacheWrite1h" | "totalTokens",
+        MetricAvailability
+      >
+    >;
   }>;
   toolUsage: Readonly<{
     input: number;
@@ -129,6 +142,12 @@ export type EfficiencyReport = Readonly<{
     cacheWrite1h: number;
     totalTokens: number;
     observedRecords: number;
+    availability: Readonly<
+      Record<
+        "input" | "output" | "reasoning" | "cacheRead" | "cacheWrite" | "cacheWrite1h" | "totalTokens",
+        MetricAvailability
+      >
+    >;
   }>;
   cost: Readonly<{
     input: number;
@@ -137,6 +156,7 @@ export type EfficiencyReport = Readonly<{
     cacheWrite: number;
     total: number;
     observedRecords: number;
+    availability: Readonly<Record<"input" | "output" | "cacheRead" | "cacheWrite" | "total", MetricAvailability>>;
   }>;
   toolCost: Readonly<{
     input: number;
@@ -145,6 +165,7 @@ export type EfficiencyReport = Readonly<{
     cacheWrite: number;
     total: number;
     observedRecords: number;
+    availability: Readonly<Record<"input" | "output" | "cacheRead" | "cacheWrite" | "total", MetricAvailability>>;
   }>;
   tooling: Readonly<{
     argumentBytes: number;

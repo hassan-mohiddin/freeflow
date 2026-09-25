@@ -7,7 +7,7 @@ The current package candidate is exercised through source-built native fixtures 
 ## Availability and boundaries
 
 - Tool Execution is disabled by default.
-- It is available only through the native Pi extension path; the current PiFlow path reports it unavailable.
+- It requires native Pi 0.87.1 or a compatible 0.87.x host; Pi 0.85.x is unsupported. The current PiFlow path reports it unavailable.
 - The stable native tools remain visible while execution-time gates enforce current availability.
 - Native Pi Bash is the built-in output-capture integration. An unknown custom Bash keeps its ordinary Pi behavior and is not reshaped.
 - Live child operations run in their declared execution world and cooperating policy. They do not inherit every native or third-party Pi hook.
@@ -130,7 +130,7 @@ The initial finite local catalog is:
 | `project.searchText@1` | Searches a literal string under explicit allowed paths with deterministic ordering, bounded acquisition and revision-bound continuation. |
 | `project.replaceExact@1` | Replaces one unambiguous occurrence under an expected complete-file SHA-256 and reports before/after hashes. |
 
-The workspace adapter rejects absolute/traversal/outside-root/denied paths, escaped or searched symlinks, unsupported files, invalid UTF-8 and oversized acquisition. Search does not claim a transactionally consistent filesystem snapshot. Replacement coordination is limited to one Freeflow runtime instance; cross-process compare-and-swap and hostile filesystem races are not promised.
+The workspace adapter rejects absolute/traversal/outside-root/denied paths, including intermediate symlinks in explicit search roots. It preserves UTF-8 BOM and unchanged line endings in exact reads and replacements; search clips long excerpts with visible ellipses while retaining full byte coordinates. Search `maxBytes` bounds the operation value including its continuation metadata, not the additional `freeflow_tools` outer envelope. Hostile concurrent filesystem races and cross-process compare-and-swap remain outside its guarantee. Search does not claim a transactionally consistent filesystem snapshot. Replacement coordination is limited to one Freeflow runtime instance; cross-process compare-and-swap and hostile filesystem races are not promised.
 
 No arbitrary Bash, network fetch, deletion, general write, installation, or remote-native fallback is added to the program catalog. Ordinary Pi tools remain available through their normal path.
 
@@ -172,7 +172,7 @@ When `accounting.enabled` is effective:
 /freeflow efficiency export
 ```
 
-The report keeps prepared request, response header, persisted assistant, final tool result, run, child-operation, capture and recovery observations distinct. It groups by profile, assignment, run and operation. Provider-normalized usage/cost and tool-reported usage/cost remain separate; reasoning is reported separately and is not added to output.
+The report keeps prepared request, response header, persisted assistant, final tool result, run, child-operation, capture and recovery observations distinct. Numeric usage and cost fields are known sums; per-field availability reports observed versus missing values and completeness, so a reported zero is distinguishable from an absent metric. It groups by profile, assignment, run and operation. Provider-normalized usage/cost and tool-reported usage/cost remain separate; reasoning is reported separately and is not added to output.
 
 Byte fields are serialized UTF-8 measurements at named local boundaries. They are not billed tokens. Provider cache hits are never inferred from matching prefixes or local catalog hits. Export is bounded and reports omitted observations; normal accounting does not persist prompts, credentials, program bodies or full tool results.
 

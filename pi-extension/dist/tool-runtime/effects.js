@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { canonicalJson, jsonDigest } from "./schema.js";
+import { activeReadOnlySessionBranch, readOnlySessionSnapshot } from "../session-sources/read-only-session.js";
 export const EFFECT_ENTRY = "freeflow-tool-effect-v1";
 export class EffectJournalError extends Error {
   code;
@@ -103,18 +104,69 @@ export class EffectRuntime {
     this.activeSessionId = undefined;
     this.unresolved.clear();
   }
-  recover(host) {
-    this.activeSessionId = host?.sessionManager?.getSessionId?.();
-    this.unresolved.clear();
+  async recover(host) {
+    const manager = host?.sessionManager;
+    const sessionId = manager?.getSessionId?.();
+    const generation = this.generation;
+    this.activeSessionId = sessionId;
+    const branch = entries(host);
     const all = events(host);
-    const settlements = all.filter((event) => event.event === "settled");
-    for (const event of all) {
-      if (event.event !== "started") continue;
-      const matching = settlements.filter(
-        (settlement) => settlement.effectId === event.effectId && settlement.sessionId === event.sessionId,
-      );
-      if (matching.length !== 1 || matching[0].effectState === "unknown") this.unresolved.set(event.effectId, event);
+    const starts = all.filter((event) => event.event === "started");
+    const unresolved = new Map(starts.map((event) => [event.effectId, event]));
+    const hasClaimedSettlement = starts.some((start) =>
+      all.some((event) => event.event === "settled" && event.effectId === start.effectId),
+    );
+    // Pi may update session memory before its append reaches disk. A settlement in
+    // that same memory is not evidence that a failed append was acknowledged.
+    if (hasClaimedSettlement) {
+      try {
+        const path = manager?.getSessionFile?.();
+        const leafId = manager?.getLeafId?.();
+        if (!path || typeof leafId !== "string") throw new Error("Effect snapshot is unavailable.");
+        const snapshot = await readOnlySessionSnapshot(path);
+        if (snapshot.sessionId !== sessionId) throw new Error("Effect session identity changed.");
+        const persisted = activeReadOnlySessionBranch(snapshot, leafId);
+        if (
+          persisted.length !== branch.length ||
+          persisted.some(
+            (entry, index) =>
+              entry.id !== branch[index]?.id ||
+              (entry.type === "custom" &&
+                entry.customType === EFFECT_ENTRY &&
+                canonicalJson(entry.data) !== canonicalJson(branch[index]?.data)),
+          )
+        )
+          throw new Error("Effect ancestry differs from persisted snapshot.");
+        const onDisk = persisted
+          .filter((entry) => entry.type === "custom" && entry.customType === EFFECT_ENTRY)
+          .map((entry) => entry.data)
+          .filter((value) => isStart(value) || isSettled(value));
+        for (const start of starts) {
+          if (
+            !onDisk.some(
+              (event) =>
+                event.event === "started" &&
+                event.effectId === start.effectId &&
+                canonicalJson(event) === canonicalJson(start),
+            )
+          )
+            continue;
+          const matching = onDisk.filter(
+            (event) =>
+              event.event === "settled" && event.effectId === start.effectId && event.sessionId === start.sessionId,
+          );
+          if (matching.length === 1 && matching[0].effectState !== "unknown") unresolved.delete(start.effectId);
+        }
+      } catch {
+        // No qualified persisted readback: all observed starts remain fenced.
+      }
     }
+    if (this.generation !== generation || this.activeSessionId !== sessionId) return;
+    // Do not erase a new start admitted while the persisted snapshot was read.
+    for (const [id, event] of this.unresolved)
+      if (!starts.some((start) => start.effectId === id)) unresolved.set(id, event);
+    this.unresolved.clear();
+    for (const [id, event] of unresolved) this.unresolved.set(id, event);
   }
   admit(scope, effect) {
     return this.recheck(scope, effect);

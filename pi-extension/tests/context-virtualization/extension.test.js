@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 
 import freeflowExtension from "../../dist/index.js";
+import { contextHandler, beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
 function createHarness(cwd, contextEntries, activeContextEntries = contextEntries) {
   const handlers = new Map();
@@ -202,11 +203,11 @@ test("enabled Context Virtualization registers, projects, archives, restores, an
     await harness.handlers.get("session_start")({ reason: "startup" }, harness.ctx);
 
     assert.ok(harness.activeToolNames().includes("freeflow_context"));
-    const before = await harness.handlers.get("before_agent_start")({ systemPrompt: "base" }, harness.ctx);
-    assert.match(before.systemPrompt, /## Context Virtualization Cue/);
-    assert.doesNotMatch(before.systemPrompt, /# Context Virtualization$/m);
+    const before = await beforeAgentStartHandler(harness.handlers)({ systemPrompt: "base" }, harness.ctx);
+    assert.match(before.renderedGuidance, /## Context Virtualization Cue/);
+    assert.doesNotMatch(before.renderedGuidance, /# Context Virtualization$/m);
 
-    const contextResult = await harness.handlers.get("context")(
+    const contextResult = await contextHandler(harness.handlers)(
       { messages: [harness.entries[0].message] },
       harness.ctx,
     );
@@ -260,7 +261,7 @@ test("enabled Context Virtualization registers, projects, archives, restores, an
       ].join("\n"),
     );
 
-    const archivedContext = await harness.handlers.get("context")(
+    const archivedContext = await contextHandler(harness.handlers)(
       { messages: [harness.entries[0].message] },
       harness.ctx,
     );
@@ -282,7 +283,7 @@ test("enabled Context Virtualization registers, projects, archives, restores, an
       .find((command) => command.name === "freeflow")
       .definition.handler("context restore ctx:tool-1", harness.ctx);
     assert.equal(harness.notifications.at(-1).message, "Restored 1 projection to full content.");
-    const restoredContext = await harness.handlers.get("context")(
+    const restoredContext = await contextHandler(harness.handlers)(
       { messages: [harness.entries[0].message] },
       harness.ctx,
     );
@@ -375,9 +376,9 @@ test("enabled Conversation History permits search and retrieve within the stable
     assert.match(renderComponent(expandedResult), /database timeout was recovered/);
     assert.match(contextTool.description, /hidden conversation history/i);
     assert.match(contextTool.description, /future context projections/i);
-    const before = await harness.handlers.get("before_agent_start")({ systemPrompt: "base" }, harness.ctx);
-    assert.match(before.systemPrompt, /## Conversation History Cue/);
-    assert.doesNotMatch(before.systemPrompt, /# Conversation History$/m);
+    const before = await beforeAgentStartHandler(harness.handlers)({ systemPrompt: "base" }, harness.ctx);
+    assert.match(before.renderedGuidance, /## Conversation History Cue/);
+    assert.doesNotMatch(before.renderedGuidance, /# Conversation History$/m);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -419,7 +420,7 @@ test("Conversation History searches hidden active-branch entries and retrieves s
     );
     const harness = createHarness(cwd, [visible, hidden, excluded], [visible]);
     await harness.handlers.get("session_start")({ reason: "startup" }, harness.ctx);
-    await harness.handlers.get("context")({ messages: [visible.message] }, harness.ctx);
+    await contextHandler(harness.handlers)({ messages: [visible.message] }, harness.ctx);
     await harness.commands
       .find((command) => command.name === "freeflow")
       .definition.handler("context status", harness.ctx);
@@ -489,7 +490,7 @@ test("mixed assistant sources retain ordinary content and exclude Freeflow tool 
     assistant.timestamp = "not-a-timestamp";
     const harness = createHarness(cwd, [assistant], []);
     await harness.handlers.get("session_start")({ reason: "startup" }, harness.ctx);
-    await harness.handlers.get("context")({ messages: [] }, harness.ctx);
+    await contextHandler(harness.handlers)({ messages: [] }, harness.ctx);
     const contextTool = harness.tools.find((tool) => tool.name === "freeflow_context");
 
     const search = await contextTool.execute(
@@ -530,7 +531,7 @@ test("archived Context Virtualization sources return to hidden Conversation Hist
     const source = historyToolResultEntry("archived-source", "The archived database timeout is recoverable.");
     const harness = createHarness(cwd, [source], [source]);
     await harness.handlers.get("session_start")({ reason: "startup" }, harness.ctx);
-    await harness.handlers.get("context")({ messages: [source.message] }, harness.ctx);
+    await contextHandler(harness.handlers)({ messages: [source.message] }, harness.ctx);
 
     const contextTool = harness.tools.find((tool) => tool.name === "freeflow_context");
     const archived = await contextTool.execute(
@@ -542,7 +543,7 @@ test("archived Context Virtualization sources return to hidden Conversation Hist
     );
     assert.equal(archived.details.result.status, "ok");
 
-    await harness.handlers.get("context")({ messages: [source.message] }, harness.ctx);
+    await contextHandler(harness.handlers)({ messages: [source.message] }, harness.ctx);
     const search = await contextTool.execute(
       "context-search-archived-source",
       { operation: "search", query: "database timeout" },
@@ -579,7 +580,7 @@ test("visible retrieved sources are excluded until the retrieval result is archi
     };
     const harness = createHarness(cwd, [source, retrievalResult], [retrievalResult]);
     await harness.handlers.get("session_start")({ reason: "startup" }, harness.ctx);
-    await harness.handlers.get("context")({ messages: [retrievalResult.message] }, harness.ctx);
+    await contextHandler(harness.handlers)({ messages: [retrievalResult.message] }, harness.ctx);
     const contextTool = harness.tools.find((tool) => tool.name === "freeflow_context");
 
     const hiddenSearch = await contextTool.execute(
@@ -603,7 +604,7 @@ test("visible retrieved sources are excluded until the retrieval result is archi
 
     await writeConfig(cwd, { conversationHistory: true });
     await harness.handlers.get("session_tree")({}, harness.ctx);
-    await harness.handlers.get("context")({ messages: [retrievalResult.message] }, harness.ctx);
+    await contextHandler(harness.handlers)({ messages: [retrievalResult.message] }, harness.ctx);
     const stillMaterialized = await contextTool.execute(
       "context-search-while-virtualization-disabled",
       { operation: "search", query: "database timeout" },
@@ -616,7 +617,7 @@ test("visible retrieved sources are excluded until the retrieval result is archi
 
     await writeConfig(cwd, { conversationHistory: true, contextVirtualization: true });
     await harness.handlers.get("session_tree")({}, harness.ctx);
-    await harness.handlers.get("context")({ messages: [retrievalResult.message] }, harness.ctx);
+    await contextHandler(harness.handlers)({ messages: [retrievalResult.message] }, harness.ctx);
 
     const searchableAgain = await contextTool.execute(
       "context-search-after-archive",
@@ -642,7 +643,7 @@ test("Conversation History rejects visible-only searches and bounds oversized re
     const visible = userEntry("visible", "Everything needed is visible now");
     const visibleHarness = createHarness(cwd, [visible], [visible]);
     await visibleHarness.handlers.get("session_start")({ reason: "startup" }, visibleHarness.ctx);
-    await visibleHarness.handlers.get("context")({ messages: [visible.message] }, visibleHarness.ctx);
+    await contextHandler(visibleHarness.handlers)({ messages: [visible.message] }, visibleHarness.ctx);
     const visibleTool = visibleHarness.tools.find((tool) => tool.name === "freeflow_context");
     const emptySearch = await visibleTool.execute(
       "context-empty-search",
@@ -659,7 +660,7 @@ test("Conversation History rejects visible-only searches and bounds oversized re
     const oversized = historyToolResultEntry("oversized", oversizedText);
     const hiddenHarness = createHarness(cwd, [oversized], []);
     await hiddenHarness.handlers.get("session_start")({ reason: "startup" }, hiddenHarness.ctx);
-    await hiddenHarness.handlers.get("context")({ messages: [] }, hiddenHarness.ctx);
+    await contextHandler(hiddenHarness.handlers)({ messages: [] }, hiddenHarness.ctx);
     const hiddenTool = hiddenHarness.tools.find((tool) => tool.name === "freeflow_context");
     const zeroSearch = await hiddenTool.execute(
       "context-zero-search",
@@ -710,7 +711,7 @@ test("Conversation History reports partial coverage for invalid eligible sources
     invalid.message.toolName = "x".repeat(129);
     const harness = createHarness(cwd, [invalid], []);
     await harness.handlers.get("session_start")({ reason: "startup" }, harness.ctx);
-    await harness.handlers.get("context")({ messages: [] }, harness.ctx);
+    await contextHandler(harness.handlers)({ messages: [] }, harness.ctx);
     const contextTool = harness.tools.find((tool) => tool.name === "freeflow_context");
     const search = await contextTool.execute(
       "context-partial-coverage",
@@ -737,7 +738,7 @@ test("visible invalid sources do not make an empty hidden corpus partial", async
     invalid.message.toolName = "x".repeat(129);
     const harness = createHarness(cwd, [invalid], [invalid]);
     await harness.handlers.get("session_start")({ reason: "startup" }, harness.ctx);
-    await harness.handlers.get("context")({ messages: [invalid.message] }, harness.ctx);
+    await contextHandler(harness.handlers)({ messages: [invalid.message] }, harness.ctx);
     const contextTool = harness.tools.find((tool) => tool.name === "freeflow_context");
     const search = await contextTool.execute(
       "context-visible-invalid",
@@ -761,7 +762,7 @@ test("disabled Context Virtualization blocks execution while preserving definiti
     await harness.handlers.get("session_start")({ reason: "startup" }, harness.ctx);
 
     assert.ok(harness.activeToolNames().includes("freeflow_context"));
-    const contextResult = await harness.handlers.get("context")(
+    const contextResult = await contextHandler(harness.handlers)(
       { messages: [harness.entries[0].message] },
       harness.ctx,
     );

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -40,10 +40,11 @@ async function harness(overrides = {}) {
   const root = await mkdtemp(join(tmpdir(), "freeflow-p4-"));
   const manager = SessionManager.create(root, join(root, "sessions"));
   manager.appendMessage({ role: "user", content: "p4", timestamp: 1 });
+  manager.appendMessage({ role: "assistant", content: [{ type: "text", text: "fixture ready" }], timestamp: 2 });
   const current = state(root, overrides);
   const pi = { appendEntry: (type, data) => manager.appendCustomEntry(type, data) };
   const effects = new EffectRuntime(pi);
-  effects.recover({ sessionManager: manager });
+  await effects.recover({ sessionManager: manager });
   const tools = new ToolRuntime(
     () => current,
     {
@@ -151,6 +152,45 @@ test("literal search is deterministic, bounded, policy-scoped, and continuation 
   }
 });
 
+test("search rejects explicit intermediate symlinks to outside and denied paths", async () => {
+  const f = await harness();
+  const outside = await mkdtemp(join(tmpdir(), "freeflow-p4-symlink-outside-"));
+  try {
+    await mkdir(join(outside, "subdir"));
+    await writeFile(join(outside, "subdir", "marker.txt"), "EXTERNAL_MARKER\n");
+    await symlink(outside, join(f.root, "alias"));
+    const outsideSearch = await direct(
+      f,
+      { id: "project.searchText", revision: "1" },
+      { query: "EXTERNAL_MARKER", paths: ["alias/subdir"] },
+    );
+    assert.equal(outsideSearch.details.outcome.status, "denied");
+    assert.equal(outsideSearch.details.outcome.bodyStarted, false);
+
+    await mkdir(join(f.root, "private"));
+    await mkdir(join(f.root, "private", "subdir"));
+    await writeFile(join(f.root, "private", "subdir", "marker.txt"), "DENIED_MARKER\n");
+    await symlink(join(f.root, "private"), join(f.root, "denied-alias"));
+    const deniedSearch = await direct(
+      f,
+      { id: "project.searchText", revision: "1" },
+      { query: "DENIED_MARKER", paths: ["denied-alias/subdir"] },
+    );
+    assert.equal(deniedSearch.details.outcome.status, "denied");
+    assert.equal(deniedSearch.details.outcome.bodyStarted, false);
+
+    const throughProgram = await program(f, {
+      operations: [{ id: "project.searchText", revision: "1" }],
+      code: `try { await tools.invoke("project.searchText", { query: "EXTERNAL_MARKER", paths: ["alias/subdir"] }); emit("unexpected"); } catch (error) { emit(error.code); }`,
+    });
+    assert.deepEqual(throughProgram.details.freeflowRun.emitted, ["path_unsupported"]);
+    assert.equal(throughProgram.details.freeflowRun.calls.started, 0);
+  } finally {
+    await close(f);
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
 test("exact replacement requires one current match and records acknowledged mutation facts", async () => {
   const f = await harness();
   try {
@@ -210,6 +250,101 @@ test("exact replacement requires one current match and records acknowledged muta
   }
 });
 
+test("workspace reads, search and replacements preserve BOM byte offsets and CRLF", async () => {
+  const f = await harness();
+  try {
+    const initial = Buffer.from("\uFEFFalpha TARGET\r\nembedded \uFEFFglyph\r\n", "utf8");
+    const target = join(f.root, "bom.txt");
+    await writeFile(target, initial);
+    const read = (await direct(f, { id: "project.readText", revision: "1" }, { path: "bom.txt" })).details.outcome;
+    assert.equal(read.status, "succeeded");
+    assert.equal(read.value.text.startsWith("\uFEFF"), true);
+    assert.equal(Buffer.byteLength(read.value.text, "utf8"), initial.length);
+    assert.equal(read.value.range.endBytes, initial.length);
+    const offset = initial.indexOf(Buffer.from("\uFEFFglyph", "utf8"));
+    const middle = (
+      await direct(f, { id: "project.readText", revision: "1" }, { path: "bom.txt", offsetBytes: offset, maxBytes: 8 })
+    ).details.outcome;
+    assert.equal(middle.value.text, "\uFEFFglyph");
+    assert.equal(Buffer.byteLength(middle.value.text, "utf8"), middle.value.range.endBytes - offset);
+
+    const search = (
+      await direct(f, { id: "project.searchText", revision: "1" }, { query: "TARGET", paths: ["bom.txt"] })
+    ).details.outcome;
+    assert.equal(search.status, "succeeded");
+    assert.equal(search.value.matches[0].range.startBytes, initial.indexOf(Buffer.from("TARGET")));
+    const changed = (
+      await direct(
+        f,
+        { id: "project.replaceExact", revision: "1" },
+        { path: "bom.txt", expectedSha256: hash(initial), oldText: "TARGET", replacement: "DONE" },
+      )
+    ).details.outcome;
+    assert.equal(changed.status, "succeeded");
+    assert.deepEqual(await readFile(target), Buffer.from("\uFEFFalpha DONE\r\nembedded \uFEFFglyph\r\n", "utf8"));
+
+    await writeFile(target, initial);
+    const viaProgram = await program(f, {
+      operations: [
+        { id: "project.readText", revision: "1" },
+        { id: "project.replaceExact", revision: "1" },
+      ],
+      code: `const file = await tools.invoke("project.readText", { path: "bom.txt" }); const changed = await tools.invoke("project.replaceExact", { path: "bom.txt", expectedSha256: file.sha256, oldText: "TARGET", replacement: "DONE" }); emit(changed.afterSha256);`,
+    });
+    assert.equal(viaProgram.details.freeflowRun.calls.succeeded, 2);
+    assert.deepEqual(await readFile(target), Buffer.from("\uFEFFalpha DONE\r\nembedded \uFEFFglyph\r\n", "utf8"));
+  } finally {
+    await close(f);
+  }
+});
+
+test("legal long and Unicode literal searches stay inside the declared excerpt and response budget", async () => {
+  const f = await harness();
+  try {
+    const query = "α".repeat(300);
+    const body = `${"p".repeat(150)}${query}${"s".repeat(150)}\n`;
+    await writeFile(join(f.root, "long.txt"), body);
+    const response = await direct(
+      f,
+      { id: "project.searchText", revision: "1" },
+      { query, paths: ["long.txt"], maxBytes: 1024 },
+    );
+    const outcome = response.details.outcome;
+    assert.equal(outcome.status, "succeeded");
+    assert.equal(outcome.value.matches.length, 1);
+    assert.ok(outcome.value.matches[0].excerpt.length <= 512);
+    assert.match(outcome.value.matches[0].excerpt, /…/);
+    assert.equal(outcome.value.matches[0].range.startBytes, 150);
+    assert.equal(outcome.value.matches[0].range.endBytes, 150 + Buffer.byteLength(query));
+    assert.ok(Buffer.byteLength(JSON.stringify(outcome.value), "utf8") <= 1024);
+
+    const maximumQuery = "q".repeat(1000);
+    await writeFile(join(f.root, "maximum.txt"), `before ${maximumQuery} after\n`);
+    const maximum = (
+      await direct(f, { id: "project.searchText", revision: "1" }, { query: maximumQuery, paths: ["maximum.txt"] })
+    ).details.outcome;
+    assert.equal(maximum.status, "succeeded");
+    assert.equal(maximum.value.matches[0].range.endBytes - maximum.value.matches[0].range.startBytes, 1000);
+    assert.ok(maximum.value.matches[0].excerpt.length <= 512);
+    assert.match(maximum.value.matches[0].excerpt, /…/);
+
+    const emojiQuery = "😀".repeat(220);
+    await writeFile(join(f.root, "emoji.txt"), `prefix ${emojiQuery} suffix`);
+    const emoji = (
+      await direct(f, { id: "project.searchText", revision: "1" }, { query: emojiQuery, paths: ["emoji.txt"] })
+    ).details.outcome;
+    assert.equal(emoji.status, "succeeded");
+    assert.equal(
+      emoji.value.matches[0].range.endBytes - emoji.value.matches[0].range.startBytes,
+      Buffer.byteLength(emojiQuery, "utf8"),
+    );
+    assert.ok(emoji.value.matches[0].excerpt.length <= 512);
+    assert.equal(emoji.value.matches[0].excerpt.isWellFormed(), true);
+  } finally {
+    await close(f);
+  }
+});
+
 test("settlement uncertainty preserves the applied write and fences later live effects without replay", async () => {
   const f = await harness();
   try {
@@ -237,8 +372,64 @@ test("settlement uncertainty preserves the applied write and fences later live e
 
     f.pi.appendEntry = originalAppend;
     f.effects.reset();
-    f.effects.recover(f.ctx);
-    assert.equal(f.effects.status().unresolvedEffects, 0, "readback observes the settlement appended before failure");
+    await f.effects.recover(f.ctx);
+    assert.equal(
+      f.effects.status().unresolvedEffects,
+      0,
+      "persisted readback observes the settlement appended before failure",
+    );
+  } finally {
+    await close(f);
+  }
+});
+
+test("failed settlement persistence cannot be cleared by recovery from the same native memory", async () => {
+  const f = await harness();
+  try {
+    const ticket = await f.effects.start(
+      f.tools.createProgramScope("failed-persistence", f.ctx),
+      { id: "project.replaceExact", revision: "1" },
+      "mutation",
+      { path: "target.txt" },
+      f.ctx,
+    );
+    const file = f.manager.getSessionFile();
+    await rename(file, `${file}.saved`);
+    await mkdir(file);
+    await assert.rejects(
+      () =>
+        f.effects.settle(
+          ticket,
+          {
+            operation: { id: "project.replaceExact", revision: "1" },
+            catalogGeneration: "fixture",
+            status: "succeeded",
+            effect: "mutation",
+            effectState: "completed",
+            bodyStarted: true,
+          },
+          f.ctx,
+        ),
+      /EISDIR/,
+    );
+    assert.equal(f.effects.status().unresolvedEffects, 1);
+    assert.equal(
+      f.manager
+        .getBranch()
+        .some((entry) => entry.customType === "freeflow-tool-effect-v1" && entry.data?.event === "settled"),
+      true,
+      "failed native append can leave a settlement in memory",
+    );
+    f.effects.reset();
+    await f.effects.recover(f.ctx);
+    assert.equal(f.effects.status().unresolvedEffects, 1);
+    const newRuntime = new EffectRuntime(f.pi);
+    await newRuntime.recover(f.ctx);
+    assert.equal(
+      newRuntime.status().unresolvedEffects,
+      1,
+      "fresh runtime must not trust the failed in-memory settlement",
+    );
   } finally {
     await close(f);
   }
@@ -405,7 +596,7 @@ test("unsettled mutation start survives runtime reconstruction and fences live o
       extra: true,
     });
     const recovered = new EffectRuntime({ appendEntry: originalAppend });
-    recovered.recover(f.ctx);
+    await recovered.recover(f.ctx);
     assert.equal(recovered.status().unresolvedEffects, 1);
     assert.equal(recovered.admit(f.tools.createProgramScope("live", f.ctx), "live-read").kind, "denied");
     assert.equal(recovered.admit(f.tools.createProgramScope("capture", f.ctx), "captured-read").kind, "allowed");

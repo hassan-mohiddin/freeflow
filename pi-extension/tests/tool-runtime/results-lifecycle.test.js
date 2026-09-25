@@ -30,11 +30,10 @@ function assistantMessage() {
   };
 }
 
-async function preparedManager(root) {
+async function preparedManager(root, body = "exact persisted captured body αβ") {
   const manager = SessionManager.create(root, join(root, "sessions"));
   const userId = manager.appendMessage({ role: "user", content: "fixture", timestamp: 0 });
   const assistantEntryId = manager.appendMessage(assistantMessage());
-  const body = "exact persisted captured body αβ";
   const emission = "bounded excerpt";
   const id = "result:lifecycle";
   const value = {
@@ -135,6 +134,30 @@ test("fresh runtime, compaction, reopened session, new process, and native fork 
     assert.ok(forkFile);
     const forked = SessionManager.open(forkFile);
     await assertReadable(forked, value, body);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("captured exact ranges preserve an initial BOM and a BOM at a selected middle range", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-results-bom-"));
+  try {
+    const prefix = "\uFEFFfirst α\n";
+    const body = `${prefix}\uFEFFmiddle\r\n`;
+    const { manager, value } = await preparedManager(root, body);
+    const ctx = { sessionManager: manager };
+    const first = await runtime().readValue({ id: value.id, offsetBytes: 0, maxBytes: 3 }, undefined, ctx);
+    assert.equal(first.text, "\uFEFF");
+    assert.deepEqual(first.range, { startBytes: 0, endBytes: 3 });
+    const offsetBytes = Buffer.byteLength(prefix, "utf8");
+    const middle = await runtime().readValue({ id: value.id, offsetBytes, maxBytes: 3 }, undefined, ctx);
+    assert.equal(middle.text, "\uFEFF");
+    assert.deepEqual(middle.range, { startBytes: offsetBytes, endBytes: offsetBytes + 3 });
+    const full = await runtime().readValue({ id: value.id, offsetBytes: 0, maxBytes: 1024 }, undefined, ctx);
+    assert.equal(full.text, body);
+    assert.equal(Buffer.byteLength(full.text, "utf8"), full.range.endBytes - full.range.startBytes);
+    const rendered = await runtime().read({ id: value.id, offsetBytes, maxBytes: 1024 }, undefined, ctx);
+    assert.match(rendered.content[0].text, /Payload:\n\uFEFFmiddle\r\n/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

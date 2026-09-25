@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { lstat, opendir } from "node:fs/promises";
-import { isAbsolute, relative, resolve } from "node:path";
+import { lstat, opendir, realpath } from "node:fs/promises";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { TextDecoder } from "node:util";
 import { canonicalJson, jsonDigest } from "../schema.js";
 import {
@@ -28,17 +28,63 @@ function sha256(value) {
 function continuation(byte) {
   return byte !== undefined && (byte & 0xc0) === 0x80;
 }
+function boundedExcerpt(text, start, end) {
+  const contextStart = Math.max(0, start - 120);
+  const contextEnd = Math.min(text.length, end + 120);
+  if (contextEnd - contextStart <= 512) return text.slice(contextStart, contextEnd);
+  // The full match remains in range coordinates even when it is longer than
+  // the bounded preview. Reserve space for visible clipping markers.
+  const budget = 510;
+  const matchLength = Math.min(end - start, budget);
+  const contextBudget = budget - matchLength;
+  let left = Math.min(start - contextStart, Math.floor(contextBudget / 2));
+  let right = Math.min(contextEnd - end, contextBudget - left);
+  left += Math.min(start - contextStart - left, contextBudget - left - right);
+  right += Math.min(contextEnd - end - right, contextBudget - left - right);
+  let from = start - left;
+  let to = Math.min(contextEnd, end + right, from + budget);
+  if (from > 0 && /[\uDC00-\uDFFF]/u.test(text[from]) && /[\uD800-\uDBFF]/u.test(text[from - 1])) from += 1;
+  if (to < text.length && /[\uD800-\uDBFF]/u.test(text[to - 1]) && /[\uDC00-\uDFFF]/u.test(text[to])) to -= 1;
+  return `${from > contextStart ? "…" : ""}${text.slice(from, to)}${to < contextEnd ? "…" : ""}`;
+}
+// Inspect every ancestor of an explicit path before traversal; O_NOFOLLOW on an
+// opened file protects only the final component, not a symlinked directory above it.
+async function qualifiedSearchPath(root, denyPaths, path, explicit) {
+  if (!insideWorkspace(root, path))
+    throw new WorkspaceError("path_outside_root", "Workspace search path escapes the configured root.");
+  const relativePath = relative(root, path).replaceAll("\\", "/");
+  if (workspaceDenied(relativePath, denyPaths)) {
+    if (explicit) throw new WorkspaceError("path_denied", "Workspace search path is denied by policy.");
+    return false;
+  }
+  let ancestor = root;
+  for (const segment of relative(root, path).split(sep).filter(Boolean)) {
+    ancestor = resolve(ancestor, segment);
+    const value = await lstat(ancestor).catch(() => {
+      throw new WorkspaceError("path_unavailable", "Workspace search path is unavailable.");
+    });
+    if (value.isSymbolicLink()) {
+      if (explicit) throw new WorkspaceError("path_unsupported", "Workspace search does not follow symlinks.");
+      return false;
+    }
+  }
+  const canonical = await realpath(path).catch(() => {
+    throw new WorkspaceError("path_unavailable", "Workspace search path is unavailable.");
+  });
+  if (!insideWorkspace(root, canonical))
+    throw new WorkspaceError("path_outside_root", "Workspace search path resolves outside the root.");
+  if (workspaceDenied(relative(root, canonical).replaceAll("\\", "/"), denyPaths)) {
+    if (explicit) throw new WorkspaceError("path_denied", "Workspace search path is denied by policy.");
+    return false;
+  }
+  return true;
+}
 async function collectFiles(root, denyPaths, requested, signal) {
   const files = new Set();
   const visit = async (path, explicit = false) => {
     if (signal?.aborted) throw new WorkspaceError("cancelled", "Workspace search was cancelled.");
+    if (!(await qualifiedSearchPath(root, denyPaths, path, explicit))) return;
     const relativePath = relative(root, path).replaceAll("\\", "/");
-    if (!insideWorkspace(root, path))
-      throw new WorkspaceError("path_outside_root", "Workspace search path escapes the configured root.");
-    if (workspaceDenied(relativePath, denyPaths)) {
-      if (explicit) throw new WorkspaceError("path_denied", "Workspace search path is denied by policy.");
-      return;
-    }
     const value = await lstat(path).catch(() => {
       throw new WorkspaceError("path_unavailable", "Workspace search path is unavailable.");
     });
@@ -161,12 +207,7 @@ export function createSearchTextOperation(state) {
         for (const item of request.paths) {
           if (!item || item.includes("\0") || isAbsolute(item))
             throw new WorkspaceError("path_invalid", "Workspace search paths must be relative.");
-          const path = resolve(root, item);
-          const relativePath = relative(root, path).replaceAll("\\", "/");
-          if (!insideWorkspace(root, path))
-            throw new WorkspaceError("path_outside_root", "Workspace search path escapes the configured root.");
-          if (workspaceDenied(relativePath, denyPaths))
-            throw new WorkspaceError("path_denied", "Workspace search path is denied by policy.");
+          await qualifiedSearchPath(root, denyPaths, resolve(root, item), true);
         }
         return { kind: "allowed" };
       } catch (error) {
@@ -197,6 +238,7 @@ export function createSearchTextOperation(state) {
         if (startIndex < 0) throw new WorkspaceError("cursor_invalid", "Workspace search cursor path is unavailable.");
       }
       const matches = [];
+      const matchCursors = [];
       let outputBytes = 0;
       let scannedFiles = 0;
       let scannedBytes = 0;
@@ -210,6 +252,10 @@ export function createSearchTextOperation(state) {
         if (context.signal?.aborted) throw new WorkspaceError("cancelled", "Workspace search was cancelled.");
         const relativePath = files[index];
         const path = resolve(root, relativePath);
+        if (!(await qualifiedSearchPath(root, denyPaths, path, false))) {
+          skippedFiles += 1;
+          continue;
+        }
         let body;
         try {
           body = await readWorkspaceSnapshot(path, context.signal);
@@ -234,7 +280,7 @@ export function createSearchTextOperation(state) {
         scannedBytes += body.length;
         let text;
         try {
-          text = new TextDecoder("utf-8", { fatal: true }).decode(body);
+          text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(body);
         } catch {
           skippedFiles += 1;
           continue;
@@ -243,7 +289,9 @@ export function createSearchTextOperation(state) {
           skippedFiles += 1;
           continue;
         }
-        const startCharacter = new TextDecoder("utf-8", { fatal: true }).decode(body.subarray(0, offsetBytes)).length;
+        const startCharacter = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+          body.subarray(0, offsetBytes),
+        ).length;
         pattern.lastIndex = startCharacter;
         for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
           const startBytes = Buffer.byteLength(text.slice(0, match.index), "utf8");
@@ -252,10 +300,7 @@ export function createSearchTextOperation(state) {
           const item = {
             path: relativePath,
             range: { startBytes, endBytes },
-            excerpt: text.slice(
-              Math.max(0, match.index - 120),
-              Math.min(text.length, match.index + match[0].length + 120),
-            ),
+            excerpt: boundedExcerpt(text, match.index, match.index + match[0].length),
           };
           const itemBytes = Buffer.byteLength(canonicalJson(item), "utf8");
           if (matches.length >= maximumResults || outputBytes + itemBytes > maximumOutputBytes) {
@@ -268,24 +313,35 @@ export function createSearchTextOperation(state) {
             break;
           }
           matches.push(item);
+          matchCursors.push({ fingerprint, path: relativePath, offsetBytes: startBytes, fileSha256: digest });
           outputBytes += itemBytes;
         }
         if (next) break;
       }
-      const complete = next === undefined;
-      const value = {
+      const response = () => ({
         matches,
         scannedFiles,
         scannedBytes,
         skippedFiles,
-        coverage: complete ? "complete-at-boundary" : "limited",
+        coverage: next === undefined ? "complete-at-boundary" : "limited",
         scope: "workspace-scan",
         ...(next ? { next } : {}),
-      };
+      });
+      let value = response();
+      // The per-match budget is not the final envelope budget: coverage and
+      // continuation metadata must fit as well.
+      while (Buffer.byteLength(canonicalJson(value), "utf8") > maximumOutputBytes) {
+        const cursorForLast = matchCursors.pop();
+        if (!cursorForLast)
+          throw new WorkspaceError("search_output_limit", "Workspace search response cannot fit the output budget.");
+        matches.pop();
+        next = cursorForLast;
+        value = response();
+      }
       return {
         value,
         coverage: {
-          kind: complete ? "complete-at-boundary" : "limited",
+          kind: next === undefined ? "complete-at-boundary" : "limited",
           boundary: "workspace-scan",
           ...(next ? { continuation: next } : {}),
         },

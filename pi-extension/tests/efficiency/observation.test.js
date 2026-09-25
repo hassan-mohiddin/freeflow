@@ -256,6 +256,8 @@ test("tool and run observations attribute bounded bytes, profiles, assignments, 
   assert.equal(report.toolUsage.output, 8);
   assert.equal(report.cost.total, 3);
   assert.equal(report.toolCost.total, 4);
+  assert.deepEqual(report.toolCost.availability.total, { knownSum: 4, observed: 1, missing: 1, complete: false });
+  assert.deepEqual(report.toolUsage.availability.input, { knownSum: 7, observed: 1, missing: 1, complete: false });
   assert.deepEqual(report.profiles, [{ profile: "helper", observations: 3, usageRecords: 2 }]);
   assert.deepEqual(report.assignments, [{ assignmentId: "assignment-1", observations: 3 }]);
   assert.equal(report.runs[0].runId, "run:fixture");
@@ -264,6 +266,7 @@ test("tool and run observations attribute bounded bytes, profiles, assignments, 
   assert.equal(report.groupingCoverage, "complete-at-boundary");
   const exported = observer.exportData();
   assert.equal(exported.coverage, "complete-at-boundary");
+  assert.equal(exported.report.toolCost.availability.total.missing, 1);
   assert.doesNotMatch(JSON.stringify(exported), /private prompt|private instruction/);
 });
 
@@ -362,6 +365,36 @@ test("fresh observer recovery rebuilds bounded factual reports and ignores malfo
   assert.equal(recovered.observations().length, 3);
   assert.equal(recovered.report().assistantCompletions, 1);
   assert.doesNotMatch(JSON.stringify(recovered.exportData()), /must not recover/);
+});
+
+test("usage and cost reports distinguish reported zero from absent fields per source", () => {
+  const base = {
+    version: 1,
+    kind: "assistant-complete",
+    coverage: "complete-at-boundary",
+    responsibility: { profile: "helper", control: "automatic" },
+  };
+  const report = efficiencyReport([
+    { ...base, id: "a", usage: { source: "host-normalized", input: 0, output: 5, cost: { total: 0 } } },
+    { ...base, id: "b", usage: { source: "host-normalized", output: 7, cost: {} } },
+    { ...base, id: "c" },
+    {
+      ...base,
+      id: "tool",
+      kind: "tool-complete",
+      toolName: "fixture",
+      toolCallId: "call",
+      isError: false,
+      usage: { source: "tool-reported", input: 0 },
+    },
+  ]);
+  assert.equal(report.usage.input, 0);
+  assert.deepEqual(report.usage.availability.input, { knownSum: 0, observed: 1, missing: 2, complete: false });
+  assert.deepEqual(report.usage.availability.output, { knownSum: 12, observed: 2, missing: 1, complete: false });
+  assert.deepEqual(report.usage.availability.reasoning, { knownSum: 0, observed: 0, missing: 3, complete: false });
+  assert.deepEqual(report.cost.availability.total, { knownSum: 0, observed: 1, missing: 2, complete: false });
+  assert.deepEqual(report.toolUsage.availability.input, { knownSum: 0, observed: 1, missing: 0, complete: true });
+  assert.deepEqual(report.toolCost.availability.total, { knownSum: 0, observed: 0, missing: 1, complete: false });
 });
 
 test("ledger deduplicates persisted native occurrences by identity, never by equal usage or body", () => {

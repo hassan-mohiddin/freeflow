@@ -79,7 +79,7 @@ export function createReadTextOperation(state: () => ToolExecutionState | undefi
       const body = await readWorkspaceSnapshot(resolved.path, context.signal);
       let text: string;
       try {
-        text = new TextDecoder("utf-8", { fatal: true }).decode(body);
+        text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(body);
       } catch {
         throw new WorkspaceError("invalid_encoding", "Workspace file is not valid UTF-8 text.");
       }
@@ -92,7 +92,9 @@ export function createReadTextOperation(state: () => ToolExecutionState | undefi
       const endBytes = rangeEnd(body, startBytes, request.maxBytes ?? DEFAULT_READ_BYTES);
       if (startBytes < body.length && endBytes === startBytes)
         throw new WorkspaceError("invalid_range", "Requested range cannot fit the next UTF-8 code point.");
-      const selected = new TextDecoder("utf-8", { fatal: true }).decode(body.subarray(startBytes, endBytes));
+      const selected = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+        body.subarray(startBytes, endBytes),
+      );
       const complete = startBytes === 0 && endBytes === body.length;
       const value: Record<string, Json> = {
         path: resolved.relativePath,

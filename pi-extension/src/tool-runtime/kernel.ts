@@ -207,6 +207,13 @@ export class OperationKernel {
           effect,
         }),
       };
+    if (!this.registry.isCurrent(resolved, scope.catalogGeneration))
+      return {
+        ok: false,
+        outcome: denied(key, resolved.generation, "catalog_changed", "Operation was revoked before admission.", {
+          effect,
+        }),
+      };
     const current = this.admission.recheck(resolved, scope, source, effect, concurrency, signal);
     if (current.kind !== "allowed") {
       const outcome: CallOutcome =
@@ -304,6 +311,13 @@ export class OperationKernel {
             : { code: current.code, message: current.message },
         ...(current.kind === "needs-model" ? { context: freezeJson(current.context) } : {}),
       });
+    if (!this.registry.isCurrent(call.resolved, call.scope.catalogGeneration))
+      return this.acknowledged(
+        call,
+        denied(call.key, call.resolved.generation, "catalog_changed", "Operation was revoked before body start.", {
+          effect: call.effect,
+        }),
+      );
     let result: { value: Json; coverage: Coverage };
     try {
       result = await call.resolved.operation.execute(call.input, { scope: call.scope, signal, host: call.host });

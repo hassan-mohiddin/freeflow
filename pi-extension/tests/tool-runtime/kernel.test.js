@@ -43,7 +43,7 @@ function operation(overrides = {}) {
 
 function fixture({ routing = { kind: "allowed" }, op = operation() } = {}) {
   const registry = new OperationRegistry();
-  registry.register(op.value);
+  const registration = registry.register(op.value);
   const admission = new AdmissionController(() => activeState, {
     admit: (...args) => (typeof routing === "function" ? routing(...args) : routing),
   });
@@ -56,7 +56,7 @@ function fixture({ routing = { kind: "allowed" }, op = operation() } = {}) {
     responsibility: { profile: "solo", control: "inactive" },
     routing: { fence: "current" },
   };
-  return { registry, kernel, scope, op };
+  return { registry, registration, kernel, scope, op };
 }
 
 test("bounded schema compiler rejects open/unsupported contracts and freezes accepted JSON", () => {
@@ -207,6 +207,112 @@ test("routing scope is rechecked immediately before execute", async () => {
   assert.equal(outcome.error.code, "routing_scope_changed");
   assert.equal(outcome.bodyStarted, false);
   assert.equal(op.calls(), 0);
+});
+
+test("revoking a registered operation during asynchronous authorization denies both invocation forms before body start", async () => {
+  for (const source of ["direct", "programmatic"]) {
+    let authorizeEntered;
+    let authorizeResume;
+    const entered = new Promise((resolve) => {
+      authorizeEntered = resolve;
+    });
+    const resume = new Promise((resolve) => {
+      authorizeResume = resolve;
+    });
+    const op = operation({
+      authorize: async () => {
+        authorizeEntered();
+        await resume;
+        return { kind: "allowed" };
+      },
+    });
+    const f = fixture({ op });
+    const pending = f.kernel.execute(op.value.key, { value: 1 }, f.scope, source);
+    await entered;
+    f.registration.dispose();
+    authorizeResume();
+    const outcome = await pending;
+    assert.equal(outcome.status, "denied");
+    assert.equal(outcome.bodyStarted, false);
+    assert.equal(outcome.error.code, "catalog_changed");
+    assert.equal(op.calls(), 0);
+  }
+});
+
+test("revocation after an acknowledged mutation start settles no effect and never starts the body", async () => {
+  let startEntered;
+  let resumeStart;
+  const entered = new Promise((resolve) => {
+    startEntered = resolve;
+  });
+  const resume = new Promise((resolve) => {
+    resumeStart = resolve;
+  });
+  const op = operation({ effects: ["mutation"], effect: () => "mutation", concurrency: () => "exclusive" });
+  const registry = new OperationRegistry();
+  const registration = registry.register(op.value);
+  const scope = {
+    sessionId: "session",
+    cwd: "/tmp",
+    parentCallId: "parent",
+    catalogGeneration: registry.snapshot().generation,
+    responsibility: { profile: "solo", control: "inactive" },
+    routing: { fence: "current" },
+  };
+  const settled = [];
+  const kernel = new OperationKernel(
+    registry,
+    new AdmissionController(() => activeState, { admit: () => ({ kind: "allowed" }) }),
+    {
+      admit: () => ({ kind: "allowed" }),
+      recheck: () => ({ kind: "allowed" }),
+      async start() {
+        startEntered();
+        await resume;
+        return { effectId: "effect:fixture", sessionId: "session", generation: 0 };
+      },
+      async settle(_ticket, outcome) {
+        settled.push(outcome);
+      },
+    },
+  );
+  const pending = kernel.execute(op.value.key, { value: 1 }, scope, "direct");
+  await entered;
+  registration.dispose();
+  resumeStart();
+  const outcome = await pending;
+  assert.equal(outcome.status, "denied");
+  assert.equal(outcome.error.code, "catalog_changed");
+  assert.equal(outcome.effectState, "none");
+  assert.equal(outcome.bodyStarted, false);
+  assert.equal(op.calls(), 0);
+  assert.deepEqual(settled, [outcome]);
+});
+
+test("already started operations may settle after their registration is revoked", async () => {
+  let bodyEntered;
+  let resumeBody;
+  const entered = new Promise((resolve) => {
+    bodyEntered = resolve;
+  });
+  const resume = new Promise((resolve) => {
+    resumeBody = resolve;
+  });
+  const op = operation({
+    execute: async (input) => {
+      bodyEntered();
+      await resume;
+      return { value: { echoed: input.value }, coverage: { kind: "complete-at-boundary", boundary: "fixture" } };
+    },
+  });
+  const f = fixture({ op });
+  const pending = f.kernel.execute(op.value.key, { value: 1 }, f.scope, "direct");
+  await entered;
+  f.registration.dispose();
+  resumeBody();
+  const outcome = await pending;
+  assert.equal(outcome.status, "succeeded");
+  assert.equal(outcome.bodyStarted, true);
 });
 
 test("catalog generation fences stale calls before execution", async () => {

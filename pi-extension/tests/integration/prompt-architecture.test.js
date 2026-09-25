@@ -7,6 +7,7 @@ import test from "node:test";
 
 import freeflowExtension from "../../dist/index.js";
 import { PIFLOW_HOST } from "../fixtures/pi-host.js";
+import { contextHandler, beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
 function context(cwd, systemPrompt = "") {
   return {
@@ -128,9 +129,9 @@ test("composes the mandatory core fragments, optional capabilities, discovery, a
     const ctx = context(cwd);
     await handlers.get("session_start")({ type: "session_start" }, ctx);
 
-    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+    const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
     assert.equal(before.message, undefined);
-    const prompt = before.systemPrompt;
+    const prompt = before.renderedGuidance;
     const order = [
       "# Freeflow Stable Guidance",
       "## Shared Terms",
@@ -167,7 +168,7 @@ test("composes the mandatory core fragments, optional capabilities, discovery, a
     assert.doesNotMatch(prompt, /# Workflow\n/);
     assert.doesNotMatch(prompt, /# Cognitive Routing\n/);
 
-    const providerContext = await handlers.get("context")({ messages: [] }, ctx);
+    const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
     const runtimeState = lastRuntimeState(providerContext.messages);
     assert.ok(runtimeState);
     assert.match(runtimeState.content, /Freeflow: active/);
@@ -206,18 +207,18 @@ test("subagents retain reference definitions while optional capabilities stay in
     const ctx = context(cwd, "<!-- freeflow-subagent-capabilities: disabled -->");
     await handlers.get("session_start")({ type: "session_start" }, ctx);
 
-    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.match(before.systemPrompt, /# Freeflow Stable Guidance/);
-    assert.match(before.systemPrompt, /# Freeflow Interaction Contract/);
-    assert.match(before.systemPrompt, /## Cognitive Routing Cue/);
-    assert.match(before.systemPrompt, /## Context Virtualization Cue/);
-    assert.match(before.systemPrompt, /## Conversation History Cue/);
+    const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.match(before.renderedGuidance, /# Freeflow Stable Guidance/);
+    assert.match(before.renderedGuidance, /# Freeflow Interaction Contract/);
+    assert.match(before.renderedGuidance, /## Cognitive Routing Cue/);
+    assert.match(before.renderedGuidance, /## Context Virtualization Cue/);
+    assert.match(before.renderedGuidance, /## Conversation History Cue/);
 
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/action-selection/SKILL.md")));
     assert.equal(resources.skillPaths.filter((path) => path.includes("/capabilities/")).length, 3);
 
-    const providerContext = await handlers.get("context")({ messages: [] }, ctx);
+    const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
     const runtimeState = lastRuntimeState(providerContext.messages);
     assert.match(runtimeState.content, /Freeflow: active/);
     assert.match(runtimeState.content, /Context Virtualization: inactive/);
@@ -236,17 +237,17 @@ test("provider context reuses the before-agent surface until the next provider t
     const ctx = context(cwd);
     await handlers.get("session_start")({ type: "session_start" }, ctx);
 
-    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.match(before.systemPrompt, /## Context Virtualization Cue/);
+    const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.match(before.renderedGuidance, /## Context Virtualization Cue/);
 
     await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({}), "utf8");
-    const sameTurn = await handlers.get("context")({ messages: [] }, ctx);
+    const sameTurn = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(lastRuntimeState(sameTurn.messages).content, /Context Virtualization: active/);
 
-    const next = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.equal(next.systemPrompt, before.systemPrompt, "settings preserve the complete reference surface");
-    assert.match(next.systemPrompt, /# Freeflow Interaction Contract/);
-    assert.match(next.systemPrompt, /## Shared Terms/);
+    const next = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.equal(next.renderedGuidance, before.renderedGuidance, "settings preserve the complete reference surface");
+    assert.match(next.renderedGuidance, /# Freeflow Interaction Contract/);
+    assert.match(next.renderedGuidance, /## Shared Terms/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -305,9 +306,9 @@ test("missing child prompt marks that capability unavailable while retaining its
     const ctx = context(cwd);
     await handlers.get("session_start")({ type: "session_start" }, ctx);
 
-    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.doesNotMatch(before.systemPrompt, /## Context Virtualization Cue/);
-    assert.match(before.systemPrompt, /# Freeflow Interaction Contract/);
+    const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.doesNotMatch(before.renderedGuidance, /## Context Virtualization Cue/);
+    assert.match(before.renderedGuidance, /# Freeflow Interaction Contract/);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/capabilities/context-virtualization/SKILL.md")));
     assert.ok(activeToolNames().includes("freeflow_context"));
@@ -317,18 +318,18 @@ test("missing child prompt marks that capability unavailable while retaining its
     await handlers.get("session_compact")({}, ctx);
     assert.ok(activeToolNames().includes("freeflow_context"));
 
-    const providerContext = await handlers.get("context")({ messages: [] }, ctx);
+    const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(providerContext.messages.at(-1).content, /Context Virtualization: unavailable/);
 
     await writeFile(join(root, "runtime", "prompts", "context-virtualization.md"), " \n\t", "utf8");
-    const whitespaceBefore = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.doesNotMatch(whitespaceBefore.systemPrompt, /## Context Virtualization Cue/);
+    const whitespaceBefore = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.doesNotMatch(whitespaceBefore.renderedGuidance, /## Context Virtualization Cue/);
     const whitespaceResources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.ok(
       whitespaceResources.skillPaths.some((path) => path.endsWith("/capabilities/context-virtualization/SKILL.md")),
     );
     assert.ok(activeToolNames().includes("freeflow_context"));
-    const whitespaceContext = await handlers.get("context")({ messages: [] }, ctx);
+    const whitespaceContext = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(whitespaceContext.messages.at(-1).content, /Context Virtualization: unavailable/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -354,21 +355,21 @@ test("missing mandatory Interaction Contract retains a dormant surface with unav
     const ctx = context(cwd);
     await handlers.get("session_start")({}, ctx);
     assert.ok(activeToolNames().includes("freeflow_context"));
-    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.ok(before.systemPrompt.startsWith("base prompt\n\n"));
-    assert.match(before.systemPrompt, /guidance is dormant/);
+    const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.equal(before.systemPrompt, "base prompt");
+    assert.match(before.renderedGuidance, /guidance is dormant/);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.equal(resources.skillPaths.length, 27);
     await handlers.get("session_tree")({}, ctx);
     assert.ok(activeToolNames().includes("freeflow_context"));
 
     await writeFile(join(root, "runtime", "prompts", "interaction-contract.md"), " \n\t", "utf8");
-    const whitespaceBefore = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.ok(whitespaceBefore.systemPrompt.startsWith("base prompt\n\n"));
-    assert.match(whitespaceBefore.systemPrompt, /guidance is dormant/);
+    const whitespaceBefore = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.equal(whitespaceBefore.systemPrompt, "base prompt");
+    assert.match(whitespaceBefore.renderedGuidance, /guidance is dormant/);
     const whitespaceResources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.equal(whitespaceResources.skillPaths.length, 27);
-    const whitespaceContext = await handlers.get("context")({ messages: [] }, ctx);
+    const whitespaceContext = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(whitespaceContext.messages.at(-1).content, /Freeflow: unavailable/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -392,12 +393,12 @@ test("missing mandatory core prompt retains a dormant surface with unavailable s
     const ctx = context(cwd);
     await handlers.get("session_start")({ type: "session_start" }, ctx);
 
-    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.ok(before.systemPrompt.startsWith("base prompt\n\n"));
-    assert.match(before.systemPrompt, /guidance is dormant/);
+    const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.equal(before.systemPrompt, "base prompt");
+    assert.match(before.renderedGuidance, /guidance is dormant/);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.equal(resources.skillPaths.length, 27);
-    const providerContext = await handlers.get("context")({ messages: [] }, ctx);
+    const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(providerContext.messages.at(-1).content, /Freeflow: unavailable/);
     assert.doesNotMatch(
       providerContext.messages.at(-1).content,
@@ -410,12 +411,12 @@ test("missing mandatory core prompt retains a dormant surface with unavailable s
     assert.ok(activeToolNames().includes("freeflow_context"));
 
     await writeFile(join(root, "runtime", "prompts", "core.md"), " \n\t", "utf8");
-    const whitespaceBefore = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.ok(whitespaceBefore.systemPrompt.startsWith("base prompt\n\n"));
-    assert.match(whitespaceBefore.systemPrompt, /guidance is dormant/);
+    const whitespaceBefore = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.equal(whitespaceBefore.systemPrompt, "base prompt");
+    assert.match(whitespaceBefore.renderedGuidance, /guidance is dormant/);
     const whitespaceResources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.equal(whitespaceResources.skillPaths.length, 27);
-    const whitespaceContext = await handlers.get("context")({ messages: [] }, ctx);
+    const whitespaceContext = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(whitespaceContext.messages.at(-1).content, /Freeflow: unavailable/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -428,12 +429,12 @@ test("Runtime State remains present while Freeflow is disabled without optional 
   try {
     const { handlers } = loadExtension();
     const ctx = context(cwd);
-    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.ok(before.systemPrompt.startsWith("base prompt\n\n"));
-    assert.match(before.systemPrompt, /guidance is dormant/);
+    const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.equal(before.systemPrompt, "base prompt");
+    assert.match(before.renderedGuidance, /guidance is dormant/);
     assert.equal(before.message, undefined);
 
-    const providerContext = await handlers.get("context")({ messages: [] }, ctx);
+    const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
     const runtimeState = lastRuntimeState(providerContext.messages);
     assert.ok(runtimeState);
     assert.match(runtimeState.content, /Freeflow: inactive/);

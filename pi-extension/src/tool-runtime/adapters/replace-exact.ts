@@ -97,7 +97,7 @@ export function createReplaceExactOperation(
           const body = await readWorkspaceSnapshot(resolved.path, context.signal);
           let text: string;
           try {
-            text = new TextDecoder("utf-8", { fatal: true }).decode(body);
+            text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(body);
           } catch {
             throw new OperationExecutionError("invalid_encoding", "Workspace file is not valid UTF-8 text.", "none");
           }

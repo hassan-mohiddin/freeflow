@@ -15,6 +15,7 @@ import {
   setSessionCoreOverride,
 } from "../../dist/runtime/runtime-context.js";
 import { PIFLOW_HOST } from "../fixtures/pi-host.js";
+import { contextHandler, beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
 function context(cwd) {
   const notifications = [];
@@ -148,14 +149,14 @@ test("Pi exposes base skills without mode or Skills controls", async () => {
     assert.ok(!freeflowCommand.definition.getArgumentCompletions("").some((item) => item.value === "mode"));
     assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("mode "), []);
 
-    const before = await handlers.get("before_agent_start")({ systemPrompt: "base" }, ctx);
-    assert.match(before.systemPrompt, /# Freeflow Stable Guidance/);
-    assert.match(before.systemPrompt, /# Freeflow Interaction Contract/);
-    assert.match(before.systemPrompt, /## Shared Terms/);
-    assert.doesNotMatch(before.systemPrompt, /## Mode\b|strict-workflow|conversation mode|workflow mode/);
-    assert.doesNotMatch(before.systemPrompt, /Skills prompt/);
+    const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base" }, ctx);
+    assert.match(before.renderedGuidance, /# Freeflow Stable Guidance/);
+    assert.match(before.renderedGuidance, /# Freeflow Interaction Contract/);
+    assert.match(before.renderedGuidance, /## Shared Terms/);
+    assert.doesNotMatch(before.renderedGuidance, /## Mode\b|strict-workflow|conversation mode|workflow mode/);
+    assert.doesNotMatch(before.renderedGuidance, /Skills prompt/);
 
-    const providerContext = await handlers.get("context")({ messages: [] }, ctx);
+    const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
     const stateMessage = providerContext.messages.at(-1);
     assert.match(stateMessage.content, /Freeflow: active/);
     assert.doesNotMatch(stateMessage.content, /Default mode|Active mode|Interaction Contract|Skills/);
@@ -180,9 +181,9 @@ test("mandatory prompt readiness gates Runtime State, discovery, and direct skil
     ).default;
     const { handlers, commands, sentMessages } = loadExtension(extension);
     const ctx = context(cwd);
-    const before = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.ok(before.systemPrompt.startsWith("base prompt\n\n"));
-    assert.match(before.systemPrompt, /guidance is dormant/);
+    const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.equal(before.systemPrompt, "base prompt");
+    assert.match(before.renderedGuidance, /guidance is dormant/);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.equal(resources.skillPaths.length, 27);
 
@@ -192,7 +193,7 @@ test("mandatory prompt readiness gates Runtime State, discovery, and direct skil
     assert.deepEqual(sentMessages, []);
     assert.match(ctx.notifications.at(-1).message, /Freeflow core prompts are unavailable/i);
 
-    const providerContext = await handlers.get("context")({ messages: [] }, ctx);
+    const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(providerContext.messages.at(-1).content, /Freeflow: unavailable/);
     assert.doesNotMatch(providerContext.messages.at(-1).content, /Freeflow: active/);
   } finally {

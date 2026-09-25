@@ -87,7 +87,7 @@ OpenCode v2 and Hermes consume the canonical `skills/` surface through their doc
 
 ### Pi and PiFlow
 
-The Pi extension composes the mandatory core fragments, Runtime State, discoverable skills, and tools before provider requests. It filters historical one-time Workflow or Cognitive Routing bootstrap entries rather than creating new persistent bootstrap messages.
+The native Pi 0.87.1 extension contributes stable core/capability guidance through `systemPromptOptions.sections` and composes one request in `context_with_system`, preserving Pi's leading prompt and later system/tool patches while applying Runtime State, routing, RequestHistory, and optional context transforms. It filters historical one-time Workflow or Cognitive Routing bootstrap entries rather than creating new persistent bootstrap messages. This is an assembled-host boundary, not proof of provider cache hits; another extension may still alter the final request.
 
 Pi exposes Cognitive Routing when its native model, thinking, session-entry, and ancestry gates are effective. PiFlow provides its host lifecycle for shared Freeflow skills and standalone context capabilities, but the current Freeflow source entrypoint explicitly marks the redesigned PiFlow Cognitive Routing adapter unavailable. Do not infer routing availability from PiFlow installation or from the Pi source entrypoint.
 

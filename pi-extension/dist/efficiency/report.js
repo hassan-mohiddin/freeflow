@@ -2,25 +2,37 @@ const MAX_GROUPS = 100;
 function finite(value) {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
 }
-function addUsage(totals, costs, usage) {
-  if (!usage) return;
-  totals.input += finite(usage.input);
-  totals.output += finite(usage.output);
-  // Reasoning is reported separately and is already a subset of output.
-  totals.reasoning += finite(usage.reasoning);
-  totals.cacheRead += finite(usage.cacheRead);
-  totals.cacheWrite += finite(usage.cacheWrite);
-  totals.cacheWrite1h += finite(usage.cacheWrite1h);
-  totals.totalTokens += finite(usage.totalTokens);
-  totals.observedRecords += 1;
-  if (usage.cost) {
-    costs.input += finite(usage.cost.input);
-    costs.output += finite(usage.cost.output);
-    costs.cacheRead += finite(usage.cost.cacheRead);
-    costs.cacheWrite += finite(usage.cost.cacheWrite);
-    costs.total += finite(usage.cost.total);
-    costs.observedRecords += 1;
+const USAGE_FIELDS = ["input", "output", "reasoning", "cacheRead", "cacheWrite", "cacheWrite1h", "totalTokens"];
+const COST_FIELDS = ["input", "output", "cacheRead", "cacheWrite", "total"];
+function totals(fields) {
+  return {
+    ...Object.fromEntries(fields.map((key) => [key, 0])),
+    observedRecords: 0,
+    availability: Object.fromEntries(
+      fields.map((key) => [key, { knownSum: 0, observed: 0, missing: 0, complete: false }]),
+    ),
+  };
+}
+function observeFields(target, fields, source) {
+  for (const key of fields) {
+    const value = source?.[key];
+    const metric = target.availability[key];
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+      target[key] += value;
+      metric.knownSum += value;
+      metric.observed += 1;
+    } else {
+      metric.missing += 1;
+    }
+    metric.complete = metric.observed > 0 && metric.missing === 0;
   }
+}
+function addUsage(totals, costs, usage) {
+  // Numeric fields are known sums; availability says whether they are complete.
+  observeFields(totals, USAGE_FIELDS, usage);
+  observeFields(costs, COST_FIELDS, usage?.cost);
+  if (usage) totals.observedRecords += 1;
+  if (usage?.cost) costs.observedRecords += 1;
 }
 function sortedCounts(values, key) {
   return [...values]
@@ -30,28 +42,10 @@ function sortedCounts(values, key) {
 }
 export function efficiencyReport(observations) {
   const attempts = new Set();
-  const usage = {
-    input: 0,
-    output: 0,
-    reasoning: 0,
-    cacheRead: 0,
-    cacheWrite: 0,
-    cacheWrite1h: 0,
-    totalTokens: 0,
-    observedRecords: 0,
-  };
-  const toolUsage = {
-    input: 0,
-    output: 0,
-    reasoning: 0,
-    cacheRead: 0,
-    cacheWrite: 0,
-    cacheWrite1h: 0,
-    totalTokens: 0,
-    observedRecords: 0,
-  };
-  const cost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, observedRecords: 0 };
-  const toolCost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, observedRecords: 0 };
+  const usage = totals(USAGE_FIELDS);
+  const toolUsage = totals(USAGE_FIELDS);
+  const cost = totals(COST_FIELDS);
+  const toolCost = totals(COST_FIELDS);
   const tooling = {
     argumentBytes: 0,
     resultBytes: 0,
