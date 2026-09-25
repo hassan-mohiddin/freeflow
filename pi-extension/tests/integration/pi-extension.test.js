@@ -347,7 +347,7 @@ test("Pi registers the remaining Freeflow commands without mode controls or reti
   assert.ok(!commandNames.includes("execute-plan"));
   assert.ok(!commandNames.includes("workflow"));
   assert.deepEqual(shortcuts, []);
-  assert.ok(tools.some((tool) => tool.name === "freeflow_context"));
+  assert.ok(!toolNames.includes("freeflow_context"));
   assert.deepEqual(
     toolNames.filter((name) => name.startsWith("freeflow_")),
     [
@@ -355,7 +355,6 @@ test("Pi registers the remaining Freeflow commands without mode controls or reti
       "freeflow_return",
       "freeflow_unit",
       "freeflow_project",
-      "freeflow_context",
       "freeflow_tools",
       "freeflow_run",
       "freeflow_result",
@@ -364,6 +363,7 @@ test("Pi registers the remaining Freeflow commands without mode controls or reti
   assert.ok(!toolNames.includes("freeflow_switch_profile"));
   assert.ok(!toolNames.includes("freeflow_cognitive_routing_history"));
   assert.ok(freeflowCommand);
+  assert.doesNotMatch(freeflowCommand.definition.description, /context tools/i);
   assert.ok(!freeflowCommand.definition.getArgumentCompletions("").some((item) => item.value === "mode"));
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("mode "), []);
   assert.ok(!toolNames.some((name) => ["freeflow_status", "freeflow_search", "freeflow_batch"].includes(name)));
@@ -392,7 +392,6 @@ test("PiFlow keeps Cognitive Routing unavailable while exposing its configuratio
         "freeflow_return",
         "freeflow_unit",
         "freeflow_project",
-        "freeflow_context",
         "freeflow_tools",
         "freeflow_run",
         "freeflow_result",
@@ -603,7 +602,7 @@ test("Tool Execution presets atomically configure full and read-only local modes
       adapters: { allow: ["fixture.records"] },
     },
   };
-  const local = { contextVirtualization: true, toolExecution: { capture: { maxInlineBytes: 2048 } } };
+  const local = { toolExecution: { capture: { maxInlineBytes: 2048 } } };
   const cwd = await configuredRepo(repository);
   const localPath = join(cwd, ".freeflow/local.json");
   await writeFile(localPath, JSON.stringify(local, null, 2), "utf8");
@@ -645,7 +644,6 @@ test("Tool Execution presets atomically configure full and read-only local modes
     assert.match(fullPresetView, /Programs\s+enabled \(3\) adapters/);
     assert.match(fullPresetView, /Workspace\s+enabled \(4\) reads active · writes enabled/);
     let saved = JSON.parse(await readFile(localPath, "utf8"));
-    assert.equal(saved.contextVirtualization, true);
     assert.equal(saved.toolExecution.enabled, true);
     assert.equal(saved.toolExecution.capture.enabled, true);
     assert.equal(saved.toolExecution.capture.maxInlineBytes, 2048);
@@ -679,7 +677,7 @@ test("personal Tool Execution settings enable adapters and confirmed writes with
       accounting: { enabled: true },
     },
   };
-  const local = { contextVirtualization: true, toolExecution: { capture: { maxInlineBytes: 2048 } } };
+  const local = { toolExecution: { capture: { maxInlineBytes: 2048 } } };
   const cwd = await configuredRepo(repository);
   const localPath = join(cwd, ".freeflow/local.json");
   await writeFile(localPath, JSON.stringify(local, null, 2), "utf8");
@@ -739,7 +737,6 @@ test("personal Tool Execution settings enable adapters and confirmed writes with
     await command.definition.handler("settings local", settingsCtx);
 
     const saved = JSON.parse(await readFile(localPath, "utf8"));
-    assert.equal(saved.contextVirtualization, true);
     assert.equal(saved.toolExecution.capture.maxInlineBytes, 2048);
     assert.equal(saved.toolExecution.programs.mode, "adapters");
     assert.equal(saved.toolExecution.workspace.write, true);
@@ -814,7 +811,6 @@ test("personal delegation override and inherit preserve repository mode and othe
     },
   };
   const local = {
-    contextVirtualization: true,
     cognitiveRouting: {
       profiles: {
         helper: { provider: "test", model: "model-b", thinking: "medium" },
@@ -986,7 +982,7 @@ test("session delegation setting enables Helper in the same panel without writin
   }
 });
 
-test("Pi statusline reports only dynamic Cognitive Routing and context state", () => {
+test("Pi statusline reports Cognitive Routing without legacy context status", () => {
   const ctx = context();
   setFreeflowStatus(
     ctx,
@@ -994,14 +990,12 @@ test("Pi statusline reports only dynamic Cognitive Routing and context state", (
       configured: true,
       enabled: true,
       configSources: { enabled: "builtin" },
-      contextVirtualization: { effective: true },
-      conversationHistory: { effective: false },
       cognitiveRouting: { enabled: true, effective: true, blockingReason: null },
     },
     { effective: true, activeProfile: "executor", controlMode: "automatic", delegation: "both" },
     readyFreeflowContext,
   );
-  assert.equal(ctx.statuses.at(-1).value, "freeflow: executor · automatic · both mode · context");
+  assert.equal(ctx.statuses.at(-1).value, "freeflow: executor · automatic · both mode");
   assert.doesNotMatch(ctx.statuses.at(-1).value, /interaction|workflow|skills/i);
 });
 
@@ -1013,8 +1007,6 @@ test("Pi statusline defaults pending activation to the Coordinator profile", () 
       configured: true,
       enabled: true,
       configSources: { enabled: "builtin" },
-      contextVirtualization: { effective: false },
-      conversationHistory: { effective: false },
       cognitiveRouting: {
         enabled: true,
         effective: true,
@@ -1036,8 +1028,6 @@ test("Pi statusline keeps an inactive Cognitive Routing runtime blocked", () => 
       configured: true,
       enabled: true,
       configSources: { enabled: "builtin" },
-      contextVirtualization: { effective: false },
-      conversationHistory: { effective: false },
       cognitiveRouting: { enabled: true, effective: true, blockingReason: null },
     },
     { effective: false, activeProfile: "coordinator", controlMode: "automatic" },
@@ -1093,7 +1083,6 @@ test("Pi describes the mode-free Freeflow argument surface and manual profile co
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions(""), [
     { value: "settings", label: "settings", description: "Open personal override settings" },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
-    { value: "context", label: "context", description: "Inspect Freeflow Context" },
     {
       value: "efficiency",
       label: "efficiency",
@@ -1115,12 +1104,7 @@ test("Pi describes the mode-free Freeflow argument surface and manual profile co
     { value: "efficiency export", label: "export", description: "Export bounded factual efficiency JSON" },
   ]);
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("mode "), []);
-  assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("context "), [
-    { value: "context status", label: "status", description: "Show Freeflow Context state" },
-    { value: "context list", label: "list", description: "List archived context projections" },
-    { value: "context restore", label: "restore", description: "Restore one or more context references" },
-    { value: "context reset all", label: "reset all", description: "Reset projection decisions on the active branch" },
-  ]);
+  assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("context "), []);
 });
 
 test("Pi exposes 24 base skills without TDD, a mode skill, or compatibility aliases", async () => {
@@ -1180,7 +1164,7 @@ test("Pi keeps Freeflow inactive until repository activation exists", async () =
   try {
     const { handlers } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 27);
+    assert.equal(resources.skillPaths.length, 25);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
     const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, context(cwd));
     assert.equal(result.systemPrompt, "base prompt");
@@ -1204,12 +1188,42 @@ test("Pi rejects obsolete modes and removed core toggles in configuration", asyn
   }
 });
 
+test("Pi reports exactly which removed context keys must be deleted from each config layer", async () => {
+  for (const [file, key] of [
+    ["config.json", "contextVirtualization"],
+    ["config.json", "conversationHistory"],
+    ["local.json", "contextVirtualization"],
+    ["local.json", "conversationHistory"],
+  ]) {
+    const cwd = await configuredRepo(file === "config.json" ? { [key]: true } : {});
+    try {
+      if (file === "local.json") {
+        await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ [key]: true }), "utf8");
+      }
+      const layers = await readFreeflowConfigLayers(cwd);
+      assert.equal(layers.configured, false);
+      assert.match(layers.parseError, new RegExp(key));
+      assert.match(layers.parseError, new RegExp(`\\.freeflow/${file.replace(".", "\\.")}`));
+      const { commands } = loadExtension();
+      const command = commands.find((candidate) => candidate.name === "freeflow");
+      const status = context(cwd);
+      await command.definition.handler("status", status);
+      assert.match(status.notifications.at(-1).message, new RegExp(key));
+      assert.match(status.notifications.at(-1).message, new RegExp(`\\.freeflow/${file.replace(".", "\\.")}`));
+      assert.match(status.notifications.at(-1).message, /Delete those keys before using Freeflow/);
+      assert.match(status.notifications.at(-1).message, new RegExp(`fix \\.freeflow/${file.replace(".", "\\.")}`));
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  }
+});
+
 test("Pi treats invalid configuration as inactive", async () => {
   const cwd = await configuredRepo({ enabled: "false" });
   try {
     const { handlers, commands } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 27);
+    assert.equal(resources.skillPaths.length, 25);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
     const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, context(cwd));
     assert.equal(result.systemPrompt, "base prompt");
@@ -1226,22 +1240,10 @@ test("Pi treats invalid configuration as inactive", async () => {
 test("Pi resolves only the remaining layered core values", async () => {
   const cwd = await configuredRepo();
   try {
-    await writeFile(
-      join(cwd, ".freeflow/local.json"),
-      JSON.stringify({ enabled: false, contextVirtualization: true }, null, 2),
-      "utf8",
-    );
+    await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ enabled: false }, null, 2), "utf8");
     const layers = await readFreeflowConfigLayers(cwd);
-    assert.deepEqual(layers.coreConfig, {
-      enabled: false,
-      contextVirtualization: true,
-      conversationHistory: false,
-    });
-    assert.deepEqual(layers.sources, {
-      enabled: "local",
-      contextVirtualization: "local",
-      conversationHistory: "builtin",
-    });
+    assert.deepEqual(layers.coreConfig, { enabled: false });
+    assert.deepEqual(layers.sources, { enabled: "local" });
     const state = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
     assert.equal(state.enabled, false);
     assert.equal("skills" in state, false);
@@ -1322,13 +1324,13 @@ test("Pi restores remaining session overrides from the active branch and ignores
       {
         type: "custom",
         customType: "freeflow-session-overrides",
-        data: { overrides: { enabled: false, contextVirtualization: true } },
+        data: { overrides: { enabled: false, contextVirtualization: true, conversationHistory: true } },
       },
     ];
     restoreSessionOverrides(context(cwd, activeBranchEntries, activeBranchEntries));
     const state = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
     assert.equal(state.enabled, false);
-    assert.deepEqual(state.sessionOverrides, { enabled: false, contextVirtualization: true });
+    assert.deepEqual(state.sessionOverrides, { enabled: false });
     assert.equal("currentMode" in state, false);
   } finally {
     await resetSessionOverrides(context(cwd), loadExtension().pi);
@@ -1349,7 +1351,7 @@ test("Pi fails closed when an existing local override is invalid", async () => {
     assert.equal(state.enabled, false);
     const { handlers } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 27);
+    assert.equal(resources.skillPaths.length, 25);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -1369,13 +1371,13 @@ test("Pi local enablement overrides the repository master switch", async () => {
   }
 });
 
-test("Pi master Freeflow toggle makes features inactive while preserving their reference surface", async () => {
+test("Pi master Freeflow toggle makes features inactive while preserving remaining references", async () => {
   const cwd = await configuredRepo({ enabled: false });
   try {
     const { handlers, activeToolNames } = loadExtension();
     const ctx = context(cwd);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 27);
+    assert.equal(resources.skillPaths.length, 25);
     const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
     assert.equal(result.systemPrompt, "base prompt");
     assert.match(result.renderedGuidance, /guidance is dormant/);
@@ -1385,7 +1387,7 @@ test("Pi master Freeflow toggle makes features inactive while preserving their r
       lastRuntimeState(providerContext.messages).content,
       /Default mode|Active mode|Interaction Contract|Skills/,
     );
-    assert.ok(activeToolNames().includes("freeflow_context"));
+    assert.ok(!activeToolNames().includes("freeflow_context"));
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -1405,7 +1407,7 @@ test("Pi settings expose no mode, Skills, or Interaction Contract controls", asy
       });
       const text = renderText(component);
       assert.match(text, /Freeflow Settings/);
-      assert.match(text, /Freeflow Context/);
+      assert.doesNotMatch(text, /Freeflow Context|Context Virtualization|Conversation History/);
       assert.doesNotMatch(text, /Interaction Contract|Skills|Session mode|Default mode|Mode/);
       component.handleInput("\u001b");
       return result;
@@ -1433,18 +1435,6 @@ test("Pi enable and disable commands mutate only the master switch", async () =>
     await freeflowCommand.definition.handler("enable", enableCtx);
     assert.deepEqual(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")), {});
     assert.equal(enableCtx.reloads.length, 1);
-  } finally {
-    await rm(cwd, { recursive: true, force: true });
-  }
-});
-
-test("Pi statusline uses one umbrella context label for either enabled context feature", async () => {
-  const cwd = await configuredRepo({ contextVirtualization: true, conversationHistory: true });
-  try {
-    const { handlers } = loadExtension();
-    const ctx = context(cwd);
-    await handlers.get("session_start")({ reason: "startup" }, ctx);
-    assert.equal(ctx.statuses.at(-1).value, "freeflow: context");
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -1763,6 +1753,7 @@ test("both mode session wizard applies a Helper pair without writing config", as
 
 test("session reset preserves core overrides when routing reset fails", async () => {
   const cwd = await configuredRepo({
+    enabled: false,
     cognitiveRouting: {
       enabled: true,
       profiles: {
@@ -1785,7 +1776,7 @@ test("session reset preserves core overrides when routing reset fails", async ()
       },
       setThinkingLevel() {},
     };
-    await setSessionCoreOverride("contextVirtualization", true, settingsCtx, pi);
+    await setSessionCoreOverride("enabled", true, settingsCtx, pi);
     let mode = "both";
     const changes = [];
     const controller = {
@@ -1819,8 +1810,8 @@ test("session reset preserves core overrides when routing reset fails", async ()
     };
     await handleFreeflowCommand("settings session", settingsCtx, async () => {}, pi, controller);
     const state = await readCapabilityState(cwd, settingsCtx, pi.host);
-    assert.equal(state.contextVirtualization.effective, true);
-    assert.equal(state.sessionOverrides.contextVirtualization, true);
+    assert.equal(state.enabled, true);
+    assert.equal(state.sessionOverrides.enabled, true);
     assert.deepEqual(changes, [null, "both"]);
     assert.equal(mode, "both");
     assert.equal(await readFile(configPath, "utf8"), originalConfig);
@@ -1869,7 +1860,7 @@ test("Pi preserves the host prompt prefix and dormant contract when a mandatory 
     assert.equal(before.systemPrompt, "base prompt");
     assert.match(before.renderedGuidance, /guidance is dormant/);
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 27);
+    assert.equal(resources.skillPaths.length, 25);
   } finally {
     await rm(cwd, { recursive: true, force: true });
     await rm(root, { recursive: true, force: true });

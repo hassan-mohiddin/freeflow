@@ -164,105 +164,6 @@ test("settings recheck idle state before committing a master-switch selection", 
   }
 });
 
-test("personal settings keep repository state unchanged while editing context", async () => {
-  const cwd = await configuredRepo();
-  const configPath = join(cwd, ".freeflow/config.json");
-  const original = await readFile(configPath, "utf8");
-  try {
-    const { commands } = loadExtension();
-    const command = freeflowCommand(commands);
-    const settings = context(cwd);
-    settings.ui.custom = async (factory) => {
-      let result;
-      const component = factory({ requestRender() {} }, theme, {}, (value) => {
-        result = value;
-      });
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      component.handleInput("\r");
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      await component.waitForWrites();
-      component.handleInput("\u001b");
-      component.handleInput("\u001b");
-      return result;
-    };
-    await command.definition.handler("settings", settings);
-    assert.equal(await readFile(configPath, "utf8"), original);
-    assert.equal(JSON.parse(await readFile(join(cwd, ".freeflow/local.json"), "utf8")).contextVirtualization, true);
-  } finally {
-    await rm(cwd, { recursive: true, force: true });
-  }
-});
-
-test("context settings refresh their parent summary after a child changes", async () => {
-  const cwd = await configuredRepo({ contextVirtualization: true });
-  try {
-    const { commands } = loadExtension();
-    const command = freeflowCommand(commands);
-    const settings = context(cwd);
-    settings.ui.custom = async (factory) => {
-      let result;
-      const component = factory({ requestRender() {} }, theme, {}, (value) => {
-        result = value;
-      });
-      assert.match(component.render(120).join("\n"), /Freeflow Context\s+enabled \(2\) 1\/2 enabled/);
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      component.handleInput("\r");
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      await component.waitForWrites();
-      component.handleInput("\u001b");
-      assert.match(component.render(120).join("\n"), /Freeflow Context\s+disabled \(2\) 0\/2 enabled/);
-      component.handleInput("\u001b");
-      return result;
-    };
-    await command.definition.handler("settings", settings);
-    const local = JSON.parse(await readFile(join(cwd, ".freeflow/local.json"), "utf8"));
-    assert.equal(local.contextVirtualization, false);
-    assert.equal(settings.reloads.length, 1);
-  } finally {
-    await rm(cwd, { recursive: true, force: true });
-  }
-});
-
-test("repository settings show personal effective sources without changing shared state", async () => {
-  const cwd = await configuredRepo({ contextVirtualization: false });
-  const repositoryPath = join(cwd, ".freeflow/config.json");
-  const localPath = join(cwd, ".freeflow/local.json");
-  try {
-    await writeFile(localPath, JSON.stringify({ contextVirtualization: true }, null, 2), "utf8");
-    const { commands } = loadExtension();
-    const command = freeflowCommand(commands);
-    const settings = context(cwd, { isIdle: () => true });
-    settings.ui.custom = async (factory) => {
-      let result;
-      const component = factory({ requestRender() {} }, theme, {}, (value) => {
-        result = value;
-      });
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      assert.match(component.render(120).join("\n"), /Context Virtualization\s+disabled \(effective enabled · local\)/);
-      component.handleInput("\u001b");
-      return result;
-    };
-    await command.definition.handler("settings repo", settings);
-    assert.deepEqual(JSON.parse(await readFile(repositoryPath, "utf8")), { contextVirtualization: false });
-    assert.deepEqual(JSON.parse(await readFile(localPath, "utf8")), { contextVirtualization: true });
-    assert.equal(settings.reloads.length, 0);
-  } finally {
-    await rm(cwd, { recursive: true, force: true });
-  }
-});
-
 test("Cognitive Routing preset cancellation preserves the previous repository value", async () => {
   const cwd = await configuredRepo({
     cognitiveRouting: {
@@ -444,11 +345,11 @@ test("remaining session overrides apply without changing repository configuratio
     const original = await readFile(configPath, "utf8");
     const { pi } = loadExtension();
     const ctx = context(cwd);
-    await setSessionCoreOverride("contextVirtualization", true, ctx, pi);
+    await setSessionCoreOverride("enabled", false, ctx, pi);
     const state = await import("../../dist/runtime/runtime-context.js").then(({ readCapabilityState }) =>
       readCapabilityState(cwd, undefined, PIFLOW_HOST),
     );
-    assert.equal(state.contextVirtualization.effective, true);
+    assert.equal(state.enabled, false);
     assert.equal(await readFile(configPath, "utf8"), original);
     await resetSessionOverrides(ctx, pi);
   } finally {

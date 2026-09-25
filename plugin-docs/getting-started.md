@@ -134,7 +134,7 @@ Run this in the repository where Freeflow should operate:
 
 Setup creates the shared `.freeflow/config.json` activation boundary. Minimal activation is `{}`. `.freeflow/local.json` is an optional personal override and cannot activate Freeflow by itself.
 
-Freeflow's core guidance and separately editable Interaction Contract are delivered together whenever Freeflow is enabled. The 24 base skills are exposed with that core surface. Context Virtualization, Conversation History, Cognitive Routing, and Tool Execution remain individually optional capabilities.
+Freeflow's core guidance and separately editable Interaction Contract are delivered together whenever Freeflow is enabled. The 24 base skills are exposed with that core surface. Cognitive Routing and Tool Execution remain individually optional capabilities. The former Freeflow Context tool, Context Virtualization, and Conversation History are removed; before updating, delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present. Either key makes its config invalid and blocks Freeflow activation until removed.
 
 For a future qualified native host, Cognitive Routing uses this v2 configuration under `.freeflow/config.json` or `.freeflow/local.json`:
 

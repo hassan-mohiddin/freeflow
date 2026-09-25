@@ -119,8 +119,6 @@ const routingCapability = (delegation = "executor") => ({
   configured: true,
   enabled: true,
   cognitiveRouting: { enabled: true, effective: true, projection: true, delegation },
-  contextVirtualization: { effective: false },
-  conversationHistory: { effective: false },
   toolExecution: { effective: false },
 });
 

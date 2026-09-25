@@ -31,8 +31,6 @@ import { workersForDelegation } from "../cognitive-routing-v2/types.js";
 import { DEFAULT_TOOL_EXECUTION_CONFIG, type ProgramMode, type ToolExecutionState } from "../tool-runtime/config.js";
 
 const DEFAULT_FREEFLOW_ENABLED = true;
-const DEFAULT_CONTEXT_VIRTUALIZATION_ENABLED = false;
-const DEFAULT_CONVERSATION_HISTORY_ENABLED = false;
 const LOCAL_INHERIT = "inherit";
 const execFileAsync = promisify(execFile);
 
@@ -531,25 +529,14 @@ function resolveSettingsCoreView(
   layers?: Awaited<ReturnType<typeof readFreeflowConfigLayers>>,
 ) {
   const localConfig = layers?.local.valid && isRecord(layers.local.parsed) ? layers.local.parsed : {};
-  const fallbackCore = {
-    enabled: getPath(rawConfig, ["enabled"]) !== false,
-    contextVirtualization: getPath(rawConfig, ["contextVirtualization"]) === true,
-    conversationHistory: getPath(rawConfig, ["conversationHistory"]) === true,
-  };
+  const fallbackCore = { enabled: getPath(rawConfig, ["enabled"]) !== false };
   const fallbackSources = {
     enabled: typeof getPath(rawConfig, ["enabled"]) === "boolean" ? "repository" : "builtin",
-    contextVirtualization:
-      typeof getPath(rawConfig, ["contextVirtualization"]) === "boolean" ? "repository" : "builtin",
-    conversationHistory: typeof getPath(rawConfig, ["conversationHistory"]) === "boolean" ? "repository" : "builtin",
   } as const;
   return {
     localConfig,
     core: layers?.coreConfig ?? fallbackCore,
-    sources: (layers?.sources ?? fallbackSources) as {
-      enabled: ConfigSource;
-      contextVirtualization: ConfigSource;
-      conversationHistory: ConfigSource;
-    },
+    sources: (layers?.sources ?? fallbackSources) as { enabled: ConfigSource },
   };
 }
 
@@ -557,7 +544,7 @@ function createSessionBooleanItem(options: {
   id: string;
   label: string;
   description: string;
-  key: "enabled" | "contextVirtualization" | "conversationHistory";
+  key: "enabled";
   inheritedValue: boolean;
   inheritedSource: ConfigSource;
   effectiveValue: boolean;
@@ -608,16 +595,8 @@ function sessionFreeflowItems(
 ): SettingsItem[] {
   const sessionOverrides = state.sessionOverrides as Record<string, boolean>;
   const configured = state.configuredCoreConfig;
-  const configuredSources = state.configuredSources as {
-    enabled: ConfigSource;
-    contextVirtualization: ConfigSource;
-    conversationHistory: ConfigSource;
-  };
-  const effectiveSources = state.configSources as {
-    enabled: ConfigSource;
-    contextVirtualization: ConfigSource;
-    conversationHistory: ConfigSource;
-  };
+  const configuredSources = state.configuredSources as { enabled: ConfigSource };
+  const effectiveSources = state.configSources as { enabled: ConfigSource };
 
   const freeflowItem = createSessionBooleanItem({
     id: "freeflow.enabled",
@@ -630,32 +609,7 @@ function sessionFreeflowItems(
     effectiveSource: effectiveSources.enabled,
     sessionOverrides,
   });
-  const contextVirtualizationItem = createSessionBooleanItem({
-    id: "freeflow.contextVirtualization",
-    label: "Context Virtualization",
-    description: "Temporary Context Virtualization override for this Pi session.",
-    key: "contextVirtualization",
-    inheritedValue: configured.contextVirtualization,
-    inheritedSource: configuredSources.contextVirtualization,
-    effectiveValue: state.contextVirtualization.enabled,
-    effectiveSource: effectiveSources.contextVirtualization,
-    sessionOverrides,
-  });
-  const conversationHistoryItem = createSessionBooleanItem({
-    id: "freeflow.conversationHistory",
-    label: "Conversation History",
-    description: "Temporary Conversation History override for this Pi session.",
-    key: "conversationHistory",
-    inheritedValue: configured.conversationHistory,
-    inheritedSource: configuredSources.conversationHistory,
-    effectiveValue: state.conversationHistory.enabled,
-    effectiveSource: effectiveSources.conversationHistory,
-    sessionOverrides,
-  });
-
   const freeflowInactive = !state.enabled;
-  contextVirtualizationItem.inactive = freeflowInactive;
-  conversationHistoryItem.inactive = freeflowInactive;
 
   const cognitiveRoutingState = cognitiveRoutingController?.state();
   const delegation = cognitiveRoutingState?.delegation ?? state.cognitiveRouting?.delegation ?? "executor";
@@ -754,8 +708,7 @@ function sessionFreeflowItems(
     {
       id: "freeflow.session.reset",
       label: "Reset session overrides",
-      description:
-        "Clear Freeflow, Context Virtualization, Conversation History, delegation mode, and routing profile overrides for this Pi session.",
+      description: "Clear Freeflow, delegation mode, and routing profile overrides for this Pi session.",
       kind: "enum",
       value: "available",
       values: ["reset"],
@@ -765,15 +718,6 @@ function sessionFreeflowItems(
       },
       format: () => "available",
       transient: true,
-    },
-    {
-      id: "freeflow.context",
-      label: "Freeflow Context",
-      description: "Choose which context projection and conversation-history operations are available to the model.",
-      kind: "group",
-      value: contextVirtualizationItem.effectiveValue === true || conversationHistoryItem.effectiveValue === true,
-      displaySuffix: `${[contextVirtualizationItem, conversationHistoryItem].filter((item) => item.effectiveValue === true).length}/2 enabled`,
-      children: [contextVirtualizationItem, conversationHistoryItem],
     },
   ];
 }
@@ -1105,34 +1049,7 @@ function freeflowItems(
     effectiveSource: sources.enabled,
     defaultValue: DEFAULT_FREEFLOW_ENABLED,
   });
-  const contextVirtualizationItem = createScopedBooleanItem({
-    scope,
-    rawConfig,
-    localConfig,
-    id: "freeflow.contextVirtualization",
-    label: "Context Virtualization",
-    description: "Let the model archive consumed tool results from future context while preserving session history.",
-    path: ["contextVirtualization"],
-    effectiveValue: core.contextVirtualization,
-    effectiveSource: sources.contextVirtualization,
-    defaultValue: DEFAULT_CONTEXT_VIRTUALIZATION_ENABLED,
-  });
-  const conversationHistoryItem = createScopedBooleanItem({
-    scope,
-    rawConfig,
-    localConfig,
-    id: "freeflow.conversationHistory",
-    label: "Conversation History",
-    description: "Let the model search and retrieve hidden conversation history on the active branch.",
-    path: ["conversationHistory"],
-    effectiveValue: core.conversationHistory,
-    effectiveSource: sources.conversationHistory,
-    defaultValue: DEFAULT_CONVERSATION_HISTORY_ENABLED,
-  });
-
   const freeflowInactive = !core.enabled;
-  contextVirtualizationItem.inactive = freeflowInactive;
-  conversationHistoryItem.inactive = freeflowInactive;
 
   const cognitiveRoutingState = options.cognitiveRouting;
   const cognitiveRoutingRuntimeDisabled = options.runtimeAvailable !== true;
@@ -1539,27 +1456,12 @@ function freeflowItems(
     children: toolExecutionItems,
   };
 
-  return [
-    freeflowItem,
-    ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []),
-    toolExecutionGroup,
-    {
-      id: "freeflow.context",
-      label: "Freeflow Context",
-      description: "Choose which context projection and conversation-history operations are available to the model.",
-      kind: "group",
-      value: contextVirtualizationItem.effectiveValue === true || conversationHistoryItem.effectiveValue === true,
-      displaySuffix: `${[contextVirtualizationItem, conversationHistoryItem].filter((item) => item.effectiveValue === true).length}/2 enabled`,
-      children: [contextVirtualizationItem, conversationHistoryItem],
-    },
-  ];
+  return [freeflowItem, ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []), toolExecutionGroup];
 }
 
 function pruneKnownDefaults(config: Record<string, unknown>) {
   const defaultPaths: Array<{ path: string[]; value: unknown }> = [
     { path: ["enabled"], value: DEFAULT_FREEFLOW_ENABLED },
-    { path: ["contextVirtualization"], value: DEFAULT_CONTEXT_VIRTUALIZATION_ENABLED },
-    { path: ["conversationHistory"], value: DEFAULT_CONVERSATION_HISTORY_ENABLED },
     { path: ["cognitiveRouting", "delegation"], value: "executor" },
     { path: ["toolExecution", "enabled"], value: DEFAULT_TOOL_EXECUTION_CONFIG.enabled },
     { path: ["toolExecution", "capture", "enabled"], value: DEFAULT_TOOL_EXECUTION_CONFIG.capture.enabled },
@@ -1989,9 +1891,10 @@ function freeflowStatusText(
   },
 ): string {
   if (!state.configured) {
-    return state.configExists
-      ? `Freeflow: inactive (invalid config: ${state.parseError ?? "unknown parse error"}); run /setup-freeflow or fix .freeflow/config.json`
-      : "Freeflow: inactive (repo not set up); run /setup-freeflow";
+    if (!state.configExists) return "Freeflow: inactive (repo not set up); run /setup-freeflow";
+    const configPath =
+      state.localConfigExists && !state.localConfigValid ? ".freeflow/local.json" : ".freeflow/config.json";
+    return `Freeflow: inactive (invalid config: ${state.parseError ?? "unknown parse error"}); fix ${configPath} or run /setup-freeflow`;
   }
   const sessionSuffix = (source: ConfigSource) => (source === "session" ? " (session override)" : "");
   const routingState = cognitiveRoutingController?.state();
@@ -2007,14 +1910,12 @@ function freeflowStatusText(
           ? `blocked (${cognitiveRouting.blockingReason.code})`
           : "disabled"
     : undefined;
-  const contextEnabled = state.contextVirtualization?.effective || state.conversationHistory?.effective;
   const toolIssue =
     toolExecutionRuntime?.lastFailure ??
     toolExecutionRuntime?.failures?.at(-1) ??
     toolExecutionRuntime?.adapters?.failures?.at(-1);
   return [
     `Freeflow: ${state.enabled ? "enabled" : "disabled"}${sessionSuffix(state.configSources.enabled as ConfigSource)}`,
-    `context: ${contextEnabled ? "enabled" : "disabled"} (virtualization ${state.contextVirtualization?.effective ? "enabled" : "disabled"}, history ${state.conversationHistory?.effective ? "enabled" : "disabled"})`,
     ...(cognitiveRoutingStatus ? [`cognitive routing: ${cognitiveRoutingStatus}`] : []),
     `tool execution: ${state.toolExecution?.effective ? "enabled" : "disabled"} (capture ${state.toolExecution?.capture?.effective ? "enabled" : "disabled"}, verified reader ${state.toolExecution?.effective ? "enabled" : "disabled"}, workspace ${state.toolExecution?.workspace?.effective ? (state.toolExecution.workspace.write ? "read/write" : "read-only") : "disabled"}, programs ${state.toolExecution?.programs?.mode ?? "off"}, live effects ${toolExecutionRuntime?.unresolvedEffects ? `fenced (${toolExecutionRuntime.unresolvedEffects})` : "settled"}, discovery ${state.toolExecution?.discovery?.effective ? "enabled" : "disabled"}, catalog ${toolExecutionRuntime?.catalog?.operations ?? 0} operations/${toolExecutionRuntime?.catalog?.metadataBytes ?? 0} bytes, adapters ${toolExecutionRuntime?.adapters?.announced?.filter((adapter) => adapter.active).length ?? 0} active/${toolExecutionRuntime?.adapters?.allowed?.length ?? 0} allowed, accounting ${state.toolExecution?.accounting?.effective ? "enabled" : "disabled"}; native Bash is built in, custom tools require adapters; captured files are retained until explicit deletion${toolIssue?.code ? `; latest ${toolExecutionRuntime?.lastFailure ? "program" : toolExecutionRuntime?.failures?.length ? "capture" : "adapter"} issue ${toolIssue.code}${toolIssue.message ? `: ${toolIssue.message}` : ""}` : ""})`,
     ...(toolExecutionRuntime?.queued ? [`capture publications queued: ${toolExecutionRuntime.queued}`] : []),
@@ -2329,11 +2230,7 @@ export async function handleFreeflowCommand(
         return { changed: result.status !== "unchanged", reloadRequired: false };
       }
       if (item.configScope === "session") {
-        const keyById = {
-          "freeflow.enabled": "enabled",
-          "freeflow.contextVirtualization": "contextVirtualization",
-          "freeflow.conversationHistory": "conversationHistory",
-        } as const;
+        const keyById = { "freeflow.enabled": "enabled" } as const;
         const key = keyById[item.id as keyof typeof keyById];
         const override = value === LOCAL_INHERIT ? null : value === "true";
         const result = await setSessionCoreOverride(key, override, ctx, pi);

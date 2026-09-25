@@ -10,13 +10,9 @@ Freeflow uses layered checkout configuration. Shared repository activation, pers
 {}
 ```
 
-Missing core keys use built-in defaults:
+Missing core keys use the built-in default `enabled: true`.
 
-- `enabled: true`
-- `contextVirtualization: false`
-- `conversationHistory: false`
-
-Optional capability configuration is explicit and remains independently gated. The legacy `defaultMode`, `interactionContract`, and `skills` keys are unsupported and make the configuration invalid.
+Optional Cognitive Routing and Tool Execution configuration is explicit and remains independently gated. The legacy `defaultMode`, `interactionContract`, and `skills` keys are unsupported and make the configuration invalid. The removed `contextVirtualization` and `conversationHistory` keys are also unsupported in either config layer; delete them manually wherever present before Freeflow can activate. Setup does not migrate or remove them automatically.
 
 Do not add task state, phase, file inventories, plans, version metadata, activation paths, empty optional sections, host instruction copies, or generated workflow text.
 
@@ -26,17 +22,15 @@ Missing or invalid repository config means repository activation is absent. A va
 
 `.freeflow/local.json` is optional per-checkout state. It cannot activate Freeflow without a valid repository config.
 
-It may override these core values:
+It may override the core enablement value:
 
 ```json
 {
-  "enabled": false,
-  "contextVirtualization": true,
-  "conversationHistory": true
+  "enabled": false
 }
 ```
 
-Every field is optional. Omission inherits the repository value, then the built-in default. Local core precedence is property-level, not whole-file replacement.
+The field is optional. Omission inherits the repository value, then the built-in default. Local core precedence is property-level, not whole-file replacement.
 
 Keep local config untracked and ignored. In a Git checkout, prefer `.git/info/exclude` or an existing ignore rule over an unsolicited shared `.gitignore` edit. Refuse to write personal overrides to a tracked local file.
 
@@ -50,7 +44,7 @@ Resolve remaining configurable values in this order:
 host session override -> personal override -> repository value -> built-in default
 ```
 
-Host session overrides are host state, not config, and cannot bypass missing or invalid repository activation. Pi may temporarily override Freeflow enablement and the remaining optional context capabilities. Cognitive Routing has its own host-managed session control.
+Host session overrides are host state, not config, and cannot bypass missing or invalid repository activation. Pi may temporarily override Freeflow enablement. Cognitive Routing has its own host-managed session control.
 
 Effective Freeflow requires:
 
@@ -59,7 +53,7 @@ Effective Freeflow requires:
 3. session-resolved `enabled: true`;
 4. the mandatory `core.md` and `interaction-contract.md` prompt files.
 
-The core prompt and Interaction Contract are always delivered together when Freeflow is enabled. Base Freeflow skills are exposed with that core surface. Context Virtualization, Conversation History, and Cognitive Routing remain independently gated capabilities.
+The core prompt and Interaction Contract are always delivered together when Freeflow is enabled. Base Freeflow skills are exposed with that core surface. Cognitive Routing and Tool Execution remain independently gated capabilities; Context Virtualization and Conversation History are removed.
 
 ## Mutation Authority By State
 

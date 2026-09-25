@@ -32,7 +32,7 @@ In the repository where Freeflow should operate, run:
 
 Setup creates the shared `.freeflow/config.json` activation boundary. Minimal activation is `{}`. An optional `.freeflow/local.json` provides per-checkout personal overrides; it cannot activate Freeflow by itself.
 
-Freeflow's core prompt and separately editable Interaction Contract are delivered together whenever Freeflow is enabled. The 24 base skills are exposed with that core surface. Context Virtualization, Conversation History, Cognitive Routing, and Tool Execution remain independently gated capabilities. Session settings can override core/context enablement, Cognitive Routing delegation mode, and complete Coordinator, Helper, and Executor presets (including a worker not yet enabled by the current mode). Choose a missing worker preset before enabling that worker. Session overrides do not mutate `.freeflow/config.json` or `.freeflow/local.json`; they take precedence over personal and repository settings and can be reset or set to inherit. The footer shows the active profile, automatic/manual control, and effective delegation mode.
+Freeflow's core prompt and separately editable Interaction Contract are delivered together whenever Freeflow is enabled. The 24 base skills are exposed with that core surface. Cognitive Routing and Tool Execution remain independently gated capabilities. The former Freeflow Context tool, Context Virtualization, and Conversation History have been removed. Before updating, delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present; configs containing either key are invalid and block Freeflow activation until the keys are removed. Session settings can override core enablement, Cognitive Routing delegation mode, and complete Coordinator, Helper, and Executor presets (including a worker not yet enabled by the current mode). Choose a missing worker preset before enabling that worker. Session overrides do not mutate `.freeflow/config.json` or `.freeflow/local.json`; they take precedence over personal and repository settings and can be reset or set to inherit. The footer shows the active profile, automatic/manual control, and effective delegation mode.
 
 ## Cognitive Routing configuration
 
@@ -139,7 +139,7 @@ Projection is off by default. With projection off, all enabled profiles use ordi
 
 Native compaction can remove user messages from the active view without making stored-but-undelivered input look new: routing keeps the last observed delivered-user basis, while genuinely delivered input interrupts the assignment. During partial routing-call arguments, collapsed receipts keep live contract/report prose visible; expand a receipt to inspect limitations or replacement reasons.
 
-The v2 projection is not qualified with the legacy Context Virtualization or Conversation History transforms. Keep those legacy capabilities standalone, or keep routing projection disabled. Neither legacy capability is removed.
+The legacy context transforms have been removed from the active runtime. Context Control v2 remains planned and unavailable; this page does not define a future composition or compatibility contract.
 
 ## Cache reuse boundaries
 

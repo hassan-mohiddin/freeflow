@@ -66,15 +66,16 @@ function isRecord(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function removedContextConfigError(value, filePath) {
+  const removedKeys = ["contextVirtualization", "conversationHistory"].filter((key) => Object.hasOwn(value, key));
+  return removedKeys.length > 0
+    ? `Removed Freeflow context setting(s) in ${filePath}: ${removedKeys.join(", ")}. Delete those keys before using Freeflow.`
+    : null;
+}
+
 function validateCoreConfigFields(value) {
   if (Object.hasOwn(value, "enabled") && typeof value.enabled !== "boolean") {
     return "enabled must be a boolean";
-  }
-  if (Object.hasOwn(value, "contextVirtualization") && typeof value.contextVirtualization !== "boolean") {
-    return "contextVirtualization must be a boolean";
-  }
-  if (Object.hasOwn(value, "conversationHistory") && typeof value.conversationHistory !== "boolean") {
-    return "conversationHistory must be a boolean";
   }
   return null;
 }
@@ -82,15 +83,10 @@ function validateCoreConfigFields(value) {
 function isValidSetupConfig(value) {
   if (!isRecord(value)) return "repository config must be a JSON object";
 
-  const allowedKeys = new Set([
-    "enabled",
-    "contextVirtualization",
-    "conversationHistory",
-    "outputRouter",
-    "observedRouting",
-    "scriptTransform",
-    "cognitiveRouting",
-  ]);
+  const removedContextError = removedContextConfigError(value, ".freeflow/config.json");
+  if (removedContextError) return removedContextError;
+
+  const allowedKeys = new Set(["enabled", "outputRouter", "observedRouting", "scriptTransform", "cognitiveRouting"]);
   if (!Object.keys(value).every((key) => allowedKeys.has(key))) {
     return "repository config contains unsupported top-level keys";
   }
@@ -107,13 +103,10 @@ function isValidSetupConfig(value) {
 function isValidLocalConfig(value) {
   if (!isRecord(value)) return "local config must be a JSON object";
 
-  const allowedKeys = new Set([
-    "enabled",
-    "processing",
-    "cognitiveRouting",
-    "contextVirtualization",
-    "conversationHistory",
-  ]);
+  const removedContextError = removedContextConfigError(value, ".freeflow/local.json");
+  if (removedContextError) return removedContextError;
+
+  const allowedKeys = new Set(["enabled", "processing", "cognitiveRouting"]);
   if (!Object.keys(value).every((key) => allowedKeys.has(key))) {
     return "local config contains unsupported top-level keys";
   }
@@ -127,11 +120,7 @@ function resolveLayeredValue(repository, local, key, fallback) {
 }
 
 function resolveCoreConfig(repository, local) {
-  return {
-    enabled: resolveLayeredValue(repository, local, "enabled", true),
-    contextVirtualization: resolveLayeredValue(repository, local, "contextVirtualization", false),
-    conversationHistory: resolveLayeredValue(repository, local, "conversationHistory", false),
-  };
+  return { enabled: resolveLayeredValue(repository, local, "enabled", true) };
 }
 
 export function readConfig(root) {
@@ -151,8 +140,6 @@ export function readConfig(root) {
     localValid,
     error: repository.valid ? local.error : repository.error,
     enabled,
-    contextVirtualizationEnabled: enabled && core.contextVirtualization,
-    conversationHistoryEnabled: enabled && core.conversationHistory,
   };
 }
 
@@ -173,7 +160,18 @@ function runtimeStateContext() {
 
 export function renderRuntimeContext(root) {
   const config = readConfig(root);
-  if (!config.valid || !config.enabled) return "";
+  if (!config.valid) {
+    if (config.error?.startsWith("Removed Freeflow context setting(s) in ")) {
+      return [
+        "# Freeflow Configuration Error",
+        "",
+        `Freeflow is inactive. ${config.error}`,
+        "Remove the named key(s), then restart the session.",
+      ].join("\n");
+    }
+    return "";
+  }
+  if (!config.enabled) return "";
 
   const { corePrompt, interactionContract } = loadRuntimeContext();
   return [corePrompt, interactionContract, runtimeStateContext()].filter(Boolean).join("\n\n");

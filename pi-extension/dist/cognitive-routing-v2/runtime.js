@@ -1060,9 +1060,6 @@ export class RoutingRuntime {
   messageEnd(message) {
     if (message?.role === "assistant" && this.turn && !this.turn.bound) this.turn.message = structuredClone(message);
   }
-  contextOperation(name, input) {
-    return name === "freeflow_context" && ["archive", "restore", "search", "retrieve"].includes(input?.operation);
-  }
   handoffOperation(name, input) {
     if (name === "freeflow_delegate") return true;
     if (name === "freeflow_return") return ["submit", "supplement", "retry"].includes(input?.operation);
@@ -1142,12 +1139,7 @@ export class RoutingRuntime {
       !handoffs.length ||
         (handoffs.length === 1 &&
           this.handoffOperation(calls.at(-1)?.name, calls.at(-1)?.arguments) &&
-          calls.every(
-            (b) =>
-              this.handoffOperation(b.name, b.arguments) ||
-              b.name === "freeflow_project" ||
-              this.contextOperation(b.name, b.arguments),
-          )),
+          calls.every((b) => this.handoffOperation(b.name, b.arguments) || b.name === "freeflow_project")),
       "invalid_handoff_batch",
       "A handoff must be last and cannot accompany ordinary task tools.",
     );
@@ -1170,7 +1162,7 @@ export class RoutingRuntime {
       this.batch(event.toolCallId, name);
       check(!this.error && !this.store?.blocked, "routing_blocked");
       this.openTurn();
-      if (isWorkerProfile(this.turn?.profile) && !isRouting && !this.contextOperation(name, event.input)) {
+      if (isWorkerProfile(this.turn?.profile) && !isRouting) {
         const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
         const worker = a ? this.assignedWorker(state, a.id) : undefined;
         const ordinary =

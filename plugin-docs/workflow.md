@@ -12,7 +12,7 @@ A direct request covers only its bounded outcome and entailed effects. High-risk
 
 ## Activation And Configuration
 
-Freeflow requires a valid shared `.freeflow/config.json`. Optional `.freeflow/local.json` supplies per-checkout personal overrides and cannot activate Freeflow by itself. The only core enablement switch is `enabled`; base Freeflow skills and the Interaction Contract are present whenever Freeflow is enabled. Context Virtualization, Conversation History, and Cognitive Routing are independently configured capabilities.
+Freeflow requires a valid shared `.freeflow/config.json`. Optional `.freeflow/local.json` supplies per-checkout personal overrides and cannot activate Freeflow by itself. The only core enablement switch is `enabled`; base Freeflow skills and the Interaction Contract are present whenever Freeflow is enabled. Cognitive Routing and Tool Execution are optional capabilities. The former context settings `contextVirtualization` and `conversationHistory` are unsupported and make either config layer invalid until removed.
 
 ```text
 host session enablement -> personal override -> repository value -> built-in default

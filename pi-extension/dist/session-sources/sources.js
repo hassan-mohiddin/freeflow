@@ -151,15 +151,7 @@ export class Sources {
     this.ambiguous.clear();
     for (const source of this.byRef.values()) source.active = false;
     const used = new Set(),
-      hashes = messages.map((message) => {
-        const direct = bodyHash(message);
-        if (this.byBody.has(direct) || message?.role !== "toolResult" || !Array.isArray(message.content)) return direct;
-        const last = message.content.at(-1);
-        if (last?.type !== "text") return direct;
-        const original = bodyHash({ ...message, content: message.content.slice(0, -1) });
-        // Freeflow's stable reference decoration does not change the native evidence body.
-        return this.byBody.get(original)?.some((s) => last.text === `[context-ref: ${s.ref}]`) ? original : direct;
-      }),
+      hashes = messages.map((message) => bodyHash(message)),
       remaining = new Map();
     for (const hash of hashes) remaining.set(hash, (remaining.get(hash) ?? 0) + 1);
     const items = messages.map((message, index) => {

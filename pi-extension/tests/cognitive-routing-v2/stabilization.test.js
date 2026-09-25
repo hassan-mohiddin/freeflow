@@ -479,12 +479,12 @@ test("a prior profile's usage does not starve the receiving response after proje
   assert.equal(recorded.message.usage.input, 125000, "recorded accounting is unchanged");
 });
 
-test("a context tool name cannot make an unknown operation a valid handoff batch", async () => {
+test("removed context management cannot be smuggled into a handoff batch", async () => {
   const result = await fixture((n, body, m) => {
     if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Return a supported report." });
     if (n === 2)
       return [
-        { name: "freeflow_context", args: { operation: "publish" } },
+        { name: "freeflow_context", args: { operation: "archive" } },
         {
           name: "freeflow_return",
           args: { operation: "submit", report: "Must not be accepted from this batch.", outcome: "completed" },

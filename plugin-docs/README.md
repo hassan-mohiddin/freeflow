@@ -14,8 +14,8 @@ Start with [Getting Started](getting-started.md) for host-specific installation,
 - [Capability overview](capabilities/README.md): gates, host support, composition, and evidence limits.
 - [Cognitive Routing](capabilities/cognitive-routing.md): mode-aware Coordinator/Helper/Executor compute placement, worker evidence projection, and host qualification boundaries.
 - [Tool Execution](capabilities/tool-execution.md): bounded output capture/recovery, restricted programs, finite local operations, discovery, cooperating adapters, and factual efficiency reports.
-- [Context Virtualization](capabilities/context-virtualization.md): archive/restore of consumed evidence projections.
-- [Conversation History](capabilities/conversation-history.md): bounded current-branch evidence recovery.
+
+The Freeflow Context tool, Context Virtualization, and Conversation History have been removed. Their historical implementation, prompts, tests, eval definitions, and capability docs are preserved in the [legacy context archive](../.deprecated/legacy-context/README.md). Context Control v2 is planned and unavailable in this release.
 
 ## Documentation
 

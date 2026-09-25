@@ -10,6 +10,10 @@ Historical Freeflow artifacts kept outside the active plugin runtime and npm pac
 
 - `output-router/`: retired Output Router implementation, Pi integration, capability guidance, tests, evaluations, and design history.
 
+## Legacy Context Capabilities
+
+- `legacy-context/`: historical source, prompts, capability skills and public docs, tests, and evaluation definitions for the removed Freeflow Context, Context Virtualization, and Conversation History features. This archive is not an active runtime or package surface.
+
 ## Router Experiments
 
 - `router/experimental-local-index.ts`: historical local-index experiment.

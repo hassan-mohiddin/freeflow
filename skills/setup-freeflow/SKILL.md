@@ -54,7 +54,9 @@ Do not create or append Freeflow instructions in `AGENTS.md`, `CLAUDE.md`, `.cla
 
 ## Add Personal Overrides Only When Requested
 
-Use `.freeflow/local.json` for an explicitly selected per-checkout override of `enabled`, `contextVirtualization`, or `conversationHistory`. Omitted values inherit from repository config and built-in defaults. Configure optional Cognitive Routing values only through its explicit settings surface.
+Use `.freeflow/local.json` for an explicitly selected per-checkout override of `enabled`. Omitted values inherit from repository config and built-in defaults. Configure optional Cognitive Routing values only through its explicit settings surface.
+
+The legacy context keys `contextVirtualization` and `conversationHistory` are no longer supported. Delete either key from `.freeflow/config.json` or `.freeflow/local.json` wherever present; the containing file is invalid until repaired. Setup never removes them automatically.
 
 In Pi, `/freeflow settings` edits personal overrides and `/freeflow settings repo` edits shared settings. Prefer those controls when available.
 

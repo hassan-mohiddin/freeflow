@@ -376,7 +376,7 @@ With `projection: true` under automatic control:
 
 Projection is evidence selection, not an isolated security boundary, transcript deletion, or proof that a model understood the evidence.
 
-The current routing projection is not qualified together with legacy Context Virtualization or Conversation History transforms. Keep those capabilities standalone, or keep routing projection disabled. This limit does not describe the planned Context Control v2 architecture, which remains in development and is unavailable in this release.
+The legacy Context Virtualization and Conversation History transforms have been removed from the active runtime. Context Control v2 remains planned and unavailable; no current composition or compatibility contract is published.
 
 ## Evidence selection
 
@@ -651,7 +651,7 @@ Request-prefix preservation and Astra effort-history adaptation are compatibilit
 
 Context Control v2 is planned source-aware residency and bounded recovery work. It is not implemented or available in this release, and this page does not define its future commands or settings.
 
-The existing Context Virtualization and Conversation History capabilities remain separate legacy capabilities. They must not be described as Context Control v2, and their transforms are not qualified together with Cognitive Routing projection.
+The removed source, capability guidance, tests, and evaluation definitions are preserved in the [legacy context archive](../../.deprecated/legacy-context/README.md). Do not treat them as Context Control v2 or as a current runtime contract.
 
 ## Evidence boundary
 

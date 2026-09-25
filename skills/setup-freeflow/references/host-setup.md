@@ -28,15 +28,15 @@ Pi provides these settings scopes:
 
 ```text
 /freeflow settings          personal overrides
-/freeflow settings session  temporary enablement and optional-context overrides
+/freeflow settings session  temporary Freeflow and Cognitive Routing session controls
 /freeflow settings repo     shared repository settings
 ```
 
-Session settings can temporarily inherit, enable, or disable Freeflow, Context Virtualization, and Conversation History. One reset action clears those remaining session overrides. They persist in the active Pi session branch JSONL, never write `.freeflow/config.json` or `.freeflow/local.json`, and cannot bypass missing or invalid repository activation. Master changes reload Pi resources when supported.
+Session settings can temporarily inherit, enable, or disable Freeflow and override Cognitive Routing profiles/delegation. One reset action clears those session overrides. They persist in the active Pi session branch JSONL, never write `.freeflow/config.json` or `.freeflow/local.json`, and cannot bypass missing or invalid repository activation. Master changes reload Pi resources when supported.
 
 Personal settings use omission to inherit. The settings path refuses to overwrite invalid or tracked local config and establishes local Git exclusion when needed. These are user-operated host controls; they update state before the next model turn. Agent-performed file edits still follow Setup Freeflow's mutation-authority rules.
 
-When effective, Pi's `before_agent_start` path preserves the existing system prompt and composes the mandatory `core.md` and `interaction-contract.md` fragments plus effective optional capability prompts. Runtime State is refreshed at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the provider context. Base skill bodies and capability bodies remain discoverable rather than hidden persistent messages. Cognitive Routing, Context Virtualization, and Conversation History are independently gated.
+When effective, Pi's `before_agent_start` path preserves the existing system prompt and composes the mandatory `core.md` and `interaction-contract.md` fragments plus the Cognitive Routing prompt when effective. Runtime State is refreshed at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the provider context. Base skill bodies and capability bodies remain discoverable rather than hidden persistent messages. The former Context Virtualization and Conversation History settings, prompts, and tool operations are removed.
 
 A config written during setup is visible to the available Pi adapter on the next agent turn. After first activation, tell the user to run `/reload` so Pi refreshes skills and resources fully. Without reload, the adapter can load core runtime context on the next agent turn, but resource discovery waits for reload. For the remainder of the setup turn, read newly effective context directly after verification instead of claiming that another `before_agent_start` invocation already occurred.
 

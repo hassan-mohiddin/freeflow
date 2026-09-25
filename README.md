@@ -19,7 +19,7 @@ The host agent still owns tools, permissions, and execution. Freeflow helps it u
 | **Context — Context Control** | Planned source-aware residency, representation, and bounded recovery for admitted context. | Planned/in development; unavailable in this release. |
 | **Compute — Cognitive Routing** | Coordinator, Helper, and Executor profiles in one agent/session, with mode-aware work placement and optional worker-evidence projection. | Experimental native-Pi capability; current PiFlow adapter unavailable. |
 
-Current optional **Context Virtualization** and **Conversation History** capabilities remain separate legacy Pi/PiFlow features. They are not Context Control v2, and their transforms are not qualified together with Cognitive Routing projection.
+The former Freeflow Context (`freeflow_context`, `/freeflow context`), Context Virtualization, and Conversation History surfaces are removed as a breaking change. Context Control v2 is planned but unavailable in this release; it does not replace those operations yet. See the Unreleased changelog for the required config-key cleanup.
 
 ## Astra cache-aware reuse
 
@@ -95,8 +95,6 @@ A comparatively economical but capable Helper can contribute much of Both mode's
 | --- | --- |
 | Interaction Contract, Workflow, and 24 base skills | Shared supported package surface when Freeflow is effectively activated |
 | Track Work / Working Records | Shared skill surface |
-| Context Virtualization | Optional Pi/PiFlow capability; legacy, separately gated |
-| Conversation History | Optional Pi/PiFlow capability; separately gated |
 | Context Control v2 | Planned/in development; not available in this release |
 | Cognitive Routing | Experimental native Pi source candidate |
 | Cognitive Routing on PiFlow | Explicitly unavailable in the current adapter |

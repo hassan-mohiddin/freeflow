@@ -541,17 +541,9 @@ Manual profile control runs an unsplit Workflow. It does not create an automatic
 
 ## Understand Context status
 
-### Current optional capabilities
+The former Freeflow Context tool (`freeflow_context`), Context Virtualization, and Conversation History were removed in this breaking change. Their source, guidance, tests, and evaluation definitions are preserved in the [legacy context archive](../.deprecated/legacy-context/README.md), not as current runtime guidance. Delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present; either key makes that config invalid and prevents Freeflow activation until removed.
 
-On supported Pi/PiFlow paths, current optional capabilities include:
-
-- **Context Virtualization:** changes future residency of consumed tool evidence while preserving canonical session history.
-- **Conversation History:** performs bounded current-branch recovery of exact missing conversation evidence.
-- **Tool Execution:** preserves exact captured tool evidence and permits only explicitly granted capture reads during attached recovery; it is compute/evidence infrastructure, not Context Control v2.
-
-These are current, separately gated capabilities. They are not Context Control v2.
-
-The current Cognitive Routing projection is not qualified together with the legacy Context Virtualization or Conversation History transforms. Keep routing projection disabled when using them with routing, or use them standalone according to the capability docs.
+Tool Execution remains a separate optional capability for captured results and attached recovery. It is not Context Control v2.
 
 ### Planned Context Control v2
 

@@ -10,8 +10,6 @@ interaction_contract="$repo_root/runtime/prompts/interaction-contract.md"
 workflow_skill="$repo_root/skills/workflow/SKILL.md"
 action_selection_skill="$repo_root/skills/action-selection/SKILL.md"
 cognitive_routing_prompt="$repo_root/runtime/prompts/cognitive-routing.md"
-context_virtualization_prompt="$repo_root/runtime/prompts/context-virtualization.md"
-conversation_history_prompt="$repo_root/runtime/prompts/conversation-history.md"
 agents_file="$repo_root/AGENTS.md"
 runtime_doc="$repo_root/plugin-docs/architecture.md"
 architecture_doc="$repo_root/plugin-docs/architecture.md"
@@ -50,8 +48,6 @@ for file in \
 	"$workflow_skill" \
 	"$action_selection_skill" \
 	"$cognitive_routing_prompt" \
-	"$context_virtualization_prompt" \
-	"$conversation_history_prompt" \
 	"$agents_file" \
 	"$runtime_doc" \
 	"$architecture_doc" \
@@ -93,8 +89,8 @@ require_text "$workflow_doc" 'Interaction Lifecycle'
 require_text "$pi_runtime" '../../../runtime/prompts/core.md'
 require_text "$pi_runtime" '../../../runtime/prompts/interaction-contract.md'
 require_text "$pi_runtime" '../../../runtime/prompts/cognitive-routing.md'
-require_text "$pi_runtime" '../../../runtime/prompts/context-virtualization.md'
-require_text "$pi_runtime" '../../../runtime/prompts/conversation-history.md'
+reject_text "$pi_runtime" '../../../runtime/prompts/context-virtualization.md'
+reject_text "$pi_runtime" '../../../runtime/prompts/conversation-history.md'
 require_text "$shared_renderer" 'path.join(PLUGIN_ROOT, "runtime", "prompts", "interaction-contract.md")'
 require_text "$claude_adapter" 'eventNames: ["SessionStart"]'
 

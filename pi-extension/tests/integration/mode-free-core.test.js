@@ -88,17 +88,41 @@ test("obsolete mode and core-toggle configuration keys are rejected", async () =
   }
 });
 
+test("removed context settings invalidate repository and local configuration with a migration message", async () => {
+  for (const [file, key] of [
+    ["config.json", "contextVirtualization"],
+    ["config.json", "conversationHistory"],
+    ["local.json", "contextVirtualization"],
+    ["local.json", "conversationHistory"],
+  ]) {
+    const cwd = await configuredRepo(file === "config.json" ? { [key]: true } : {});
+    try {
+      if (file === "local.json") {
+        await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ [key]: true }), "utf8");
+      }
+      const layers = await readFreeflowConfigLayers(cwd);
+      assert.equal(layers.configured, false);
+      assert.match(layers.parseError, /Removed Freeflow context setting/);
+      assert.ok(layers.parseError.includes(key));
+      assert.ok(layers.parseError.includes(`.freeflow/${file}`));
+      const state = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
+      assert.equal(state.enabled, false);
+      assert.match(state.parseError, /Delete those keys before using Freeflow/);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  }
+});
+
 test("an empty valid config enables the single Freeflow core", async () => {
   const cwd = await configuredRepo();
   try {
     const state = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
     assert.equal(state.configured, true);
     assert.equal(state.enabled, true);
-    assert.deepEqual(state.configuredCoreConfig, {
-      enabled: true,
-      contextVirtualization: false,
-      conversationHistory: false,
-    });
+    assert.deepEqual(state.configuredCoreConfig, { enabled: true });
+    assert.equal("contextVirtualization" in state, false);
+    assert.equal("conversationHistory" in state, false);
     assert.equal("defaultMode" in state, false);
     assert.equal("interactionContract" in state, false);
     assert.equal("skills" in state, false);
@@ -139,8 +163,13 @@ test("Pi exposes base skills without mode or Skills controls", async () => {
     const { handlers, commands } = loadExtension();
     const ctx = context(cwd);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 27);
+    assert.equal(resources.skillPaths.length, 25);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/workflow/SKILL.md")));
+    assert.ok(
+      !resources.skillPaths.some(
+        (path) => path.includes("context-virtualization") || path.includes("conversation-history"),
+      ),
+    );
     assert.ok(!resources.skillPaths.some((path) => path.endsWith("/skills/tdd/SKILL.md")));
     assert.ok(!resources.skillPaths.some((path) => path.endsWith("/skills/mode-contract/SKILL.md")));
 
@@ -185,7 +214,7 @@ test("mandatory prompt readiness gates Runtime State, discovery, and direct skil
     assert.equal(before.systemPrompt, "base prompt");
     assert.match(before.renderedGuidance, /guidance is dormant/);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 27);
+    assert.equal(resources.skillPaths.length, 25);
 
     const discuss = commands.find((command) => command.name === "discuss");
     assert.ok(discuss);
@@ -212,6 +241,8 @@ test("session overrides are limited to the remaining configurable core values", 
     assert.equal(result.changed, true);
     await assert.rejects(() => setSessionCoreOverride("interactionContract", false, ctx, pi), /Invalid Freeflow/);
     await assert.rejects(() => setSessionCoreOverride("skillsEnabled", false, ctx, pi), /Invalid Freeflow/);
+    await assert.rejects(() => setSessionCoreOverride("contextVirtualization", true, ctx, pi), /Invalid Freeflow/);
+    await assert.rejects(() => setSessionCoreOverride("conversationHistory", true, ctx, pi), /Invalid Freeflow/);
     assert.ok(commands.some((command) => command.name === "freeflow"));
   } finally {
     await rm(cwd, { recursive: true, force: true });

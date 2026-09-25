@@ -37,7 +37,7 @@ Runtime State is current-state data, not stable policy. It does not replace the 
 Complete methods live in discoverable packages:
 
 - 24 base model/contributor skills under `skills/` whenever Freeflow is enabled and the mandatory core fragments are available;
-- Cognitive Routing, Context Virtualization, and Conversation History under `capabilities/` only when their own gates are effective;
+- Cognitive Routing under `capabilities/` only when its own gate is effective;
 - capability tools from the same effective surface snapshot.
 
 ## One effective surface snapshot
@@ -55,7 +55,7 @@ resolve activation and host capability
 
 Do not resolve these surfaces independently and report contradictory state in the same request. A missing mandatory core fragment leaves Freeflow guidance unavailable and preserves the host’s ordinary operation. A missing optional capability fragment removes only that capability’s cue, skill, and tools while reporting it unavailable.
 
-The `enabled` setting is the only Freeflow core switch. Context Virtualization, Conversation History, and Cognitive Routing are independent optional capabilities. Configurations containing the removed `defaultMode`, `interactionContract`, or `skills` keys are invalid.
+The `enabled` setting is the only Freeflow core switch. Cognitive Routing and Tool Execution are the remaining optional capabilities. The former Freeflow Context operations, Context Virtualization, and Conversation History are removed. Configurations containing the removed `defaultMode`, `interactionContract`, `skills`, `contextVirtualization`, or `conversationHistory` keys are invalid.
 
 ## Host delivery
 

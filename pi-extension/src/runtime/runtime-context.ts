@@ -59,11 +59,9 @@ export const FREEFLOW_MODEL_SKILL_NAMES = [
 export const STABLE_FREEFLOW_SURFACE = Object.freeze({
   enabled: true,
   cognitiveRouting: { effective: true },
-  contextVirtualization: { effective: true },
-  conversationHistory: { effective: true },
 });
 
-export const FREEFLOW_CAPABILITY_SKILL_NAMES = ["cognitive-routing", "context-virtualization", "conversation-history"];
+export const FREEFLOW_CAPABILITY_SKILL_NAMES = ["cognitive-routing"];
 
 export function freeflowSkillPath(skillName) {
   return fileURLToPath(new URL(`../../../skills/${skillName}/SKILL.md`, import.meta.url));
@@ -77,8 +75,6 @@ export function freeflowModelSkillPaths(capabilityState = undefined) {
   const paths = FREEFLOW_MODEL_SKILL_NAMES.map((skillName) => freeflowSkillPath(skillName));
   const capabilityStates = {
     "cognitive-routing": capabilityState?.cognitiveRouting,
-    "context-virtualization": capabilityState?.contextVirtualization,
-    "conversation-history": capabilityState?.conversationHistory,
   };
   for (const skillName of FREEFLOW_CAPABILITY_SKILL_NAMES) {
     if (capabilityStates[skillName]?.effective === true) {
@@ -88,11 +84,11 @@ export function freeflowModelSkillPaths(capabilityState = undefined) {
   return paths;
 }
 
-type SessionCoreKey = "enabled" | "contextVirtualization" | "conversationHistory";
+type SessionCoreKey = "enabled";
 type SessionCoreOverrides = Partial<Record<SessionCoreKey, boolean>>;
 
 const SESSION_OVERRIDES_ENTRY = "freeflow-session-overrides";
-const SESSION_CORE_KEYS = new Set<SessionCoreKey>(["enabled", "contextVirtualization", "conversationHistory"]);
+const SESSION_CORE_KEYS = new Set<SessionCoreKey>(["enabled"]);
 
 export const FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-runtime-state";
 export const COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-cognitive-routing-runtime-state";
@@ -151,16 +147,8 @@ async function readPromptFile(url: URL): Promise<string | null> {
 
 async function loadRuntimeContext(capabilityState = undefined) {
   const freeflowEnabled = capabilityState?.enabled === true;
-  const contextVirtualizationEnabled = capabilityState?.contextVirtualization?.effective === true;
-  const conversationHistoryEnabled = capabilityState?.conversationHistory?.effective === true;
   const cognitiveRoutingEnabled = capabilityState?.cognitiveRouting?.effective === true;
-  const [
-    corePrompt,
-    interactionContractPrompt,
-    cognitiveRoutingPrompt,
-    contextVirtualizationPrompt,
-    conversationHistoryPrompt,
-  ] = await Promise.all([
+  const [corePrompt, interactionContractPrompt, cognitiveRoutingPrompt] = await Promise.all([
     freeflowEnabled
       ? readPromptFile(new URL("../../../runtime/prompts/core.md", import.meta.url))
       : Promise.resolve(null),
@@ -170,21 +158,9 @@ async function loadRuntimeContext(capabilityState = undefined) {
     cognitiveRoutingEnabled
       ? readPromptFile(new URL("../../../runtime/prompts/cognitive-routing.md", import.meta.url))
       : Promise.resolve(null),
-    contextVirtualizationEnabled
-      ? readPromptFile(new URL("../../../runtime/prompts/context-virtualization.md", import.meta.url))
-      : Promise.resolve(null),
-    conversationHistoryEnabled
-      ? readPromptFile(new URL("../../../runtime/prompts/conversation-history.md", import.meta.url))
-      : Promise.resolve(null),
   ]);
 
-  return {
-    corePrompt,
-    interactionContractPrompt,
-    cognitiveRoutingPrompt,
-    contextVirtualizationPrompt,
-    conversationHistoryPrompt,
-  };
+  return { corePrompt, interactionContractPrompt, cognitiveRoutingPrompt };
 }
 
 function runtimeContextCacheSatisfies(capabilityState) {
@@ -193,8 +169,6 @@ function runtimeContextCacheSatisfies(capabilityState) {
     corePrompt: capabilityState?.enabled === true,
     interactionContractPrompt: capabilityState?.enabled === true,
     cognitiveRoutingPrompt: capabilityState?.cognitiveRouting?.effective === true,
-    contextVirtualizationPrompt: capabilityState?.contextVirtualization?.effective === true,
-    conversationHistoryPrompt: capabilityState?.conversationHistory?.effective === true,
   };
   return Object.entries(expected).every(([key, required]) => !required || isPromptAvailable(runtimeContextCache[key]));
 }
@@ -245,17 +219,18 @@ function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function removedContextConfigError(value, filePath) {
+  const removedKeys = ["contextVirtualization", "conversationHistory"].filter((key) =>
+    Object.prototype.hasOwnProperty.call(value, key),
+  );
+  return removedKeys.length > 0
+    ? `Removed Freeflow context setting(s) in ${filePath}: ${removedKeys.join(", ")}. Delete those keys before using Freeflow.`
+    : null;
+}
+
 function validateCoreConfigFields(value) {
   if (value.enabled !== undefined && typeof value.enabled !== "boolean") {
     return "enabled must be a boolean";
-  }
-
-  if (value.contextVirtualization !== undefined && typeof value.contextVirtualization !== "boolean") {
-    return "contextVirtualization must be a boolean";
-  }
-
-  if (value.conversationHistory !== undefined && typeof value.conversationHistory !== "boolean") {
-    return "conversationHistory must be a boolean";
   }
 
   return null;
@@ -266,15 +241,15 @@ function validateFreeflowConfigShape(value) {
     return "config must be a JSON object";
   }
 
-  // Keep retired capability keys shape-tolerated so existing repositories remain activated; runtime behavior ignores them.
+  const removedContextError = removedContextConfigError(value, ".freeflow/config.json");
+  if (removedContextError) return removedContextError;
+
   const allowedKeys = new Set([
     "enabled",
     "outputRouter",
     "observedRouting",
     "scriptTransform",
     "cognitiveRouting",
-    "contextVirtualization",
-    "conversationHistory",
     "toolExecution",
   ]);
   for (const key of Object.keys(value)) {
@@ -304,14 +279,10 @@ function validateFreeflowLocalConfigShape(value) {
     return "local config must be a JSON object";
   }
 
-  const allowedKeys = new Set([
-    "enabled",
-    "processing",
-    "cognitiveRouting",
-    "contextVirtualization",
-    "conversationHistory",
-    "toolExecution",
-  ]);
+  const removedContextError = removedContextConfigError(value, ".freeflow/local.json");
+  if (removedContextError) return removedContextError;
+
+  const allowedKeys = new Set(["enabled", "processing", "cognitiveRouting", "toolExecution"]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       return `unsupported top-level local config key: ${key}`;
@@ -391,20 +362,9 @@ function resolveLayeredValue(repository, local, key, fallback) {
 
 function resolveCoreConfig(repository, local) {
   const enabled = resolveLayeredValue(repository, local, "enabled", true);
-  const contextVirtualization = resolveLayeredValue(repository, local, "contextVirtualization", false);
-  const conversationHistory = resolveLayeredValue(repository, local, "conversationHistory", false);
-
   return {
-    config: {
-      enabled: enabled.value,
-      contextVirtualization: contextVirtualization.value,
-      conversationHistory: conversationHistory.value,
-    },
-    sources: {
-      enabled: enabled.source,
-      contextVirtualization: contextVirtualization.source,
-      conversationHistory: conversationHistory.source,
-    },
+    config: { enabled: enabled.value },
+    sources: { enabled: enabled.source },
   };
 }
 
@@ -423,22 +383,10 @@ function resolveSessionCoreConfig(layers) {
   const configured = layers.coreConfig;
   const sources = layers.sources;
   const enabled = currentSessionOverrides.enabled;
-  const contextVirtualization = currentSessionOverrides.contextVirtualization;
-  const conversationHistory = currentSessionOverrides.conversationHistory;
 
   return {
-    config: {
-      enabled: typeof enabled === "boolean" ? enabled : configured.enabled,
-      contextVirtualization:
-        typeof contextVirtualization === "boolean" ? contextVirtualization : configured.contextVirtualization,
-      conversationHistory:
-        typeof conversationHistory === "boolean" ? conversationHistory : configured.conversationHistory,
-    },
-    sources: {
-      enabled: typeof enabled === "boolean" ? "session" : sources.enabled,
-      contextVirtualization: typeof contextVirtualization === "boolean" ? "session" : sources.contextVirtualization,
-      conversationHistory: typeof conversationHistory === "boolean" ? "session" : sources.conversationHistory,
-    },
+    config: { enabled: typeof enabled === "boolean" ? enabled : configured.enabled },
+    sources: { enabled: typeof enabled === "boolean" ? "session" : sources.enabled },
   };
 }
 
@@ -472,8 +420,6 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
   const layers = await readFreeflowConfigLayers(cwd);
   const effectiveCore = resolveSessionCoreConfig(layers);
   const enabled = layers.configured && effectiveCore.config.enabled;
-  const contextVirtualizationConfigEnabled = effectiveCore.config.contextVirtualization;
-  const conversationHistoryConfigEnabled = effectiveCore.config.conversationHistory;
   const subagentContext = isSubagentContext(host);
   const hostSupportsCognitiveRouting = !subagentContext && supportsCognitiveRoutingModelRegistry(host);
   const configuredCognitiveRouting = await resolveCognitiveRoutingState(
@@ -482,11 +428,6 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
     hostSupportsCognitiveRouting ? host : undefined,
   );
   const disabledReason = enabled ? undefined : { code: "disabled" as const, message: "Freeflow is disabled" };
-  const childCapability = (configuredEnabled) => ({
-    enabled: configuredEnabled,
-    effective: enabled && configuredEnabled,
-    ...(disabledReason ? { blockingReason: disabledReason } : {}),
-  });
   const cognitiveRouting = enabled
     ? configuredCognitiveRouting
     : {
@@ -514,8 +455,6 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
     sessionOverrides: { ...currentSessionOverrides },
     configSources: effectiveCore.sources,
     enabled,
-    contextVirtualization: childCapability(contextVirtualizationConfigEnabled),
-    conversationHistory: childCapability(conversationHistoryConfigEnabled),
     hostSupportsCognitiveRouting,
     cognitiveRouting,
     toolExecution,
@@ -524,8 +463,6 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
 
   return {
     ...capabilityState,
-    contextVirtualization: disableSubagentCapability(capabilityState.contextVirtualization),
-    conversationHistory: disableSubagentCapability(capabilityState.conversationHistory),
     cognitiveRouting: disableSubagentCapability(capabilityState.cognitiveRouting),
     toolExecution: disableSubagentCapability(capabilityState.toolExecution),
   };
@@ -625,9 +562,6 @@ export function setFreeflowStatus(
           : (cognitiveRouting.blockingReason?.code ?? "unavailable");
       active.push(`cognitive blocked · ${reason}`);
     }
-  }
-  if (capabilityState?.contextVirtualization?.effective || capabilityState?.conversationHistory?.effective) {
-    active.push("context");
   }
   const toolIssue =
     options.toolExecutionRuntime?.lastFailure?.code ??
@@ -741,8 +675,6 @@ export function freeflowRuntimeStateMessage(
       `Freeflow: ${freeflowStatus}`,
       "",
       "Capabilities:",
-      `- Context Virtualization: ${publicCapabilityStatus(capabilityState?.contextVirtualization)}`,
-      `- Conversation History: ${publicCapabilityStatus(capabilityState?.conversationHistory)}`,
       `- Cognitive Routing: ${publicCognitiveRoutingStatus(capabilityState?.cognitiveRouting, cognitiveRoutingRuntime)}`,
       `- Tool Execution: ${publicCapabilityStatus(capabilityState?.toolExecution)}${
         capabilityState?.toolExecution?.effective === true
@@ -860,8 +792,6 @@ export function stableRuntimeContext(context) {
     ["Freeflow core", context?.corePrompt],
     ["Freeflow core", context?.interactionContractPrompt],
     ["Cognitive Routing", context?.cognitiveRoutingPrompt],
-    ["Context Virtualization", context?.contextVirtualizationPrompt],
-    ["Conversation History", context?.conversationHistoryPrompt],
   ];
   return [
     "# Freeflow availability contract",
@@ -889,18 +819,6 @@ export function runtimeContext(freeflowContext, capabilityState) {
     isPromptAvailable(freeflowContext.cognitiveRoutingPrompt)
   ) {
     blocks.push(freeflowContext.cognitiveRoutingPrompt.trim());
-  }
-  if (
-    capabilityState.contextVirtualization?.effective === true &&
-    isPromptAvailable(freeflowContext.contextVirtualizationPrompt)
-  ) {
-    blocks.push(freeflowContext.contextVirtualizationPrompt.trim());
-  }
-  if (
-    capabilityState.conversationHistory?.effective === true &&
-    isPromptAvailable(freeflowContext.conversationHistoryPrompt)
-  ) {
-    blocks.push(freeflowContext.conversationHistoryPrompt.trim());
   }
   return blocks.filter(Boolean).join("\n\n");
 }

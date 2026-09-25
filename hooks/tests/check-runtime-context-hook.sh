@@ -173,6 +173,31 @@ invalid_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$invalid_dir" | node 
 [[ -z "$invalid_output" ]] || fail "invalid config should not activate runtime context"
 rm -rf "$missing_dir" "$invalid_dir"
 
+legacy_repo_dir="$(mktemp -d)"
+mkdir -p "$legacy_repo_dir/.freeflow"
+printf '{"contextVirtualization":false,"conversationHistory":true}\n' >"$legacy_repo_dir/.freeflow/config.json"
+legacy_repo_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$legacy_repo_dir" | node "$HOOK_PATH" SessionStart)"
+assert_contains "$legacy_repo_output" "# Freeflow Configuration Error" "removed repository context settings"
+assert_contains "$legacy_repo_output" "contextVirtualization, conversationHistory" "removed repository context settings"
+assert_contains "$legacy_repo_output" ".freeflow/config.json" "removed repository context settings"
+if [[ "$legacy_repo_output" == *"# Freeflow Stable Guidance"* ]]; then
+  fail "removed repository context settings must not activate Freeflow core"
+fi
+rm -rf "$legacy_repo_dir"
+
+legacy_local_dir="$(mktemp -d)"
+mkdir -p "$legacy_local_dir/.freeflow"
+printf '{}\n' >"$legacy_local_dir/.freeflow/config.json"
+printf '{"conversationHistory":false}\n' >"$legacy_local_dir/.freeflow/local.json"
+legacy_local_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$legacy_local_dir" | node "$HOOK_PATH" SessionStart)"
+assert_contains "$legacy_local_output" "# Freeflow Configuration Error" "removed local context setting"
+assert_contains "$legacy_local_output" "conversationHistory" "removed local context setting"
+assert_contains "$legacy_local_output" ".freeflow/local.json" "removed local context setting"
+if [[ "$legacy_local_output" == *"# Freeflow Stable Guidance"* ]]; then
+  fail "removed local context setting must not activate Freeflow core"
+fi
+rm -rf "$legacy_local_dir"
+
 disabled_dir="$(mktemp -d)"
 mkdir -p "$disabled_dir/.freeflow"
 printf '{"enabled":false}\n' >"$disabled_dir/.freeflow/config.json"

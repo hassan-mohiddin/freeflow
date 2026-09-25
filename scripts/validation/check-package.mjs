@@ -35,19 +35,32 @@ const requiredFiles = [
   "runtime/prompts/core.md",
   "runtime/prompts/interaction-contract.md",
   "runtime/prompts/cognitive-routing.md",
-  "runtime/prompts/context-virtualization.md",
-  "runtime/prompts/conversation-history.md",
   "skills/action-selection/SKILL.md",
   "skills/workflow/SKILL.md",
   "capabilities/cognitive-routing/SKILL.md",
   "capabilities/cognitive-routing/references/helper-mode.md",
   "capabilities/cognitive-routing/references/executor-mode.md",
   "capabilities/cognitive-routing/references/both-mode.md",
-  "capabilities/context-virtualization/SKILL.md",
-  "capabilities/conversation-history/SKILL.md",
 ];
 const excludedPrefixes = ["plugin-docs/", ".skill-eval/", ".deprecated/", ".freeflow/", "plans/"];
 const forbiddenPrefixes = ["router/", "capabilities/output-router/"];
+const retiredContextPrefixes = [
+  "capabilities/context-virtualization/",
+  "capabilities/conversation-history/",
+  "pi-extension/src/context-virtualization/",
+  "pi-extension/src/conversation-history/",
+  "pi-extension/src/freeflow-context/",
+  "pi-extension/dist/context-virtualization/",
+  "pi-extension/dist/conversation-history/",
+  "pi-extension/dist/freeflow-context/",
+  "pi-extension/tests/context-virtualization/",
+  "pi-extension/tests/conversation-history/",
+];
+const retiredContextFiles = new Set([
+  "runtime/prompts/context-virtualization.md",
+  "runtime/prompts/conversation-history.md",
+  "pi-extension/tests/cache-reuse/settings.test.js",
+]);
 
 try {
   const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
@@ -64,6 +77,9 @@ try {
   const missing = requiredFiles.filter((path) => !files.has(path));
   const excluded = [...files].filter((path) => excludedPrefixes.some((prefix) => path.startsWith(prefix)));
   const forbidden = [...files].filter((path) => forbiddenPrefixes.some((prefix) => path.startsWith(prefix)));
+  const retiredContext = [...files].filter(
+    (path) => retiredContextFiles.has(path) || retiredContextPrefixes.some((prefix) => path.startsWith(prefix)),
+  );
   const retiredSkillFiles = [...files].filter(
     (path) => path === "skills/tdd/SKILL.md" || path.startsWith("skills/tdd/"),
   );
@@ -77,6 +93,8 @@ try {
   if (excluded.length > 0) throw new Error(`npm package includes excluded files: ${excluded.join(", ")}`);
   if (forbidden.length > 0)
     throw new Error(`npm package includes retired Output Router files: ${forbidden.join(", ")}`);
+  if (retiredContext.length > 0)
+    throw new Error(`npm package includes retired context feature files: ${retiredContext.join(", ")}`);
   if (retiredSkillFiles.length > 0)
     throw new Error(`npm package includes retired TDD skill files: ${retiredSkillFiles.join(", ")}`);
   if (portableSkillFiles.length !== 24)

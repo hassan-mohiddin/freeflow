@@ -5,6 +5,7 @@
 ### Breaking Changes
 
 - Requires native Pi 0.87.1 or a compatible 0.87.x host for the Pi extension; Pi 0.85.x is no longer supported.
+- Removes the Freeflow Context tool (`freeflow_context`, `/freeflow context`), Context Virtualization, and Conversation History; Context Control v2 remains unavailable as a replacement. Before updating, delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present. Either key makes configuration invalid and blocks Freeflow activation until removed; no automatic migration occurs.
 
 ### Added
 

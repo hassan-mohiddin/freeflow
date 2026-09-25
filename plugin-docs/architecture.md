@@ -53,7 +53,7 @@ host session enablement
 -> built-in default
 ```
 
-`enabled` is the only Freeflow core switch. When it is effective, the core prompt, Interaction Contract, and 24 base skills are present. Context Virtualization, Conversation History, Cognitive Routing, and Tool Execution are independently gated capabilities. Configurations containing the removed `defaultMode`, `interactionContract`, or `skills` keys are invalid. An invalid existing personal layer fails closed.
+`enabled` is the only Freeflow core switch. When it is effective, the core prompt, Interaction Contract, and 24 base skills are present. Cognitive Routing and Tool Execution are optional gated capabilities. Configurations containing the removed `defaultMode`, `interactionContract`, or `skills` keys, or the retired `contextVirtualization` and `conversationHistory` keys, are invalid. An invalid existing personal layer fails closed; remove either legacy context key from both config layers before using Freeflow.
 
 Cognitive Routing has its own v2 shape under `cognitiveRouting`:
 
@@ -136,7 +136,7 @@ A skill body establishes the first-read job and normal route from guaranteed con
 
 See [Skill routing](skill-routing.md) for the typed owner, route, and reference adjacency map.
 
-The active cross-host model/contributor surface has 24 skills under `skills/`, including Action Selection and Workflow. Agent Plugins-compatible hosts, Gemini, Cursor, Codex, Claude, OpenCode, Hermes, and the Pi extension all consume this one canonical skill tree through their documented discovery surfaces. Cognitive Routing, Context Virtualization, and Conversation History are separately packaged Pi/PiFlow capability skills under `capabilities/`, outside non-Pi host delivery. Retired Output Router material is preserved under `.deprecated/output-router/`. Removed Mode Contract material is preserved under `.deprecated/modes/` and is not an active package surface.
+The active cross-host model/contributor surface has 24 skills under `skills/`, including Action Selection and Workflow. Agent Plugins-compatible hosts, Gemini, Cursor, Codex, Claude, OpenCode, Hermes, and the Pi extension all consume this one canonical skill tree through their documented discovery surfaces. Cognitive Routing is the remaining Pi/PiFlow capability skill under `capabilities/`, outside non-Pi host delivery. The removed Context Virtualization and Conversation History skills, source, and evaluations are preserved under `.deprecated/legacy-context/`; they are not an active package surface. Retired Output Router material is preserved under `.deprecated/output-router/`. Removed Mode Contract material is preserved under `.deprecated/modes/` and is not an active package surface.
 
 ## Review And Verification Topology
 
@@ -164,11 +164,11 @@ The record preserves a provisional remaining route, dependencies, actual observa
 
 ## Capabilities
 
-The Pi/PiFlow Context Virtualization capability owns projection-only archive and restore of consumed tool-result content while preserving canonical session history. It remains independently available when its own gate is effective.
+The former Freeflow Context tool, Context Virtualization, and Conversation History capabilities are removed from active Pi/PiFlow runtime surfaces. Their historical source and guidance are preserved under `.deprecated/legacy-context/`; Context Control v2 is planned but unavailable and is not a replacement in this release.
 
 The v2 Cognitive Routing capability owns Coordinator plus optional Helper and Executor profiles, `executor`/`helper`/`both` delegation modes, native session-entry state, automatic assignment/report/assessment flow, `/freeflow profile coordinator|helper|executor|auto|history`, `/freeflow resume`, and the tools `freeflow_delegate`, `freeflow_return`, `freeflow_unit`, and `freeflow_project`. Coordinator alone delegates one worker at a time. Helper is the normal delegate for supporting work when enabled; Executor is commissioned for substantive or consequential results; Coordinator implements directly in `helper` mode. Projection is disabled by default; when enabled, Helper and Executor share ordinary history while worker evidence is selected for Coordinator with native dependencies and explicit readiness problems. Saved reports and the assigned worker remain independent of a later profile or mode change. Its current source path is experimental: the native Pi entrypoint is wired but unreleased/uninstalled, and the identified PiFlow adapter is explicitly unavailable.
 
-The new routing projection is not qualified with legacy Context Virtualization or Conversation History transforms. Those capabilities remain standalone and are not removed. Routing state uses native `freeflow-routing-v2` entries and a strict read-only persisted snapshot for reconciliation; it does not patch host files, claim `fsync`, or promise exactly-once behavior. Pi-specific prefix reuse and cache-breaking boundaries are documented in [Pi cache reuse boundaries](integrations/pi.md#cache-reuse-boundaries).
+The legacy context transforms are no longer part of the runtime, so their former composition restriction is not an active configuration choice. Context Control v2 remains planned and unavailable; this page does not define its future composition boundary. Routing state uses native `freeflow-routing-v2` entries and a strict read-only persisted snapshot for reconciliation; it does not patch host files, claim `fsync`, or promise exactly-once behavior. Pi-specific prefix reuse and cache-breaking boundaries are documented in [Pi cache reuse boundaries](integrations/pi.md#cache-reuse-boundaries).
 
 Delegation Harness is retired from the live package. Its implementation and historical evidence remain under `.deprecated/delegation-harness/`.
 

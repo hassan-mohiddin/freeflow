@@ -15,8 +15,6 @@ export const CURRENT_DOCUMENTS = [
   "plugin-docs/capabilities/README.md",
   "plugin-docs/capabilities/cognitive-routing.md",
   "plugin-docs/capabilities/tool-execution.md",
-  "plugin-docs/capabilities/context-virtualization.md",
-  "plugin-docs/capabilities/conversation-history.md",
   "plugin-docs/workflow.md",
   "plugin-docs/skill-routing.md",
   "plugin-docs/release.md",
