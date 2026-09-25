@@ -2,6 +2,8 @@
 
 Read this before performing any push through Commit Work.
 
+The stop conditions and prohibitions below are binding; the inspection commands are judgment.
+
 A **simple push** sends inspected local commits from the current named branch to one explicit or established remote branch without force, deletion, tag publication, integration, pull-request creation, release, or deployment.
 
 Use [Finish Branch](../../finish-branch/SKILL.md) when the route requires choosing how to integrate, share, preserve, rewrite, or clean up branch state.

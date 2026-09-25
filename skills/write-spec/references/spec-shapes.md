@@ -1,6 +1,6 @@
 # Spec Shapes
 
-Read this when choosing the structure of a spec-like artifact. These are composable shapes, not mandatory templates. Use only the sections the artifact needs for its intended use.
+Read this when choosing the structure of a spec-like artifact. This reference is judgment: these are composable shapes, not mandatory templates. Use only the sections the artifact needs for its intended use.
 
 ## Product Spec Or PRD
 

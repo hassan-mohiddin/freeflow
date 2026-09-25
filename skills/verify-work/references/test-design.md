@@ -2,7 +2,7 @@
 
 Read this before designing or materially changing a behavior check, including regression or characterization coverage.
 
-Choose a real observing boundary and an independent expected result. This guidance does not prescribe test-first sequencing, a fixed unit/integration/end-to-end ratio, or a test-count target.
+This reference is judgment. Choose a real observing boundary and an independent expected result. It does not prescribe test-first sequencing, a fixed unit/integration/end-to-end ratio, or a test-count target.
 
 ## Start From Accepted Behavior
 

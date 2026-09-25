@@ -2,7 +2,7 @@
 
 Read this after an independent artifact review returns and before selecting what follows from its report.
 
-Adjudication belongs to the receiving active agent. It tests the report against the artifact, source truth, dependencies, and evidence. It is not independent review and does not inherit the reviewer's authority or judgment.
+This reference is judgment; Review Artifact's Rules still bind. Adjudication belongs to the receiving active agent. It tests the report against the artifact, source truth, dependencies, and evidence. It is not independent review and does not inherit the reviewer's authority or judgment.
 
 ## Dispose Each Material Item
 

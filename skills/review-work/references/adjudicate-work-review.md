@@ -2,7 +2,7 @@
 
 Read this after an independent work review returns and before selecting what follows from its report.
 
-Adjudication belongs to the receiving active agent. It tests the report against the reviewed state, source truth, and evidence. It is not independent review and does not inherit the reviewer's authority or judgment.
+This reference is judgment; Review Work's Rules still bind. Adjudication belongs to the receiving active agent. It tests the report against the reviewed state, source truth, and evidence. It is not independent review and does not inherit the reviewer's authority or judgment.
 
 ## Dispose Each Material Item
 

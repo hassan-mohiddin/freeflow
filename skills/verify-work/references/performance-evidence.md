@@ -2,9 +2,11 @@
 
 Read this before selecting or running evidence when verifying latency, throughput, memory, CPU, bundle, query, rendering, capacity, or resource-regression claims.
 
+This reference is judgment, with one Rule: access production traces or metrics only through authorized, privacy-safe channels, and never copy secrets, unrestricted personal data, or production payloads into prompts or artifacts.
+
 A faster synthetic operation does not prove the reported path improved. Preserve correctness while measuring representative work.
 
-Access production traces or metrics only through authorized, privacy-safe channels. Minimize and sanitize captured evidence; do not copy secrets, unrestricted personal data, or production payloads into prompts or artifacts. When safe access is unavailable, use representative non-production evidence and downgrade the claim.
+Minimize and sanitize captured evidence. When safe access is unavailable, use representative non-production evidence and downgrade the claim.
 
 ## Define The Claim
 

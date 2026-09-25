@@ -2,7 +2,7 @@
 
 Read this before preparing or performing a separately selected independent review of implementation or integrated work.
 
-The reviewer did not produce the reviewed state. Give them the work product, source truth, and evidence needed to judge it directly. Do not provide only the producer's summary, reasoning, or claimed result.
+This reference is a contract: the required context and the reviewer prompt are binding as written. The reviewer did not produce the reviewed state. Give them the work product, source truth, and evidence needed to judge it directly. Do not provide only the producer's summary, reasoning, or claimed result.
 
 ## Required Context
 

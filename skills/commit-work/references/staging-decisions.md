@@ -2,7 +2,7 @@
 
 Read this when staged, unstaged, or untracked changes have mixed ownership or concerns; a path contains both included and excluded work; existing staged ownership is uncertain; generated, durable, sensitive, or suspicious files appear; or narrowing may require changing existing staged state.
 
-This reference determines what may enter the checkpoint. It does not establish commit authority, verification, review readiness, or permission to alter user-owned work.
+This reference is judgment about classification, with binding stops for sensitive content, Working Records, and user-owned staged work. It determines what may enter the checkpoint. It does not establish commit authority, verification, review readiness, or permission to alter user-owned work.
 
 ## Classify The Changed Units
 

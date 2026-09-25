@@ -1,6 +1,6 @@
 # Plan Shapes
 
-Read this when choosing the structure, destination, identity, or revision shape of an ordered Plan. Use only the sections the Plan needs.
+Read this when choosing the structure, destination, identity, or revision shape of an ordered Plan. This reference is judgment: use only the sections the Plan needs.
 
 ## Destination And Durable Identity
 

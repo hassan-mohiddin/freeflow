@@ -2,6 +2,8 @@
 
 Read this when writing or revising an artifact whose primary job is to preserve a decision and its rationale.
 
+This reference is judgment, with one Rule: never write an assumption, reviewer suggestion, or agent preference as an accepted decision, and never rewrite a superseded decision to match the present.
+
 ## Choose The Right Record
 
 Use the smallest record that preserves the decision where future work will look for it.

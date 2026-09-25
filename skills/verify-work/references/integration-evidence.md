@@ -2,6 +2,8 @@
 
 Read this before selecting or running evidence when a claim depends on a registered callback or executor, host lifecycle, producer invocation, fallback protocol, installed package, or absence counter.
 
+This reference is judgment; the one binding point is Verify Work's: name the strongest boundary actually observed, never a stronger one.
+
 ## Match The Boundary
 
 Evidence proves only the boundary it directly observes.

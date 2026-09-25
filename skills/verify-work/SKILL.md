@@ -7,29 +7,35 @@ description: "Use when verifying work or a claim after implementation, tests, bu
 
 Determine what fresh direct evidence establishes about a specific claim at the boundary where it must hold.
 
-Verification establishes facts, not review judgment, authority, or permission to continue. A passing command is not automatically a supported outcome. Test order is not evidence of test validity or implementation correctness.
+The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
+
+## Rules
+
+- Verification establishes facts, not review judgment, authority, or permission to continue. A Supported claim permits judgment of the result; it does not establish a review Pass, close a Slice, or authorize delivery.
+- Never encode a guess as an expected result. When expected behavior is unsettled or sources conflict, return the issue through [Workflow](../../skills/workflow/SKILL.md) or [Decision Gate](../../skills/decision-gate/SKILL.md).
+- Run active checks (tests, reproductions, benchmarks, instrumentation) only when the current agreement covers them. Otherwise return the purpose, observer, expected evidence, and stop condition to Workflow and wait.
+- Never rerun until unfavorable evidence disappears, and never change valid tests, implementation, Specs, policy, or acceptance merely to make a signal green. Preserve failures, contradictions, and partial or reduced-fidelity results.
+- If a revised check establishes less than the original, the original claim stays Inconclusive unless other evidence establishes it at the required boundary; expose that limitation before acceptance rather than carry the stronger claim into the report.
+- Missing evidence is not zero, safe, passed, or probably correct. Never invent a receipt or an earlier failing run that was not observed. If the user skips a check, leave the corresponding claim unverified.
+- Base reports on actual assertions, outputs, and the state examined, not on test names or on the requested work phrased as accomplishments.
 
 ## Establish The Claim And Its Source
 
-Before choosing a check, identify the behavior or property, the required observing boundary, and the source of its expectation. Keep this compact when obvious; do not let an available test silently narrow a broader claim.
+Goal: know exactly what is being claimed, where it must hold, and why it is expected, before choosing a check.
 
-Claims may concern behavior, a reported failure, structural validity, interfaces, integration, host lifecycle, installed artifacts, failure or recovery semantics, performance, or repository state.
+Identify the behavior or property, the required observing boundary, and the source of its expectation. Keep this compact when obvious; do not let an available test silently narrow a broader claim. Claims may concern behavior, a reported failure, structural validity, interfaces, integration, host lifecycle, installed artifacts, failure or recovery semantics, performance, or repository state.
 
 Distinguish required acceptance from an optional stronger assertion. If evidence for an optional claim is unavailable, qualify or withdraw that claim rather than automatically add implementation. A required guarantee remains unresolved until supported or explicitly changed by its owner.
 
-When expected behavior is unsettled or sources conflict, return the issue through [Workflow](../../skills/workflow/SKILL.md) or [Decision Gate](../../skills/decision-gate/SKILL.md). Do not encode a guess as an expected result.
-
 ## Choose Sufficient Evidence
+
+Goal: the smallest observation that could actually disagree with the claim, at the right boundary.
 
 Use the smallest direct observation that can disagree with the claim. Before relying on an unfamiliar fixture for substantial dependent work, establish that it reaches the required observing stage and distinguishes the relevant wrong behavior. Reuse an adequate existing fixture; observer preparation is not a mandatory separate prototype.
 
-For saved evidence, identify what code/artifact, check, configuration, and environment it examined, using existing outputs and source identities where available. Compare relevant subsequent changes, including new files and generated output. HEAD alone does not identify an uncommitted candidate. Reuse results whose applicability remains supported; rerun only affected evidence when authorized. Do not repeat checks merely because another activity or context began.
+For saved evidence, identify what code or artifact, check, configuration, and environment it examined, using existing outputs and source identities where available. Compare relevant later changes, including new files and generated output; HEAD alone does not identify an uncommitted candidate. Keep two facts separate: the observation occurred, and it applies to the current state. A later edit does not erase an earlier pass, and uncertain applicability does not certify the new candidate. Report missing identity or output rather than building a new evidence store. Reuse results whose applicability remains supported; rerun only affected evidence, and do not repeat checks merely because another activity or context began.
 
-Keep two facts separate: the observation occurred, and it applies to the current state. A later edit does not erase an earlier pass; uncertain applicability does not certify the new candidate. Report missing identity or output rather than inventing a receipt or building a new evidence store.
-
-Run active checks only when covered by the current agreement, including contained verification. Otherwise return the purpose, observer, expected evidence, and stop condition to Workflow and wait. A test, reproduction, benchmark, or instrumentation is active evidence generation even before production edits.
-
-Use [Action Selection](../../skills/action-selection/SKILL.md) when several observers are plausible or the likely interaction is broad. It selects and bounds the interaction; Verify Work retains the claim and interprets support. An already-selected focused check needs no extra tool-selection ceremony.
+Use [Action Selection](../../skills/action-selection/SKILL.md) when several observers are plausible or the likely interaction is broad; Verify Work keeps the claim and interprets support. An already-selected focused check needs no extra selection.
 
 Read the relevant reference before designing or selecting evidence:
 
@@ -40,9 +46,11 @@ Read the relevant reference before designing or selecting evidence:
 
 Browser-performance claims need both browser fidelity and performance methodology. Loading a reference does not expand the required claim.
 
-Passing tests do not prove behavior they do not exercise. Source inspection does not prove runtime execution; a helper call does not prove registration, native dispatch, or installed-package behavior. A happy path does not establish failure handling.
+Passing tests do not prove behavior they do not exercise. Source inspection does not prove runtime execution; a helper call does not prove registration, native dispatch, or installed-package behavior; a happy path does not establish failure handling.
 
 ## Run Without Manufacturing A Signal
+
+Goal: the observation reflects the candidate, not the harness or the schedule.
 
 Before parallel checks, compare what each may write or remove. Serialize checks that share generated directories, caches, outputs, package roots, fixture state, ports, databases, or intentionally stale artifacts. Reproduce a concurrency-induced failure under a non-overlapping schedule before attributing it to production code.
 
@@ -52,13 +60,14 @@ For each covered check:
 2. Inspect output, exit status, assertions, and lower-level evidence that could contradict its summary.
 3. Confirm that the intended path ran and the observer matched the claim.
 4. Compare the observation with the independent expectation and its source.
-5. Preserve failures, contradictions, and partial or reduced-fidelity results.
 
-Do not rerun until unfavorable evidence disappears or change valid tests, implementation, Specs, policy, or acceptance merely to make a signal green. Before revising a material assertion after failure, use Test Design to compare what the old and new checks establish. Repair source-backed observer or expectation errors; a weaker replacement leaves the original claim Inconclusive unless other evidence establishes it. Expose that limitation before acceptance rather than carry the stronger claim into the report.
+Before revising a material assertion after failure, use Test Design to compare what the old and new checks establish. Repair source-backed observer or expectation errors.
 
-Tests may be written before or after implementation as the task warrants. No formal test-first sequence is required. If using a failure to support diagnosis or regression claims, actually observe it at the relevant boundary; do not invent an earlier failing run from a later passing test.
+Tests may be written before or after implementation as the task warrants; no test-first sequence is required, and test order is not evidence of validity. When a failure supports a diagnosis or regression claim, actually observe it at the relevant boundary.
 
 ## Classify Execution And Support Separately
+
+Goal: never let a check's outcome stand in for what the evidence proves.
 
 **Check result** describes the selected check's defined assertion:
 
@@ -76,15 +85,15 @@ A check may Pass by observing an expected rejection or failure.
 - **Inconclusive:** available evidence cannot establish or refute it at that boundary.
 - **Unavailable:** required evidence cannot currently be obtained safely or reliably.
 
-A Passed check can leave the claim Inconclusive. A Failed check can expose a defect, invalid expectation, environment problem, or source conflict. Classify only the supported conclusion. Missing evidence is not zero, safe, passed, or probably correct.
-
-If the user skips a check, respect that choice and leave the corresponding claim unverified. Use [Diagnose Failure](../../skills/diagnose-failure/SKILL.md) when contradictions are unexplained or failure repeats.
+A Passed check can leave the claim Inconclusive. A Failed check can expose a defect, an invalid expectation, an environment problem, or a source conflict; classify only the supported conclusion. Use [Diagnose Failure](../../skills/diagnose-failure/SKILL.md) when contradictions are unexplained or failure repeats.
 
 ## Return Evidence To Its Owner
 
-Return the observation and its limits to the activity using the claim. Base the report on actual assertions, outputs, and the state examined—not test names or the requested work phrased as accomplishments. Distinguish implemented behavior, exercised checks, and supported claims; list missing material cases even when the suite passes. Supported verification permits judgment of the result; it does not itself establish review Pass, close a Slice, or authorize delivery.
+Goal: the activity using the claim gets the observation and its limits, and nothing it did not ask for.
 
-When answering a review Needs evidence item, preserve its pointer, claim, required observing boundary, previous evidence limit, and why the gap mattered. Return the result to the receiving agent for adjudication:
+Return the observation and its limits to the activity using the claim. Distinguish implemented behavior, exercised checks, and supported claims, and list missing material cases even when the suite passes.
+
+When answering a review Needs evidence item, preserve its pointer, claim, required observing boundary, previous evidence limit, and why the gap mattered, and return the result to the receiving agent for adjudication:
 
 - Supported may settle the factual gap without settling the review.
 - Contradicted may establish or invalidate a finding or expose a source conflict.

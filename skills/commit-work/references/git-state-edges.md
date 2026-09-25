@@ -2,7 +2,7 @@
 
 Read this when Git reports an in-progress operation, unmerged paths, detached `HEAD`, submodule ambiguity, or an empty candidate; a requested commit would amend, be empty, or bypass hooks; or any commit or hook fails.
 
-These states can change the meaning or recoverability of a commit. Inspect before choosing a recovery action.
+These states can change the meaning or recoverability of a commit. Inspect before choosing a recovery action. Each "do not" below is binding; the inspection steps are judgment.
 
 ## In-Progress Operations
 

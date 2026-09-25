@@ -2,7 +2,7 @@
 
 Read this before reviewing work that changes trust boundaries, authentication, authorization, permissions, untrusted input, secrets, sensitive data, security-relevant dependencies or external integrations, code-execution boundaries, or failure behavior with security consequences.
 
-This lens helps frame review. It does not replace repository security policy, threat modeling, specialist review, or stack-specific hardening guidance.
+This reference is judgment, with two Rules: security-sensitive product behavior stays user-owned, so never invent access, retention, logging, or fail-open or fail-closed policy during review; and never copy secrets, credentials, unrestricted personal data, or sensitive payloads into review context. It helps frame review and does not replace repository security policy, threat modeling, specialist review, or stack-specific hardening guidance.
 
 ## Establish Authority
 
@@ -13,8 +13,6 @@ Identify:
 - trust boundaries and external systems;
 - accepted security and privacy policy and threat model;
 - compatibility and failure behavior that security controls must preserve.
-
-Security-sensitive product behavior remains user-owned. Do not invent access, retention, logging, or fail-open or fail-closed policy during review.
 
 ## Trace The Paths
 
@@ -45,7 +43,7 @@ Prefer evidence at the real boundary:
 
 A generic scanner pass cannot prove authorization logic or policy correctness. A unit test cannot prove deployed headers, identity configuration, or infrastructure permissions.
 
-Do not copy secrets, credentials, unrestricted personal data, or sensitive payloads into review context. Use the smallest sanitized evidence that supports the item.
+Use the smallest sanitized evidence that supports the item.
 
 ## Calibrate Items
 

@@ -1,6 +1,6 @@
 # Artifact Standards
 
-Read this when a durable spec-like artifact needs a destination, identity, status, source trail, or revision history. Follow established repository conventions before introducing these defaults.
+Read this when a durable spec-like artifact needs a destination, identity, status, source trail, or revision history. This reference is judgment: follow established repository conventions before introducing these defaults. One Rule applies: never invent an owner, approval, date, or authority to complete a header.
 
 ## Choose The Destination
 
