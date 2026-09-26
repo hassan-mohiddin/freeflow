@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { activeReadOnlySessionBranch, readOnlySessionSnapshot } from "../session-sources/read-only-session.js";
+import { persistedBranchMatches } from "../session-sources/read-only-session.js";
 import { projectedEntryId } from "../session-sources/sources.js";
 
 const ENTRY = "freeflow-request-history-v1";
@@ -148,12 +148,7 @@ export class RequestHistory {
       reader.getSessionFile?.() &&
       branch.some((e: any) => e.message?.role === "assistant")
     ) {
-      const snapshot = await readOnlySessionSnapshot(reader.getSessionFile());
-      if (
-        snapshot.sessionId !== reader.getSessionId() ||
-        JSON.stringify(activeReadOnlySessionBranch(snapshot, leaf)) !== JSON.stringify(branch)
-      )
-        throw new Error("Context history readback differs");
+      if (!(await persistedBranchMatches(reader, leaf, branch))) throw new Error("Context history readback differs");
     }
     if (revision !== this.revision || reader.getLeafId() !== leaf) throw new Error("Context changed while preparing");
     const frames: Frame[] = [],

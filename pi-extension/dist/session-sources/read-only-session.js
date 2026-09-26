@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { statSync } from "node:fs";
 import { open, stat } from "node:fs/promises";
 import { TextDecoder } from "node:util";
 export class ReadOnlySessionError extends Error {
@@ -145,4 +146,54 @@ export function activeReadOnlySessionBranch(snapshot, leafId) {
     cursor = entry.parentId;
   }
   return path.reverse();
+}
+// Byte offset and entry count up to which a session file is known to equal Pi's in-memory entries.
+const verified = new Map();
+/** Pi just parsed this file into memory, so its current bytes are the verified prefix. */
+export function trustLoadedSession(reader) {
+  const path = reader.getSessionFile?.();
+  if (!path) return;
+  try {
+    verified.set(path, { size: statSync(path).size, count: reader.getEntries().length });
+  } catch {
+    verified.delete(path);
+  }
+}
+async function tailMatches(path, reader) {
+  const point = verified.get(path);
+  if (!point) return false;
+  const entries = reader.getEntries();
+  let file;
+  try {
+    file = await open(path, "r");
+    const { size } = await file.stat();
+    if (size < point.size || entries.length < point.count) return false;
+    const buffer = Buffer.alloc(size - point.size);
+    const { bytesRead } = await file.read(buffer, 0, buffer.length, point.size);
+    if (bytesRead !== buffer.length) return false;
+    const lines = new TextDecoder("utf-8", { fatal: true }).decode(buffer).split("\n");
+    if (lines.pop() !== "") return false;
+    const appended = entries.slice(point.count);
+    // Pi appends each entry as its JSON serialization, in memory order.
+    if (lines.length !== appended.length || lines.some((line, i) => line !== JSON.stringify(appended[i]))) return false;
+    verified.set(path, { size, count: entries.length });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    await file?.close();
+  }
+}
+/** Whether the persisted session holds exactly this branch: tail-only after a trust point, else a full comparison. */
+export async function persistedBranchMatches(reader, leaf, branch) {
+  const path = reader.getSessionFile?.();
+  if (!path) return false;
+  if (await tailMatches(path, reader)) return true;
+  const snapshot = await readOnlySessionSnapshot(path);
+  const matches =
+    snapshot.sessionId === reader.getSessionId() &&
+    JSON.stringify(activeReadOnlySessionBranch(snapshot, leaf)) === JSON.stringify(branch);
+  if (matches) trustLoadedSession(reader);
+  else verified.delete(path);
+  return matches;
 }

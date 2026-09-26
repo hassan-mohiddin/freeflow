@@ -1,4 +1,4 @@
-import { activeReadOnlySessionBranch, readOnlySessionSnapshot } from "../../session-sources/read-only-session.js";
+import { persistedBranchMatches } from "../../session-sources/read-only-session.js";
 import { ENTRY_TYPE, parseAttempt } from "./history.js";
 export class SessionState {
   pi;
@@ -65,15 +65,8 @@ export class SessionState {
     const unknown = entries.some((e) => this.acknowledged.get(e.id) !== JSON.stringify(e));
     const file = this.reader.getSessionFile();
     if (unknown && file && branch.some((e) => e.type === "message" && e.message?.role === "assistant")) {
-      const sessionId = this.reader.getSessionId(),
-        leaf = this.reader.getLeafId();
-      const snapshot = await readOnlySessionSnapshot(file);
-      const persisted = activeReadOnlySessionBranch(snapshot, leaf);
-      if (
-        snapshot.sessionId !== sessionId ||
-        this.reader.getLeafId() !== leaf ||
-        JSON.stringify(persisted) !== JSON.stringify(branch)
-      )
+      const leaf = this.reader.getLeafId();
+      if (!(await persistedBranchMatches(this.reader, leaf, branch)) || this.reader.getLeafId() !== leaf)
         throw new Error("OpenAI effort persisted ancestry differs");
     }
     for (const entry of entries) this.acknowledged.set(entry.id, JSON.stringify(entry));

@@ -1,8 +1,12 @@
 import { OpenAIEffortAdapter } from "./adapter.js";
+import { trustLoadedSession } from "../../session-sources/read-only-session.js";
 
 export function registerOpenAIEffortSupport(pi: any, enabled?: () => boolean): void {
   const adapter = new OpenAIEffortAdapter(pi, enabled);
-  pi.on("session_start", (_event: any, ctx: any) => adapter.reset(ctx));
+  pi.on("session_start", (_event: any, ctx: any) => {
+    trustLoadedSession(ctx.sessionManager);
+    adapter.reset(ctx);
+  });
   pi.on("session_shutdown", (_event: any, ctx: any) => adapter.reset(ctx));
   pi.on("session_tree", (_event: any, ctx: any) => adapter.reset(ctx));
   pi.on("session_before_compact", () => adapter.setCompacting(true));
