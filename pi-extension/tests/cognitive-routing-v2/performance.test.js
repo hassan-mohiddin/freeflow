@@ -85,3 +85,35 @@ test(
     );
   },
 );
+
+test("a fresh store replays an existing long branch in one linear pass", async () => {
+  const entries = [];
+  const reader = {
+    getSessionId: () => "fixture",
+    getSessionFile: () => undefined,
+    getBranch: () => entries.slice(),
+    getEntries: () => entries,
+    getLeafId: () => entries.at(-1)?.id ?? null,
+  };
+  const push = (customType, data) =>
+    entries.push({ type: "custom", id: String(entries.length), parentId: reader.getLeafId(), customType, data });
+  const writer = new EventStore({ appendEntry: push }, reader);
+  for (let n = 0; n < 6000; n++)
+    push(
+      "freeflow-routing-v2",
+      writer.make({
+        type: "control",
+        control: n % 2 ? "manual" : "automatic",
+        profile: n % 2 ? "executor" : "coordinator",
+        reason: "fixture",
+      }),
+    );
+  const fresh = new EventStore({ appendEntry: push }, reader);
+  const start = performance.now();
+  const state = fresh.state();
+  const elapsed = performance.now() - start;
+  assert.equal(state.control, "manual");
+  assert.equal(state.events.size, 6000);
+  // A copying fold over 6,000 events takes seconds; one owned replay takes tens of milliseconds.
+  assert.ok(elapsed < 400, `first state() took ${elapsed.toFixed(1)}ms`);
+});

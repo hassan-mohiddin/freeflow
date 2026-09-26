@@ -139,3 +139,23 @@ test("an attention notice appends once per interruption and again after it clear
   assert.equal(notices(four), 2, "a new interruption appends a new notice");
   assert.equal(four.at(-1).customType, "freeflow-routing-attention");
 });
+
+test("unchanged generated state appends one frame, not one per request, and keeps its position", async () => {
+  const f = fixture();
+  const frames = () => f.manager.getEntries().filter((e) => e.customType === "freeflow-request-history-v1").length;
+  const conversation = [user("one")];
+  const first = await f.history.assemble([state("enabled"), ...conversation], "ordinary", f.ctx);
+  assert.equal(frames(), 1);
+  let previous = first;
+  for (const text of ["two", "three", "four", "five"]) {
+    conversation.push(user(text));
+    const next = await f.history.assemble([state("enabled"), ...conversation], "ordinary", f.ctx);
+    assert.deepEqual(next.slice(0, previous.length), previous);
+    previous = next;
+  }
+  assert.equal(frames(), 1);
+  const reload = new RequestHistory(f.pi);
+  const resumed = await reload.assemble([state("enabled"), ...conversation, user("six")], "ordinary", f.ctx);
+  assert.deepEqual(resumed.slice(0, previous.length), previous);
+  assert.equal(frames(), 1);
+});

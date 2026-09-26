@@ -29,7 +29,8 @@ export class EventStore {
     const entries = this.reader.getBranch();
     const prefix =
       this.cachedEntries.length <= entries.length && this.cachedEntries.every((entry, i) => entry === entries[i]);
-    if (!prefix) {
+    // An empty cache is a trivial prefix; the copying reducer would make that first fold quadratic.
+    if (!prefix || this.cachedEntries.length === 0) {
       this.cachedState = replay(entries);
     } else {
       let state = this.cachedState;

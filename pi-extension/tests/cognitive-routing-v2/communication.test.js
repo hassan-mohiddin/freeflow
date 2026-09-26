@@ -578,3 +578,33 @@ test("normal inspection hides delivery gaps while selected inspection preserves 
     "inspection does not silently withdraw evidence",
   );
 });
+
+test("disabled Freeflow omits routing provenance and re-enabling restores it from session history", async () => {
+  const { writeFile, rm } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const attributed = (body) => JSON.stringify(body).includes("| producer: executor");
+  await fixture(
+    (n) => {
+      if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Read an observation." });
+      if (n === 2) return call("read", { path: "evidence.txt" });
+      if (n === 3)
+        return call("freeflow_return", { operation: "submit", report: "Observation captured.", outcome: "completed" });
+      if (n === 4)
+        return call("freeflow_unit", { operation: "close", outcome: "accepted", assessment: "Supported result." });
+      return [];
+    },
+    true,
+    async ({ session, requests, cwd }) => {
+      assert.ok(attributed(requests[4]), "enabled baseline carries executor provenance");
+      const local = join(cwd, ".freeflow/local.json");
+      await writeFile(local, JSON.stringify({ enabled: false }));
+      await session.prompt("Continue without Freeflow.");
+      await session.waitForIdle();
+      assert.ok(!attributed(requests.at(-1)), "disabled request carries no routing provenance");
+      await rm(local);
+      await session.prompt("Continue with Freeflow.");
+      await session.waitForIdle();
+      assert.ok(attributed(requests.at(-1)), "re-enabled request restores provenance from session history");
+    },
+  );
+});

@@ -193,7 +193,9 @@ export class RequestHistory {
         }
       }
     }
-    if (!prior || prior.length !== base.length || additions.length || cleared) {
+    // A frame that only advances the length adds no injection its parent lacks and matches no
+    // branch its parent does not, so frames are written only when generated state changes.
+    if (!prior || additions.length || cleared) {
       const frame = {
         version: 1,
         id: randomUUID(),

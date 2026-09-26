@@ -304,7 +304,8 @@ export default function freeflow(pi) {
       },
     });
     refreshState = false;
-    const projected = await routing.context(ctx, messages);
+    // Disabled Freeflow pays no per-request provenance work; re-enabling rebuilds it from session history.
+    const projected = capability?.enabled === true ? await routing.context(ctx, messages) : messages;
     const state = routing.state();
     if (projected.some((message) => message.details?.routingRequestBlocked === true)) {
       // Routing must not expose hidden worker history on failure, but Pi's full-
