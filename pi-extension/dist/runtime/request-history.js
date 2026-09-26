@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { activeReadOnlySessionBranch, readOnlySessionSnapshot } from "../session-sources/read-only-session.js";
+import { projectedEntryId } from "../session-sources/sources.js";
 const ENTRY = "freeflow-request-history-v1";
 const TRANSIENT = new Set([
   "freeflow-runtime-state",
@@ -16,9 +17,9 @@ function fingerprint(message) {
   const { usage: _usage, timestamp: _timestamp, details: _details, ...body } = message;
   return hash(body);
 }
-function prefixes(messages) {
+function prefixes(messages, fingerprintOf = fingerprint) {
   const result = [hash([])];
-  for (const message of messages) result.push(hash([result.at(-1), fingerprint(message)]));
+  for (const message of messages) result.push(hash([result.at(-1), fingerprintOf(message)]));
   return result;
 }
 function owned(message) {
@@ -54,6 +55,15 @@ function parse(value) {
 export class RequestHistory {
   pi;
   acknowledged = new Map();
+  // Unedited native entries are immutable, so their fingerprints are computed once per session.
+  fingerprints = new Map();
+  fingerprintOf = (message) => {
+    const id = projectedEntryId(message);
+    if (id === undefined) return fingerprint(message);
+    let value = this.fingerprints.get(id);
+    if (value === undefined) this.fingerprints.set(id, (value = fingerprint(message)));
+    return value;
+  };
   identity;
   fault = false;
   serial = Promise.resolve();
@@ -64,6 +74,7 @@ export class RequestHistory {
   reset() {
     this.revision++;
     this.acknowledged.clear();
+    this.fingerprints.clear();
     this.identity = undefined;
     this.fault = false;
   }
@@ -90,6 +101,7 @@ export class RequestHistory {
     const identity = `${reader.getSessionId()}:${reader.getSessionFile?.() ?? "memory"}`;
     if (this.identity !== identity) {
       this.acknowledged.clear();
+      this.fingerprints.clear();
       this.fault = false;
       this.identity = identity;
     }
@@ -140,7 +152,7 @@ export class RequestHistory {
     const current = messages
       .filter(owned)
       .filter((message) => !notice || message.customType !== "freeflow-routing-budget");
-    const hashes = prefixes(base);
+    const hashes = prefixes(base, this.fingerprintOf);
     const candidates = frames.filter((f) => f.generation === generation && hashes[f.length] === f.prefix);
     const prior = candidates.reduce((best, f) => (!best || f.length >= best.length ? f : best), undefined);
     const states = { ...prior?.states },

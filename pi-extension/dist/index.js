@@ -293,12 +293,12 @@ export default function freeflow(pi) {
   });
   pi.on("context_with_system", async (event, ctx) => {
     if (!capability) await loadSurface(ctx);
-    if (capability?.enabled === true)
-      tagProjectedMessages(
-        event.messages,
-        ctx.sessionManager?.buildSessionProjection?.(),
-        ctx.sessionManager?.getBranch?.() ?? [],
-      );
+    // Entry identity lets attribution and request history skip hashing unchanged native history.
+    tagProjectedMessages(
+      event.messages,
+      ctx.sessionManager?.buildSessionProjection?.(),
+      ctx.sessionManager?.getBranch?.() ?? [],
+    );
     let messages = event.messages.map(filterBootstrapMessage).filter(Boolean);
     messages = withFreeflowRuntimeState(messages, capability, routing.state(), prompts, {
       force: refreshState,

@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { activeReadOnlySessionBranch, readOnlySessionSnapshot } from "../session-sources/read-only-session.js";
+import { projectedEntryId } from "../session-sources/sources.js";
 
 const ENTRY = "freeflow-request-history-v1";
 const TRANSIENT = new Set([
@@ -34,9 +35,9 @@ interface Frame {
   retained: string[];
   additions: Injection[];
 }
-function prefixes(messages: any[]) {
+function prefixes(messages: any[], fingerprintOf: (message: any) => string = fingerprint) {
   const result = [hash([])];
-  for (const message of messages) result.push(hash([result.at(-1), fingerprint(message)]));
+  for (const message of messages) result.push(hash([result.at(-1), fingerprintOf(message)]));
   return result;
 }
 function owned(message: any): boolean {
@@ -74,6 +75,15 @@ function parse(value: any): Frame {
 /** Preserve only Freeflow-generated occurrences. Native content remains owned by Pi and its projectors. */
 export class RequestHistory {
   private acknowledged = new Map<string, string>();
+  // Unedited native entries are immutable, so their fingerprints are computed once per session.
+  private fingerprints = new Map<string, string>();
+  private fingerprintOf = (message: any): string => {
+    const id = projectedEntryId(message);
+    if (id === undefined) return fingerprint(message);
+    let value = this.fingerprints.get(id);
+    if (value === undefined) this.fingerprints.set(id, (value = fingerprint(message)));
+    return value;
+  };
   private identity?: string;
   private fault = false;
   private serial: Promise<unknown> = Promise.resolve();
@@ -82,6 +92,7 @@ export class RequestHistory {
   reset() {
     this.revision++;
     this.acknowledged.clear();
+    this.fingerprints.clear();
     this.identity = undefined;
     this.fault = false;
   }
@@ -114,6 +125,7 @@ export class RequestHistory {
     const identity = `${reader.getSessionId()}:${reader.getSessionFile?.() ?? "memory"}`;
     if (this.identity !== identity) {
       this.acknowledged.clear();
+      this.fingerprints.clear();
       this.fault = false;
       this.identity = identity;
     }
@@ -164,7 +176,7 @@ export class RequestHistory {
     const current = messages
       .filter(owned)
       .filter((message) => !notice || message.customType !== "freeflow-routing-budget");
-    const hashes = prefixes(base);
+    const hashes = prefixes(base, this.fingerprintOf);
     const candidates = frames.filter((f) => f.generation === generation && hashes[f.length] === f.prefix);
     const prior = candidates.reduce<Frame | undefined>(
       (best, f) => (!best || f.length >= best.length ? f : best),

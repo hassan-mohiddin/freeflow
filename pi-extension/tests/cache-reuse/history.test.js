@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { RequestHistory } from "../../dist/runtime/request-history.js";
+import { tagProjectedMessages } from "../../dist/session-sources/sources.js";
 const state = (text) => ({ role: "custom", customType: "freeflow-runtime-state", content: text, display: false });
 const communication = (text) => ({
   role: "custom",
@@ -158,4 +159,45 @@ test("unchanged generated state appends one frame, not one per request, and keep
   const resumed = await reload.assemble([state("enabled"), ...conversation, user("six")], "ordinary", f.ctx);
   assert.deepEqual(resumed.slice(0, previous.length), previous);
   assert.equal(frames(), 1);
+});
+
+test("entry-backed messages are fingerprinted once and assemble identically to untagged messages", async () => {
+  let traversed = 0;
+  const conversation = ["one", "two", "three"].map((text, i) => ({ id: `e${i}`, message: user(text) }));
+  // Each request receives fresh message objects for the same native entries, as Pi does.
+  const request = (count) => {
+    const messages = conversation.slice(0, count).map(
+      ({ message }) =>
+        new Proxy(structuredClone(message), {
+          ownKeys(target) {
+            traversed += 1;
+            return Reflect.ownKeys(target);
+          },
+        }),
+    );
+    tagProjectedMessages(
+      messages,
+      {
+        entries: conversation
+          .slice(0, count)
+          .map(({ id }, i) => ({ sourceEntry: { type: "message", id }, messages: [messages[i]] })),
+      },
+      [],
+    );
+    return [state("enabled"), ...messages];
+  };
+  const tagged = fixture(),
+    plain = fixture();
+  for (const count of [1, 2, 3]) {
+    const before = traversed;
+    const out = await tagged.history.assemble(request(count), "ordinary", tagged.ctx);
+    const assembledTraversals = traversed - before;
+    const expected = await plain.history.assemble(
+      [state("enabled"), ...conversation.slice(0, count).map(({ message }) => structuredClone(message))],
+      "ordinary",
+      plain.ctx,
+    );
+    assert.deepEqual(JSON.parse(JSON.stringify(out)), JSON.parse(JSON.stringify(expected)));
+    assert.ok(assembledTraversals <= 2, `request ${count} fingerprinted only its new entry (${assembledTraversals})`);
+  }
 });

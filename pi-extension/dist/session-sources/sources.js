@@ -5,6 +5,10 @@ export const bodyHash = (value) => createHash("sha256").update(canonical(value))
 export const textRef = (ref) => `${ref}#text`;
 // Pi's session projection names the entry behind each request message; content hashing stays the fallback.
 const projectedEntryIds = new WeakMap();
+/** The unedited native entry behind a request message, when Pi's projection established it. */
+export function projectedEntryId(message) {
+  return message && typeof message === "object" ? projectedEntryIds.get(message) : undefined;
+}
 export function tagProjectedMessages(messages, projection, branch) {
   if (!projection) return;
   const projected = projection.entries.flatMap((entry) => entry.messages.map((message) => ({ entry, message })));
