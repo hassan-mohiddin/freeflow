@@ -1,9 +1,11 @@
 import { assemble, EFFORTS } from "./history.js";
 import { SessionState } from "./session-state.js";
+// Only these qualified official routes receive effort-history adaptation; keys isolate models.
+const SUPPORTED_MODELS = new Set(["gpt-6-astra", "gpt-6-luna", "gpt-6-sol"]);
 export function requestKey(payload, model) {
   if (
     !payload ||
-    payload.model !== "gpt-6-astra" ||
+    !SUPPORTED_MODELS.has(payload.model) ||
     model?.id !== payload.model ||
     payload.store !== false ||
     !Array.isArray(payload.input) ||
@@ -35,7 +37,7 @@ export function requestKey(payload, model) {
   if (!allowed.includes(base)) return;
   return `${model.provider}/${model.api}/${model.id}`;
 }
-export class AstraAdapter {
+export class OpenAIEffortAdapter {
   pi;
   session;
   generation = 0;
@@ -59,7 +61,7 @@ export class AstraAdapter {
     this.statusSignature = label;
     // Diagnostics must never turn a completed payload transformation into an exception.
     try {
-      ctx.ui?.setStatus?.("freeflow-astra-effort", label);
+      ctx.ui?.setStatus?.("freeflow-openai-effort", label);
     } catch {}
   }
   async adapt(payload, ctx) {
@@ -70,6 +72,7 @@ export class AstraAdapter {
         this.status(ctx, undefined);
         return payload;
       }
+      const label = ctx.model.id === "gpt-6-astra" ? "Astra" : ctx.model.id;
       try {
         const reader = ctx.sessionManager;
         if (
@@ -92,15 +95,15 @@ export class AstraAdapter {
           this.session?.store !== store ||
           key !== requestKey(payload, ctx.model)
         )
-          throw new Error("Astra request changed during preparation");
+          throw new Error("OpenAI effort request changed during preparation");
         const result = assemble(payload, key, store.generation(), basis, records);
         if (result.record) store.append(result.record);
-        this.status(ctx, `Astra ${result.effective} · cache baseline ${result.baseline}`);
+        this.status(ctx, `${label} ${result.effective} · cache baseline ${result.baseline}`);
         return result.payload;
       } catch {
         // Pi swallows hook exceptions. Return the untouched full-history request,
         // including its requested effort, instead of a partially pinned request.
-        this.status(ctx, "Astra cache adaptation unavailable · native effort");
+        this.status(ctx, `${label} cache adaptation unavailable · native effort`);
         return payload;
       }
     });

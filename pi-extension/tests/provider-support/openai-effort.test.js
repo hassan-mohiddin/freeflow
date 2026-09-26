@@ -4,8 +4,8 @@ import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { AstraAdapter, requestKey } from "../../dist/provider-support/astra/adapter.js";
-import { ENTRY_TYPE, assemble } from "../../dist/provider-support/astra/history.js";
+import { OpenAIEffortAdapter, requestKey } from "../../dist/provider-support/openai/adapter.js";
+import { ENTRY_TYPE } from "../../dist/provider-support/openai/history.js";
 
 const model = {
   id: "gpt-6-astra",
@@ -24,16 +24,33 @@ const request = (input, effort = "low") => ({
   prompt_cache_key: "unchanged-key",
   tools: [],
 });
-function fixture(manager = SessionManager.inMemory("/tmp/astra-fixture")) {
+const requestFor = (id, input, effort = "low") => ({ ...request(input, effort), model: id });
+function fixture(manager = SessionManager.inMemory("/tmp/openai-effort-fixture")) {
   const status = [];
   const pi = { appendEntry: (type, data) => manager.appendCustomEntry(type, data) };
   const ctx = { model, sessionManager: manager, ui: { setStatus: (...args) => status.push(args) } };
-  return { pi, ctx, manager, status, adapter: new AstraAdapter(pi) };
+  return { pi, ctx, manager, status, adapter: new OpenAIEffortAdapter(pi) };
 }
 const updates = (p) =>
   p.input.flatMap((item, index) =>
     item.type === "configuration_update" ? [{ index, effort: item.reasoning.effort }] : [],
   );
+
+test("old Astra entries are ignored and the OpenAI entry starts a fresh effort chain", async () => {
+  const f = fixture();
+  f.manager.appendCustomEntry("freeflow-astra-effort-v1", { invalid: true });
+  const first = await f.adapter.adapt(request([u("new")], "high"), f.ctx);
+  assert.equal(ENTRY_TYPE, "freeflow-openai-effort-v1");
+  assert.equal(first.reasoning.effort, "high");
+  assert.deepEqual(updates(first), []);
+  const low = await f.adapter.adapt(request([u("new"), a("new"), u("next")], "low"), f.ctx);
+  assert.equal(low.reasoning.effort, "high");
+  assert.deepEqual(updates(low), [{ index: 2, effort: "low" }]);
+  assert.deepEqual(
+    f.manager.getEntries().map((e) => e.customType),
+    ["freeflow-astra-effort-v1", ENTRY_TYPE, ENTRY_TYPE],
+  );
+});
 
 test("native ancestry records replay Low High Low with original anchors and unchanged selected effort", async () => {
   const f = fixture(),
@@ -44,7 +61,7 @@ test("native ancestry records replay Low High Low with original anchors and unch
   assert.equal(high.reasoning.effort, "low");
   assert.deepEqual(updates(high), [{ index: 2, effort: "high" }]);
   h.push(a("two"), u("three"));
-  const low = await new AstraAdapter(f.pi).adapt(request(h), f.ctx);
+  const low = await new OpenAIEffortAdapter(f.pi).adapt(request(h), f.ctx);
   assert.deepEqual(low.input.slice(0, high.input.length), high.input);
   assert.deepEqual(updates(low), [
     { index: 2, effort: "high" },
@@ -56,6 +73,42 @@ test("native ancestry records replay Low High Low with original anchors and unch
   assert.equal(low.prompt_cache_key, "unchanged-key");
   assert.ok(f.manager.getEntries().every((e) => !JSON.stringify(e.data).includes('"content"')));
 });
+
+for (const id of ["gpt-6-luna", "gpt-6-sol"]) {
+  test(`${id} replays compatible effort changes with an isolated model key`, async () => {
+    const f = fixture();
+    const selected = { ...f.ctx, model: { ...model, id } };
+    const h = [u("one")];
+    const first = await f.adapter.adapt(requestFor(id, h), selected);
+    h.push(a("one"), u("two"));
+    const high = await f.adapter.adapt(requestFor(id, h, "high"), selected);
+    assert.equal(high.reasoning.effort, "low");
+    assert.deepEqual(high.input.slice(0, first.input.length), first.input);
+    assert.deepEqual(updates(high), [{ index: 2, effort: "high" }]);
+    h.push(a("two"), u("three"));
+    const low = await new OpenAIEffortAdapter(f.pi).adapt(requestFor(id, h), selected);
+    assert.deepEqual(low.input.slice(0, high.input.length), high.input);
+    assert.deepEqual(updates(low), [
+      { index: 2, effort: "high" },
+      { index: 5, effort: "low" },
+    ]);
+    assert.equal(low.prompt_cache_key, "unchanged-key");
+    assert.ok(f.status.at(-1)[1].startsWith(id));
+    assert.ok(f.manager.getEntries().every((e) => e.customType !== ENTRY_TYPE || e.data.key.endsWith(`/${id}`)));
+
+    const otherId = id === "gpt-6-luna" ? "gpt-6-sol" : "gpt-6-luna";
+    const other = await f.adapter.adapt(requestFor(otherId, h, "high"), {
+      ...f.ctx,
+      model: { ...model, id: otherId },
+    });
+    assert.equal(other.reasoning.effort, "high", "another model does not inherit the prior baseline");
+    assert.deepEqual(updates(other), []);
+    assert.notEqual(
+      requestKey(requestFor(id, h), selected.model),
+      requestKey(requestFor(otherId, h), { ...model, id: otherId }),
+    );
+  });
+}
 
 test("first High is baseline; tool-loop switch occurs after completed results, not before an old user", async () => {
   const f = fixture(),
@@ -116,6 +169,24 @@ test("unsupported requests and existing native updates pass through without pers
     assert.equal(await f.adapter.adapt(p, f.ctx), p);
   }
   assert.equal(requestKey(request([]), { ...model, provider: "proxy" }), undefined);
+  for (const id of ["gpt-6-luna", "gpt-6-sol"]) {
+    const p = requestFor(id, [u("one")]);
+    assert.equal(requestKey(p, model), undefined, "the selected host model must match the request");
+    assert.equal(requestKey(p, { ...model, id, provider: "proxy" }), undefined);
+    assert.equal(requestKey(p, { ...model, id, baseUrl: "https://example.com" }), undefined);
+    assert.ok(requestKey(p, { ...model, id }));
+    assert.ok(
+      requestKey(p, {
+        ...model,
+        id,
+        provider: "openai",
+        api: "openai-responses",
+        baseUrl: "https://api.openai.com/v1",
+      }),
+    );
+    p.reasoning.effort = "none";
+    assert.equal(requestKey(p, { ...model, id }), undefined, "unsupported effort falls through natively");
+  }
   assert.equal(requestKey(request([]), { ...model, baseUrl: "https://example.com" }), undefined);
   assert.ok(
     requestKey(request([]), {
@@ -180,7 +251,7 @@ test("selected ancestry, new sessions, model changes and compaction isolate effo
 });
 
 test("persisted labeled fork and reload preserve an anchored effort transition", async () => {
-  const root = await mkdtemp(join(tmpdir(), "astra-persist-"));
+  const root = await mkdtemp(join(tmpdir(), "openai-effort-persist-"));
   try {
     const manager = SessionManager.create(root, root),
       f = fixture(manager);
@@ -241,7 +312,7 @@ for (const returnEffort of ["high", "low"]) {
     assert.equal(await f.adapter.adapt(luna, { ...f.ctx, model: { ...model, id: luna.model } }), luna);
     f.manager.appendModelChange(model.provider, model.id);
     h.push(a("second"), u("return"));
-    const resumed = await new AstraAdapter(f.pi).adapt(request(h, returnEffort), f.ctx);
+    const resumed = await new OpenAIEffortAdapter(f.pi).adapt(request(h, returnEffort), f.ctx);
     assert.equal(resumed.reasoning.effort, "high");
     assert.deepEqual(resumed.input.slice(0, low.input.length), low.input);
     h.push(a("third"), u("low again"));
@@ -251,56 +322,9 @@ for (const returnEffort of ["high", "low"]) {
   });
 }
 
-test("legacy model-generation records survive a round trip without rewriting persisted metadata", async () => {
-  const root = await mkdtemp(join(tmpdir(), "astra-legacy-"));
-  try {
-    const f = fixture(SessionManager.create(root, root));
-    f.manager.appendMessage({ role: "user", content: "legacy", timestamp: 1 });
-    f.manager.appendMessage({
-      role: "assistant",
-      content: [{ type: "text", text: "legacy" }],
-      api: model.api,
-      provider: model.provider,
-      model: model.id,
-      usage: {
-        input: 1,
-        output: 1,
-        cacheRead: 0,
-        cacheWrite: 0,
-        totalTokens: 2,
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-      },
-      stopReason: "stop",
-      timestamp: 2,
-    });
-    const oldGeneration = f.manager.appendModelChange(model.provider, model.id);
-    const key = requestKey(request([]), model);
-    const h = [u("legacy")];
-    const first = assemble(request(h, "high"), key, oldGeneration, f.manager.getLeafId(), []);
-    f.manager.appendCustomEntry(ENTRY_TYPE, first.record);
-    h.push(a("one"), u("two"));
-    const second = assemble(request(h), key, oldGeneration, f.manager.getLeafId(), [first.record]);
-    f.manager.appendCustomEntry(ENTRY_TYPE, second.record);
-    const saved = JSON.stringify(f.manager.getEntries());
-    f.manager.appendModelChange(model.provider, "gpt-5.6-luna");
-    f.manager.appendModelChange(model.provider, model.id);
-    const loaded = fixture(SessionManager.open(f.manager.getSessionFile()));
-    const resumed = await loaded.adapter.adapt(request([...h, a("two"), u("three")]), loaded.ctx);
-    assert.equal(resumed.reasoning.effort, "high");
-    assert.deepEqual(resumed.input.slice(0, second.payload.input.length), second.payload.input);
-    assert.equal(JSON.stringify(f.manager.getEntries().slice(0, JSON.parse(saved).length)), saved);
-    const again = fixture(SessionManager.open(loaded.manager.getSessionFile()));
-    const reloaded = await again.adapter.adapt(request([...h, a("two"), u("three"), a("three"), u("four")]), again.ctx);
-    assert.deepEqual(reloaded.input.slice(0, resumed.input.length), resumed.input);
-    assert.equal(JSON.stringify(again.manager.getEntries().slice(0, JSON.parse(saved).length)), saved);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
 test("session reset clears adapter status without changing the next requested effort", async () => {
   const f = fixture();
   await f.adapter.adapt(request([u("one")]), f.ctx);
   f.adapter.reset(f.ctx);
-  assert.deepEqual(f.status.at(-1), ["freeflow-astra-effort", undefined]);
+  assert.deepEqual(f.status.at(-1), ["freeflow-openai-effort", undefined]);
 });

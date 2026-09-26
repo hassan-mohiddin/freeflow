@@ -1,6 +1,6 @@
-import { AstraAdapter } from "./adapter.js";
-export function registerAstraSupport(pi) {
-  const adapter = new AstraAdapter(pi);
+import { OpenAIEffortAdapter } from "./adapter.js";
+export function registerOpenAIEffortSupport(pi) {
+  const adapter = new OpenAIEffortAdapter(pi);
   pi.on("session_start", (_event, ctx) => adapter.reset(ctx));
   pi.on("session_shutdown", (_event, ctx) => adapter.reset(ctx));
   pi.on("session_tree", (_event, ctx) => adapter.reset(ctx));

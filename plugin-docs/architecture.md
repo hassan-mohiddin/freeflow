@@ -172,7 +172,7 @@ The legacy context transforms are no longer part of the runtime, so their former
 
 Delegation Harness is retired from the live package. Its implementation and historical evidence remain under `.deprecated/delegation-harness/`.
 
-Tool Execution owns immutable captured-result sidecars, the exact reader, a shared revisioned operation kernel, restricted QuickJS Worker programs, the finite local workspace adapter, deterministic discovery, configured cooperating adapters, native effect fences and factual efficiency observations. Cognitive Routing remains the responsibility owner; RequestHistory remains the generated-occurrence replay owner; Astra remains the qualified provider-request effort-history owner. Tool Execution does not dispatch arbitrary native tools through private host methods or claim universal native hook parity. See [Tool Execution](capabilities/tool-execution.md).
+Tool Execution owns immutable captured-result sidecars, the exact reader, a shared revisioned operation kernel, restricted QuickJS Worker programs, the finite local workspace adapter, deterministic discovery, configured cooperating adapters, native effect fences and factual efficiency observations. Cognitive Routing remains the responsibility owner; RequestHistory remains the generated-occurrence replay owner; selected OpenAI-model support owns qualified provider-request effort-history adaptation. Tool Execution does not dispatch arbitrary native tools through private host methods or claim universal native hook parity. See [Tool Execution](capabilities/tool-execution.md).
 
 ## Deferred Enforcement
 

@@ -21,16 +21,16 @@ The host agent still owns tools, permissions, and execution. Freeflow helps it u
 
 The former Freeflow Context (`freeflow_context`, `/freeflow context`), Context Virtualization, and Conversation History surfaces are removed as a breaking change. Context Control v2 is planned but unavailable in this release; it does not replace those operations yet. See the Unreleased changelog for the required config-key cleanup.
 
-## Astra cache-aware reuse
+## Selected OpenAI model cache-aware reuse
 
-Freeflow's Pi extension includes cache-aware request history and a qualified Astra effort-history adapter:
+Freeflow's Pi extension includes cache-aware request history and a qualified effort-history adapter for selected GPT-6 models: `gpt-6-astra`, `gpt-6-luna`, and `gpt-6-sol`.
 
 - compatible Freeflow-generated state stays at stable historical positions where possible;
 - changed runtime state is appended instead of rewriting earlier generated context;
-- qualified `gpt-6-astra` routes can retain a request-level effort baseline and insert trusted effort changes at validated historical positions;
+- supported OpenAI Responses and OpenAI-Codex Responses routes can retain a request-level effort baseline and insert trusted effort changes at validated historical positions;
 - unsupported or uncertain requests fall back to the untouched native request.
 
-This is request-construction and compatibility behavior—not proof of a provider cache hit, billing reduction, model quality improvement, or universal provider support. See the [Pi cache reuse boundaries](plugin-docs/integrations/pi.md#cache-reuse-boundaries).
+The adapter uses `freeflow-openai-effort-v1`. Older `freeflow-astra-effort-v1` entries remain in native session history but are not replayed; no migration is provided. This is request-construction and compatibility behavior—not proof of a provider cache hit, billing reduction, model quality improvement, or universal provider support. See the [Pi cache reuse boundaries](plugin-docs/integrations/pi.md#cache-reuse-boundaries).
 
 ## Why Freeflow
 
@@ -46,7 +46,7 @@ Coding agents commonly fail at control boundaries:
 | Context loss erases decisions and partial work. | Track Work restores a complete Working Record and reconciles it with live state. |
 | Expensive models perform routine supporting work. | Cognitive Routing can place bounded support and substantive execution on configured profiles. |
 | Large tool results and mechanical child work repeatedly consume model context. | Tool Execution can capture/recover exact output and run bounded revisioned direct or restricted program operations. |
-| Request history changes destroy reusable prefixes unnecessarily. | RequestHistory and qualified Astra adaptation preserve compatible request structure. |
+| Request history changes destroy reusable prefixes unnecessarily. | RequestHistory and qualified selected-model effort adaptation preserve compatible request structure. |
 
 ## How it works
 
@@ -98,7 +98,7 @@ A comparatively economical but capable Helper can contribute much of Both mode's
 | Context Control v2 | Planned/in development; not available in this release |
 | Cognitive Routing | Experimental native Pi source candidate |
 | Cognitive Routing on PiFlow | Explicitly unavailable in the current adapter |
-| Astra cache-aware effort history | Narrow source/fixture-qualified native Pi route; provider savings unverified |
+| Selected GPT-6 effort history | Narrow source/fixture-qualified native Pi route for Astra, Luna, and Sol; provider savings unverified |
 | Tool Execution | Experimental native-Pi candidate; extracted Worker/WASM artifact fixture passes; PiFlow and installed-user/model behavior remain unverified |
 
 Configuration or installation alone does not establish runtime delivery.

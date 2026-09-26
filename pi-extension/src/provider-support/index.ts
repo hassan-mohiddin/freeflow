@@ -1,5 +1,5 @@
-import { registerAstraSupport } from "./astra/index.js";
+import { registerOpenAIEffortSupport } from "./openai/index.js";
 
 export function registerProviderSupport(pi: any): void {
-  registerAstraSupport(pi);
+  registerOpenAIEffortSupport(pi);
 }

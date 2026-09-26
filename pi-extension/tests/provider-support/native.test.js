@@ -12,11 +12,11 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import freeflow from "../../dist/index.js";
 import { registerProviderSupport } from "../../dist/provider-support/index.js";
-import { ENTRY_TYPE } from "../../dist/provider-support/astra/history.js";
+import { ENTRY_TYPE } from "../../dist/provider-support/openai/history.js";
 import { response } from "../fixtures/routing-native.js";
 
-async function native(extension, run) {
-  const root = await mkdtemp(join(tmpdir(), "astra-native-")),
+async function native(extension, run, modelId = "gpt-6-astra") {
+  const root = await mkdtemp(join(tmpdir(), "openai-effort-native-")),
     agentDir = join(root, "agent");
   await mkdir(agentDir);
   const previousFetch = globalThis.fetch,
@@ -76,7 +76,7 @@ async function native(extension, run) {
       cwd: root,
       agentDir,
       modelRuntime: runtime,
-      model: runtime.getModel("openai", "gpt-6-astra"),
+      model: runtime.getModel("openai", modelId),
       thinkingLevel: "low",
       settingsManager: settings,
       sessionManager: manager,
@@ -145,22 +145,55 @@ test("real Pi request dispatch, reload, native tree navigation and compaction", 
   });
 });
 
-test(
-  "the Freeflow extension adapts Astra without repository activation or Cognitive Routing",
-  { timeout: 30000 },
-  async () => {
-    await native(freeflow, async ({ session, manager, prompt }) => {
-      await prompt("one", "low");
-      const p = await prompt("two", "high");
-      assert.equal(p.reasoning.effort, "low");
-      assert.equal(session.thinkingLevel, "high");
-      assert.ok(updates(p).some((x) => x.effort === "high"));
-      assert.ok(manager.getBranch().some((e) => e.customType === ENTRY_TYPE));
-      assert.ok(!manager.getBranch().some((e) => e.customType === "freeflow-routing-v2"));
-      assert.ok(!(p.tools ?? []).some((t) => t.name.startsWith("freeflow_")));
-    });
-  },
-);
+for (const id of ["gpt-6-luna", "gpt-6-sol"]) {
+  test(`real Pi ${id} request dispatch preserves effort history through reload`, { timeout: 30000 }, async () => {
+    await native(
+      registerProviderSupport,
+      async ({ session, manager, prompt }) => {
+        const first = await prompt("first", "low");
+        assert.equal(first.model, id);
+        const high = await prompt("second", "high");
+        assert.equal(session.thinkingLevel, "high");
+        assert.equal(high.reasoning.effort, "low");
+        assert.deepEqual(high.input.slice(0, first.input.length), first.input);
+        assert.deepEqual(updates(high), [{ index: 3, effort: "high" }]);
+        await session.reload();
+        const low = await prompt("third", "low");
+        assert.deepEqual(low.input.slice(0, high.input.length), high.input);
+        assert.deepEqual(updates(low), [
+          { index: 3, effort: "high" },
+          { index: 6, effort: "low" },
+        ]);
+        assert.ok(manager.getBranch().some((e) => e.customType === ENTRY_TYPE && e.data.key.endsWith(`/${id}`)));
+      },
+      id,
+    );
+  });
+}
+
+for (const id of ["gpt-6-astra", "gpt-6-luna", "gpt-6-sol"]) {
+  test(
+    `the Freeflow extension adapts ${id} without repository activation or Cognitive Routing`,
+    { timeout: 30000 },
+    async () => {
+      await native(
+        freeflow,
+        async ({ session, manager, prompt }) => {
+          await prompt("one", "low");
+          const p = await prompt("two", "high");
+          assert.equal(p.model, id);
+          assert.equal(p.reasoning.effort, "low");
+          assert.equal(session.thinkingLevel, "high");
+          assert.ok(updates(p).some((x) => x.effort === "high"));
+          assert.ok(manager.getBranch().some((e) => e.customType === ENTRY_TYPE && e.data.key.endsWith(`/${id}`)));
+          assert.ok(!manager.getBranch().some((e) => e.customType === "freeflow-routing-v2"));
+          assert.ok(!(p.tools ?? []).some((t) => t.name.startsWith("freeflow_")));
+        },
+        id,
+      );
+    },
+  );
+}
 
 test(
   "rapid native effort changes coalesce and cancelled compaction releases adaptation",

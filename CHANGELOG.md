@@ -4,13 +4,14 @@
 
 ### Breaking Changes
 
+- Replaces the Astra effort-history entry type with `freeflow-openai-effort-v1` and removes the old Astra provider-support import paths. Existing `freeflow-astra-effort-v1` entries are not replayed or migrated; the next supported request starts a fresh effort chain.
 - Requires native Pi 0.87.1 or a compatible 0.87.x host for the Pi extension; Pi 0.85.x is no longer supported.
 - Removes the Freeflow Context tool (`freeflow_context`, `/freeflow context`), Context Virtualization, and Conversation History; Context Control v2 remains unavailable as a replacement. Before updating, delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present. Either key makes configuration invalid and blocks Freeflow activation until removed; no automatic migration occurs.
 
 ### Added
 
 - Adds an optional Cognitive Routing Helper profile and `executor`, `helper`, and `both` delegation modes with mode-aware presets, manual holds, durable worker-specific continuation, and shared worker history.
-- Adds cache-aware Pi request assembly and qualified Astra effort-history adaptation; provider cache hits, billing savings, and model-quality improvements remain unguaranteed.
+- Adds cache-aware Pi request assembly and selected GPT-6 Astra, Luna, and Sol effort-history adaptation on qualified OpenAI Responses and OpenAI-Codex Responses routes; provider cache hits, billing savings, and model-quality improvements remain unguaranteed.
 - Adds attached Cognitive Routing evidence recovery with exact-path reads, preserved original reports and assessments, separate supplements, explicit cancellation, and direct selection of eligible occurrence-linked evidence refs.
 - Adds session-only Cognitive Routing profile presets for Coordinator and enabled workers with complete model/effort pairs, inheritance, reset, and local/shared configuration isolation.
 - Adds a practical Freeflow user guide for prompting, skill selection, Workflow and Track Work management, settings, Cognitive Routing presets, and evidence and cost boundaries.

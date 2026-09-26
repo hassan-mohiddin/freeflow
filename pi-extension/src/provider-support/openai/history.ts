@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 
-export const ENTRY_TYPE = "freeflow-astra-effort-v1";
+// This namespace starts a fresh effort chain; old Astra entries are deliberately ignored.
+export const ENTRY_TYPE = "freeflow-openai-effort-v1";
 export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 export type Effort = (typeof EFFORTS)[number];
 export interface Attempt {
@@ -61,7 +62,7 @@ export function parseAttempt(value: any): Attempt {
         ].includes(k),
     )
   )
-    throw new Error("Invalid Astra effort history");
+    throw new Error("Invalid OpenAI effort history");
   return value;
 }
 
@@ -92,16 +93,16 @@ export function assemble(payload: any, key: string, generation: string, basis: s
   const seen = new Set<string>();
   let cursor = prior;
   while (cursor) {
-    if (seen.has(cursor.id)) throw new Error("Cyclic Astra history");
+    if (seen.has(cursor.id)) throw new Error("Cyclic OpenAI effort history");
     seen.add(cursor.id);
     if (cursor.update) {
-      if (hashes[cursor.update.at] !== cursor.update.prefixHash) throw new Error("Astra anchor changed");
+      if (hashes[cursor.update.at] !== cursor.update.prefixHash) throw new Error("OpenAI effort anchor changed");
       updates.unshift(cursor.update);
     }
     if (cursor.parent === null) break;
     const parent = byId.get(cursor.parent);
     if (!parent || parent.key !== key || parent.generation !== generation || parent.baseline !== baseline)
-      throw new Error("Astra history parent unavailable");
+      throw new Error("OpenAI effort history parent unavailable");
     cursor = parent;
   }
   let update: Attempt["update"];
@@ -110,10 +111,10 @@ export function assemble(payload: any, key: string, generation: string, basis: s
     const last = payload.input.length - 1;
     const at = payload.input[last]?.role === "user" && last >= (prior?.length ?? 0) ? last : payload.input.length;
     update = { at, prefixHash: hashes[at], effort: desired };
-    if (updates.at(-1)?.at === at) throw new Error("Adjacent Astra effort updates");
+    if (updates.at(-1)?.at === at) throw new Error("Adjacent OpenAI effort updates");
     updates.push(update);
   }
-  if (updates.some((u, i) => i > 0 && u.at <= updates[i - 1].at)) throw new Error("Invalid Astra update order");
+  if (updates.some((u, i) => i > 0 && u.at <= updates[i - 1].at)) throw new Error("Invalid OpenAI effort update order");
   const output = structuredClone(payload);
   output.input = [];
   let nextUpdate = 0;

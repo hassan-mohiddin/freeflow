@@ -527,9 +527,9 @@ Compatible prefixes may shorten or restart when:
 
 A matching local prefix is not proof of a provider cache hit.
 
-### Astra cache-aware effort history
+### Selected GPT-6 cache-aware effort history
 
-For qualified `gpt-6-astra` requests on supported OpenAI Responses or OpenAI-Codex Responses routes, Freeflow can keep the original request-level effort as a stable baseline and insert trusted `configuration_update` items at validated historical positions when effective effort changes.
+For qualified `gpt-6-astra`, `gpt-6-luna`, and `gpt-6-sol` requests on supported OpenAI Responses or OpenAI-Codex Responses routes, Freeflow can keep the original request-level effort as a stable baseline and insert trusted `configuration_update` items at validated historical positions when effective effort changes. Other models and unsupported request shapes retain native behavior.
 
 The adapter:
 
@@ -540,7 +540,7 @@ The adapter:
 - preserves compatible effort history across supported model round trips and reloads;
 - returns the untouched request with its native requested effort when adaptation is unavailable or uncertain.
 
-Local tests cover request construction, Low/High transitions, branch and reload behavior, compaction boundaries, append uncertainty, and prefix preservation. They do not establish a server cache hit, a billing discount, provider-wide support, model quality, or a universal cost saving.
+Local tests cover request construction for the selected models, Low/High transitions, branch and reload behavior, compaction boundaries, append uncertainty, and prefix preservation. Existing Astra live evidence is not a Luna/Sol cache-hit observation. The adapter writes `freeflow-openai-effort-v1`; older `freeflow-astra-effort-v1` entries remain in native session history but are ignored, with no migration. These checks do not establish a server cache hit, a billing discount, provider-wide support, model quality, or a universal cost saving.
 
 ## Practical mode recipes
 
@@ -645,7 +645,7 @@ Determine whether projection is enabled. Confirm the worker selected the result 
 
 ### Cache status does not show savings
 
-Request-prefix preservation and Astra effort-history adaptation are compatibility mechanisms. Provider expiry, eviction, minimum cacheable length, pricing, and actual cache hits remain provider-owned. Use provider-reported usage at a qualified boundary before making billing claims.
+Request-prefix preservation and selected-GPT-6 effort-history adaptation are compatibility mechanisms. Provider expiry, eviction, minimum cacheable length, pricing, and actual cache hits remain provider-owned. Use provider-reported usage at a qualified boundary before making billing claims.
 
 ## Planned Context Control boundary
 
@@ -661,7 +661,7 @@ Current deterministic source and fixture checks can establish:
 - assignment, report, assessment, recovery, and closure transitions;
 - native-entry persistence and named recovery boundaries;
 - projection structure and source identity;
-- request construction and Astra adapter behavior at their observed boundaries.
+- request construction and selected-model effort-adapter behavior at their observed boundaries.
 
 They do not establish:
 

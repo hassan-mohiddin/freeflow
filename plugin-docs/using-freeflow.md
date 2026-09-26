@@ -479,16 +479,16 @@ When these model families and thinking levels are available through the current 
 | Goal | Coordinator | Helper | Executor |
 | --- | --- | --- | --- |
 | General quality/cost balance | Astra `high` **or** Sol `xhigh` | Luna `max` | Sol `medium` |
-| Astra cache-reuse-oriented route | Astra `xhigh` | Luna `max` | Astra `low` |
+| Selected GPT-6 effort-history route | Astra `xhigh` | Luna `max` | Astra `low` |
 
 Rationale:
 
 - **Luna `max` as Helper** aims to keep frequent routine support comparatively economical while retaining useful reasoning quality.
 - **Sol `medium` as Executor** is a starting point for substantive execution where a moderate effort level may control cost.
 - **Astra `high` or Sol `xhigh` as Coordinator** reserves stronger reasoning for direction, consequential choices, and assessment.
-- **Astra `low` Executor plus Astra `xhigh` Coordinator** can use the qualified same-model effort-history route when the current provider/API/request shape supports it.
+- **The same selected model at different efforts** can use the qualified effort-history route when the current provider/API/request shape supports it. Supported model IDs are `gpt-6-astra`, `gpt-6-luna`, and `gpt-6-sol`; the example above uses Astra.
 
-These are operating recommendations, not Freeflow requirements or benchmark results. Confirm exact model IDs, subscription access, supported effort levels, current pricing, and model suitability in Pi's current model registry and provider. Availability and economics can change. The Astra route does not guarantee provider cache eligibility or a cache hit, and Luna is not asserted to be universally cheapest across providers or pricing plans.
+These are operating recommendations, not Freeflow requirements or benchmark results. Confirm exact model IDs, subscription access, supported effort levels, current pricing, and model suitability in Pi's current model registry and provider. Availability and economics can change. The selected-model route does not guarantee provider cache eligibility or a cache hit, and Luna is not asserted to be universally cheapest across providers or pricing plans.
 
 ### Example generic configuration
 
@@ -559,9 +559,9 @@ Freeflow can improve request stability and place work on different configured pr
 
 Freeflow preserves compatible generated runtime-state and communication occurrences at their original positions and appends changed state later. This can reduce avoidable prefix churn. It never imports excluded evidence merely to manufacture a match.
 
-### Astra effort history
+### Selected GPT-6 effort history
 
-For qualified `gpt-6-astra` OpenAI Responses or OpenAI-Codex Responses request shapes, Freeflow can preserve the request-level baseline effort and insert trusted historical effort updates at validated positions. Unsupported or uncertain requests use the untouched native request.
+For qualified `gpt-6-astra`, `gpt-6-luna`, and `gpt-6-sol` OpenAI Responses or OpenAI-Codex Responses request shapes, Freeflow can preserve the request-level baseline effort and insert trusted historical effort updates at validated positions. Unsupported or uncertain requests use the untouched native request. The adapter writes `freeflow-openai-effort-v1`; prior `freeflow-astra-effort-v1` entries are not replayed or migrated, and the next supported request starts a fresh effort chain.
 
 This establishes local request construction behavior at tested boundaries. It does not prove:
 

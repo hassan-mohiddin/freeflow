@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SessionState } from "../../dist/provider-support/astra/session-state.js";
-import { assemble, ENTRY_TYPE } from "../../dist/provider-support/astra/history.js";
+import { SessionState } from "../../dist/provider-support/openai/session-state.js";
+import { assemble, ENTRY_TYPE } from "../../dist/provider-support/openai/history.js";
 
 function fixture() {
   const branch = [];
@@ -19,7 +19,7 @@ function fixture() {
   return { branch, append, reader, store };
 }
 const payload = (effort = "high") => ({
-  model: "astra",
+  model: "gpt-6-astra",
   instructions: "same",
   tools: [],
   reasoning: { effort },
@@ -29,40 +29,46 @@ const payload = (effort = "high") => ({
 for (const boundary of ["compaction", "branch_summary"]) {
   test(`${boundary} excludes pre-boundary history even with identical input`, async () => {
     const f = fixture();
-    const old = assemble(payload(), "astra", f.store.generation(), f.reader.getLeafId(), []);
+    const old = assemble(payload(), "openai/gpt-6-astra", f.store.generation(), f.reader.getLeafId(), []);
     f.store.append(old.record);
     const epoch = f.append(boundary);
-    f.append("model_change", { provider: "p", modelId: "luna" });
-    f.append("model_change", { provider: "p", modelId: "astra" });
+    f.append("model_change", { provider: "openai", modelId: "gpt-6-luna" });
+    f.append("model_change", { provider: "openai", modelId: "gpt-6-astra" });
     assert.equal(f.store.generation(), epoch);
-    const current = assemble(payload("low"), "astra", epoch, f.reader.getLeafId(), await f.store.records());
+    const current = assemble(
+      payload("low"),
+      "openai/gpt-6-astra",
+      epoch,
+      f.reader.getLeafId(),
+      await f.store.records(),
+    );
     assert.equal(current.baseline, "low");
     assert.equal(current.record.parent, null);
     // A persisted cross-boundary parent must not become valid through normalization.
     f.store.append({ ...current.record, parent: old.record.id, baseline: "high", effective: "high" });
-    await assert.rejects(f.store.records(), /Invalid Astra history parent/);
+    await assert.rejects(f.store.records(), /Invalid OpenAI effort history parent/);
   });
 }
 
 test("unknown generation and invalid native ancestry are rejected, not normalized into eligibility", async () => {
   const f = fixture();
-  const old = assemble(payload(), "astra", "unrelated-model-entry", null, []);
+  const old = assemble(payload(), "openai/gpt-6-astra", "unrelated-model-entry", null, []);
   f.store.append(old.record);
   await assert.rejects(f.store.records(), /generation unavailable/);
   f.branch[0].parentId = "missing";
-  await assert.rejects(f.store.records(), /Invalid Astra session ancestry/);
+  await assert.rejects(f.store.records(), /Invalid OpenAI effort session ancestry/);
 });
 
 test("changed envelope or earlier projected content cannot replay an old effort update", async () => {
   const high = payload();
-  const first = assemble(high, "astra", "root", null, []);
+  const first = assemble(high, "openai/gpt-6-astra", "root", null, []);
   const low = { ...payload("low"), input: [...high.input, { role: "user", content: "later" }] };
-  const second = assemble(low, "astra", "root", null, [first.record]);
+  const second = assemble(low, "openai/gpt-6-astra", "root", null, [first.record]);
   for (const changed of [
     { ...low, instructions: "different" },
     { ...low, input: [{ role: "user", content: "structural omission" }] },
   ]) {
-    const result = assemble(changed, "astra", "root", null, [first.record, second.record]);
+    const result = assemble(changed, "openai/gpt-6-astra", "root", null, [first.record, second.record]);
     assert.equal(result.record.parent, null);
     assert.deepEqual(
       result.payload.input.filter((x) => x.type !== "configuration_update"),
