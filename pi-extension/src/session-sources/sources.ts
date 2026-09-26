@@ -46,6 +46,18 @@ export const bodyHash = (value: unknown) => createHash("sha256").update(canonica
 export const textRef = (ref: string) => `${ref}#text`;
 // Pi's session projection names the entry behind each request message; content hashing stays the fallback.
 const projectedEntryIds = new WeakMap<object, string>();
+// Messages that came from an aligned projection; anything else in the request was generated after it.
+const projectedMessages = new WeakSet<object>();
+// Projected messages whose body a host edit replaced; only these still need content association.
+const editedMessages = new WeakSet<object>();
+/** Define a memoized hash so history is hashed only when a consumer needs it. */
+function lazyHash<T extends object>(target: T, compute: () => string): T & { hash: string } {
+  let value: string | undefined;
+  return Object.defineProperty(target, "hash", {
+    enumerable: true,
+    get: () => (value ??= compute()),
+  }) as T & { hash: string };
+}
 /** The unedited native entry behind a request message, when Pi's projection established it. */
 export function projectedEntryId(message: unknown): string | undefined {
   return message && typeof message === "object" ? projectedEntryIds.get(message) : undefined;
@@ -61,7 +73,9 @@ export function tagProjectedMessages(
   // Host edits change the visible body, so their targets keep exact content association.
   const edited = new Set(branch.flatMap((entry: any) => (entry.type === "context_edit" ? [entry.targetId] : [])));
   projected.forEach(({ entry }, i) => {
+    if (messages[i] && typeof messages[i] === "object") projectedMessages.add(messages[i]);
     const source = entry.sourceEntry;
+    if (edited.has(source.id) && messages[i] && typeof messages[i] === "object") editedMessages.add(messages[i]);
     if (
       entry.messages.length === 1 &&
       ["message", "custom_message"].includes(source.type) &&
@@ -119,6 +133,8 @@ export class Sources {
   readonly byRef = new Map<string, Source>();
   readonly ambiguous = new Set<string>();
   private readonly byBody = new Map<string, Source[]>();
+  // Sources not yet placed in byBody; the content index is only needed for unprojected association.
+  private unindexed: Source[] = [];
   private readonly exchanges = new Map<string, Exchange>();
   private readonly owners = new Map<string, Exchange>();
   private tail?: Exchange;
@@ -142,6 +158,7 @@ export class Sources {
     if (!prefix) {
       this.byRef.clear();
       this.byBody.clear();
+      this.unindexed = [];
       this.exchanges.clear();
       this.owners.clear();
       this.tail = undefined;
@@ -152,14 +169,13 @@ export class Sources {
       if (messages.length !== 1 || ["compaction", "branch_summary"].includes(entry.type)) continue;
       const message = messages[0];
       if (!message) continue;
-      const source: Source = {
-        ref: refFor(entry.id),
-        entry,
-        message,
-        hash: bodyHash(message),
-        producer: "common",
-        active: false,
-      };
+      const source: Source = lazyHash(
+        { ref: refFor(entry.id), entry, message, producer: "common" as Source["producer"], active: false } as Omit<
+          Source,
+          "hash"
+        >,
+        () => bodyHash(message),
+      );
       if (message.role === "toolResult" && message.toolName === "freeflow_return") {
         for (const block of message.content ?? [])
           if (block.type === "text") {
@@ -178,9 +194,7 @@ export class Sources {
           }
       }
       this.byRef.set(source.ref, source);
-      const candidates = this.byBody.get(source.hash) ?? [];
-      candidates.push(source);
-      this.byBody.set(source.hash, candidates);
+      this.unindexed.push(source);
       if (message.role === "assistant") {
         this.tail = { assistant: source, results: new Map() };
         this.exchanges.set(source.ref, this.tail);
@@ -199,16 +213,27 @@ export class Sources {
               },
               ...blocks,
             ],
-            details: { sourceRef: source.ref, sourceHash: source.hash, representation: "assistant-text" },
+            details: {
+              sourceRef: source.ref,
+              get sourceHash() {
+                return source.hash;
+              },
+              representation: "assistant-text",
+            },
             timestamp: message.timestamp,
           };
-          this.byRef.set(textRef(source.ref), {
-            ...source,
-            ref: textRef(source.ref),
-            message: representation,
-            hash: bodyHash(representation),
-            original: source,
-          });
+          const text = lazyHash(
+            {
+              ref: textRef(source.ref),
+              entry,
+              message: representation,
+              producer: source.producer,
+              active: false,
+              original: source,
+            } as Omit<Source, "hash">,
+            () => bodyHash(representation),
+          );
+          this.byRef.set(text.ref, text);
         }
       } else if (message.role === "toolResult" && this.tail) {
         const key = callKey(message.toolCallId, message.toolName);
@@ -226,6 +251,15 @@ export class Sources {
     }
     this.entries = [...entries];
   }
+  private bodyIndex(): Map<string, Source[]> {
+    for (const source of this.unindexed) {
+      const candidates = this.byBody.get(source.hash) ?? [];
+      candidates.push(source);
+      this.byBody.set(source.hash, candidates);
+    }
+    this.unindexed = [];
+    return this.byBody;
+  }
   associate(messages: readonly any[]): Associated[] {
     if (
       this.associated &&
@@ -235,13 +269,22 @@ export class Sources {
       return this.associated.items;
     this.ambiguous.clear();
     for (const source of this.byRef.values()) source.active = false;
+    const projected = messages.some(
+      (message) => message && typeof message === "object" && projectedMessages.has(message),
+    );
+    // After an aligned projection, only host-edited messages can match a source by content: the others are
+    // tagged, sourceless (summaries, multi-message entries), or generated after the projection.
+    const contentOnly = (message: any) =>
+      !projected || (message && typeof message === "object" && editedMessages.has(message));
     const direct = messages.map((message) => {
       const id = message && typeof message === "object" ? projectedEntryIds.get(message) : undefined;
       const source = id === undefined ? undefined : this.byRef.get(refFor(id));
       return source && (!this.activeIds || this.activeIds.has(source.entry.id)) ? source : undefined;
     });
     const used = new Set<string>(direct.flatMap((source) => (source ? [source.ref] : []))),
-      hashes = messages.map((message, index) => (direct[index] ? undefined : bodyHash(message))),
+      hashes = messages.map((message, index) =>
+        direct[index] || !contentOnly(message) ? undefined : bodyHash(message),
+      ),
       remaining = new Map<string, number>();
     for (const hash of hashes) if (hash) remaining.set(hash, (remaining.get(hash) ?? 0) + 1);
     const items = messages.map((message, index) => {
@@ -252,10 +295,11 @@ export class Sources {
         if (text) text.active = true;
         return { message, source };
       }
+      if (hashes[index] === undefined) return { message };
       const hash = hashes[index]!,
         count = remaining.get(hash)!;
       remaining.set(hash, count - 1);
-      const candidates = (this.byBody.get(hash) ?? []).filter(
+      const candidates = (this.bodyIndex().get(hash) ?? []).filter(
         (s) => !used.has(s.ref) && (!this.activeIds || this.activeIds.has(s.entry.id)),
       );
       const exact = candidates.find((s) => s.message === message);

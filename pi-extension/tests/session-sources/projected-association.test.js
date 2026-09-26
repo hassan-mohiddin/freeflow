@@ -4,6 +4,7 @@ import { Sources, tagProjectedMessages } from "../../dist/session-sources/source
 import { initialState } from "../../dist/cognitive-routing-v2/state.js";
 
 const user = (text) => ({ role: "user", content: [{ type: "text", text }], timestamp: 1 });
+const assistantText = (text) => ({ role: "assistant", content: [{ type: "text", text }], timestamp: 2 });
 function branchOf(messages) {
   let parent = null;
   return messages.map((message, i) => {
@@ -60,4 +61,51 @@ test("untagged, edited, or misaligned messages keep content association", () => 
     [undefined, "e0", "e1"],
     "a misaligned projection is not trusted",
   );
+});
+
+test("fresh sources over projected history hash nothing until a hash is needed", () => {
+  const counter = { n: 0 };
+  const branch = branchOf([user("one"), assistantText("reply"), user("two")].map((m) => counted(m, counter)));
+  const sources = new Sources(branch, initialState());
+  assert.equal(counter.n, 0, "building sources hashes no history");
+  const incoming = branch.map((entry) => JSON.parse(JSON.stringify(entry.message)));
+  counter.n = 0;
+  const inserted = { role: "custom", customType: "freeflow-runtime-state", content: "state", display: false };
+  tagProjectedMessages(incoming, projectionOf(branch), branch);
+  const items = sources.associate([inserted, ...incoming]);
+  assert.deepEqual(
+    items.map((item) => item.source?.entry.id),
+    [undefined, "e0", "e1", "e2"],
+  );
+  assert.equal(counter.n, 0, "associating projected history hashes nothing");
+  assert.match(sources.byRef.get("ctx:e0").hash, /^[a-f0-9]{64}$/);
+  assert.ok(counter.n > 0, "hashes are computed on demand");
+  assert.equal(sources.byRef.get("ctx:e1#text").original, sources.byRef.get("ctx:e1"));
+});
+
+test("sourceless projected summaries do not force history hashing", () => {
+  const counter = { n: 0 };
+  const branch = branchOf([user("one"), user("two")].map((m) => counted(m, counter)));
+  const summary = { type: "compaction", id: "c", parentId: null, summary: "older work" };
+  const sources = new Sources(branch, initialState());
+  const incoming = [
+    { role: "user", content: [{ type: "text", text: "summary of older work" }] },
+    ...branch.map((entry) => JSON.parse(JSON.stringify(entry.message))),
+  ];
+  counter.n = 0;
+  tagProjectedMessages(
+    incoming,
+    {
+      entries: [
+        { sourceEntry: summary, messages: [incoming[0]] },
+        ...projectionOf(branch).entries.map((e, i) => ({ ...e, messages: [incoming[i + 1]] })),
+      ],
+    },
+    branch,
+  );
+  assert.deepEqual(
+    sources.associate(incoming).map((item) => item.source?.entry.id),
+    [undefined, "e0", "e1"],
+  );
+  assert.equal(counter.n, 0);
 });
