@@ -11,7 +11,6 @@ import { EffectRuntime } from "./tool-runtime/effects.js";
 import { ResultRuntime } from "./tool-runtime/results/runtime.js";
 import { ProgramHost } from "./tool-runtime/program/host.js";
 import { RoutingRuntime } from "./cognitive-routing-v2/runtime.js";
-import { workersForDelegation } from "./cognitive-routing-v2/types.js";
 import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-routing-v2/tools.js";
 import { handleFreeflowCommand } from "./settings/settings-ui.js";
 import { isPiFlowHost } from "./runtime/runtime-identity.js";
@@ -359,11 +358,7 @@ export default function freeflow(pi) {
           ctx.ui.notify("Wait for Pi to become idle before changing control.", "warning");
           return;
         }
-        const state = routing.state();
-        const profiles = ["coordinator", ...workersForDelegation(state.delegation)];
-        const current = profiles.indexOf(state.activeProfile ?? "coordinator");
-        const target = profiles[(current + 1) % profiles.length];
-        ctx.ui.notify(JSON.stringify(await routing.setManualProfile(target)), "info");
+        ctx.ui.notify(JSON.stringify(await routing.cycleManualProfile()), "info");
         await update(ctx);
       },
     });

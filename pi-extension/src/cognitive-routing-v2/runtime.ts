@@ -655,23 +655,32 @@ export class RoutingRuntime {
       if (token === this.token && this.applying === ownedPair) this.applying = undefined;
     }
   }
-  private async control(profile: Profile, manual: boolean): Promise<{ status: string; reason?: string }> {
-    this.revision++;
-    const subject = this.subject();
+  /**
+   * Control requests run one at a time, each against the state left by the previous one. The host model
+   * is switched before the new control is recorded, so a superseded or failed request never leaves a
+   * recorded profile running on another profile's model.
+   */
+  private async control(
+    request: Profile | ((state: State) => Profile),
+    manual: boolean,
+  ): Promise<{ status: string; reason?: string }> {
     return this.enqueue(async () => {
+      this.revision++;
+      const subject = this.subject();
       try {
         check(this.capability?.effective && this.store, "routing_unavailable");
+        await this.store.reconcile();
+        this.guard(subject);
+        const previous = this.stateData();
+        const profile = typeof request === "function" ? request(previous) : request;
         if (manual && isWorkerProfile(profile))
           check(
             this.enabledWorkers().includes(profile),
             "worker_disabled",
             `${profile} is not enabled by delegation mode.`,
           );
-        await this.store.reconcile();
-        this.guard(subject);
         this.error = undefined;
         this.suppressed = false;
-        const previous = this.stateData();
         if (
           previous.control === (manual ? "manual" : "automatic") &&
           previous.profile === profile &&
@@ -681,23 +690,20 @@ export class RoutingRuntime {
           this.automaticControl = !manual;
           return { status: manual ? "active" : "automatic" };
         }
-        this.append({
-          type: "control",
-          control: manual ? "manual" : "automatic",
-          profile,
-          reason: manual ? "Explicit user manual hold" : "Explicit user automatic release/reconciliation",
-        });
+        const prior = this.observed();
+        await this.applyPair(this.profilePair(profile));
         try {
-          await this.applyPair(this.profilePair(profile));
           this.guard(subject);
+          this.append({
+            type: "control",
+            control: manual ? "manual" : "automatic",
+            profile,
+            reason: manual ? "Explicit user manual hold" : "Explicit user automatic release/reconciliation",
+          });
         } catch (error) {
-          if (this.current(subject) && !this.error && !this.store.blocked)
-            this.append({
-              type: "control",
-              control: previous.control,
-              profile: previous.profile,
-              reason: "Control request failed; prior control retained",
-            });
+          // The switch was not recorded, so the host returns to the model the recorded control expects.
+          if (subject.token === this.token && prior && !samePair(this.observed(), prior))
+            await this.applyPair(prior).catch(() => {});
           throw error;
         }
         this.manualHold = manual ? profile : undefined;
@@ -709,6 +715,13 @@ export class RoutingRuntime {
         return { status: "blocked", reason: error instanceof Error ? error.message : String(error) };
       }
     });
+  }
+  /** Advance one manual-hold step from the state left by any earlier queued request. */
+  cycleManualProfile() {
+    return this.control((state) => {
+      const profiles: Profile[] = ["coordinator", ...workersForDelegation(this.delegation(state))];
+      return profiles[(profiles.indexOf(state.profile ?? "coordinator") + 1) % profiles.length]!;
+    }, true);
   }
   setManualProfile(profile: Profile, _mechanism?: string) {
     return this.control(profile, true);
