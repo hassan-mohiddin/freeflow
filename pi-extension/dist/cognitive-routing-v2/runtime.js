@@ -10,6 +10,7 @@ import { pairFromProfile, resolveCognitiveRoutingState } from "./config.js";
 import { prepareView, changeSelection, representationProblems } from "./projection.js";
 import { initialState } from "./state.js";
 import {
+  ROUTING_ENTRY,
   ROUTING_MESSAGE,
   ROUTING_ATTENTION_MESSAGE,
   PROFILES,
@@ -891,10 +892,33 @@ export class RoutingRuntime {
       limitations: state.assessment?.problems ?? [],
     };
   }
+  admissionCache;
+  /** Source rank at which each currently selected ref was first admitted, derived from native selection events. */
+  admissions(state) {
+    const reader = this.ctx.sessionManager,
+      leaf = reader.getLeafId?.() ?? null;
+    const cache = this.admissionCache;
+    if (cache && cache.state === state && cache.leaf === leaf) return cache.admissions;
+    const admissions = new Map();
+    let rank = 0;
+    for (const entry of reader.getBranch()) {
+      if (["message", "custom_message", "compaction", "branch_summary"].includes(entry.type)) rank++;
+      else if (entry.type === "custom" && entry.customType === ROUTING_ENTRY) {
+        const data = entry.data?.data;
+        if (data?.type !== "selection-changed") continue;
+        const current = state.selections.get(data.assignmentId)?.selected ?? [];
+        for (const ref of data.selection?.selected ?? [])
+          if (current.includes(ref) && !admissions.has(ref)) admissions.set(ref, rank);
+      }
+    }
+    this.admissionCache = { state, leaf, admissions };
+    return admissions;
+  }
   prepared(profile, input, handoffId, restoring = false) {
     const state = this.stateData(),
       model = this.model(profile);
     return prepareView({
+      admissions: this.admissions(state),
       messages: input,
       sources: this.sources(state),
       state,

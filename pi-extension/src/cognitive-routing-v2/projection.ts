@@ -113,6 +113,7 @@ export function prepareView(options: {
   instance: string;
   preparingReturn?: string;
   restoring?: boolean;
+  admissions?: ReadonlyMap<string, number>;
 }): PreparedView {
   const { sources, state } = options;
   const associated = sources.associate(options.messages);
@@ -206,6 +207,24 @@ export function prepareView(options: {
   // opaque/common messages in their original order rather than moving user input wholesale.
   const ordered = sources.ordered(new Map([...structural, ...full]).values());
   const rank = new Map(options.sources.entries.map((entry, index) => [entry.id, index]));
+  // Worker evidence admitted after the Coordinator has seen later content is delivered where it was admitted,
+  // with its whole call group, so the Coordinator's already-sent prefix is extended rather than rewritten.
+  const shared: number[] = [0];
+  for (const entry of options.sources.entries) {
+    const producer = sources.byRef.get(`ctx:${entry.id}`)?.producer ?? "common";
+    shared.push(shared.at(-1)! + (isWorkerProfile(producer) ? 0 : 1));
+  }
+  const deferredAt = new Map<string, number>();
+  if (selective && options.admissions)
+    for (const source of full.values()) {
+      const at = options.admissions.get(source.ref),
+        own = rank.get(source.entry.id) ?? 0;
+      if (at === undefined || at <= own || !isWorkerProfile(source.producer) || shared[at] <= shared[own + 1]) continue;
+      const group = source.original ? [source] : sources.exchange(source).sources;
+      for (const member of group.length ? group : [source])
+        for (const candidate of [member, sources.byRef.get(textRef(member.ref))])
+          if (candidate) deferredAt.set(candidate.ref, Math.max(deferredAt.get(candidate.ref) ?? 0, at));
+    }
   const activeRefs = new Set(associated.flatMap((i) => (i.source ? [i.source.ref] : [])));
   const historical = ordered.filter((s) => !activeRefs.has(s.ref));
   const emitted = new Set<string>();
@@ -221,19 +240,28 @@ export function prepareView(options: {
       emitted.add(source.ref);
     }
   };
+  const pending: Source[] = [];
+  const place = (source: Source) => (deferredAt.has(source.ref) ? pending.push(source) : emit(source));
+  const deliver = (limit: number) => {
+    pending.sort(
+      (a, b) =>
+        deferredAt.get(a.ref)! - deferredAt.get(b.ref)! || (rank.get(a.entry.id) ?? 0) - (rank.get(b.entry.id) ?? 0),
+    );
+    while (pending.length && deferredAt.get(pending[0].ref)! <= limit) emit(pending.shift()!);
+  };
   for (const item of associated) {
     if (item.source) {
-      while (
-        cursor < historical.length &&
-        (rank.get(historical[cursor].entry.id) ?? 0) < (rank.get(item.source.entry.id) ?? 0)
-      )
-        emit(historical[cursor++]);
+      const at = rank.get(item.source.entry.id) ?? 0;
+      deliver(at);
+      while (cursor < historical.length && (rank.get(historical[cursor].entry.id) ?? 0) < at)
+        place(historical[cursor++]);
       const visible = full.get(textRef(item.source.ref));
-      if (visible) emit(visible);
-      if (full.has(item.source.ref) || structural.has(item.source.ref)) emit(item.source);
+      if (visible) place(visible);
+      if (full.has(item.source.ref) || structural.has(item.source.ref)) place(item.source);
     } else messages.push(item.message);
   }
-  while (cursor < historical.length) emit(historical[cursor++]);
+  while (cursor < historical.length) place(historical[cursor++]);
+  deliver(Infinity);
   const fullSources = [...full.values()];
   messages = annotateSources(messages, renderedSources, new Set(full.keys()), sources, options.instance);
   // Restore exact current communication only when its accepted occurrence is absent.

@@ -974,10 +974,33 @@ export class RoutingRuntime {
       limitations: state.assessment?.problems ?? [],
     };
   }
+  private admissionCache?: { state: State; leaf: string | null; admissions: Map<string, number> };
+  /** Source rank at which each currently selected ref was first admitted, derived from native selection events. */
+  private admissions(state: State): Map<string, number> {
+    const reader = this.ctx.sessionManager,
+      leaf = reader.getLeafId?.() ?? null;
+    const cache = this.admissionCache;
+    if (cache && cache.state === state && cache.leaf === leaf) return cache.admissions;
+    const admissions = new Map<string, number>();
+    let rank = 0;
+    for (const entry of reader.getBranch() as NativeEntry[]) {
+      if (["message", "custom_message", "compaction", "branch_summary"].includes(entry.type)) rank++;
+      else if (entry.type === "custom" && entry.customType === ROUTING_ENTRY) {
+        const data = (entry as any).data?.data;
+        if (data?.type !== "selection-changed") continue;
+        const current = state.selections.get(data.assignmentId)?.selected ?? [];
+        for (const ref of data.selection?.selected ?? [])
+          if (current.includes(ref) && !admissions.has(ref)) admissions.set(ref, rank);
+      }
+    }
+    this.admissionCache = { state, leaf, admissions };
+    return admissions;
+  }
   private prepared(profile: Profile, input: any[], handoffId?: string, restoring = false): PreparedView {
     const state = this.stateData(),
       model = this.model(profile);
     return prepareView({
+      admissions: this.admissions(state),
       messages: input,
       sources: this.sources(state),
       state,

@@ -608,3 +608,46 @@ test("disabled Freeflow omits routing provenance and re-enabling restores it fro
     },
   );
 });
+
+test("reusing earlier-assignment evidence extends the Coordinator's cached request instead of rewriting it", async () => {
+  let ref;
+  const result = await fixture(
+    (n, body, m) => {
+      if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Read an observation." });
+      if (n === 2) return call("read", { path: "evidence.txt" });
+      if (n === 3) {
+        ref = `ctx:${m.getBranch().find((e) => e.message?.toolName === "read").id}`;
+        return call("freeflow_return", { operation: "submit", report: "Observation captured.", outcome: "completed" });
+      }
+      if (n === 4)
+        return call("freeflow_unit", { operation: "close", outcome: "accepted", assessment: "Supported result." });
+      if (n === 5)
+        return call("freeflow_delegate", { operation: "assign", contract: "Reuse the earlier observation." });
+      if (n === 6) return call("freeflow_project", { operation: "inspect", scope: "history" });
+      if (n === 7) return call("freeflow_project", { operation: "add", refs: [ref] });
+      if (n === 8)
+        return call("freeflow_return", {
+          operation: "submit",
+          report: "Earlier evidence selected.",
+          outcome: "completed",
+        });
+      if (n === 9) {
+        assert.ok(JSON.stringify(body).includes("EXACT_EVIDENCE_BODY_81"), "selected evidence is delivered");
+        return call("freeflow_unit", { operation: "close", outcome: "accepted", assessment: "Supported result." });
+      }
+      return [];
+    },
+    true,
+    undefined,
+    true,
+    { maxRequests: 20 },
+  );
+  const coordinator = result.requests.filter((r) => r.model === "gpt-4o");
+  const items = (r) => r.input.map((x) => JSON.stringify(x));
+  for (let i = 1; i < coordinator.length; i++) {
+    const previous = items(coordinator[i - 1]),
+      next = items(coordinator[i]);
+    const diverged = previous.findIndex((item, k) => item !== next[k]);
+    assert.equal(diverged, -1, `Coordinator request ${i + 1} rewrote its cached prefix at item ${diverged}`);
+  }
+});
