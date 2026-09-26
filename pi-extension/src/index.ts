@@ -5,6 +5,7 @@ import { RequestHistory } from "./runtime/request-history.js";
 import { registerProviderSupport } from "./provider-support/index.js";
 import { registerProviderObservation } from "./provider-support/observation.js";
 import { EfficiencyObserver } from "./efficiency/observation.js";
+import { CacheHealth } from "./efficiency/cache-health.js";
 import { registerToolRuntimeTools } from "./tool-runtime/tools.js";
 import { ToolRuntime } from "./tool-runtime/index.js";
 import { publishCooperatingAdapterEndpoint } from "./tool-runtime/adapters/protocol.js";
@@ -137,6 +138,7 @@ export default function freeflow(pi: FreeflowAPI) {
     () => capability?.toolExecution?.effective === true && capability?.toolExecution?.accounting?.effective === true,
   );
   registerProviderObservation(api, efficiency);
+  const cacheHealth = new CacheHealth();
   let prompts: any;
   let refreshState = true;
   let sessionContext: any;
@@ -225,6 +227,7 @@ export default function freeflow(pi: FreeflowAPI) {
     if (generation !== surfaceGeneration) return;
     await loadSurface(ctx);
     efficiency.reset(ctx);
+    cacheHealth.reset();
     results.reset();
     programs.reset();
     effects.reset();
@@ -253,6 +256,23 @@ export default function freeflow(pi: FreeflowAPI) {
     event.systemPromptOptions.sections.freeflow_guidance = stableRuntimeContext(prompts);
   });
   pi.on("message_end", (event, ctx) => {
+    const message = (event as any).message;
+    if (
+      capability?.enabled === true &&
+      message?.role === "assistant" &&
+      message.usage &&
+      message.stopReason !== "error"
+    ) {
+      const warning = cacheHealth.observe({
+        provider: message.provider,
+        model: message.model,
+        thinking: ctx.thinkingLevel,
+        at: Date.now(),
+        input: message.usage.input ?? 0,
+        cacheRead: message.usage.cacheRead ?? 0,
+      });
+      if (warning) ctx.ui?.notify?.(warning, "warning");
+    }
     routing.messageEnd((event as any).message);
     efficiency.messageEnd((event as any).message, ctx);
   });
@@ -284,10 +304,12 @@ export default function freeflow(pi: FreeflowAPI) {
     await update(ctx);
   });
   pi.on("model_select", async (_event, ctx) => {
+    cacheHealth.noteBreak();
     await routing.nativeChange(ctx);
     status(ctx);
   });
   pi.on("thinking_level_select", async (_event, ctx) => {
+    cacheHealth.noteBreak();
     await routing.nativeChange(ctx);
     status(ctx);
   });
@@ -329,6 +351,7 @@ export default function freeflow(pi: FreeflowAPI) {
     };
   });
   const restore = async (ctx: any, navigation = true) => {
+    cacheHealth.noteBreak();
     resetHistory();
     efficiency.reset(ctx);
     results.reset();
@@ -422,7 +445,13 @@ export default function freeflow(pi: FreeflowAPI) {
         return;
       }
       await handleFreeflowCommand(args, ctx, async () => update(ctx), pi, routing, {
-        status: () => ({ ...results.status(), ...programs.status(), ...effects.status(), ...toolRuntime.status() }),
+        status: () => ({
+          ...results.status(),
+          ...programs.status(),
+          ...effects.status(),
+          ...toolRuntime.status(),
+          cacheHealth: cacheHealth.status(),
+        }),
       });
     },
   });

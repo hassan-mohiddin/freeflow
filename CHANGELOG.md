@@ -18,6 +18,8 @@
 - Adds a practical Freeflow user guide for prompting, skill selection, Workflow and Track Work management, settings, Cognitive Routing presets, and evidence and cost boundaries.
 - Adds experimental native-Pi Tool Execution with recoverable bounded Bash output, restricted QuickJS programs, revisioned direct/live operations, deterministic discovery, configured cooperating adapters, effect fencing, factual efficiency export, and extracted Worker/WASM qualification.
 - Adds complete local/shared Tool Execution settings with safe quick presets and confirmed workspace-write enablement, bounded native progress streaming, and concise collapsed plus expanded views for all three Tool Execution facade tools.
+- Warns once when back-to-back requests to the same model and effort repeatedly miss the prompt cache with no compaction, navigation, reload, or model change in between, and shows the warning in `/freeflow status`.
+- Warns when a Cognitive Routing worker preset costs as much per input token as Coordinator or more, or shares Coordinator's model at a different effort on a route that does not keep the prompt cache across effort changes.
 
 ### Changed
 
@@ -26,6 +28,7 @@
 - Batches worker evidence selection during return preparation while preserving saved reports, unresolved evidence, and handoff limits.
 - Repositions Freeflow around Memory, planned Context, and Compute, and expands Cognitive Routing and native Pi documentation with qualified preset and cache-reuse boundaries.
 - Removes most Freeflow per-request overhead in native Pi: routing history replays in one pass, request history and routing attribution reuse Pi's session projection instead of re-hashing the conversation, history and GPT-6 effort records are written only when their state changes, persisted-session checks read only newly appended entries, and accounting serializes requests after dispatch. A disabled repository no longer adds routing provenance, and GPT-6 effort adaptation stays off when a configured repository disables Freeflow.
+- Resumes a Cognitive Routing worker run automatically when a crash or reload interrupted it and no new user input has arrived; reopening an idle session only notes that an unchanged assignment can be resumed.
 
 ### Fixed
 
@@ -38,6 +41,7 @@
 - Preserves Astra effort-history replay across temporary model round trips and reloads when the qualified request lineage remains compatible.
 - Keeps Cognitive Routing manual-hold and automatic-release shortcuts in step with the host model: requests run in order, the next manual hold is chosen from the latest state, and a profile is recorded only after its model is applied.
 - Applies the same ordering to Cognitive Routing resume, session presets, rebinding, re-enabling, and navigation, so a failed model switch records nothing; a manual hold whose model was changed outside routing is reported once and shown in the footer instead of being overridden.
+- Corrects the Cognitive Routing skill: profiles on the same model reuse the prompt cache only at matching effort or on routes that keep it across effort changes (currently the supported GPT-6 routes).
 - Delivers evidence reused from an earlier assignment where it was selected, so a returning Coordinator request extends its cached prefix instead of rewriting it.
 
 ## 0.7.2 - 2026-09-11

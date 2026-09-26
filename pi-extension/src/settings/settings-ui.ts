@@ -80,6 +80,7 @@ type CognitiveRoutingSettingsController = {
     controlMode: string;
     activeProfile?: string;
     delegation: CognitiveRoutingDelegationMode;
+    presetWarnings?: readonly string[];
   };
   sessionProfileOverrides(): Partial<Record<CognitiveRoutingProfileName, SessionRoutingPair>>;
   sessionDelegationOverride(): CognitiveRoutingDelegationMode | undefined;
@@ -1886,6 +1887,7 @@ function freeflowStatusText(
       announced?: readonly { active?: boolean }[];
       failures?: readonly { code?: string; message?: string }[];
     };
+    cacheHealth?: readonly string[];
   },
 ): string {
   if (!state.configured) {
@@ -1915,8 +1917,14 @@ function freeflowStatusText(
   return [
     `Freeflow: ${state.enabled ? "enabled" : "disabled"}${sessionSuffix(state.configSources.enabled as ConfigSource)}`,
     ...(cognitiveRoutingStatus ? [`cognitive routing: ${cognitiveRoutingStatus}`] : []),
+    ...(routingState?.presetWarnings?.length
+      ? [`routing preset warnings: ${routingState.presetWarnings.join(" ")}`]
+      : []),
     `tool execution: ${state.toolExecution?.effective ? "enabled" : "disabled"} (capture ${state.toolExecution?.capture?.effective ? "enabled" : "disabled"}, verified reader ${state.toolExecution?.effective ? "enabled" : "disabled"}, workspace ${state.toolExecution?.workspace?.effective ? (state.toolExecution.workspace.write ? "read/write" : "read-only") : "disabled"}, programs ${state.toolExecution?.programs?.mode ?? "off"}, live effects ${toolExecutionRuntime?.unresolvedEffects ? `fenced (${toolExecutionRuntime.unresolvedEffects})` : "settled"}, discovery ${state.toolExecution?.discovery?.effective ? "enabled" : "disabled"}, catalog ${toolExecutionRuntime?.catalog?.operations ?? 0} operations/${toolExecutionRuntime?.catalog?.metadataBytes ?? 0} bytes, adapters ${toolExecutionRuntime?.adapters?.announced?.filter((adapter) => adapter.active).length ?? 0} active/${toolExecutionRuntime?.adapters?.allowed?.length ?? 0} allowed, accounting ${state.toolExecution?.accounting?.effective ? "enabled" : "disabled"}; native Bash is built in, custom tools require adapters; captured files are retained until explicit deletion${toolIssue?.code ? `; latest ${toolExecutionRuntime?.lastFailure ? "program" : toolExecutionRuntime?.failures?.length ? "capture" : "adapter"} issue ${toolIssue.code}${toolIssue.message ? `: ${toolIssue.message}` : ""}` : ""})`,
     ...(toolExecutionRuntime?.queued ? [`capture publications queued: ${toolExecutionRuntime.queued}`] : []),
+    ...(toolExecutionRuntime?.cacheHealth?.length
+      ? [`prompt cache: ${toolExecutionRuntime.cacheHealth.join(" ")}`]
+      : []),
   ].join("; ");
 }
 

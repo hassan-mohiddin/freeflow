@@ -8,6 +8,8 @@ import { EventStore, type SessionReader } from "../session-sources/events.js";
 import { Sources, bodyHash, textRef, isTaskEvidence, type Source } from "../session-sources/sources.js";
 import { pairFromProfile, resolveCognitiveRoutingState, type CognitiveRoutingCapabilityState } from "./config.js";
 import { prepareView, changeSelection, representationProblems, type PreparedView } from "./projection.js";
+import { presetWarnings } from "./economics.js";
+import { effortHistoryRoute } from "../provider-support/openai/adapter.js";
 import { initialState } from "./state.js";
 import {
   ROUTING_ENTRY,
@@ -287,6 +289,7 @@ export class RoutingRuntime {
       runtimeReason: blocked ?? (this.suppressed ? "startup_selection" : this.capability?.blockingReason.message),
       projectionFailure: this.projectionError,
       ...(this.heldMismatch(state) ? { pairMismatch: true } : {}),
+      ...((warnings) => (warnings.length ? { presetWarnings: warnings } : {}))(this.presetWarnings(state)),
     };
   }
   observationScope() {
@@ -474,6 +477,72 @@ export class RoutingRuntime {
     check(model, "profile_unavailable");
     return model;
   }
+  /** Advisory preset checks for the effective Coordinator and enabled workers. */
+  presetWarnings(state = this.stateData()): string[] {
+    if (!this.supported()) return [];
+    const pairs: Partial<Record<Profile, Pair>> = {};
+    for (const profile of ["coordinator", ...this.enabledWorkers(state)] as Profile[])
+      try {
+        pairs[profile] = this.profilePair(profile);
+      } catch {}
+    return presetWarnings(
+      pairs,
+      this.enabledWorkers(state),
+      (provider, modelId) => this.ctx?.modelRegistry?.find?.(provider, modelId),
+      (model) => effortHistoryRoute(model) !== undefined,
+    );
+  }
+  private presetNotice?: string;
+  private announcePresets(ctx: any = this.ctx): void {
+    const warnings = this.presetWarnings();
+    const notice = warnings.length ? JSON.stringify(warnings) : undefined;
+    if (notice && notice !== this.presetNotice)
+      ctx?.ui?.notify?.(`Cognitive Routing preset: ${warnings.join(" ")}`, "warning");
+    this.presetNotice = notice;
+  }
+  /** The outstanding worker responsibility that no later user input has overtaken, if any. */
+  private resumableAssignment(state: State): { worker: WorkerProfile; assignmentId: string } | undefined {
+    const assignment = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
+    const reading = state.recoveryId !== undefined && state.recoveries.get(state.recoveryId)?.state === "reading";
+    if (state.control !== "automatic" || !assignment || (assignment.state !== "outstanding" && !reading)) return;
+    let worker: WorkerProfile;
+    try {
+      worker = this.assignedWorker(state, assignment.id);
+    } catch {
+      return;
+    }
+    const branch = this.store?.reader.getBranch() ?? [];
+    const lastUser = branch.filter((e) => e.message?.role === "user").at(-1)?.id ?? null;
+    return lastUser === this.workerBasis(state, assignment.id) ? { worker, assignmentId: assignment.id } : undefined;
+  }
+  /** A worker run cut off by a crash or reload leaves its execution opened but never bound. */
+  private interruptedRun(state: State): boolean {
+    const resumable = this.resumableAssignment(state);
+    return (
+      !!resumable &&
+      state.profile === resumable.worker &&
+      [...state.executions.values()].some(
+        (x) =>
+          !x.assistantEntryId &&
+          !x.interrupted &&
+          x.profile === resumable.worker &&
+          x.assignmentId === resumable.assignmentId,
+      )
+    );
+  }
+  private async resumeAfterCrash(ctx: any, token: string): Promise<void> {
+    if (token !== this.token) return;
+    try {
+      check(!ctx.hasPendingMessages?.(), "pending_input", "Queued input needs Coordinator first.");
+      await this.resume(ctx);
+      ctx.ui?.notify?.("Cognitive Routing resumed the worker run that was interrupted.", "info");
+    } catch (error) {
+      ctx.ui?.notify?.(
+        `Cognitive Routing could not resume the interrupted worker run automatically (${error instanceof Error ? error.message : String(error)}). Run /freeflow resume to retry.`,
+        "warning",
+      );
+    }
+  }
   async bind(ctx: any, capability: CognitiveRoutingCapabilityState, startup = false): Promise<void> {
     this.token = randomUUID();
     this.ctx = ctx;
@@ -502,6 +571,9 @@ export class RoutingRuntime {
       this.manualHold = state.control === "manual" ? state.profile : undefined;
       this.automaticControl = !state.events.size || state.control === "automatic";
       await this.validateProfilePairs(this.profilePairs(this.requiredProfiles(state)));
+      this.announcePresets(ctx);
+      const interrupted = this.interruptedRun(state);
+      const resumable = this.resumableAssignment(state);
       this.retireUnbound("Session rebind found an unfinished execution; no task effects replayed.");
       if (!state.events.size) {
         await this.transition(
@@ -533,6 +605,15 @@ export class RoutingRuntime {
           subject,
         );
       }
+      // Only a run cut off mid-flight resumes on its own; reopening an idle session never starts work.
+      if (interrupted && ctx.hasUI) {
+        const token = this.token;
+        setTimeout(() => void this.resumeAfterCrash(ctx, token), 0);
+      } else if (resumable)
+        ctx.ui?.notify?.(
+          `The ${resumable.worker} assignment is unchanged. Run /freeflow resume to continue it; a new message goes to Coordinator.`,
+          "info",
+        );
     } catch (error) {
       if (this.current(subject)) this.mark(error);
     }
@@ -589,6 +670,7 @@ export class RoutingRuntime {
     }
     if (canonical({ delegation: this.capability?.delegation, profiles: this.capability?.profiles }) === signature)
       this.targetSignature = signature;
+    this.announcePresets(ctx);
   }
   async ancestryChanged(ctx: any, navigation = true): Promise<void> {
     this.revision++;
@@ -810,6 +892,7 @@ export class RoutingRuntime {
         await this.validateProfilePairs(this.profilePairs(this.requiredProfiles(state, delegation)));
         this.guard(subject);
         this.append({ type: "delegation-override", delegation: override, reason: mechanism });
+        this.announcePresets();
         return { status: "stored" };
       } catch (error) {
         return { status: "blocked", reason: error instanceof Error ? error.message : String(error) };
@@ -853,11 +936,13 @@ export class RoutingRuntime {
         if (state.control !== "inactive" && state.profile === profile) {
           await this.transition(target, record, subject);
           this.error = undefined;
+          this.announcePresets();
           return { status: "active" };
         }
         this.guard(subject);
         record();
         this.error = undefined;
+        this.announcePresets();
         return { status: "stored" };
       } catch (error) {
         if (this.current(subject)) this.mark(error);
@@ -898,11 +983,13 @@ export class RoutingRuntime {
         if (active && previous[active]) {
           await this.transition(targetPairs[active]!, record, subject);
           this.error = undefined;
+          this.announcePresets();
           return { status: "active" };
         }
         this.guard(subject);
         record();
         this.error = undefined;
+        this.announcePresets();
         return { status: "stored" };
       } catch (error) {
         if (this.current(subject)) this.mark(error);

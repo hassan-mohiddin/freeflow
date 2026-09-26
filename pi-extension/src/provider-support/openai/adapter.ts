@@ -4,23 +4,9 @@ import { SessionState } from "./session-state.js";
 // Only these qualified official routes receive effort-history adaptation; keys isolate models.
 const SUPPORTED_MODELS = new Set(["gpt-6-astra", "gpt-6-luna", "gpt-6-sol"]);
 
-export function requestKey(payload: any, model: any): string | undefined {
-  if (
-    !payload ||
-    !SUPPORTED_MODELS.has(payload.model) ||
-    model?.id !== payload.model ||
-    payload.store !== false ||
-    !Array.isArray(payload.input) ||
-    !EFFORTS.includes(payload.reasoning?.effort) ||
-    payload.previous_response_id ||
-    payload.conversation ||
-    payload.context_management ||
-    (payload.truncation && payload.truncation !== "disabled") ||
-    (payload.reasoning.mode && payload.reasoning.mode !== "standard") ||
-    payload.agents ||
-    payload.input.some((x: any) => x?.type === "configuration_update" || x?.type === "compaction_trigger")
-  )
-    return;
+/** The effort-history key for a qualified official GPT-6 route, or undefined when the route is not supported. */
+export function effortHistoryRoute(model: any): string | undefined {
+  if (!model || !SUPPORTED_MODELS.has(model.id)) return;
   const codex = model.provider === "openai-codex" && model.api === "openai-codex-responses";
   const api = model.provider === "openai" && model.api === "openai-responses";
   if (!codex && !api) return;
@@ -38,6 +24,26 @@ export function requestKey(payload: any, model: any): string | undefined {
     : ["https://api.openai.com/v1"];
   if (!allowed.includes(base)) return;
   return `${model.provider}/${model.api}/${model.id}`;
+}
+
+export function requestKey(payload: any, model: any): string | undefined {
+  if (
+    !payload ||
+    !SUPPORTED_MODELS.has(payload.model) ||
+    model?.id !== payload.model ||
+    payload.store !== false ||
+    !Array.isArray(payload.input) ||
+    !EFFORTS.includes(payload.reasoning?.effort) ||
+    payload.previous_response_id ||
+    payload.conversation ||
+    payload.context_management ||
+    (payload.truncation && payload.truncation !== "disabled") ||
+    (payload.reasoning.mode && payload.reasoning.mode !== "standard") ||
+    payload.agents ||
+    payload.input.some((x: any) => x?.type === "configuration_update" || x?.type === "compaction_trigger")
+  )
+    return;
+  return effortHistoryRoute(model);
 }
 export class OpenAIEffortAdapter {
   private session?: { id: string; file?: string; store: SessionState };

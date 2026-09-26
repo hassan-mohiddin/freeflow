@@ -33,4 +33,4 @@ Executor forms the execution forecast for production work; Coordinator supplies 
 
 ## Mind The Model Configuration
 
-The user may run Coordinator and Executor on the same model at different effort. Switching between them can then reuse the provider cache, which makes handoffs to Executor cheaper; with different models it cannot. Either way the configuration is the user's choice; do not change it.
+The user may run Coordinator and Executor on the same model at different effort. On routes that keep the provider cache across effort changes (currently the supported GPT-6 routes), handoffs to Executor then reuse the cache and cost less; elsewhere, and with different models, every switch rereads the whole context. Either way the configuration is the user's choice; do not change it.
