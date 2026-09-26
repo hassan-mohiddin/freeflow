@@ -39,13 +39,19 @@ export function requestKey(payload, model) {
 }
 export class OpenAIEffortAdapter {
   pi;
+  enabled;
   session;
   generation = 0;
   compacting = false;
   queue = Promise.resolve();
   statusSignature;
-  constructor(pi) {
+  constructor(
+    pi,
+    // Global Freeflow disablement leaves provider requests and session history untouched.
+    enabled = () => true,
+  ) {
     this.pi = pi;
+    this.enabled = enabled;
   }
   reset(ctx) {
     this.generation++;
@@ -68,7 +74,7 @@ export class OpenAIEffortAdapter {
     const generation = this.generation;
     const operation = this.queue.then(async () => {
       const key = requestKey(payload, ctx.model);
-      if (generation !== this.generation || this.compacting || !key) {
+      if (generation !== this.generation || this.compacting || !key || !this.enabled()) {
         this.status(ctx, undefined);
         return payload;
       }

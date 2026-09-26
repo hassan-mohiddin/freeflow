@@ -105,7 +105,8 @@ export function assemble(payload, key, generation, basis, records) {
     if (i < payload.input.length) output.input.push(structuredClone(payload.input[i]));
   }
   output.reasoning.effort = baseline;
-  const identical = prior?.length === payload.input.length && prior.effective === desired;
+  // Records mark baselines and effort changes; a longer input under the same effort needs none.
+  const identical = !!prior && !update;
   const record = identical
     ? undefined
     : {

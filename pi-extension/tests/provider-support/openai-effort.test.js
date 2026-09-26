@@ -328,3 +328,33 @@ test("session reset clears adapter status without changing the next requested ef
   f.adapter.reset(f.ctx);
   assert.deepEqual(f.status.at(-1), ["freeflow-openai-effort", undefined]);
 });
+
+test("unchanged effort across a growing tool loop writes one record and changes append one more", async () => {
+  const f = fixture(),
+    h = [u("one")];
+  const records = () => f.manager.getEntries().filter((e) => e.customType === ENTRY_TYPE).length;
+  let previous = await f.adapter.adapt(request(h), f.ctx);
+  for (let n = 0; n < 6; n++) {
+    h.push(a(`step ${n}`), u(`result ${n}`));
+    const next = await f.adapter.adapt(request(h), f.ctx);
+    assert.deepEqual(next.input.slice(0, previous.input.length), previous.input);
+    previous = next;
+  }
+  assert.equal(records(), 1, "the baseline record is enough while effort is unchanged");
+  h.push(a("switch"), u("harder"));
+  const high = await f.adapter.adapt(request(h, "high"), f.ctx);
+  assert.deepEqual(updates(high), [{ index: h.length - 1, effort: "high" }]);
+  assert.equal(records(), 2);
+  h.push(a("after"), u("again"));
+  const resumed = await new OpenAIEffortAdapter(f.pi).adapt(request(h, "high"), f.ctx);
+  assert.deepEqual(resumed.input.slice(0, high.input.length), high.input, "reload replays the recorded update");
+  assert.equal(records(), 2);
+});
+
+test("disabled Freeflow leaves effort requests untouched and unrecorded", async () => {
+  const f = fixture();
+  const adapter = new OpenAIEffortAdapter(f.pi, () => false);
+  const original = request([u("one"), a("one"), u("two")], "high");
+  assert.deepEqual(await adapter.adapt(structuredClone(original), f.ctx), original);
+  assert.equal(f.manager.getEntries().length, 0);
+});

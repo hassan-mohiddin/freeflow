@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, mkdir, rm, readFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -214,3 +214,19 @@ test(
     });
   },
 );
+
+test("an explicitly disabled Freeflow repository leaves GPT-6 effort requests native", { timeout: 30000 }, async () => {
+  await native(
+    freeflow,
+    async ({ manager, prompt, root }) => {
+      await mkdir(join(root, ".freeflow"), { recursive: true });
+      await writeFile(join(root, ".freeflow/config.json"), JSON.stringify({ enabled: false }));
+      await prompt("one", "low");
+      const p = await prompt("two", "high");
+      assert.equal(p.reasoning.effort, "high", "the requested effort is sent natively");
+      assert.deepEqual(updates(p), []);
+      assert.ok(!manager.getEntries().some((e) => e.customType === ENTRY_TYPE));
+    },
+    "gpt-6-luna",
+  );
+});

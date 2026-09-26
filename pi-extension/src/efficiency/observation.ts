@@ -202,6 +202,7 @@ export class EfficiencyObserver {
   ) {}
 
   reset(ctx?: any): void {
+    this.flush();
     this.ledger = new EfficiencyLedger();
     this.pending = [];
     this.staged = undefined;
@@ -217,7 +218,28 @@ export class EfficiencyObserver {
     }
   }
 
+  private deferred: (() => void)[] = [];
+  private drainScheduled = false;
+
+  private defer(work: () => void): void {
+    this.deferred.push(work);
+    if (this.drainScheduled) return;
+    this.drainScheduled = true;
+    setImmediate(() => this.flush());
+  }
+
+  /** Persist deferred observations first so every later observation keeps its native order. */
+  private flush(): void {
+    this.drainScheduled = false;
+    while (this.deferred.length) this.deferred.shift()!();
+  }
+
   private publish(observation: EfficiencyObservation): void {
+    this.flush();
+    this.publishNow(observation);
+  }
+
+  private publishNow(observation: EfficiencyObservation): void {
     if (!this.ledger.append(observation)) return;
     try {
       this.pi.appendEntry?.(EFFICIENCY_OBSERVATION_ENTRY, observation);
@@ -229,19 +251,13 @@ export class EfficiencyObserver {
 
   observePrepared(payload: unknown, ctx: any): void {
     if (!this.enabled()) return;
-    const payloadText = jsonText(payload);
     const record = payload && typeof payload === "object" ? (payload as any) : {};
-    const inputText = jsonText(record.input);
-    const instructionsText = jsonText(record.instructions);
-    const toolsText = jsonText(record.tools);
-    const { input: _input, instructions: _instructions, tools: _tools, ...envelope } = record;
-    const envelopeText = jsonText(envelope);
     const attemptId = randomUUID();
     const responsibility = this.scope();
-    const observation: PreparedRequestObservation = {
-      version: 1,
+    const identity = {
+      version: 1 as const,
       id: randomUUID(),
-      kind: "prepared-request",
+      kind: "prepared-request" as const,
       attemptId,
       sessionId: sessionId(ctx),
       basisEntryId: leafId(ctx),
@@ -250,14 +266,6 @@ export class EfficiencyObserver {
       model: typeof record.model === "string" ? record.model : undefined,
       api: typeof ctx?.model?.api === "string" ? ctx.model.api : undefined,
       requestedEffort: typeof record.reasoning?.effort === "string" ? record.reasoning.effort : undefined,
-      payloadHash: hashText(payloadText),
-      inputPrefixHash: hashText(inputText),
-      envelopeHash: hashText(envelopeText),
-      payloadBytes: bytes(payloadText),
-      inputBytes: bytes(inputText),
-      instructionBytes: bytes(instructionsText),
-      toolSchemaBytes: bytes(toolsText),
-      coverage: coverageFor(payloadText, inputText, envelopeText),
     };
     this.pending.push({
       id: attemptId,
@@ -269,10 +277,28 @@ export class EfficiencyObserver {
       responseObserved: false,
       responsibility,
     });
-    this.publish(observation);
+    // Serializing and hashing a full request is diagnostic work; it runs after the provider hook returns.
+    this.defer(() => {
+      const payloadText = jsonText(payload);
+      const inputText = jsonText(record.input);
+      const { input: _input, instructions: _instructions, tools: _tools, ...envelope } = record;
+      const envelopeText = jsonText(envelope);
+      this.publishNow({
+        ...identity,
+        payloadHash: hashText(payloadText),
+        inputPrefixHash: hashText(inputText),
+        envelopeHash: hashText(envelopeText),
+        payloadBytes: bytes(payloadText),
+        inputBytes: bytes(inputText),
+        instructionBytes: bytes(jsonText(record.instructions)),
+        toolSchemaBytes: bytes(jsonText(record.tools)),
+        coverage: coverageFor(payloadText, inputText, envelopeText),
+      } satisfies PreparedRequestObservation);
+    });
   }
 
   observeResponse(status: number, headers: Record<string, string>, ctx: any): void {
+    this.flush();
     if (!this.enabled()) return;
     const candidates = this.pending.filter((attempt) => !attempt.responseObserved);
     const attempt = candidates.length === 1 ? candidates[0] : undefined;
@@ -303,6 +329,7 @@ export class EfficiencyObserver {
   }
 
   messageEnd(message: any, ctx: any): void {
+    this.flush();
     if (!this.enabled() || message?.role !== "assistant") return;
     this.staged = {
       message: structuredClone(message),
@@ -316,6 +343,7 @@ export class EfficiencyObserver {
   }
 
   turnEnd(event: any, ctx: any): void {
+    this.flush();
     if (!this.enabled()) return;
     const message = event?.message ?? this.staged?.message;
     if (message?.role !== "assistant") return;
@@ -384,10 +412,12 @@ export class EfficiencyObserver {
   }
 
   observations(): readonly EfficiencyObservation[] {
+    this.flush();
     return this.ledger.all();
   }
 
   report() {
+    this.flush();
     return {
       ...efficiencyReport(this.ledger.all()),
       measurement: {
@@ -402,6 +432,7 @@ export class EfficiencyObserver {
   }
 
   exportData(maximumObservations = 256) {
+    this.flush();
     const all = this.ledger.all();
     let count = Math.min(maximumObservations, all.length);
     for (;;) {

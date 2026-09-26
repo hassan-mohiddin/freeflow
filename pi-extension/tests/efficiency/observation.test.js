@@ -423,3 +423,36 @@ test("ledger deduplicates persisted native occurrences by identity, never by equ
   assert.equal(report.usage.input, 2);
   assert.equal(report.usage.output, 2);
 });
+
+test("prepared-request serialization stays off the provider path and persists before later observations", async () => {
+  const { manager, ctx, observer } = harness();
+  let serialized = 0;
+  const input = [
+    {
+      role: "user",
+      content: "fixture",
+      toJSON() {
+        serialized += 1;
+        return { role: "user", content: "fixture" };
+      },
+    },
+  ];
+  observer.observePrepared({ model: "fixture-model", input, tools: [] }, ctx);
+  assert.equal(serialized, 0, "the provider hook returns before the payload is serialized");
+  observer.observeResponse(200, {}, ctx);
+  assert.ok(serialized > 0);
+  assert.deepEqual(
+    manager
+      .getEntries()
+      .filter((e) => e.customType === "freeflow-efficiency-observation-v1")
+      .map((e) => e.data.kind),
+    ["prepared-request", "response-headers"],
+  );
+  observer.observePrepared({ model: "fixture-model", input: [], tools: [] }, ctx);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(
+    observer.observations().filter((o) => o.kind === "prepared-request").length,
+    2,
+    "idle work drains itself",
+  );
+});

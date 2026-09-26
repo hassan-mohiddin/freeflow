@@ -1,6 +1,6 @@
 import { OpenAIEffortAdapter } from "./adapter.js";
-export function registerOpenAIEffortSupport(pi) {
-  const adapter = new OpenAIEffortAdapter(pi);
+export function registerOpenAIEffortSupport(pi, enabled) {
+  const adapter = new OpenAIEffortAdapter(pi, enabled);
   pi.on("session_start", (_event, ctx) => adapter.reset(ctx));
   pi.on("session_shutdown", (_event, ctx) => adapter.reset(ctx));
   pi.on("session_tree", (_event, ctx) => adapter.reset(ctx));

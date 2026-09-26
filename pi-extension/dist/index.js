@@ -15,6 +15,7 @@ import { workersForDelegation } from "./cognitive-routing-v2/types.js";
 import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-routing-v2/tools.js";
 import { handleFreeflowCommand } from "./settings/settings-ui.js";
 import { isPiFlowHost } from "./runtime/runtime-identity.js";
+import { tagProjectedMessages } from "./session-sources/sources.js";
 import {
   CONTRIBUTOR_COMMANDS,
   WORKFLOW_COMMANDS,
@@ -85,7 +86,8 @@ function freeflowCompletions(prefix, routingAvailable) {
     .map(([value, label, description]) => ({ value, label, description }));
 }
 export default function freeflow(pi) {
-  registerProviderSupport(pi);
+  // Only an explicit master-switch disable turns provider support off; unconfigured repositories keep it.
+  registerProviderSupport(pi, () => !(capability?.configured === true && capability.enabled === false));
   const api = pi;
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
   const routing = new RoutingRuntime(api, [packageRoot]);
@@ -291,6 +293,12 @@ export default function freeflow(pi) {
   });
   pi.on("context_with_system", async (event, ctx) => {
     if (!capability) await loadSurface(ctx);
+    if (capability?.enabled === true)
+      tagProjectedMessages(
+        event.messages,
+        ctx.sessionManager?.buildSessionProjection?.(),
+        ctx.sessionManager?.getBranch?.() ?? [],
+      );
     let messages = event.messages.map(filterBootstrapMessage).filter(Boolean);
     messages = withFreeflowRuntimeState(messages, capability, routing.state(), prompts, {
       force: refreshState,

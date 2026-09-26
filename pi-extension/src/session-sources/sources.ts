@@ -44,6 +44,30 @@ export interface Associated {
 }
 export const bodyHash = (value: unknown) => createHash("sha256").update(canonical(value)).digest("hex");
 export const textRef = (ref: string) => `${ref}#text`;
+// Pi's session projection names the entry behind each request message; content hashing stays the fallback.
+const projectedEntryIds = new WeakMap<object, string>();
+export function tagProjectedMessages(
+  messages: readonly any[],
+  projection: { entries: readonly { sourceEntry: NativeEntry; messages: readonly any[] }[] } | undefined,
+  branch: readonly NativeEntry[],
+): void {
+  if (!projection) return;
+  const projected = projection.entries.flatMap((entry) => entry.messages.map((message) => ({ entry, message })));
+  if (projected.length !== messages.length || projected.some((p, i) => p.message?.role !== messages[i]?.role)) return;
+  // Host edits change the visible body, so their targets keep exact content association.
+  const edited = new Set(branch.flatMap((entry: any) => (entry.type === "context_edit" ? [entry.targetId] : [])));
+  projected.forEach(({ entry }, i) => {
+    const source = entry.sourceEntry;
+    if (
+      entry.messages.length === 1 &&
+      ["message", "custom_message"].includes(source.type) &&
+      !edited.has(source.id) &&
+      messages[i] &&
+      typeof messages[i] === "object"
+    )
+      projectedEntryIds.set(messages[i], source.id);
+  });
+}
 const routingTools = new Set(["freeflow_delegate", "freeflow_return", "freeflow_project", "freeflow_unit"]);
 // Discovery and new selections share this policy. Existing saved selections keep
 // their original delivery semantics; mixed assistant messages offer visible text.
@@ -207,12 +231,24 @@ export class Sources {
       return this.associated.items;
     this.ambiguous.clear();
     for (const source of this.byRef.values()) source.active = false;
-    const used = new Set<string>(),
-      hashes = messages.map((message) => bodyHash(message)),
+    const direct = messages.map((message) => {
+      const id = message && typeof message === "object" ? projectedEntryIds.get(message) : undefined;
+      const source = id === undefined ? undefined : this.byRef.get(refFor(id));
+      return source && (!this.activeIds || this.activeIds.has(source.entry.id)) ? source : undefined;
+    });
+    const used = new Set<string>(direct.flatMap((source) => (source ? [source.ref] : []))),
+      hashes = messages.map((message, index) => (direct[index] ? undefined : bodyHash(message))),
       remaining = new Map<string, number>();
-    for (const hash of hashes) remaining.set(hash, (remaining.get(hash) ?? 0) + 1);
+    for (const hash of hashes) if (hash) remaining.set(hash, (remaining.get(hash) ?? 0) + 1);
     const items = messages.map((message, index) => {
-      const hash = hashes[index],
+      if (direct[index]) {
+        const source = direct[index]!;
+        source.active = true;
+        const text = this.byRef.get(textRef(source.ref));
+        if (text) text.active = true;
+        return { message, source };
+      }
+      const hash = hashes[index]!,
         count = remaining.get(hash)!;
       remaining.set(hash, count - 1);
       const candidates = (this.byBody.get(hash) ?? []).filter(

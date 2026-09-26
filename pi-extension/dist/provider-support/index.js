@@ -1,4 +1,4 @@
 import { registerOpenAIEffortSupport } from "./openai/index.js";
-export function registerProviderSupport(pi) {
-  registerOpenAIEffortSupport(pi);
+export function registerProviderSupport(pi, enabled) {
+  registerOpenAIEffortSupport(pi, enabled);
 }
