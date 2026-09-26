@@ -85,6 +85,7 @@ function freeflowCompletions(prefix, routingAvailable) {
     .map(([value, label, description]) => ({ value, label, description }));
 }
 export default function freeflow(pi) {
+  if (isPiFlowHost(pi.host)) return;
   // Only an explicit master-switch disable turns provider support off; unconfigured repositories keep it.
   registerProviderSupport(pi, () => !(capability?.configured === true && capability.enabled === false));
   const api = pi;
@@ -149,16 +150,6 @@ export default function freeflow(pi) {
     }
     if (next.cognitiveRouting.effective && !isPromptAvailable(loaded.cognitiveRoutingPrompt))
       next.cognitiveRouting = unavailable(next.cognitiveRouting, "Routing bootstrap cue is unavailable.");
-    if (next.cognitiveRouting.enabled && isPiFlowHost(pi.host))
-      next.cognitiveRouting = unavailable(
-        next.cognitiveRouting,
-        "The redesigned PiFlow adapter requires separate qualification.",
-      );
-    if (next.toolExecution.enabled && isPiFlowHost(pi.host))
-      next.toolExecution = unavailable(
-        next.toolExecution,
-        "Tool Execution requires separate PiFlow host qualification.",
-      );
     capability = next;
     toolRuntime.refreshAdapters();
     prompts = loaded;

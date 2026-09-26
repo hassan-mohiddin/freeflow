@@ -20,7 +20,6 @@ export const CURRENT_DOCUMENTS = [
   "plugin-docs/release.md",
   "plugin-docs/release-evidence/README.md",
   "plugin-docs/integrations/pi.md",
-  "plugin-docs/integrations/piflow.md",
   "plugin-docs/adr/README.md",
 ];
 

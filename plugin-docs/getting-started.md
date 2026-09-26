@@ -15,9 +15,8 @@ Freeflow is a portable workflow layer for coding agents. Choose the host that ma
 | OpenCode v2 | Canonical `skills/` through the documented project skill source | Not available; skills-only support |
 | Hermes Agent | Agent Plugins 1.0 portable package and canonical skills | Not available; skills-only support |
 | Pi | Shared skills and Pi extension source entrypoint, optional context capabilities, and experimental Tool Execution | Cognitive Routing is an unreleased experimental candidate; native SDK/bundled-CLI dispatch and extracted Tool Execution artifact loading are exercised by local fixtures; installed-user and model-behavior acceptance remain separate |
-| PiFlow | PiFlow-hosted Freeflow package and host lifecycle | Cognitive Routing is explicitly unavailable in the current source adapter |
 
-Cognitive Routing is not established merely by configuration or installation. The current source entrypoint is wired for native Pi, but installed-host dispatch and model behavior require separate evidence; the redesigned PiFlow adapter is currently unavailable.
+Cognitive Routing is not established merely by configuration or installation. The native Pi source entrypoint is wired, but installed-host dispatch and model behavior require separate evidence. Freeflow's PiFlow integration was removed as a breaking change; use native Pi for the Freeflow extension. Freeflow does not change or uninstall a separate PiFlow installation. See the [Unreleased changelog](../CHANGELOG.md#unreleased).
 
 ## Install Freeflow
 
@@ -107,23 +106,6 @@ Restart Pi or use `/reload` after installing or updating the package.
 
 Native Pi 0.87.1 is the minimum supported version (within the package's 0.87.x peer range); Pi 0.85.x is unsupported. The development dependency is 0.87.1. Scripted host and extracted-package checks qualify bounded source/artifact behavior, not a released or installed user integration, provider cache hits, billing or model quality.
 
-### PiFlow
-
-Install the separate PiFlow host, then install Freeflow into it:
-
-```bash
-npm install -g --ignore-scripts @hassangameryt/piflow
-piflow install npm:@hassangameryt/freeflow
-```
-
-A Git package source is also supported:
-
-```bash
-piflow install git:github.com/hassan-mohiddin/freeflow
-```
-
-Use `-l` when the package should be recorded in project-local PiFlow settings. Review package source before installation because PiFlow extensions run with host permissions. The current source adapter explicitly marks PiFlow Cognitive Routing unavailable.
-
 ## Activate a repository
 
 Run this in the repository where Freeflow should operate:
@@ -186,7 +168,6 @@ Use the host-native surface to confirm the installation:
 - **OpenCode v2:** confirm the configured `skills` array points at the canonical `skills/` directory and inspect the native `skill` catalog. Do not infer runtime prompt delivery.
 - **Hermes Agent:** confirm the portable package is listed/enabled or the checkout is trusted as a skills source, then inspect the skills catalog. Do not infer runtime prompt delivery from portable package installation.
 - **Pi:** use `/freeflow` to inspect settings/status and confirm the core prompt, Interaction Contract, and base skills. If Tool Execution is configured, verify its mode, workspace root/policy, catalog and adapter counts, and effect-fence status; use `/freeflow efficiency` only for factual observations. The source entrypoint includes v2 native routing and Tool Execution wiring, but this does not prove stock-Pi dispatch or model behavior.
-- **PiFlow:** use PiFlow's native lifecycle to confirm the package and Freeflow shared surface. The current source explicitly reports Cognitive Routing unavailable; do not configure or exercise it as an active PiFlow capability.
 
 Activation is not proof of runtime delivery. Setup reports delivery as `confirmed`, `unavailable`, or `unconfirmed`.
 
@@ -195,7 +176,6 @@ Activation is not proof of runtime delivery. Setup reports delivery as `confirme
 - [Using Freeflow Effectively](using-freeflow.md)
 - [Pi integration](integrations/pi.md)
 - [Tool Execution](capabilities/tool-execution.md)
-- [PiFlow integration](integrations/piflow.md)
 - [Architecture](architecture.md)
 - [Workflow](workflow.md)
 - [Skill routing](skill-routing.md)

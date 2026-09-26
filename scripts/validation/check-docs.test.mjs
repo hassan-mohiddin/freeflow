@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { validateDocs } from "./check-docs.mjs";
+import { CURRENT_DOCUMENTS, validateDocs } from "./check-docs.mjs";
 
 const CURRENT_DOCS = [
   "README.md",
@@ -21,7 +21,6 @@ const CURRENT_DOCS = [
   "plugin-docs/release.md",
   "plugin-docs/release-evidence/README.md",
   "plugin-docs/integrations/pi.md",
-  "plugin-docs/integrations/piflow.md",
   "plugin-docs/adr/README.md",
 ];
 
@@ -46,7 +45,7 @@ async function createFixture({
     let content = "# Fixture\n";
     if (relativePath === "README.md") content = "[Architecture](plugin-docs/architecture.md)\n";
     if (relativePath === "plugin-docs/README.md") {
-      content = brokenLink ? "[Missing](missing.md)\n" : "[Pi](integrations/pi.md)\n[PiFlow](integrations/piflow.md)\n";
+      content = brokenLink ? "[Missing](missing.md)\n" : "[Pi](integrations/pi.md)\n";
     }
     await writeFixtureFile(root, relativePath, content);
   }
@@ -119,4 +118,24 @@ test("rejects legacy paths in active skill and runtime sources", async () => {
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("removed PiFlow support has no current install route and documents native Pi migration", async () => {
+  const root = process.cwd();
+  const activeDocs = await Promise.all(
+    CURRENT_DOCUMENTS.map((relativePath) => readFile(path.join(root, relativePath), "utf8")),
+  );
+  const currentDocs = activeDocs.join("\n");
+  assert.doesNotMatch(currentDocs, /\bpiflow\s+install\b/i);
+  assert.doesNotMatch(currentDocs, /@hassangameryt\/piflow/i);
+  assert.doesNotMatch(currentDocs, /PiFlow-hosted Freeflow/i);
+  assert.doesNotMatch(currentDocs, /\[[^\]]+\]\([^)]*integrations\/piflow\.md(?:#[^)]*)?\)/i);
+  await assert.rejects(readFile(path.join(root, "plugin-docs/integrations/piflow.md"), "utf8"), { code: "ENOENT" });
+
+  const changelog = await readFile(path.join(root, "CHANGELOG.md"), "utf8");
+  const unreleased = changelog.split("## Unreleased")[1]?.split(/^## /m)[0] ?? "";
+  const breakingChanges = unreleased.split("### Breaking Changes")[1]?.split(/^### /m)[0] ?? "";
+  assert.match(breakingChanges, /Removes Freeflow-owned PiFlow host integration/i);
+  assert.match(breakingChanges, /Evaluate Skill's PiFlow runtime selection/i);
+  assert.match(breakingChanges, /use native Pi for Freeflow's Pi extension/i);
 });

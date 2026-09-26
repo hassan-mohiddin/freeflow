@@ -7,7 +7,6 @@ Start with [Getting Started](getting-started.md) for host-specific installation,
 ## Integrations
 
 - [Pi integration](integrations/pi.md): normal Pi installation, activation, capabilities, and native host controls.
-- [PiFlow integration](integrations/piflow.md): separate PiFlow installation, ownership boundaries, and current Cognitive Routing unavailability.
 
 ## Capabilities
 

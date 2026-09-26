@@ -69,7 +69,7 @@ On a supported native Pi host, configure the v2 shape through `/freeflow setting
 
 Older experimental routing fields or names such as `standard`, `reasoning`, `contextProjection`, and `sessionStart` are unsupported. There is no migration; rewrite them manually. Invalid configuration fails closed rather than partially enabling routing.
 
-The current source also rejects Cognitive Routing and Tool Execution on the identified PiFlow host path. See [PiFlow integration](piflow.md); do not infer equivalent PiFlow support from this Pi source entrypoint.
+Freeflow's PiFlow integration was removed as a breaking change. Use native Pi for the Freeflow extension; Freeflow does not modify or uninstall a separate PiFlow installation. See the [Unreleased changelog](../../CHANGELOG.md#unreleased).
 
 ## Tool Execution configuration
 
@@ -178,5 +178,4 @@ A snapshot identity and an installed package identity are different. Do not trea
 - [Freeflow architecture](../architecture.md)
 - [Workflow](../workflow.md)
 - [Skill routing](../skill-routing.md)
-- [PiFlow integration](piflow.md)
 - [Root installation guide](../../README.md#quick-start)

@@ -11,7 +11,6 @@ import {
   setSessionCoreOverride,
 } from "../runtime/runtime-context.js";
 import { PiSettingsComponent } from "./settings-tui.js";
-import { isPiFlowHost } from "../runtime/runtime-identity.js";
 import { workersForDelegation } from "../cognitive-routing-v2/types.js";
 import { DEFAULT_TOOL_EXECUTION_CONFIG } from "../tool-runtime/config.js";
 const DEFAULT_FREEFLOW_ENABLED = true;
@@ -787,7 +786,6 @@ function cognitiveRoutingProfileItem(options) {
 }
 function isCognitiveRoutingRuntimeAvailable(pi) {
   return (
-    !isPiFlowHost(pi?.host) &&
     typeof pi?.appendEntry === "function" &&
     typeof pi?.setModel === "function" &&
     typeof pi?.setThinkingLevel === "function"

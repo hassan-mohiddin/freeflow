@@ -352,18 +352,33 @@ test("runtime-only groups may omit a candidate skill target", async () => {
     const definition = group("runtime-only", "body");
     definition.variants.baseline = environment();
     definition.variants.candidate = environment();
-    definition.runtime = { host: "piflow", session: false, extensions: [], environment: { literal: {}, inherit: [] } };
+    definition.runtime = { host: "pi", session: false, extensions: [], environment: { literal: {}, inherit: [] } };
     const groupFile = await writeJson(root, "runtime-only.json", definition);
 
     const loaded = await loadDefinition(groupFile, { root });
 
     assert.deepEqual(loaded.runtime, {
-      host: "piflow",
+      host: "pi",
       session: false,
       extensions: [],
       environment: { literal: {}, inherit: [] },
     });
     assert.equal(loaded.variants.candidate.target, null);
+  });
+});
+
+test("definitions reject PiFlow as a removed runtime host", async () => {
+  await withTempDirectory(async (root) => {
+    const definition = group("removed-piflow-host", "body");
+    definition.variants.baseline = environment();
+    definition.variants.candidate = environment();
+    definition.runtime = { host: "piflow", session: false, extensions: [], environment: { literal: {}, inherit: [] } };
+    const groupFile = await writeJson(root, "removed-piflow-host.json", definition);
+
+    await assert.rejects(loadDefinition(groupFile, { root }), {
+      code: "invalid-definition",
+      message: "group.runtime.host must be pi",
+    });
   });
 });
 

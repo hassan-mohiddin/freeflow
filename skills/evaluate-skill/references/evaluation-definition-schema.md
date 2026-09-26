@@ -236,7 +236,7 @@ A runtime profile is shared by both baseline and candidate variants. It changes 
 }
 ```
 
-`host` is `pi` or `piflow`; the evaluator maps it to the corresponding installed host command and records the selected host. Optional `prompt` is `isolated` (default) or `host`:
+`host` is `pi`; the evaluator maps it to the installed Pi command and records the selected host. Optional `prompt` is `isolated` (default) or `host`:
 
 - `isolated` replaces the host's system prompt with a minimal evaluator-owned prompt. Use it to isolate the target skill.
 - `host` keeps the host's own system prompt and whatever declared extensions compose onto it, appending declared context. Use it when evidence must reflect the production prompt, for example by declaring the Freeflow Pi extension bundle with a fixture containing `.freeflow/config.json`.

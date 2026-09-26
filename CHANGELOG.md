@@ -7,6 +7,7 @@
 - Replaces the Astra effort-history entry type with `freeflow-openai-effort-v1` and removes the old Astra provider-support import paths. Existing `freeflow-astra-effort-v1` entries are not replayed or migrated; the next supported request starts a fresh effort chain.
 - Requires native Pi 0.87.1 or a compatible 0.87.x host for the Pi extension; Pi 0.85.x is no longer supported.
 - Removes the Freeflow Context tool (`freeflow_context`, `/freeflow context`), Context Virtualization, and Conversation History; Context Control v2 remains unavailable as a replacement. Before updating, delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present. Either key makes configuration invalid and blocks Freeflow activation until removed; no automatic migration occurs.
+- Removes Freeflow-owned PiFlow host integration and Evaluate Skill's PiFlow runtime selection; use native Pi for Freeflow's Pi extension. Existing PiFlow installations and state are not changed or automatically uninstalled.
 
 ### Added
 
@@ -23,7 +24,7 @@
 - Lets native Pi sessions override the Cognitive Routing delegation mode and stage any profile preset, while showing the effective mode in the footer without changing repository or personal configuration.
 - Clarifies mode-aware Coordinator/Helper/Executor ownership, implementation boundaries, evidence projection, recovery, and Coordinator assessment responsibilities.
 - Batches worker evidence selection during return preparation while preserving saved reports, unresolved evidence, and handoff limits.
-- Repositions Freeflow around Memory, planned Context, and Compute, and expands Cognitive Routing and PiFlow documentation with qualified preset and cache-reuse boundaries.
+- Repositions Freeflow around Memory, planned Context, and Compute, and expands Cognitive Routing and native Pi documentation with qualified preset and cache-reuse boundaries.
 - Removes most Freeflow per-request overhead in native Pi: routing history replays in one pass, request history and routing attribution reuse Pi's session projection instead of re-hashing the conversation, history and GPT-6 effort records are written only when their state changes, persisted-session checks read only newly appended entries, and accounting serializes requests after dispatch. A disabled repository no longer adds routing provenance, and GPT-6 effort adaptation stays off when a configured repository disables Freeflow.
 
 ### Fixed

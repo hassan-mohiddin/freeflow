@@ -250,8 +250,6 @@ process.stdin.on("data", (chunk) => {
 `,
   );
   await chmod(executable, 0o755);
-  await writeFile(path.join(bin, "piflow"), await readFile(executable));
-  await chmod(path.join(bin, "piflow"), 0o755);
   return bin;
 }
 
@@ -341,7 +339,7 @@ test("body evaluation explicitly delivers only the selected target body and pres
     const fakeLog = path.join(root, "fake-pi.jsonl");
     const bin = await installFakeRpcPi(root);
     const group = bodyGroup();
-    group.runtime.host = "piflow";
+    group.runtime.host = "pi";
     await writeSkill(root, "skills/release-route");
     const definition = await writeJson(root, "groups/body.json", group);
 
@@ -363,7 +361,7 @@ test("body evaluation explicitly delivers only the selected target body and pres
     const spawns = log.filter((entry) => entry.kind === "spawn");
     assert.deepEqual(
       spawns.map(({ host }) => host),
-      ["piflow", "piflow"],
+      ["pi", "pi"],
     );
     const prompts = log
       .filter((entry) => entry.kind === "command" && entry.command.type === "prompt")

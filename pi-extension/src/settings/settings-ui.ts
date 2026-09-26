@@ -19,7 +19,6 @@ import {
   type SettingsWizard,
   type SettingsWizardStep,
 } from "./settings-tui.js";
-import { isPiFlowHost } from "../runtime/runtime-identity.js";
 import type {
   CognitiveRoutingCapabilityState,
   CognitiveRoutingDelegationMode,
@@ -1015,7 +1014,6 @@ function cognitiveRoutingProfileItem(options: {
 
 function isCognitiveRoutingRuntimeAvailable(pi: any): boolean {
   return (
-    !isPiFlowHost(pi?.host) &&
     typeof pi?.appendEntry === "function" &&
     typeof pi?.setModel === "function" &&
     typeof pi?.setThinkingLevel === "function"

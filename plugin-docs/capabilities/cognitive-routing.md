@@ -11,7 +11,6 @@ Cognitive Routing is an experimental native-Pi capability.
 - The native Pi entrypoint is wired in the source tree.
 - Local SDK, bundled-CLI, and deterministic request fixtures exercise named source and request boundaries.
 - Source and fixture evidence do not establish installation into a user's Pi host, universal provider behavior, model quality, or production readiness.
-- The redesigned PiFlow adapter is explicitly unavailable in the current source entrypoint.
 - Cognitive Routing is not delivered to the non-Pi hosts that consume only Freeflow's shared skill surface.
 
 Installing Freeflow or writing a valid configuration does not prove that routing is effective. Use `/freeflow status` on the target host and treat an unavailable capability as unavailable rather than impersonating a profile or bypassing its gate.
@@ -149,7 +148,6 @@ Common unavailable states include:
 - identical Coordinator and enabled-worker pairs;
 - unsupported host APIs;
 - incompatible capability composition;
-- deliberately unavailable PiFlow adapter.
 
 The runtime reports the reason rather than partially enabling routing or silently choosing another model.
 
@@ -620,7 +618,7 @@ Check `/freeflow status`, then verify:
 - exact supported thinking levels;
 - model authentication;
 - distinct Coordinator/worker pairs;
-- native Pi rather than the currently unsupported PiFlow adapter;
+- the target host exposes the required native Pi APIs;
 - no incompatible routing-projection and legacy-context-capability combination.
 
 ### A configured worker is not used
@@ -665,7 +663,7 @@ Current deterministic source and fixture checks can establish:
 
 They do not establish:
 
-- stock-Pi or PiFlow installed-host behavior;
+- installed-host delivery or behavior;
 - universal provider or transport compatibility;
 - independent review from a profile switch;
 - optimal worker selection;
@@ -679,7 +677,6 @@ They do not establish:
 - [Workflow](../workflow.md)
 - [System prompt architecture](../prompt-architecture.md)
 - [Pi integration](../integrations/pi.md)
-- [PiFlow integration](../integrations/piflow.md)
 - [Getting Started](../getting-started.md)
 - [Architecture](../architecture.md)
 - [Release evidence](../release-evidence/README.md)

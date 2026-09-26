@@ -12,7 +12,7 @@ Freeflow organizes work around three product pillars:
 | --- | --- | --- |
 | **Memory — Track Work** | Preserve decisions, current work, evidence limits, future work, and the next useful action in a Working Record. | Available through the shared skill surface. |
 | **Context — Context Control** | Planned source-aware control over what remains in context and how exact evidence is recovered. | Planned/in development; unavailable in this release. |
-| **Compute — Cognitive Routing** | Place work across Coordinator, Helper, and Executor profiles without changing Workflow ownership or user authority. | Experimental native-Pi capability; current PiFlow adapter unavailable. |
+| **Compute — Cognitive Routing** | Place work across Coordinator, Helper, and Executor profiles without changing Workflow ownership or user authority. | Experimental native-Pi capability; installed-host and model-behavior evidence remain separate. |
 
 Freeflow also includes focused methods for discussion, planning, implementation, diagnosis, verification, review, commits, migration, releases, launches, and handoffs.
 
@@ -426,7 +426,7 @@ Configuration proves neither installation nor effective runtime delivery. Verify
 
 ## Use Tool Execution on native Pi
 
-Tool Execution is experimental, opt-in, and currently unavailable on PiFlow. Start with captured-data reduction before enabling live local access:
+Tool Execution is experimental and opt-in in the native Pi source candidate. Start with captured-data reduction before enabling live local access:
 
 ```json
 {

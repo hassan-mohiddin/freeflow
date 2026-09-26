@@ -33,15 +33,15 @@ When work depends on Pi or another external host's source, API, lifecycle, or do
 
 ## Development Snapshot Boundary
 
-Pi and PiFlow development consume a committed Freeflow snapshot, not this checkout's working tree:
+Pi development consumes a committed Freeflow snapshot, not this checkout's working tree:
 
 ```bash
 npm run snapshot:refresh
 ```
 
-Commit intended Freeflow changes before refreshing. The tool archives the selected Git revision, installs only its declared runtime dependencies from the committed lockfile with scripts disabled, packs it with `npm pack --ignore-scripts`, records source/package/dependency provenance, and replaces the self-contained target atomically. It excludes uncommitted and ignored source files and does not mutate host state. Snapshots are development-only; production uses ordinary npm/Git sources. Read `plugin-docs/integrations/piflow.md` for current PiFlow ownership and integration; use `.deprecated/project-docs/guides/tooling/freeflow-development-snapshot.md` only for detailed historical snapshot mechanics.
+Commit intended Freeflow changes before refreshing. The tool archives the selected Git revision, installs only its declared runtime dependencies from the committed lockfile with scripts disabled, packs it with `npm pack --ignore-scripts`, records source/package/dependency provenance, and replaces the self-contained target atomically. It excludes uncommitted and ignored source files and does not mutate host state. Snapshots are development-only; production uses ordinary npm/Git sources. Read `plugin-docs/integrations/pi.md` for current native Pi guidance; use `.deprecated/project-docs/guides/tooling/freeflow-development-snapshot.md` only for detailed historical snapshot mechanics.
 
-PiFlow launch, import, and update behavior remains PiFlow-owned; Freeflow supplies policy and the development package snapshot.
+Host launch, import, and update behavior remain host-owned; a development snapshot does not establish host support or runtime delivery.
 
 ## Reference Stack For Skill Development
 

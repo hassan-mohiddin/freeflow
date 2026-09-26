@@ -51,7 +51,7 @@ Current run support:
   Description and explicit-body groups with prompt or ordered turns
   Working-tree or Git-backed ordered skills/context; optional fresh fixture copies
   Description tools: read; body tools: read, write, edit, run_command for declared commands, or declared extension tools
-  Runtime profiles: Pi or PiFlow hosts, isolated or host system prompt, ordered immutable extension bundles, environment overrides
+  Runtime profiles: Pi hosts, isolated or host system prompt, ordered immutable extension bundles, environment overrides
   Deterministic reads, paths, changed paths, text, JSON, tool calls, context observations, and factual comparisons
   Ordered suites run serially and continue after isolated variant, group, or post-processing failures
   Grade-first views show compact criterion details, usage, and result-relative artifact paths

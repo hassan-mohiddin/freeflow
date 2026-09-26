@@ -212,8 +212,6 @@ if (process.env.FAKE_PI_CANCEL_PARENT === "1") process.kill(process.ppid, "SIGIN
 `,
   );
   await chmod(executable, 0o755);
-  await writeFile(path.join(bin, "piflow"), await readFile(executable));
-  await chmod(path.join(bin, "piflow"), 0o755);
   return bin;
 }
 
@@ -265,6 +263,39 @@ function descriptionGroup() {
     model: { model: "fake/model", thinking: "low" },
   };
 }
+
+test("removed PiFlow runtime profiles fail before launching a host process", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = path.join(root, "bin");
+    const marker = path.join(root, "piflow-invoked");
+    await mkdir(bin, { recursive: true });
+    const piflow = path.join(bin, "piflow");
+    await writeFile(
+      piflow,
+      `#!/bin/sh
+printf invoked > ${JSON.stringify(marker)}
+`,
+      "utf8",
+    );
+    await chmod(piflow, 0o755);
+    const group = descriptionGroup();
+    group.runtime.host = "piflow";
+    const definition = await writeJson(root, "groups/removed-piflow.json", group);
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+      },
+    });
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /group.runtime.host must be pi/);
+    await assert.rejects(readFile(marker), { code: "ENOENT" });
+  });
+});
 
 test("runtime bundles are snapshotted once between the base guard and final observer", async () => {
   await withTempDirectory(async (root) => {

@@ -1,6 +1,6 @@
 # Freeflow Capabilities
 
-Capabilities are optional Pi/PiFlow extensions outside the shared 24-skill surface. They add bounded host or context behavior; they do not replace Workflow, change authority, or become a second agent.
+Capabilities are optional Pi extensions outside the shared 24-skill surface. They add bounded host or context behavior; they do not replace Workflow, change authority, or become a second agent.
 
 ## Common rules
 
@@ -15,8 +15,8 @@ Capabilities are optional Pi/PiFlow extensions outside the shared 24-skill surfa
 
 | Capability | Host support | Primary job |
 | --- | --- | --- |
-| [Cognitive Routing](cognitive-routing.md) | Native Pi; redesigned PiFlow routing remains unavailable | Place compute among Coordinator and enabled Helper or Executor profiles without changing authority or ownership |
-| [Tool Execution](tool-execution.md) | Native Pi candidate; current PiFlow path unavailable | Capture/recover bounded results and run revisioned direct or restricted program operations with truthful effects |
+| [Cognitive Routing](cognitive-routing.md) | Experimental native-Pi source candidate | Place compute among Coordinator and enabled Helper or Executor profiles without changing authority or ownership |
+| [Tool Execution](tool-execution.md) | Experimental native-Pi source candidate | Capture/recover bounded results and run revisioned direct or restricted program operations with truthful effects |
 
 ## Composition
 
@@ -32,5 +32,4 @@ Tool Execution composes with current routing responsibility and attached recover
 - [System prompt architecture](../prompt-architecture.md)
 - [Architecture](../architecture.md)
 - [Pi integration](../integrations/pi.md)
-- [PiFlow integration](../integrations/piflow.md)
 - [Workflow](../workflow.md)

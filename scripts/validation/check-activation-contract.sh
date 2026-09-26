@@ -102,7 +102,6 @@ for file in \
 	"$workflow_doc" \
 	"$repo_root/plugin-docs/release.md" \
 	"$repo_root/plugin-docs/integrations/pi.md" \
-	"$repo_root/plugin-docs/integrations/piflow.md" \
 	"$architecture_doc" \
 	"$repo_root/plugin-docs/release-evidence/README.md"; do
 	reject_text "$file" 'runtime kernel'

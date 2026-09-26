@@ -61,7 +61,7 @@ The `enabled` setting is the only Freeflow core switch. Cognitive Routing and To
 
 ### Codex and Claude Code
 
-The Codex and Claude adapters load the mandatory core fragments at `SessionStart` for startup, resume, clear, and compact boundaries. They share `hooks/shared/runtime-context.mjs` but keep host-specific hook manifests and output envelopes. They do not process ordinary submitted prompts, persist session controls, or create clear-transfer state. Codex and Claude do not receive Pi/PiFlow capability delivery.
+The Codex and Claude adapters load the mandatory core fragments at `SessionStart` for startup, resume, clear, and compact boundaries. They share `hooks/shared/runtime-context.mjs` but keep host-specific hook manifests and output envelopes. They do not process ordinary submitted prompts, persist session controls, or create clear-transfer state. Codex and Claude do not receive Pi-specific capability delivery.
 
 Hook delivery does not enforce Workflow policy, block tools, grant permissions, or replace repository instructions. Hook trust and registration are host concerns; Setup reports delivery as confirmed, unavailable, or unconfirmed.
 
@@ -83,15 +83,15 @@ Kiro can load the root Agent Plugins 1.0 package as a Power and activate its bun
 
 ### OpenCode and Hermes Agent
 
-OpenCode v2 and Hermes consume the canonical `skills/` surface through their documented skill-source or Agent Plugins adapters. Neither receives a claimed always-on Freeflow prompt surface or the Pi/PiFlow capabilities from this package.
+OpenCode v2 and Hermes consume the canonical `skills/` surface through their documented skill-source or Agent Plugins adapters. Neither receives a claimed always-on Freeflow prompt surface or Pi-specific capabilities from this package.
 
-### Pi and PiFlow
+### Pi
 
 The native Pi 0.87.1 extension contributes stable core/capability guidance through `systemPromptOptions.sections` and composes one request in `context_with_system`, preserving Pi's leading prompt and later system/tool patches while applying Runtime State, routing, RequestHistory, and optional context transforms. It filters historical one-time Workflow or Cognitive Routing bootstrap entries rather than creating new persistent bootstrap messages. This is an assembled-host boundary, not proof of provider cache hits; another extension may still alter the final request.
 
-Pi exposes Cognitive Routing when its native model, thinking, session-entry, and ancestry gates are effective. PiFlow provides its host lifecycle for shared Freeflow skills and standalone context capabilities, but the current Freeflow source entrypoint explicitly marks the redesigned PiFlow Cognitive Routing adapter unavailable. Do not infer routing availability from PiFlow installation or from the Pi source entrypoint.
+Pi exposes Cognitive Routing when its native model, thinking, session-entry, and ancestry gates are effective.
 
-See [Pi integration](integrations/pi.md) and [PiFlow integration](integrations/piflow.md) for host-specific installation and behavior.
+See [Pi integration](integrations/pi.md) for native-host behavior and its evidence limits.
 
 ## Nested execution model
 

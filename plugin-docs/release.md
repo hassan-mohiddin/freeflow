@@ -87,19 +87,18 @@ Do not reuse a published npm version or force-move a release tag. Do not publish
 
 For each candidate or release, preserve versioned evidence under [`release-evidence/`](release-evidence/). A version record must state what was checked and what remains unavailable. Keep behavioral evaluation, remote host installation, host trust UI, registry propagation, signatures, marketplace review, and consumer installation claims separate from local deterministic checks. Host-specific smoke checks should cover Codex, Claude, Gemini, Cursor, Copilot/VS Code, Kiro, OpenCode, Hermes, and Pi when those clients are available; their absence leaves the corresponding claim deferred.
 
-## PiFlow development snapshots
+## Pi development snapshots
 
-A committed Freeflow development snapshot is an integration input for Pi/PiFlow development, not a release or a source-precedence mechanism:
+A committed Freeflow development snapshot is an integration input for local Pi extension development, not a release or a source-precedence mechanism:
 
 ```bash
 npm run snapshot:refresh
 ```
 
-PiFlow owns host launch, import, isolated state, updates, and upstream synchronization. Freeflow owns policy and snapshot production. Production installations use ordinary npm or Git package sources.
+The host's launch, import, isolated state, and updates remain host-owned. Freeflow owns its policy and snapshot production. Production installations use ordinary npm or Git package sources.
 
 ## Related documentation
 
 - [Release evidence index](release-evidence/README.md)
 - [Architecture](architecture.md)
-- [PiFlow integration](integrations/piflow.md)
 - [Root changelog](../CHANGELOG.md)

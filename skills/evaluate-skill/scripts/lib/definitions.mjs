@@ -4,7 +4,7 @@ import path from "node:path";
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const EVALUATION_TYPES = new Set(["description", "body"]);
 const VARIANTS = ["baseline", "candidate"];
-const EVALUATION_HOSTS = new Set(["pi", "piflow"]);
+const EVALUATION_HOSTS = new Set(["pi"]);
 const PROMPT_MODES = new Set(["isolated", "host"]);
 export const COMMAND_TOOL = "run_command";
 const MAX_COMMAND_TIMEOUT_MS = 10 * 60 * 1000;
@@ -18,8 +18,6 @@ const RESERVED_ENVIRONMENT_KEYS = new Set([
   "NODE_OPTIONS",
   "NODE_PATH",
   "PI_PACKAGE_DIR",
-  "PIFLOW_CODING_AGENT_DIR",
-  "PIFLOW_CODING_AGENT_SESSION_DIR",
 ]);
 
 export class DefinitionError extends Error {
@@ -155,7 +153,7 @@ function validateRuntime(value, definitionPath) {
     definitionPath,
   );
   if (!EVALUATION_HOSTS.has(runtime.host)) {
-    fail("invalid-definition", "group.runtime.host must be pi or piflow", definitionPath);
+    fail("invalid-definition", "group.runtime.host must be pi", definitionPath);
   }
   if (Object.hasOwn(runtime, "prompt") && !PROMPT_MODES.has(runtime.prompt)) {
     fail("invalid-definition", "group.runtime.prompt must be isolated or host", definitionPath);

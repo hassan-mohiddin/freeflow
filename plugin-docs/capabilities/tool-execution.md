@@ -2,12 +2,12 @@
 
 Tool Execution is an experimental native-Pi capability for bounded tool output, exact recovery, revisioned operations, restricted local programs, deterministic discovery, cooperating adapters, and factual efficiency reporting. It keeps Pi's ordinary tools available and does not turn Freeflow into a universal child-tool dispatcher.
 
-The current package candidate is exercised through source-built native fixtures and an extracted npm-artifact fixture that loads its Worker and QuickJS WASM from a path containing spaces. This does not establish publication, installation into a user's Pi process, real-model program quality, provider billing, or PiFlow support.
+The current package candidate is exercised through source-built native fixtures and an extracted npm-artifact fixture that loads its Worker and QuickJS WASM from a path containing spaces. This does not establish publication, installation into a user's Pi process, real-model program quality, provider billing, or behavior on other host distributions.
 
 ## Availability and boundaries
 
 - Tool Execution is disabled by default.
-- It requires native Pi 0.87.1 or a compatible 0.87.x host; Pi 0.85.x is unsupported. The current PiFlow path reports it unavailable.
+- It requires native Pi 0.87.1 or a compatible 0.87.x host; Pi 0.85.x is unsupported. Source and fixtures do not establish behavior in an installed host.
 - The stable native tools remain visible while execution-time gates enforce current availability.
 - Native Pi Bash is the built-in output-capture integration. An unknown custom Bash keeps its ordinary Pi behavior and is not reshaped.
 - Live child operations run in their declared execution world and cooperating policy. They do not inherit every native or third-party Pi hook.
@@ -185,7 +185,7 @@ Current deterministic evidence establishes source behavior, native scripted disp
 It does not establish:
 
 - publication or installation into a user's Pi process;
-- PiFlow behavior;
+- behavior on other host distributions;
 - an audited sandbox or protection from malicious same-process extensions;
 - arbitrary native/third-party tool-hook parity;
 - real-model program generation or task quality;

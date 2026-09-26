@@ -55,7 +55,7 @@ Name the exact claim and observing mechanism before choosing the group shape. Ev
 - **Dependency composition:** did exact ordered skills, resources, and context work together?
 - **Retained use:** did guidance remain useful on later declared turns without redelivery?
 - **Artifact outcome:** did files, structured state, events, and responses match fixed criteria?
-- **Cross-host behavior:** did the same behavioral question hold on every named host? The evaluator currently runs only Pi and PiFlow hosts.
+- **Cross-host behavior:** did the same behavioral question hold on every named host? The evaluator currently runs only native Pi hosts.
 
 ```text
 successful read

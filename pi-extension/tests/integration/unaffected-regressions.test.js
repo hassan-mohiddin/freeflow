@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 
 import freeflowExtension from "../../dist/index.js";
 import { resetSessionOverrides, setSessionCoreOverride } from "../../dist/runtime/runtime-context.js";
-import { PIFLOW_HOST } from "../fixtures/pi-host.js";
+import { PI_HOST } from "../fixtures/pi-host.js";
 import { beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
 const execFileAsync = promisify(execFile);
@@ -52,7 +52,7 @@ function context(cwd, options = {}) {
   };
 }
 
-function loadExtension(host = PIFLOW_HOST, runtimeApi = {}) {
+function loadExtension(host = PI_HOST, runtimeApi = {}) {
   const handlers = new Map();
   const commands = [];
   const tools = [];
@@ -347,7 +347,7 @@ test("remaining session overrides apply without changing repository configuratio
     const ctx = context(cwd);
     await setSessionCoreOverride("enabled", false, ctx, pi);
     const state = await import("../../dist/runtime/runtime-context.js").then(({ readCapabilityState }) =>
-      readCapabilityState(cwd, undefined, PIFLOW_HOST),
+      readCapabilityState(cwd, undefined, PI_HOST),
     );
     assert.equal(state.enabled, false);
     assert.equal(await readFile(configPath, "utf8"), original);

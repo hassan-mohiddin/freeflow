@@ -32,7 +32,7 @@ import {
 const guardExtension = fileURLToPath(new URL("../pi-guard.mjs", import.meta.url));
 const commandToolExtension = fileURLToPath(new URL("../pi-command-tool.mjs", import.meta.url));
 const observerExtension = fileURLToPath(new URL("../pi-observer.mjs", import.meta.url));
-const HOST_COMMANDS = { pi: "pi", piflow: "piflow" };
+const HOST_COMMANDS = { pi: "pi" };
 const BASE_PROCESS_ENVIRONMENT_KEYS = [
   "PATH",
   "HOME",
@@ -44,8 +44,6 @@ const BASE_PROCESS_ENVIRONMENT_KEYS = [
   "XDG_CONFIG_HOME",
   "XDG_DATA_HOME",
   "XDG_CACHE_HOME",
-  "PIFLOW_CODING_AGENT_DIR",
-  "PIFLOW_CODING_AGENT_SESSION_DIR",
   "PI_PACKAGE_DIR",
   "PI_OFFLINE",
 ];

@@ -17,13 +17,13 @@ import {
   setFreeflowStatus,
   setSessionCoreOverride,
 } from "../../dist/runtime/runtime-context.js";
-import { PIFLOW_HOST } from "../fixtures/pi-host.js";
+import { PI_HOST, PIFLOW_HOST, PIFLOW_HOST_NO_CAPABILITY } from "../fixtures/pi-host.js";
 import { matches } from "../../dist/cognitive-routing-v2/schemas.js";
 import { contextHandler, beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
 const execFileAsync = promisify(execFile);
 
-function loadExtension(extension = freeflowExtension, host = PIFLOW_HOST, runtimeApi = {}) {
+function loadExtension(extension = freeflowExtension, host = PI_HOST, runtimeApi = {}) {
   const handlers = new Map();
   const tools = [];
   const commands = [];
@@ -369,62 +369,19 @@ test("Pi registers the remaining Freeflow commands without mode controls or reti
   assert.ok(!toolNames.some((name) => ["freeflow_status", "freeflow_search", "freeflow_batch"].includes(name)));
 });
 
-test("PiFlow keeps Cognitive Routing unavailable while exposing its configuration", async () => {
-  const cwd = await configuredRepo({
-    toolExecution: { enabled: true, programs: { mode: "reduction" } },
-    cognitiveRouting: {
-      enabled: true,
-      profiles: {
-        coordinator: { provider: "test", model: "coordinator", thinking: "high" },
-        executor: { provider: "test", model: "executor", thinking: "max" },
-      },
-    },
-  });
-  try {
-    const { commands, handlers, shortcuts, tools, activeToolNames } = loadExtension(freeflowExtension, PIFLOW_HOST);
-    const freeflowCommand = commands.find((command) => command.name === "freeflow");
-    assert.ok(freeflowCommand);
+test("PiFlow hosts are rejected before Freeflow registers any surface, with or without session model control", () => {
+  for (const host of [PIFLOW_HOST, PIFLOW_HOST_NO_CAPABILITY]) {
+    const { commands, handlers, shortcuts, tools, entries, sentMessages, activeToolNames } = loadExtension(
+      freeflowExtension,
+      host,
+    );
+    assert.deepEqual(commands, []);
+    assert.equal(handlers.size, 0);
     assert.deepEqual(shortcuts, []);
-    assert.deepEqual(
-      tools.filter((tool) => tool.name.startsWith("freeflow_")).map((tool) => tool.name),
-      [
-        "freeflow_delegate",
-        "freeflow_return",
-        "freeflow_unit",
-        "freeflow_project",
-        "freeflow_tools",
-        "freeflow_run",
-        "freeflow_result",
-      ],
-    );
-    assert.ok(!tools.some((tool) => tool.name === "freeflow_switch_profile"));
-    assert.ok(!tools.some((tool) => tool.name === "freeflow_cognitive_routing_history"));
-    assert.ok(!freeflowCommand.definition.getArgumentCompletions("").some((item) => item.value === "profile"));
-    const capabilityState = await readCapabilityState(cwd, undefined, undefined);
-    assert.equal(capabilityState.cognitiveRouting.enabled, true);
-    assert.equal(capabilityState.cognitiveRouting.effective, false);
-    assert.equal(capabilityState.cognitiveRouting.blockingReason.code, "host_unsupported");
-
-    const ctx = context(cwd);
-    await handlers.get("session_start")({ type: "session_start" }, ctx);
-    assert.match(ctx.statuses.at(-1).value, /cognitive blocked ·/);
-    const run = tools.find((tool) => tool.name === "freeflow_run");
-    await assert.rejects(
-      () =>
-        run.execute(
-          "piflow-run",
-          { code: `emit("unreachable")`, description: "unavailable", operations: [] },
-          undefined,
-          undefined,
-          ctx,
-        ),
-      /programs_disabled/,
-    );
-    assert.ok(activeToolNames().includes("freeflow_delegate"));
-    const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base" }, ctx);
-    assert.match(before.renderedGuidance, /guidance is dormant/);
-  } finally {
-    await rm(cwd, { recursive: true, force: true });
+    assert.deepEqual(tools, []);
+    assert.deepEqual(entries, []);
+    assert.deepEqual(sentMessages, []);
+    assert.deepEqual(activeToolNames(), []);
   }
 });
 
@@ -457,7 +414,6 @@ test("normal Pi settings expose active Cognitive Routing configuration", async (
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
       const rootText = renderText(component);
       assert.match(rootText, /Cognitive Routing\s+enabled \(6\) active/);
-      assert.doesNotMatch(rootText, /PiFlow only/);
       return undefined;
     };
 
@@ -1037,27 +993,6 @@ test("Pi statusline keeps an inactive Cognitive Routing runtime blocked", () => 
   assert.equal(ctx.statuses.at(-1).value, "freeflow: cognitive blocked · runtime_inactive");
 });
 
-test("PiFlow keeps configured routing unavailable before the first prompt", async () => {
-  const cwd = await configuredRepo({
-    cognitiveRouting: {
-      enabled: true,
-      profiles: {
-        coordinator: { provider: "test", model: "model-a", thinking: "low" },
-        executor: { provider: "test", model: "model-b", thinking: "high" },
-      },
-    },
-  });
-  try {
-    const { handlers } = loadExtension();
-    const ctx = context(cwd);
-    ctx.modelRegistry = cognitiveRoutingModelRegistry();
-    await handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
-    assert.match(ctx.statuses.at(-1).value, /cognitive blocked ·/);
-  } finally {
-    await rm(cwd, { recursive: true, force: true });
-  }
-});
-
 test("Pi exposes bypass scope argument completions", () => {
   const { commands } = loadExtension();
   const bypassCommand = commands.find((command) => command.name === "bypass");
@@ -1244,7 +1179,7 @@ test("Pi resolves only the remaining layered core values", async () => {
     const layers = await readFreeflowConfigLayers(cwd);
     assert.deepEqual(layers.coreConfig, { enabled: false });
     assert.deepEqual(layers.sources, { enabled: "local" });
-    const state = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
+    const state = await readCapabilityState(cwd, undefined, PI_HOST);
     assert.equal(state.enabled, false);
     assert.equal("skills" in state, false);
     assert.equal("interactionContract" in state, false);
@@ -1301,12 +1236,12 @@ test("Pi session enablement cannot bypass repository activation", async () => {
   const ctx = context(cwd);
   try {
     await setSessionCoreOverride("enabled", true, ctx, pi);
-    let state = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
+    let state = await readCapabilityState(cwd, undefined, PI_HOST);
     assert.equal(state.configured, false);
     assert.equal(state.enabled, false);
 
     await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ enabled: false }), "utf8");
-    state = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
+    state = await readCapabilityState(cwd, undefined, PI_HOST);
     assert.equal(state.configured, true);
     assert.equal(state.enabled, true);
     assert.equal(state.configSources.enabled, "session");
@@ -1328,7 +1263,7 @@ test("Pi restores remaining session overrides from the active branch and ignores
       },
     ];
     restoreSessionOverrides(context(cwd, activeBranchEntries, activeBranchEntries));
-    const state = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
+    const state = await readCapabilityState(cwd, undefined, PI_HOST);
     assert.equal(state.enabled, false);
     assert.deepEqual(state.sessionOverrides, { enabled: false });
     assert.equal("currentMode" in state, false);
@@ -1346,7 +1281,7 @@ test("Pi fails closed when an existing local override is invalid", async () => {
     assert.equal(layers.repositoryConfigured, true);
     assert.equal(layers.configured, false);
     assert.equal(layers.local.valid, false);
-    const state = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
+    const state = await readCapabilityState(cwd, undefined, PI_HOST);
     assert.equal(state.configured, false);
     assert.equal(state.enabled, false);
     const { handlers } = loadExtension();
@@ -1362,7 +1297,7 @@ test("Pi local enablement overrides the repository master switch", async () => {
   const cwd = await configuredRepo({ enabled: true });
   try {
     await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ enabled: false }, null, 2), "utf8");
-    const state = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
+    const state = await readCapabilityState(cwd, undefined, PI_HOST);
     assert.equal(state.configured, true);
     assert.equal(state.enabled, false);
     assert.equal(state.configSources.enabled, "local");

@@ -17,7 +17,7 @@ The host agent still owns tools, permissions, and execution. Freeflow helps it u
 | --- | --- | --- |
 | **Memory — Track Work** | Working Records that preserve current context, one Current Slice, decisions, evidence limits, future work, and the next useful action. | Available through the shared skill surface. |
 | **Context — Context Control** | Planned source-aware residency, representation, and bounded recovery for admitted context. | Planned/in development; unavailable in this release. |
-| **Compute — Cognitive Routing** | Coordinator, Helper, and Executor profiles in one agent/session, with mode-aware work placement and optional worker-evidence projection. | Experimental native-Pi capability; current PiFlow adapter unavailable. |
+| **Compute — Cognitive Routing** | Coordinator, Helper, and Executor profiles in one agent/session, with mode-aware work placement and optional worker-evidence projection. | Experimental native-Pi capability; installed-host and model-behavior evidence remain separate. |
 
 The former Freeflow Context (`freeflow_context`, `/freeflow context`), Context Virtualization, and Conversation History surfaces are removed as a breaking change. Context Control v2 is planned but unavailable in this release; it does not replace those operations yet. See the Unreleased changelog for the required config-key cleanup.
 
@@ -97,9 +97,8 @@ A comparatively economical but capable Helper can contribute much of Both mode's
 | Track Work / Working Records | Shared skill surface |
 | Context Control v2 | Planned/in development; not available in this release |
 | Cognitive Routing | Experimental native Pi source candidate |
-| Cognitive Routing on PiFlow | Explicitly unavailable in the current adapter |
 | Selected GPT-6 effort history | Narrow source/fixture-qualified native Pi route for Astra, Luna, and Sol; provider savings unverified |
-| Tool Execution | Experimental native-Pi candidate; extracted Worker/WASM artifact fixture passes; PiFlow and installed-user/model behavior remain unverified |
+| Tool Execution | Experimental native-Pi candidate; extracted Worker/WASM artifact fixture passes; installed-user and model behavior remain unverified |
 
 Configuration or installation alone does not establish runtime delivery.
 
@@ -118,9 +117,8 @@ Freeflow is one package with different host boundaries:
 | OpenCode v2 | Canonical `skills/` through a documented project skill source | Not available; skills-only support |
 | Hermes Agent | Agent Plugins 1.0 package and canonical skills | Not available; skills-only support |
 | Pi | Shared skills and native extension source entrypoint | Experimental Cognitive Routing and Tool Execution candidate; installed-user and model-behavior evidence remain separate |
-| PiFlow | PiFlow-hosted Freeflow package and shared surface | Explicitly unavailable in the current source adapter |
 
-Freeflow owns workflow policy, portable prompts, skills, capability source, host adapters, and the Pi extension. Each host owns launch, package installation, session state, trust, and updates.
+Freeflow owns workflow policy, portable prompts, skills, capability source, host adapters, and the Pi extension. Each host owns launch, package installation, session state, trust, and updates. Freeflow's PiFlow integration was removed as a breaking change; use native Pi for the Freeflow extension. Freeflow does not change or uninstall a separate PiFlow installation. See the [Unreleased changelog](CHANGELOG.md#unreleased).
 
 ## Quick start
 
@@ -182,15 +180,6 @@ pi install git:github.com/hassan-mohiddin/freeflow
 ```
 
 Restart Pi or use `/reload` after installation or updates.
-
-### PiFlow
-
-```bash
-npm install -g --ignore-scripts @hassangameryt/piflow
-piflow install npm:@hassangameryt/freeflow
-```
-
-The current PiFlow adapter does not provide Cognitive Routing.
 
 ### Activate a repository
 
@@ -296,7 +285,6 @@ Cognitive Routing remains experimental pending broader behavioral acceptance. Co
 - [Cognitive Routing](plugin-docs/capabilities/cognitive-routing.md)
 - [Tool Execution](plugin-docs/capabilities/tool-execution.md)
 - [Pi integration](plugin-docs/integrations/pi.md)
-- [PiFlow integration](plugin-docs/integrations/piflow.md)
 - [Architecture](plugin-docs/architecture.md)
 - [System prompt architecture](plugin-docs/prompt-architecture.md)
 - [Skill routing](plugin-docs/skill-routing.md)
@@ -306,7 +294,7 @@ Cognitive Routing remains experimental pending broader behavioral acceptance. Co
 - [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 
-For local Pi/PiFlow development, refresh a development snapshot only from a committed Freeflow revision with `npm run snapshot:refresh`. A snapshot is not a production install or release.
+For local Pi extension development, refresh a development snapshot only from a committed Freeflow revision with `npm run snapshot:refresh`. A snapshot is not a production install or release.
 
 ## What Freeflow is not
 
