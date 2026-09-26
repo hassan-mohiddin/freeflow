@@ -145,8 +145,30 @@ export class RoutingRuntime {
     this.ctx = ctx;
     this.retireUnbound("Native run settled without a complete source binding; prior effects remain unresolved.");
   }
+  heldNotice;
+  /** A manual hold whose profile model is not what the host runs, e.g. after a change in Pi's model picker. */
+  heldMismatch(state = this.stateData()) {
+    if (!this.supported() || state.control !== "manual" || !state.profile || this.applying) return;
+    const observed = this.observed();
+    let expected;
+    try {
+      expected = this.profilePair(state.profile);
+    } catch {
+      return;
+    }
+    return observed && !samePair(observed, expected) ? { profile: state.profile, expected, observed } : undefined;
+  }
   async beforeRun(ctx) {
     this.ctx = ctx;
+    const held = this.store ? this.heldMismatch() : undefined;
+    const notice = held && JSON.stringify(held);
+    // The hold is the user's; report the divergence once instead of overriding a deliberate model choice.
+    if (notice && notice !== this.heldNotice)
+      ctx.ui?.notify?.(
+        `Manual hold is ${held.profile} (${held.expected.modelId}/${held.expected.thinking}) but Pi is using ${held.observed.modelId}/${held.observed.thinking}. Run /freeflow profile ${held.profile} to reapply it, or /freeflow profile auto to release the hold.`,
+        "warning",
+      );
+    this.heldNotice = notice;
     if (!this.store || !this.supported() || this.store.blocked || this.error) return;
     if (this.stateData().control === "automatic" && isWorkerProfile(this.stateData().profile)) {
       const result = await this.control("coordinator", false);
@@ -199,6 +221,7 @@ export class RoutingRuntime {
       runtimeStatus: blocked ? "blocked" : this.supported() && state.control !== "inactive" ? "active" : "inactive",
       runtimeReason: blocked ?? (this.suppressed ? "startup_selection" : this.capability?.blockingReason.message),
       projectionFailure: this.projectionError,
+      ...(this.heldMismatch(state) ? { pairMismatch: true } : {}),
     };
   }
   observationScope() {
@@ -408,26 +431,34 @@ export class RoutingRuntime {
       await this.validateProfilePairs(this.profilePairs(this.requiredProfiles(state)));
       this.retireUnbound("Session rebind found an unfinished execution; no task effects replayed.");
       if (!state.events.size) {
-        this.append({
-          type: "control",
-          control: "automatic",
-          profile: "coordinator",
-          reason: "Initial routing activation",
-        });
-        await this.applyPair(this.profilePair("coordinator"));
+        await this.transition(
+          this.profilePair("coordinator"),
+          () =>
+            this.append({
+              type: "control",
+              control: "automatic",
+              profile: "coordinator",
+              reason: "Initial routing activation",
+            }),
+          subject,
+        );
       } else if (
         state.control === "automatic" &&
         state.profile &&
         !samePair(this.observed(), this.profilePair(state.profile))
       ) {
         // Reload reconstructs responsibility; it does not silently reapply the last setter.
-        this.append({
-          type: "control",
-          control: "automatic",
-          profile: "coordinator",
-          reason: "Rebind reconciles historical responsibility with current host control",
-        });
-        await this.applyPair(this.profilePair("coordinator"));
+        await this.transition(
+          this.profilePair("coordinator"),
+          () =>
+            this.append({
+              type: "control",
+              control: "automatic",
+              profile: "coordinator",
+              reason: "Rebind reconciles historical responsibility with current host control",
+            }),
+          subject,
+        );
       }
     } catch (error) {
       if (this.current(subject)) this.mark(error);
@@ -464,14 +495,18 @@ export class RoutingRuntime {
         await this.store.reconcile();
         this.guard(subject);
         this.error = undefined;
-        this.append({
-          type: "control",
-          control: "automatic",
-          profile: "coordinator",
-          reason: "Capability re-enabled; Coordinator reconciliation",
-        });
+        await this.transition(
+          this.profilePair("coordinator"),
+          () =>
+            this.append({
+              type: "control",
+              control: "automatic",
+              profile: "coordinator",
+              reason: "Capability re-enabled; Coordinator reconciliation",
+            }),
+          subject,
+        );
         this.automaticControl = true;
-        await this.applyPair(this.profilePair("coordinator"));
       } catch (error) {
         if (this.current(subject)) this.mark(error);
       }
@@ -500,24 +535,33 @@ export class RoutingRuntime {
       await this.validateProfilePairs(this.profilePairs(this.requiredProfiles(state)));
       this.retireUnbound("Selected historical ancestry ends before execution binding; effects are not replayed.");
       if (this.manualHold) {
-        this.append({
-          type: "control",
-          control: "manual",
-          profile: this.manualHold,
-          reason: "Current explicit manual hold survives navigation",
-        });
-        await this.applyPair(this.profilePair(this.manualHold));
+        const held = this.manualHold;
+        await this.transition(
+          this.profilePair(held),
+          () =>
+            this.append({
+              type: "control",
+              control: "manual",
+              profile: held,
+              reason: "Current explicit manual hold survives navigation",
+            }),
+          subject,
+        );
       } else if (
         (this.automaticControl || !state.events.size) &&
         (navigation || !samePair(this.observed(), this.profilePair(state.profile ?? "coordinator")))
       ) {
-        this.append({
-          type: "control",
-          control: "automatic",
-          profile: "coordinator",
-          reason: "Coordinator reconciles selected native ancestry",
-        });
-        await this.applyPair(this.profilePair("coordinator"));
+        await this.transition(
+          this.profilePair("coordinator"),
+          () =>
+            this.append({
+              type: "control",
+              control: "automatic",
+              profile: "coordinator",
+              reason: "Coordinator reconciles selected native ancestry",
+            }),
+          subject,
+        );
       }
     } catch (error) {
       if (this.current(subject)) this.mark(error);
@@ -583,6 +627,23 @@ export class RoutingRuntime {
     }
   }
   /**
+   * Switch the host model, then record what the switch means. A switch that fails records nothing, and a
+   * record that cannot be written restores the prior model, so recorded control never names a profile
+   * whose model the host is not running.
+   */
+  async transition(target, record, subject) {
+    const prior = this.observed();
+    await this.applyPair(target);
+    try {
+      this.guard(subject);
+      record();
+    } catch (error) {
+      if (subject.token === this.token && prior && !samePair(this.observed(), prior))
+        await this.applyPair(prior).catch(() => {});
+      throw error;
+    }
+  }
+  /**
    * Control requests run one at a time, each against the state left by the previous one. The host model
    * is switched before the new control is recorded, so a superseded or failed request never leaves a
    * recorded profile running on another profile's model.
@@ -614,22 +675,17 @@ export class RoutingRuntime {
           this.automaticControl = !manual;
           return { status: manual ? "active" : "automatic" };
         }
-        const prior = this.observed();
-        await this.applyPair(this.profilePair(profile));
-        try {
-          this.guard(subject);
-          this.append({
-            type: "control",
-            control: manual ? "manual" : "automatic",
-            profile,
-            reason: manual ? "Explicit user manual hold" : "Explicit user automatic release/reconciliation",
-          });
-        } catch (error) {
-          // The switch was not recorded, so the host returns to the model the recorded control expects.
-          if (subject.token === this.token && prior && !samePair(this.observed(), prior))
-            await this.applyPair(prior).catch(() => {});
-          throw error;
-        }
+        await this.transition(
+          this.profilePair(profile),
+          () =>
+            this.append({
+              type: "control",
+              control: manual ? "manual" : "automatic",
+              profile,
+              reason: manual ? "Explicit user manual hold" : "Explicit user automatic release/reconciliation",
+            }),
+          subject,
+        );
         this.manualHold = manual ? profile : undefined;
         this.automaticControl = !manual;
         return { status: manual ? "active" : "automatic" };
@@ -657,9 +713,9 @@ export class RoutingRuntime {
     return this.stateData().delegationOverride;
   }
   async setSessionDelegationOverride(override, mechanism = "Session delegation override") {
-    this.revision++;
-    const subject = this.subject();
     return this.enqueue(async () => {
+      this.revision++;
+      const subject = this.subject();
       try {
         check(this.capability?.effective && this.store, "routing_unavailable");
         check(
@@ -682,9 +738,9 @@ export class RoutingRuntime {
     });
   }
   async setSessionProfileOverride(profile, override, mechanism = "Session profile override") {
-    this.revision++;
-    const subject = this.subject();
     return this.enqueue(async () => {
+      this.revision++;
+      const subject = this.subject();
       try {
         check(this.capability?.effective && this.store, "routing_unavailable");
         check(
@@ -705,28 +761,19 @@ export class RoutingRuntime {
           [...profiles].map((name) => [name, name === profile ? target : this.profilePair(name)]),
         );
         await this.validateProfilePairs(pairs);
-        this.append({
-          type: "profile-overrides",
-          overrides: { [profile]: override },
-          reason: mechanism,
-        });
+        const record = () =>
+          this.append({
+            type: "profile-overrides",
+            overrides: { [profile]: override },
+            reason: mechanism,
+          });
         if (state.control !== "inactive" && state.profile === profile) {
-          try {
-            await this.applyPair(target);
-            this.guard(subject);
-          } catch (error) {
-            if (this.current(subject) && !this.externalChange && !this.error && !this.store.blocked) {
-              this.append({
-                type: "profile-overrides",
-                overrides: { [profile]: previous ?? null },
-                reason: "Session profile application failed; prior override retained",
-              });
-            }
-            throw error;
-          }
+          await this.transition(target, record, subject);
           this.error = undefined;
           return { status: "active" };
         }
+        this.guard(subject);
+        record();
         this.error = undefined;
         return { status: "stored" };
       } catch (error) {
@@ -736,9 +783,9 @@ export class RoutingRuntime {
     });
   }
   async resetSessionProfileOverrides(mechanism = "Reset session profile overrides") {
-    this.revision++;
-    const subject = this.subject();
     return this.enqueue(async () => {
+      this.revision++;
+      const subject = this.subject();
       try {
         check(this.capability?.effective && this.store, "routing_unavailable");
         check(
@@ -756,33 +803,20 @@ export class RoutingRuntime {
           required.map((profile) => [profile, this.configuredProfilePair(profile)]),
         );
         await this.validateProfilePairs(targetPairs);
-        this.append({
-          type: "profile-overrides",
-          overrides: { coordinator: null, helper: null, executor: null },
-          reason: mechanism,
-        });
+        const record = () =>
+          this.append({
+            type: "profile-overrides",
+            overrides: { coordinator: null, helper: null, executor: null },
+            reason: mechanism,
+          });
         const active = state.control !== "inactive" ? state.profile : undefined;
         if (active && previous[active]) {
-          try {
-            await this.applyPair(targetPairs[active]);
-            this.guard(subject);
-          } catch (error) {
-            if (this.current(subject) && !this.externalChange && !this.error && !this.store.blocked) {
-              this.append({
-                type: "profile-overrides",
-                overrides: {
-                  coordinator: previous.coordinator ?? null,
-                  helper: previous.helper ?? null,
-                  executor: previous.executor ?? null,
-                },
-                reason: "Session profile reset failed; prior overrides retained",
-              });
-            }
-            throw error;
-          }
+          await this.transition(targetPairs[active], record, subject);
           this.error = undefined;
           return { status: "active" };
         }
+        this.guard(subject);
+        record();
         this.error = undefined;
         return { status: "stored" };
       } catch (error) {
@@ -2272,9 +2306,10 @@ export class RoutingRuntime {
     this.ctx = ctx;
     check(ctx.isIdle?.(), "not_idle");
     check(this.store && this.capability?.effective, "routing_unavailable");
-    this.revision++;
-    const subject = this.subject();
-    return this.enqueue(() => this.resumeCurrent(ctx, subject));
+    return this.enqueue(() => {
+      this.revision++;
+      return this.resumeCurrent(ctx, this.subject());
+    });
   }
   async resumeCurrent(ctx, subject) {
     this.guard(subject);
@@ -2303,13 +2338,18 @@ export class RoutingRuntime {
           "Saved transfer is still blocked; reconcile its configuration before retrying.",
         );
         const worker = this.assignedWorker(this.stateData(), pending.assignmentId);
-        this.append({
-          type: "control",
-          control: "automatic",
-          profile: worker,
-          reason: "Explicit resume of saved-return evidence correction only; ordinary assignment work remains ended",
-        });
-        await this.applyPair(this.profilePair(worker));
+        await this.transition(
+          this.profilePair(worker),
+          () =>
+            this.append({
+              type: "control",
+              control: "automatic",
+              profile: worker,
+              reason:
+                "Explicit resume of saved-return evidence correction only; ordinary assignment work remains ended",
+            }),
+          subject,
+        );
       }
     } else {
       const assignment = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
@@ -2327,27 +2367,36 @@ export class RoutingRuntime {
           "input_unreconciled",
           "New input needs Coordinator attention before evidence recovery can resume.",
         );
-        this.append({
-          type: "control",
-          control: "automatic",
-          profile: worker,
-          reason: "Explicit user resume of unchanged evidence recovery; ordinary assignment work remains ended",
-        });
-        await this.applyPair(this.profilePair(worker));
+        await this.transition(
+          this.profilePair(worker),
+          () =>
+            this.append({
+              type: "control",
+              control: "automatic",
+              profile: worker,
+              reason: "Explicit user resume of unchanged evidence recovery; ordinary assignment work remains ended",
+            }),
+          subject,
+        );
       } else if (assignment?.state === "outstanding") {
         check(
           user === this.taskBasis(state, assignment.id) || coordinatorSawInput,
           "input_unreconciled",
           "New input needs Coordinator attention before the unchanged assignment can resume.",
         );
-        this.append({ type: "assignment-resumed", assignmentId: assignment.id, basisUserEntryId: user });
-        this.append({
-          type: "control",
-          control: "automatic",
-          profile: worker,
-          reason: "Explicit user resume of the unchanged assignment; current restrictions remain applicable",
-        });
-        await this.applyPair(this.profilePair(worker));
+        await this.transition(
+          this.profilePair(worker),
+          () => {
+            this.append({ type: "assignment-resumed", assignmentId: assignment.id, basisUserEntryId: user });
+            this.append({
+              type: "control",
+              control: "automatic",
+              profile: worker,
+              reason: "Explicit user resume of the unchanged assignment; current restrictions remain applicable",
+            });
+          },
+          subject,
+        );
       } else await this.applyPair(this.profilePair("coordinator"));
     }
     this.guard(subject);

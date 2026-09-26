@@ -36,6 +36,7 @@
 - Prevents pre-prompt `/reload` and Cognitive Routing preset changes from blocking on Pi's not-yet-materialized session file.
 - Preserves Astra effort-history replay across temporary model round trips and reloads when the qualified request lineage remains compatible.
 - Keeps Cognitive Routing manual-hold and automatic-release shortcuts in step with the host model: requests run in order, the next manual hold is chosen from the latest state, and a profile is recorded only after its model is applied.
+- Applies the same ordering to Cognitive Routing resume, session presets, rebinding, re-enabling, and navigation, so a failed model switch records nothing; a manual hold whose model was changed outside routing is reported once and shown in the footer instead of being overridden.
 - Delivers evidence reused from an earlier assignment where it was selected, so a returning Coordinator request extends its cached prefix instead of rewriting it.
 
 ## 0.7.2 - 2026-09-11
