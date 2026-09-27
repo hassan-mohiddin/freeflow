@@ -25,8 +25,9 @@ const responses: BreakpointProtocol = {
   layout: responsesLayout,
   apply: applyResponsesAnchor,
 };
-// APIs with unbounded prefix lookup need no entry: every prefix they wrote stays reachable. Routes whose
-// protocol is not documented (such as the ChatGPT Codex backend) stay untouched until qualified.
+// APIs with unbounded prefix lookup need no entry: every prefix they wrote stays reachable. The ChatGPT
+// Codex backend is one: live probes found full prefix reuse after 60 appended message endings, and it
+// rejects prompt_cache_breakpoint, so it must never be adapted.
 const PROTOCOLS: Record<string, BreakpointProtocol> = {
   "anthropic-messages": { limits: ANTHROPIC_LIMITS, layout: anthropicLayout, apply: applyAnthropicAnchor },
   "openai-responses": responses,

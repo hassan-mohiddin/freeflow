@@ -146,6 +146,17 @@ test("models without a declared cache lifetime are never warmed", async () => {
   assert.equal(h.sent.length, 0);
 });
 
+test("the ChatGPT Codex backend is never replayed, even with a declared lifetime", async () => {
+  // Codex rejects max_output_tokens and prompt_cache_options, so a replay could not be capped.
+  const codex = { ...gpt, promptCache: { short: 1800, long: 1800 } };
+  const h = harness({ hold: { provider: codex.provider, modelId: codex.id }, model: codex });
+  h.keepAlive.record({ model: codex.id, input: [], prompt_cache_key: "s1" }, h.ctx(codex));
+  h.keepAlive.observe(h.ctx(codex), { input: 4, output: 10, cacheRead: 2_000_000, cacheWrite: 0 });
+  h.keepAlive.evaluate(h.ctx(claude));
+  await h.advance(3 * HOUR);
+  assert.equal(h.sent.length, 0);
+});
+
 test("any provider that declares a lifetime and cache prices is warmed through its own output cap", async () => {
   const hold = { provider: gptWithLifetime.provider, modelId: gptWithLifetime.id };
   const h = harness({

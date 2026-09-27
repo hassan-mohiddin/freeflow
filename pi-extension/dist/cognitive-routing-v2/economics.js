@@ -4,11 +4,25 @@ const label = (pair) => `${pair.modelId}/${pair.thinking}`;
  * Advisory checks on a preset. Routing saves money only when a worker is cheaper than Coordinator, and a
  * same-model preset keeps the prompt cache only on routes that survive effort changes.
  */
-export function presetWarnings(pairs, workers, find, keepsCacheAcrossEffort) {
+export function presetWarnings(
+  pairs,
+  workers,
+  find,
+  keepsCacheAcrossEffort,
+  /** The host's prompt-cache retention tier, when known. */
+  retention,
+) {
   const coordinator = pairs.coordinator;
   const coordinatorModel = coordinator && find(coordinator.provider, coordinator.modelId);
   if (!coordinator || !coordinatorModel) return [];
   const warnings = [];
+  // Freeflow keeps a waiting Coordinator warm during worker runs, but the user's own pauses are the host's
+  // retention choice. Advise rather than override it: the longer tier usually costs more per written token.
+  const { short, long } = coordinatorModel.promptCache ?? {};
+  if (retention === "short" && short > 0 && long > short && coordinatorModel.cost?.cacheWrite > 0)
+    warnings.push(
+      `Coordinator (${label(coordinator)}) keeps its prompt cache for ${Math.round(short / 60)} minutes on this host, so any pause longer than that writes the whole conversation again. Setting PI_CACHE_RETENTION=long keeps it for ${Math.round(long / 60)} minutes; longer-lived cache writes cost more per token but usually less overall when you pause between messages. Freeflow already keeps it warm while a worker runs.`,
+    );
   for (const worker of workers) {
     const pair = pairs[worker];
     const model = pair && find(pair.provider, pair.modelId);

@@ -502,6 +502,8 @@ export class RoutingRuntime {
       this.enabledWorkers(state),
       (provider, modelId) => this.ctx?.modelRegistry?.find?.(provider, modelId),
       (model) => effortHistoryRoute(model) !== undefined,
+      // Pi's only retention control; unset means the short tier.
+      process.env.PI_CACHE_RETENTION === "long" ? "long" : "short",
     );
   }
   private presetNotice?: string;

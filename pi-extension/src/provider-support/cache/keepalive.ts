@@ -34,7 +34,10 @@ export interface KeepAliveRecord {
   cost: number;
 }
 
-/** Per-API replay details. APIs without an entry are never warmed: their output cannot be capped safely. */
+/**
+ * Per-API replay details. APIs without an entry are never warmed: their output cannot be capped safely.
+ * The ChatGPT Codex backend rejects max_output_tokens and prompt_cache_options, so it has no entry.
+ */
 interface ReplayProtocol {
   cap(payload: any): any;
   retention(payload: any): "short" | "long" | undefined;

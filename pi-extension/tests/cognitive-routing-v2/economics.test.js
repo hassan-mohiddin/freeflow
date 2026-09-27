@@ -104,3 +104,45 @@ test("routing announces a costly preset once and reports it in its state", async
     await rm(root, { recursive: true, force: true });
   }
 });
+
+const claude = {
+  id: "claude-opus-5-5",
+  provider: "anthropic",
+  api: "anthropic-messages",
+  cost: { input: 4, cacheRead: 0.2, cacheWrite: 5 },
+  promptCache: { short: 300, long: 3600 },
+};
+const mixed = { ...models, "claude-opus-5-5": claude };
+const retentionCheck = (retention) =>
+  presetWarnings(
+    {
+      coordinator: { provider: "anthropic", modelId: "claude-opus-5-5", thinking: "high" },
+      executor: pair("gpt-6-luna", "max"),
+    },
+    ["executor"],
+    (_provider, id) => mixed[id],
+    () => false,
+    retention,
+  );
+
+test("a Coordinator on the short cache tier of a model with a longer tier is advised", () => {
+  const warnings = retentionCheck("short");
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /claude-opus-5-5/);
+  assert.match(warnings[0], /5 minutes/);
+  assert.match(warnings[0], /PI_CACHE_RETENTION=long/);
+  assert.match(warnings[0], /60 minutes/);
+  assert.deepEqual(retentionCheck("long"), []);
+  assert.deepEqual(retentionCheck(undefined), [], "no advice when the host retention is unknown");
+});
+
+test("a Coordinator without a declared longer cache tier gets no retention advice", () => {
+  const warnings = presetWarnings(
+    { coordinator: pair("gpt-6-sol", "xhigh"), executor: pair("gpt-6-luna", "max") },
+    ["executor"],
+    find,
+    () => true,
+    "short",
+  );
+  assert.deepEqual(warnings, []);
+});
