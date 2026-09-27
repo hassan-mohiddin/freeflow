@@ -358,6 +358,9 @@ test("Pi registers the remaining Freeflow commands without mode controls or reti
       "freeflow_tools",
       "freeflow_run",
       "freeflow_result",
+      "freeflow_read",
+      "freeflow_search",
+      "freeflow_patch",
     ],
   );
   assert.ok(!toolNames.includes("freeflow_switch_profile"));
@@ -366,7 +369,7 @@ test("Pi registers the remaining Freeflow commands without mode controls or reti
   assert.doesNotMatch(freeflowCommand.definition.description, /context tools/i);
   assert.ok(!freeflowCommand.definition.getArgumentCompletions("").some((item) => item.value === "mode"));
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("mode "), []);
-  assert.ok(!toolNames.some((name) => ["freeflow_status", "freeflow_search", "freeflow_batch"].includes(name)));
+  assert.ok(!toolNames.some((name) => ["freeflow_status", "freeflow_batch"].includes(name)));
 });
 
 test("PiFlow hosts are rejected before Freeflow registers any surface, with or without session model control", () => {

@@ -1,4 +1,5 @@
 import type { OperationKey } from "./contracts.js";
+import type { DirectToolName } from "./direct-tools.js";
 
 export type ToolProgressPhase = "preparing" | "running" | "settling" | "cancelling";
 
@@ -22,7 +23,7 @@ export type ToolProgressCurrent = Readonly<{
 
 export type ToolProgressSnapshot = Readonly<{
   version: 1;
-  tool: "freeflow_tools" | "freeflow_run" | "freeflow_result";
+  tool: "freeflow_tools" | "freeflow_run" | "freeflow_result" | DirectToolName;
   phase: ToolProgressPhase;
   activity: string;
   runId?: string;

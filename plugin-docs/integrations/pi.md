@@ -1,6 +1,6 @@
 # Pi Integration
 
-Freeflow can be packaged for Pi. The source tree contains a native entrypoint wired to the v2 routing runtime, but this documentation does not claim that the current checkout is released, installed, or dispatched by stock Pi. Shared skills and ordinary package behavior remain distinct from host acceptance and model evaluation. The current candidate also includes experimental [Tool Execution](../capabilities/tool-execution.md); its extracted-package Worker/WASM fixture is not proof of installation into a user's Pi process.
+Freeflow can be packaged for Pi. The native entrypoint wires Cognitive Routing and experimental [Tool Execution](../capabilities/tool-execution.md), including its per-session v2 store and direct tools. An exact local npm tarball has passed extracted-package Worker/WASM, store-recovery and direct-operation checks. This does not make the checkout a published release or prove import, dispatch or model behavior in a user's Pi process.
 
 ## Install
 
@@ -20,7 +20,7 @@ Restart Pi or use `/reload` after installing or updating so its resources are re
 
 ## Supported Pi evidence
 
-The minimum supported native Pi version is 0.87.1 (the package's 0.87.x peer range); Pi 0.85.x is unsupported. The development dependency is Pi 0.87.1. Native scripted fixtures exercise request assembly, routing, Tool Execution and the extracted Worker/WASM against the identified 0.87.1 artifact. They do not establish live provider cache behavior, billing, model quality, publication or installation into a user's Pi process. The native entrypoint requires the host's public model registry/authentication lookup, session-scoped model and thinking controls, native session-entry append/readback, and session ancestry APIs.
+The minimum supported native Pi version is 0.87.1 (the package's 0.87.x peer range); Pi 0.85.x is unsupported. The development dependency is Pi 0.87.1. Native scripted fixtures exercise request assembly, routing and Tool Execution against the identified installed 0.87.1 artifact; an extracted local candidate separately exercises Worker/WASM and v2 store/direct-operation APIs with the locally installed Pi TUI peer. Installed artifact behavior is not automatically byte-correspondent with the pinned current upstream source. These checks do not establish live provider cache behavior, billing, model quality, publication or installation into a user's Pi process. The native entrypoint requires the host's public model registry/authentication lookup, session-scoped model and thinking controls, native session-entry append/readback, and session ancestry APIs.
 
 ## Activate Freeflow
 
@@ -89,7 +89,7 @@ Tool Execution is disabled by default. A minimal captured-reduction configuratio
 
 Local live access is separately enabled under `workspace`; writing additionally requires `workspace.write`. Program mode `adapters` enables qualified live children but does not bypass current Cognitive Routing responsibility, workspace policy, effect fences, cancellation, or adapter authorization. Trusted external adapters must be named in `adapters.allow` and use the versioned in-process cooperation contract. Visible schemas grant no permission.
 
-The stable native tools are `freeflow_tools`, `freeflow_run`, and `freeflow_result`. Native Pi Bash is the built-in capture integration; unknown custom Bash definitions retain ordinary Pi behavior. See [Tool Execution](../capabilities/tool-execution.md) for configuration, operation contracts, retention, sandbox and evidence limits.
+The three stable generic tools are `freeflow_tools`, `freeflow_run`, and `freeflow_result`. When Tool Execution and its Session Store binding are ready, the direct `freeflow_read`, `freeflow_search`, and `freeflow_patch` tools augment Pi-native tools; an unavailable v2 store hides dependent direct tools before effects instead of replacing native behavior. Native Pi Bash is the built-in capture integration; unknown custom Bash definitions retain ordinary Pi behavior. The Tool Execution cue requests its full skill before programs, mutations, exact recovery or unfamiliar catalog operations; a bounded direct read/search is self-describing. See [Tool Execution](../capabilities/tool-execution.md) for exact contracts, retention and failure limits.
 
 ## What the source adapter provides
 
@@ -99,7 +99,7 @@ When its host gate is effective, the native entrypoint is designed to provide:
 - refresh-aware Runtime State with v2 routing `Control`, `Profile`, and `Delegation`;
 - Coordinator/Helper/Executor routing state recorded as native `freeflow-routing-v2` session entries;
 - the four v2 routing tools: `freeflow_delegate`, `freeflow_return`, `freeflow_unit`, and `freeflow_project`;
-- the stable Tool Execution facade tools, with execution-time capability gates;
+- the stable Tool Execution facade plus gated direct read/search/patch tools, one per-origin v2 Session Store, and source-built guidance introduction; current native request-hook evidence alone does not prove final skill delivery;
 - optional context capabilities under their separate gates.
 
 These are source-level contracts, not proof of installed-host delivery, stock-Pi dispatch, or model behavior.
@@ -156,6 +156,8 @@ The routing tools are model-facing controls, not permission grants. A return sav
 ## Persistence and recovery limits
 
 Routing events are appended through Pi's native session-entry path and read back from the live branch. When existing or uncertain state needs reconciliation, the runtime uses a strict read-only persisted session snapshot with identity, ancestry, encoding, size, and divergence checks. It does not patch host files, claim `fsync`, or promise exactly-once behavior. Failed readback or uncertain effects block routing rather than permitting blind repetition.
+
+Effective Tool Execution keeps Execution and Guidance events and immutable v2 artifacts in a separate per-origin Session Store, not the Routing event journal. One writer lease and a committed head fence publication; a verified checkpoint plus its committed tail becomes authoritative while older journal bytes remain for audit. Sidecar events are branch-effective only when their owning native result or minimal anchor survives on that branch. The v1 capture reader stays available without rewriting old sidecars. A missing origin after export, corrupt selected checkpoint/tail, uncertain lease, or unavailable artifact is reported as unavailable; startup does not reclaim leases or delete orphan bytes automatically. Request assembly uses in-memory store status and guidance, not a fresh store-file replay on every provider call.
 
 New user attention retains ordinary admitted history and pauses only the saved assessment obligation to restore compacted evidence. Closing, replacing and returning preserve admitted communication; current versus historical contracts remain distinct. When material evidence is missing from a returned assessment, Coordinator can attach a recovery request without replacing the assignment or report. The worker recorded on that assignment may select exposed evidence and read only exact admitted task paths or packaged Freeflow methods before returning a separate supplement; ordinary task work remains closed. Fresh attention does not settle recovery, and `assess` remains unavailable until the supplement arrives or Coordinator cancels recovery.
 

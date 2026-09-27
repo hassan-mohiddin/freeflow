@@ -2,12 +2,13 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 const root = process.cwd();
+const packageSource = process.env.FREEFLOW_PACKAGE_SOURCE ? resolve(process.env.FREEFLOW_PACKAGE_SOURCE) : root;
 const temporary = mkdtempSync(join(tmpdir(), "freeflow installed tool runtime "));
 const tarballs = join(temporary, "package tarballs");
 const installation = join(temporary, "installed candidate with spaces");
@@ -42,8 +43,12 @@ function archiveInstalledPackage(path) {
 }
 
 try {
+  const candidateTarball = process.env.FREEFLOW_PACKAGE_TARBALL
+    ? resolve(process.env.FREEFLOW_PACKAGE_TARBALL)
+    : pack(packageSource);
+  if (!existsSync(candidateTarball)) throw new Error("Exact candidate tarball is unavailable");
   const candidates = [
-    pack(root),
+    candidateTarball,
     archiveInstalledPackage(resolve(root, "node_modules/quickjs-emscripten-core")),
     archiveInstalledPackage(resolve(root, "node_modules/@jitl/quickjs-wasmfile-release-sync")),
     archiveInstalledPackage(resolve(root, "node_modules/@jitl/quickjs-ffi-types")),
@@ -64,6 +69,16 @@ try {
     ],
     { cwd: root, stdio: ["ignore", "pipe", "inherit"] },
   );
+
+  // Pi supplies this declared peer at runtime. Resolve the locally installed host artifact
+  // without fetching a registry package or pretending it belongs inside Freeflow's tarball.
+  const peer = resolve(root, "node_modules/@earendil-works/pi-tui");
+  if (!existsSync(peer)) throw new Error("Installed Pi TUI peer is unavailable for the package fixture");
+  const peerLink = join(installation, "node_modules/@earendil-works/pi-tui");
+  if (!existsSync(peerLink)) {
+    mkdirSync(dirname(peerLink), { recursive: true });
+    symlinkSync(peer, peerLink, "dir");
+  }
 
   const packageRoot = join(installation, "node_modules/@hassangameryt/freeflow");
   const wasm = join(installation, "node_modules/@jitl/quickjs-wasmfile-release-sync/dist/emscripten-module.wasm");
@@ -127,7 +142,7 @@ const result = await host.run(
 );
 assert.equal(result.details.freeflowRun.programStatus, "completed");
 assert.deepEqual(result.details.freeflowRun.emitted, [{ installed: true, value: 42 }]);
-assert.equal(result.details.freeflowRun.manifestRef, result.details.freeflowRun.runId);
+assert.equal(result.details.freeflowRun.manifestRef, undefined, "no persisted native entry exists in this Worker-only fixture");
 console.log(JSON.stringify({ status: "passed", runId: result.details.freeflowRun.runId }));
 `,
   );
@@ -138,6 +153,25 @@ console.log(JSON.stringify({ status: "passed", runId: result.details.freeflowRun
   }).trim();
   const result = JSON.parse(output);
   if (result.status !== "passed") throw new Error("Installed Worker/WASM fixture did not pass");
+
+  const v2Output = execFileSync(process.execPath, [resolve(root, "scripts/validation/installed-v2-candidate.mjs")], {
+    cwd: installation,
+    env: {
+      ...process.env,
+      FREEFLOW_INSTALLED_PACKAGE_ROOT: packageRoot,
+      FREEFLOW_INSTALLED_INSTALLATION: installation,
+    },
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "inherit"],
+  }).trim();
+  const v2Result = JSON.parse(v2Output);
+  if (
+    v2Result.status !== "passed" ||
+    v2Result.recoveredEvents !== 128 ||
+    v2Result.checkpointVersion !== 2 ||
+    !["succeeded", "qualified-unavailable"].includes(v2Result.search)
+  )
+    throw new Error("Installed v2 Session Store/direct-operation fixture did not pass");
 
   const packageJson = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
   const corePackage = JSON.parse(
@@ -156,8 +190,9 @@ console.log(JSON.stringify({ status: "passed", runId: result.details.freeflowRun
   )
     throw new Error("Installed candidate runtime dependencies are not exact qualified versions");
 
+  const candidateSha256 = createHash("sha256").update(readFileSync(candidateTarball)).digest("hex");
   console.log(
-    `Installed Tool Execution check passed: ${packageJson.name}@${packageJson.version}; Worker and WASM ${wasmSha256} executed from a path containing spaces.`,
+    `Installed Tool Execution check passed: ${packageJson.name}@${packageJson.version}; candidate ${candidateSha256}, Worker/WASM ${wasmSha256}, v2 store checkpoint, direct read/dry-run patch, and search (${v2Result.search}) exercised from a path containing spaces.`,
   );
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);

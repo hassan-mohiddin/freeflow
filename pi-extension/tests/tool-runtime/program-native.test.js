@@ -73,7 +73,7 @@ test("native freeflow_run streams bounded progress without exposing hidden value
   assert.equal(JSON.stringify(updates.map((event) => event.partialResult)).includes("HIDDEN_INTERMEDIATE"), false);
 });
 
-test("native program reads only an explicitly granted capture and emits an exact selected range", async () => {
+test("native program reads a declared v2 artifact revision and emits only its selected range", async () => {
   const body = `BEGIN\n${"x".repeat(3000)}\nPROGRAM_CAPTURE_SENTINEL\nEND`;
   const offset = Buffer.byteLength(body.slice(0, body.indexOf("PROGRAM_CAPTURE_SENTINEL")), "utf8");
   let id;
@@ -81,12 +81,12 @@ test("native program reads only an explicitly granted capture and emits an exact
     (request, wire, manager) => {
       if (request === 1) return call("bash", { command: "cat captured.txt" });
       if (request === 2) {
-        id = manager.getBranch().find((entry) => entry.customType === "freeflow-tool-capture-v1")?.data?.id;
+        id = manager.getBranch().find((entry) => entry.customType === "freeflow-tool-artifact-v2")?.data?.id;
         assert.ok(id);
         return call("freeflow_run", {
-          code: `const range = await results.read(input.id, { offsetBytes: input.offset, maxBytes: 128 }); emit({ text: range.text, range: range.range });`,
+          code: `const range = await tools.invoke("result.read", { id: input.id, offsetBytes: input.offset, maxBytes: 128 }); emit({ text: range.data, range: range.range });`,
           description: "read one captured range",
-          operations: [],
+          operations: [{ id: "result.read", revision: "2" }],
           captures: [id],
           input: { id, offset },
           timeoutMs: 1000,

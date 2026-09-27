@@ -36,11 +36,6 @@ interface Frame {
   retained: string[];
   additions: Injection[];
 }
-function prefixes(messages: any[], fingerprintOf: (message: any) => string = fingerprint) {
-  const result = [hash([])];
-  for (const message of messages) result.push(hash([result.at(-1), fingerprintOf(message)]));
-  return result;
-}
 function owned(message: any): boolean {
   return message?.role === "custom" && TRANSIENT.has(message.customType);
 }
@@ -76,6 +71,24 @@ function parse(value: any): Frame {
 /** Preserve only Freeflow-generated occurrences. Native content remains owned by Pi and its projectors. */
 export class RequestHistory {
   private acknowledged = new Map<string, string>();
+  // Pi reuses immutable native entry objects across requests. A replacement object with the
+  // same ID must be validated again; a known entry need not be rehashed and reparsed.
+  private validatedFrames = new Map<string, { entry: any; hash: string; frame: Frame }>();
+  private prefixCache?: { identities: string[]; values: string[] };
+  private branchCache?: {
+    first: any;
+    last: any;
+    length: number;
+    leaf: string | null;
+    generation: string;
+    ids: Set<string>;
+    frames: Frame[];
+    byId: Map<string, Frame>;
+  };
+  private frameHash = (entry: any): string => {
+    const cached = this.validatedFrames.get(entry.id);
+    return cached?.entry === entry ? cached.hash : hash(entry);
+  };
   // Unedited native entries are immutable, so their fingerprints are computed once per session.
   private fingerprints = new Map<string, string>();
   private fingerprintOf = (message: any): string => {
@@ -85,6 +98,24 @@ export class RequestHistory {
     if (value === undefined) this.fingerprints.set(id, (value = fingerprint(message)));
     return value;
   };
+  private prefixes(messages: any[]): string[] {
+    const previous = this.prefixCache;
+    const identities: string[] = [];
+    const values = [hash([])];
+    let samePrefix = true;
+    for (let i = 0; i < messages.length; i++) {
+      const message = messages[i];
+      const entryId = projectedEntryId(message);
+      // Host-edited/generated messages lack an unedited entry identity and must be hashed anew.
+      const body = entryId === undefined ? fingerprint(message) : undefined;
+      const identity = entryId === undefined ? `body:${body}` : `entry:${entryId}`;
+      identities.push(identity);
+      samePrefix = samePrefix && previous?.identities[i] === identity;
+      values.push(samePrefix ? previous!.values[i + 1]! : hash([values[i], body ?? this.fingerprintOf(message)]));
+    }
+    this.prefixCache = { identities, values };
+    return values;
+  }
   private identity?: string;
   private fault = false;
   private serial: Promise<unknown> = Promise.resolve();
@@ -96,6 +127,9 @@ export class RequestHistory {
   reset() {
     this.revision++;
     this.acknowledged.clear();
+    this.validatedFrames.clear();
+    this.prefixCache = undefined;
+    this.branchCache = undefined;
     this.fingerprints.clear();
     this.identity = undefined;
     this.fault = false;
@@ -127,6 +161,9 @@ export class RequestHistory {
     const identity = `${reader.getSessionId()}:${reader.getSessionFile?.() ?? "memory"}`;
     if (this.identity !== identity) {
       this.acknowledged.clear();
+      this.validatedFrames.clear();
+      this.prefixCache = undefined;
+      this.branchCache = undefined;
       this.fingerprints.clear();
       this.fault = false;
       this.identity = identity;
@@ -134,31 +171,49 @@ export class RequestHistory {
     if (this.fault) throw new Error("Uncertain Freeflow context append");
     const branch = reader.getBranch(),
       leaf = reader.getLeafId();
-    let parent: string | null = null,
-      generation = "root";
-    const ids = new Set<string>();
-    for (const entry of branch) {
-      if (entry.parentId !== parent || ids.has(entry.id)) throw new Error("Invalid context ancestry");
+    const cachedBranch = this.branchCache;
+    // Pi appends immutable native entry objects. A sibling/edited branch breaks this exact prefix.
+    const extendsCache =
+      !!cachedBranch &&
+      cachedBranch.length <= branch.length &&
+      (cachedBranch.length === 0 ||
+        (branch[0] === cachedBranch.first && branch[cachedBranch.length - 1] === cachedBranch.last));
+    const start = extendsCache ? cachedBranch.length : 0;
+    let parent: string | null = extendsCache ? cachedBranch.leaf : null;
+    let generation = extendsCache ? cachedBranch.generation : "root";
+    const ids = extendsCache ? cachedBranch.ids : new Set<string>();
+    const newIds = new Set<string>();
+    for (let i = start; i < branch.length; i++) {
+      const entry = branch[i];
+      if (entry.parentId !== parent || ids.has(entry.id) || newIds.has(entry.id))
+        throw new Error("Invalid context ancestry");
       parent = entry.id;
-      ids.add(entry.id);
+      newIds.add(entry.id);
       if (entry.type === "compaction" || entry.type === "branch_summary") generation = entry.id;
     }
     if (parent !== leaf) throw new Error("Context leaf changed");
-    const entries = branch.filter((e: any) => e.type === "custom" && e.customType === ENTRY);
+    const newEntries = branch.slice(start).filter((e: any) => e.type === "custom" && e.customType === ENTRY);
     if (
-      entries.some((e: any) => this.acknowledged.get(e.id) !== hash(e)) &&
+      newEntries.some((e: any) => this.acknowledged.get(e.id) !== this.frameHash(e)) &&
       reader.getSessionFile?.() &&
       branch.some((e: any) => e.message?.role === "assistant")
     ) {
       if (!(await persistedBranchMatches(reader, leaf, branch))) throw new Error("Context history readback differs");
     }
     if (revision !== this.revision || reader.getLeafId() !== leaf) throw new Error("Context changed while preparing");
-    const frames: Frame[] = [],
-      byId = new Map<string, Frame>();
-    for (const entry of entries) {
-      const frame = parse(entry.data);
+    const frames: Frame[] = extendsCache ? (newEntries.length ? [...cachedBranch.frames] : cachedBranch.frames) : [];
+    const byId = extendsCache
+      ? newEntries.length
+        ? new Map(cachedBranch.byId)
+        : cachedBranch.byId
+      : new Map<string, Frame>();
+    for (const entry of newEntries) {
+      const cached = this.validatedFrames.get(entry.id);
+      const same = cached?.entry === entry;
+      const frame = same ? cached.frame : parse(entry.data);
       if (
-        (frame.basis !== entry.parentId && !(reader.getHeader?.()?.parentSession && !ids.has(frame.basis))) ||
+        (frame.basis !== entry.parentId &&
+          !(reader.getHeader?.()?.parentSession && !ids.has(frame.basis) && !newIds.has(frame.basis))) ||
         byId.has(frame.id)
       )
         throw new Error("Context frame anchor differs");
@@ -167,13 +222,26 @@ export class RequestHistory {
         throw new Error("Context frame parent missing");
       frames.push(frame);
       byId.set(frame.id, frame);
-      this.acknowledged.set(entry.id, hash(entry));
+      const entryHash = same ? cached.hash : hash(entry);
+      this.acknowledged.set(entry.id, entryHash);
+      if (!same) this.validatedFrames.set(entry.id, { entry, hash: entryHash, frame });
     }
+    for (const id of newIds) ids.add(id);
+    this.branchCache = {
+      first: branch[0],
+      last: branch.at(-1),
+      length: branch.length,
+      leaf,
+      generation,
+      ids,
+      frames,
+      byId,
+    };
     const base = messages.filter((m) => !owned(m));
     const current = messages
       .filter(owned)
       .filter((message) => !notice || message.customType !== "freeflow-routing-budget");
-    const hashes = prefixes(base, this.fingerprintOf);
+    const hashes = this.prefixes(base);
     const candidates = frames.filter((f) => f.generation === generation && hashes[f.length] === f.prefix);
     const prior = candidates.reduce<Frame | undefined>(
       (best, f) => (!best || f.length >= best.length ? f : best),
@@ -250,7 +318,9 @@ export class RequestHistory {
         const entry = reader.getBranch().find((e: any) => e.customType === ENTRY && e.data?.id === frame.id);
         if (!entry || entry.parentId !== leaf || JSON.stringify(entry.data) !== JSON.stringify(frame))
           throw new Error("Context append not acknowledged");
-        this.acknowledged.set(entry.id, hash(entry));
+        const entryHash = hash(entry);
+        this.acknowledged.set(entry.id, entryHash);
+        this.validatedFrames.set(entry.id, { entry, hash: entryHash, frame });
       } catch (error) {
         this.fault = true;
         throw error;

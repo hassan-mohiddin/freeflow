@@ -68,6 +68,9 @@ export function efficiencyReport(observations: readonly EfficiencyObservation[])
   const tooling = {
     argumentBytes: 0,
     resultBytes: 0,
+    modelViewBytes: 0,
+    artifactBytes: 0,
+    artifactBytesAvailability: { knownSum: 0, observed: 0, missing: 0, complete: false },
     programSourceBytes: 0,
     emittedBytes: 0,
     capturedBytes: 0,
@@ -121,6 +124,18 @@ export function efficiencyReport(observations: readonly EfficiencyObservation[])
     addUsage(toolUsage, toolCost, observation.usage);
     tooling.argumentBytes += finite(observation.argumentBytes);
     tooling.resultBytes += finite(observation.resultBytes);
+    tooling.modelViewBytes += finite(observation.modelViewBytes);
+    tooling.artifactBytes += finite(observation.artifactBytes);
+    const availability = tooling.artifactBytesAvailability;
+    if (
+      typeof observation.artifactBytes === "number" &&
+      Number.isFinite(observation.artifactBytes) &&
+      observation.artifactBytes >= 0
+    ) {
+      availability.knownSum += observation.artifactBytes;
+      availability.observed += 1;
+    } else availability.missing += 1;
+    availability.complete = availability.observed > 0 && availability.missing === 0;
     tooling.programSourceBytes += finite(observation.programSourceBytes);
     tooling.emittedBytes += finite(observation.emittedBytes);
     tooling.capturedBytes += finite(observation.capturedBytes);

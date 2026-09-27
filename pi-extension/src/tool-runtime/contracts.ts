@@ -1,3 +1,5 @@
+import type { ArtifactId, OccurrenceId } from "../session-store/contracts.js";
+
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 export type Effect = "captured-read" | "live-read" | "mutation";
 export type Concurrency = "read-parallel" | "exclusive";
@@ -50,6 +52,7 @@ export class OperationExecutionError extends Error {
     readonly code: string,
     message: string,
     readonly effectState: "none" | "completed" | "unknown" = "unknown",
+    readonly result?: OperationValue,
   ) {
     super(`${code}: ${message}`);
     this.name = "OperationExecutionError";
@@ -84,6 +87,10 @@ export type CallOutcome = Readonly<{
   coverage?: Coverage;
   error?: Readonly<{ code: string; message: string }>;
   context?: Json;
+  occurrenceId?: OccurrenceId;
+  artifactRefs?: readonly ArtifactId[];
+  artifactBytes?: number; // Acknowledged artifact payload bytes; excludes journal/manifest overhead.
+  persistence?: Readonly<{ state: "sidecar-acknowledged" | "unavailable"; code?: string }>;
 }>;
 
 export type OperationDescriptor = Readonly<{
@@ -97,3 +104,67 @@ export type OperationDescriptor = Readonly<{
   exposure: Operation<Json, Json>["exposure"];
   fingerprint: string;
 }>;
+
+// V2 contracts are inactive until an explicit v2 operation is registered and presented.
+// Keep Operation and OperationDescriptor unchanged for every existing revision.
+export type OperationCategory = "result" | "project" | "process" | "code" | "vcs" | "resource" | "web" | "integration";
+export type OperationGuidance = Readonly<{ useWhen: string; avoidWhen?: string; example?: Json }>;
+export type CancellationContract = "settles" | "reconciles-unknown";
+
+export type CanonicalOutcome<O extends Json = Json> = Readonly<{
+  occurrenceId: OccurrenceId;
+  operation: OperationKey;
+  catalogGeneration: string;
+  status: CallOutcome["status"];
+  effect?: Effect;
+  effectState: EffectState;
+  bodyStarted: boolean;
+  value?: O;
+  coverage?: Coverage;
+  artifactRefs: readonly ArtifactId[];
+  error?: CallOutcome["error"];
+  context?: Json;
+}>;
+
+export type PresentationPolicy = Readonly<{ maxBytes: number }>;
+export type ModelPresentation = Readonly<{
+  text: string;
+  coverage: Coverage;
+  artifactRefs: readonly ArtifactId[];
+}>;
+export type UiPresentation = Readonly<{ summary: string; detail?: string }>;
+export type OperationPresenter<I extends Json = Json, O extends Json = Json> = Readonly<{
+  model(input: I, outcome: CanonicalOutcome<O>, policy: PresentationPolicy): Promise<ModelPresentation>;
+  ui?(input: I, outcome: CanonicalOutcome<O>): Promise<UiPresentation>;
+}>;
+
+export type PreparedExecution<O extends Json = Json> = Readonly<{
+  run(signal?: AbortSignal): Promise<OperationValue<O>>;
+  onSkip?(): OperationValue<O>;
+  release(): void;
+}>;
+
+export interface OperationV2<I extends Json = Json, O extends Json = Json> extends Operation<I, O> {
+  // Optional pre-effect planning; the kernel retains its resources through effect settlement.
+  prepareExecution?(input: I, context: OperationContext): Promise<PreparedExecution<O>>;
+  contractVersion: 2;
+  category: OperationCategory;
+  guidance: OperationGuidance;
+  cancellation: CancellationContract;
+  presenter: OperationPresenter<I, O>;
+}
+
+export type OperationDescriptorV2 = OperationDescriptor &
+  Readonly<{
+    contractVersion: 2;
+    category: OperationCategory;
+    guidance: OperationGuidance;
+    cancellation: CancellationContract;
+  }>;
+
+// The optional never discriminator retains every v1 caller without changing its runtime descriptor.
+export type OperationV1<I extends Json = Json, O extends Json = Json> = Operation<I, O> &
+  Readonly<{ contractVersion?: never }>;
+export type VersionedOperation = OperationV1 | OperationV2;
+export type OperationDescriptorV1 = OperationDescriptor & Readonly<{ contractVersion?: never }>;
+export type VersionedOperationDescriptor = OperationDescriptorV1 | OperationDescriptorV2;

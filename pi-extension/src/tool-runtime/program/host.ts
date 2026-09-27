@@ -7,6 +7,7 @@ import { canonicalJson, freezeJson } from "../schema.js";
 import { PROGRAM_LIMITS, ProgramLimitError, validateProgramRequest } from "./limits.js";
 import { guestFrame, type GuestFrame, type HostFrame } from "./protocol.js";
 import { ProgramScheduler, type ProgramSchedulerProgress } from "./scheduler.js";
+import { persistedLastEntryMatches } from "../../session-sources/read-only-session.js";
 import type { ToolProgressReporter } from "../progress.js";
 
 export const RUN_MANIFEST_ENTRY = "freeflow-tool-run-v1";
@@ -55,7 +56,7 @@ export class ProgramHost {
     const result = new Map<string, OperationKey>();
     for (const key of request.operations) {
       const descriptor = this.tools.registry.describe(key);
-      if (!descriptor?.available || !descriptor.exposure.programmatic)
+      if (!this.tools.operationAvailable(key) || !descriptor?.exposure.programmatic)
         throw new ProgramLimitError(
           "operation_unavailable",
           `Program operation is unavailable: ${key.id}@${key.revision}.`,
@@ -221,7 +222,11 @@ export class ProgramHost {
           (entry: any) =>
             entry?.type === "custom" && entry.customType === RUN_MANIFEST_ENTRY && entry.data?.runId === runId,
         );
-        if (matches.length === 1) manifestRef = runId;
+        if (
+          matches.length === 1 &&
+          (await persistedLastEntryMatches(ctx.sessionManager?.getSessionFile?.(), matches[0]))
+        )
+          manifestRef = runId;
       } catch {}
       finish(Object.freeze({ ...envelope, ...(manifestRef ? { manifestRef } : {}) }));
     };

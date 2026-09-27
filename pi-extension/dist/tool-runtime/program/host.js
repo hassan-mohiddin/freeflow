@@ -4,6 +4,7 @@ import { canonicalJson, freezeJson } from "../schema.js";
 import { PROGRAM_LIMITS, ProgramLimitError, validateProgramRequest } from "./limits.js";
 import { guestFrame } from "./protocol.js";
 import { ProgramScheduler } from "./scheduler.js";
+import { persistedLastEntryMatches } from "../../session-sources/read-only-session.js";
 export const RUN_MANIFEST_ENTRY = "freeflow-tool-run-v1";
 function boundedMessage(value) {
   return (value instanceof Error ? value.message : String(value)).replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 1000);
@@ -25,7 +26,7 @@ export class ProgramHost {
     const result = new Map();
     for (const key of request.operations) {
       const descriptor = this.tools.registry.describe(key);
-      if (!descriptor?.available || !descriptor.exposure.programmatic)
+      if (!this.tools.operationAvailable(key) || !descriptor?.exposure.programmatic)
         throw new ProgramLimitError(
           "operation_unavailable",
           `Program operation is unavailable: ${key.id}@${key.revision}.`,
@@ -183,7 +184,11 @@ export class ProgramHost {
         const matches = (ctx.sessionManager?.getBranch?.() ?? []).filter(
           (entry) => entry?.type === "custom" && entry.customType === RUN_MANIFEST_ENTRY && entry.data?.runId === runId,
         );
-        if (matches.length === 1) manifestRef = runId;
+        if (
+          matches.length === 1 &&
+          (await persistedLastEntryMatches(ctx.sessionManager?.getSessionFile?.(), matches[0]))
+        )
+          manifestRef = runId;
       } catch {}
       finish(Object.freeze({ ...envelope, ...(manifestRef ? { manifestRef } : {}) }));
     };

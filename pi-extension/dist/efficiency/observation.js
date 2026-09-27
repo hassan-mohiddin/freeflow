@@ -82,7 +82,19 @@ function toolFacts(result, assistant, entries) {
         entry.data?.toolCallId === result?.toolCallId,
     )
     .at(-1)?.data;
-  const recovered = details?.capturedResult?.range;
+  const anchors = entries.filter(
+    (entry) =>
+      entry?.type === "custom" &&
+      entry.customType === "freeflow-tool-artifact-v2" &&
+      entry.data?.native?.toolCallId === result?.toolCallId,
+  );
+  const capturedV2 = anchors.length === 1 ? anchors[0].data : undefined;
+  const recovered = details?.capturedResult?.range ?? details?.capturedArtifact?.range;
+  const modelText =
+    Array.isArray(result?.content) &&
+    result.content.every((item) => item?.type === "text" && typeof item.text === "string")
+      ? result.content.map((item) => item.text).join("\n")
+      : undefined;
   const emittedBytes = run?.emitted === undefined ? undefined : serializedBytes(run.emitted);
   const manifest =
     typeof run?.runId === "string"
@@ -111,6 +123,17 @@ function toolFacts(result, assistant, entries) {
           : [],
       )
     : undefined;
+  const childArtifacts =
+    Array.isArray(manifest?.outcomes) &&
+    manifest.outcomes.length > 0 &&
+    manifest.outcomes.every((child) => Number.isSafeInteger(child?.artifactBytes) && child.artifactBytes >= 0)
+      ? manifest.outcomes.reduce((sum, child) => sum + child.artifactBytes, 0)
+      : undefined;
+  const artifactBytes = Number.isSafeInteger(capturedV2?.bytes)
+    ? capturedV2.bytes
+    : Number.isSafeInteger(details?.freeflowV2?.artifactBytes)
+      ? details.freeflowV2.artifactBytes
+      : childArtifacts;
   const operation =
     typeof outcome?.operation?.id === "string"
       ? `${outcome.operation.id}@${outcome.operation.revision ?? "unknown"}`
@@ -120,21 +143,33 @@ function toolFacts(result, assistant, entries) {
   return {
     argumentBytes: serializedBytes(args),
     resultBytes: serializedBytes(result?.content),
+    ...(modelText !== undefined ? { modelViewBytes: Buffer.byteLength(modelText, "utf8") } : {}),
+    ...(artifactBytes !== undefined ? { artifactBytes } : {}),
     ...(typeof args?.code === "string" ? { programSourceBytes: Buffer.byteLength(args.code, "utf8") } : {}),
     ...(emittedBytes !== undefined ? { emittedBytes } : {}),
-    ...(Number.isSafeInteger(captured?.capture?.bytes) ? { capturedBytes: captured.capture.bytes } : {}),
+    ...(Number.isSafeInteger(captured?.capture?.bytes)
+      ? { capturedBytes: captured.capture.bytes }
+      : Number.isSafeInteger(capturedV2?.bytes)
+        ? { capturedBytes: capturedV2.bytes }
+        : {}),
     ...(Number.isSafeInteger(recovered?.startBytes) && Number.isSafeInteger(recovered?.endBytes)
       ? { recoveredBytes: Math.max(0, recovered.endBytes - recovered.startBytes) }
-      : {}),
+      : Number.isSafeInteger(details?.freeflowV2?.readBytes)
+        ? { recoveredBytes: details.freeflowV2.readBytes }
+        : {}),
     ...(typeof run?.runId === "string" ? { runId: run.runId } : {}),
     ...(operation ? { operation } : {}),
     ...(typeof run?.programStatus === "string" ? { programStatus: run.programStatus } : {}),
     ...(typeof outcome?.effectState === "string" ? { effectState: outcome.effectState } : {}),
     ...(typeof outcome?.coverage?.boundary === "string"
       ? { coverageBoundary: outcome.coverage.boundary }
-      : typeof details?.capturedResult?.scope === "string"
-        ? { coverageBoundary: details.capturedResult.scope }
-        : {}),
+      : typeof details?.freeflowV2?.modelCoverage?.boundary === "string"
+        ? { coverageBoundary: details.freeflowV2.modelCoverage.boundary }
+        : typeof details?.capturedArtifact?.coverage?.boundary === "string"
+          ? { coverageBoundary: details.capturedArtifact.coverage.boundary }
+          : typeof details?.capturedResult?.scope === "string"
+            ? { coverageBoundary: details.capturedResult.scope }
+            : {}),
     ...(childOperations?.length ? { childOperations } : {}),
   };
 }
@@ -374,6 +409,9 @@ export class EfficiencyObserver {
           "numeric fields are known sums; per-field availability distinguishes zero from missing, with host-normalized provider and tool-reported records grouped separately",
         cost: "known sums with per-field availability; no price-table estimates",
         providerCacheHits: "not inferred",
+        storage:
+          "artifactBytes counts acknowledged artifact payload bytes only; journal, manifest, orphan and quota overhead are not measured",
+        modelView: "modelViewBytes and serialized resultBytes overlap and must not be added together",
       },
       persistenceFailures: this.persistenceFailures,
     };

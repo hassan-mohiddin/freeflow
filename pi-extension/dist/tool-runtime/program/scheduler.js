@@ -329,6 +329,8 @@ export class ProgramScheduler {
         operation: pending.key,
         status: outcome.status,
         effectState: outcome.effectState,
+        ...(outcome.occurrenceId ? { occurrenceId: outcome.occurrenceId } : {}),
+        ...(outcome.artifactBytes !== undefined ? { artifactBytes: outcome.artifactBytes } : {}),
         ...(outcome.error ? { error: outcome.error.code } : {}),
       });
       this.progress({

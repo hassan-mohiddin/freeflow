@@ -4,7 +4,11 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { persistedBranchMatches, trustLoadedSession } from "../../dist/session-sources/read-only-session.js";
+import {
+  persistedBranchMatches,
+  persistedLastEntryMatches,
+  trustLoadedSession,
+} from "../../dist/session-sources/read-only-session.js";
 
 const user = (text) => ({ role: "user", content: [{ type: "text", text }], timestamp: 1 });
 const assistant = (text) => ({
@@ -33,6 +37,20 @@ async function persisted() {
   return { root, file, manager: SessionManager.open(file) };
 }
 const matches = (manager) => persistedBranchMatches(manager, manager.getLeafId(), manager.getBranch());
+
+test("one newly appended native anchor is verified from the bounded file tail", async () => {
+  const { root, file, manager } = await persisted();
+  try {
+    const id = manager.appendCustomEntry("fixture-anchor", { occurrenceId: "occurrence:one" });
+    const entry = manager.getEntry(id);
+    assert.equal(await persistedLastEntryMatches(file, entry), true);
+    const bytes = await readFile(file);
+    await writeFile(file, bytes.subarray(0, bytes.length - 1));
+    assert.equal(await persistedLastEntryMatches(file, entry), false, "memory alone cannot acknowledge a lost tail");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 test("a trusted load verifies later appends from the file tail only", async () => {
   const { root, file, manager } = await persisted();

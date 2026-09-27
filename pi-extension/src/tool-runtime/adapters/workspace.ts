@@ -78,7 +78,11 @@ function signature(stat: Awaited<ReturnType<Awaited<ReturnType<typeof open>>["st
   return [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(":");
 }
 
-export async function readWorkspaceSnapshot(path: string, signal?: AbortSignal): Promise<Buffer> {
+export async function readWorkspaceSnapshot(
+  path: string,
+  signal?: AbortSignal,
+  maximumBytes = MAX_WORKSPACE_TEXT_BYTES,
+): Promise<Buffer> {
   if (signal?.aborted) throw new WorkspaceError("cancelled", "Workspace read was cancelled.");
   const noFollow = typeof constants.O_NOFOLLOW === "number" ? constants.O_NOFOLLOW : 0;
   let file: Awaited<ReturnType<typeof open>> | undefined;
@@ -86,9 +90,23 @@ export async function readWorkspaceSnapshot(path: string, signal?: AbortSignal):
     file = await open(path, constants.O_RDONLY | noFollow);
     const before = await file.stat();
     if (!before.isFile()) throw new WorkspaceError("path_unsupported", "Workspace path is not a regular file.");
-    if (before.size > MAX_WORKSPACE_TEXT_BYTES)
-      throw new WorkspaceError("file_too_large", "Workspace file exceeds the supported 4 MiB limit.");
-    const body = await file.readFile();
+    if (
+      !Number.isSafeInteger(maximumBytes) ||
+      maximumBytes < 0 ||
+      before.size > maximumBytes ||
+      before.size > MAX_WORKSPACE_TEXT_BYTES
+    )
+      throw new WorkspaceError("file_too_large", "Workspace file exceeds the bounded snapshot limit.");
+    // Read no more than the pre-observed size. A growing source fails the signature check
+    // rather than silently exceeding an aggregate batch acquisition budget.
+    const body = Buffer.alloc(before.size);
+    let offset = 0;
+    while (offset < body.length) {
+      if (signal?.aborted) throw new WorkspaceError("cancelled", "Workspace read was cancelled.");
+      const part = await file.read(body, offset, body.length - offset, offset);
+      if (!part.bytesRead) throw new WorkspaceError("source_changed", "Workspace file changed during observation.");
+      offset += part.bytesRead;
+    }
     const after = await file.stat();
     if (signature(before) !== signature(after) || body.length !== before.size)
       throw new WorkspaceError("source_changed", "Workspace file changed during observation.");
@@ -104,6 +122,33 @@ export async function readWorkspaceSnapshot(path: string, signal?: AbortSignal):
 
 export class WorkspaceCoordinator {
   private readonly tails = new Map<string, Promise<void>>();
+
+  // Reserve canonical paths in one order and hold them until the caller has settled.
+  async acquire(paths: readonly string[]): Promise<() => void> {
+    const releases: (() => void)[] = [];
+    try {
+      for (const path of [...new Set(paths)].sort()) {
+        let unlock!: () => void;
+        const gate = new Promise<void>((resolve) => {
+          unlock = resolve;
+        });
+        const prior = this.tails.get(path) ?? Promise.resolve();
+        const tail = prior.then(() => gate);
+        this.tails.set(path, tail);
+        await prior;
+        releases.push(() => {
+          unlock();
+          if (this.tails.get(path) === tail) this.tails.delete(path);
+        });
+      }
+      return () => {
+        for (const release of releases.reverse()) release();
+      };
+    } catch (error) {
+      for (const release of releases.reverse()) release();
+      throw error;
+    }
+  }
 
   async exclusive<T>(path: string, action: () => Promise<T>): Promise<T> {
     const prior = this.tails.get(path) ?? Promise.resolve();

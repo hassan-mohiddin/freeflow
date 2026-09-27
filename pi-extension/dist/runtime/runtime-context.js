@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -54,22 +55,25 @@ export const FREEFLOW_MODEL_SKILL_NAMES = [
 export const STABLE_FREEFLOW_SURFACE = Object.freeze({
   enabled: true,
   cognitiveRouting: { effective: true },
+  toolExecution: { effective: true },
 });
-export const FREEFLOW_CAPABILITY_SKILL_NAMES = ["cognitive-routing"];
+export const FREEFLOW_CAPABILITY_SKILL_NAMES = ["cognitive-routing", "tool-execution"];
 export function freeflowSkillPath(skillName) {
   return fileURLToPath(new URL(`../../../skills/${skillName}/SKILL.md`, import.meta.url));
 }
 export function freeflowCapabilitySkillPath(skillName) {
   return fileURLToPath(new URL(`../../../capabilities/${skillName}/SKILL.md`, import.meta.url));
 }
-export function freeflowModelSkillPaths(capabilityState = undefined) {
+export function freeflowModelSkillPaths(capabilityState = undefined, toolExecutionCueAvailable = false) {
   const paths = FREEFLOW_MODEL_SKILL_NAMES.map((skillName) => freeflowSkillPath(skillName));
-  const capabilityStates = {
-    "cognitive-routing": capabilityState?.cognitiveRouting,
-  };
-  for (const skillName of FREEFLOW_CAPABILITY_SKILL_NAMES) {
-    if (capabilityStates[skillName]?.effective === true) {
-      paths.push(freeflowCapabilitySkillPath(skillName));
+  if (capabilityState?.cognitiveRouting?.effective === true)
+    paths.push(freeflowCapabilitySkillPath("cognitive-routing"));
+  if (capabilityState?.toolExecution?.effective === true && toolExecutionCueAvailable) {
+    const skill = freeflowCapabilitySkillPath("tool-execution");
+    try {
+      if (isPromptAvailable(readFileSync(skill, "utf8"))) paths.push(skill);
+    } catch {
+      // Missing optional skill does not suppress the core prompt or unrelated skills.
     }
   }
   return paths;
@@ -126,7 +130,7 @@ async function readPromptFile(url) {
 async function loadRuntimeContext(capabilityState = undefined) {
   const freeflowEnabled = capabilityState?.enabled === true;
   const cognitiveRoutingEnabled = capabilityState?.cognitiveRouting?.effective === true;
-  const [corePrompt, interactionContractPrompt, cognitiveRoutingPrompt] = await Promise.all([
+  const [corePrompt, interactionContractPrompt, cognitiveRoutingPrompt, toolExecutionPrompt] = await Promise.all([
     freeflowEnabled
       ? readPromptFile(new URL("../../../runtime/prompts/core.md", import.meta.url))
       : Promise.resolve(null),
@@ -136,8 +140,11 @@ async function loadRuntimeContext(capabilityState = undefined) {
     cognitiveRoutingEnabled
       ? readPromptFile(new URL("../../../runtime/prompts/cognitive-routing.md", import.meta.url))
       : Promise.resolve(null),
+    capabilityState?.toolExecution?.effective === true
+      ? readPromptFile(new URL("../../../runtime/prompts/tool-execution.md", import.meta.url))
+      : Promise.resolve(null),
   ]);
-  return { corePrompt, interactionContractPrompt, cognitiveRoutingPrompt };
+  return { corePrompt, interactionContractPrompt, cognitiveRoutingPrompt, toolExecutionPrompt };
 }
 function runtimeContextCacheSatisfies(capabilityState) {
   if (!runtimeContextCache) return false;
@@ -568,7 +575,7 @@ export function freeflowRuntimeStateMessage(
       `- Cognitive Routing: ${publicCognitiveRoutingStatus(capabilityState?.cognitiveRouting, cognitiveRoutingRuntime)}`,
       `- Tool Execution: ${publicCapabilityStatus(capabilityState?.toolExecution)}${
         capabilityState?.toolExecution?.effective === true
-          ? ` · capture ${capabilityState.toolExecution.capture?.effective === true ? "active" : "inactive"} · reader enabled · workspace ${capabilityState.toolExecution.workspace?.effective === true ? (capabilityState.toolExecution.workspace.write ? "read/write" : "read-only") : "inactive"} · discovery ${capabilityState.toolExecution.discovery?.effective === true ? "active" : "inactive"} · accounting ${capabilityState.toolExecution.accounting?.effective === true ? "active" : "inactive"} · programs ${capabilityState.toolExecution.programs?.mode ?? "off"} · catalog ${options.toolExecutionRuntime?.catalog?.operations ?? 0} · adapters ${options.toolExecutionRuntime?.adapters?.announced?.filter((adapter) => adapter.active).length ?? 0}/${options.toolExecutionRuntime?.adapters?.allowed?.length ?? 0} · live effects ${options.toolExecutionRuntime?.unresolvedEffects ? `fenced (${options.toolExecutionRuntime.unresolvedEffects})` : "settled"} · native Bash built-in; custom tools require adapters${options.toolExecutionRuntime?.lastFailure?.code ? ` · last program issue ${options.toolExecutionRuntime.lastFailure.code}` : options.toolExecutionRuntime?.failures?.at(-1)?.code ? ` · last capture issue ${options.toolExecutionRuntime.failures.at(-1).code}` : options.toolExecutionRuntime?.adapters?.failures?.at(-1)?.code ? ` · last adapter issue ${options.toolExecutionRuntime.adapters.failures.at(-1).code}` : ""}`
+          ? ` · capture ${capabilityState.toolExecution.capture?.effective === true ? "active" : "inactive"} · reader enabled · workspace ${capabilityState.toolExecution.workspace?.effective === true ? (capabilityState.toolExecution.workspace.write ? "read/write" : "read-only") : "inactive"} · discovery ${capabilityState.toolExecution.discovery?.effective === true ? "active" : "inactive"} · accounting ${capabilityState.toolExecution.accounting?.effective === true ? "active" : "inactive"} · programs ${capabilityState.toolExecution.programs?.mode ?? "off"} · catalog ${options.toolExecutionRuntime?.catalog?.operations ?? 0} · adapters ${options.toolExecutionRuntime?.adapters?.announced?.filter((adapter) => adapter.active).length ?? 0}/${options.toolExecutionRuntime?.adapters?.allowed?.length ?? 0} · live effects ${options.toolExecutionRuntime?.unresolvedEffects ? `fenced (${options.toolExecutionRuntime.unresolvedEffects})` : "settled"} · native Bash built-in; custom tools require adapters · store ${options.toolExecutionRuntime?.store?.state ?? "unavailable"}${options.toolExecutionRuntime?.store?.reason ? ` (${options.toolExecutionRuntime.store.reason})` : ""} · guidance ${options.toolExecutionRuntime?.guidance?.state ?? "unobserved"}${options.toolExecutionRuntime?.lastFailure?.code ? ` · last program issue ${options.toolExecutionRuntime.lastFailure.code}` : options.toolExecutionRuntime?.failures?.at(-1)?.code ? ` · last capture issue ${options.toolExecutionRuntime.failures.at(-1).code}` : options.toolExecutionRuntime?.adapters?.failures?.at(-1)?.code ? ` · last adapter issue ${options.toolExecutionRuntime.adapters.failures.at(-1).code}` : ""}`
           : ""
       }`,
       "",
@@ -658,6 +665,7 @@ export function stableRuntimeContext(context) {
     ["Freeflow core", context?.corePrompt],
     ["Freeflow core", context?.interactionContractPrompt],
     ["Cognitive Routing", context?.cognitiveRoutingPrompt],
+    ["Tool Execution", context?.toolExecutionPrompt],
   ];
   return [
     "# Freeflow availability contract",
@@ -684,6 +692,8 @@ export function runtimeContext(freeflowContext, capabilityState) {
   ) {
     blocks.push(freeflowContext.cognitiveRoutingPrompt.trim());
   }
+  if (capabilityState.toolExecution?.effective === true && isPromptAvailable(freeflowContext.toolExecutionPrompt))
+    blocks.push(freeflowContext.toolExecutionPrompt.trim());
   return blocks.filter(Boolean).join("\n\n");
 }
 export async function setSessionCoreOverride(key, value, ctx, pi) {

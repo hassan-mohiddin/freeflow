@@ -1,4 +1,4 @@
-import { compileSchema, jsonDigest } from "./schema.js";
+import { compileSchema, freezeJson, jsonDigest } from "./schema.js";
 export class RegistryError extends Error {
   code;
   hint;
@@ -12,8 +12,11 @@ export class RegistryError extends Error {
 function keyOf(key) {
   return JSON.stringify([key.id, key.revision]);
 }
+function v2(operation) {
+  return "contractVersion" in operation;
+}
 function operationFingerprint(operation, input, output) {
-  return jsonDigest({
+  const fields = {
     key: operation.key,
     description: operation.description,
     keywords: [...(operation.keywords ?? [])],
@@ -22,10 +25,17 @@ function operationFingerprint(operation, input, output) {
     outputSchema: output.schema,
     effects: [...operation.effects],
     exposure: operation.exposure,
-  });
+  };
+  if (v2(operation)) {
+    fields.contractVersion = operation.contractVersion;
+    fields.category = operation.category;
+    fields.guidance = operation.guidance;
+    fields.cancellation = operation.cancellation;
+  }
+  return jsonDigest(fields);
 }
 function descriptorFor(operation, input, output) {
-  return Object.freeze({
+  const base = {
     key: Object.freeze({ ...operation.key }),
     description: operation.description,
     keywords: Object.freeze([...(operation.keywords ?? [])]),
@@ -35,6 +45,14 @@ function descriptorFor(operation, input, output) {
     effects: Object.freeze([...operation.effects]),
     exposure: Object.freeze({ ...operation.exposure }),
     fingerprint: operationFingerprint(operation, input, output),
+  };
+  if (!v2(operation)) return Object.freeze(base);
+  return Object.freeze({
+    ...base,
+    contractVersion: 2,
+    category: operation.category,
+    guidance: operation.guidance,
+    cancellation: operation.cancellation,
   });
 }
 function validateIdentity(operation) {
@@ -52,6 +70,24 @@ function validateIdentity(operation) {
     operation.effects.some((effect) => !["captured-read", "live-read", "mutation"].includes(effect))
   )
     throw new RegistryError("operation_descriptor", "Operation owner/effects are invalid.");
+  if (
+    v2(operation) &&
+    (operation.contractVersion !== 2 ||
+      !["result", "project", "process", "code", "vcs", "resource", "web", "integration"].includes(operation.category) ||
+      typeof operation.guidance?.useWhen !== "string" ||
+      !operation.guidance.useWhen.trim() ||
+      operation.guidance.useWhen.length > 1000 ||
+      Object.getPrototypeOf(operation.guidance) !== Object.prototype ||
+      Object.keys(operation.guidance).some((key) => !["useWhen", "avoidWhen", "example"].includes(key)) ||
+      (operation.guidance.avoidWhen !== undefined &&
+        (typeof operation.guidance.avoidWhen !== "string" ||
+          !operation.guidance.avoidWhen.trim() ||
+          operation.guidance.avoidWhen.length > 1000)) ||
+      !["settles", "reconciles-unknown"].includes(operation.cancellation) ||
+      typeof operation.presenter?.model !== "function" ||
+      (operation.presenter.ui !== undefined && typeof operation.presenter.ui !== "function"))
+  )
+    throw new RegistryError("operation_descriptor", "Operation v2 metadata is invalid.");
 }
 export class OperationRegistry {
   entries = new Map();
@@ -69,11 +105,20 @@ export class OperationRegistry {
       outputSchema: output.schema,
       effects: Object.freeze([...operation.effects]),
       exposure: Object.freeze({ ...operation.exposure }),
+      ...(v2(operation)
+        ? {
+            guidance: Object.freeze({
+              ...operation.guidance,
+              ...(operation.guidance.example !== undefined ? { example: freezeJson(operation.guidance.example) } : {}),
+            }),
+            presenter: Object.freeze({ ...operation.presenter }),
+          }
+        : {}),
     });
     const descriptor = descriptorFor(stored, input, output);
     return { key: keyOf(stored.key), entry: { operation: stored, descriptor, input, output, active: true } };
   }
-  checkPrepared(prepared) {
+  checkPrepared(prepared, allowCompatibleV2 = false) {
     const keys = new Set();
     const ids = new Set();
     for (const candidate of prepared) {
@@ -91,7 +136,12 @@ export class OperationRegistry {
           previous.operation.authorize !== candidate.entry.operation.authorize ||
           previous.operation.execute !== candidate.entry.operation.execute ||
           previous.operation.effect !== candidate.entry.operation.effect ||
-          previous.operation.concurrency !== candidate.entry.operation.concurrency
+          previous.operation.concurrency !== candidate.entry.operation.concurrency ||
+          (v2(previous.operation) &&
+            v2(candidate.entry.operation) &&
+            (previous.operation.presenter.model !== candidate.entry.operation.presenter.model ||
+              previous.operation.presenter.ui !== candidate.entry.operation.presenter.ui ||
+              previous.operation.prepareExecution !== candidate.entry.operation.prepareExecution))
         )
           throw new RegistryError("operation_conflict", "Operation key/revision changed meaning.", operation.key);
         if (previous.active)
@@ -103,7 +153,10 @@ export class OperationRegistry {
         candidate.entry = previous;
       }
       if (
-        [...this.entries.values()].some((existing) => existing.active && existing.operation.key.id === operation.key.id)
+        [...this.entries.values()].some(
+          (existing) => existing.active && existing.operation.key.id === operation.key.id,
+        ) &&
+        !(allowCompatibleV2 && v2(operation))
       )
         throw new RegistryError(
           "operation_revision_active",
@@ -116,10 +169,10 @@ export class OperationRegistry {
     if (!operations.length) throw new RegistryError("operation_bundle_empty", "Operation bundle is empty.");
     this.checkPrepared(operations.map((operation) => this.prepare(operation)));
   }
-  registerMany(operations) {
+  registerBundle(operations, allowCompatibleV2 = false) {
     const prepared = operations.map((operation) => this.prepare(operation));
     if (!prepared.length) throw new RegistryError("operation_bundle_empty", "Operation bundle is empty.");
-    this.checkPrepared(prepared);
+    this.checkPrepared(prepared, allowCompatibleV2);
     for (const candidate of prepared) {
       candidate.entry.active = true;
       this.entries.set(candidate.key, candidate.entry);
@@ -141,8 +194,15 @@ export class OperationRegistry {
       },
     };
   }
+  registerMany(operations) {
+    return this.registerBundle(operations);
+  }
   register(operation) {
     return this.registerMany([operation]);
+  }
+  // Versioned migration path: coexistence is explicit; ordinary legacy registration remains one-active-ID.
+  registerCompatibleRevision(operation) {
+    return this.registerBundle([operation], true);
   }
   activeDescriptors() {
     return [...this.entries.values()]

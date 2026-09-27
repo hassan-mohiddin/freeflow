@@ -32,6 +32,29 @@ const requiredFiles = [
   "pi-extension/dist/tool-runtime/program/host.js",
   "pi-extension/dist/tool-runtime/program/worker.js",
   "pi-extension/dist/tool-runtime/results/runtime.js",
+  "pi-extension/dist/tool-runtime/results/v2.js",
+  "pi-extension/dist/tool-runtime/results/v2-capture.js",
+  "pi-extension/dist/tool-runtime/direct-tools.js",
+  "pi-extension/dist/tool-runtime/execution-record.js",
+  "pi-extension/dist/tool-runtime/bindings.js",
+  "pi-extension/dist/tool-runtime/presentation/v2.js",
+  "pi-extension/dist/tool-runtime/adapters/read-ranges.js",
+  "pi-extension/dist/tool-runtime/adapters/find-paths.js",
+  "pi-extension/dist/tool-runtime/adapters/search-text-v2.js",
+  "pi-extension/dist/tool-runtime/adapters/apply-patch.js",
+  "pi-extension/dist/session-store/contracts.js",
+  "pi-extension/dist/session-store/journal.js",
+  "pi-extension/dist/session-store/manifest.js",
+  "pi-extension/dist/session-store/artifacts.js",
+  "pi-extension/dist/session-store/store.js",
+  "pi-extension/dist/session-store/native.js",
+  "pi-extension/dist/session-store/pi-ancestry.js",
+  "pi-extension/dist/guidance/runtime.js",
+  "runtime/prompts/tool-execution.md",
+  "capabilities/tool-execution/SKILL.md",
+  "capabilities/tool-execution/references/programs.md",
+  "capabilities/tool-execution/references/effects-and-recovery.md",
+  "capabilities/tool-execution/references/generated-program-bindings.md",
   "runtime/prompts/core.md",
   "runtime/prompts/interaction-contract.md",
   "runtime/prompts/cognitive-routing.md",
@@ -42,7 +65,16 @@ const requiredFiles = [
   "capabilities/cognitive-routing/references/executor-mode.md",
   "capabilities/cognitive-routing/references/both-mode.md",
 ];
-const excludedPrefixes = ["plugin-docs/", ".skill-eval/", ".deprecated/", ".freeflow/", "plans/"];
+const excludedPrefixes = [
+  "plugin-docs/",
+  ".skill-eval/",
+  ".deprecated/",
+  ".freeflow/",
+  "plans/",
+  "pi-extension/src/",
+  "pi-extension/tests/",
+  "hooks/tests/",
+];
 const forbiddenPrefixes = ["router/", "capabilities/output-router/"];
 const retiredContextPrefixes = [
   "capabilities/context-virtualization/",
@@ -83,6 +115,14 @@ try {
   const retiredSkillFiles = [...files].filter(
     (path) => path === "skills/tdd/SKILL.md" || path.startsWith("skills/tdd/"),
   );
+  const privateArtifacts = [...files].filter((path) =>
+    /(^|\/)(?:freeflow-session-store|orphans)(?:\/|$)|(^|\/)(?:events\.log|head\.json|\.writer-lease|\.checkpoint-[^/]+|\.pending-[^/]+|auth\.json|credentials(?:\.[^/]+)?|\.env(?:\.[^/]+)?|[^/]+\.tmp)$/.test(
+      path,
+    ),
+  );
+  const absoluteSourcePaths = [...files].filter(
+    (path) => /\.(?:js|mjs|json|md)$/.test(path) && readFileSync(path, "utf8").includes(process.cwd()),
+  );
   const portableSkillFiles = [...files].filter((path) => /^skills\/[^/]+\/SKILL\.md$/.test(path));
   const duplicateSkillTrees = [...files].filter((path) =>
     [".github/skills/", ".agents/skills/", ".gemini/skills/", ".kiro/skills/"].some((prefix) =>
@@ -97,6 +137,12 @@ try {
     throw new Error(`npm package includes retired context feature files: ${retiredContext.join(", ")}`);
   if (retiredSkillFiles.length > 0)
     throw new Error(`npm package includes retired TDD skill files: ${retiredSkillFiles.join(", ")}`);
+  if (privateArtifacts.length > 0)
+    throw new Error(
+      `npm package includes private store, credential, or temporary files: ${privateArtifacts.join(", ")}`,
+    );
+  if (absoluteSourcePaths.length > 0)
+    throw new Error(`npm package embeds the local source checkout path: ${absoluteSourcePaths.join(", ")}`);
   if (portableSkillFiles.length !== 24)
     throw new Error(`npm package must contain exactly 24 canonical skill files; found ${portableSkillFiles.length}`);
   if (duplicateSkillTrees.length > 0)

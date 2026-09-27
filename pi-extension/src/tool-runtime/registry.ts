@@ -1,5 +1,14 @@
-import type { Json, Operation, OperationDescriptor, OperationKey } from "./contracts.js";
-import { compileSchema, jsonDigest, type CompiledSchema } from "./schema.js";
+import type {
+  Json,
+  Operation,
+  OperationDescriptorV1,
+  OperationDescriptorV2,
+  OperationKey,
+  OperationV2,
+  VersionedOperation,
+  VersionedOperationDescriptor,
+} from "./contracts.js";
+import { compileSchema, freezeJson, jsonDigest, type CompiledSchema } from "./schema.js";
 
 export class RegistryError extends Error {
   constructor(
@@ -13,8 +22,8 @@ export class RegistryError extends Error {
 }
 
 export type RegisteredOperation = Readonly<{
-  operation: Operation<Json, Json>;
-  descriptor: OperationDescriptor;
+  operation: VersionedOperation;
+  descriptor: VersionedOperationDescriptor;
   input: CompiledSchema;
   output: CompiledSchema;
   generation: string;
@@ -22,12 +31,12 @@ export type RegisteredOperation = Readonly<{
 
 export type CatalogSnapshot = Readonly<{
   generation: string;
-  descriptors: readonly OperationDescriptor[];
+  descriptors: readonly VersionedOperationDescriptor[];
 }>;
 
 type Entry = {
-  operation: Operation<Json, Json>;
-  descriptor: OperationDescriptor;
+  operation: VersionedOperation;
+  descriptor: VersionedOperationDescriptor;
   input: CompiledSchema;
   output: CompiledSchema;
   active: boolean;
@@ -37,8 +46,12 @@ function keyOf(key: OperationKey): string {
   return JSON.stringify([key.id, key.revision]);
 }
 
+function v2(operation: Operation<Json, Json>): operation is OperationV2<Json, Json> {
+  return "contractVersion" in operation;
+}
+
 function operationFingerprint(operation: Operation<Json, Json>, input: CompiledSchema, output: CompiledSchema): string {
-  return jsonDigest({
+  const fields: Record<string, Json> = {
     key: operation.key,
     description: operation.description,
     keywords: [...(operation.keywords ?? [])],
@@ -47,15 +60,22 @@ function operationFingerprint(operation: Operation<Json, Json>, input: CompiledS
     outputSchema: output.schema,
     effects: [...operation.effects],
     exposure: operation.exposure,
-  } as Json);
+  };
+  if (v2(operation)) {
+    fields.contractVersion = operation.contractVersion;
+    fields.category = operation.category;
+    fields.guidance = operation.guidance;
+    fields.cancellation = operation.cancellation;
+  }
+  return jsonDigest(fields);
 }
 
 function descriptorFor(
   operation: Operation<Json, Json>,
   input: CompiledSchema,
   output: CompiledSchema,
-): OperationDescriptor {
-  return Object.freeze({
+): VersionedOperationDescriptor {
+  const base: OperationDescriptorV1 = {
     key: Object.freeze({ ...operation.key }),
     description: operation.description,
     keywords: Object.freeze([...(operation.keywords ?? [])]),
@@ -65,7 +85,15 @@ function descriptorFor(
     effects: Object.freeze([...operation.effects]),
     exposure: Object.freeze({ ...operation.exposure }),
     fingerprint: operationFingerprint(operation, input, output),
-  });
+  };
+  if (!v2(operation)) return Object.freeze(base);
+  return Object.freeze({
+    ...base,
+    contractVersion: 2,
+    category: operation.category,
+    guidance: operation.guidance,
+    cancellation: operation.cancellation,
+  } satisfies OperationDescriptorV2);
 }
 
 function validateIdentity(operation: Operation<Json, Json>): void {
@@ -83,13 +111,31 @@ function validateIdentity(operation: Operation<Json, Json>): void {
     operation.effects.some((effect) => !["captured-read", "live-read", "mutation"].includes(effect))
   )
     throw new RegistryError("operation_descriptor", "Operation owner/effects are invalid.");
+  if (
+    v2(operation) &&
+    (operation.contractVersion !== 2 ||
+      !["result", "project", "process", "code", "vcs", "resource", "web", "integration"].includes(operation.category) ||
+      typeof operation.guidance?.useWhen !== "string" ||
+      !operation.guidance.useWhen.trim() ||
+      operation.guidance.useWhen.length > 1000 ||
+      Object.getPrototypeOf(operation.guidance) !== Object.prototype ||
+      Object.keys(operation.guidance).some((key) => !["useWhen", "avoidWhen", "example"].includes(key)) ||
+      (operation.guidance.avoidWhen !== undefined &&
+        (typeof operation.guidance.avoidWhen !== "string" ||
+          !operation.guidance.avoidWhen.trim() ||
+          operation.guidance.avoidWhen.length > 1000)) ||
+      !["settles", "reconciles-unknown"].includes(operation.cancellation) ||
+      typeof operation.presenter?.model !== "function" ||
+      (operation.presenter.ui !== undefined && typeof operation.presenter.ui !== "function"))
+  )
+    throw new RegistryError("operation_descriptor", "Operation v2 metadata is invalid.");
 }
 
 export class OperationRegistry {
   private readonly entries = new Map<string, Entry>();
   private generationRevision = 0;
 
-  private prepare(operation: Operation<Json, Json>): { key: string; entry: Entry } {
+  private prepare(operation: VersionedOperation): { key: string; entry: Entry } {
     validateIdentity(operation);
     const input = compileSchema(operation.inputSchema);
     const output = compileSchema(operation.outputSchema);
@@ -102,12 +148,21 @@ export class OperationRegistry {
       outputSchema: output.schema,
       effects: Object.freeze([...operation.effects]),
       exposure: Object.freeze({ ...operation.exposure }),
-    }) as Operation<Json, Json>;
+      ...(v2(operation)
+        ? {
+            guidance: Object.freeze({
+              ...operation.guidance,
+              ...(operation.guidance.example !== undefined ? { example: freezeJson(operation.guidance.example) } : {}),
+            }),
+            presenter: Object.freeze({ ...operation.presenter }),
+          }
+        : {}),
+    }) as VersionedOperation;
     const descriptor = descriptorFor(stored, input, output);
     return { key: keyOf(stored.key), entry: { operation: stored, descriptor, input, output, active: true } };
   }
 
-  private checkPrepared(prepared: { key: string; entry: Entry }[]): void {
+  private checkPrepared(prepared: { key: string; entry: Entry }[], allowCompatibleV2 = false): void {
     const keys = new Set<string>();
     const ids = new Set<string>();
     for (const candidate of prepared) {
@@ -125,7 +180,12 @@ export class OperationRegistry {
           previous.operation.authorize !== candidate.entry.operation.authorize ||
           previous.operation.execute !== candidate.entry.operation.execute ||
           previous.operation.effect !== candidate.entry.operation.effect ||
-          previous.operation.concurrency !== candidate.entry.operation.concurrency
+          previous.operation.concurrency !== candidate.entry.operation.concurrency ||
+          (v2(previous.operation) &&
+            v2(candidate.entry.operation) &&
+            (previous.operation.presenter.model !== candidate.entry.operation.presenter.model ||
+              previous.operation.presenter.ui !== candidate.entry.operation.presenter.ui ||
+              previous.operation.prepareExecution !== candidate.entry.operation.prepareExecution))
         )
           throw new RegistryError("operation_conflict", "Operation key/revision changed meaning.", operation.key);
         if (previous.active)
@@ -137,7 +197,10 @@ export class OperationRegistry {
         candidate.entry = previous;
       }
       if (
-        [...this.entries.values()].some((existing) => existing.active && existing.operation.key.id === operation.key.id)
+        [...this.entries.values()].some(
+          (existing) => existing.active && existing.operation.key.id === operation.key.id,
+        ) &&
+        !(allowCompatibleV2 && v2(operation))
       )
         throw new RegistryError(
           "operation_revision_active",
@@ -147,15 +210,15 @@ export class OperationRegistry {
     }
   }
 
-  validateMany(operations: readonly Operation<Json, Json>[]): void {
+  validateMany(operations: readonly VersionedOperation[]): void {
     if (!operations.length) throw new RegistryError("operation_bundle_empty", "Operation bundle is empty.");
     this.checkPrepared(operations.map((operation) => this.prepare(operation)));
   }
 
-  registerMany(operations: readonly Operation<Json, Json>[]): { dispose(): void } {
+  private registerBundle(operations: readonly VersionedOperation[], allowCompatibleV2 = false): { dispose(): void } {
     const prepared = operations.map((operation) => this.prepare(operation));
     if (!prepared.length) throw new RegistryError("operation_bundle_empty", "Operation bundle is empty.");
-    this.checkPrepared(prepared);
+    this.checkPrepared(prepared, allowCompatibleV2);
     for (const candidate of prepared) {
       candidate.entry.active = true;
       this.entries.set(candidate.key, candidate.entry);
@@ -178,11 +241,20 @@ export class OperationRegistry {
     };
   }
 
-  register(operation: Operation<Json, Json>): { dispose(): void } {
+  registerMany(operations: readonly VersionedOperation[]): { dispose(): void } {
+    return this.registerBundle(operations);
+  }
+
+  register(operation: VersionedOperation): { dispose(): void } {
     return this.registerMany([operation]);
   }
 
-  private activeDescriptors(): OperationDescriptor[] {
+  // Versioned migration path: coexistence is explicit; ordinary legacy registration remains one-active-ID.
+  registerCompatibleRevision(operation: OperationV2<Json, Json>): { dispose(): void } {
+    return this.registerBundle([operation], true);
+  }
+
+  private activeDescriptors(): VersionedOperationDescriptor[] {
     return [...this.entries.values()]
       .filter((entry) => entry.active)
       .map((entry) => entry.descriptor)
@@ -225,16 +297,16 @@ export class OperationRegistry {
     });
   }
 
-  describe(key: OperationKey): (OperationDescriptor & { available: boolean }) | undefined {
+  describe(key: OperationKey): (VersionedOperationDescriptor & { available: boolean }) | undefined {
     const entry = this.entries.get(keyOf(key));
     return entry ? Object.freeze({ ...entry.descriptor, available: entry.active }) : undefined;
   }
 
-  current(id: string): OperationDescriptor | undefined {
+  current(id: string): VersionedOperationDescriptor | undefined {
     return this.activeDescriptors().find((descriptor) => descriptor.key.id === id);
   }
 
-  search(query: string, limit: number): OperationDescriptor[] {
+  search(query: string, limit: number): VersionedOperationDescriptor[] {
     const terms = query
       .toLowerCase()
       .split(/[^a-z0-9._-]+/)

@@ -153,6 +153,8 @@ export function isEfficiencyObservation(value: unknown): value is EfficiencyObse
         "isError",
         "argumentBytes",
         "resultBytes",
+        "modelViewBytes",
+        "artifactBytes",
         "programSourceBytes",
         "emittedBytes",
         "capturedBytes",
@@ -169,9 +171,16 @@ export function isEfficiencyObservation(value: unknown): value is EfficiencyObse
       identity(value.toolCallId, 512) &&
       identity(value.toolName, 256) &&
       typeof value.isError === "boolean" &&
-      ["argumentBytes", "resultBytes", "programSourceBytes", "emittedBytes", "capturedBytes", "recoveredBytes"].every(
-        (key) => nonnegative(value[key]),
-      ) &&
+      [
+        "argumentBytes",
+        "resultBytes",
+        "modelViewBytes",
+        "artifactBytes",
+        "programSourceBytes",
+        "emittedBytes",
+        "capturedBytes",
+        "recoveredBytes",
+      ].every((key) => nonnegative(value[key])) &&
       optionalIdentity(value.runId, 512) &&
       optionalIdentity(value.operation, 256) &&
       optionalIdentity(value.programStatus, 256) &&

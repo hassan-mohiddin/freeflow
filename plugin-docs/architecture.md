@@ -25,7 +25,7 @@ freeflow/
   .skill-eval/
 ```
 
-The npm tarball contains runtime-required files, including the built Pi Tool Execution Worker; declared exact runtime dependencies supply QuickJS core and the selected release-sync WASM variant. GitHub also retains plugin docs, project memory, current eval definitions, and deprecated historical evidence. Retired Output Router evidence is preserved under `.deprecated/output-router/`. There is no generated package mirror.
+The npm tarball contains runtime-required files, including built Pi entrypoint, Session Store, Tool Execution Worker, prompt cue, skill and exact bindings; Pi TypeScript source and repository test trees are not package content. Declared exact runtime dependencies supply QuickJS core and the selected release-sync WASM variant; Pi TUI is a host peer. GitHub also retains plugin docs, project memory, current eval definitions, and deprecated historical evidence. Retired Output Router evidence is preserved under `.deprecated/output-router/`. There is no generated package mirror.
 
 ## Documentation and source boundaries
 
@@ -80,7 +80,7 @@ Freeflow has four coordinated model-facing parts:
 
 1. **Core guidance:** `runtime/prompts/core.md` owns stable identity, shared terms, the three nested loops (Interaction Lifecycle, Feedback Loop, and Environment Interaction Loop), recovery, and Workflow, Action Selection, and Supported Exit cues.
 2. **Interaction Contract:** `runtime/prompts/interaction-contract.md` is a separate mandatory fragment for whole-turn interpretation and establishing outcome, scope, and the user-facing return condition without redundant confirmation.
-3. **Runtime State:** the extension supplies current capability availability, Tool Execution mode/status, and Cognitive Routing Control/Profile/Delegation at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the current provider context. It is not system-prompt policy.
+3. **Runtime State:** the extension supplies current capability availability, Tool Execution store/guidance/effect status, and Cognitive Routing Control/Profile/Delegation at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the current provider context. It is not system-prompt policy.
 4. **Discoverable skills:** 24 base skills under `skills/` are exposed with the core surface; child capability skills under `capabilities/` are exposed only when their own gates are effective.
 
 The Interaction Contract is prompt-only and not discoverable. Full skill and capability bodies are discoverable methods, not persistent bootstrap content. Context loading does not enforce policy, block tools, grant permissions, or replace repository instructions. See [System Prompt Architecture](prompt-architecture.md) for the canonical assembly and gating contract, and [Capabilities](capabilities/README.md) for detailed capability contracts.
@@ -118,7 +118,8 @@ The source Pi entrypoint:
 - supplies one unified volatile `Freeflow Runtime State` message at session start, after context reconstruction or loss, and when displayed state changes, preserving it when unchanged;
 - restores branch-aware session overrides for enablement, optional context capabilities, Cognitive Routing delegation mode, and complete profile pairs;
 - dynamically exposes 24 base model/contributor skills plus effective child capability skills;
-- registers canonical direct commands, the v2 routing tools, and the stable `freeflow_tools` / `freeflow_run` / `freeflow_result` facade;
+- registers canonical direct commands, the v2 routing tools, the stable `freeflow_tools` / `freeflow_run` / `freeflow_result` facade, and gated `freeflow_read` / `freeflow_search` / `freeflow_patch` tools;
+- binds an origin-session Execution/Guidance store with acknowledged events, immutable artifacts, checkpoint recovery and exact v1/v2 readers while keeping Pi-native tools available;
 - activates capability operations and discoverable capability skills only when their individual gates are effective;
 - when the native source host gate is effective, uses Pi's model registry, session-scoped model/thinking controls, and native session entries for v2 Coordinator/Helper/Executor routing.
 
@@ -172,7 +173,7 @@ The legacy context transforms are no longer part of the runtime, so their former
 
 Delegation Harness is retired from the live package. Its implementation and historical evidence remain under `.deprecated/delegation-harness/`.
 
-Tool Execution owns immutable captured-result sidecars, the exact reader, a shared revisioned operation kernel, restricted QuickJS Worker programs, the finite local workspace adapter, deterministic discovery, configured cooperating adapters, native effect fences and factual efficiency observations. Cognitive Routing remains the responsibility owner; RequestHistory remains the generated-occurrence replay owner; selected OpenAI-model support owns qualified provider-request effort-history adaptation. Tool Execution does not dispatch arbitrary native tools through private host methods or claim universal native hook parity. See [Tool Execution](capabilities/tool-execution.md).
+Tool Execution owns the origin-session Execution/Guidance store, immutable captured-result artifacts and legacy reader, bounded direct and generic revisioned operations over one kernel, restricted QuickJS Worker programs, deterministic discovery, configured cooperating adapters, native effect fences, on-demand guidance and factual efficiency observations. Native result/anchor ancestry governs branch-effective sidecars; a checkpoint is current-state authority without deleting older journal bytes. Cognitive Routing remains the responsibility owner; RequestHistory remains the generated-occurrence replay owner; selected OpenAI-model support owns qualified provider-request effort-history adaptation. Tool Execution does not dispatch arbitrary native tools through private host methods or claim universal native hook parity. See [Tool Execution](capabilities/tool-execution.md).
 
 ## Deferred Enforcement
 

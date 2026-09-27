@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -296,7 +296,7 @@ test("mapLimit preserves order and bounds overlapping captured reads", async () 
   }
 });
 
-test("post-start cancellation publishes one settled manifest", async () => {
+test("post-start cancellation retains one manifest but claims a reference only if Pi persisted it", async () => {
   let started;
   const startedPromise = new Promise((resolve) => {
     started = resolve;
@@ -350,7 +350,23 @@ test("post-start cancellation publishes one settled manifest", async () => {
           entry.customType === "freeflow-tool-run-v1" && entry.data.runId === cancelled.details.freeflowRun.runId,
       );
     assert.equal(manifests.length, 1);
-    assert.equal(cancelled.details.freeflowRun.manifestRef, cancelled.details.freeflowRun.runId);
+    const file = await readFile(f.manager.getSessionFile(), "utf8").catch((error) => {
+      if (error.code === "ENOENT") return ""; // Installed Pi may defer persistence until an assistant message.
+      throw error;
+    });
+    const onDisk = file.split("\n").some((line) => {
+      if (!line) return false;
+      try {
+        return JSON.parse(line).id === manifests[0].id;
+      } catch {
+        return false;
+      }
+    });
+    assert.equal(
+      cancelled.details.freeflowRun.manifestRef,
+      onDisk ? cancelled.details.freeflowRun.runId : undefined,
+      "an in-memory-only native entry cannot acknowledge a sidecar owner",
+    );
   } finally {
     await close(f);
   }

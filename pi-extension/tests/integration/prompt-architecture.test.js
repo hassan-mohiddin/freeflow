@@ -230,6 +230,86 @@ test("provider context reuses the before-agent surface until the next provider t
   }
 });
 
+test("Tool Execution exposes a stable tiered cue and only the effective optional skill", async () => {
+  const cwd = await configuredRepo({ toolExecution: { enabled: true } });
+  try {
+    const { handlers } = loadExtension();
+    const ctx = context(cwd);
+    await handlers.get("session_start")({ type: "session_start" }, ctx);
+    const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
+    assert.match(before.renderedGuidance, /## Tool Execution Cue/);
+    assert.match(before.renderedGuidance, /do not load the full skill solely for one such call/);
+    assert.match(before.renderedGuidance, /Before a Freeflow program, mutation, exact artifact recovery/);
+    assert.doesNotMatch(before.renderedGuidance, /project\.readRanges@1|catalog generation/);
+    const resources = await handlers.get("resources_discover")({ cwd }, ctx);
+    assert.equal(
+      resources.skillPaths.filter((path) => path.endsWith("/capabilities/tool-execution/SKILL.md")).length,
+      1,
+    );
+    const provider = await contextHandler(handlers)({ messages: [] }, ctx);
+    assert.match(lastRuntimeState(provider.messages).content, /Tool Execution: active/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+
+  const inactive = await configuredRepo({ toolExecution: { enabled: false } });
+  try {
+    const { handlers } = loadExtension();
+    const ctx = context(inactive);
+    await handlers.get("session_start")({ type: "session_start" }, ctx);
+    const resources = await handlers.get("resources_discover")({ cwd: inactive }, ctx);
+    assert.equal(
+      resources.skillPaths.some((path) => path.endsWith("/capabilities/tool-execution/SKILL.md")),
+      false,
+    );
+  } finally {
+    await rm(inactive, { recursive: true, force: true });
+  }
+});
+
+test("missing optional Tool Execution cue or skill cannot advertise a complete skill path", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-tool-guidance-failure-"));
+  const cwd = await configuredRepo({ toolExecution: { enabled: true } });
+  try {
+    await cp(join(process.cwd(), "pi-extension", "dist"), join(root, "pi-extension", "dist"), { recursive: true });
+    await cp(join(process.cwd(), "runtime", "prompts"), join(root, "runtime", "prompts"), { recursive: true });
+    await cp(join(process.cwd(), "capabilities", "tool-execution"), join(root, "capabilities", "tool-execution"), {
+      recursive: true,
+    });
+    await symlink(join(process.cwd(), "node_modules"), join(root, "node_modules"), "dir");
+    const extension = (
+      await import(`${pathToFileURL(join(root, "pi-extension", "dist", "index.js")).href}?tool-cue=${Date.now()}`)
+    ).default;
+    const { handlers } = loadExtension(extension);
+    const ctx = context(cwd);
+    await handlers.get("session_start")({ type: "session_start" }, ctx);
+    await rm(join(root, "runtime", "prompts", "tool-execution.md"));
+    // Rebuild the optional prompt cache from this copy, without affecting the live package.
+    const runtime = await import(pathToFileURL(join(root, "pi-extension", "dist", "runtime", "runtime-context.js")));
+    await runtime.refreshRuntimeContext(runtime.STABLE_FREEFLOW_SURFACE);
+    const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base" }, ctx);
+    assert.match(before.renderedGuidance, /# Freeflow Stable Guidance/);
+    assert.doesNotMatch(before.renderedGuidance, /## Tool Execution Cue/);
+    let resources = await handlers.get("resources_discover")({ cwd }, ctx);
+    assert.equal(
+      resources.skillPaths.some((path) => path.endsWith("/capabilities/tool-execution/SKILL.md")),
+      false,
+    );
+    await writeFile(join(root, "runtime", "prompts", "tool-execution.md"), "## Tool Execution Cue\n", "utf8");
+    await rm(join(root, "capabilities", "tool-execution", "SKILL.md"));
+    await runtime.refreshRuntimeContext(runtime.STABLE_FREEFLOW_SURFACE);
+    await beforeAgentStartHandler(handlers)({ systemPrompt: "base" }, ctx);
+    resources = await handlers.get("resources_discover")({ cwd }, ctx);
+    assert.equal(
+      resources.skillPaths.some((path) => path.endsWith("/capabilities/tool-execution/SKILL.md")),
+      false,
+    );
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("missing optional prompt fragments preserve the mandatory core surface", async () => {
   const root = await mkdtemp(join(tmpdir(), "freeflow-prompt-fragment-failure-"));
   try {

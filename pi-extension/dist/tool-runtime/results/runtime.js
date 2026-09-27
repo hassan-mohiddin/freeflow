@@ -10,6 +10,8 @@ import {
 } from "./contracts.js";
 import { isWellFormedUnicode, renderCapturePresentation, sha256 } from "./presentation.js";
 import { CaptureStore, CaptureStoreError } from "./store.js";
+import { V2CaptureError } from "./v2-capture.js";
+import { JournalError } from "../../session-store/journal.js";
 export class ResultRuntimeError extends Error {
   code;
   constructor(code, message) {
@@ -129,17 +131,21 @@ export class ResultRuntime {
   state;
   responsibility;
   access;
+  v2;
+  v2Capture;
   store;
   calls = new Map();
   serial = Promise.resolve();
   generation = 0;
   queued = 0;
   failures = [];
-  constructor(pi, state, responsibility, access = () => ({ recovery: false })) {
+  constructor(pi, state, responsibility, access = () => ({ recovery: false }), v2, v2Capture) {
     this.pi = pi;
     this.state = state;
     this.responsibility = responsibility;
     this.access = access;
+    this.v2 = v2;
+    this.v2Capture = v2Capture;
     this.store = new CaptureStore(pi);
   }
   reset() {
@@ -149,7 +155,12 @@ export class ResultRuntime {
   }
   rememberFailure(error) {
     const code =
-      error instanceof CaptureStoreError || error instanceof ResultRuntimeError ? error.code : "capture_failed";
+      error instanceof CaptureStoreError ||
+      error instanceof ResultRuntimeError ||
+      error instanceof V2CaptureError ||
+      error instanceof JournalError
+        ? error.code
+        : "capture_failed";
     const message = error instanceof Error ? error.message : String(error);
     this.failures.push({ code, message: message.slice(0, 512) });
     if (this.failures.length > 16) this.failures.shift();
@@ -197,6 +208,36 @@ export class ResultRuntime {
     const captureBytes = Buffer.byteLength(body, "utf8");
     if (captureBytes <= current.capture.maxInlineBytes || captureBytes > MAX_CAPTURE_BYTES || this.queued >= 16)
       return undefined;
+    if (this.v2Capture) {
+      this.queued += 1;
+      const generation = this.generation;
+      const currentFence = () => generation === this.generation && this.callCurrent(call, ctx);
+      const operation = this.serial.then(async () => {
+        if (!currentFence()) return undefined;
+        return this.v2Capture.publish(
+          {
+            sessionId: call.sessionId,
+            assistantEntryId: call.assistantEntryId,
+            toolCallId: event.toolCallId,
+            producer: call.responsibility,
+            body,
+            externalCoverage: event?.details?.truncation?.truncated === true ? "limited" : "unspecified",
+            maxInlineBytes: current.capture.maxInlineBytes,
+          },
+          ctx,
+          currentFence,
+        );
+      });
+      this.serial = operation.catch(() => {});
+      try {
+        return await operation;
+      } catch (error) {
+        this.rememberFailure(error);
+        return undefined;
+      } finally {
+        this.queued -= 1;
+      }
+    }
     const id = `result:${randomUUID()}`;
     const externalCoverage = event?.details?.truncation?.truncated === true ? "limited" : "unspecified";
     const presentation = renderCapturePresentation(body, id, current.capture.maxInlineBytes, externalCoverage);
@@ -291,6 +332,7 @@ export class ResultRuntime {
   async resolveGrant(id, ctx) {
     try {
       if (!this.state()?.effective) return undefined;
+      if (id.startsWith("artifact:")) return this.v2?.resolveGrant(id, ctx);
       const descriptor = this.descriptor(ctx, id);
       this.finalResult(ctx, descriptor);
       await this.store.read(ctx, descriptor);
@@ -321,7 +363,47 @@ export class ResultRuntime {
       Math.min(input.maxBytes ?? DEFAULT_READER_RESPONSE_BYTES, MAX_READER_RESPONSE_BYTES),
     );
   }
+  async readV2Value(input, signal, ctx) {
+    if (!this.state()?.effective || !this.v2)
+      throw new ResultRuntimeError("reader_unavailable", "V2 artifact reader is unavailable.");
+    return this.v2.readValue(input, signal, ctx, this.access(input.id));
+  }
   async read(input, signal, ctx) {
+    if (typeof input?.id === "string" && input.id.startsWith("artifact:")) {
+      const maximumBytes = Math.min(input.maxBytes ?? DEFAULT_READER_RESPONSE_BYTES, MAX_READER_RESPONSE_BYTES);
+      if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 512)
+        throw new ResultRuntimeError("invalid_range", "Requested byte budget cannot fit v2 reader metadata.");
+      // Base64 can expand selected bytes; reserve half the response for payload and check the final bound.
+      const value = await this.readV2Value({ ...input, maxBytes: Math.floor(maximumBytes / 2) }, signal, ctx);
+      const content = [
+        `Artifact: ${value.id}`,
+        `Range: [${value.range.startBytes},${value.range.endBytes}) of ${value.totalBytes} bytes`,
+        `Coverage: ${value.coverage.capture} at ${value.coverage.boundary}`,
+        `Media type: ${value.mediaType}; encoding: ${value.encoding}`,
+        `Range SHA-256: ${value.sha256}`,
+        "Payload:",
+        value.data,
+        value.nextOffsetBytes === undefined ? "End of captured artifact." : `Next offset: ${value.nextOffsetBytes}`,
+      ].join("\n");
+      if (Buffer.byteLength(content, "utf8") > maximumBytes)
+        throw new ResultRuntimeError("invalid_range", "V2 reader result exceeds the requested byte budget.");
+      return {
+        content: [{ type: "text", text: content }],
+        details: {
+          capturedArtifact: {
+            id: value.id,
+            range: value.range,
+            totalBytes: value.totalBytes,
+            mediaType: value.mediaType,
+            encoding: value.encoding,
+            coverage: value.coverage,
+            sha256: value.sha256,
+            artifactSha256: value.artifactSha256,
+            ...(value.nextOffsetBytes !== undefined ? { nextOffsetBytes: value.nextOffsetBytes } : {}),
+          },
+        },
+      };
+    }
     const { descriptor, buffer } = await this.verified(input, signal, ctx);
     const offsetBytes = input.offsetBytes ?? 0;
     const maximumBytes = Math.min(input.maxBytes ?? DEFAULT_READER_RESPONSE_BYTES, MAX_READER_RESPONSE_BYTES);

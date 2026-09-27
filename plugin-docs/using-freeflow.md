@@ -440,9 +440,9 @@ Tool Execution is experimental and opt-in in the native Pi source candidate. Sta
 }
 ```
 
-Use a known direct operation for one call. Use `freeflow_tools` when the exact current operation revision or schema is missing. Use `freeflow_run` only for mechanical dependent work whose next steps are already determined, and explicitly `emit` the bounded value the model needs. A program does not replace semantic engineering judgment.
+Use `freeflow_read` for known line ranges, `freeflow_search` for path discovery or bounded text modes, and `freeflow_patch` for a revision-bound dry run or update-only change. Load the Tool Execution skill before a mutation, program, exact recovery or unfamiliar catalog operation; one bounded direct read/search needs no skill solely for that call. Use `freeflow_tools` when the exact revision or schema is missing. Use `freeflow_run` only for mechanical dependent work and explicitly `emit` the bounded value the model needs; a program does not replace semantic judgment.
 
-Enabling `workspace` selects a distinct local execution world. Writing additionally requires `workspace.write`. Custom integrations require an explicitly allowlisted cooperating adapter; arbitrary native or third-party tools remain on their ordinary Pi path. Captured files persist until explicit deletion, and unresolved mutations fence new live effects and clean completion instead of replaying.
+Enabling `workspace` selects a distinct local execution world. Writing additionally requires `workspace.write`. Custom integrations require an explicitly allowlisted cooperating adapter; arbitrary native or third-party tools remain on their ordinary Pi path. New output is session-retained in the v2 store, while historical v1 captures remain readable; exact `freeflow_result` ranges report coverage and may use base64 for non-text bytes. There is no automatic deletion, stale-lease reclaim or replay of an unresolved mutation; inspect partial receipts and the effect fence before more live work.
 
 Use:
 

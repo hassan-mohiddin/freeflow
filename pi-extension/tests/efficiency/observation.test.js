@@ -327,6 +327,114 @@ test("capture and exact recovery observations retain byte facts without captured
   assert.doesNotMatch(JSON.stringify(observer.exportData()), /fixture command|bounded exact range/);
 });
 
+test("v2 native capture, direct views, artifact reads and program children count distinct factual byte planes", () => {
+  const { manager, ctx, observer } = harness();
+  const message = {
+    ...assistant(),
+    content: [
+      { type: "toolCall", id: "bash-v2", name: "bash", arguments: { command: "bounded fixture" } },
+      { type: "toolCall", id: "direct-v2", name: "freeflow_read", arguments: { files: [] } },
+      { type: "toolCall", id: "range-v2", name: "freeflow_result", arguments: { id: "artifact:fixture" } },
+      { type: "toolCall", id: "program-v2", name: "freeflow_run", arguments: { code: "emit(1)", operations: [] } },
+      { type: "toolCall", id: "legacy", name: "read", arguments: { path: "fixture.txt" } },
+    ],
+  };
+  const tools = [
+    {
+      role: "toolResult",
+      toolCallId: "bash-v2",
+      toolName: "bash",
+      isError: false,
+      content: [{ type: "text", text: "bounded capture" }],
+    },
+    {
+      role: "toolResult",
+      toolCallId: "direct-v2",
+      toolName: "freeflow_read",
+      isError: false,
+      content: [{ type: "text", text: "bounded model view" }],
+      details: {
+        status: "called",
+        outcome: { operation: { id: "project.readRanges", revision: "1" }, effectState: "completed" },
+        freeflowV2: { artifactBytes: 42, modelCoverage: { boundary: "project-range-model-view" } },
+      },
+    },
+    {
+      role: "toolResult",
+      toolCallId: "range-v2",
+      toolName: "freeflow_result",
+      isError: false,
+      content: [{ type: "text", text: "exact bytes" }],
+      details: {
+        capturedArtifact: { range: { startBytes: 10, endBytes: 22 }, coverage: { boundary: "tool-result-hook" } },
+      },
+    },
+    {
+      role: "toolResult",
+      toolCallId: "program-v2",
+      toolName: "freeflow_run",
+      isError: false,
+      content: [{ type: "text", text: "program output" }],
+      details: { freeflowRun: { runId: "run:v2", programStatus: "completed", emitted: [1] } },
+    },
+    {
+      role: "toolResult",
+      toolCallId: "legacy",
+      toolName: "read",
+      isError: false,
+      content: [{ type: "text", text: "unrelated" }],
+    },
+  ];
+  observer.messageEnd(message, ctx);
+  manager.appendMessage(message);
+  manager.appendCustomEntry("freeflow-tool-artifact-v2", {
+    id: "artifact:fixture",
+    bytes: 1000,
+    native: { toolCallId: "bash-v2" },
+  });
+  manager.appendCustomEntry("freeflow-tool-run-v1", {
+    runId: "run:v2",
+    outcomes: [
+      {
+        operation: { id: "project.readRanges", revision: "1" },
+        status: "succeeded",
+        effectState: "completed",
+        artifactBytes: 10,
+      },
+    ],
+  });
+  for (const result of tools) manager.appendMessage(result);
+  observer.turnEnd({ message, toolResults: tools }, ctx);
+  const records = observer.observations().filter((entry) => entry.kind === "tool-complete");
+  assert.deepEqual(
+    records.map((entry) => entry.artifactBytes),
+    [1000, 42, undefined, 10, undefined],
+  );
+  assert.deepEqual(
+    records.map((entry) => entry.recoveredBytes),
+    [undefined, undefined, 12, undefined, undefined],
+  );
+  assert.equal(records[0].capturedBytes, 1000);
+  assert.equal(records[1].coverageBoundary, "project-range-model-view");
+  assert.equal(records[2].coverageBoundary, "tool-result-hook");
+  const report = observer.report();
+  assert.equal(report.tooling.artifactBytes, 1052);
+  assert.deepEqual(report.tooling.artifactBytesAvailability, {
+    knownSum: 1052,
+    observed: 3,
+    missing: 2,
+    complete: false,
+  });
+  assert.equal(report.tooling.recoveredBytes, 12);
+  assert.equal(
+    report.tooling.modelViewBytes,
+    tools.reduce((sum, tool) => sum + Buffer.byteLength(tool.content[0].text), 0),
+  );
+  assert.match(report.measurement.storage, /payload bytes only/);
+  assert.match(report.measurement.modelView, /must not be added together/);
+  assert.equal(report.operations.find((row) => row.operation === "project.readRanges@1").calls, 2);
+});
+
 test("efficiency JSON export remains bounded and reports omitted observations", () => {
   const { ctx, observer } = harness();
   for (let index = 0; index < 300; index += 1)

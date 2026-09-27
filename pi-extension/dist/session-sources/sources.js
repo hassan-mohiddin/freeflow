@@ -23,23 +23,31 @@ export function projectedEntryId(message) {
 }
 export function tagProjectedMessages(messages, projection, branch) {
   if (!projection) return;
-  const projected = projection.entries.flatMap((entry) => entry.messages.map((message) => ({ entry, message })));
-  if (projected.length !== messages.length || projected.some((p, i) => p.message?.role !== messages[i]?.role)) return;
+  let count = 0;
+  for (const entry of projection.entries) count += entry.messages.length;
+  if (count !== messages.length) return;
+  let index = 0;
+  for (const entry of projection.entries)
+    for (const projected of entry.messages) if (projected?.role !== messages[index++]?.role) return;
   // Host edits change the visible body, so their targets keep exact content association.
-  const edited = new Set(branch.flatMap((entry) => (entry.type === "context_edit" ? [entry.targetId] : [])));
-  projected.forEach(({ entry }, i) => {
-    if (messages[i] && typeof messages[i] === "object") projectedMessages.add(messages[i]);
+  const edited = new Set();
+  for (const entry of branch) if (entry.type === "context_edit") edited.add(entry.targetId);
+  index = 0;
+  for (const entry of projection.entries) {
     const source = entry.sourceEntry;
-    if (edited.has(source.id) && messages[i] && typeof messages[i] === "object") editedMessages.add(messages[i]);
-    if (
-      entry.messages.length === 1 &&
-      ["message", "custom_message"].includes(source.type) &&
-      !edited.has(source.id) &&
-      messages[i] &&
-      typeof messages[i] === "object"
-    )
-      projectedEntryIds.set(messages[i], source.id);
-  });
+    for (const _projected of entry.messages) {
+      const message = messages[index++];
+      if (!message || typeof message !== "object") continue;
+      projectedMessages.add(message);
+      if (edited.has(source.id)) editedMessages.add(message);
+      if (
+        entry.messages.length === 1 &&
+        (source.type === "message" || source.type === "custom_message") &&
+        !edited.has(source.id)
+      )
+        projectedEntryIds.set(message, source.id);
+    }
+  }
 }
 const routingTools = new Set(["freeflow_delegate", "freeflow_return", "freeflow_project", "freeflow_unit"]);
 // Discovery and new selections share this policy. Existing saved selections keep

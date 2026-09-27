@@ -165,26 +165,29 @@ test("native direct mutation failure preserves effect facts and receives error s
   );
 });
 
-test("native facade uses the accepted capture reader through result.read@1", async () => {
+test("native facade reads a new capture through result.read@2 while keeping v1 separate", async () => {
   const body = `BEGIN\n${"x".repeat(4000)}\nDIRECT_CAPTURE_SENTINEL\nEND`;
+  const offset = Buffer.byteLength(body.slice(0, body.indexOf("DIRECT_CAPTURE_SENTINEL")), "utf8");
   let captureId;
   await fixture(
     (request, _wire, manager) => {
       if (request === 1) return call("bash", { command: "cat captured.txt" });
       if (request === 2) {
-        captureId = manager.getBranch().find((entry) => entry.customType === "freeflow-tool-capture-v1")?.data?.id;
+        captureId = manager.getBranch().find((entry) => entry.customType === "freeflow-tool-artifact-v2")?.data?.id;
         assert.ok(captureId);
         return call("freeflow_tools", {
           operation: "call",
-          operationKey: { id: "result.read", revision: "1" },
-          input: { id: captureId, offsetBytes: 0, maxBytes: 8192 },
+          operationKey: { id: "result.read", revision: "2" },
+          input: { id: captureId, offsetBytes: offset, maxBytes: 256 },
         });
       }
       if (request === 3) {
-        const outcome = details(manager, "freeflow_tools").outcome;
-        assert.equal(outcome.status, "succeeded");
-        assert.match(outcome.value.text, /DIRECT_CAPTURE_SENTINEL/);
-        assert.equal(outcome.value.id, captureId);
+        const read = manager.getBranch().findLast((entry) => entry.message?.toolName === "freeflow_tools")?.message;
+        assert.equal(read.details.outcome.status, "succeeded");
+        assert.equal(read.details.freeflowV2.persistence.state, "sidecar-acknowledged");
+        assert.match(read.content[0].text, /DIRECT_CAPTURE_SENTINEL/);
+        assert.equal(read.content[0].text.includes(captureId), true);
+        assert.equal("value" in read.details.outcome, false);
         return [];
       }
       assert.fail(`unexpected request ${request}`);

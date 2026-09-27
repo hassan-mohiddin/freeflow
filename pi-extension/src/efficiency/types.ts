@@ -80,6 +80,8 @@ export type ToolCompletionObservation = ObservationBase &
     isError: boolean;
     argumentBytes?: number;
     resultBytes?: number;
+    modelViewBytes?: number;
+    artifactBytes?: number;
     programSourceBytes?: number;
     emittedBytes?: number;
     capturedBytes?: number;
@@ -170,6 +172,9 @@ export type EfficiencyReport = Readonly<{
   tooling: Readonly<{
     argumentBytes: number;
     resultBytes: number;
+    modelViewBytes: number;
+    artifactBytes: number;
+    artifactBytesAvailability: MetricAvailability;
     programSourceBytes: number;
     emittedBytes: number;
     capturedBytes: number;

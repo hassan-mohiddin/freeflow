@@ -40,8 +40,15 @@ export class ProgramScheduler {
     cancelled: 0,
     unknown: 0,
   };
-  readonly outcomes: { seq: number; operation: OperationKey; status: string; effectState: string; error?: string }[] =
-    [];
+  readonly outcomes: {
+    seq: number;
+    operation: OperationKey;
+    status: string;
+    effectState: string;
+    occurrenceId?: string;
+    artifactBytes?: number;
+    error?: string;
+  }[] = [];
   private readonly queue: Pending[] = [];
   private readonly settled = new Map<number, { pending: Pending; outcome: CallOutcome; json: string }>();
   private active = 0;
@@ -353,6 +360,8 @@ export class ProgramScheduler {
         operation: pending.key,
         status: outcome.status,
         effectState: outcome.effectState,
+        ...(outcome.occurrenceId ? { occurrenceId: outcome.occurrenceId } : {}),
+        ...(outcome.artifactBytes !== undefined ? { artifactBytes: outcome.artifactBytes } : {}),
         ...(outcome.error ? { error: outcome.error.code } : {}),
       });
       this.progress({

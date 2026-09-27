@@ -61,7 +61,7 @@ type Cursor = { fingerprint: string; path: string; offsetBytes: number; fileSha2
 
 // Inspect every ancestor of an explicit path before traversal; O_NOFOLLOW on an
 // opened file protects only the final component, not a symlinked directory above it.
-async function qualifiedSearchPath(
+export async function qualifiedSearchPath(
   root: string,
   denyPaths: readonly string[],
   path: string,

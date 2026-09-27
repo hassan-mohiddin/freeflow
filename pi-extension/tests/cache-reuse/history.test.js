@@ -161,6 +161,60 @@ test("unchanged generated state appends one frame, not one per request, and keep
   assert.equal(frames(), 1);
 });
 
+test("a replaced native frame with the same ID is revalidated instead of using a stale cached body", async () => {
+  const f = fixture();
+  await f.history.assemble([state("original"), user("one")], "ordinary", f.ctx);
+  const native = f.manager.getBranch().find((entry) => entry.customType === "freeflow-request-history-v1");
+  const replaced = structuredClone(native);
+  replaced.data.additions[0].message.content = "replacement";
+  const manager = {
+    getBranch: () => [replaced],
+    getLeafId: () => f.manager.getLeafId(),
+    getSessionId: () => f.manager.getSessionId(),
+    getSessionFile: () => undefined,
+  };
+  const current = [state("original"), user("one")];
+  const changed = await f.history.assemble(current, "ordinary", { ...f.ctx, sessionManager: manager });
+  assert.equal(changed.at(-1).content, "replacement");
+  const invalid = structuredClone(replaced);
+  invalid.data.length = -1;
+  manager.getBranch = () => [invalid];
+  assert.equal(await f.history.assemble(current, "ordinary", { ...f.ctx, sessionManager: manager }), current);
+});
+
+test("switching native siblings rebuilds the frame view without importing the other branch", async () => {
+  const f = fixture();
+  const base = f.manager.appendMessage(user("base"));
+  const first = await f.history.assemble([user("base"), state("sibling A")], "ordinary", f.ctx);
+  const a = f.manager.getLeafId();
+  assert.equal(first.at(-1).content, "sibling A");
+  f.manager.branch(base);
+  const second = await f.history.assemble([user("base"), state("sibling B")], "ordinary", f.ctx);
+  assert.equal(second.at(-1).content, "sibling B");
+  assert.ok(!JSON.stringify(second).includes("sibling A"));
+  f.manager.branch(a);
+  const restored = await f.history.assemble([user("base"), state("sibling A")], "ordinary", f.ctx);
+  assert.deepEqual(restored, first);
+});
+
+test("host-edited native content invalidates cached request prefixes", async () => {
+  const f = fixture();
+  const projected = (text, edited) => {
+    const message = user(text);
+    tagProjectedMessages(
+      [message],
+      { entries: [{ sourceEntry: { type: "message", id: "native:one" }, messages: [message] }] },
+      edited ? [{ type: "context_edit", targetId: "native:one" }] : [],
+    );
+    return [message, state("enabled")];
+  };
+  await f.history.assemble(projected("original", false), "ordinary", f.ctx);
+  assert.equal(f.manager.getEntries().filter((entry) => entry.customType === "freeflow-request-history-v1").length, 1);
+  const edited = await f.history.assemble(projected("changed", true), "ordinary", f.ctx);
+  assert.equal(edited[0].content[0].text, "changed");
+  assert.equal(f.manager.getEntries().filter((entry) => entry.customType === "freeflow-request-history-v1").length, 2);
+});
+
 test("entry-backed messages are fingerprinted once and assemble identically to untagged messages", async () => {
   let traversed = 0;
   const conversation = ["one", "two", "three"].map((text, i) => ({ id: `e${i}`, message: user(text) }));

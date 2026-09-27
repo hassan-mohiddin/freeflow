@@ -1,0 +1,7 @@
+# Programs and exact contracts
+
+Read this before writing `freeflow_run` code. Declare every operation by exact `{id, revision}` in the outer `operations` allowlist; declare captures in `captures`. Inside the restricted JavaScript guest, call `await tools.invoke(id, args)` for operations, `await results.read(id, range)` for allowed captures, and `emit(value)` only for the bounded facts the next model decision needs. Return values that are not emitted remain hidden.
+
+The [generated core bindings](generated-program-bindings.md) describe inputs and canonical values for built-ins. Load the declarations for the selected revisions before authoring their calls. Long-tail declarations come from a complete `freeflow_tools.describe` result. Do not infer a return shape from a model view, add fields from the host's status/coverage/effect envelope to a guest value, or write compatibility parsing for undocumented variants. A guest error exposes `code` and `effectState`; `needs-model` interrupts the run. The host records child coverage, status and partial receipts separately.
+
+Use `mapLimit(items, limit, callback)` for independent bounded reads whose paths and transformation are already known. Sequence dependent operations and mutations. If a child changes what the next step should be, stop the program and let the model decide. Await all calls and emit only the selected evidence; detached calls are not a successful shortcut. Guest code has no ambient Node filesystem, network, modules, clock or random APIs and is not an OS sandbox.

@@ -77,7 +77,7 @@ test("native stable facade discovers and invokes a configured adapter without ad
       assert.equal(JSON.stringify(wire.tools).includes("fixture.native.lookup"), false);
       assert.equal(JSON.stringify(wire.tools).includes("fixture.native.catalog"), false);
       if (request === 1) {
-        assert.equal(JSON.stringify(wire).includes("catalog 305"), true);
+        assert.equal(JSON.stringify(wire).includes("catalog 310"), true);
         return call("freeflow_tools", { operation: "search", query: "fixture.native.lookup", limit: 5 });
       }
       if (request === 2) {
@@ -144,5 +144,5 @@ test("native stable facade discovers and invokes a configured adapter without ad
   );
   assert.equal(observed.requests.length, 5);
   assert.equal(new Set(toolBytes).size, 1, "large operation catalog never changes stable native tool schema bytes");
-  assert.ok(toolBytes[0] < 20_000, `stable native tool schema bytes: ${toolBytes[0]}`);
+  assert.ok(toolBytes[0] < 24_000, `six-tool native schema bytes: ${toolBytes[0]}`);
 });

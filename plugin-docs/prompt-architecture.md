@@ -37,8 +37,10 @@ Runtime State is current-state data, not stable policy. It does not replace the 
 Complete methods live in discoverable packages:
 
 - 24 base model/contributor skills under `skills/` whenever Freeflow is enabled and the mandatory core fragments are available;
-- Cognitive Routing under `capabilities/` only when its own gate is effective;
+- Cognitive Routing and Tool Execution under `capabilities/` only when each gate is effective;
 - capability tools from the same effective surface snapshot.
+
+The stable Tool Execution cue distinguishes self-describing bounded direct reads/searches from programs, patches, exact recovery and unfamiliar catalog work that need the capability skill. Programs additionally use generated exact bindings for core operations or a complete described long-tail contract. An exact full skill read can establish introduction; delivery requires observation of the exact body at a qualified completed request boundary, which the ordinary Pi hook alone does not prove. Neither state establishes comprehension or authority.
 
 ## One effective surface snapshot
 
@@ -87,7 +89,7 @@ OpenCode v2 and Hermes consume the canonical `skills/` surface through their doc
 
 ### Pi
 
-The native Pi 0.87.1 extension contributes stable core/capability guidance through `systemPromptOptions.sections` and composes one request in `context_with_system`, preserving Pi's leading prompt and later system/tool patches while applying Runtime State, routing, RequestHistory, and optional context transforms. It filters historical one-time Workflow or Cognitive Routing bootstrap entries rather than creating new persistent bootstrap messages. This is an assembled-host boundary, not proof of provider cache hits; another extension may still alter the final request.
+The native Pi 0.87.1 extension contributes stable core/capability guidance through `systemPromptOptions.sections` and composes one request in `context_with_system`, preserving Pi's leading prompt and later system/tool patches while applying Runtime State, routing, RequestHistory and effective Tool Execution status/guidance. It filters historical one-time Workflow or Cognitive Routing bootstrap entries rather than creating new persistent bootstrap messages. This is an assembled-host boundary, not proof of provider cache hits; another extension may still alter the final request.
 
 Pi exposes Cognitive Routing when its native model, thinking, session-entry, and ancestry gates are effective.
 

@@ -24,6 +24,7 @@
 - Keeps a suspended Coordinator's prompt cache warm while its delegated worker runs, on models that declare a cache lifetime and prices, by replaying its last request with a one-token output cap. A hold stops when the worker returns, the run ends, a refresh stops reading the cache, or after 6 hours or $2; refreshes are recorded as `freeflow-cache-keepalive-v1` session entries. The ChatGPT Codex backend is excluded because it rejects output caps.
 - Advises `PI_CACHE_RETENTION=long` once and in `/freeflow status` when the Cognitive Routing Coordinator's model has a longer prompt-cache tier than the host uses; Freeflow does not change retention.
 - Adds a prompt caching guide covering provider cache behavior, what Freeflow adds to requests, how it keeps them cache-safe, and the rules for changing request assembly.
+- Adds an additive native-Pi Execution Runtime v2 candidate with a checkpointed session store, `result.read@2` alongside unchanged v1 reads, gated direct read/search/update-only patch tools, exact program bindings, and on-demand guidance while retaining Pi-native tools. Evidence is local and does not claim live provider savings or installation into a user's Pi process.
 
 ### Changed
 

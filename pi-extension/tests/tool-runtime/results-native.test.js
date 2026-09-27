@@ -23,8 +23,8 @@ const resultFor = (manager, name) =>
     .getBranch()
     .filter((entry) => entry.message?.role === "toolResult" && entry.message.toolName === name)
     .at(-1);
-const descriptors = (manager) =>
-  manager.getBranch().filter((entry) => entry.type === "custom" && entry.customType === "freeflow-tool-capture-v1");
+const anchors = (manager) =>
+  manager.getBranch().filter((entry) => entry.type === "custom" && entry.customType === "freeflow-tool-artifact-v2");
 const command = (name, args) => [{ name, args }];
 const config = {
   toolExecution: {
@@ -35,13 +35,14 @@ const config = {
 const setup = async ({ cwd }) => writeFile(join(cwd, "observation.txt"), body);
 const middleOffset = Buffer.byteLength(body.slice(0, body.indexOf("EXACT_MIDDLE_SENTINEL")), "utf8");
 
-function artifactPath(manager, descriptor) {
+function artifactPath(manager, anchor) {
   return join(
     dirname(manager.getSessionFile()),
-    "freeflow-results",
-    "v1",
-    digest(descriptor.originSessionId),
-    descriptor.storageKey,
+    "freeflow-session-store",
+    "v2",
+    digest(anchor.originSessionId),
+    "artifacts",
+    `${anchor.id.slice("artifact:".length)}.bin`,
   );
 }
 
@@ -55,8 +56,8 @@ test("native Bash capture publishes immutable bytes, bounded history, and exact 
         assert.equal(native.isError, false);
         assert.ok(Buffer.byteLength(plain(native), "utf8") <= 1800);
         assert.equal(plain(native).includes("EXACT_MIDDLE_SENTINEL"), false);
-        assert.equal(descriptors(manager).length, 1);
-        captured = descriptors(manager)[0].data;
+        assert.equal(anchors(manager).length, 1);
+        captured = anchors(manager)[0].data;
         assert.ok(plain(native).includes(captured.id));
         assert.equal(JSON.stringify(wire).includes("EXACT_MIDDLE_SENTINEL"), false);
         return command("freeflow_result", { id: captured.id, offsetBytes: middleOffset, maxBytes: 1024 });
@@ -65,11 +66,11 @@ test("native Bash capture publishes immutable bytes, bounded history, and exact 
         const read = resultFor(manager, "freeflow_result").message;
         assert.equal(read.isError, false);
         assert.match(plain(read), /EXACT_MIDDLE_SENTINEL/);
-        assert.equal(read.details.capturedResult.range.startBytes, middleOffset);
-        assert.ok(read.details.capturedResult.range.endBytes > middleOffset);
-        assert.ok(read.details.capturedResult.nextOffsetBytes > middleOffset);
+        assert.equal(read.details.capturedArtifact.range.startBytes, middleOffset);
+        assert.ok(read.details.capturedArtifact.range.endBytes > middleOffset);
+        assert.ok(read.details.capturedArtifact.nextOffsetBytes > middleOffset);
         assert.ok(JSON.stringify(wire).includes("EXACT_MIDDLE_SENTINEL"));
-        assert.equal(descriptors(manager).length, 1, "reader is never captured recursively");
+        assert.equal(anchors(manager).length, 1, "reader is never captured recursively");
         return [];
       }
       assert.fail(`unexpected request ${request}`);
@@ -78,7 +79,7 @@ test("native Bash capture publishes immutable bytes, bounded history, and exact 
     async ({ manager }) => {
       assert.ok(captured);
       assert.equal(await readFile(artifactPath(manager, captured), "utf8"), body);
-      assert.equal(captured.capture.sha256, digest(body));
+      assert.equal(captured.artifactSha256, digest(body));
       const persisted = await readFile(manager.getSessionFile(), "utf8");
       assert.equal(
         persisted.includes("EXACT_MIDDLE_SENTINEL"),
@@ -133,7 +134,7 @@ test("an extension-owned Bash override remains native and is not qualified by it
         const native = resultFor(manager, "bash").message;
         assert.equal(native.details.override, true);
         assert.ok(plain(native).includes("EXACT_MIDDLE_SENTINEL"));
-        assert.equal(descriptors(manager).length, 0);
+        assert.equal(anchors(manager).length, 0);
         return [];
       }
       assert.fail(`unexpected request ${request}`);
@@ -164,10 +165,10 @@ test("an earlier result hook is captured but a later content change makes the ca
     (request, _wire, manager) => {
       if (request === 1) return command("bash", { command: "cat observation.txt" });
       if (request === 2) {
-        const descriptor = descriptors(manager)[0]?.data;
+        const descriptor = anchors(manager)[0]?.data;
         assert.ok(descriptor);
         id = descriptor.id;
-        assert.equal(descriptor.capture.sha256, digest(`EARLY_HOOK\n${body}`));
+        assert.equal(descriptor.artifactSha256, digest(`EARLY_HOOK\n${body}`));
         assert.match(plain(resultFor(manager, "bash").message), /LATE_HOOK/);
         return command("freeflow_result", { id, offsetBytes: 0, maxBytes: 1024 });
       }
@@ -205,12 +206,12 @@ test("parallel native completions retain distinct call, descriptor, and artifact
           { name: "bash", args: { command: "cat observation-b.txt" } },
         ];
       if (request === 2) {
-        const captures = descriptors(manager).map((entry) => entry.data);
+        const captures = anchors(manager).map((entry) => entry.data);
         assert.equal(captures.length, 2);
         assert.equal(new Set(captures.map((capture) => capture.id)).size, 2);
-        assert.equal(new Set(captures.map((capture) => capture.toolCallId)).size, 2);
-        assert.equal(new Set(captures.map((capture) => capture.storageKey)).size, 2);
-        const byHash = new Map(captures.map((capture) => [capture.capture.sha256, capture]));
+        assert.equal(new Set(captures.map((capture) => capture.native.toolCallId)).size, 2);
+        assert.equal(new Set(captures.map((capture) => capture.artifactSha256)).size, 2);
+        const byHash = new Map(captures.map((capture) => [capture.artifactSha256, capture]));
         return [
           {
             name: "freeflow_result",
@@ -249,7 +250,7 @@ test("parallel native completions retain distinct call, descriptor, and artifact
   );
 });
 
-test("reader rejects interior UTF-8 offsets and non-advancing budgets while EOF is explicit", async () => {
+test("v2 reader preserves split UTF-8 bytes as base64 and keeps EOF and metadata budgets explicit", async () => {
   let captured;
   const alphaOffset = Buffer.byteLength(body.slice(0, body.indexOf("αβ")), "utf8");
   const totalBytes = Buffer.byteLength(body, "utf8");
@@ -257,28 +258,30 @@ test("reader rejects interior UTF-8 offsets and non-advancing budgets while EOF 
     (request, _wire, manager) => {
       if (request === 1) return command("bash", { command: "cat observation.txt" });
       if (request === 2) {
-        captured = descriptors(manager)[0]?.data;
+        captured = anchors(manager)[0]?.data;
         assert.ok(captured);
         return command("freeflow_result", { id: captured.id, offsetBytes: alphaOffset + 1, maxBytes: 1024 });
       }
       if (request === 3) {
         const interior = resultFor(manager, "freeflow_result").message;
-        assert.equal(interior.isError, true);
-        assert.match(plain(interior), /inside a UTF-8 code point/);
+        assert.equal(interior.isError, false);
+        assert.equal(interior.details.capturedArtifact.encoding, "base64");
+        assert.equal(interior.details.capturedArtifact.range.startBytes, alphaOffset + 1);
+        assert.match(plain(interior), /encoding: base64/);
         return command("freeflow_result", { id: captured.id, offsetBytes: totalBytes, maxBytes: 1024 });
       }
       if (request === 4) {
         const eof = resultFor(manager, "freeflow_result").message;
         assert.equal(eof.isError, false);
-        assert.deepEqual(eof.details.capturedResult.range, { startBytes: totalBytes, endBytes: totalBytes });
-        assert.equal(eof.details.capturedResult.nextOffsetBytes, undefined);
-        assert.match(plain(eof), /End of captured result/);
+        assert.deepEqual(eof.details.capturedArtifact.range, { startBytes: totalBytes, endBytes: totalBytes });
+        assert.equal(eof.details.capturedArtifact.nextOffsetBytes, undefined);
+        assert.match(plain(eof), /End of captured artifact/);
         return command("freeflow_result", { id: captured.id, offsetBytes: 0, maxBytes: 1 });
       }
       if (request === 5) {
         const tiny = resultFor(manager, "freeflow_result").message;
         assert.equal(tiny.isError, true);
-        assert.match(plain(tiny), /cannot fit reader metadata/);
+        assert.match(plain(tiny), /cannot fit v2 reader metadata/);
         return [];
       }
       assert.fail(`unexpected request ${request}`);
@@ -308,7 +311,7 @@ test("attached recovery admits only the frozen captured-result grant and keeps p
         });
       if (request === 2) return command("bash", { command: "cat observation.txt" });
       if (request === 3) {
-        captured = descriptors(manager)[0]?.data;
+        captured = anchors(manager)[0]?.data;
         assert.ok(captured);
         return [
           { name: "freeflow_project", args: { operation: "add", refs: [`ctx:${resultFor(manager, "bash").id}`] } },
@@ -331,8 +334,8 @@ test("attached recovery admits only the frozen captured-result grant and keeps p
             (entry) =>
               entry.customType === "freeflow-routing-v2" && entry.data?.data?.type === "recovery-request-accepted",
           )?.data?.data?.recovery;
-        assert.deepEqual(recovery.results, [{ id: captured.id, sha256: captured.capture.sha256 }]);
-        return command("freeflow_result", { id: "result:not-granted", offsetBytes: 0, maxBytes: 1024 });
+        assert.deepEqual(recovery.results, [{ id: captured.id, sha256: captured.artifactSha256 }]);
+        return command("freeflow_result", { id: "artifact:not-granted", offsetBytes: 0, maxBytes: 1024 });
       }
       if (request === 6) {
         const denied = resultFor(manager, "freeflow_result").message;
@@ -383,7 +386,7 @@ test("same-session reload retains verified reads after new capture is disabled w
     (request, _wire, manager) => {
       if (request === 1) return command("bash", { command: "printf x >> executions.txt; cat observation.txt" });
       if (request === 2) {
-        captured = descriptors(manager)[0]?.data;
+        captured = anchors(manager)[0]?.data;
         assert.ok(captured);
         return [];
       }
@@ -431,10 +434,10 @@ test("storage capacity and an insufficient presentation budget fall back to the 
         if (request === 1) return command("bash", { command: "cat observation.txt" });
         if (request === 2) {
           const native = resultFor(manager, "bash").message;
-          if (scenario === "capacity") assert.ok(JSON.stringify(wire).includes("last capture issue storage_budget"));
+          if (scenario === "capacity") assert.ok(JSON.stringify(wire).includes("last capture issue artifact_quota"));
           assert.equal(native.isError, false);
           assert.ok(plain(native).includes("EXACT_MIDDLE_SENTINEL"));
-          assert.equal(descriptors(manager).length, 0);
+          assert.equal(anchors(manager).length, 0);
           return [];
         }
         assert.fail(`unexpected request ${request}`);
@@ -450,12 +453,13 @@ test("storage capacity and an insufficient presentation budget fall back to the 
           if (scenario === "capacity") {
             const namespace = join(
               dirname(state.manager.getSessionFile()),
-              "freeflow-results",
-              "v1",
+              "freeflow-session-store",
+              "v2",
               digest(state.manager.getSessionId()),
+              "artifacts",
             );
             await mkdir(namespace, { recursive: true });
-            await writeFile(join(namespace, `${"a".repeat(64)}.txt`), Buffer.alloc(4 * 1024 * 1024));
+            await writeFile(join(namespace, `${"a".repeat(64)}.bin`), Buffer.alloc(4 * 1024 * 1024));
           }
         },
       },
@@ -469,11 +473,11 @@ test("upstream Bash truncation remains explicit and producer output paths are ne
     (request, _wire, manager) => {
       if (request === 1) return command("bash", { command: "cat observation.txt" });
       if (request === 2) {
-        const descriptor = descriptors(manager)[0]?.data;
+        const descriptor = anchors(manager)[0]?.data;
         const native = resultFor(manager, "bash").message;
         assert.ok(descriptor);
-        assert.equal(descriptor.capture.externalCoverage, "limited");
-        assert.equal(descriptor.capture.bytes < Buffer.byteLength(large), true);
+        assert.equal(descriptor.native.externalCoverage, "limited");
+        assert.equal(descriptor.bytes < Buffer.byteLength(large), true);
         assert.equal(plain(native).includes("BEGIN_RAW_ONLY"), false);
         assert.match(plain(native), /Upstream coverage: limited/);
         assert.ok(native.details.fullOutputPath, "native retrieval metadata remains available");
@@ -510,7 +514,7 @@ test("disabled capture and failed Bash preserve their complete native outcomes w
           const native = resultFor(manager, "bash").message;
           assert.equal(native.isError, scenario.error, scenario.name);
           assert.ok(plain(native).includes("EXACT_MIDDLE_SENTINEL"), scenario.name);
-          assert.equal(descriptors(manager).length, 0, scenario.name);
+          assert.equal(anchors(manager).length, 0, scenario.name);
           return [];
         }
         assert.fail(`unexpected request ${request}`);

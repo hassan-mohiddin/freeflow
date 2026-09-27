@@ -1,6 +1,13 @@
 import { Text } from "@earendil-works/pi-tui";
 import { progressText } from "./progress.js";
-const TOOL_NAMES = ["freeflow_tools", "freeflow_run", "freeflow_result"];
+const TOOL_NAMES = [
+  "freeflow_tools",
+  "freeflow_run",
+  "freeflow_result",
+  "freeflow_read",
+  "freeflow_search",
+  "freeflow_patch",
+];
 function paint(theme, color, value) {
   return typeof theme?.fg === "function" ? theme.fg(color, value) : value;
 }
@@ -38,6 +45,12 @@ export function toolRuntimeCallText(name, args = {}, expanded = false) {
       headline = `Tool catalog · describe · ${Array.isArray(args.operations) ? args.operations.length : 0} operation(s)`;
     else if (args?.operation === "call") headline = `Tool call · ${operationLabel(args.operationKey)}`;
     else headline = "Tool catalog";
+  } else if (name === "freeflow_read") {
+    headline = `Project ranges · ${Array.isArray(args?.files) ? args.files.length : 0} file(s)`;
+  } else if (name === "freeflow_search") {
+    headline = `Project search · ${args?.kind === "text" ? (args?.mode ?? "text") : "paths"} · ${JSON.stringify(args?.query ?? "")}`;
+  } else if (name === "freeflow_patch") {
+    headline = `Project patch · ${args?.dryRun ? "dry-run" : "apply"} · ${Array.isArray(args?.expectedRevisions) ? args.expectedRevisions.length : 0} file(s)`;
   } else if (name === "freeflow_run") {
     const description =
       typeof args?.description === "string" && args.description ? args.description : "Preparing program";
@@ -88,12 +101,13 @@ function runSummary(envelope) {
   return parts.join(" · ");
 }
 function resultSummary(details) {
-  const captured = details?.capturedResult ?? {};
+  const captured = details?.capturedArtifact ?? details?.capturedResult ?? {};
   const start = captured?.range?.startBytes;
   const end = captured?.range?.endBytes;
   const range = Number.isSafeInteger(start) && Number.isSafeInteger(end) ? ` · [${start},${end})` : "";
   const total = Number.isSafeInteger(captured.totalBytes) ? ` of ${captured.totalBytes} bytes` : "";
-  return `${captured.id ?? "Captured result"}${range}${total}${captured.coverage ? ` · ${captured.coverage}` : ""}`;
+  const coverage = typeof captured.coverage === "object" ? captured.coverage.capture : captured.coverage;
+  return `${captured.id ?? "Captured result"}${range}${total}${coverage ? ` · ${coverage}` : ""}`;
 }
 export function toolRuntimeResultText(name, result, options = {}, context = {}) {
   const progress = result?.details?.freeflowProgress;
@@ -106,9 +120,11 @@ export function toolRuntimeResultText(name, result, options = {}, context = {}) 
     return options.expanded ? fallback || "Operation failed" : fallback.split("\n")[0] || "Operation failed";
   let headline;
   let detail;
-  if (name === "freeflow_tools") {
-    headline = toolsSummary(result?.details);
-    detail = result?.details;
+  if (["freeflow_tools", "freeflow_read", "freeflow_search", "freeflow_patch"].includes(name)) {
+    const v2 = result?.details?.freeflowV2;
+    const outcomeHeadline = toolsSummary(result?.details);
+    headline = typeof v2?.ui?.summary === "string" ? `${outcomeHeadline} · ${v2.ui.summary}` : outcomeHeadline;
+    detail = typeof v2?.ui?.detail === "string" ? v2.ui.detail : result?.details;
   } else if (name === "freeflow_run") {
     const envelope = result?.details?.freeflowRun;
     headline = runSummary(envelope);

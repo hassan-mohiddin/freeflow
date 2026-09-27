@@ -49,7 +49,7 @@ function boundedExcerpt(text, start, end) {
 }
 // Inspect every ancestor of an explicit path before traversal; O_NOFOLLOW on an
 // opened file protects only the final component, not a symlinked directory above it.
-async function qualifiedSearchPath(root, denyPaths, path, explicit) {
+export async function qualifiedSearchPath(root, denyPaths, path, explicit) {
   if (!insideWorkspace(root, path))
     throw new WorkspaceError("path_outside_root", "Workspace search path escapes the configured root.");
   const relativePath = relative(root, path).replaceAll("\\", "/");

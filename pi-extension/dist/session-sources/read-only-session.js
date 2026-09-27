@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { statSync } from "node:fs";
-import { open, stat } from "node:fs/promises";
+import { lstat, open, stat } from "node:fs/promises";
 import { TextDecoder } from "node:util";
 export class ReadOnlySessionError extends Error {
   code;
@@ -178,6 +178,46 @@ async function tailMatches(path, reader) {
     if (lines.length !== appended.length || lines.some((line, i) => line !== JSON.stringify(appended[i]))) return false;
     verified.set(path, { size, count: entries.length });
     return true;
+  } catch {
+    return false;
+  } finally {
+    await file?.close();
+  }
+}
+/** Verify one newly appended native anchor without re-reading the historical session. */
+export async function persistedLastEntryMatches(path, entry) {
+  if (!path) return false;
+  let file;
+  try {
+    const expected = Buffer.from(`${JSON.stringify(entry)}\n`, "utf8");
+    if (!expected.length || expected.length > 1024 * 1024) return false;
+    const named = await lstat(path, { bigint: true });
+    if (!named.isFile() || named.isSymbolicLink() || named.size < BigInt(expected.length)) return false;
+    file = await open(path, "r");
+    const before = await file.stat({ bigint: true });
+    if (before.size > BigInt(Number.MAX_SAFE_INTEGER)) return false;
+    const actual = Buffer.alloc(expected.length);
+    let offset = 0;
+    while (offset < actual.length) {
+      const read = await file.read(
+        actual,
+        offset,
+        actual.length - offset,
+        Number(before.size) - actual.length + offset,
+      );
+      if (!read.bytesRead) return false;
+      offset += read.bytesRead;
+    }
+    const after = await file.stat({ bigint: true });
+    const current = await lstat(path, { bigint: true });
+    const signature = (value) => [value.dev, value.ino, value.size, value.mtimeNs, value.ctimeNs].join(":");
+    return (
+      before.isFile() &&
+      signature(named) === signature(before) &&
+      signature(before) === signature(after) &&
+      signature(after) === signature(current) &&
+      actual.equals(expected)
+    );
   } catch {
     return false;
   } finally {

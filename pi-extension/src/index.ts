@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { dirname, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { RequestHistory } from "./runtime/request-history.js";
 import { registerProviderSupport } from "./provider-support/index.js";
@@ -9,6 +10,13 @@ import { CacheHealth } from "./efficiency/cache-health.js";
 import { CacheMonitor } from "./efficiency/cache-monitor.js";
 import { registerToolRuntimeTools } from "./tool-runtime/tools.js";
 import { ToolRuntime } from "./tool-runtime/index.js";
+import { DEFAULT_TOOL_EXECUTION_CONFIG } from "./tool-runtime/config.js";
+import { registerDirectToolRuntimeTools, setDirectToolVisibility } from "./tool-runtime/direct-tools.js";
+import { V2ExecutionRecorder } from "./tool-runtime/execution-record.js";
+import { NativeSessionStore, v2StoreLimits } from "./session-store/native.js";
+import { V2ArtifactReader, openLocalOrigin } from "./tool-runtime/results/v2.js";
+import { V2CapturePublisher } from "./tool-runtime/results/v2-capture.js";
+import { GuidanceRuntime } from "./guidance/runtime.js";
 import { publishCooperatingAdapterEndpoint } from "./tool-runtime/adapters/protocol.js";
 import { EffectRuntime } from "./tool-runtime/effects.js";
 import { ResultRuntime } from "./tool-runtime/results/runtime.js";
@@ -18,10 +26,12 @@ import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-ro
 import { handleFreeflowCommand } from "./settings/settings-ui.js";
 import { isPiFlowHost } from "./runtime/runtime-identity.js";
 import { tagProjectedMessages } from "./session-sources/sources.js";
+import { trustLoadedSession } from "./session-sources/read-only-session.js";
 import {
   CONTRIBUTOR_COMMANDS,
   WORKFLOW_COMMANDS,
   freeflowModelSkillPaths,
+  freeflowCapabilitySkillPath,
   freeflowSkillPath,
   getRuntimeContext,
   hasUsableMandatoryPrompts,
@@ -119,15 +129,32 @@ export default function freeflow(pi: FreeflowAPI) {
     delete runtimeStateAnchor.index;
   };
   let capability: any;
+  const nativeStore = new NativeSessionStore();
+  const v2Reader = new V2ArtifactReader((anchor, ctx) =>
+    openLocalOrigin(
+      anchor,
+      ctx,
+      v2StoreLimits(
+        capability?.toolExecution?.capture?.maxStoredBytes ?? DEFAULT_TOOL_EXECUTION_CONFIG.capture.maxStoredBytes,
+      ),
+    ),
+  );
+  const v2Capture = new V2CapturePublisher(api, async (ctx) => nativeStore.ensureCurrent(ctx));
   const results = new ResultRuntime(
     api,
     () => capability?.toolExecution,
     () => routing.observationScope(),
     (id) => routing.resultReadAccess(id),
+    v2Reader,
+    v2Capture,
   );
   routing.setResultGrantPort({ resolve: (id, ctx) => results.resolveGrant(id, ctx) });
   const effects = new EffectRuntime(api);
   routing.setEffectFencePort(effects);
+  const recorder = new V2ExecutionRecorder(async (_scope, host) => {
+    const { store, fence } = await nativeStore.ensureCurrent(host);
+    return { store, fence, occurrenceId: () => `occurrence:${randomUUID()}` };
+  }, 65_536);
   const toolRuntime = new ToolRuntime(
     () => capability?.toolExecution,
     {
@@ -140,8 +167,14 @@ export default function freeflow(pi: FreeflowAPI) {
       read: (input, signal, host) => results.readValue(input, signal, host),
     },
     effects,
+    undefined,
+    recorder,
+    { maxBytes: 8192 },
+    { readV2Value: (input, signal, host) => results.readV2Value(input, signal, host) },
+    () => nativeStore.status().state === "ready",
   );
   publishCooperatingAdapterEndpoint(toolRuntime.adapters);
+  const guidance = new GuidanceRuntime(freeflowCapabilitySkillPath("tool-execution"), () => nativeStore.binding());
   const programs = new ProgramHost(api, toolRuntime, () => capability?.toolExecution);
   const efficiency = new EfficiencyObserver(
     api,
@@ -179,12 +212,15 @@ export default function freeflow(pi: FreeflowAPI) {
   }
   function status(ctx: any) {
     applyRoutingToolVisibility(api, routing, capability?.cognitiveRouting?.effective === true);
+    setDirectToolVisibility(api, () => capability?.toolExecution, nativeStore.status().state === "ready");
     setFreeflowStatus(ctx, capability, routing.state(), prompts, {
       toolExecutionRuntime: {
         ...results.status(),
         ...programs.status(),
         ...effects.status(),
         ...toolRuntime.status(),
+        store: nativeStore.status(),
+        guidance: guidance.status(ctx),
       },
     });
   }
@@ -220,14 +256,22 @@ export default function freeflow(pi: FreeflowAPI) {
       return result;
     },
   });
+  registerDirectToolRuntimeTools(api, () => capability?.toolExecution, toolRuntime);
 
   pi.on("resources_discover", async (event, ctx) => {
     const state = capability ?? (await loadSurface(ctx ?? { cwd: (event as any)?.cwd ?? process.cwd() }));
-    return { skillPaths: freeflowModelSkillPaths(STABLE_FREEFLOW_SURFACE) };
+    return {
+      skillPaths: freeflowModelSkillPaths(
+        { ...STABLE_FREEFLOW_SURFACE, toolExecution: state.toolExecution },
+        isPromptAvailable(prompts?.toolExecutionPrompt),
+      ),
+    };
   });
   pi.on("session_start", async (event, ctx) => {
     const generation = ++surfaceGeneration;
     resetHistory();
+    // Pi has just loaded this native session. Future acknowledgment checks read only new JSONL tail bytes.
+    trustLoadedSession(ctx.sessionManager);
     routing.unbind();
     capability = undefined;
     prompts = undefined;
@@ -243,11 +287,16 @@ export default function freeflow(pi: FreeflowAPI) {
     programs.reset();
     effects.reset();
     await effects.recover(ctx);
+    if (capability.toolExecution?.effective === true)
+      await nativeStore.open(ctx, capability.toolExecution.capture.maxStoredBytes);
+    else await nativeStore.close();
+    await guidance.refresh(ctx);
     await routing.bind(ctx, capability.cognitiveRouting, (event as any)?.reason !== "reload");
     status(ctx);
   });
   pi.on("session_shutdown", async () => {
     surfaceGeneration++;
+    await nativeStore.close();
     resetHistory();
     routing.unbind();
     efficiency.reset();
@@ -305,12 +354,15 @@ export default function freeflow(pi: FreeflowAPI) {
   });
   pi.on("tool_result", async (event, ctx) => {
     const capture = await results.capture(event, ctx);
+    if (capability?.toolExecution?.effective === true) guidance.observeRead(event, ctx);
     const direct = toolRuntime.patchResult(event);
     const program = programs.patchResult(event);
     return capture || direct || program ? { ...(capture ?? {}), ...(direct ?? {}), ...(program ?? {}) } : undefined;
   });
   pi.on("turn_end", async (event, ctx) => {
     await routing.turnEnd(event, ctx);
+    if (guidance.needsPublication() && nativeStore.binding()) await nativeStore.ensureCurrent(ctx).catch(() => {});
+    await guidance.turnEnd(event, ctx);
     results.turnEnd(event);
     efficiency.turnEnd(event, ctx);
     status(ctx);
@@ -347,6 +399,8 @@ export default function freeflow(pi: FreeflowAPI) {
         ...programs.status(),
         ...effects.status(),
         ...toolRuntime.status(),
+        store: nativeStore.status(),
+        guidance: guidance.status(ctx),
       },
     });
     refreshState = false;
@@ -377,6 +431,7 @@ export default function freeflow(pi: FreeflowAPI) {
     restoreSessionOverrides(ctx);
     refreshState = true;
     await routing.ancestryChanged(ctx, navigation);
+    guidance.ancestryChanged();
     await update(ctx);
   };
   pi.on("session_tree", async (_event, ctx) => restore(ctx));
