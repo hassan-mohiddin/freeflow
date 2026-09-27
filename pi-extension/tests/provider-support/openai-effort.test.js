@@ -28,8 +28,10 @@ const requestFor = (id, input, effort = "low") => ({ ...request(input, effort), 
 function fixture(manager = SessionManager.inMemory("/tmp/openai-effort-fixture")) {
   const status = [];
   const pi = { appendEntry: (type, data) => manager.appendCustomEntry(type, data) };
-  const ctx = { model, sessionManager: manager, ui: { setStatus: (...args) => status.push(args) } };
-  return { pi, ctx, manager, status, adapter: new OpenAIEffortAdapter(pi) };
+  const ctx = { model, sessionManager: manager, ui: { setStatus: (...args) => status.push(["footer", ...args]) } };
+  // Adapter status is a cache diagnostic reported to the monitor, not the footer.
+  const monitor = { set: (key, value) => status.push([key, value]) };
+  return { pi, ctx, manager, status, adapter: new OpenAIEffortAdapter(pi, undefined, monitor) };
 }
 const updates = (p) =>
   p.input.flatMap((item, index) =>
@@ -326,7 +328,11 @@ test("session reset clears adapter status without changing the next requested ef
   const f = fixture();
   await f.adapter.adapt(request([u("one")]), f.ctx);
   f.adapter.reset(f.ctx);
-  assert.deepEqual(f.status.at(-1), ["freeflow-openai-effort", undefined]);
+  assert.deepEqual(f.status.at(-1), ["openai-effort", undefined]);
+  assert.ok(
+    f.status.every(([key]) => key !== "footer"),
+    "no footer writes",
+  );
 });
 
 test("unchanged effort across a growing tool loop writes one record and changes append one more", async () => {

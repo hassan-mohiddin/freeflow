@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import type { CacheMonitor } from "../efficiency/cache-monitor.js";
 import { persistedBranchMatches } from "../session-sources/read-only-session.js";
 import { projectedEntryId } from "../session-sources/sources.js";
 
@@ -88,7 +89,10 @@ export class RequestHistory {
   private fault = false;
   private serial: Promise<unknown> = Promise.resolve();
   private revision = 0;
-  constructor(private readonly pi: any) {}
+  constructor(
+    private readonly pi: any,
+    private readonly monitor?: CacheMonitor,
+  ) {}
   reset() {
     this.revision++;
     this.acknowledged.clear();
@@ -103,9 +107,7 @@ export class RequestHistory {
       try {
         return await this.prepare(messages, view, ctx, revision, notice);
       } catch {
-        try {
-          ctx.ui?.setStatus?.("freeflow-cache", "Freeflow context replay unavailable · current view retained");
-        } catch {}
+        this.monitor?.set("context-replay", "Freeflow context replay unavailable · current view retained");
         // Keep the already-qualified projected view on failure, never raw hidden history.
         return messages;
       }
@@ -254,9 +256,7 @@ export class RequestHistory {
         throw error;
       }
     }
-    try {
-      ctx.ui?.setStatus?.("freeflow-cache", undefined);
-    } catch {}
+    this.monitor?.set("context-replay", undefined);
     return result;
   }
 }

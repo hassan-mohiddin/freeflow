@@ -48,9 +48,6 @@ export class CacheKeepAlive {
     this.stop("reset");
     this.lanes.clear();
   }
-  holding() {
-    return this.active !== undefined;
-  }
   status() {
     if (this.active)
       return `Keeping ${this.lanes.get(this.active.lane)?.model?.id} cache warm while its worker runs · $${this.active.spent.toFixed(3)} spent`;

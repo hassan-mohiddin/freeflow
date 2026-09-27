@@ -104,10 +104,6 @@ export class CacheKeepAlive {
     this.lanes.clear();
   }
 
-  holding(): boolean {
-    return this.active !== undefined;
-  }
-
   status(): string | undefined {
     if (this.active)
       return `Keeping ${this.lanes.get(this.active.lane)?.model?.id} cache warm while its worker runs · $${this.active.spent.toFixed(3)} spent`;

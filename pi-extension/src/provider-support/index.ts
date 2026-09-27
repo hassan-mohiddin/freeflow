@@ -1,3 +1,4 @@
+import type { CacheMonitor } from "../efficiency/cache-monitor.js";
 import { CacheAnchorAdapter } from "./cache/index.js";
 import { CacheKeepAlive } from "./cache/keepalive.js";
 import { registerOpenAIEffortSupport } from "./openai/index.js";
@@ -6,15 +7,10 @@ export interface ProviderSupport {
   keepAlive: CacheKeepAlive;
 }
 
-export function registerProviderSupport(pi: any, enabled?: () => boolean): ProviderSupport {
-  registerOpenAIEffortSupport(pi, enabled);
+export function registerProviderSupport(pi: any, enabled?: () => boolean, monitor?: CacheMonitor): ProviderSupport {
+  registerOpenAIEffortSupport(pi, enabled, monitor);
   const anchor = new CacheAnchorAdapter(enabled);
-  let statusCtx: any;
-  const showStatus = () => {
-    try {
-      statusCtx?.ui?.setStatus?.("freeflow-cache-keepalive", keepAlive.holding() ? keepAlive.status() : undefined);
-    } catch {}
-  };
+  const report = () => monitor?.set("keep-alive", keepAlive.status());
   const keepAlive = new CacheKeepAlive({
     enabled,
     onRefresh: (record) => {
@@ -22,17 +18,17 @@ export function registerProviderSupport(pi: any, enabled?: () => boolean): Provi
         // Pi's session usage totals are host-owned; keep-alive spend is recorded for Freeflow attribution.
         pi.appendEntry?.("freeflow-cache-keepalive-v1", { ...record, at: Date.now() });
       } catch {}
-      showStatus();
+      report();
     },
   });
   const evaluate = (ctx: any) => {
-    statusCtx = ctx;
     keepAlive.evaluate(ctx);
-    showStatus();
+    report();
   };
   pi.on("session_shutdown", () => {
     anchor.reset();
     keepAlive.reset();
+    report();
   });
   pi.on("before_provider_request", (event: any, ctx: any) => {
     const sent = anchor.adapt(event.payload, ctx);

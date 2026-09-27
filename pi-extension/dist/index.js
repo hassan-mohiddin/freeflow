@@ -5,6 +5,7 @@ import { registerProviderSupport } from "./provider-support/index.js";
 import { registerProviderObservation } from "./provider-support/observation.js";
 import { EfficiencyObserver } from "./efficiency/observation.js";
 import { CacheHealth } from "./efficiency/cache-health.js";
+import { CacheMonitor } from "./efficiency/cache-monitor.js";
 import { registerToolRuntimeTools } from "./tool-runtime/tools.js";
 import { ToolRuntime } from "./tool-runtime/index.js";
 import { publishCooperatingAdapterEndpoint } from "./tool-runtime/adapters/protocol.js";
@@ -87,17 +88,20 @@ function freeflowCompletions(prefix, routingAvailable) {
 }
 export default function freeflow(pi) {
   if (isPiFlowHost(pi.host)) return;
+  // Cache diagnostics are reported to /freeflow status; the footer only shows current settings.
+  const cacheMonitor = new CacheMonitor();
   // Only an explicit master-switch disable turns provider support off; unconfigured repositories keep it.
   const providerSupport = registerProviderSupport(
     pi,
     () => !(capability?.configured === true && capability.enabled === false),
+    cacheMonitor,
   );
   const api = pi;
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
   const routing = new RoutingRuntime(api, [packageRoot]);
   // A Coordinator waiting on its worker will resume, so its prompt cache is worth keeping warm.
   providerSupport.keepAlive.setHoldSource(() => routing.suspendedCoordinator());
-  const requestHistory = new RequestHistory(api);
+  const requestHistory = new RequestHistory(api, cacheMonitor);
   // Where the Freeflow Runtime State was last placed on paths that bypass request history.
   const runtimeStateAnchor = {};
   const resetHistory = () => {
@@ -449,10 +453,7 @@ export default function freeflow(pi) {
           ...programs.status(),
           ...effects.status(),
           ...toolRuntime.status(),
-          cacheHealth: [
-            ...cacheHealth.status(),
-            ...((keepAlive) => (keepAlive ? [keepAlive] : []))(providerSupport.keepAlive.status()),
-          ],
+          cacheHealth: [...cacheHealth.status(), ...cacheMonitor.lines()],
         }),
       });
     },

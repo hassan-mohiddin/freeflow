@@ -54,6 +54,7 @@ function parse(value) {
 /** Preserve only Freeflow-generated occurrences. Native content remains owned by Pi and its projectors. */
 export class RequestHistory {
   pi;
+  monitor;
   acknowledged = new Map();
   // Unedited native entries are immutable, so their fingerprints are computed once per session.
   fingerprints = new Map();
@@ -68,8 +69,9 @@ export class RequestHistory {
   fault = false;
   serial = Promise.resolve();
   revision = 0;
-  constructor(pi) {
+  constructor(pi, monitor) {
     this.pi = pi;
+    this.monitor = monitor;
   }
   reset() {
     this.revision++;
@@ -85,9 +87,7 @@ export class RequestHistory {
       try {
         return await this.prepare(messages, view, ctx, revision, notice);
       } catch {
-        try {
-          ctx.ui?.setStatus?.("freeflow-cache", "Freeflow context replay unavailable · current view retained");
-        } catch {}
+        this.monitor?.set("context-replay", "Freeflow context replay unavailable · current view retained");
         // Keep the already-qualified projected view on failure, never raw hidden history.
         return messages;
       }
@@ -227,9 +227,7 @@ export class RequestHistory {
         throw error;
       }
     }
-    try {
-      ctx.ui?.setStatus?.("freeflow-cache", undefined);
-    } catch {}
+    this.monitor?.set("context-replay", undefined);
     return result;
   }
 }

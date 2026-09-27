@@ -1,3 +1,4 @@
+import type { CacheMonitor } from "../../efficiency/cache-monitor.js";
 import { assemble, EFFORTS } from "./history.js";
 import { SessionState } from "./session-state.js";
 
@@ -55,6 +56,7 @@ export class OpenAIEffortAdapter {
     private readonly pi: any,
     // Global Freeflow disablement leaves provider requests and session history untouched.
     private readonly enabled: () => boolean = () => true,
+    private readonly monitor?: CacheMonitor,
   ) {}
   reset(ctx?: any): void {
     this.generation++;
@@ -65,13 +67,11 @@ export class OpenAIEffortAdapter {
   setCompacting(value: boolean): void {
     this.compacting = value;
   }
-  private status(ctx: any, label: string | undefined): void {
+  private status(_ctx: any, label: string | undefined): void {
     if (this.statusSignature === label) return;
     this.statusSignature = label;
-    // Diagnostics must never turn a completed payload transformation into an exception.
-    try {
-      ctx.ui?.setStatus?.("freeflow-openai-effort", label);
-    } catch {}
+    // A cache diagnostic, reported to /freeflow status rather than the settings footer.
+    this.monitor?.set("openai-effort", label);
   }
   async adapt(payload: any, ctx: any): Promise<any> {
     const generation = this.generation;

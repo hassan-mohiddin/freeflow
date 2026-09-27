@@ -1,8 +1,9 @@
+import type { CacheMonitor } from "../../efficiency/cache-monitor.js";
 import { OpenAIEffortAdapter } from "./adapter.js";
 import { trustLoadedSession } from "../../session-sources/read-only-session.js";
 
-export function registerOpenAIEffortSupport(pi: any, enabled?: () => boolean): void {
-  const adapter = new OpenAIEffortAdapter(pi, enabled);
+export function registerOpenAIEffortSupport(pi: any, enabled?: () => boolean, monitor?: CacheMonitor): void {
+  const adapter = new OpenAIEffortAdapter(pi, enabled, monitor);
   pi.on("session_start", (_event: any, ctx: any) => {
     trustLoadedSession(ctx.sessionManager);
     adapter.reset(ctx);

@@ -45,6 +45,7 @@ export function requestKey(payload, model) {
 export class OpenAIEffortAdapter {
   pi;
   enabled;
+  monitor;
   session;
   generation = 0;
   compacting = false;
@@ -54,9 +55,11 @@ export class OpenAIEffortAdapter {
     pi,
     // Global Freeflow disablement leaves provider requests and session history untouched.
     enabled = () => true,
+    monitor,
   ) {
     this.pi = pi;
     this.enabled = enabled;
+    this.monitor = monitor;
   }
   reset(ctx) {
     this.generation++;
@@ -67,13 +70,11 @@ export class OpenAIEffortAdapter {
   setCompacting(value) {
     this.compacting = value;
   }
-  status(ctx, label) {
+  status(_ctx, label) {
     if (this.statusSignature === label) return;
     this.statusSignature = label;
-    // Diagnostics must never turn a completed payload transformation into an exception.
-    try {
-      ctx.ui?.setStatus?.("freeflow-openai-effort", label);
-    } catch {}
+    // A cache diagnostic, reported to /freeflow status rather than the settings footer.
+    this.monitor?.set("openai-effort", label);
   }
   async adapt(payload, ctx) {
     const generation = this.generation;
