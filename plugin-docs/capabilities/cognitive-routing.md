@@ -525,6 +525,8 @@ Compatible prefixes may shorten or restart when:
 
 A matching local prefix is not proof of a provider cache hit.
 
+A handoff can leave the Coordinator's earlier cache entry beyond the provider's lookback window even when its prefix is unchanged. On routes with documented explicit breakpoints, Freeflow places a breakpoint on that entry. While a delegated worker runs, Freeflow keeps the suspended Coordinator's cache warm on models that declare a cache lifetime and prices. See [Prompt caching](../prompt-caching.md) for both mechanisms, their limits, and the rules that keep Coordinator views append-only.
+
 ### Selected GPT-6 cache-aware effort history
 
 For qualified `gpt-6-astra`, `gpt-6-luna`, and `gpt-6-sol` requests on supported OpenAI Responses or OpenAI-Codex Responses routes, Freeflow can keep the original request-level effort as a stable baseline and insert trusted `configuration_update` items at validated historical positions when effective effort changes. Other models and unsupported request shapes retain native behavior.

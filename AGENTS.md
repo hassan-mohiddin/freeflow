@@ -75,6 +75,19 @@ When reference skills conflict during skill development:
 - Do not hardcode volatile repo facts, directory inventories, or stack summaries into durable memory.
 - Do not add enforcement hooks until skill wording and evals prove the behavior needs mechanical enforcement.
 
+## Prompt Cache
+
+Freeflow must never make a user pay more than native Pi for the same work. Read [Prompt caching](plugin-docs/prompt-caching.md) before changing prompts, tools, projection, request history, routing, tool results, or provider support.
+
+- Never change content a provider has already cached: no edits, reordering, truncation, or re-rendering of earlier messages or tool results.
+- Append new content after what the requester already received; do not insert it earlier.
+- Keep the Freeflow system section and tool definitions fixed. Gates and the Runtime State express changing state.
+- Route generated per-turn content through request history so it keeps its position.
+- Prove every request-assembly change with a test in which a later request starts with the earlier one.
+- Gate provider-specific request changes on provider documentation or a recorded live probe; leave unqualified routes untouched.
+- Advise on host cache settings such as retention; never override them.
+- Report cache diagnostics to `/freeflow status`, not the footer.
+
 ## Documentation And Changelog Policy
 
 - Agents may update `CHANGELOG.md` under `## Unreleased` for verified consumer-visible work when the task authorization covers that update. Use only the canonical categories `Breaking Changes`, `Added`, `Changed`, `Fixed`, and `Removed`; keep each entry as a bullet under exactly one category. Defer the entry until the final implementation slice unless bounded write-ahead authorization says otherwise.

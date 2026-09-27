@@ -24,6 +24,7 @@ The Freeflow Context tool, Context Virtualization, and Conversation History have
 - [Skill routing](skill-routing.md): shipped skills, ownership, sibling routes, and reference dependencies.
 - [Architecture](architecture.md): package layout, layered configuration, runtime delivery, review topology, and task memory.
 - [System prompt architecture](prompt-architecture.md): prompt fragments, Runtime State, discoverable skills, gating, and nested execution context.
+- [Prompt caching](prompt-caching.md): how provider caches behave, what Freeflow adds to a request, how it keeps the cache intact, and the rules for changing request assembly.
 - [Release process](release.md): one-package preparation, evidence, and human-controlled release boundaries.
 - [Release evidence](release-evidence/README.md): versioned evidence records and deferred checks.
 - [ADRs](adr/README.md): durable release decisions.

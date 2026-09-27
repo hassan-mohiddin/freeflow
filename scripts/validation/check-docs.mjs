@@ -12,6 +12,7 @@ export const CURRENT_DOCUMENTS = [
   "plugin-docs/getting-started.md",
   "plugin-docs/architecture.md",
   "plugin-docs/prompt-architecture.md",
+  "plugin-docs/prompt-caching.md",
   "plugin-docs/capabilities/README.md",
   "plugin-docs/capabilities/cognitive-routing.md",
   "plugin-docs/capabilities/tool-execution.md",

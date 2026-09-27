@@ -20,6 +20,10 @@
 - Adds complete local/shared Tool Execution settings with safe quick presets and confirmed workspace-write enablement, bounded native progress streaming, and concise collapsed plus expanded views for all three Tool Execution facade tools.
 - Warns once when back-to-back requests to the same model and effort repeatedly miss the prompt cache with no compaction, navigation, reload, or model change in between, and shows the warning in `/freeflow status`.
 - Warns when a Cognitive Routing worker preset costs as much per input token as Coordinator or more, or shares Coordinator's model at a different effort on a route that does not keep the prompt cache across effort changes.
+- Keeps a Cognitive Routing Coordinator's prompt cache reachable after a worker run: when the worker's turns push the Coordinator's previous cache entry past the provider's lookback window, Freeflow places a cache breakpoint on that entry on Anthropic Messages and GPT-5.6+ OpenAI Responses routes. The ChatGPT Codex backend needs no breakpoint and is not changed.
+- Keeps a suspended Coordinator's prompt cache warm while its delegated worker runs, on models that declare a cache lifetime and prices, by replaying its last request with a one-token output cap. A hold stops when the worker returns, the run ends, a refresh stops reading the cache, or after 6 hours or $2; refreshes are recorded as `freeflow-cache-keepalive-v1` session entries. The ChatGPT Codex backend is excluded because it rejects output caps.
+- Advises `PI_CACHE_RETENTION=long` once and in `/freeflow status` when the Cognitive Routing Coordinator's model has a longer prompt-cache tier than the host uses; Freeflow does not change retention.
+- Adds a prompt caching guide covering provider cache behavior, what Freeflow adds to requests, how it keeps them cache-safe, and the rules for changing request assembly.
 
 ### Changed
 
@@ -29,6 +33,8 @@
 - Repositions Freeflow around Memory, planned Context, and Compute, and expands Cognitive Routing and native Pi documentation with qualified preset and cache-reuse boundaries.
 - Removes most Freeflow per-request overhead in native Pi: routing history replays in one pass, request history and routing attribution reuse Pi's session projection instead of re-hashing the conversation, history and GPT-6 effort records are written only when their state changes, persisted-session checks read only newly appended entries, and accounting serializes requests after dispatch. A disabled repository no longer adds routing provenance, and GPT-6 effort adaptation stays off when a configured repository disables Freeflow.
 - Resumes a Cognitive Routing worker run automatically when a crash or reload interrupted it and no new user input has arrived; reopening an idle session only notes that an unchanged assignment can be resumed.
+- Shows prompt-cache diagnostics (Coordinator keep-alive, context replay, and the GPT-6 effort baseline) on the `prompt cache` line of `/freeflow status` instead of the footer, which now shows only current Freeflow settings.
+- Shows the Coordinator only the tool calls of worker turns it did not select, so another model's reasoning no longer arrives as text, and gives each completed worker run one provenance note.
 
 ### Fixed
 
@@ -43,6 +49,8 @@
 - Applies the same ordering to Cognitive Routing resume, session presets, rebinding, re-enabling, and navigation, so a failed model switch records nothing; a manual hold whose model was changed outside routing is reported once and shown in the footer instead of being overridden.
 - Corrects the Cognitive Routing skill: profiles on the same model reuse the prompt cache only at matching effort or on routes that keep it across effort changes (currently the supported GPT-6 routes).
 - Delivers evidence reused from an earlier assignment where it was selected, so a returning Coordinator request extends its cached prefix instead of rewriting it.
+- Delivers evidence that an attention view left out where the assessment resumed, so the resumed Coordinator request extends its cached prefix instead of rewriting it.
+- Counts cache writes in prompt-cache health checks and compares a Cognitive Routing profile that resumes on its own model with its previous request, so write-heavy and handoff misses are reported.
 
 ## 0.7.2 - 2026-09-11
 

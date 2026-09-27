@@ -149,7 +149,7 @@ Reuse may shorten or restart when the active model/provider or unsupported effor
 
 The selected-model effort adapter supports `gpt-6-astra`, `gpt-6-luna`, and `gpt-6-sol` on qualified OpenAI Responses and OpenAI-Codex Responses request shapes. It preserves the request baseline and records compatible effort changes under `freeflow-openai-effort-v1`. Older `freeflow-astra-effort-v1` entries remain in the native session log but are not replayed; a new effort chain starts from the next supported request. This source/fixture evidence is not a billing or model-quality guarantee.
 
-Detailed cache evidence remains task-local and is not a published package artifact; this section states the public contract and its limits.
+[Prompt caching](../prompt-caching.md) explains how provider caches behave on Pi, how Freeflow keeps its additions cache-safe (including the anchor breakpoint and the Coordinator keep-alive), and the rules for changing request assembly. Detailed per-task cache evidence remains task-local and is not a published package artifact; this section states the public contract and its limits.
 
 The routing tools are model-facing controls, not permission grants. A return saves a report but does not close a unit. Evidence selection must use actual canonical `ctx:<native-entry-id>` references, and unresolved or adverse evidence remains explicit.
 
