@@ -146,6 +146,23 @@ test("models without a declared cache lifetime are never warmed", async () => {
   assert.equal(h.sent.length, 0);
 });
 
+test("a worker on the Coordinator's own model does not replace the Coordinator's warmed request", async () => {
+  let requester = "coordinator";
+  const h = harness({ hold: { ...coordinator, requester: "coordinator" } });
+  h.keepAlive.setRequesterSource(() => requester);
+  coordinatorRequest(h);
+  // The worker uses the same model with a different prompt.
+  requester = "helper";
+  const worker = claudePayload();
+  worker.messages = [{ role: "user", content: [{ type: "text", text: "worker brief", cache_control: cc }] }];
+  h.keepAlive.record(worker, h.ctx(claude));
+  h.keepAlive.observe(h.ctx(claude), { input: 4, output: 10, cacheRead: 60_000, cacheWrite: 0 });
+  h.keepAlive.evaluate(h.ctx(claude));
+  await h.advance(HOUR);
+  assert.equal(h.sent.length, 1);
+  assert.deepEqual(h.sent[0].payload.messages, claudePayload().messages);
+});
+
 test("the ChatGPT Codex backend is never replayed, even with a declared lifetime", async () => {
   // Codex rejects max_output_tokens and prompt_cache_options, so a replay could not be capped.
   const codex = { ...gpt, promptCache: { short: 1800, long: 1800 } };

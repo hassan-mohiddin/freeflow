@@ -234,7 +234,7 @@ export class RoutingRuntime {
       if (!this.supported() || state.control !== "automatic" || !isWorkerProfile(state.profile) || !state.assignmentId)
         return;
       const pair = this.profilePair("coordinator");
-      return { provider: pair.provider, modelId: pair.modelId };
+      return { provider: pair.provider, modelId: pair.modelId, requester: "coordinator" };
     } catch {
       return;
     }

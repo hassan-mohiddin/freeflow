@@ -293,13 +293,13 @@ export class RoutingRuntime {
     };
   }
   /** The Coordinator's model while a delegated worker holds the assignment; the Coordinator resumes on return. */
-  suspendedCoordinator(): { provider: string; modelId: string } | undefined {
+  suspendedCoordinator(): { provider: string; modelId: string; requester: "coordinator" } | undefined {
     try {
       const state = this.stateData();
       if (!this.supported() || state.control !== "automatic" || !isWorkerProfile(state.profile) || !state.assignmentId)
         return;
       const pair = this.profilePair("coordinator");
-      return { provider: pair.provider, modelId: pair.modelId };
+      return { provider: pair.provider, modelId: pair.modelId, requester: "coordinator" };
     } catch {
       return;
     }

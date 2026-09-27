@@ -28,6 +28,7 @@ export class CacheKeepAlive {
   options;
   lanes = new Map();
   holdSource = () => undefined;
+  requester = () => undefined;
   active;
   lastStop;
   now;
@@ -44,6 +45,16 @@ export class CacheKeepAlive {
   setHoldSource(source) {
     this.holdSource = source;
   }
+  /** Names who is sending the current request, so requesters sharing a model keep separate lanes. */
+  setRequesterSource(source) {
+    this.requester = () => {
+      try {
+        return source();
+      } catch {
+        return undefined;
+      }
+    };
+  }
   reset() {
     this.stop("reset");
     this.lanes.clear();
@@ -55,7 +66,7 @@ export class CacheKeepAlive {
   }
   /** Remember the request just sent on its model; a hold keeps the latest one warm. */
   record(payload, ctx) {
-    const key = laneKey(ctx);
+    const key = laneKey(ctx, undefined, this.requester());
     if (!key || !PROTOCOLS[ctx.model.api]) return;
     const prior = this.lanes.get(key);
     this.lanes.set(key, { key, model: ctx.model, payload, sentAt: this.now(), prompt: prior?.prompt });
@@ -63,13 +74,13 @@ export class CacheKeepAlive {
   }
   /** Provider-reported usage of the latest request on a model gives the prompt size to price. */
   observe(ctx, usage, producer) {
-    const lane = this.lanes.get(laneKey(ctx, producer) ?? "");
+    const lane = this.lanes.get(laneKey(ctx, producer, this.requester()) ?? "");
     if (lane && usage) lane.prompt = usage.input + usage.cacheRead + usage.cacheWrite;
   }
   /** Start or stop holding according to the current run and hold source. */
   evaluate(ctx) {
     const hold = this.currentHold(ctx);
-    const key = hold && laneKey(ctx, hold);
+    const key = hold && laneKey(ctx, hold, hold.requester);
     if (this.active && this.active.lane === key) {
       this.active.ctx = ctx;
       return;
@@ -115,7 +126,8 @@ export class CacheKeepAlive {
     active.timer = undefined;
     const lane = this.lanes.get(active.lane);
     const hold = this.currentHold(active.ctx);
-    if (!hold || laneKey(active.ctx, hold) !== active.lane) return this.stop("requester resumed or run ended");
+    if (!hold || laneKey(active.ctx, hold, hold.requester) !== active.lane)
+      return this.stop("requester resumed or run ended");
     const now = this.now();
     // Like Pi's warmer, a refresh later than halfway from its slot to expiry is likely a full rewrite.
     const ttl = this.ttlMs(lane),
@@ -150,11 +162,11 @@ export class CacheKeepAlive {
 }
 /** Pi's refresh point: 90% of the lifetime, keeping at least ten seconds of margin. */
 const refreshDelay = (ttl) => Math.min(ttl * 0.9, ttl - EXPIRY_MARGIN_MS);
-function laneKey(ctx, hold) {
+function laneKey(ctx, hold, requester) {
   const provider = hold?.provider ?? ctx?.model?.provider,
     model = hold?.modelId ?? ctx?.model?.id;
   if (!provider || !model) return;
-  return JSON.stringify([ctx?.sessionManager?.getSessionId?.() ?? "memory", provider, model]);
+  return JSON.stringify([ctx?.sessionManager?.getSessionId?.() ?? "memory", provider, model, requester ?? ""]);
 }
 const perToken = (value) => (typeof value === "number" ? value / 1_000_000 : undefined);
 function price(lane) {

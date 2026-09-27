@@ -108,6 +108,8 @@ export default function freeflow(pi: FreeflowAPI) {
   const routing = new RoutingRuntime(api, [packageRoot]);
   // A Coordinator waiting on its worker will resume, so its prompt cache is worth keeping warm.
   providerSupport.keepAlive.setHoldSource(() => routing.suspendedCoordinator());
+  // A worker may share the Coordinator's model; each profile keeps its own warmed request.
+  providerSupport.keepAlive.setRequesterSource(() => routing.observationScope().profile);
   const requestHistory = new RequestHistory(api, cacheMonitor);
   // Where the Freeflow Runtime State was last placed on paths that bypass request history.
   const runtimeStateAnchor: RuntimeStateAnchor = {};
