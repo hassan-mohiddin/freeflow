@@ -292,6 +292,18 @@ export class RoutingRuntime {
       ...((warnings) => (warnings.length ? { presetWarnings: warnings } : {}))(this.presetWarnings(state)),
     };
   }
+  /** The Coordinator's model while a delegated worker holds the assignment; the Coordinator resumes on return. */
+  suspendedCoordinator(): { provider: string; modelId: string } | undefined {
+    try {
+      const state = this.stateData();
+      if (!this.supported() || state.control !== "automatic" || !isWorkerProfile(state.profile) || !state.assignmentId)
+        return;
+      const pair = this.profilePair("coordinator");
+      return { provider: pair.provider, modelId: pair.modelId };
+    } catch {
+      return;
+    }
+  }
   observationScope() {
     let state: State;
     try {
@@ -1108,33 +1120,43 @@ export class RoutingRuntime {
       limitations: state.assessment?.problems ?? [],
     };
   }
-  private admissionCache?: { state: State; leaf: string | null; admissions: Map<string, number> };
-  /** Source rank at which each currently selected ref was first admitted, derived from native selection events. */
-  private admissions(state: State): Map<string, number> {
+  private admissionCache?: {
+    state: State;
+    leaf: string | null;
+    admissions: Map<string, number>;
+    resumedAt?: number;
+  };
+  /**
+   * Source rank at which each currently selected ref was first admitted, derived from native selection events,
+   * and the rank at which the current assessment last resumed from an attention suspension.
+   */
+  private admissions(state: State): { admissions: Map<string, number>; resumedAt?: number } {
     const reader = this.ctx.sessionManager,
       leaf = reader.getLeafId?.() ?? null;
     const cache = this.admissionCache;
-    if (cache && cache.state === state && cache.leaf === leaf) return cache.admissions;
+    if (cache && cache.state === state && cache.leaf === leaf) return cache;
     const admissions = new Map<string, number>();
-    let rank = 0;
+    let rank = 0,
+      resumedAt: number | undefined;
     for (const entry of reader.getBranch() as NativeEntry[]) {
       if (["message", "custom_message", "compaction", "branch_summary"].includes(entry.type)) rank++;
       else if (entry.type === "custom" && entry.customType === ROUTING_ENTRY) {
         const data = (entry as any).data?.data;
+        if (data?.type === "assessment-resumed" && data.handoffId === state.assessment?.handoffId) resumedAt = rank;
         if (data?.type !== "selection-changed") continue;
         const current = state.selections.get(data.assignmentId)?.selected ?? [];
         for (const ref of data.selection?.selected ?? [])
           if (current.includes(ref) && !admissions.has(ref)) admissions.set(ref, rank);
       }
     }
-    this.admissionCache = { state, leaf, admissions };
-    return admissions;
+    this.admissionCache = { state, leaf, admissions, resumedAt };
+    return this.admissionCache;
   }
   private prepared(profile: Profile, input: any[], handoffId?: string, restoring = false): PreparedView {
     const state = this.stateData(),
       model = this.model(profile);
     return prepareView({
-      admissions: this.admissions(state),
+      ...(({ admissions, resumedAt }) => ({ admissions, resumedAt }))(this.admissions(state)),
       messages: input,
       sources: this.sources(state),
       state,

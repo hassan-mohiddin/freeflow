@@ -124,3 +124,86 @@ for (const [label, cachedShare, expected] of [
     );
   });
 }
+
+test("cache writes count toward the prompt so write-heavy misses are judged", () => {
+  const health = new CacheHealth();
+  const warnings = [];
+  let at = 0;
+  for (let i = 0; i < 12; i++) {
+    at += 10_000;
+    // Anthropic-style usage: after one hit, every request writes the whole prompt again.
+    const miss = i > 0;
+    const warning = health.observe({
+      provider: "anthropic",
+      model: "claude-opus-5-5",
+      thinking: "high",
+      at,
+      input: 4,
+      cacheRead: miss ? 0 : 60_000,
+      cacheWrite: miss ? 60_500 : 500,
+    });
+    if (warning) warnings.push(warning);
+  }
+  assert.equal(warnings.length, 1);
+});
+
+test("a routing profile returning to its model is compared with its own previous request", () => {
+  const health = new CacheHealth();
+  const warnings = [];
+  let at = 0;
+  const observe = (model, lane, cacheRead, cacheWrite) => {
+    at += 20_000;
+    const warning = health.observe({
+      provider: model.startsWith("claude") ? "anthropic" : "openai-codex",
+      model,
+      thinking: "high",
+      at,
+      input: 4,
+      cacheRead,
+      cacheWrite,
+      lane,
+      ttlMs: 60 * MIN,
+    });
+    if (warning) warnings.push(warning);
+  };
+  let prompt = 100_000;
+  for (let handoff = 0; handoff < 5; handoff++) {
+    observe("claude-opus-5-5", "coordinator", prompt, 800);
+    health.noteSwitch();
+    for (let i = 0; i < 6; i++) observe("gpt-6-luna", "helper", 40_000, 0);
+    health.noteSwitch();
+    // Back on the Coordinator: only the shared system prefix was read.
+    prompt += 20_000;
+    observe("claude-opus-5-5", "coordinator", 44_000, prompt - 44_000);
+  }
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /claude-opus-5-5/);
+});
+
+test("a routing lane is not compared after its cache lifetime or across a context break", () => {
+  const health = new CacheHealth();
+  let at = 0;
+  const observe = (cacheRead, gap) => {
+    at += gap;
+    return health.observe({
+      provider: "anthropic",
+      model: "claude-opus-5-5",
+      thinking: "high",
+      at,
+      input: 4,
+      cacheRead,
+      cacheWrite: 100_000 - cacheRead,
+      lane: "coordinator",
+      ttlMs: 5 * MIN,
+    });
+  };
+  for (let i = 0; i < 10; i++) {
+    observe(100_000, 10_000);
+    health.noteSwitch();
+    assert.equal(observe(0, 6 * MIN), undefined);
+    observe(100_000, 10_000);
+    health.noteBreak();
+    assert.equal(observe(0, 10_000), undefined);
+  }
+  assert.deepEqual(health.status(), []);
+});

@@ -95,10 +95,15 @@ function freeflowCompletions(prefix: string | undefined, routingAvailable: boole
 export default function freeflow(pi: FreeflowAPI) {
   if (isPiFlowHost(pi.host)) return;
   // Only an explicit master-switch disable turns provider support off; unconfigured repositories keep it.
-  registerProviderSupport(pi, () => !(capability?.configured === true && capability.enabled === false));
+  const providerSupport = registerProviderSupport(
+    pi,
+    () => !(capability?.configured === true && capability.enabled === false),
+  );
   const api = pi as any;
   const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
   const routing = new RoutingRuntime(api, [packageRoot]);
+  // A Coordinator waiting on its worker will resume, so its prompt cache is worth keeping warm.
+  providerSupport.keepAlive.setHoldSource(() => routing.suspendedCoordinator());
   const requestHistory = new RequestHistory(api);
   // Where the Freeflow Runtime State was last placed on paths that bypass request history.
   const runtimeStateAnchor: RuntimeStateAnchor = {};
@@ -263,6 +268,8 @@ export default function freeflow(pi: FreeflowAPI) {
       message.usage &&
       message.stopReason !== "error"
     ) {
+      const scope = routing.observationScope();
+      const lifetime = ctx.model?.promptCache?.[process.env.PI_CACHE_RETENTION === "long" ? "long" : "short"];
       const warning = cacheHealth.observe({
         provider: message.provider,
         model: message.model,
@@ -270,6 +277,9 @@ export default function freeflow(pi: FreeflowAPI) {
         at: Date.now(),
         input: message.usage.input ?? 0,
         cacheRead: message.usage.cacheRead ?? 0,
+        cacheWrite: message.usage.cacheWrite ?? 0,
+        ...(scope.control === "automatic" && scope.profile !== "solo" ? { lane: scope.profile } : {}),
+        ...(typeof lifetime === "number" ? { ttlMs: lifetime * 1000 } : {}),
       });
       if (warning) ctx.ui?.notify?.(warning, "warning");
     }
@@ -304,12 +314,12 @@ export default function freeflow(pi: FreeflowAPI) {
     await update(ctx);
   });
   pi.on("model_select", async (_event, ctx) => {
-    cacheHealth.noteBreak();
+    cacheHealth.noteSwitch();
     await routing.nativeChange(ctx);
     status(ctx);
   });
   pi.on("thinking_level_select", async (_event, ctx) => {
-    cacheHealth.noteBreak();
+    cacheHealth.noteSwitch();
     await routing.nativeChange(ctx);
     status(ctx);
   });
@@ -450,7 +460,10 @@ export default function freeflow(pi: FreeflowAPI) {
           ...programs.status(),
           ...effects.status(),
           ...toolRuntime.status(),
-          cacheHealth: cacheHealth.status(),
+          cacheHealth: [
+            ...cacheHealth.status(),
+            ...((keepAlive) => (keepAlive ? [keepAlive] : []))(providerSupport.keepAlive.status()),
+          ],
         }),
       });
     },

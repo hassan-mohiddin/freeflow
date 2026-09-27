@@ -12,7 +12,12 @@ import {
 import freeflow from "../../dist/index.js";
 import { replay } from "../../dist/cognitive-routing-v2/state.js";
 
-export function response(n, calls = [], text = "fixture response") {
+export function response(
+  n,
+  calls = [],
+  text = "fixture response",
+  usage = { input_tokens: 10, output_tokens: 10, total_tokens: 20 },
+) {
   const output = [
     {
       type: "message",
@@ -51,7 +56,7 @@ export function response(n, calls = [], text = "fixture response") {
       id: `r-${n}`,
       status: "completed",
       output,
-      usage: { input_tokens: 10, output_tokens: 10, total_tokens: 20 },
+      usage,
     },
   });
   return new Response(events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("") + "data: [DONE]\n\n", {
@@ -86,7 +91,7 @@ export async function fixture(script, projection = true, after, withUI = true, o
   await writeFile(join(cwd, "@recovery.txt"), "LITERAL_AT_FILE_BODY_68");
   await writeFile(
     join(agentDir, "models.json"),
-    JSON.stringify({ providers: { openai: { baseUrl: "https://fixture.invalid/v1" } } }),
+    JSON.stringify({ providers: { openai: { baseUrl: "https://fixture.invalid/v1", ...options.openaiProvider } } }),
   );
   const priorFetch = globalThis.fetch,
     offline = process.env.PI_OFFLINE;

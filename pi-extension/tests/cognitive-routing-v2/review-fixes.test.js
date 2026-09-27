@@ -115,6 +115,30 @@ test("assessment resumption reports its actual cause", async () => {
   assert.equal(code(recovering), "recovery_outstanding");
 });
 
+test("the resume rank of the current assessment comes from its latest resumption event", async () => {
+  const { RoutingRuntime } = await import("../../dist/cognitive-routing-v2/runtime.js");
+  const { initialState } = await import("../../dist/cognitive-routing-v2/state.js");
+  const message = (id) => ({ type: "message", id, message: { role: "user", content: "x" } });
+  const routing = (id, data) => ({ type: "custom", id, customType: "freeflow-routing-v2", data: { data } });
+  const branch = [
+    message("m0"),
+    routing("e1", { type: "assessment-resumed", handoffId: "other" }),
+    message("m1"),
+    routing("e2", { type: "assessment-resumed", handoffId: "h1" }),
+    message("m2"),
+    message("m3"),
+    routing("e3", { type: "assessment-resumed", handoffId: "h1" }),
+    message("m4"),
+  ];
+  const runtime = new RoutingRuntime({ on() {}, registerTool() {} }, []);
+  runtime.ctx = { sessionManager: { getLeafId: () => "m4", getBranch: () => branch } };
+  const state = initialState();
+  state.assessment = { handoffId: "h1", assignmentId: "a1", view: "active", problems: [] };
+  assert.equal(runtime.admissions(state).resumedAt, 4, "rank after four messages");
+  const none = initialState();
+  assert.equal(runtime.admissions(none).resumedAt, undefined);
+});
+
 const routingCapability = (delegation = "executor") => ({
   configured: true,
   enabled: true,

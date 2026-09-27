@@ -144,11 +144,11 @@ export function prepareView(options) {
     // A structural worker envelope keeps its calls for the selected results; its narration is only
     // delivered when selected, either whole or as its own #text source.
     const structuralWorker = selective && isWorkerProfile(source.producer) && !full.has(source.ref);
-    if (
-      source.message.role === "assistant" &&
-      !full.has(source.ref) &&
-      (full.has(textRef(source.ref)) || structuralWorker)
-    )
+    // A structural worker envelope carries only its calls. Reasoning is narration too: another model's
+    // thinking reaches the receiver as plain text after the host's cross-model conversion.
+    if (source.message.role === "assistant" && structuralWorker)
+      message.content = message.content.filter((b) => b.type === "toolCall");
+    else if (source.message.role === "assistant" && !full.has(source.ref) && full.has(textRef(source.ref)))
       message.content = message.content.filter((b) => b.type !== "text");
     if (full.has(source.ref) || source.message.role !== "toolResult") return message;
     return {
@@ -168,10 +168,18 @@ export function prepareView(options) {
     const producer = sources.byRef.get(`ctx:${entry.id}`)?.producer ?? "common";
     shared.push(shared.at(-1) + (isWorkerProfile(producer) ? 0 : 1));
   }
+  const activeRefs = new Set(associated.flatMap((i) => (i.source ? [i.source.ref] : [])));
   const deferredAt = new Map();
-  if (selective && options.admissions)
+  if (selective && (options.admissions || options.resumedAt !== undefined))
     for (const source of full.values()) {
-      const at = options.admissions.get(source.ref),
+      // An attention view omitted required evidence that is no longer in the active context, so after a
+      // resume that evidence is new to the Coordinator: deliver it where the assessment resumed.
+      const resumed =
+        options.resumedAt !== undefined && required.has(source.ref) && !activeRefs.has(source.ref)
+          ? options.resumedAt
+          : undefined;
+      const admitted = options.admissions?.get(source.ref);
+      const at = admitted === undefined ? resumed : Math.max(admitted, resumed ?? 0),
         own = rank.get(source.entry.id) ?? 0;
       if (at === undefined || at <= own || !isWorkerProfile(source.producer) || shared[at] <= shared[own + 1]) continue;
       const group = source.original ? [source] : sources.exchange(source).sources;
@@ -179,7 +187,6 @@ export function prepareView(options) {
         for (const candidate of [member, sources.byRef.get(textRef(member.ref))])
           if (candidate) deferredAt.set(candidate.ref, Math.max(deferredAt.get(candidate.ref) ?? 0, at));
     }
-  const activeRefs = new Set(associated.flatMap((i) => (i.source ? [i.source.ref] : [])));
   const historical = ordered.filter((s) => !activeRefs.has(s.ref));
   const emitted = new Set();
   let messages = [];
@@ -217,7 +224,8 @@ export function prepareView(options) {
   while (cursor < historical.length) place(historical[cursor++]);
   deliver(Infinity);
   const fullSources = [...full.values()];
-  messages = annotateSources(messages, renderedSources, new Set(full.keys()), sources, options.instance);
+  // The Coordinator only sees completed worker runs, so one note per run keeps its prefix stable.
+  messages = annotateSources(messages, renderedSources, new Set(full.keys()), sources, options.instance, selective);
   // Restore exact current communication only when its accepted occurrence is absent.
   const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
   const baseReport = assessment
