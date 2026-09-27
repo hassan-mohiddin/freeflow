@@ -84,6 +84,31 @@ test("native labeled forks preserve generated-state positions", async () => {
   }
 });
 
+test("a branch summary keeps generated state at its original positions", async () => {
+  const f = fixture();
+  f.manager.appendMessage(user("one"));
+  const first = await f.history.assemble([user("one"), state("enabled")], "ordinary", f.ctx);
+  f.manager.appendMessage({ role: "assistant", content: [{ type: "text", text: "abandoned" }], timestamp: 2 });
+  // Navigate back to the recorded request and summarize the abandoned path, as /tree does.
+  const frame = f.manager.getBranch().findLast((e) => e.customType === "freeflow-request-history-v1");
+  f.manager.branchWithSummary(frame.id, "Summary of the abandoned path.");
+  const summary = { role: "branchSummary", summary: "Summary of the abandoned path.", timestamp: 3 };
+  const next = await f.history.assemble([user("one"), summary, user("two"), state("enabled")], "ordinary", f.ctx);
+  assert.deepEqual(next.slice(0, first.length), first);
+});
+
+test("compaction still starts a new generation", async () => {
+  const f = fixture();
+  f.manager.appendMessage(user("one"));
+  await f.history.assemble([user("one"), state("enabled")], "ordinary", f.ctx);
+  f.manager.appendCompaction("Compacted.", f.manager.getLeafId(), 100);
+  const compacted = { role: "compactionSummary", summary: "Compacted.", timestamp: 3 };
+  const next = await f.history.assemble([compacted, user("two"), state("enabled")], "ordinary", f.ctx);
+  // Pre-compaction positions do not apply; current state is placed at the tail of the new history.
+  assert.equal(next.at(-1).content, "enabled");
+  assert.equal(next.length, 3);
+});
+
 test("budget notices see assembled historical overhead and clear without rewriting old notices", async () => {
   const f = fixture();
   let length;

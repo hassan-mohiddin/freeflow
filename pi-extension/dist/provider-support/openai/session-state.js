@@ -25,12 +25,18 @@ export class SessionState {
   async records() {
     if (this.fault) throw new Error(this.fault);
     const branch = this.branch();
-    // Model visits preserve compatible history; compaction and branch summaries do not.
-    const boundaries = new Map();
-    let epoch = "root";
+    // Model visits and branch summaries preserve compatible history; compaction does not. A branch summary
+    // follows its branch point, leaving the path before it unchanged. Records written while branch summaries
+    // still started a generation carry that earlier boundary and stay readable.
+    const boundaries = new Map(),
+      earlier = new Map();
+    let epoch = "root",
+      earlierEpoch = "root";
     for (const entry of branch) {
-      if (entry.type === "compaction" || entry.type === "branch_summary") epoch = entry.id;
+      if (entry.type === "compaction") epoch = entry.id;
+      if (entry.type === "compaction" || entry.type === "branch_summary") earlierEpoch = entry.id;
       boundaries.set(entry.id, epoch);
+      earlier.set(entry.id, earlierEpoch);
     }
     const entries = branch.filter((e) => e.type === "custom" && e.customType === ENTRY_TYPE);
     const records = entries.map((e) => {
@@ -40,7 +46,8 @@ export class SessionState {
         !(this.reader.getHeader?.()?.parentSession && !branch.some((entry) => entry.id === record.basis))
       )
         throw new Error("OpenAI effort attempt anchor mismatch");
-      if (record.generation !== boundaries.get(e.id)) throw new Error("OpenAI effort history generation unavailable");
+      if (record.generation !== boundaries.get(e.id) && record.generation !== earlier.get(e.id))
+        throw new Error("OpenAI effort history generation unavailable");
       return record;
     });
     if (new Set(records.map((r) => r.id)).size !== records.length) throw new Error("Duplicate OpenAI effort attempt");
@@ -75,7 +82,7 @@ export class SessionState {
   generation() {
     let generation = "root";
     for (const entry of this.branch()) {
-      if (entry.type === "compaction" || entry.type === "branch_summary") generation = entry.id;
+      if (entry.type === "compaction") generation = entry.id;
     }
     return generation;
   }

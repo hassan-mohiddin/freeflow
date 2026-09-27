@@ -51,6 +51,7 @@
 - Corrects the Cognitive Routing skill: profiles on the same model reuse the prompt cache only at matching effort or on routes that keep it across effort changes (currently the supported GPT-6 routes).
 - Delivers evidence reused from an earlier assignment where it was selected, so a returning Coordinator request extends its cached prefix instead of rewriting it.
 - Delivers evidence that an attention view left out where the assessment resumed, so the resumed Coordinator request extends its cached prefix instead of rewriting it.
+- Keeps Freeflow runtime state and GPT-6 effort history at their original positions after `/tree` branch navigation with a summary, so the request after the branch point reuses the cached path instead of rewriting it; only compaction starts a new history.
 - Counts cache writes in prompt-cache health checks and compares a Cognitive Routing profile that resumes on its own model with its previous request, so write-heavy and handoff misses are reported.
 
 ## 0.7.2 - 2026-09-11

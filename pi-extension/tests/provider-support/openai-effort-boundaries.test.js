@@ -26,7 +26,34 @@ const payload = (effort = "high") => ({
   input: [{ role: "user", content: "same" }],
 });
 
-for (const boundary of ["compaction", "branch_summary"]) {
+test("a branch summary keeps pre-branch effort history for the unchanged prefix", async () => {
+  const f = fixture();
+  const old = assemble(payload(), "openai/gpt-6-astra", f.store.generation(), f.reader.getLeafId(), []);
+  f.store.append(old.record);
+  f.append("branch_summary");
+  // The path before the branch point is unchanged, so the generation is too.
+  assert.equal(f.store.generation(), old.record.generation);
+  const current = assemble(
+    payload("low"),
+    "openai/gpt-6-astra",
+    f.store.generation(),
+    f.reader.getLeafId(),
+    await f.store.records(),
+  );
+  assert.equal(current.baseline, "high");
+  assert.equal(current.record.parent, old.record.id);
+});
+
+test("records written under the earlier branch-summary boundary remain readable", async () => {
+  const f = fixture();
+  const summary = f.append("branch_summary");
+  // Before compaction-only boundaries, a record after a branch summary carried the summary's id.
+  const legacy = assemble(payload(), "openai/gpt-6-astra", summary, f.reader.getLeafId(), []);
+  f.store.append(legacy.record);
+  assert.equal((await f.store.records()).length, 1);
+});
+
+for (const boundary of ["compaction"]) {
   test(`${boundary} excludes pre-boundary history even with identical input`, async () => {
     const f = fixture();
     const old = assemble(payload(), "openai/gpt-6-astra", f.store.generation(), f.reader.getLeafId(), []);

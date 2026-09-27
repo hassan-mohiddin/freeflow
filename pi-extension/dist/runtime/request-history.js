@@ -154,7 +154,10 @@ export class RequestHistory {
         throw new Error("Invalid context ancestry");
       parent = entry.id;
       newIds.add(entry.id);
-      if (entry.type === "compaction" || entry.type === "branch_summary") generation = entry.id;
+      // Compaction replaces earlier history. A branch summary follows its branch point and keeps the path
+      // before it intact, so generated state there keeps its positions (frames on the abandoned path are
+      // not ancestors and drop out on their own).
+      if (entry.type === "compaction") generation = entry.id;
     }
     if (parent !== leaf) throw new Error("Context leaf changed");
     const newEntries = branch.slice(start).filter((e) => e.type === "custom" && e.customType === ENTRY);
