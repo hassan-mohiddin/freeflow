@@ -94,7 +94,7 @@ export function resolveRecordPath(root, supplied) {
   const recordPath = basename(candidate) === "record.md" ? candidate : join(candidate, "record.md");
   const canonicalRecord = canonicalPath(recordPath);
   if (!inside(tasks, canonicalRecord) || basename(canonicalRecord) !== "record.md")
-    fail("unsafe-path", `Record must be a record.md below ${tasks}`);
+    fail("unsafe-path", `Record must be a record.md below ${tasks}; pass --root or an absolute --record path`);
   const taskDirectory = basename(dirname(canonicalRecord));
   if (!/^task-\d{3,}-[a-z0-9][a-z0-9-]*$/.test(taskDirectory))
     fail("unsafe-path", `Invalid task directory: ${taskDirectory}`);

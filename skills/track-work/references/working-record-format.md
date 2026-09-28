@@ -87,7 +87,7 @@ Structured entities use compact field rows:
 - The older expanded style (`Field: value` without the leading dash) is still read. Do not mix the two styles within one entity; commands rewrite entities they change in compact style.
 - Use only the fields defined for the entity. Omit an optional field that has no value; never write an empty label such as `- Type:`.
 - Every line inside a structured entity belongs to a field or a permitted nested heading. Stray text is invalid.
-- Durable IDs are assigned by commands: `S-NNN` Slices, `C-NNN` Checkpoints, `D-NNN` Decisions. They appear in headings and never change or get reused.
+- Durable IDs are assigned by commands: `S-NNN` Slices, `C-NNN` Checkpoints, `D-NNN` Decisions. They appear in headings and never change or get reused. They follow recording order, not the order work happened.
 - Proposed Slices and proposed Checkpoints have no ID. Their titles must be unique across Future Work.
 
 ## Current Context
@@ -263,6 +263,18 @@ Closing does not keep Scope, Stop condition, Starting state, Dependencies, Mater
 | `blocked` | A paused attempt that could not continue left Current Work; `Resume when` says what would allow it. |
 | `abandoned` | Explicit authority ended the pursuit; `Reason` says why. |
 
+A Slice that finished before it could be recorded, such as work done before the record existed, enters History through `slice record` with the same fields plus two more:
+
+```markdown
+#### S-006 — Baseline on the easy tasks
+- State: completed
+- Occurred: 2026-09-26 to 2026-09-27
+- Recorded: retroactively on 2026-09-28
+- Intended result: ...
+```
+
+`Occurred` is when the work happened: `YYYY-MM-DD` or `YYYY-MM-DD to YYYY-MM-DD`. `Recorded` is written by the command, so a retroactive entry is never mistaken for live bookkeeping. The two appear together or not at all. A retroactive result is reconstructed, not observed at recording time: `Evidence and limits` points to where the exact history lives, such as a session, log, or commit.
+
 Reopen a completed or blocked Slice only when the new work still belongs to the same intended result; reopening creates a new Slice and leaves the historical entry unchanged. After an abandoned Slice, propose a new one instead.
 
 ### Corrections
@@ -291,7 +303,7 @@ Before completing or abandoning a task, keep a proposed Future Work item only if
 
 ## Lifecycle Commands
 
-Run `working-record.mjs <group> <operation> --help` for each command's options and input fields. `--input -` reads the input fragment from stdin. Commands that change the Current Slice or task state require `--next-action`.
+Run `working-record.mjs <group> <operation> --help` for each command's options and input fields. `--input -` reads the input fragment from stdin. An input fragment holds only the fields its help lists; commands set `State` and IDs themselves. Commands that change the Current Slice or task state require `--next-action`. `--record` resolves against `--root`, which defaults to the current directory; an absolute `--record` path finds its own root.
 
 | Transition | Command |
 | --- | --- |
@@ -303,6 +315,7 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 | `paused` → `in_progress` | `slice resume` |
 | Current → History `completed` / `blocked` (from paused) / `abandoned` | `slice close --state <state>` |
 | Continue a completed or blocked historical Slice as a new Slice | `slice reopen --id <S-NNN>` |
+| Record a Slice that already finished directly into History | `slice record --state <completed|blocked|abandoned>` |
 | Propose a Checkpoint | `checkpoint propose` |
 | `proposed` → `pending`, assigns `C-NNN` | `checkpoint activate` |
 | `pending` ↔ `deferred` | `checkpoint defer`, `checkpoint resume` |
@@ -310,7 +323,7 @@ Run `working-record.mjs <group> <operation> --help` for each command's options a
 | Add, supersede, or retire a Decision | `decision add`, `decision supersede`, `decision retire` |
 | Change task state | `task set-state --state <state>` |
 
-Use `slice start` for a proposed Slice and `slice start-direct` only for work that was never proposed. Starting any Slice records it before its first effect; it does not authorize the work.
+Use `slice start` for a proposed Slice and `slice start-direct` only for work that was never proposed. Starting any Slice records it before its first effect; it does not authorize the work. `slice record` is only for work whose effects already happened; it leaves the Current Slice, Future Work, and Next useful action unchanged, so it can run while a Slice is live.
 
 Every command validates the record before and after the change and publishes one complete valid result or nothing.
 

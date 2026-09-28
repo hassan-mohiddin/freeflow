@@ -2,7 +2,7 @@
 
 import { rm } from "node:fs/promises";
 import { cwd } from "node:process";
-import { dirname } from "node:path";
+import { dirname, isAbsolute, sep } from "node:path";
 import { canonicalLines, joinLines, slugify } from "./lib/format.mjs";
 import { parseDocument, validateDocument } from "./lib/document.mjs";
 import { runTransition } from "./lib/transitions.mjs";
@@ -16,6 +16,9 @@ import {
 } from "./lib/store.mjs";
 import { renderFull, renderResume } from "./lib/views.mjs";
 
+const ROOT_HELP =
+  "--record is resolved against --root, which defaults to the current directory; an absolute --record path finds its own root.";
+
 function usage() {
   return [
     "Usage:",
@@ -23,6 +26,8 @@ function usage() {
     "  working-record.mjs view resume|full --record <record.md>",
     "  working-record.mjs validate --record <record.md>",
     "  working-record.mjs <slice|checkpoint|decision|task> <operation> ...",
+    "",
+    ROOT_HELP,
   ].join("\n");
 }
 
@@ -31,7 +36,7 @@ const COMMAND_HELP = new Map([
     "slice",
     [
       "Usage: working-record.mjs slice <operation> ...",
-      "Operations: slice propose, slice start, slice start-direct, slice pause, slice resume, slice close, slice reopen.",
+      "Operations: slice propose, slice start, slice start-direct, slice pause, slice resume, slice close, slice reopen, slice record.",
       "Run working-record.mjs <group> <operation> --help for options and input fields.",
       "Use --input - to read Markdown fragments from stdin.",
     ].join("\n"),
@@ -70,7 +75,7 @@ const COMMAND_HELP = new Map([
   ["validate", "Usage: validate --record <record.md>"],
   [
     "slice propose",
-    "Usage: slice propose --record <record.md> --title <title> --input <file|->\nInput: Intended result required; Type, Expected evidence, and Dependencies optional. Use --input - to read the fragment from stdin.",
+    "Usage: slice propose --record <record.md> --title <title> --input <file|->\nInput: Intended result required; Type, Expected evidence, and Dependencies optional. Commands set State; input never includes it. Use --input - to read the fragment from stdin.",
   ],
   [
     "slice start",
@@ -92,6 +97,10 @@ const COMMAND_HELP = new Map([
   [
     "slice reopen",
     "Usage: slice reopen --record <record.md> --id <S-NNN> --next-action <text> --input <file|->\nInput: fresh Authority source, Scope, Expected evidence, Stop condition, and Starting state required. Use --input - to read the fragment from stdin.",
+  ],
+  [
+    "slice record",
+    "Usage: slice record --record <record.md> --title <title> --state <completed|blocked|abandoned> --input <file|->\nRecords a Slice that finished before it could be recorded, directly into History. The Current Slice, Future Work, and Next useful action are unchanged; the ID follows recording order and the command adds Recorded: retroactively on <today>.\nInput: Occurred (YYYY-MM-DD or YYYY-MM-DD to YYYY-MM-DD), Intended result, Authority source, Result, Evidence and limits, and Task effect required; Type and Residual effects optional; Resume when required for blocked; Reason required for abandoned. Use --input - to read the fragment from stdin.",
   ],
   [
     "checkpoint propose",
@@ -123,7 +132,9 @@ const COMMAND_HELP = new Map([
 ]);
 
 function commandHelp(command, operation) {
-  return `${COMMAND_HELP.get([command, operation].filter(Boolean).join(" ")) ?? COMMAND_HELP.get(command) ?? usage()}\n`;
+  const help = COMMAND_HELP.get([command, operation].filter(Boolean).join(" ")) ?? COMMAND_HELP.get(command);
+  if (!help) return `${usage()}\n`;
+  return command === "init" ? `${help}\n` : `${help}\n${ROOT_HELP}\n`;
 }
 
 class CliError extends Error {
@@ -169,6 +180,7 @@ function allowedOptions(command, operation) {
     if (operation === "resume") return new Set([...withNextAction, "--resolution"]);
     if (operation === "close") return new Set([...withNextAction, "--state"]);
     if (operation === "reopen") return new Set([...withNextAction, "--id", "--title"]);
+    if (operation === "record") return new Set([...common, "--title", "--state"]);
   }
   if (command === "checkpoint") {
     if (operation === "propose") return new Set([...common, "--title"]);
@@ -202,7 +214,14 @@ function requireOption(options, name) {
 }
 
 function rootOption(options) {
-  return options["--root"] ?? cwd();
+  if (options["--root"]) return options["--root"];
+  const record = options["--record"];
+  if (record && isAbsolute(record)) {
+    const marker = `${sep}.freeflow${sep}tasks${sep}`;
+    const index = record.lastIndexOf(marker);
+    if (index > 0) return record.slice(0, index);
+  }
+  return cwd();
 }
 
 function initialContent(skeletonLines, input) {

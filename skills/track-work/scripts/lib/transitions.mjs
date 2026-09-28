@@ -19,6 +19,7 @@ import {
   parseDocument,
   parseFragment,
   renderBlock,
+  validateOccurred,
 } from "./document.mjs";
 import { writeAtomically } from "./store.mjs";
 
@@ -61,6 +62,8 @@ const DECISION_ORDER = [
 const HISTORICAL_SLICE_ORDER = [
   "State",
   "Type",
+  "Occurred",
+  "Recorded",
   "Intended result",
   "Authority source",
   "Result",
@@ -486,6 +489,65 @@ async function closeSlice(options, input, loaded) {
   return publish(loaded, candidate, `Closed Slice: ${slice.id} — ${state}`);
 }
 
+function localDate(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+async function recordSlice(options, input, loaded) {
+  const document = parseDocument(loaded.text);
+  if (!["active", "paused"].includes(document.header.state))
+    fail("invalid-task-state", `Cannot record a Slice while task state is ${document.header.state}`);
+  const title = requiredStringOption(options, "--title");
+  const state = requiredStringOption(options, "--state");
+  if (!HISTORICAL_SLICE_STATES.has(state)) fail("invalid-state", `Invalid historical Slice state: ${state}`);
+  const fragment = parseInput(
+    input,
+    new Set([
+      "Type",
+      "Occurred",
+      "Intended result",
+      "Authority source",
+      "Result",
+      "Evidence and limits",
+      "Task effect",
+      "Resume when",
+      "Reason",
+      "Residual effects",
+    ]),
+    "slice record",
+  );
+  const values = { State: state };
+  for (const field of [
+    "Occurred",
+    "Intended result",
+    "Authority source",
+    "Result",
+    "Evidence and limits",
+    "Task effect",
+  ])
+    values[field] = requireFragment(fragment, field, "slice record");
+  for (const field of ["Type", "Resume when", "Reason", "Residual effects"]) {
+    const lines = fragmentValue(fragment, field);
+    if (lines?.length) values[field] = lines;
+  }
+  if (state === "blocked") values["Resume when"] = requireFragment(fragment, "Resume when", "slice record");
+  if (state === "abandoned") values.Reason = requireFragment(fragment, "Reason", "slice record");
+  const recordedOn = localDate();
+  const occurredEnd = validateOccurred(fragmentText(fragment, "Occurred"), "slice record input");
+  if (occurredEnd > recordedOn) fail("invalid-occurred", `Occurred cannot end after today (${recordedOn})`);
+  values.Recorded = [`retroactively on ${recordedOn}`];
+  const id = nextEntityId(document, "slice");
+  const candidate = withLineChanges(document, [
+    {
+      start: document.history.slices.end,
+      end: document.history.slices.end,
+      lines: renderHistoricalSlice(values, title, id),
+    },
+  ]);
+  return publish(loaded, candidate, `Recorded Slice: ${id} — ${title} (${state}, retroactive)`);
+}
+
 async function reopenSlice(options, input, loaded) {
   const document = parseDocument(loaded.text);
   assertTaskActive(document, "reopen a Slice");
@@ -784,6 +846,7 @@ export async function runTransition(command, positionals, options, input, loaded
     if (operation === "resume") return resumeSlice(options, input, loaded);
     if (operation === "close") return closeSlice(options, input, loaded);
     if (operation === "reopen") return reopenSlice(options, input, loaded);
+    if (operation === "record") return recordSlice(options, input, loaded);
   }
   if (command === "checkpoint") {
     if (operation === "propose") return proposeCheckpoint(options, input, loaded);

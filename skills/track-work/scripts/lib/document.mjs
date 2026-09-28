@@ -12,11 +12,14 @@ import {
   HISTORICAL_SLICE_STATES,
   HISTORY_HEADINGS,
   LEGACY_CHECKPOINT_TYPES,
+  OCCURRED_PATTERN,
   PROPOSED_SLICE_FIELDS,
+  RECORDED_PATTERN,
   SCHEMA_VERSION,
   SLICE_TYPES,
   TASK_STATES,
   TOP_LEVEL_SECTIONS,
+  isCalendarDate,
   joinLines,
   nextId,
   parseId,
@@ -487,6 +490,27 @@ function validateReferences(document) {
   }
 }
 
+export function validateOccurred(value, path) {
+  const match = OCCURRED_PATTERN.exec(value ?? "");
+  if (!match || !isCalendarDate(match[1]) || (match[2] && !isCalendarDate(match[2])))
+    fail("invalid-occurred", `Occurred in ${path} must be YYYY-MM-DD or YYYY-MM-DD to YYYY-MM-DD: ${value}`);
+  if (match[2] && match[2] < match[1]) fail("invalid-occurred", `Occurred in ${path} ends before it starts: ${value}`);
+  return match[2] ?? match[1];
+}
+
+function validateRecordedTime(slice) {
+  const occurred = scalarValue(slice, "Occurred");
+  const recorded = scalarValue(slice, "Recorded");
+  if (!occurred && !recorded) return;
+  if (!occurred || !recorded)
+    fail("missing-field", `Occurred and Recorded appear together in ${slice.path}; only slice record writes them`);
+  const end = validateOccurred(occurred, slice.path);
+  const match = RECORDED_PATTERN.exec(recorded);
+  if (!match || !isCalendarDate(match[1]))
+    fail("invalid-recorded", `Recorded in ${slice.path} must be "retroactively on YYYY-MM-DD": ${recorded}`);
+  if (end > match[1]) fail("invalid-occurred", `Occurred in ${slice.path} ends after it was recorded: ${occurred}`);
+}
+
 export function validateDocument(document) {
   const { header, context, current, future, history } = document;
   if (!header.name) fail("malformed-header", "Task name cannot be empty");
@@ -574,6 +598,7 @@ export function validateDocument(document) {
     const state = scalarValue(slice, "State");
     if (state === "blocked") requiredValue(slice, "Resume when");
     if (state === "abandoned") requiredValue(slice, "Reason");
+    validateRecordedTime(slice);
   }
 
   if (header.state === "paused" && current.currentSlice && scalarValue(current.currentSlice, "State") !== "paused")

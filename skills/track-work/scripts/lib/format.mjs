@@ -62,6 +62,8 @@ export const DECISION_FIELDS = new Set([
 export const HISTORICAL_SLICE_FIELDS = new Set([
   "State",
   "Type",
+  "Occurred",
+  "Recorded",
   "Intended result",
   "Authority source",
   "Result",
@@ -72,6 +74,15 @@ export const HISTORICAL_SLICE_FIELDS = new Set([
   "Reason",
   "Residual effects",
 ]);
+
+// A Slice recorded after the fact carries when it happened and the date it was recorded.
+export const OCCURRED_PATTERN = /^(\d{4}-\d{2}-\d{2})(?: to (\d{4}-\d{2}-\d{2}))?$/;
+export const RECORDED_PATTERN = /^retroactively on (\d{4}-\d{2}-\d{2})$/;
+
+export function isCalendarDate(value) {
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
 
 export const IDS = {
   slice: /^S-(\d{3,})$/,

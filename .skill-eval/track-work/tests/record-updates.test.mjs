@@ -25,10 +25,10 @@ async function withWorkspace(run) {
   }
 }
 
-function runScript(workspace, args, input = "") {
+function runScript(workspace, args, input = "", cwd = workspace) {
   return new Promise((resolveResult) => {
     const child = spawn(process.execPath, [scriptPath, ...args], {
-      cwd: workspace,
+      cwd,
       stdio: ["pipe", "pipe", "pipe"],
     });
     let stdout = "";
@@ -272,5 +272,188 @@ test("a Checkpoint can be replaced only by one that is still pending or deferred
     assert.notEqual(replaced.exitCode, 0);
     assert.match(replaced.stderr, /pending or deferred/);
     assert.equal(await readFile(recordPath, "utf8"), before);
+  });
+});
+
+const RECORDED_SLICE = [
+  "Type: learning",
+  "Occurred: 2026-09-26 to 2026-09-27",
+  "Intended result:\n- Earlier result.",
+  "Authority source:\n- User direction in session abc.",
+  "Result:\n- Earlier work finished.",
+  "Evidence and limits:\n- LOG E1.",
+  "Task effect:\n- Set the first hypotheses.",
+].join("\n");
+
+function recordSlice(workspace, recordPath, input = RECORDED_SLICE, state = "completed", title = "Earlier work") {
+  return runScript(
+    workspace,
+    ["slice", "record", "--record", recordPath, "--title", title, "--state", state, "--input", "-"],
+    input,
+  );
+}
+
+function localToday() {
+  const now = new Date();
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+function section(text, start, end) {
+  return text.slice(text.indexOf(start), text.indexOf(end));
+}
+
+test("slice record adds a retroactive Slice to History while a live Slice keeps running", async () => {
+  await withWorkspace(async (workspace) => {
+    const recordPath = await init(workspace, "retroactive");
+    await startDirect(workspace, recordPath, "Live work");
+    await runScript(
+      workspace,
+      ["slice", "propose", "--record", recordPath, "--title", "Later work", "--input", "-"],
+      "Intended result:\n- Later.\n",
+    );
+    const before = await readFile(recordPath, "utf8");
+
+    const recorded = await recordSlice(workspace, recordPath);
+    assert.equal(recorded.exitCode, 0, recorded.stderr);
+    assert.match(recorded.stdout, /Recorded Slice: S-002 — Earlier work \(completed, retroactive\)/);
+    const after = await readFile(recordPath, "utf8");
+    assert.equal(section(after, "## Current Work", "## History"), section(before, "## Current Work", "## History"));
+    assert.ok(
+      after.includes(
+        [
+          "#### S-002 — Earlier work",
+          "- State: completed",
+          "- Type: learning",
+          "- Occurred: 2026-09-26 to 2026-09-27",
+          `- Recorded: retroactively on ${localToday()}`,
+          "- Intended result: Earlier result.",
+        ].join("\n"),
+      ),
+    );
+    assert.doesNotMatch(section(after, "### Slices", "## Notes"), /Scope|Stop condition|Starting state/);
+
+    const closed = await runScript(
+      workspace,
+      ["slice", "close", "--record", recordPath, "--state", "completed", "--next-action", "Continue.", "--input", "-"],
+      "Result:\n- Live work done.\nEvidence and limits:\n- Check.\nTask effect:\n- None.\n",
+    );
+    assert.equal(closed.exitCode, 0, closed.stderr);
+    const closedText = await readFile(recordPath, "utf8");
+    assert.ok(closedText.indexOf("#### S-002") < closedText.indexOf("#### S-001"));
+    assert.equal((await validate(workspace, recordPath)).exitCode, 0);
+  });
+});
+
+test("slice record rejects incomplete, malformed, or future input without changing the record", async () => {
+  await withWorkspace(async (workspace) => {
+    const recordPath = await init(workspace, "retroactive-invalid");
+    const before = await readFile(recordPath, "utf8");
+    const cases = [
+      [RECORDED_SLICE.replace("Occurred: 2026-09-26 to 2026-09-27\n", ""), "completed", /requires Occurred/],
+      [RECORDED_SLICE.replace("2026-09-26 to 2026-09-27", "2026-02-30"), "completed", /YYYY-MM-DD/],
+      [RECORDED_SLICE.replace("2026-09-26 to 2026-09-27", "2026-09-27 to 2026-09-26"), "completed", /ends before/],
+      [RECORDED_SLICE.replace("2026-09-26 to 2026-09-27", "2999-01-01"), "completed", /after today/],
+      [`${RECORDED_SLICE}\nState: completed`, "completed", /Unknown field State/],
+      [`${RECORDED_SLICE}\nScope:\n- Placeholder.`, "completed", /Unknown field Scope/],
+      [RECORDED_SLICE, "abandoned", /requires Reason/],
+      [RECORDED_SLICE, "blocked", /requires Resume when/],
+      [RECORDED_SLICE, "in_progress", /Invalid historical Slice state/],
+    ];
+    for (const [input, state, message] of cases) {
+      const result = await recordSlice(workspace, recordPath, input, state);
+      assert.notEqual(result.exitCode, 0, `${state}: ${input}`);
+      assert.match(result.stderr, message);
+      assert.equal(await readFile(recordPath, "utf8"), before);
+    }
+
+    const abandoned = await recordSlice(
+      workspace,
+      recordPath,
+      `${RECORDED_SLICE}\nReason:\n- User stopped it.`,
+      "abandoned",
+    );
+    assert.equal(abandoned.exitCode, 0, abandoned.stderr);
+    const completed = await runScript(workspace, [
+      "task",
+      "set-state",
+      "--record",
+      recordPath,
+      "--state",
+      "completed",
+      "--next-action",
+      "None.",
+    ]);
+    assert.equal(completed.exitCode, 0, completed.stderr);
+    const completedText = await readFile(recordPath, "utf8");
+    const rejected = await recordSlice(workspace, recordPath);
+    assert.match(rejected.stderr, /task state is completed/);
+    assert.equal(await readFile(recordPath, "utf8"), completedText);
+  });
+});
+
+test("validation keeps Occurred and Recorded paired, well formed, and in order", async () => {
+  await withWorkspace(async (workspace) => {
+    const recordPath = await init(workspace, "retroactive-validate");
+    assert.equal((await recordSlice(workspace, recordPath)).exitCode, 0);
+    const today = localToday();
+    const edits = [
+      [(text) => text.replace(/- Recorded: .*\n/, ""), /appear together/],
+      [(text) => text.replace(`retroactively on ${today}`, "today"), /retroactively on YYYY-MM-DD/],
+      [
+        (text) => text.replace(`retroactively on ${today}`, "retroactively on 2026-09-01"),
+        /ends after it was recorded/,
+      ],
+      [(text) => text.replace("- Occurred: 2026-09-26 to 2026-09-27", "- Occurred: yesterday"), /YYYY-MM-DD/],
+    ];
+    const original = await readFile(recordPath, "utf8");
+    for (const [edit, message] of edits) {
+      await writeFile(recordPath, edit(original));
+      const result = await validate(workspace, recordPath);
+      assert.notEqual(result.exitCode, 0);
+      assert.match(result.stderr, message);
+    }
+    await writeFile(recordPath, original);
+    assert.equal((await validate(workspace, recordPath)).exitCode, 0);
+  });
+});
+
+test("an absolute record path works from any directory; a mismatched root names the fix", async () => {
+  await withWorkspace(async (workspace) => {
+    const recordPath = await init(workspace, "elsewhere");
+    const elsewhere = await mkdtemp(join(tmpdir(), "track-work-elsewhere-"));
+    try {
+      const absolute = await runScript(workspace, ["validate", "--record", recordPath], "", elsewhere);
+      assert.equal(absolute.exitCode, 0, absolute.stderr);
+      const recorded = await runScript(
+        workspace,
+        ["slice", "record", "--record", recordPath, "--title", "Earlier", "--state", "completed", "--input", "-"],
+        RECORDED_SLICE,
+        elsewhere,
+      );
+      assert.equal(recorded.exitCode, 0, recorded.stderr);
+      const mismatched = await runScript(
+        workspace,
+        ["validate", "--root", elsewhere, "--record", recordPath],
+        "",
+        elsewhere,
+      );
+      assert.notEqual(mismatched.exitCode, 0);
+      assert.match(mismatched.stderr, /pass --root or an absolute --record path/);
+    } finally {
+      await rm(elsewhere, { recursive: true, force: true });
+    }
+  });
+});
+
+test("help documents slice record, root resolution, and that input never carries State", async () => {
+  await withWorkspace(async (workspace) => {
+    const group = await runScript(workspace, ["slice", "--help"]);
+    assert.match(group.stdout, /slice record/);
+    const record = await runScript(workspace, ["slice", "record", "--help"]);
+    assert.match(record.stdout, /Occurred \(YYYY-MM-DD or YYYY-MM-DD to YYYY-MM-DD\)/);
+    assert.match(record.stdout, /absolute --record path finds its own root/);
+    const propose = await runScript(workspace, ["slice", "propose", "--help"]);
+    assert.match(propose.stdout, /input never includes it/);
   });
 });

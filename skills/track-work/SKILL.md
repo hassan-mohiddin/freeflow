@@ -51,6 +51,8 @@ Keep hypotheses and proposals in Tentative until they are accepted. Permission t
 
 Use a record when the task spans several steps or sessions, or when losing its decisions, route, or partial state would misdirect continuation. A short self-contained result needs no record. Respect a user's choice not to keep one. Create a record with the understanding that justified it, not an empty shell; if even the Goal is unclear, discuss first.
 
+When the record starts after work has already happened, compress that stretch; do not replay it. Settled results go into Current Context. Record an earlier result as a Slice with `slice record` only when later work depends on it, such as evidence, a failed approach, or a retraction, and point to where its exact history lives. Never backfill with `slice start-direct` and `slice close`, and never close a live Slice to make room.
+
 ## Use The Record While Discussing And Executing
 
 The record serves both halves of the work; update it at meaningful boundaries, not on every turn.
