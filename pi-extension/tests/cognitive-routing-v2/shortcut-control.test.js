@@ -71,3 +71,47 @@ test("rapid manual-hold shortcuts never record a profile whose model was not app
     },
   );
 });
+
+test(
+  "one shortcut press switches the profile when the TUI hands a context copied at the key press",
+  { timeout: 30000 },
+  async () => {
+    await fixture(() => [], false, undefined, true, {
+      cognitiveRouting: {
+        enabled: true,
+        projection: true,
+        delegation: "executor",
+        profiles: {
+          coordinator: { provider: "openai", model: "gpt-4o", thinking: "off" },
+          executor: { provider: "openai", model: "gpt-4.1-mini", thinking: "off" },
+        },
+      },
+      beforePrompt: async ({ session }) => {
+        const runner = session.extensionRunner;
+        const shortcuts = [...runner.getShortcuts({}).values()];
+        const press = async (pattern) => {
+          const live = runner.createContext();
+          // Pi 0.87.1's interactive mode builds shortcut contexts this way: model and thinking level are
+          // values read at the key press, not getters.
+          const ctx = {
+            ui: { ...live.ui, notify() {}, setStatus() {} },
+            cwd: live.cwd,
+            sessionManager: live.sessionManager,
+            modelRegistry: live.modelRegistry,
+            model: session.model,
+            thinkingLevel: session.thinkingLevel,
+            isIdle: () => session.isIdle,
+            getSystemPrompt: () => session.systemPrompt,
+          };
+          await shortcuts.find((s) => pattern.test(s.description ?? "")).handler(ctx);
+          return session.model.id;
+        };
+        const cycled = [];
+        for (let i = 0; i < 4; i++) cycled.push(await press(/Cycle enabled/));
+        assert.deepEqual(cycled, ["gpt-4.1-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4o"], "every press switches");
+        await press(/Cycle enabled/);
+        assert.equal(await press(/Release manual hold/), "gpt-4o", "one release returns to the Coordinator");
+      },
+    });
+  },
+);

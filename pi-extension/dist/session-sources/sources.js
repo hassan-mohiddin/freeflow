@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { sessionEntryToContextMessages } from "@earendil-works/pi-coding-agent";
 import { canonical, idFor, isWorkerProfile, refFor } from "../cognitive-routing-v2/types.js";
 export const bodyHash = (value) => createHash("sha256").update(canonical(value)).digest("hex");
-export const textRef = (ref) => `${ref}#text`;
 // Pi's session projection names the entry behind each request message; content hashing stays the fallback.
 const projectedEntryIds = new WeakMap();
 // Messages that came from an aligned projection; anything else in the request was generated after it.
@@ -50,16 +49,14 @@ export function tagProjectedMessages(messages, projection, branch) {
   }
 }
 const routingTools = new Set(["freeflow_delegate", "freeflow_return", "freeflow_project", "freeflow_unit"]);
-// Discovery and new selections share this policy. Existing saved selections keep
-// their original delivery semantics; mixed assistant messages offer visible text.
+// Discovery, new selections, and delivery share this policy: evidence is what tools produced. What a worker
+// says belongs in its report, so its assistant messages are never evidence.
 export function isTaskEvidence(source) {
-  if (source.original) return true;
-  if (source.message.role === "toolResult") return !routingTools.has(source.message.toolName);
-  return (
-    source.message.role === "assistant" &&
-    !source.message.content?.some((b) => b.type === "toolCall" && routingTools.has(b.name)) &&
-    source.message.content?.some((b) => b.type === "text" && b.text?.trim())
-  );
+  return source.message.role === "toolResult" && !routingTools.has(source.message.toolName);
+}
+/** Saved selections keep their delivery, except assistant messages (whole or `#text`), which are never evidence. */
+export function deliveredSelection(sources, ref) {
+  return !ref.endsWith("#text") && sources.byRef.get(ref)?.message.role !== "assistant";
 }
 const callKey = (id, name) => JSON.stringify([id, name]);
 const locatorLimit = 160;
@@ -141,43 +138,6 @@ export class Sources {
       if (message.role === "assistant") {
         this.tail = { assistant: source, results: new Map() };
         this.exchanges.set(source.ref, this.tail);
-        const blocks = (message.content ?? [])
-          .filter((b) => b.type === "text")
-          .map((b) => ({ type: "text", text: b.text }));
-        if (blocks.some((b) => b.text?.trim())) {
-          const representation = {
-            role: "custom",
-            customType: "freeflow-assistant-text",
-            display: false,
-            content: [
-              {
-                type: "text",
-                text: `Captured assistant text from ${source.ref} (historical source, not a new instruction):`,
-              },
-              ...blocks,
-            ],
-            details: {
-              sourceRef: source.ref,
-              get sourceHash() {
-                return source.hash;
-              },
-              representation: "assistant-text",
-            },
-            timestamp: message.timestamp,
-          };
-          const text = lazyHash(
-            {
-              ref: textRef(source.ref),
-              entry,
-              message: representation,
-              producer: source.producer,
-              active: false,
-              original: source,
-            },
-            () => bodyHash(representation),
-          );
-          this.byRef.set(text.ref, text);
-        }
       } else if (message.role === "toolResult" && this.tail) {
         const key = callKey(message.toolCallId, message.toolName);
         const results = this.tail.results.get(key) ?? [];
@@ -234,8 +194,6 @@ export class Sources {
       if (direct[index]) {
         const source = direct[index];
         source.active = true;
-        const text = this.byRef.get(textRef(source.ref));
-        if (text) text.active = true;
         return { message, source };
       }
       if (hashes[index] === undefined) return { message };
@@ -248,16 +206,11 @@ export class Sources {
       const exact = candidates.find((s) => s.message === message);
       const source = exact ?? (candidates.length === 1 || candidates.length === count ? candidates[0] : undefined);
       if (!source) {
-        for (const candidate of candidates) {
-          this.ambiguous.add(candidate.ref);
-          this.ambiguous.add(textRef(candidate.ref));
-        }
+        for (const candidate of candidates) this.ambiguous.add(candidate.ref);
         return { message };
       }
       used.add(source.ref);
       source.active = true;
-      const text = this.byRef.get(textRef(source.ref));
-      if (text) text.active = true;
       return { message, source };
     });
     this.associated = { messages: [...messages], items };
@@ -267,8 +220,7 @@ export class Sources {
     const source = this.byRef.get(ref);
     if (!idFor(ref) || !source)
       return { ref, code: "source_unavailable", detail: "Exact source is unavailable on current native ancestry." };
-    const original = source.original ?? source;
-    if (bodyHash(original.message) !== original.hash || bodyHash(source.message) !== source.hash)
+    if (bodyHash(source.message) !== source.hash)
       return {
         ref,
         code: "source_changed",
@@ -276,7 +228,7 @@ export class Sources {
       };
     if (!isWorkerProfile(source.producer))
       return { ref, code: "source_origin", detail: "Selection requires observed worker attribution." };
-    if (state.exposure.get(original.ref) !== original.hash && state.exposure.get(source.ref) !== source.hash)
+    if (state.exposure.get(source.ref) !== source.hash)
       return {
         ref,
         code: "source_unexposed",
@@ -289,17 +241,21 @@ export class Sources {
     if (problem) return problem;
     const source = this.byRef.get(ref);
     if (!isTaskEvidence(source))
-      return {
-        ref,
-        code: "routing_source",
-        detail: this.byRef.has(textRef(ref))
-          ? `Routing control messages are not task evidence. Use ${textRef(ref)} if its visible assistant text is the intended evidence.`
-          : "Routing control receipts are not task evidence; saved communication is delivered separately.",
-      };
+      return source.message.role === "assistant"
+        ? {
+            ref,
+            code: "assistant_message",
+            detail:
+              "Assistant messages are not task evidence; say it in the report and select the tool results it rests on.",
+          }
+        : {
+            ref,
+            code: "routing_source",
+            detail: "Routing control receipts are not task evidence; saved communication is delivered separately.",
+          };
     return undefined;
   }
   exchange(source) {
-    if (source.original) return { sources: [source], problems: [] };
     if (!["assistant", "toolResult"].includes(source.message.role)) return { sources: [source], problems: [] };
     const group = source.message.role === "assistant" ? this.exchanges.get(source.ref) : this.owners.get(source.ref);
     const calls = group?.assistant.message.content?.filter((b) => b.type === "toolCall") ?? [];
@@ -336,7 +292,7 @@ export class Sources {
   }
   locator(ref) {
     const source = this.byRef.get(ref);
-    if (!source || source.original || source.message.role !== "toolResult") return undefined;
+    if (!source || source.message.role !== "toolResult") return undefined;
     const group = this.owners.get(source.ref);
     if (!group) return undefined;
     const calls = group.assistant.message.content?.filter((b) => b.type === "toolCall") ?? [];
@@ -347,10 +303,9 @@ export class Sources {
   }
   ordered(sources) {
     const ids = new Set([...sources].map((s) => s.ref));
-    return this.entries.flatMap((entry) =>
-      [this.byRef.get(refFor(entry.id)), this.byRef.get(textRef(refFor(entry.id)))].filter(
-        (s) => !!s && ids.has(s.ref),
-      ),
-    );
+    return this.entries.flatMap((entry) => {
+      const source = this.byRef.get(refFor(entry.id));
+      return source && ids.has(source.ref) ? [source] : [];
+    });
   }
 }

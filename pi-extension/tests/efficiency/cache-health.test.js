@@ -207,3 +207,27 @@ test("a routing lane is not compared after its cache lifetime or across a contex
   }
   assert.deepEqual(health.status(), []);
 });
+
+test("profiles on the same model and effort are not compared with each other", () => {
+  // Each routing profile sees its own view, so alternating profiles legitimately read only their own prefix.
+  const health = new CacheHealth();
+  const prompts = { coordinator: 20_000, executor: 60_000 };
+  let at = 0;
+  for (let i = 0; i < 12; i++) {
+    const lane = i % 2 ? "executor" : "coordinator";
+    at += 10_000;
+    const reused = i < 2 ? 0 : prompts[lane];
+    const warning = health.observe({
+      provider: "anthropic",
+      model: "claude-opus-5-5",
+      thinking: "high",
+      at,
+      input: 500,
+      cacheRead: reused,
+      cacheWrite: i < 2 ? prompts[lane] : 0,
+      lane,
+    });
+    prompts[lane] += 500;
+    assert.equal(warning, undefined, `request ${i} (${lane})`);
+  }
+});

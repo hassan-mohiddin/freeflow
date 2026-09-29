@@ -5,11 +5,11 @@ import { randomUUID } from "node:crypto";
 import { existsSync, realpathSync } from "node:fs";
 import { relative, resolve as resolvePath } from "node:path";
 import { EventStore } from "../session-sources/events.js";
-import { Sources, bodyHash, isTaskEvidence } from "../session-sources/sources.js";
+import { Sources, bodyHash, deliveredSelection, isTaskEvidence } from "../session-sources/sources.js";
 import { pairFromProfile, resolveCognitiveRoutingState } from "./config.js";
 import { prepareView, changeSelection, representationProblems } from "./projection.js";
 import { presetWarnings } from "./economics.js";
-import { effortHistoryRoute } from "../provider-support/openai/adapter.js";
+import { keepsCacheAcrossEffort } from "../provider-support/effort.js";
 import { initialState } from "./state.js";
 import {
   ROUTING_ENTRY,
@@ -428,7 +428,7 @@ export class RoutingRuntime {
       pairs,
       this.enabledWorkers(state),
       (provider, modelId) => this.ctx?.modelRegistry?.find?.(provider, modelId),
-      (model) => effortHistoryRoute(model) !== undefined,
+      keepsCacheAcrossEffort,
       // Pi's only retention control; unset means the short tier.
       process.env.PI_CACHE_RETENTION === "long" ? "long" : "short",
     );
@@ -1019,18 +1019,20 @@ export class RoutingRuntime {
     const sources = this.sources(state);
     return {
       revision: selection.revision,
-      selected: selection.selected.map((ref) => {
-        const entry = this.ctx?.sessionManager.getEntry?.(ref.slice(4).replace(/#text$/, ""));
-        const locator = sources.locator(ref);
-        return {
-          ref,
-          kind: ref.endsWith("#text") ? "assistant-text" : (entry?.message?.role ?? "unknown"),
-          toolName: entry?.message?.toolName,
-          producer: state.authors.get(entry?.id)?.profile ?? "common",
-          assignment: state.authors.get(entry?.id)?.assignmentId,
-          ...(locator ? { locator } : {}),
-        };
-      }),
+      selected: selection.selected
+        .filter((ref) => deliveredSelection(sources, ref))
+        .map((ref) => {
+          const entry = this.ctx?.sessionManager.getEntry?.(ref.slice(4));
+          const locator = sources.locator(ref);
+          return {
+            ref,
+            kind: entry?.message?.role ?? "unknown",
+            toolName: entry?.message?.toolName,
+            producer: state.authors.get(entry?.id)?.profile ?? "common",
+            assignment: state.authors.get(entry?.id)?.assignmentId,
+            ...(locator ? { locator } : {}),
+          };
+        }),
       unresolved: selection.unresolved,
       withdrawals: selection.withdrawals,
       preparedRevision: state.assessment?.reservation?.selectionRevision,
@@ -1715,16 +1717,13 @@ export class RoutingRuntime {
                   ? s.assignmentId === a.id
                   : scope === "active"
                     ? s.active
-                    : true) &&
-              (s.original ||
-                s.message.role === "toolResult" ||
-                s.message.content?.some((b) => b.type === "text" && b.text?.trim())),
+                    : true),
           )
           .map((s) => {
             const locator = sources.locator(s.ref);
             return {
               ref: s.ref,
-              kind: s.original ? "assistant-text" : s.message.role,
+              kind: s.message.role,
               producer: s.producer,
               assignment: s.assignmentId,
               toolName: s.message.toolName,

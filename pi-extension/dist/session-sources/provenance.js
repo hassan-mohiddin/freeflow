@@ -1,5 +1,5 @@
 import { isWorkerProfile } from "../cognitive-routing-v2/types.js";
-import { isTaskEvidence, textRef } from "./sources.js";
+import { isTaskEvidence } from "./sources.js";
 /**
  * Follow each exchange with a note naming its attributed sources. With `mergeWorkerRuns`, consecutive
  * exchanges from one worker assignment share a single note after the run. Use it only for a view that
@@ -36,7 +36,7 @@ export function annotateSources(messages, renderedSources, full, sources, instan
           ? "task evidence; selection checks apply"
           : "not offered for new evidence selection";
       return [
-        `${s.ref} | producer: ${s.producer} | ${s.original ? "assistant-text" : s.message.role}${s.message.toolName ? ` | ${s.message.toolName}` : ""}${s.assignmentId ? ` | assignment: ${s.assignmentId}` : ""} | ${representation} | ${selection}${!s.original && full.has(s.ref) && sources.byRef.has(textRef(s.ref)) ? ` | visible text: ${textRef(s.ref)}` : ""}`,
+        `${s.ref} | producer: ${s.producer} | ${s.message.role}${s.message.toolName ? ` | ${s.message.toolName}` : ""}${s.assignmentId ? ` | assignment: ${s.assignmentId}` : ""} | ${representation} | ${selection}`,
       ];
     });
     const keys = new Set(attributed.map((s) => `${s.producer}\u0000${s.assignmentId ?? ""}`));

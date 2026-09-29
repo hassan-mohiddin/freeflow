@@ -185,6 +185,17 @@ export default function freeflow(pi: FreeflowAPI) {
   const cacheHealth = new CacheHealth();
   let prompts: any;
   let refreshState = true;
+  // Pi's event contexts read the host model and effort live. Its interactive shortcut contexts copy them at the
+  // key press, so after a switch they still name the previous model; routing must never judge a switch by them.
+  let liveHost: any;
+  const withLiveModel = (ctx: any) =>
+    Object.defineProperties(
+      { ...ctx },
+      {
+        model: { enumerable: true, get: () => liveHost?.model ?? ctx.model },
+        thinkingLevel: { enumerable: true, get: () => api.getThinkingLevel?.() ?? ctx.thinkingLevel },
+      },
+    );
   let sessionContext: any;
   let surfaceGeneration = 0;
 
@@ -268,6 +279,7 @@ export default function freeflow(pi: FreeflowAPI) {
     };
   });
   pi.on("session_start", async (event, ctx) => {
+    liveHost = ctx;
     const generation = ++surfaceGeneration;
     resetHistory();
     // Pi has just loaded this native session. Future acknowledgment checks read only new JSONL tail bytes.
@@ -449,7 +461,8 @@ export default function freeflow(pi: FreeflowAPI) {
   ) {
     pi.registerShortcut("ctrl+shift+r", {
       description: "Cycle enabled Cognitive Routing manual holds",
-      handler: async (ctx) => {
+      handler: async (shortcutCtx) => {
+        const ctx = withLiveModel(shortcutCtx);
         if (!ctx.isIdle()) {
           ctx.ui.notify("Wait for Pi to become idle before changing control.", "warning");
           return;
@@ -460,7 +473,8 @@ export default function freeflow(pi: FreeflowAPI) {
     });
     pi.registerShortcut("ctrl+shift+a", {
       description: "Release manual hold to Automatic Coordinator",
-      handler: async (ctx) => {
+      handler: async (shortcutCtx) => {
+        const ctx = withLiveModel(shortcutCtx);
         if (!ctx.isIdle()) {
           ctx.ui.notify("Wait for Pi to become idle before changing control.", "warning");
           return;

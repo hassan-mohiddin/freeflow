@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fixture } from "../fixtures/routing-native.js";
+import { fixture, response } from "../fixtures/routing-native.js";
 const profiles = Object.fromEntries(
   ["coordinator", "helper", "executor"].map((p) => [
     p,
@@ -89,3 +89,94 @@ for (const projection of [false, true])
     assert.equal(result.requests.length, 9);
     assert.ok(result.entries.some((e) => e.customType === "freeflow-request-history-v1"));
   });
+
+// On one GPT model, reasoning is shared within a view and withheld across views. Pi replays a turn's reasoning
+// item and pairs its function calls to it by `fc_` id, so a call whose reasoning is withheld must go unpaired or
+// the request is rejected.
+for (const projection of [false, true])
+  test(
+    `GPT routing sends each profile only its own reasoning, projection=${projection}`,
+    { timeout: 30000 },
+    async () => {
+      const producer = new Map(),
+        findings = [];
+      const viewOf = (profile) => (!projection ? "shared" : profile === "coordinator" ? "coordinator" : "worker");
+      const profileOf = (body) =>
+        JSON.stringify(body.input)
+          .split("# Cognitive Routing Runtime State")
+          .at(-1)
+          .match(/Profile: (coordinator|helper|executor)/)[1];
+      const check = (n, body) => {
+        const profile = profileOf(body),
+          items = body.input;
+        for (const item of items) {
+          const k =
+            item.type === "reasoning"
+              ? item.id.slice(3)
+              : item.type === "message"
+                ? JSON.stringify(item.content).match(/reasoning (\d+)/)?.[1]
+                : undefined;
+          // Every profile runs one model here, so reasoning is shared exactly within a view (D-002).
+          if (k !== undefined && viewOf(producer.get(Number(k))) !== viewOf(profile))
+            findings.push(`request ${n} (${profile}) carries ${producer.get(Number(k))} reasoning from request ${k}`);
+          if (item.type === "function_call" && item.id && !items.some((r) => r.id === `rs_${item.id.split("_")[1]}`))
+            findings.push(`request ${n} pairs ${item.id} with reasoning it does not send`);
+        }
+        const calls = new Set(items.filter((i) => i.type === "function_call").map((i) => i.call_id));
+        for (const output of items.filter((i) => i.type === "function_call_output"))
+          if (!calls.has(output.call_id) || /No result provided/.test(JSON.stringify(output.output)))
+            findings.push(`request ${n} has an unmatched result for ${output.call_id}`);
+        producer.set(n, profile);
+      };
+      const result = await fixture(
+        (n, _body, manager) => {
+          const readRef = () =>
+            "ctx:" +
+            manager
+              .getBranch()
+              .filter((e) => e.message?.toolName === "read")
+              .at(-1).id;
+          if (n === 1)
+            return [
+              {
+                name: "freeflow_delegate",
+                args: { operation: "assign", worker: "helper", contract: "Read evidence.txt and select its result." },
+              },
+            ];
+          if (n === 2 || n === 6) return [{ name: "read", args: { path: "evidence.txt" } }];
+          if (n === 3 || n === 7)
+            return [
+              ...(projection ? [{ name: "freeflow_project", args: { operation: "add", refs: [readRef()] } }] : []),
+              {
+                name: "freeflow_return",
+                args: { operation: "submit", report: "Evidence read.", outcome: "completed" },
+              },
+            ];
+          if (n === 4 || n === 8)
+            return [
+              { name: "freeflow_unit", args: { operation: "close", outcome: "accepted", assessment: "Checked." } },
+            ];
+          if (n === 5)
+            return [
+              {
+                name: "freeflow_delegate",
+                args: { operation: "assign", worker: "executor", contract: "Read evidence.txt and return." },
+              },
+            ];
+          return [];
+        },
+        projection,
+        undefined,
+        false,
+        {
+          cognitiveRouting: { enabled: true, projection, delegation: "both", profiles },
+          response: (n, calls, body) => {
+            check(n, body);
+            return response(n, calls, "fixture response", undefined, `reasoning ${n}`);
+          },
+        },
+      );
+      assert.equal(result.requests.length, 9);
+      assert.deepEqual(findings, []);
+    },
+  );

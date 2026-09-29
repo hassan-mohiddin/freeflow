@@ -70,7 +70,7 @@ const assistant = (content) => ({
   timestamp: 1,
 });
 const entry = (id, parentId, message) => ({ type: "message", id, parentId, message });
-function project(entries, refs, messages = entries.map((e) => e.message), producers = {}) {
+function project(entries, refs, messages = entries.map((e) => e.message), producers = {}, view = "coordinator") {
   const state = initialState();
   state.assignmentId = "a";
   state.selections.set("a", { revision: 1, selected: refs, unresolved: [], withdrawals: [] });
@@ -82,7 +82,7 @@ function project(entries, refs, messages = entries.map((e) => e.message), produc
     messages,
     sources,
     state,
-    view: "coordinator",
+    view,
     projection: true,
     model,
     pair: { provider: "fixture", modelId: "receiver", thinking: "off" },
@@ -113,7 +113,8 @@ for (const thinking of [
       r,
     );
     assert.deepEqual(entries[0].message, a);
-    assert.equal(project(entries, ["ctx:a"]).ready, false, "explicit signed evidence remains unqualified");
+    const carrier = project(entries, ["ctx:a"]).messages.find((m) => m.role === "assistant");
+    assert.deepEqual(carrier?.content ?? [], [], "a selected assistant message delivers nothing, signed or not");
   });
 }
 const call = (id) => ({ type: "toolCall", id, name: "read", arguments: { path: id } });
@@ -138,11 +139,61 @@ test("a structural worker envelope carries only its calls, not the worker's reas
   assert.deepEqual(entries[0].message, a, "canonical history is not modified");
 });
 
-test("a fully selected worker message keeps its reasoning", () => {
-  const a = assistant([{ type: "thinking", thinking: "**Planning the read**" }, call("c1")]);
+test("a selected worker assistant message is not evidence: its turn stays structural", () => {
+  const a = assistant([
+    { type: "thinking", thinking: "**Planning the read**" },
+    { type: "text", text: "Reading it." },
+    call("c1"),
+  ]);
   const entries = [entry("a", null, a), entry("r", "a", result("c1", 2))];
   const prepared = project(entries, ["ctx:a", "ctx:r"]);
-  assert.deepEqual(prepared.messages.find((m) => m.role === "assistant").content, a.content);
+  assert.equal(prepared.ready, true, JSON.stringify(prepared.problems));
+  assert.deepEqual(prepared.messages.find((m) => m.role === "assistant").content, [call("c1")]);
+});
+test("withheld reasoning unpairs the calls it produced, and their results follow", () => {
+  const signed = { type: "thinking", thinking: "plan", thinkingSignature: '{"type":"reasoning","id":"rs_1"}' };
+  const a = assistant([signed, call("call_1|fc_1")]);
+  const r = result("call_1|fc_1", 2);
+  const entries = [entry("a", null, a), entry("r", "a", r)];
+  const prepared = project(entries, ["ctx:r"]);
+  assert.deepEqual(prepared.messages.find((m) => m.role === "assistant").content, [
+    { ...call("call_1|fc_1"), id: "call_1" },
+  ]);
+  assert.equal(prepared.messages.find((m) => m.role === "toolResult").toolCallId, "call_1");
+  assert.deepEqual(entries[0].message, a, "canonical history is not modified");
+  assert.deepEqual(entries[1].message, r);
+});
+
+test("a worker view carries the Coordinator's history without its reasoning, and keeps the worker's own", () => {
+  const plan = assistant([{ type: "thinking", thinking: "COORDINATOR_PLAN", thinkingSignature: "s1" }, call("c1")]);
+  const work = assistant([{ type: "thinking", thinking: "WORKER_PLAN", thinkingSignature: "s2" }, call("c2")]);
+  const entries = [
+    entry("p", null, plan),
+    entry("pr", "p", result("c1", 2)),
+    entry("w", "pr", work),
+    entry("wr", "w", result("c2", 3)),
+  ];
+  const prepared = project(entries, [], undefined, { p: "coordinator", pr: "coordinator" }, "executor");
+  const sent = JSON.stringify(prepared.messages);
+  assert.doesNotMatch(sent, /COORDINATOR_PLAN/);
+  assert.match(sent, /WORKER_PLAN/);
+  assert.match(sent, /RESULT_c1/, "the Coordinator's history itself is still shared");
+});
+
+test("workers on one model share reasoning; the Coordinator's stays private across views", () => {
+  const onReceiver = (content) => ({ ...assistant(content), model: "receiver" });
+  const plan = onReceiver([{ type: "thinking", thinking: "COORDINATOR_PLAN", thinkingSignature: "s1" }, call("c1")]);
+  const help = onReceiver([{ type: "thinking", thinking: "HELPER_PLAN", thinkingSignature: "s2" }, call("c2")]);
+  const entries = [
+    entry("p", null, plan),
+    entry("pr", "p", result("c1", 2)),
+    entry("h", "pr", help),
+    entry("hr", "h", result("c2", 3)),
+  ];
+  const producers = { p: "coordinator", pr: "coordinator", h: "helper", hr: "helper" };
+  const sent = JSON.stringify(project(entries, [], undefined, producers, "executor").messages);
+  assert.match(sent, /HELPER_PLAN/, "same model, same worker view");
+  assert.doesNotMatch(sent, /COORDINATOR_PLAN/, "same model, but the Coordinator's view differs under projection");
 });
 
 test("a completed worker run in the Coordinator view carries one provenance note with every row", () => {
@@ -247,29 +298,38 @@ test("without a resume, compacted evidence keeps its native position", () => {
 });
 
 test("duplicate native occurrences are associated once in native order", () => {
-  const body = assistant([{ type: "text", text: "IDENTICAL" }]);
-  body.stopReason = "stop";
-  const entries = [entry("one", null, body), entry("two", "one", structuredClone(body))];
-  const result = project(
+  const envelope = assistant([call("c")]);
+  const body = result("c", 2);
+  const entries = [
+    entry("a1", null, envelope),
+    entry("r1", "a1", body),
+    entry("a2", "r1", structuredClone(envelope)),
+    entry("r2", "a2", structuredClone(body)),
+  ];
+  const prepared = project(
     entries,
-    ["ctx:one"],
+    ["ctx:r1"],
     entries.map((e) => structuredClone(e.message)),
   );
-  assert.equal(result.ready, true);
-  assert.equal(result.messages.filter((m) => m.role === "assistant").length, 1);
+  assert.equal(prepared.ready, true, JSON.stringify(prepared.problems));
+  assert.equal(prepared.messages.filter((m) => m.role === "toolResult").length, 1);
 });
 test("ambiguous selected occurrence is a gap, not opaque duplicates plus materialization", () => {
-  const body = assistant([{ type: "text", text: "IDENTICAL" }]);
-  body.stopReason = "stop";
-  const result = project(
-    [entry("one", null, body), entry("two", "one", structuredClone(body))],
-    ["ctx:one"],
-    [structuredClone(body)],
+  const envelope = assistant([call("c")]);
+  const body = result("c", 2);
+  const prepared = project(
+    [
+      entry("a1", null, envelope),
+      entry("r1", "a1", body),
+      entry("a2", "r1", structuredClone(envelope)),
+      entry("r2", "a2", structuredClone(body)),
+    ],
+    ["ctx:r1"],
+    [structuredClone(envelope), structuredClone(body)],
   );
-  assert.equal(result.ready, false);
-  assert.ok(result.problems.some((p) => p.code === "ambiguous_occurrence"));
+  assert.equal(prepared.ready, false);
+  assert.ok(prepared.problems.some((p) => p.code === "ambiguous_occurrence"));
 });
-
 test("image and failed-assistant limits remain explicit while error tool results remain evidence", () => {
   const a = assistant([{ type: "toolCall", id: "c", name: "read", arguments: {} }]);
   const result = {
@@ -283,9 +343,17 @@ test("image and failed-assistant limits remain explicit while error tool results
   assert.equal(project(entries, ["ctx:r"]).ready, true);
   result.content = [{ type: "image", data: "fixture", mimeType: "image/png" }];
   assert.equal(project(entries, ["ctx:r"]).ready, false);
-  const failed = assistant([{ type: "text", text: "partial failure" }]);
+  // A failed turn cannot carry its selected result: the host may drop failed output on conversion.
+  const failed = assistant([{ type: "text", text: "partial failure" }, call("f")]);
   failed.stopReason = "error";
-  assert.equal(project([entry("failed", null, failed)], ["ctx:failed"]).ready, false);
+  const failedResult = {
+    role: "toolResult",
+    toolCallId: "f",
+    toolName: "read",
+    content: [{ type: "text", text: "done" }],
+  };
+  const failedEntries = [entry("failed", null, failed), entry("fr", "failed", failedResult)];
+  assert.equal(project(failedEntries, ["ctx:fr"]).ready, false);
 });
 
 test(

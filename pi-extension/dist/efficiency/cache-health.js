@@ -36,9 +36,16 @@ export class CacheHealth {
     const key = `${observation.provider ?? "unknown"}/${observation.model ?? "unknown"}/${observation.thinking ?? "unknown"}`;
     const prompt = observation.input + observation.cacheRead + (observation.cacheWrite ?? 0);
     const previous = this.previous;
-    this.previous = { key, at: observation.at, prompt };
+    this.previous = { key, lane: observation.lane, at: observation.at, prompt };
     let basis;
-    if (previous && previous.key === key && observation.at - previous.at <= GAP_MS) basis = previous;
+    // Routing profiles see different views of the conversation, so one never reuses another's prompt.
+    if (
+      previous &&
+      previous.key === key &&
+      previous.lane === observation.lane &&
+      observation.at - previous.at <= GAP_MS
+    )
+      basis = previous;
     else if (observation.lane) {
       const own = this.lanes.get(`${key}/${observation.lane}`);
       if (own && observation.at - own.at <= (observation.ttlMs ?? GAP_MS)) basis = own;

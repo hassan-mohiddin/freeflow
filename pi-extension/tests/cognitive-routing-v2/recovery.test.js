@@ -248,8 +248,16 @@ for (const recoveryWorker of ["executor", "helper"]) {
           },
           true,
           async ({ session, manager, requests }) => {
-            await session.prompt("/freeflow resume");
-            await session.waitForIdle();
+            // Pi reports idle before extension agent_settled handlers finish, and a prompt sent in that window
+            // is deferred until they do; its session event marks the real end of the resumed run.
+            const resume = async () => {
+              const settled = new Promise((resolve) => {
+                const off = session.subscribe((event) => event.type === "agent_settled" && (off(), resolve()));
+              });
+              await session.prompt("/freeflow resume");
+              await settled;
+            };
+            await resume();
             assert.equal(requests.length, 12);
             await session.compact();
             assert.equal(
@@ -257,8 +265,7 @@ for (const recoveryWorker of ["executor", "helper"]) {
               false,
             );
             await session.reload();
-            await session.prompt("/freeflow resume");
-            await session.waitForIdle();
+            await resume();
             await session.prompt("NEW_USER_ATTENTION_29");
             await session.waitForIdle();
             assert.equal(requests.length, 15);

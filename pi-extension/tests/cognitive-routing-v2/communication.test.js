@@ -1,3 +1,5 @@
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fixture } from "../fixtures/routing-native.js";
@@ -186,7 +188,7 @@ test("provenance covers old sources and complete exchanges, with stable prefixes
   assert.equal(JSON.stringify(entries), before);
 });
 
-test("new control selections are rejected while old selections and mixed assistant text remain usable", () => {
+test("assistant messages and routing receipts are not selectable, while old receipt selections stay delivered", () => {
   const state = initialState();
   const entries = [
     entry(
@@ -213,34 +215,14 @@ test("new control selections are rejected while old selections and mixed assista
     sources,
     state,
   );
-  assert.deepEqual(attempted.selected, ["ctx:control#text"]);
+  assert.deepEqual(attempted.selected, []);
   assert.deepEqual(
     attempted.unresolved.map((p) => p.code),
-    ["routing_source", "routing_source"],
-  );
-  assert.deepEqual(
-    attempted.unresolved.map((p) => p.detail),
-    [
-      "Routing control messages are not task evidence. Use ctx:control#text if its visible assistant text is the intended evidence.",
-      "Routing control receipts are not task evidence; saved communication is delivered separately.",
-    ],
+    ["assistant_message", "routing_source", "source_unavailable"],
   );
   const prior = { ...empty, revision: 1, selected: ["ctx:receipt"] };
   assert.equal(changeSelection(prior, { operation: "add", refs: ["ctx:receipt"] }, sources, state), prior);
   state.assignmentId = "a";
-  state.selections.set("a", attempted);
-  const projected = prepare(
-    state,
-    entries,
-    entries.map((e) => e.message),
-    "coordinator",
-  );
-  assert.ok(
-    projected.messages.some(
-      (m) => m.customType === "freeflow-routing-v2-refs" && m.content.includes("ctx:control#text | producer: executor"),
-    ),
-  );
-  assert.ok(projected.messages.some((m) => m.customType === "freeflow-assistant-text"));
   state.selections.set("a", prior);
   assert.ok(
     prepare(
@@ -249,6 +231,19 @@ test("new control selections are rejected while old selections and mixed assista
       entries.map((e) => e.message),
       "coordinator",
     ).messages.some((m) => m.toolName === "freeflow_project"),
+  );
+  state.selections.set("a", { ...empty, revision: 2, selected: ["ctx:control", "ctx:control#text"] });
+  const old = prepare(
+    state,
+    entries,
+    entries.map((e) => e.message),
+    "coordinator",
+  );
+  assert.equal(old.ready, true, JSON.stringify(old.problems));
+  assert.doesNotMatch(
+    JSON.stringify(old.messages),
+    /Substantive executor finding/,
+    "old assistant selections are dropped",
   );
 });
 
@@ -494,27 +489,30 @@ test("empty new assignment advertises earlier evidence and selected receipts ret
 
 test("normal inspection hides delivery gaps while selected inspection preserves their diagnostics", async () => {
   let ref;
-  const result = await fixture(
+  // A 1x1 PNG: the Executor can read images, the text-only Coordinator cannot receive them.
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+    "base64",
+  );
+  await fixture(
     (n, body, m) => {
-      if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Read and inspect evidence." });
-      if (n === 2) return call("read", { path: "evidence.txt" });
+      if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Read the image and return it." });
+      if (n === 2) return call("read", { path: "image.png" });
       if (n === 3) {
-        ref = `ctx:${m.getBranch().find((e) => e.message?.content?.some?.((b) => b.type === "toolCall" && b.name === "read")).id}`;
+        ref = `ctx:${m.getBranch().find((e) => e.message?.role === "toolResult" && e.message.toolName === "read").id}`;
         return call("freeflow_project", { operation: "inspect", scope: "assignment" });
       }
       if ([4, 5, 6].includes(n)) {
         const r = receipt(m, "freeflow_project");
         assert.ok(r.candidates.every((c) => c.eligible && c.targetReady));
-        assert.ok(r.candidates.every((c) => !Object.hasOwn(c, "preview")));
-        assert.ok(!JSON.stringify(r).includes("EXACT_EVIDENCE_BODY_81"), "inspection does not repeat source text");
+        assert.ok(
+          r.candidates.every((c) => c.kind === "toolResult"),
+          "assistant messages are never offered",
+        );
         assert.equal(
           r.candidates.find((c) => c.ref === ref),
           undefined,
-          "incompatible whole message is not a candidate",
-        );
-        assert.ok(
-          r.candidates.some((c) => c.ref === `${ref}#text`),
-          "usable visible text remains offered",
+          "a result the Coordinator cannot receive is not offered",
         );
         assert.equal(r.scopeCounts.candidates, r.scopeCounts.targetReady);
         assert.equal(r.pageCounts.candidates, r.pageCounts.targetReady);
@@ -544,38 +542,16 @@ test("normal inspection hides delivery gaps while selected inspection preserves 
     undefined,
     true,
     {
-      extensions: [
-        (pi) =>
-          pi.on("message_end", (e) => {
-            if (
-              e.message.role === "assistant" &&
-              e.message.content.some((b) => b.type === "toolCall" && b.name === "read")
-            )
-              return {
-                message: {
-                  ...e.message,
-                  content: [
-                    ...e.message.content,
-                    {
-                      type: "thinking",
-                      thinking: "Fixture signed reasoning",
-                      thinkingSignature: JSON.stringify({
-                        type: "reasoning",
-                        id: "rs_candidate",
-                        summary: [{ type: "summary_text", text: "Fixture signed reasoning" }],
-                      }),
-                    },
-                  ],
-                },
-              };
-          }),
-      ],
+      beforePrompt: ({ cwd }) => writeFileSync(join(cwd, "image.png"), png),
+      cognitiveRouting: {
+        enabled: true,
+        projection: true,
+        profiles: {
+          coordinator: { provider: "openai", model: "gpt-4", thinking: "off" },
+          executor: { provider: "openai", model: "gpt-4.1-mini", thinking: "off" },
+        },
+      },
     },
-  );
-  assert.deepEqual(
-    [...result.state.selections.values()].at(-1).selected,
-    [ref],
-    "inspection does not silently withdraw evidence",
   );
 });
 

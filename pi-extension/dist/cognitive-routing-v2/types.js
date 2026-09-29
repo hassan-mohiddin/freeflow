@@ -45,5 +45,5 @@ export const eventValue = (event) =>
 export const emptySelection = () => ({ revision: 0, selected: [], unresolved: [], withdrawals: [] });
 export const refFor = (id) => `ctx:${id}`;
 export function idFor(ref) {
-  return /^ctx:([^\s:#]+)(?:#text)?$/.exec(ref)?.[1];
+  return /^ctx:([^\s:#]+)$/.exec(ref)?.[1];
 }

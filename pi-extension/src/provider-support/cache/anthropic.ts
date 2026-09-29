@@ -57,7 +57,8 @@ export function anthropicLayout(payload: any): AnthropicLayout | undefined {
       pending += `${start}${withoutMarkers(message)}`;
       return;
     }
-    const markable = message.role === "user" || message.role === "assistant";
+    // Mid-conversation role:"system" updates carry markers too; Pi puts the final one there when an update ends the request.
+    const markable = message.role === "user" || message.role === "assistant" || message.role === "system";
     let b = 0;
     while (b < message.content.length) {
       const type = message.content[b]?.type;

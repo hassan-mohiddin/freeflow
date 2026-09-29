@@ -172,3 +172,17 @@ test("the planner works on provider-neutral layouts", () => {
   const diverged = { ...current, chain: [...chain("x", 5), ...chain("y", 35)] };
   assert.equal(planAnchor([prior], diverged, limits), undefined);
 });
+
+test("a request ending in a mid-conversation system update is still anchored", () => {
+  // Pi places the final cache marker on a trailing role:"system" update (a changed section or tool change).
+  const adapter = new CacheAnchorAdapter();
+  adapter.adapt(request(coordinator), ctxFor());
+  const returned = request([
+    ...afterWorker(8),
+    { role: "system", content: [{ type: "text", text: "Section changed" }] },
+  ]);
+  const sent = adapter.adapt(returned, ctxFor());
+  assert.ok(breakpoints(sent).includes("messages[3].0"), breakpoints(sent).join(", "));
+  assert.ok(breakpoints(sent).includes(`messages[${sent.messages.length - 1}].0`));
+  assert.ok(breakpoints(sent).length <= 4);
+});

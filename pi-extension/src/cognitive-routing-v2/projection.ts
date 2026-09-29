@@ -1,11 +1,12 @@
 import { annotateSources } from "../session-sources/provenance.js";
 import { randomUUID } from "node:crypto";
-import { Sources, bodyHash, textRef, type Source } from "../session-sources/sources.js";
+import { Sources, bodyHash, deliveredSelection, type Source } from "../session-sources/sources.js";
 import {
   canonical,
   emptySelection,
   idFor,
   isWorkerProfile,
+  PROFILES,
   requireCondition as check,
   type Pair,
   type Problem,
@@ -68,9 +69,48 @@ export function changeSelection(
   next.revision++;
   return next;
 }
-export function representationProblems(source: Source, model: any, structural = false): Problem[] {
-  const message = source.original?.message ?? source.message,
-    content = Array.isArray(source.message.content) ? source.message.content : [];
+/**
+ * Profiles share history, not private reasoning, except where they would otherwise send the same request: the
+ * same model under the same view (projection off, or Helper and Executor on worker history). There shared
+ * reasoning keeps one prompt cache across effort switches and stays valid for providers that bind reasoning to
+ * its conversation. Unknown and pre-routing history keeps its native form.
+ */
+function privateReasoning(source: Source, view: View, projection: boolean, model: any): boolean {
+  const producer = source.producer;
+  if (!(PROFILES as readonly string[]).includes(producer) || producer === view) return false;
+  const message = source.message;
+  const sameModel = message.provider === model?.provider && message.api === model?.api && message.model === model?.id;
+  const viewOf = (profile: string) => (!projection ? "shared" : isWorkerProfile(profile) ? "worker" : profile);
+  return !(sameModel && viewOf(producer) === viewOf(view));
+}
+
+/**
+ * Remove reasoning from another profile's turn. A provider may pair a call with the reasoning that produced
+ * it (OpenAI Responses `fc_` ids pair with `rs_` items), so such calls keep only their call id, as the host
+ * already does for another model's turns; `unpaired` carries the rename to the matching results.
+ */
+function withoutReasoning(message: any, unpaired: Map<string, string>): any {
+  if (!message.content.some((b: any) => b.type === "thinking")) return message;
+  return {
+    ...message,
+    content: message.content.flatMap((b: any) => {
+      if (b.type === "thinking") return [];
+      if (b.type !== "toolCall" || typeof b.id !== "string" || !b.id.includes("|")) return [b];
+      const id = b.id.split("|")[0];
+      unpaired.set(b.id, id);
+      return [{ ...b, id }];
+    }),
+  };
+}
+
+const repaired = (message: any, unpaired: Map<string, string>) =>
+  message.role === "toolResult" && unpaired.has(message.toolCallId)
+    ? { ...message, toolCallId: unpaired.get(message.toolCallId) }
+    : message;
+
+export function representationProblems(source: Source, model: any): Problem[] {
+  const message = source.message,
+    content = Array.isArray(message.content) ? message.content : [];
   if (message.role === "assistant" && ["error", "aborted"].includes(message.stopReason))
     return [
       {
@@ -83,19 +123,6 @@ export function representationProblems(source: Source, model: any, structural = 
   if (content.some((b: any) => b.type === "image") && !model?.input?.includes("image"))
     return [
       { ref: source.ref, code: "target_representation", detail: "The receiving model does not support image input." },
-    ];
-  if (
-    !structural &&
-    !source.original &&
-    content.some((b: any) => b.type === "thinking" && (b.redacted || b.thinkingSignature)) &&
-    (message.provider !== model?.provider || message.model !== model?.id || message.api !== model?.api)
-  )
-    return [
-      {
-        ref: source.ref,
-        code: "target_representation",
-        detail: `Whole native signed content is not qualified across this model boundary. Inspect the explicit assistant-text source ${textRef(source.ref)} when visible text is the intended evidence.`,
-      },
     ];
   return [];
 }
@@ -126,17 +153,21 @@ export function prepareView(options: {
   const handoff = handoffId ? state.handoffs.get(handoffId) : undefined;
   const assignmentId = handoff?.assignmentId ?? state.assignmentId;
   const current = assignmentId ? (state.selections.get(assignmentId) ?? emptySelection()) : emptySelection();
-  const required = new Set(selective && !attention && assignmentId ? current.selected : []);
+  // Assistant messages (whole or `#text`) that older sessions selected are not delivered.
+  const delivered = (ref: string) => deliveredSelection(sources, ref);
+  const required = new Set(selective && !attention && assignmentId ? current.selected.filter(delivered) : []);
   const promised = handoff && state.reservations.get(handoff.id);
   const admitted = new Set<string>();
   if (selective)
-    for (const selection of state.selections.values()) for (const ref of selection.selected) admitted.add(ref);
+    for (const selection of state.selections.values())
+      for (const ref of selection.selected) if (delivered(ref)) admitted.add(ref);
   // Accepted return receipts are communication, independent of selected task evidence.
   // Their ordinary active occurrence survives closure; compaction still owns its lifetime.
 
   const full = new Map<string, Source>();
   const structural = new Map<string, Source>();
-  const problems: Problem[] = selective && !attention && assignmentId ? [...current.unresolved] : [];
+  const problems: Problem[] =
+    selective && !attention && assignmentId ? current.unresolved.filter((p) => delivered(p.ref)) : [];
   for (const item of associated) {
     if (!item.source) continue;
     if (
@@ -146,8 +177,6 @@ export function prepareView(options: {
       (item.source.reportHandoff && state.handoffs.has(item.source.reportHandoff))
     )
       full.set(item.source.ref, item.source);
-    const visible = sources.byRef.get(textRef(item.source.ref));
-    if (selective && visible && admitted.has(visible.ref)) full.set(visible.ref, visible);
   }
   for (const ref of required) {
     if (sources.ambiguous.has(ref)) {
@@ -186,24 +215,28 @@ export function prepareView(options: {
   }
   for (const source of structural.values())
     if (source.message.role === "assistant" && required.size)
-      problems.push(...representationProblems(source, options.model, true));
+      problems.push(...representationProblems(source, options.model));
+  const unpaired = new Map<string, string>();
   const render = (source: Source) => {
-    const message = structuredClone(source.message);
-    // A structural worker envelope keeps its calls for the selected results; its narration is only
-    // delivered when selected, either whole or as its own #text source.
+    let message = structuredClone(source.message);
+    if (
+      source.message.role === "assistant" &&
+      privateReasoning(source, options.view, options.projection, options.model)
+    )
+      message = withoutReasoning(message, unpaired);
+    // A structural worker envelope keeps only its calls for the selected results; worker narration is never evidence.
     const structuralWorker = selective && isWorkerProfile(source.producer) && !full.has(source.ref);
-    // A structural worker envelope carries only its calls. Reasoning is narration too: another model's
-    // thinking reaches the receiver as plain text after the host's cross-model conversion.
     if (source.message.role === "assistant" && structuralWorker)
       message.content = message.content.filter((b: any) => b.type === "toolCall");
-    else if (source.message.role === "assistant" && !full.has(source.ref) && full.has(textRef(source.ref)))
-      message.content = message.content.filter((b: any) => b.type !== "text");
-    if (full.has(source.ref) || source.message.role !== "toolResult") return message;
-    return {
-      ...structuredClone(source.message),
-      content: [{ type: "text", text: "[Worker result omitted from this view]" }],
-      details: undefined,
-    };
+    if (full.has(source.ref) || source.message.role !== "toolResult") return repaired(message, unpaired);
+    return repaired(
+      {
+        ...structuredClone(source.message),
+        content: [{ type: "text", text: "[Worker result omitted from this view]" }],
+        details: undefined,
+      },
+      unpaired,
+    );
   };
   // Insert resolved historical occurrences before the first later native occurrence, retaining
   // opaque/common messages in their original order rather than moving user input wholesale.
@@ -230,10 +263,9 @@ export function prepareView(options: {
       const at = admitted === undefined ? resumed : Math.max(admitted, resumed ?? 0),
         own = rank.get(source.entry.id) ?? 0;
       if (at === undefined || at <= own || !isWorkerProfile(source.producer) || shared[at] <= shared[own + 1]) continue;
-      const group = source.original ? [source] : sources.exchange(source).sources;
+      const group = sources.exchange(source).sources;
       for (const member of group.length ? group : [source])
-        for (const candidate of [member, sources.byRef.get(textRef(member.ref))])
-          if (candidate) deferredAt.set(candidate.ref, Math.max(deferredAt.get(candidate.ref) ?? 0, at));
+        deferredAt.set(member.ref, Math.max(deferredAt.get(member.ref) ?? 0, at));
     }
   const historical = ordered.filter((s) => !activeRefs.has(s.ref));
   const emitted = new Set<string>();
@@ -241,7 +273,6 @@ export function prepareView(options: {
   const renderedSources = new Map<any, Source>();
   let cursor = 0;
   const emit = (source: Source) => {
-    if (source.original && full.has(source.original.ref)) return;
     if (!emitted.has(source.ref)) {
       const message = render(source);
       messages.push(message);
@@ -264,8 +295,6 @@ export function prepareView(options: {
       deliver(at);
       while (cursor < historical.length && (rank.get(historical[cursor].entry.id) ?? 0) < at)
         place(historical[cursor++]);
-      const visible = full.get(textRef(item.source.ref));
-      if (visible) place(visible);
       if (full.has(item.source.ref) || structural.has(item.source.ref)) place(item.source);
     } else messages.push(item.message);
   }

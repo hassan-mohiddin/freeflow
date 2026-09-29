@@ -80,7 +80,7 @@ test("fresh sources over projected history hash nothing until a hash is needed",
   assert.equal(counter.n, 0, "associating projected history hashes nothing");
   assert.match(sources.byRef.get("ctx:e0").hash, /^[a-f0-9]{64}$/);
   assert.ok(counter.n > 0, "hashes are computed on demand");
-  assert.equal(sources.byRef.get("ctx:e1#text").original, sources.byRef.get("ctx:e1"));
+  assert.equal(sources.byRef.has("ctx:e1#text"), false, "assistant text is not a separate evidence source");
 });
 
 test("sourceless projected summaries do not force history hashing", () => {

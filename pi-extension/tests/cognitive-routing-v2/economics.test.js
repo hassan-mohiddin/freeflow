@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { presetWarnings } from "../../dist/cognitive-routing-v2/economics.js";
-import { effortHistoryRoute } from "../../dist/provider-support/openai/adapter.js";
+import { keepsCacheAcrossEffort } from "../../dist/provider-support/effort.js";
 
 const codex = (id, input) => ({
   id,
@@ -10,16 +10,28 @@ const codex = (id, input) => ({
   baseUrl: "https://chatgpt.com/backend-api",
   cost: { input },
 });
+const anthropic = (id, input, compat = {}) => ({
+  id,
+  provider: "anthropic",
+  api: "anthropic-messages",
+  cost: { input },
+  compat,
+});
 const models = {
+  "claude-opus-5-5": anthropic("claude-opus-5-5", 4, { supportsMidConvoEffort: true }),
+  "claude-sonnet-5": anthropic("claude-sonnet-5", 2),
   "gpt-6-sol": codex("gpt-6-sol", 2),
   "gpt-6-luna": codex("gpt-6-luna", 0.1),
   "gpt-5.6-sol": codex("gpt-5.6-sol", 4),
   "gpt-5.6-luna": codex("gpt-5.6-luna", 0.2),
 };
 const find = (_provider, id) => models[id];
-const pair = (modelId, thinking) => ({ provider: "openai-codex", modelId, thinking });
-const check = (pairs, workers = ["executor"]) =>
-  presetWarnings(pairs, workers, find, (model) => effortHistoryRoute(model) !== undefined);
+const pair = (modelId, thinking) => ({
+  provider: modelId.startsWith("claude") ? "anthropic" : "openai-codex",
+  modelId,
+  thinking,
+});
+const check = (pairs, workers = ["executor"]) => presetWarnings(pairs, workers, find, keepsCacheAcrossEffort);
 
 test("a cheaper worker on another model raises no warning", () => {
   assert.deepEqual(check({ coordinator: pair("gpt-6-sol", "xhigh"), executor: pair("gpt-6-luna", "max") }), []);
@@ -35,6 +47,15 @@ test("same model at different effort is flagged only where the cache does not su
   const [warning] = check({ coordinator: pair("gpt-5.6-sol", "xhigh"), executor: pair("gpt-5.6-sol", "medium") });
   assert.match(warning, /rereads the whole context/);
   assert.deepEqual(check({ coordinator: pair("gpt-6-sol", "xhigh"), executor: pair("gpt-6-sol", "low") }), []);
+});
+
+test("Claude models with per-message effort keep the cache across effort; others are flagged", () => {
+  assert.deepEqual(
+    check({ coordinator: pair("claude-opus-5-5", "xhigh"), executor: pair("claude-opus-5-5", "low") }),
+    [],
+  );
+  const [warning] = check({ coordinator: pair("claude-sonnet-5", "xhigh"), executor: pair("claude-sonnet-5", "low") });
+  assert.match(warning, /rereads the whole context/);
 });
 
 test("only enabled workers are checked", () => {

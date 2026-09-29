@@ -259,5 +259,5 @@ export const eventValue = (event: RoutingEvent) =>
 export const emptySelection = (): Selection => ({ revision: 0, selected: [], unresolved: [], withdrawals: [] });
 export const refFor = (id: string) => `ctx:${id}`;
 export function idFor(ref: string): string | undefined {
-  return /^ctx:([^\s:#]+)(?:#text)?$/.exec(ref)?.[1];
+  return /^ctx:([^\s:#]+)$/.exec(ref)?.[1];
 }
