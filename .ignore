@@ -1,0 +1,8 @@
+# Task memory under .freeflow/tasks/ is gitignored (it must never be committed), but agents must still find it.
+# ripgrep-based search honors this file over .gitignore: records, specs, plans, and handoffs are searchable;
+# bulky evidence, scratch copies, and saved sources are not.
+!/.freeflow/
+!/.freeflow/tasks/
+/.freeflow/tasks/*/evidence/
+/.freeflow/tasks/*/scratch/
+/.freeflow/tasks/*/sources/
