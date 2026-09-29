@@ -160,3 +160,33 @@ test("a handoff whose model switch fails is recorded as blocked and the user is 
     { onSession: (session) => (active = session) },
   );
 });
+
+test("with projection off, evidence selection is refused and nothing is saved", { timeout: 30000 }, async () => {
+  let refused;
+  await fixture(
+    (n, body, manager) => {
+      if (n === 1)
+        return [
+          { name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence.txt and return." } },
+        ];
+      if (n === 2) return [{ name: "read", args: { path: "evidence.txt" } }];
+      if (n === 3) {
+        const read = manager.getBranch().find((e) => e.message?.role === "toolResult" && e.message.toolName === "read");
+        return [{ name: "freeflow_project", args: { operation: "add", refs: [`ctx:${read.id}`] } }];
+      }
+      if (n === 4) {
+        refused = JSON.stringify(body).includes("projection_disabled");
+        return [
+          { name: "freeflow_return", args: { operation: "submit", report: "Read the file.", outcome: "completed" } },
+        ];
+      }
+      return [];
+    },
+    false,
+    async ({ manager }) => {
+      assert.ok(refused, "the worker is told selection is unavailable");
+      const state = routingState(manager);
+      assert.equal(state.selections.size, 0, "no selection is saved");
+    },
+  );
+});
