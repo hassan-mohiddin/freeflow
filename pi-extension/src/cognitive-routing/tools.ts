@@ -1,4 +1,5 @@
-import { RoutingRuntime, ROUTING_TOOLS } from "./runtime.js";
+import { RoutingRuntime } from "./runtime.js";
+import { ROUTING_TOOLS } from "./types.js";
 import { ROUTING_SCHEMAS, explainRoutingArguments, matches } from "./schemas.js";
 export { ROUTING_SCHEMAS } from "./schemas.js";
 import { renderRoutingCall, renderRoutingResult } from "./render.js";

@@ -254,3 +254,22 @@ export function idFor(ref: string): string | undefined {
   return /^ctx:([^\s:#]+)$/.exec(ref)?.[1];
 }
 export { canonical };
+
+export const ROUTING_TOOLS = ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project"] as const;
+export interface ResultGrantPort {
+  resolve(id: string, ctx: any): Promise<ResultGrant | undefined>;
+}
+export interface EffectFencePort {
+  status(): { unresolvedEffects: number };
+}
+export interface RoutingOperationScope {
+  token: string;
+  revision: number;
+  sessionId?: string;
+  supported: boolean;
+  control: string;
+  profile?: Profile;
+  assignmentId?: string;
+  turnId?: string;
+  basisUserEntryId?: string | null;
+}

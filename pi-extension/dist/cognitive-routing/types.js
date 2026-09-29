@@ -39,3 +39,4 @@ export function idFor(ref) {
   return /^ctx:([^\s:#]+)$/.exec(ref)?.[1];
 }
 export { canonical };
+export const ROUTING_TOOLS = ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project"];
