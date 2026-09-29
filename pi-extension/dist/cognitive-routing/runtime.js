@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { EventStore } from "./events.js";
 import { ROUTING_RECOVERY_HINT, RoutingSession } from "./session.js";
+import { RoutingStatus } from "./status.js";
 import { Handoffs } from "./handoffs.js";
 import { ContextAssembler } from "./assembler.js";
 import { ToolGate } from "./gate.js";
@@ -8,7 +9,6 @@ import { ModelControl } from "./model-control.js";
 export { ROUTING_RECOVERY_HINT };
 import { bodyHash, isTaskEvidence } from "./sources.js";
 import { representationProblems, changeSelection } from "./projection.js";
-import { initialState } from "./state.js";
 import {
   PROFILES,
   RoutingError,
@@ -23,6 +23,7 @@ export { ROUTING_TOOLS };
 export class RoutingRuntime {
   pi;
   packageRoots;
+  status;
   handoffs;
   assembler;
   gate;
@@ -36,6 +37,7 @@ export class RoutingRuntime {
     this.pi = pi;
     this.packageRoots = packageRoots;
     this.models = new ModelControl(this.session, this.pi);
+    this.status = new RoutingStatus(this.session, this.models);
     this.gate = new ToolGate(this.session, this.packageRoots);
     this.assembler = new ContextAssembler(this.session, this.pi, this.models);
     this.handoffs = new Handoffs(this.session, this.pi, this.models, this.assembler);
@@ -55,34 +57,6 @@ export class RoutingRuntime {
     this.session.retireUnbound(
       "Native run settled without a complete source binding; prior effects remain unresolved.",
     );
-  }
-  state() {
-    let state;
-    try {
-      state = this.session.stateData();
-    } catch {
-      state = initialState();
-    }
-    const blocked = this.session.error ?? this.session.store?.blocked;
-    return {
-      effective: this.session.supported() && state.control !== "inactive" && !blocked,
-      activeProfile: state.profile,
-      delegation: this.session.delegation(state),
-      controlMode: state.control === "manual" ? `manual-${state.profile}` : state.control,
-      runtimeStatus: blocked
-        ? "blocked"
-        : this.session.supported() && state.control !== "inactive"
-          ? "active"
-          : "inactive",
-      runtimeReason:
-        blocked ?? (this.session.suppressed ? "startup_selection" : this.session.capability?.blockingReason.message),
-      projectionFailure: this.session.projectionError,
-      ...((pending) => (pending ? { pendingPair: `${pending.modelId}/${pending.thinking}` } : {}))(
-        this.models.pending(),
-      ),
-      ...(this.models.heldMismatch(state) ? { pairMismatch: true } : {}),
-      ...((warnings) => (warnings.length ? { presetWarnings: warnings } : {}))(this.models.presetWarnings(state)),
-    };
   }
   /** The Coordinator's model while a delegated worker holds the assignment; the Coordinator resumes on return. */
   suspendedCoordinator() {
@@ -977,7 +951,7 @@ export class RoutingRuntime {
     );
     if (view === "current")
       return {
-        ...this.status(),
+        ...this.status.detail(),
         status: "inspected",
         view,
         currentRef: state.assignmentId ? `assignment:${state.assignmentId}` : undefined,
@@ -1144,43 +1118,6 @@ export class RoutingRuntime {
         "Accepted report revision on current ancestry; assignment/selection show current recorded state. Historical content grants no current permission.",
     };
   }
-  status(limit = 0) {
-    const state = this.session.stateData();
-    const unit = state.unitId ? state.units.get(state.unitId) : undefined;
-    const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
-    return {
-      ...this.state(),
-      unit: unit ? { id: unit.id, state: unit.state, assignments: unit.assignmentIds.length } : null,
-      assignment: a ? { id: a.id, state: a.state, worker: this.session.assignedWorker(state, a.id) } : null,
-      pendingHandoff: state.pendingId ?? null,
-      recovery: state.recoveryId
-        ? (() => {
-            const recovery = state.recoveries.get(state.recoveryId);
-            return recovery
-              ? {
-                  id: recovery.id,
-                  state: recovery.state,
-                  assignmentId: recovery.assignmentId,
-                  assessmentHandoffId: recovery.assessmentHandoffId,
-                  paths: recovery.paths,
-                  results: recovery.results ?? [],
-                  supplementRevision: recovery.supplementRevision,
-                }
-              : null;
-          })()
-        : null,
-      assessment: state.assessment
-        ? { handoffId: state.assessment.handoffId, view: state.assessment.view, problems: state.assessment.problems }
-        : null,
-      ...(limit
-        ? {
-            history: [...state.events.values()]
-              .slice(-Math.min(100, Math.max(1, limit)))
-              .map((e) => ({ event: e.eventId, type: e.data.type, operation: e.operationId })),
-          }
-        : {}),
-    };
-  }
   async command(args, ctx) {
     const words = args.trim().split(/\s+/);
     if (!["profile", "resume"].includes(words[0])) return false;
@@ -1189,7 +1126,7 @@ export class RoutingRuntime {
         check(words.length === 2 || (words.length === 3 && words[2] === "diagnostics"), "invalid_history_command");
         ctx.ui.notify(
           JSON.stringify(
-            words[2] === "diagnostics" ? this.status(30) : this.inspectUnit({ view: "history", limit: 30 }),
+            words[2] === "diagnostics" ? this.status.detail(30) : this.inspectUnit({ view: "history", limit: 30 }),
           ),
           "info",
         );
@@ -1273,5 +1210,8 @@ export class RoutingRuntime {
   }
   turnEnd(event, ctx) {
     return this.handoffs.turnEnd(event, ctx);
+  }
+  state() {
+    return this.status.state();
   }
 }
