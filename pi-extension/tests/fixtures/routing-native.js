@@ -198,7 +198,7 @@ export async function fixture(script, projection = true, after, withUI = true, o
     JSON.stringify({
       providers: {
         openai: { baseUrl: "https://fixture.invalid/v1", ...options.openaiProvider },
-        anthropic: { baseUrl: "https://fixture.invalid" },
+        anthropic: { baseUrl: "https://fixture.invalid", ...options.anthropicProvider },
       },
     }),
   );
@@ -286,6 +286,23 @@ export async function fixture(script, projection = true, after, withUI = true, o
       sessionManager: manager,
       resourceLoader: loader,
     }));
+    // Pi reports idle before extension agent_settled handlers finish, and a prompt sent in that window is deferred.
+    // A run (which may continue through several agent starts, such as after overflow compaction) is over only when
+    // its agent_settled session event has fired.
+    let settling = false;
+    session.subscribe((event) => {
+      if (event.type === "agent_start") settling = true;
+      else if (event.type === "agent_settled") settling = false;
+    });
+    const idle = session.waitForIdle.bind(session);
+    session.waitForIdle = async () => {
+      await idle();
+      for (let i = 0; settling; i++) {
+        assert.ok(i < 5000, "every started agent run settles");
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        await idle();
+      }
+    };
     // Public retained bindings make Pi emit session_start again on SDK reload, including headless mode.
     await session.bindExtensions({
       mode: "print",

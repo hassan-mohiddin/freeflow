@@ -43,6 +43,8 @@ export interface KeepAliveRecord {
 interface ReplayProtocol {
   cap(payload: any): any;
   retention(payload: any): "short" | "long" | undefined;
+  /** Whether capping the output leaves the cached prompt and the work unchanged; always when absent. */
+  replayable?(payload: any): boolean;
 }
 const responses: ReplayProtocol = {
   cap: (payload) => ({ ...payload, max_output_tokens: 16 }),
@@ -53,6 +55,9 @@ const PROTOCOLS: Record<string, ReplayProtocol> = {
   "anthropic-messages": {
     cap: (payload) => ({ ...payload, max_tokens: 1 }),
     retention: (payload) => (JSON.stringify(payload).includes('"ttl":"1h"') ? "long" : "short"),
+    // Budget-based thinking must stay below max_tokens and is part of the cache key, so a one-token replay is
+    // rejected or writes a different entry. Adaptive thinking has no budget. Pi's own warmer skips these too.
+    replayable: (payload) => payload?.thinking?.type !== "enabled",
   },
   "openai-responses": responses,
   "azure-openai-responses": responses,
@@ -127,7 +132,13 @@ export class CacheKeepAlive {
   /** Remember the request just sent on its model; a hold keeps the latest one warm. */
   record(payload: any, ctx: any): void {
     const key = laneKey(ctx, undefined, this.requester());
-    if (!key || !PROTOCOLS[ctx.model.api]) return;
+    const protocol = PROTOCOLS[ctx.model?.api];
+    if (!key || !protocol) return;
+    if (protocol.replayable?.(payload) === false) {
+      this.lanes.delete(key);
+      if (this.active?.lane === key) this.stop("this request cannot be replayed with a capped output");
+      return;
+    }
     const prior = this.lanes.get(key);
     this.lanes.set(key, { key, model: ctx.model, payload, sentAt: this.now(), prompt: prior?.prompt });
     if (this.active?.lane === key) this.schedule();

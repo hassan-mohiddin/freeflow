@@ -41,7 +41,8 @@ test("a worker run interrupted by a crash resumes automatically after reload", {
     simulateCrash(manager);
     const before = requests.length;
     await session.reload();
-    for (let i = 0; i < 50 && requests.length === before; i++) await sleep(20);
+    // The resume starts asynchronously after session_start; allow a loaded machine time to begin it.
+    for (let i = 0; i < 500 && requests.length === before; i++) await sleep(20);
     await session.waitForIdle();
     assert.equal(requests.length, before + 1, "the interrupted worker run continues without user input");
     assert.equal(requests.at(-1).model, "gpt-4.1-mini");

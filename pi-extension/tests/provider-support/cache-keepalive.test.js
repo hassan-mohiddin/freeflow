@@ -233,3 +233,22 @@ test("a hold is capped in duration and in spend", async () => {
   await cheap.advance(10 * HOUR);
   assert.equal(cheap.sent.length, 2);
 });
+
+test("Claude requests with budget-based thinking are never replayed; adaptive thinking is", async () => {
+  // A one-token replay cannot keep budget_tokens below max_tokens, and the budget is part of the cache key.
+  const budget = harness();
+  coordinatorRequest(budget, 120_000, claude, {
+    ...claudePayload(),
+    thinking: { type: "enabled", budget_tokens: 4096 },
+  });
+  budget.keepAlive.evaluate(budget.ctx());
+  await budget.advance(HOUR);
+  assert.deepEqual(budget.sent, []);
+  const adaptive = harness();
+  coordinatorRequest(adaptive, 120_000, claude, { ...claudePayload(), thinking: { type: "adaptive" } });
+  adaptive.keepAlive.evaluate(adaptive.ctx());
+  // The payload uses 1-hour markers, so its refresh falls at 90% of an hour.
+  await adaptive.advance(HOUR);
+  assert.equal(adaptive.sent.length, 1);
+  assert.equal(adaptive.sent[0].payload.max_tokens, 1);
+});
