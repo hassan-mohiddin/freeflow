@@ -144,7 +144,7 @@ export class ContextAssembler {
       limitations: state.assessment?.problems ?? [],
     };
   }
-  admissionCache?: {
+  private admissionCache?: {
     state: State;
     leaf: string | null;
     admissions: Map<string, number>;
@@ -216,7 +216,7 @@ export class ContextAssembler {
       timestamp: 0,
     };
   }
-  ordinaryContext(input: any[]): any[] {
+  private ordinaryContext(input: any[]): any[] {
     try {
       const sources = this.session.sources(),
         associated = sources.associate(input);

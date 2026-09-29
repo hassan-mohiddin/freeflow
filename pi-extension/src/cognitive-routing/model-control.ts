@@ -30,7 +30,7 @@ export class ModelControl {
   ) {}
   applying?: Pair;
   externalChange = false;
-  heldNotice?: string;
+  private heldNotice?: string;
   /** A manual hold whose profile model is not what the host runs, e.g. after a change in Pi's model picker. */
   heldMismatch(state = this.session.stateData()): { profile: Profile; expected: Pair; observed: Pair } | undefined {
     if (!this.session.supported() || state.control !== "manual" || !state.profile || this.applying) return;
@@ -114,7 +114,7 @@ export class ModelControl {
       process.env.PI_CACHE_RETENTION === "long" ? "long" : "short",
     );
   }
-  presetNotice?: string;
+  private presetNotice?: string;
   announcePresets(ctx: any = this.session.ctx): void {
     const warnings = this.presetWarnings();
     const notice = warnings.length ? JSON.stringify(warnings) : undefined;
@@ -192,7 +192,7 @@ export class ModelControl {
   pending(): Pair | undefined {
     return stagedFor(this.session.ctx?.sessionManager)?.pair as Pair | undefined;
   }
-  setPending(pair: Pair | undefined): void {
+  private setPending(pair: Pair | undefined): void {
     const stage = pair ? sessionStage(this.session.ctx?.sessionManager) : stagedFor(this.session.ctx?.sessionManager);
     if (!stage) return;
     if (pair) stage.pair = pair;
@@ -202,7 +202,7 @@ export class ModelControl {
   intended(): Pair | undefined {
     return this.pending() ?? this.session.observed();
   }
-  async checkPair(target: Pair): Promise<void> {
+  private async checkPair(target: Pair): Promise<void> {
     const model = this.session.ctx.modelRegistry.find(target.provider, target.modelId);
     check(model, "profile_unavailable");
     check((await this.session.ctx.modelRegistry.getApiKeyAndHeaders(model))?.ok, "profile_unauthenticated");

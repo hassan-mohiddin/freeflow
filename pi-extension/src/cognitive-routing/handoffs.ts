@@ -250,7 +250,7 @@ export class Handoffs {
       return this.resumeCurrent(ctx, this.session.subject());
     });
   }
-  async resumeCurrent(ctx: any, subject: Subject): Promise<void> {
+  private async resumeCurrent(ctx: any, subject: Subject): Promise<void> {
     this.session.guard(subject);
     check(this.session.store, "routing_unavailable");
     await this.session.store.reconcile();

@@ -34,15 +34,15 @@ export class ToolHandlers {
     private readonly assembler: ContextAssembler,
     private readonly status: RoutingStatus,
   ) {}
-  resultGrants?: ResultGrantPort;
-  effectFence?: EffectFencePort;
+  private resultGrants?: ResultGrantPort;
+  private effectFence?: EffectFencePort;
   setResultGrantPort(port: ResultGrantPort): void {
     this.resultGrants = port;
   }
   setEffectFencePort(port: EffectFencePort): void {
     this.effectFence = port;
   }
-  callOperation(callId: string, name: string): string {
+  private callOperation(callId: string, name: string): string {
     check(this.session.turn && this.session.store, "execution_missing");
     this.gate.batch(callId, name);
     return JSON.stringify([this.session.store.reader.getSessionId(), this.session.turn.id, callId, name]);
@@ -119,7 +119,7 @@ export class ToolHandlers {
       }
     });
   }
-  duplicate(op: string): any {
+  private duplicate(op: string): any {
     return [...this.session.stateData().events.values()].find(
       (e) =>
         e.operationId === op &&
@@ -133,7 +133,7 @@ export class ToolHandlers {
         ].includes(e.data.type),
     );
   }
-  delegate(input: any, callId: string, op: string) {
+  private delegate(input: any, callId: string, op: string) {
     const prior = this.duplicate(op);
     if (prior) {
       check(
@@ -225,7 +225,7 @@ export class ToolHandlers {
         : {}),
     };
   }
-  returnReport(input: any, callId: string, op: string) {
+  private returnReport(input: any, callId: string, op: string) {
     const state = this.session.stateData(),
       a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
     check(a, "assignment_missing");
@@ -326,7 +326,7 @@ export class ToolHandlers {
     this.session.append({ type: "return-accepted", handoff: h }, op);
     return this.returnReadiness(h.id);
   }
-  returnReadiness(id: string) {
+  private returnReadiness(id: string) {
     const state = this.session.stateData();
     const h = state.handoffs.get(id)!;
     const prepared = this.assembler.prepared("coordinator", this.session.messages, id);
@@ -361,7 +361,7 @@ export class ToolHandlers {
       evidence: this.assembler.evidenceFacts(state),
     };
   }
-  project(input: any, op: string) {
+  private project(input: any, op: string) {
     check(this.session.projectionEnabled, "projection_disabled");
     const state = this.session.stateData(),
       a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
@@ -679,7 +679,7 @@ export class ToolHandlers {
     );
     return { status: "closed", unit: state.unitId, outcome: input.outcome, assessment: input.assessment };
   }
-  page(
+  private page(
     scope: string,
     rows: any[] | (() => any[]),
     cursor?: string,

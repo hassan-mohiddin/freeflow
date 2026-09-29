@@ -130,12 +130,12 @@ export class ToolGate {
       return { recovery: false };
     }
   }
-  handoffOperation(name: string, input: any): boolean {
+  private handoffOperation(name: string, input: any): boolean {
     if (name === "freeflow_delegate") return true;
     if (name === "freeflow_return") return ["submit", "supplement", "retry"].includes(input?.operation);
     return name === "freeflow_unit" && input?.operation === "recover";
   }
-  stableRecoveryPath(path: string): boolean {
+  private stableRecoveryPath(path: string): boolean {
     return (
       !path.startsWith("@") &&
       path !== "~" &&
@@ -155,7 +155,7 @@ export class ToolGate {
       throw new RoutingError("recovery_path_unavailable", `Recovery path is unavailable: ${path}`);
     }
   }
-  packagedInstruction(path: string): boolean {
+  private packagedInstruction(path: string): boolean {
     return this.packageRoots.some((root) => {
       const inside = relative(root, path);
       if (!inside || inside.startsWith("..") || resolvePath(root, inside) !== path) return false;
@@ -165,7 +165,7 @@ export class ToolGate {
       );
     });
   }
-  recoveryReadAllowed(state: State, name: string, input: any): boolean {
+  private recoveryReadAllowed(state: State, name: string, input: any): boolean {
     if (!state.recoveryId) return false;
     const recovery = state.recoveries.get(state.recoveryId);
     if (!recovery || recovery.state !== "reading") return false;
