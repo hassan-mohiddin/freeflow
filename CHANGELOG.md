@@ -8,6 +8,7 @@
 - Requires native Pi 0.87.1 or a compatible 0.87.x host for the Pi extension; Pi 0.85.x is no longer supported.
 - Removes the Freeflow Context tool (`freeflow_context`, `/freeflow context`), Context Virtualization, and Conversation History; Context Control v2 remains unavailable as a replacement. Before updating, delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present. Either key makes configuration invalid and blocks Freeflow activation until removed; no automatic migration occurs.
 - Removes Freeflow-owned PiFlow host integration and Evaluate Skill's PiFlow runtime selection; use native Pi for Freeflow's Pi extension. Existing PiFlow installations and state are not changed or automatically uninstalled.
+- Removes Cognitive Routing evidence refs to assistant messages (`ctx:<entry>` on an assistant message and `ctx:<entry>#text`); only tool results can be selected as evidence, and worker narration belongs in the report. Assistant selections saved in existing sessions are no longer delivered to the Coordinator.
 
 ### Added
 
@@ -30,6 +31,11 @@
 - Resumes a Cognitive Routing worker run automatically when a crash or reload interrupted it and no new user input has arrived; reopening an idle session only notes that an unchanged assignment can be resumed.
 - Shows prompt-cache diagnostics (Coordinator keep-alive, context replay, and the GPT-6 effort baseline) on the `prompt cache` line of `/freeflow status` instead of the footer, which now shows only current Freeflow settings.
 - Shows the Coordinator only the tool calls of worker turns it did not select, so another model's reasoning no longer arrives as text, and gives each completed worker run one provenance note.
+- Shares a Cognitive Routing profile's private reasoning with another profile only where both would send the same request: a turn produced on the receiving profile's model and under the same view. Otherwise each profile sees only its own reasoning, the Coordinator never receives worker reasoning under projection, and OpenAI function-call items are unpaired where their reasoning is withheld.
+- Applies Cognitive Routing profile changes made while Pi is idle (manual holds, releases, and session presets) to Pi's model when the next prompt is submitted; the footer shows the pending model until then, and a model picked in Pi's own picker cancels it.
+- Writes no Freeflow session entries before a session's first prompt, and records routing control and session setting changes made between prompts as one net change at the next prompt instead of one entry per switch.
+- Has Cognitive Routing workers select evidence and submit their return in the same response, correcting reported problems with a return retry, instead of spending a separate request waiting for the selection receipt.
+- Refuses a new Cognitive Routing assignment while attached evidence recovery is open, and refuses cancelling recovery or closing a unit while a worker run for that work is unresolved.
 
 ### Fixed
 
@@ -43,6 +49,11 @@
 - Delivers evidence that an attention view left out where the assessment resumed, so the resumed Coordinator request extends its cached prefix instead of rewriting it.
 - Keeps Freeflow runtime state and GPT-6 effort history at their original positions after `/tree` branch navigation with a summary, so the request after the branch point reuses the cached path instead of rewriting it; only compaction starts a new history.
 - Counts cache writes in prompt-cache health checks and compares a Cognitive Routing profile that resumes on its own model with its previous request, so write-heavy and handoff misses are reported.
+- Fixes the Cognitive Routing profile-cycle and automatic-release shortcuts, which read a stale model and took several presses to switch.
+- Sends the Freeflow system section even when Cognitive Routing fails at a session's first prompt.
+- Stops the Coordinator keep-alive from replaying Claude requests that use budget-based thinking, which a one-token replay cannot refresh.
+- Keeps the Coordinator's cache anchor when a Claude request ends with a mid-conversation system update.
+- No longer warns that a same-model Cognitive Routing preset at a different effort loses the prompt cache on Claude models that take per-message effort.
 
 ## 0.7.3 - 2026-09-16
 

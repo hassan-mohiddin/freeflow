@@ -27,7 +27,7 @@ Cognitive Routing changes **where the next computation runs**. It does not chang
 - Track Work task or Slice state;
 - commit, integration, release, or publication authorization.
 
-Coordinator, Helper, and Executor are sequential compute profiles, not independent agents. They share one canonical session and ordinary history according to the active projection policy. They do not share private reasoning. Switching profiles does not create independent review.
+Coordinator, Helper, and Executor are sequential compute profiles, not independent agents. They share one canonical session and ordinary history according to the active projection policy. A profile receives another profile's private reasoning only where both would send the same request: the turn was produced on the receiving profile's own model and under the same view (projection off, or Helper and Executor sharing worker history). Otherwise each profile sees only its own reasoning, and the Coordinator never receives worker reasoning under projection. Switching profiles does not create independent review.
 
 ## Mental model
 
@@ -206,7 +206,7 @@ Personal configuration may override `enabled`, `delegation`, `projection`, or co
 
 Session settings may override delegation mode and complete Coordinator, Helper, or Executor presets, including a worker not yet enabled by the current mode. Choose its preset before enabling that worker if it has no configured preset. Session overrides are stored on the selected Pi session ancestry, take precedence over personal/repository values, and can be reset or set to inherit without changing either file. A mode change affects future assignments; an accepted assignment retains its recorded worker. The footer shows the active profile, automatic/manual control, and current delegation mode.
 
-Changing the active profile's session preset applies at an idle boundary. Changing an inactive profile stores the preset for its next transition. Direct native `/model` or thinking changes are external changes; they do not rewrite a Freeflow preset and may require reconciliation or release automatic control.
+Profile changes made while Pi is idle, such as manual holds, releases, and session presets for the active profile, are validated immediately but reach Pi's model and effort when the next prompt is submitted; the footer shows the pending model until then, and a model picked in Pi's own picker cancels the pending change. Only the net change is recorded in the session at that prompt, not every intermediate switch. Changing an inactive profile stores the preset for its next transition. Direct native `/model` or thinking changes are external changes; they do not rewrite a Freeflow preset and may require reconciliation or release automatic control.
 
 ### Unsupported legacy configuration
 
@@ -382,14 +382,13 @@ The legacy Context Virtualization and Conversation History transforms have been 
 
 When a worker already has a visible, eligible evidence ref, it may add that ref directly. Inspection is for a concrete question about identity, eligibility, representation, history, or current selection state—not a mandatory step before every addition.
 
+A worker adds its evidence and submits its return in the same response, with the return last. The report is saved even when a selected source has a problem; the return receipt reports readiness, and the worker corrects the selection and uses `freeflow_return` retry instead of waiting for a separate selection receipt.
+
 ### Ref meanings
 
-- `ctx:<entry>` selects the whole supported native occurrence.
-- `ctx:<entry>#text` selects exact visible assistant text as a distinct representation.
+- `ctx:<entry>` selects a supported tool result.
 
-Visible text excludes private reasoning and native tool calls. It does not claim to transfer signed reasoning.
-
-A tool-call envelope and its result are different sources. Select the result body for claims about what execution produced. Selecting a call proves only the captured call content, not the result of every sibling operation.
+Only tool results are evidence. A worker's own messages are not selectable; anything it would say belongs in the report. Select the result body for claims about what execution produced; the runtime keeps its call envelope automatically.
 
 ### Candidate scopes
 
@@ -629,7 +628,7 @@ A worker must be enabled by the delegation mode. In `both`, Coordinator must cho
 
 ### A session preset does not apply
 
-Wait until Pi is idle. Confirm the profile is configured or has a complete session preset before enabling its delegation mode. Active-profile changes apply immediately at the supported idle boundary; inactive-profile changes are stored for the next transition. Use session reset/inherit to return to personal or repository configuration.
+Wait until Pi is idle. Confirm the profile is configured or has a complete session preset before enabling its delegation mode. Active-profile changes reach Pi's model at the next prompt; inactive-profile changes are stored for the next transition. Use session reset/inherit to return to personal or repository configuration.
 
 ### A worker returned but work did not close
 
