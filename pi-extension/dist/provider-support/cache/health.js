@@ -6,8 +6,9 @@ const HIT_SHARE = 0.5;
 const tokens = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : `${Math.round(n / 1e3)}k`);
 /**
  * Detects prompt-cache regressions: back-to-back requests to the same model and effort, with nothing in between
- * that legitimately invalidates the cache, should reuse the previous prompt. Provider-side misses are rare
- * (about 1-2%), so repeated misses in that situation mean something is rewriting the start of the prompt.
+ * that legitimately invalidates the cache, should reuse the previous prompt. Provider-side misses are uncommon
+ * (about 2-4% of Codex requests in September 2026 sessions, with or without Freeflow), so repeated misses in that
+ * situation mean something is rewriting the start of the prompt.
  * A routing profile that hands off and later resumes on the same model should likewise reuse its own
  * previous prompt while that prompt's cache entry lives.
  */
