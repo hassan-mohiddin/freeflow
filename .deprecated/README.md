@@ -41,3 +41,8 @@ Historical Freeflow artifacts kept outside the active plugin runtime and npm pac
 - `skills/tdd/`: retired standalone test-first method and preserved evaluation definitions.
 
 These discovery skills were replaced by the active `skills/discover/` skill. See `../plugin-docs/adr/0004-discover-replaces-shallow-discovery-skills.md`. The retired TDD package is historical only; current test-design guidance belongs to `skills/verify-work/references/test-design.md`.
+
+## Claude Code Context
+
+- `claude-code-context/claude-code-style.append.md`: an environment operating-style prompt drafted for appending to Claude Code's system prompt.
+- `claude-code-context/claude-system-prompt-reconstruction.md`: Claude Code's full runtime context as reconstructed by the model on 2026-09-25 in this worktree; not a byte-exact export, with the user's email replaced by a placeholder.
