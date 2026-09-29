@@ -6,7 +6,6 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 
 import freeflowExtension from "../../dist/index.js";
-import { PI_HOST } from "../fixtures/pi-host.js";
 import { contextHandler, beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
 function context(cwd, systemPrompt = "") {
@@ -25,12 +24,11 @@ function context(cwd, systemPrompt = "") {
   };
 }
 
-function loadExtension(extension = freeflowExtension, host = PI_HOST) {
+function loadExtension(extension = freeflowExtension) {
   const handlers = new Map();
   const tools = [];
   let activeToolNames;
   const pi = {
-    host,
     registerTool(tool) {
       const index = tools.findIndex((existing) => existing.name === tool.name);
       if (index >= 0) tools[index] = tool;
@@ -182,7 +180,7 @@ test("subagents retain reference definitions while optional capabilities stay in
     },
   });
   try {
-    const { handlers, activeToolNames } = loadExtension(freeflowExtension, null);
+    const { handlers, activeToolNames } = loadExtension(freeflowExtension);
     const ctx = context(cwd, "<!-- freeflow-subagent-capabilities: disabled -->");
     await handlers.get("session_start")({ type: "session_start" }, ctx);
 

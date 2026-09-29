@@ -423,7 +423,7 @@ export async function readFreeflowConfigLayers(cwd) {
   };
 }
 
-export async function readCapabilityState(cwd, host = undefined, extensionHost = undefined) {
+export async function readCapabilityState(cwd, host = undefined) {
   const layers = await readFreeflowConfigLayers(cwd);
   const effectiveCore = resolveSessionCoreConfig(layers);
   const enabled = layers.configured && effectiveCore.config.enabled;
@@ -860,7 +860,7 @@ export async function setSessionCoreOverride(key: SessionCoreKey, value: boolean
     changed: true,
     reloadRequired: key === "enabled",
     sessionOverrides: { ...currentSessionOverrides },
-    capabilityState: await readCapabilityState(ctx.cwd, ctx, pi?.host),
+    capabilityState: await readCapabilityState(ctx.cwd, ctx),
   };
 }
 
@@ -877,6 +877,6 @@ export async function resetSessionOverrides(ctx, pi) {
     changed: hadCoreOverrides,
     reloadRequired,
     sessionOverrides: { ...currentSessionOverrides },
-    capabilityState: await readCapabilityState(ctx.cwd, ctx, pi?.host),
+    capabilityState: await readCapabilityState(ctx.cwd, ctx),
   };
 }

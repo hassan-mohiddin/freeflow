@@ -1675,10 +1675,7 @@ export async function handleFreeflowCommand(
   if (nonTui && settingsSelector) {
     return nonTuiGuidance(ctx, NON_TUI_SETTINGS_GUIDANCE);
   }
-  const [layers, state] = await Promise.all([
-    readFreeflowConfigLayers(ctx.cwd),
-    readCapabilityState(ctx.cwd, ctx, pi?.host),
-  ]);
+  const [layers, state] = await Promise.all([readFreeflowConfigLayers(ctx.cwd), readCapabilityState(ctx.cwd, ctx)]);
   const configState = layers.repository;
   const raw = configState.valid ? configState.parsed : {};
   if (action === "status") {

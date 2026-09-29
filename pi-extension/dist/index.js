@@ -23,7 +23,6 @@ import { ProgramHost } from "./tool-runtime/program/host.js";
 import { RoutingRuntime } from "./cognitive-routing-v2/runtime.js";
 import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-routing-v2/tools.js";
 import { handleFreeflowCommand } from "./settings/settings-ui.js";
-import { isPiFlowHost } from "./runtime/runtime-identity.js";
 import { tagProjectedMessages } from "./session-sources/sources.js";
 import { trustLoadedSession } from "./session-sources/read-only-session.js";
 import {
@@ -45,7 +44,7 @@ import {
   withFreeflowRuntimeState,
 } from "./runtime/runtime-context.js";
 async function sendSkillCommand(pi, ctx, skill, args) {
-  const state = await readCapabilityState(ctx.cwd, ctx, pi.host);
+  const state = await readCapabilityState(ctx.cwd, ctx);
   if (skill === "setup-freeflow" && !state.configured) {
     await pi.sendUserMessage(skillPrompt(skill, args), { expandPromptTemplates: true });
     return;
@@ -97,7 +96,6 @@ function freeflowCompletions(prefix, routingAvailable) {
     .map(([value, label, description]) => ({ value, label, description }));
 }
 export default function freeflow(pi) {
-  if (isPiFlowHost(pi.host)) return;
   // Cache diagnostics are reported to /freeflow status; the footer only shows current settings.
   const cacheMonitor = new CacheMonitor();
   // Only an explicit master-switch disable turns provider support off; unconfigured repositories keep it.
@@ -198,7 +196,7 @@ export default function freeflow(pi) {
   });
   async function loadSurface(ctx) {
     const generation = surfaceGeneration;
-    const next = await readCapabilityState(ctx.cwd, ctx, pi.host);
+    const next = await readCapabilityState(ctx.cwd, ctx);
     const loaded = await getRuntimeContext(STABLE_FREEFLOW_SURFACE);
     if (generation !== surfaceGeneration) throw new Error("Discarded surface preparation for a replaced session.");
     if (!hasUsableMandatoryPrompts(loaded)) {
@@ -279,7 +277,7 @@ export default function freeflow(pi) {
     prompts = undefined;
     refreshState = true;
     restoreSessionOverrides(ctx);
-    const initial = await readCapabilityState(ctx.cwd, ctx, pi.host);
+    const initial = await readCapabilityState(ctx.cwd, ctx);
     await refreshRuntimeContext(STABLE_FREEFLOW_SURFACE);
     if (generation !== surfaceGeneration) return;
     await loadSurface(ctx);

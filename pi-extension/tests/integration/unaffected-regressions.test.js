@@ -8,7 +8,6 @@ import { promisify } from "node:util";
 
 import freeflowExtension from "../../dist/index.js";
 import { resetSessionOverrides, setSessionCoreOverride } from "../../dist/runtime/runtime-context.js";
-import { PI_HOST } from "../fixtures/pi-host.js";
 import { beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
 const execFileAsync = promisify(execFile);
@@ -52,12 +51,11 @@ function context(cwd, options = {}) {
   };
 }
 
-function loadExtension(host = PI_HOST, runtimeApi = {}) {
+function loadExtension(runtimeApi = {}) {
   const handlers = new Map();
   const commands = [];
   const tools = [];
   const pi = {
-    host,
     registerTool(tool) {
       tools.push(tool);
     },
@@ -176,15 +174,12 @@ test("Cognitive Routing preset cancellation preserves the previous repository va
   });
   const original = await readFile(join(cwd, ".freeflow/config.json"), "utf8");
   try {
-    const { commands } = loadExtension(
-      {},
-      {
-        setModel() {
-          return true;
-        },
-        setThinkingLevel() {},
+    const { commands } = loadExtension({
+      setModel() {
+        return true;
       },
-    );
+      setThinkingLevel() {},
+    });
     const command = freeflowCommand(commands);
     const settings = context(cwd, { isIdle: () => true });
     settings.modelRegistry = cognitiveRoutingModelRegistry();
@@ -220,15 +215,12 @@ test("Cognitive Routing settings refresh after enabling the capability", async (
     },
   });
   try {
-    const { commands } = loadExtension(
-      {},
-      {
-        setModel() {
-          return true;
-        },
-        setThinkingLevel() {},
+    const { commands } = loadExtension({
+      setModel() {
+        return true;
       },
-    );
+      setThinkingLevel() {},
+    });
     const command = freeflowCommand(commands);
     const settings = context(cwd, { isIdle: () => true });
     settings.modelRegistry = cognitiveRoutingModelRegistry();
@@ -269,15 +261,12 @@ test("Cognitive Routing settings can disable projection without disabling routin
     },
   });
   try {
-    const { commands } = loadExtension(
-      {},
-      {
-        setModel() {
-          return true;
-        },
-        setThinkingLevel() {},
+    const { commands } = loadExtension({
+      setModel() {
+        return true;
       },
-    );
+      setThinkingLevel() {},
+    });
     const command = freeflowCommand(commands);
     const settings = context(cwd, { isIdle: () => true });
     settings.modelRegistry = cognitiveRoutingModelRegistry();
@@ -347,7 +336,7 @@ test("remaining session overrides apply without changing repository configuratio
     const ctx = context(cwd);
     await setSessionCoreOverride("enabled", false, ctx, pi);
     const state = await import("../../dist/runtime/runtime-context.js").then(({ readCapabilityState }) =>
-      readCapabilityState(cwd, undefined, PI_HOST),
+      readCapabilityState(cwd),
     );
     assert.equal(state.enabled, false);
     assert.equal(await readFile(configPath, "utf8"), original);

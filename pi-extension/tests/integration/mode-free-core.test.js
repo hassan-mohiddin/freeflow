@@ -14,7 +14,6 @@ import {
   runtimeContext,
   setSessionCoreOverride,
 } from "../../dist/runtime/runtime-context.js";
-import { PI_HOST } from "../fixtures/pi-host.js";
 import { contextHandler, beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
 function context(cwd) {
@@ -41,7 +40,6 @@ function loadExtension(extension = freeflowExtension) {
   const sentMessages = [];
   const tools = [];
   const pi = {
-    host: PI_HOST,
     registerCommand(name, definition) {
       commands.push({ name, definition });
     },
@@ -105,7 +103,7 @@ test("removed context settings invalidate repository and local configuration wit
       assert.match(layers.parseError, /Removed Freeflow context setting/);
       assert.ok(layers.parseError.includes(key));
       assert.ok(layers.parseError.includes(`.freeflow/${file}`));
-      const state = await readCapabilityState(cwd, undefined, PI_HOST);
+      const state = await readCapabilityState(cwd);
       assert.equal(state.enabled, false);
       assert.match(state.parseError, /Delete those keys before using Freeflow/);
     } finally {
@@ -117,7 +115,7 @@ test("removed context settings invalidate repository and local configuration wit
 test("an empty valid config enables the single Freeflow core", async () => {
   const cwd = await configuredRepo();
   try {
-    const state = await readCapabilityState(cwd, undefined, PI_HOST);
+    const state = await readCapabilityState(cwd);
     assert.equal(state.configured, true);
     assert.equal(state.enabled, true);
     assert.deepEqual(state.configuredCoreConfig, { enabled: true });
@@ -136,7 +134,7 @@ test("an empty valid config enables the single Freeflow core", async () => {
 test("core and the separately editable Interaction Contract are mandatory prompt fragments", async () => {
   const cwd = await configuredRepo();
   try {
-    const state = await readCapabilityState(cwd, undefined, PI_HOST);
+    const state = await readCapabilityState(cwd);
     const loaded = await getRuntimeContext(state);
     assert.match(loaded.corePrompt, /# Freeflow Stable Guidance/);
     assert.match(loaded.corePrompt, /## Recover After Context Loss/);
@@ -236,7 +234,7 @@ test("session overrides are limited to the remaining configurable core values", 
   try {
     const { commands } = loadExtension();
     const ctx = context(cwd);
-    const pi = { appendEntry() {}, host: PI_HOST };
+    const pi = { appendEntry() {} };
     const result = await setSessionCoreOverride("enabled", false, ctx, pi);
     assert.equal(result.changed, true);
     await assert.rejects(() => setSessionCoreOverride("interactionContract", false, ctx, pi), /Invalid Freeflow/);
