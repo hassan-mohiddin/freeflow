@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fixture, response } from "../fixtures/routing-native.js";
 import { replay } from "../../dist/cognitive-routing/state.js";
-import { RoutingRuntime } from "../../dist/cognitive-routing/runtime.js";
+import { ContextAssembler } from "../../dist/cognitive-routing/assembler.js";
 import { Sources } from "../../dist/cognitive-routing/sources.js";
 import { initialState } from "../../dist/cognitive-routing/state.js";
 
@@ -15,12 +15,8 @@ test("delivery identity uses observed ancestry, not unseen storage or an older r
     message: { role: "user", content: id, timestamp: i },
   }));
   state.executions.set("observed", { basisUserEntryId: "delivered" });
-  const read = (branch, active) =>
-    RoutingRuntime.prototype.lastDeliveredUser.call(
-      { session: { stateData: () => state } },
-      new Sources(branch, state),
-      active,
-    );
+  const assembler = new ContextAssembler({ stateData: () => state });
+  const read = (branch, active) => assembler.lastDeliveredUser(new Sources(branch, state), active);
   assert.equal(read(entries, []), "delivered", "unseen queued entry is not delivered");
   assert.equal(read(entries, [entries[0].message]), "delivered", "older retained user does not regress delivery");
   assert.equal(read(entries, [entries[2].message]), "queued", "newly represented user advances delivery");

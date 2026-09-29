@@ -6,7 +6,7 @@ import { fixture } from "../fixtures/routing-native.js";
 import { Sources } from "../../dist/cognitive-routing/sources.js";
 import { initialState } from "../../dist/cognitive-routing/state.js";
 import { prepareView, changeSelection } from "../../dist/cognitive-routing/projection.js";
-import { RoutingRuntime } from "../../dist/cognitive-routing/runtime.js";
+import { ContextAssembler } from "../../dist/cognitive-routing/assembler.js";
 
 const call = (name, args) => [{ name, args }];
 const receipt = (m, name) =>
@@ -43,14 +43,7 @@ function prepare(state, entries, messages = entries.map((e) => e.message), view 
     pair: { provider: "fixture", modelId: "receiver", thinking: "off" },
     systemPrompt: "",
     tools: [],
-    runtimeMessage: RoutingRuntime.prototype.runtimeMessage.call(
-      {
-        projectionEnabled: true,
-        evidenceFacts: () => ({ selected: [] }),
-        session: { token: "test", delegation: () => "executor", workerBasis: () => null },
-      },
-      state,
-    ),
+    runtimeMessage: new ContextAssembler({ token: "test", workerBasis: () => null }).runtimeMessage(state),
     instance: "test",
   });
 }

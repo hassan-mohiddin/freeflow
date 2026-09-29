@@ -11,7 +11,6 @@ import {
   requireCondition as check,
   type Profile,
   type State,
-  type Recovery,
   type NativeEntry,
   ROUTING_TOOLS,
   type RoutingOperationScope,

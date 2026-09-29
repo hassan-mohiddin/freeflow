@@ -134,9 +134,9 @@ test("the resume rank of the current assessment comes from its latest resumption
   runtime.session.ctx = { sessionManager: { getLeafId: () => "m4", getBranch: () => branch } };
   const state = initialState();
   state.assessment = { handoffId: "h1", assignmentId: "a1", view: "active", problems: [] };
-  assert.equal(runtime.admissions(state).resumedAt, 4, "rank after four messages");
+  assert.equal(runtime.assembler.admissions(state).resumedAt, 4, "rank after four messages");
   const none = initialState();
-  assert.equal(runtime.admissions(none).resumedAt, undefined);
+  assert.equal(runtime.assembler.admissions(none).resumedAt, undefined);
 });
 
 const routingCapability = (delegation = "executor") => ({

@@ -1,23 +1,17 @@
-import { estimateRequest } from "./budget.js";
-import { annotateSources } from "./provenance.js";
-import { ROUTING_SCHEMAS } from "./schemas.js";
 import { randomUUID } from "node:crypto";
 import { EventStore, type SessionReader } from "./events.js";
 import { ROUTING_RECOVERY_HINT, RoutingSession, type Subject } from "./session.js";
+import { ContextAssembler } from "./assembler.js";
 import { ToolGate } from "./gate.js";
 import { ModelControl } from "./model-control.js";
 
 export { ROUTING_RECOVERY_HINT };
-import { Sources, bodyHash, deliveredSelection, isTaskEvidence, type Source } from "./sources.js";
+import { Sources, bodyHash, isTaskEvidence, type Source } from "./sources.js";
 import { type CognitiveRoutingCapabilityState } from "./config.js";
-import { representationProblems, prepareView, changeSelection, type PreparedView } from "./projection.js";
-import { presetWarnings } from "./economics.js";
+import { representationProblems, changeSelection } from "./projection.js";
 import { initialState } from "./state.js";
 import {
   PROFILES,
-  ROUTING_ENTRY,
-  ROUTING_MESSAGE,
-  ROUTING_ATTENTION_MESSAGE,
   RoutingError,
   canonical,
   emptySelection,
@@ -32,7 +26,6 @@ import {
   type Handoff,
   type Recovery,
   type NativeEntry,
-  type Execution,
   type Problem,
   type ResultGrant,
   ROUTING_TOOLS,
@@ -41,11 +34,10 @@ import {
   type RoutingOperationScope,
 } from "./types.js";
 
-const HANDOFF_TOOLS = new Set(["freeflow_delegate", "freeflow_return"]);
-
 export { ROUTING_TOOLS, type EffectFencePort, type ResultGrantPort, type RoutingOperationScope };
 
 export class RoutingRuntime {
+  readonly assembler: ContextAssembler;
   readonly gate: ToolGate;
   readonly models: ModelControl;
   /** State shared with every part of routing for the bound session. */
@@ -59,6 +51,7 @@ export class RoutingRuntime {
   ) {
     this.models = new ModelControl(this.session, this.pi);
     this.gate = new ToolGate(this.session, this.packageRoots);
+    this.assembler = new ContextAssembler(this.session, this.pi, this.models);
   }
   get projectionEnabled(): boolean {
     return this.session.projectionEnabled;
@@ -346,322 +339,6 @@ export class RoutingRuntime {
       }
     } catch (error) {
       if (this.session.current(subject)) this.session.mark(error);
-    }
-  }
-  private lastDeliveredUser(sources: Sources, messages: any[]): string | null {
-    const delivered = new Set(
-      sources.associate(messages).flatMap((x) => (x.source?.message.role === "user" ? [x.source.entry.id] : [])),
-    );
-    // Compaction may remove every user message from the active view. Retain
-    // observed delivery on this ancestry; a stored but undelivered user entry
-    // must not advance the basis, and absence must not manufacture new input.
-    for (const execution of this.session.stateData().executions.values())
-      if (execution.basisUserEntryId) delivered.add(execution.basisUserEntryId);
-    for (let i = sources.entries.length - 1; i >= 0; i--) {
-      const entry = sources.entries[i];
-      if (entry.message?.role === "user" && delivered.has(entry.id)) return entry.id;
-    }
-    return null;
-  }
-  private runtimeMessage(state: State, attention = false): any {
-    const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
-    const h = state.pendingId
-      ? state.handoffs.get(state.pendingId)
-      : state.assessment
-        ? state.handoffs.get(state.assessment.handoffId)
-        : undefined;
-    const selection = a ? (state.selections.get(a.id) ?? emptySelection()) : emptySelection();
-    const recovery = state.recoveryId ? state.recoveries.get(state.recoveryId) : undefined;
-    const unit = state.unitId ? state.units.get(state.unitId) : undefined;
-    const unitNumber = unit ? [...state.units.keys()].indexOf(unit.id) + 1 : undefined;
-    const assignmentNumber = unit && a ? unit.assignmentIds.indexOf(a.id) + 1 : undefined;
-    const worker = a ? state.handoffs.get(a.delegateHandoffId)?.to : undefined;
-    const prepared = state.assessment?.reservation?.selectionRevision;
-    // Only material, decision-bearing fields: every change appends a new copy to request history.
-    // Control, delegation and projection belong to the Freeflow Runtime State; ids are available through inspection.
-    const evidence = a
-      ? [
-          `Evidence: revision ${selection.revision}; selected ${selection.selected.join(", ") || "none"}`,
-          selection.unresolved.length
-            ? `unresolved ${selection.unresolved.map((p) => `${p.ref} (${p.code})`).join(", ")}`
-            : "",
-          selection.withdrawals.length ? `withdrawn ${selection.withdrawals.length}` : "",
-          prepared !== undefined && prepared !== selection.revision ? `prepared revision ${prepared}` : "",
-        ]
-          .filter(Boolean)
-          .join("; ")
-      : "";
-    const content = [
-      "# Cognitive Routing Runtime State",
-      `Profile: ${state.profile ?? "unresolved"}`,
-      `Unit: ${unit ? `U${unitNumber}` : "none"}`,
-      `Assignment: ${a ? `A${assignmentNumber} (${worker ?? "unknown"}, ${a.state})` : "none"}`,
-      `Handoff: ${h ? `${h.kind} ${h.state}` : "none"}`,
-      state.assessment ? `Assessment: ${state.assessment.view}` : "",
-      recovery
-        ? `Recovery: ${recovery.state}; parent report revision ${recovery.baseReportRevision}; allowed paths ${JSON.stringify(recovery.paths)}; allowed results ${JSON.stringify((recovery.results ?? []).map((grant) => grant.id))}`
-        : "",
-      recovery?.state === "reading"
-        ? `Recovery request: ${recovery.request}\nOnly exact allowed read paths, granted captured results, evidence selection, and recovery return controls are permitted; ordinary task work remains ended.`
-        : "",
-      evidence,
-      this.session.error ? `Blocked: ${this.session.error}` : "",
-      this.session.projectionError ? `Evidence limitation: ${this.session.projectionError}` : "",
-      attention
-        ? recovery
-          ? `Assessment paused for attention; ordinary admitted history remains. ${selection.selected.length} sources remain selected. Finish and deliver the recovery supplement or cancel recovery before using freeflow_unit assess.`
-          : `Assessment paused for attention; ordinary admitted history remains. ${selection.selected.length} sources remain selected. Use freeflow_unit assess to restore the assessment.`
-        : "",
-      a?.state === "returned" && recovery?.state !== "reading"
-        ? "Worker ordinary task work has ended. Only supported handoff correction is permitted."
-        : "",
-      isWorkerProfile(this.session.turn?.profile) &&
-      a &&
-      this.session.turn.basisUserEntryId !== this.session.workerBasis(state, a.id)
-        ? `Current input differs from the active ${this.session.turn.profile} responsibility. Account for it; changed direction requires Coordinator attention.`
-        : "",
-      ...(state.assessment?.problems ?? []).map((p) => `${p.code}: ${p.detail}`),
-    ]
-      .filter(Boolean)
-      .join("\n");
-    return {
-      role: "custom",
-      customType: ROUTING_MESSAGE,
-      content,
-      display: false,
-      timestamp: 0,
-      details: { routingInstance: this.session.token },
-    };
-  }
-  private evidenceFacts(state: State) {
-    const selection = state.assignmentId
-      ? (state.selections.get(state.assignmentId) ?? emptySelection())
-      : emptySelection();
-    const sources = this.session.sources(state);
-    return {
-      revision: selection.revision,
-      selected: selection.selected
-        .filter((ref) => deliveredSelection(sources, ref))
-        .map((ref) => {
-          const entry = this.session.ctx?.sessionManager.getEntry?.(ref.slice(4));
-          const locator = sources.locator(ref);
-          return {
-            ref,
-            kind: entry?.message?.role ?? "unknown",
-            toolName: entry?.message?.toolName,
-            producer: state.authors.get(entry?.id)?.profile ?? "common",
-            assignment: state.authors.get(entry?.id)?.assignmentId,
-            ...(locator ? { locator } : {}),
-          };
-        }),
-      unresolved: selection.unresolved,
-      withdrawals: selection.withdrawals,
-      preparedRevision: state.assessment?.reservation?.selectionRevision,
-      limitations: state.assessment?.problems ?? [],
-    };
-  }
-  private admissionCache?: {
-    state: State;
-    leaf: string | null;
-    admissions: Map<string, number>;
-    resumedAt?: number;
-  };
-  /**
-   * Source rank at which each currently selected ref was first admitted, derived from native selection events,
-   * and the rank at which the current assessment last resumed from an attention suspension.
-   */
-  private admissions(state: State): { admissions: Map<string, number>; resumedAt?: number } {
-    const reader = this.session.ctx.sessionManager,
-      leaf = reader.getLeafId?.() ?? null;
-    const cache = this.admissionCache;
-    if (cache && cache.state === state && cache.leaf === leaf) return cache;
-    const admissions = new Map<string, number>();
-    let rank = 0,
-      resumedAt: number | undefined;
-    for (const entry of reader.getBranch() as NativeEntry[]) {
-      if (["message", "custom_message", "compaction", "branch_summary"].includes(entry.type)) rank++;
-      else if (entry.type === "custom" && entry.customType === ROUTING_ENTRY) {
-        const data = (entry as any).data?.data;
-        if (data?.type === "assessment-resumed" && data.handoffId === state.assessment?.handoffId) resumedAt = rank;
-        if (data?.type !== "selection-changed") continue;
-        const current = state.selections.get(data.assignmentId)?.selected ?? [];
-        for (const ref of data.selection?.selected ?? [])
-          if (current.includes(ref) && !admissions.has(ref)) admissions.set(ref, rank);
-      }
-    }
-    this.admissionCache = { state, leaf, admissions, resumedAt };
-    return this.admissionCache;
-  }
-  private prepared(profile: Profile, input: any[], handoffId?: string, restoring = false): PreparedView {
-    const state = this.session.stateData(),
-      model = this.models.model(profile);
-    return prepareView({
-      ...(({ admissions, resumedAt }) => ({ admissions, resumedAt }))(this.admissions(state)),
-      messages: input,
-      sources: this.session.sources(state),
-      state,
-      view: profile,
-      projection: this.session.projectionEnabled,
-      model,
-      pair: this.session.profilePair(profile),
-      systemPrompt: this.session.ctx.getSystemPrompt?.() ?? "",
-      tools: (this.pi.getAllTools?.() ?? [])
-        .filter((tool: any) => this.pi.getActiveTools?.().includes(tool.name))
-        .map((tool: any) =>
-          ROUTING_TOOLS.includes(tool.name) ? { ...tool, parameters: ROUTING_SCHEMAS[tool.name] } : tool,
-        ),
-      runtimeMessage: this.runtimeMessage(
-        state,
-        profile === "coordinator" && state.assessment?.view === "suspended" && !restoring && !handoffId,
-      ),
-      instance: this.session.token,
-      preparingReturn: handoffId,
-      restoring,
-    });
-  }
-  budgetNotice(messages: any[], ctx: any): any | undefined {
-    if (!this.session.supported()) return;
-    const tools = (this.pi.getAllTools?.() ?? []).filter((tool: any) => this.pi.getActiveTools?.().includes(tool.name));
-    const estimate = estimateRequest(ctx.getSystemPrompt?.() ?? "", tools, messages, ctx.model);
-    if (!estimate.warnings.length) return;
-    return {
-      role: "custom",
-      customType: "freeflow-routing-budget",
-      display: false,
-      content: estimate.warnings.map((warning) => warning.detail).join("\n"),
-      timestamp: 0,
-    };
-  }
-  private ordinaryContext(input: any[]): any[] {
-    try {
-      const sources = this.session.sources(),
-        associated = sources.associate(input);
-      const mapped = new Map(associated.filter((item) => item.source).map((item) => [item.message, item.source!]));
-      return annotateSources(
-        input,
-        mapped,
-        new Set([...mapped.values()].map((source) => source.ref)),
-        sources,
-        this.session.token,
-      );
-    } catch {
-      return input;
-    }
-  }
-  async context(ctx: any, incoming: any[]): Promise<any[]> {
-    this.session.ctx = ctx;
-    const input = incoming.filter(
-      (m) =>
-        !(
-          m?.details?.routingInstance === this.session.token &&
-          [ROUTING_MESSAGE, ROUTING_ATTENTION_MESSAGE, "freeflow-routing-v2-refs"].includes(m.customType)
-        ),
-    );
-    this.session.messages = input;
-    if (!this.session.supported() || !this.session.store) return this.ordinaryContext(input);
-    try {
-      const state = this.session.stateData();
-      if (state.control !== "automatic") return this.ordinaryContext(input);
-      check(
-        !this.session.error && !this.session.store.blocked && state.profile,
-        "routing_blocked",
-        this.session.error ?? this.session.store.blocked,
-      );
-      this.session.announced = undefined;
-      check(samePair(this.session.observed(), this.session.profilePair(state.profile!)), "prepared_pair_mismatch");
-      const sources = this.session.sources(state),
-        user = this.lastDeliveredUser(sources, input);
-      if (state.assessment && user && user !== state.assessment.basisUserEntryId)
-        this.session.append(
-          {
-            type: "assessment-suspended",
-            handoffId: state.assessment.handoffId,
-            reason: "user-attention",
-            basisUserEntryId: user,
-            problems: [],
-          },
-          JSON.stringify(["attention", state.assessment.handoffId, user]),
-        );
-      // New input reaching an already prepared worker request cannot be rerouted by changing only the live model.
-      const outstanding = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
-      const worker = outstanding ? this.session.assignedWorker(state, outstanding.id) : undefined;
-      const interrupted =
-        isWorkerProfile(state.profile) &&
-        (state.profile !== worker ||
-          user !== (outstanding ? this.session.workerBasis(state, outstanding.id) : undefined));
-      if (!this.session.turn || this.session.turn.bound) {
-        this.session.receipts.clear();
-        const execution: Execution = {
-          id: randomUUID(),
-          profile: state.profile!,
-          assignmentId: state.assignmentId,
-          recoveryId: state.recoveryId,
-          basisUserEntryId: user,
-          pair: this.session.observed()!,
-          resultEntryIds: [],
-        };
-        const before = new Set((ctx.sessionManager.getBranch() as NativeEntry[]).map((e) => e.id));
-        this.session.turn = {
-          id: execution.id,
-          profile: execution.profile,
-          assignmentId: execution.assignmentId,
-          recoveryId: execution.recoveryId,
-          basisUserEntryId: user,
-          before,
-          pair: execution.pair,
-        };
-        this.session.openTurn();
-      }
-      let prepared = this.prepared(state.profile!, input);
-      if (!prepared.ready && state.profile === "coordinator" && this.session.stateData().assessment) {
-        const assessment = this.session.stateData().assessment!;
-        this.session.append({
-          type: "assessment-suspended",
-          handoffId: assessment.handoffId,
-          reason: "delivery-gap",
-          basisUserEntryId: user,
-          problems: prepared.problems,
-        });
-        this.session.projectionError = prepared.problems.map((p) => p.code).join(", ");
-        prepared = this.prepared("coordinator", input);
-      }
-      check(prepared.ready, "context_unavailable", prepared.problems.map((p) => p.detail).join("; "));
-      const known = this.session.stateData().exposure;
-      const added = prepared.fullSources.filter((s) => known.get(s.ref) !== s.hash);
-      if (isWorkerProfile(this.session.turn.profile))
-        for (let i = 0; i < added.length; i += 128)
-          this.session.append({
-            type: "sources-exposed",
-            executionId: this.session.turn.id,
-            view: this.session.turn.profile,
-            sources: added.slice(i, i + 128).map((s) => ({ ref: s.ref, bodyHash: s.hash })),
-          });
-      if (interrupted)
-        prepared.messages.push({
-          role: "custom",
-          customType: ROUTING_ATTENTION_MESSAGE,
-          display: false,
-          timestamp: 0,
-          details: { routingInstance: this.session.token },
-          content:
-            "New delivered user input requires Coordinator attention. Do not run ordinary task tools; return the current partial result.",
-        });
-      return prepared.messages;
-    } catch (error) {
-      this.session.mark(error);
-      this.session.announceBlock(ctx);
-      ctx.abort?.();
-      // Do not send an accidental full worker history on a projection failure.
-      return [
-        {
-          role: "custom",
-          customType: ROUTING_MESSAGE,
-          content: `Automatic request blocked: ${this.session.error}. ${ROUTING_RECOVERY_HINT}`,
-          display: false,
-          timestamp: 0,
-          details: { routingInstance: this.session.token, routingRequestBlocked: true },
-        },
-      ];
     }
   }
   messageEnd(message: any): void {
@@ -955,7 +632,7 @@ export class RoutingRuntime {
   private returnReadiness(id: string) {
     const state = this.session.stateData();
     const h = state.handoffs.get(id)!;
-    const prepared = this.prepared("coordinator", this.session.messages, id);
+    const prepared = this.assembler.prepared("coordinator", this.session.messages, id);
     const isSupplement = h.kind === "recovery-return";
     const recovery = isSupplement
       ? [...state.recoveries.values()].find((candidate) => candidate.supplementHandoffId === h.id)
@@ -984,7 +661,7 @@ export class RoutingRuntime {
         "The finalized handoff exchange, target configuration and budget are revalidated at turn_end; this is not delivery evidence.",
       // The text is already in the call arguments; the hash identifies it without a second copy.
       ...(isSupplement ? { supplementSha256: bodyHash(h.text) } : { reportSha256: bodyHash(h.text) }),
-      evidence: this.evidenceFacts(state),
+      evidence: this.assembler.evidenceFacts(state),
     };
   }
   private project(input: any, op: string) {
@@ -1002,7 +679,7 @@ export class RoutingRuntime {
       if (next !== selection)
         this.session.append({ type: "selection-changed", assignmentId: a.id, selection: next }, op);
     }
-    const prepared = this.prepared("coordinator", this.session.messages, a.returnHandoffId);
+    const prepared = this.assembler.prepared("coordinator", this.session.messages, a.returnHandoffId);
     const scope = input.scope ?? "assignment";
     let page: any;
     if (input.operation === "inspect") {
@@ -1097,7 +774,7 @@ export class RoutingRuntime {
       ready: !next.unresolved.length && prepared.ready,
       problems: prepared.problems,
       warnings: prepared.warnings,
-      evidence: this.evidenceFacts(this.session.stateData()),
+      evidence: this.assembler.evidenceFacts(this.session.stateData()),
       items: (input.refs ? [...new Set<string>(input.refs)] : []).map((ref) => ({
         ref,
         status: next.unresolved.some((p) => p.ref === ref)
@@ -1252,7 +929,7 @@ export class RoutingRuntime {
       check(state.assessment, "assessment_missing");
       check(!state.recoveryId, "recovery_outstanding");
       if (state.assessment.view === "active") return { status: "unchanged", ready: true };
-      const prepared = this.prepared("coordinator", this.session.messages, state.assessment.handoffId, true);
+      const prepared = this.assembler.prepared("coordinator", this.session.messages, state.assessment.handoffId, true);
       if (!prepared.ready) return { status: "suspended", ready: false, problems: prepared.problems };
       if (this.session.projectionEnabled) check(prepared.reservation, "reservation_missing");
       this.session.append(
@@ -1269,7 +946,7 @@ export class RoutingRuntime {
         status: "resumed",
         ready: true,
         stage: "prepared assessment; next request revalidated",
-        evidence: this.evidenceFacts(this.session.stateData()),
+        evidence: this.assembler.evidenceFacts(this.session.stateData()),
       };
     }
     check(input.operation === "close" && state.unitId, "unit_missing");
@@ -1655,7 +1332,7 @@ export class RoutingRuntime {
     );
     let attentionProblems: Problem[] = [];
     if (["return", "recovery-return"].includes(h.kind) && this.session.projectionEnabled) {
-      const prepared = this.prepared("coordinator", inputs, h.id);
+      const prepared = this.assembler.prepared("coordinator", inputs, h.id);
       if (!prepared.ready) {
         const attentionFallback = h.kind === "recovery-return" && h.outcome !== "completed";
         this.session.projectionError = prepared.problems.map((p) => p.code).join(", ");
@@ -1703,14 +1380,14 @@ export class RoutingRuntime {
             type: "assessment-suspended",
             handoffId: recovery.assessmentHandoffId,
             reason: "delivery-gap",
-            basisUserEntryId: this.lastDeliveredUser(this.session.sources(completed), inputs),
+            basisUserEntryId: this.assembler.lastDeliveredUser(this.session.sources(completed), inputs),
             problems: attentionProblems,
           });
         } else if (completed.assessment.suspensionReason === "recovery") {
           this.session.append({
             type: "assessment-resumed",
             handoffId: recovery.assessmentHandoffId,
-            basisUserEntryId: this.lastDeliveredUser(this.session.sources(completed), inputs),
+            basisUserEntryId: this.assembler.lastDeliveredUser(this.session.sources(completed), inputs),
             ...(reservation ? { reservation } : {}),
           });
         }
@@ -1719,7 +1396,7 @@ export class RoutingRuntime {
         this.session.append({
           type: "assessment-resumed",
           handoffId: h.id,
-          basisUserEntryId: this.lastDeliveredUser(this.session.sources(completed), inputs),
+          basisUserEntryId: this.assembler.lastDeliveredUser(this.session.sources(completed), inputs),
           reservation,
         });
       }
@@ -1798,7 +1475,7 @@ export class RoutingRuntime {
     } else {
       const assignment = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
       const input = ctx.sessionManager.buildSessionContext?.().messages ?? this.session.messages;
-      const user = this.lastDeliveredUser(new Sources(ctx.sessionManager.getBranch(), state), input);
+      const user = this.assembler.lastDeliveredUser(new Sources(ctx.sessionManager.getBranch(), state), input);
       const coordinatorSawInput = [...state.executions.values()].some(
         (x) =>
           x.profile === "coordinator" && x.basisUserEntryId === user && x.assistantEntryId && x.outcome === "completed",
@@ -1943,5 +1620,11 @@ export class RoutingRuntime {
   }
   resultReadAccess(id: string) {
     return this.gate.resultReadAccess(id);
+  }
+  budgetNotice(messages: any[], ctx: any) {
+    return this.assembler.budgetNotice(messages, ctx);
+  }
+  context(ctx: any, incoming: any[]) {
+    return this.assembler.context(ctx, incoming);
   }
 }
