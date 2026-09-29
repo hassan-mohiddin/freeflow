@@ -3,6 +3,7 @@ import { join } from "node:path";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fixture } from "../fixtures/routing-native.js";
+import { routingState } from "../fixtures/routing-state.js";
 import { Sources } from "../../dist/cognitive-routing/sources.js";
 import { initialState } from "../../dist/cognitive-routing/state.js";
 import { prepareView, changeSelection } from "../../dist/cognitive-routing/projection.js";
@@ -578,6 +579,29 @@ test("disabled Freeflow omits routing provenance and re-enabling restores it fro
       await session.prompt("Continue with Freeflow.");
       await session.waitForIdle();
       assert.ok(attributed(requests.at(-1)), "re-enabled request restores provenance from session history");
+    },
+  );
+});
+
+test("a manual hold keeps routing provenance on ordinary requests", async () => {
+  const attributed = (body) => JSON.stringify(body).includes("| producer: executor");
+  await fixture(
+    (n) => {
+      if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Read an observation." });
+      if (n === 2) return call("read", { path: "evidence.txt" });
+      if (n === 3)
+        return call("freeflow_return", { operation: "submit", report: "Observation captured.", outcome: "completed" });
+      if (n === 4)
+        return call("freeflow_unit", { operation: "close", outcome: "accepted", assessment: "Supported result." });
+      return [];
+    },
+    true,
+    async ({ session, requests, manager }) => {
+      await session.prompt("/freeflow profile coordinator");
+      await session.prompt("Continue under a manual hold.");
+      await session.waitForIdle();
+      assert.equal(routingState(manager).control, "manual");
+      assert.ok(attributed(requests.at(-1)), "the held request still attributes executor sources");
     },
   );
 });
