@@ -1,4 +1,4 @@
-import { persistedBranchMatches } from "../../session-sources/read-only-session.js";
+import { persistedBranchMatches } from "../../host/read-only-session.js";
 import { ENTRY_TYPE, parseAttempt, type Attempt } from "./history.js";
 
 export class SessionState {

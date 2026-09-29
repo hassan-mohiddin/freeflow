@@ -1,4 +1,4 @@
-import { isStoreIdentifier } from "../../session-store/contracts.js";
+import { isStoreIdentifier } from "../session-store/contracts.js";
 import type { CallOutcome, Coverage, Json, OperationV2, PresentationPolicy, UiPresentation } from "../contracts.js";
 import { freezeJson } from "../schema.js";
 

@@ -13,7 +13,7 @@ import {
   readFreeflowConfigLayers,
   runtimeContext,
   setSessionCoreOverride,
-} from "../../dist/runtime/runtime-context.js";
+} from "../../dist/host/runtime-context.js";
 import { contextHandler, beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
 function context(cwd) {

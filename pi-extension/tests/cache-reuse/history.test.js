@@ -4,8 +4,8 @@ import { join } from "node:path";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { RequestHistory } from "../../dist/runtime/request-history.js";
-import { tagProjectedMessages } from "../../dist/session-sources/sources.js";
+import { RequestHistory } from "../../dist/host/request-history.js";
+import { tagProjectedMessages } from "../../dist/host/projection-tags.js";
 const state = (text) => ({ role: "custom", customType: "freeflow-runtime-state", content: text, display: false });
 const communication = (text) => ({
   role: "custom",

@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 
 import freeflowExtension from "../../dist/index.js";
-import { handleFreeflowCommand } from "../../dist/settings/settings-ui.js";
+import { handleFreeflowCommand } from "../../dist/host/settings/settings-ui.js";
 import {
   readCapabilityState,
   readFreeflowConfigLayers,
@@ -16,8 +16,8 @@ import {
   restoreSessionOverrides,
   setFreeflowStatus,
   setSessionCoreOverride,
-} from "../../dist/runtime/runtime-context.js";
-import { matches } from "../../dist/cognitive-routing-v2/schemas.js";
+} from "../../dist/host/runtime-context.js";
+import { matches } from "../../dist/cognitive-routing/schemas.js";
 import { contextHandler, beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
 const execFileAsync = promisify(execFile);

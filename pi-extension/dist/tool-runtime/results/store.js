@@ -1,7 +1,7 @@
 import { constants } from "node:fs";
 import { chmod, lstat, mkdir, open, readdir, unlink } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { canonical } from "../../cognitive-routing-v2/types.js";
+import { canonical } from "../../host/canonical.js";
 import { CAPTURE_DESCRIPTOR_ENTRY, MAX_CAPTURE_BYTES } from "./contracts.js";
 import { sha256 } from "./presentation.js";
 export class CaptureStoreError extends Error {

@@ -1,4 +1,4 @@
-import type { CacheMonitor } from "../../efficiency/cache-monitor.js";
+import type { CacheMonitor } from "../cache/monitor.js";
 import { assemble, EFFORTS } from "./history.js";
 import { SessionState } from "./session-state.js";
 

@@ -1,0 +1,566 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import test from "node:test";
+
+import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { EfficiencyLedger } from "../../../dist/tool-runtime/accounting/ledger.js";
+import { EfficiencyObserver } from "../../../dist/tool-runtime/accounting/observation.js";
+import { efficiencyReport } from "../../../dist/tool-runtime/accounting/report.js";
+
+function harness() {
+  const manager = SessionManager.inMemory("/tmp/freeflow-efficiency");
+  const pi = { appendEntry: (type, data) => manager.appendCustomEntry(type, data) };
+  const ctx = {
+    model: { provider: "openai", api: "openai-responses", id: "fixture-model" },
+    thinkingLevel: "high",
+    sessionManager: manager,
+  };
+  let responsibility = {
+    profile: "helper",
+    control: "automatic",
+    assignmentId: "assignment-1",
+    executionId: "execution-1",
+    provider: "openai",
+    modelId: "fixture-model",
+    thinking: "high",
+  };
+  const observer = new EfficiencyObserver(
+    pi,
+    () => responsibility,
+    () => true,
+  );
+  observer.reset(ctx);
+  return {
+    manager,
+    ctx,
+    observer,
+    setResponsibility(next) {
+      responsibility = next;
+    },
+  };
+}
+
+function assistant({ stopReason = "stop", input = 10, output = 20, reasoning = 5 } = {}) {
+  return {
+    role: "assistant",
+    content: [{ type: "text", text: stopReason }],
+    api: "openai-responses",
+    provider: "openai",
+    model: "fixture-model",
+    responseId: `response-${stopReason}`,
+    usage: {
+      input,
+      output,
+      reasoning,
+      cacheRead: 3,
+      cacheWrite: 2,
+      totalTokens: input + output,
+      cost: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0, total: 3 },
+    },
+    stopReason,
+    timestamp: 1,
+  };
+}
+
+function complete(observer, manager, ctx, message, toolResults = []) {
+  observer.messageEnd(message, ctx);
+  manager.appendMessage(message);
+  for (const result of toolResults) manager.appendMessage(result);
+  observer.turnEnd({ message, toolResults }, ctx);
+}
+
+test("prepared, response, and persisted completion observations retain distinct boundaries without prompt bodies", () => {
+  const { manager, ctx, observer, setResponsibility } = harness();
+  const payload = {
+    model: "fixture-model",
+    instructions: "private instruction",
+    input: [{ role: "user", content: "private prompt" }],
+    tools: [{ name: "read", description: "read a file", parameters: { type: "object" } }],
+    reasoning: { effort: "high" },
+    store: false,
+  };
+  observer.observePrepared(payload, ctx);
+  observer.observeResponse(200, { "x-request-id": "secret-request-identity", "set-cookie": "secret-cookie" }, ctx);
+  setResponsibility({ profile: "executor", control: "automatic", assignmentId: "assignment-2" });
+  complete(observer, manager, ctx, assistant());
+
+  const observations = observer.observations();
+  assert.equal(observations.length, 3);
+  assert.deepEqual(
+    observations.map((observation) => observation.kind),
+    ["prepared-request", "response-headers", "assistant-complete"],
+  );
+  const prepared = observations[0];
+  assert.equal(prepared.payloadHash, createHash("sha256").update(JSON.stringify(payload)).digest("hex"));
+  assert.equal(prepared.payloadBytes, Buffer.byteLength(JSON.stringify(payload)));
+  assert.equal(prepared.responsibility.assignmentId, "assignment-1");
+  assert.equal(observations[1].attemptId, prepared.attemptId);
+  assert.equal(observations[2].attemptId, prepared.attemptId);
+  assert.equal(observations[2].responsibility.assignmentId, "assignment-1");
+  assert.equal(observations[2].responsibility.profile, "helper");
+  assert.ok(observations[2].assistantEntryId);
+  assert.equal(observations[2].coverage, "complete-at-boundary");
+  const persisted = JSON.stringify(manager.getEntries());
+  assert.doesNotMatch(persisted, /private prompt|private instruction|secret-request-identity|secret-cookie/);
+  assert.equal(
+    manager.getEntries().filter((entry) => entry.customType === "freeflow-efficiency-observation-v1").length,
+    3,
+  );
+});
+
+test("failed and successful retry attempts remain distinct and reasoning is not added to output", () => {
+  const { manager, ctx, observer } = harness();
+  const payload = { model: "fixture-model", input: [], reasoning: { effort: "high" }, tools: [] };
+
+  observer.observePrepared(payload, ctx);
+  observer.observeResponse(500, {}, ctx);
+  complete(observer, manager, ctx, assistant({ stopReason: "error", input: 0, output: 0, reasoning: 0 }));
+
+  observer.observePrepared(payload, ctx);
+  observer.observeResponse(200, {}, ctx);
+  complete(observer, manager, ctx, assistant({ stopReason: "stop", input: 10, output: 20, reasoning: 5 }));
+
+  const report = observer.report();
+  assert.equal(report.attempts, 2);
+  assert.equal(report.preparedRequests, 2);
+  assert.equal(report.responses, 2);
+  assert.equal(report.assistantCompletions, 2);
+  assert.equal(report.failedAssistants, 1);
+  assert.equal(report.successfulAssistants, 1);
+  assert.equal(report.usage.output, 20);
+  assert.equal(report.usage.reasoning, 5);
+  assert.equal(report.usage.totalTokens, 30);
+  assert.equal(report.cost.total, 6);
+  assert.equal(report.cost.observedRecords, 2);
+  assert.equal(report.measurement.providerCacheHits, "not inferred");
+  assert.match(report.measurement.cost, /no price-table estimates/);
+  assert.equal(report.persistenceFailures, 0);
+});
+
+test("ambiguous request correlation remains partial instead of assigning a guessed attempt", () => {
+  const { manager, ctx, observer } = harness();
+  const payload = { model: "fixture-model", input: [], reasoning: { effort: "high" }, tools: [] };
+  observer.observePrepared(payload, ctx);
+  observer.observePrepared(payload, ctx);
+  observer.observeResponse(200, {}, ctx);
+  complete(observer, manager, ctx, assistant());
+
+  const response = observer.observations().find((observation) => observation.kind === "response-headers");
+  const completion = observer.observations().find((observation) => observation.kind === "assistant-complete");
+  assert.equal(response.attemptId, undefined);
+  assert.equal(response.coverage, "unknown");
+  assert.equal(completion.attemptId, undefined);
+  assert.equal(completion.coverage, "partial");
+});
+
+test("tool and run observations attribute bounded bytes, profiles, assignments, operations and emitted values", () => {
+  const { manager, ctx, observer } = harness();
+  const message = {
+    ...assistant(),
+    content: [
+      {
+        type: "toolCall",
+        id: "run-call",
+        name: "freeflow_run",
+        arguments: {
+          code: `emit({ answer: 42 })`,
+          description: "emit answer",
+          operations: [],
+          input: null,
+        },
+      },
+      {
+        type: "toolCall",
+        id: "direct-call",
+        name: "freeflow_tools",
+        arguments: {
+          operation: "call",
+          operationKey: { id: "project.readText", revision: "1" },
+          input: { path: "a.txt" },
+        },
+      },
+    ],
+  };
+  const run = {
+    role: "toolResult",
+    toolCallId: "run-call",
+    toolName: "freeflow_run",
+    isError: false,
+    content: [{ type: "text", text: "run result" }],
+    details: {
+      freeflowRun: {
+        runId: "run:fixture",
+        programStatus: "completed",
+        emitted: [{ answer: 42 }],
+      },
+    },
+  };
+  const directResult = {
+    role: "toolResult",
+    toolCallId: "direct-call",
+    toolName: "freeflow_tools",
+    isError: false,
+    content: [{ type: "text", text: "direct result" }],
+    usage: {
+      input: 7,
+      output: 8,
+      reasoning: 2,
+      totalTokens: 15,
+      cost: { total: 4 },
+    },
+    details: {
+      status: "called",
+      outcome: {
+        operation: { id: "project.readText", revision: "1" },
+        effectState: "completed",
+        coverage: { boundary: "whole-file-snapshot" },
+      },
+    },
+  };
+  observer.messageEnd(message, ctx);
+  manager.appendMessage(message);
+  manager.appendCustomEntry("freeflow-tool-run-v1", {
+    runId: "run:fixture",
+    outcomes: [
+      {
+        operation: { id: "result.read", revision: "1" },
+        status: "succeeded",
+        effectState: "completed",
+      },
+    ],
+  });
+  manager.appendMessage(run);
+  manager.appendMessage(directResult);
+  observer.turnEnd({ message, toolResults: [run, directResult] }, ctx);
+
+  const tools = observer.observations().filter((observation) => observation.kind === "tool-complete");
+  assert.equal(tools.length, 2);
+  assert.equal(tools[0].programSourceBytes, Buffer.byteLength(`emit({ answer: 42 })`));
+  assert.equal(tools[0].runId, "run:fixture");
+  assert.equal(tools[0].programStatus, "completed");
+  assert.ok(tools[0].emittedBytes > 0);
+  assert.deepEqual(tools[0].childOperations, [
+    { operation: "result.read@1", status: "succeeded", effectState: "completed" },
+  ]);
+  assert.equal(tools[1].operation, "project.readText@1");
+  assert.equal(tools[1].effectState, "completed");
+  assert.equal(tools[1].coverageBoundary, "whole-file-snapshot");
+
+  const report = observer.report();
+  assert.equal(report.toolCompletions, 2);
+  assert.equal(report.tooling.failed, 0);
+  assert.equal(report.tooling.programSourceBytes, Buffer.byteLength(`emit({ answer: 42 })`));
+  assert.equal(report.usage.input, 10);
+  assert.equal(report.usage.output, 20);
+  assert.equal(report.toolUsage.input, 7);
+  assert.equal(report.toolUsage.output, 8);
+  assert.equal(report.cost.total, 3);
+  assert.equal(report.toolCost.total, 4);
+  assert.deepEqual(report.toolCost.availability.total, { knownSum: 4, observed: 1, missing: 1, complete: false });
+  assert.deepEqual(report.toolUsage.availability.input, { knownSum: 7, observed: 1, missing: 1, complete: false });
+  assert.deepEqual(report.profiles, [{ profile: "helper", observations: 3, usageRecords: 2 }]);
+  assert.deepEqual(report.assignments, [{ assignmentId: "assignment-1", observations: 3 }]);
+  assert.equal(report.runs[0].runId, "run:fixture");
+  assert.equal(report.operations.find((row) => row.operation === "project.readText@1").calls, 1);
+  assert.equal(report.operations.find((row) => row.operation === "result.read@1").calls, 1);
+  assert.equal(report.groupingCoverage, "complete-at-boundary");
+  const exported = observer.exportData();
+  assert.equal(exported.coverage, "complete-at-boundary");
+  assert.equal(exported.report.toolCost.availability.total.missing, 1);
+  assert.doesNotMatch(JSON.stringify(exported), /private prompt|private instruction/);
+});
+
+test("capture and exact recovery observations retain byte facts without captured bodies", () => {
+  const { manager, ctx, observer } = harness();
+  const message = {
+    ...assistant(),
+    content: [
+      { type: "toolCall", id: "bash-call", name: "bash", arguments: { command: "fixture command" } },
+      {
+        type: "toolCall",
+        id: "recovery-call",
+        name: "freeflow_result",
+        arguments: { id: "result:fixture", offsetBytes: 10, maxBytes: 100 },
+      },
+    ],
+  };
+  const bash = {
+    role: "toolResult",
+    toolCallId: "bash-call",
+    toolName: "bash",
+    isError: false,
+    content: [{ type: "text", text: "bounded preview" }],
+  };
+  const recovered = {
+    role: "toolResult",
+    toolCallId: "recovery-call",
+    toolName: "freeflow_result",
+    isError: false,
+    content: [{ type: "text", text: "bounded exact range" }],
+    details: {
+      capturedResult: {
+        id: "result:fixture",
+        range: { startBytes: 10, endBytes: 110 },
+        totalBytes: 1000,
+        coverage: "unspecified",
+        scope: "tool-result-hook",
+      },
+    },
+  };
+  observer.messageEnd(message, ctx);
+  manager.appendMessage(message);
+  manager.appendCustomEntry("freeflow-tool-capture-v1", {
+    id: "result:fixture",
+    toolCallId: "bash-call",
+    capture: { bytes: 1000 },
+  });
+  manager.appendMessage(bash);
+  manager.appendMessage(recovered);
+  observer.turnEnd({ message, toolResults: [bash, recovered] }, ctx);
+
+  const tools = observer.observations().filter((observation) => observation.kind === "tool-complete");
+  assert.equal(tools[0].capturedBytes, 1000);
+  assert.equal(tools[1].recoveredBytes, 100);
+  assert.equal(tools[1].coverageBoundary, "tool-result-hook");
+  assert.equal(observer.report().tooling.capturedBytes, 1000);
+  assert.equal(observer.report().tooling.recoveredBytes, 100);
+  assert.doesNotMatch(JSON.stringify(observer.exportData()), /fixture command|bounded exact range/);
+});
+
+test("v2 native capture, direct views, artifact reads and program children count distinct factual byte planes", () => {
+  const { manager, ctx, observer } = harness();
+  const message = {
+    ...assistant(),
+    content: [
+      { type: "toolCall", id: "bash-v2", name: "bash", arguments: { command: "bounded fixture" } },
+      { type: "toolCall", id: "direct-v2", name: "freeflow_read", arguments: { files: [] } },
+      { type: "toolCall", id: "range-v2", name: "freeflow_result", arguments: { id: "artifact:fixture" } },
+      { type: "toolCall", id: "program-v2", name: "freeflow_run", arguments: { code: "emit(1)", operations: [] } },
+      { type: "toolCall", id: "legacy", name: "read", arguments: { path: "fixture.txt" } },
+    ],
+  };
+  const tools = [
+    {
+      role: "toolResult",
+      toolCallId: "bash-v2",
+      toolName: "bash",
+      isError: false,
+      content: [{ type: "text", text: "bounded capture" }],
+    },
+    {
+      role: "toolResult",
+      toolCallId: "direct-v2",
+      toolName: "freeflow_read",
+      isError: false,
+      content: [{ type: "text", text: "bounded model view" }],
+      details: {
+        status: "called",
+        outcome: { operation: { id: "project.readRanges", revision: "1" }, effectState: "completed" },
+        freeflowV2: { artifactBytes: 42, modelCoverage: { boundary: "project-range-model-view" } },
+      },
+    },
+    {
+      role: "toolResult",
+      toolCallId: "range-v2",
+      toolName: "freeflow_result",
+      isError: false,
+      content: [{ type: "text", text: "exact bytes" }],
+      details: {
+        capturedArtifact: { range: { startBytes: 10, endBytes: 22 }, coverage: { boundary: "tool-result-hook" } },
+      },
+    },
+    {
+      role: "toolResult",
+      toolCallId: "program-v2",
+      toolName: "freeflow_run",
+      isError: false,
+      content: [{ type: "text", text: "program output" }],
+      details: { freeflowRun: { runId: "run:v2", programStatus: "completed", emitted: [1] } },
+    },
+    {
+      role: "toolResult",
+      toolCallId: "legacy",
+      toolName: "read",
+      isError: false,
+      content: [{ type: "text", text: "unrelated" }],
+    },
+  ];
+  observer.messageEnd(message, ctx);
+  manager.appendMessage(message);
+  manager.appendCustomEntry("freeflow-tool-artifact-v2", {
+    id: "artifact:fixture",
+    bytes: 1000,
+    native: { toolCallId: "bash-v2" },
+  });
+  manager.appendCustomEntry("freeflow-tool-run-v1", {
+    runId: "run:v2",
+    outcomes: [
+      {
+        operation: { id: "project.readRanges", revision: "1" },
+        status: "succeeded",
+        effectState: "completed",
+        artifactBytes: 10,
+      },
+    ],
+  });
+  for (const result of tools) manager.appendMessage(result);
+  observer.turnEnd({ message, toolResults: tools }, ctx);
+  const records = observer.observations().filter((entry) => entry.kind === "tool-complete");
+  assert.deepEqual(
+    records.map((entry) => entry.artifactBytes),
+    [1000, 42, undefined, 10, undefined],
+  );
+  assert.deepEqual(
+    records.map((entry) => entry.recoveredBytes),
+    [undefined, undefined, 12, undefined, undefined],
+  );
+  assert.equal(records[0].capturedBytes, 1000);
+  assert.equal(records[1].coverageBoundary, "project-range-model-view");
+  assert.equal(records[2].coverageBoundary, "tool-result-hook");
+  const report = observer.report();
+  assert.equal(report.tooling.artifactBytes, 1052);
+  assert.deepEqual(report.tooling.artifactBytesAvailability, {
+    knownSum: 1052,
+    observed: 3,
+    missing: 2,
+    complete: false,
+  });
+  assert.equal(report.tooling.recoveredBytes, 12);
+  assert.equal(
+    report.tooling.modelViewBytes,
+    tools.reduce((sum, tool) => sum + Buffer.byteLength(tool.content[0].text), 0),
+  );
+  assert.match(report.measurement.storage, /payload bytes only/);
+  assert.match(report.measurement.modelView, /must not be added together/);
+  assert.equal(report.operations.find((row) => row.operation === "project.readRanges@1").calls, 2);
+});
+
+test("efficiency JSON export remains bounded and reports omitted observations", () => {
+  const { ctx, observer } = harness();
+  for (let index = 0; index < 300; index += 1)
+    observer.observePrepared(
+      { model: "fixture-model", input: [{ role: "user", content: `fixture-${index}` }], tools: [] },
+      ctx,
+    );
+  const exported = observer.exportData();
+  assert.equal(exported.coverage, "limited");
+  assert.ok(exported.omittedObservations > 0);
+  assert.ok(Buffer.byteLength(JSON.stringify(exported), "utf8") <= 512 * 1024);
+});
+
+test("fresh observer recovery rebuilds bounded factual reports and ignores malformed persisted observations", () => {
+  const { manager, ctx, observer } = harness();
+  observer.observePrepared({ model: "fixture-model", input: [], tools: [] }, ctx);
+  observer.observeResponse(200, {}, ctx);
+  complete(observer, manager, ctx, assistant());
+  manager.appendCustomEntry("freeflow-efficiency-observation-v1", {
+    version: 1,
+    id: "malformed",
+    kind: "tool-complete",
+    responsibility: { profile: "helper", control: "automatic" },
+    coverage: "complete-at-boundary",
+    toolCallId: "call",
+    toolName: "bash",
+    isError: false,
+    secret: "must not recover",
+  });
+  const recovered = new EfficiencyObserver(
+    { appendEntry: (type, data) => manager.appendCustomEntry(type, data) },
+    () => ({ profile: "helper", control: "automatic" }),
+    () => true,
+  );
+  recovered.reset(ctx);
+  assert.equal(recovered.observations().length, 3);
+  assert.equal(recovered.report().assistantCompletions, 1);
+  assert.doesNotMatch(JSON.stringify(recovered.exportData()), /must not recover/);
+});
+
+test("usage and cost reports distinguish reported zero from absent fields per source", () => {
+  const base = {
+    version: 1,
+    kind: "assistant-complete",
+    coverage: "complete-at-boundary",
+    responsibility: { profile: "helper", control: "automatic" },
+  };
+  const report = efficiencyReport([
+    { ...base, id: "a", usage: { source: "host-normalized", input: 0, output: 5, cost: { total: 0 } } },
+    { ...base, id: "b", usage: { source: "host-normalized", output: 7, cost: {} } },
+    { ...base, id: "c" },
+    {
+      ...base,
+      id: "tool",
+      kind: "tool-complete",
+      toolName: "fixture",
+      toolCallId: "call",
+      isError: false,
+      usage: { source: "tool-reported", input: 0 },
+    },
+  ]);
+  assert.equal(report.usage.input, 0);
+  assert.deepEqual(report.usage.availability.input, { knownSum: 0, observed: 1, missing: 2, complete: false });
+  assert.deepEqual(report.usage.availability.output, { knownSum: 12, observed: 2, missing: 1, complete: false });
+  assert.deepEqual(report.usage.availability.reasoning, { knownSum: 0, observed: 0, missing: 3, complete: false });
+  assert.deepEqual(report.cost.availability.total, { knownSum: 0, observed: 1, missing: 2, complete: false });
+  assert.deepEqual(report.toolUsage.availability.input, { knownSum: 0, observed: 1, missing: 0, complete: true });
+  assert.deepEqual(report.toolCost.availability.total, { knownSum: 0, observed: 0, missing: 1, complete: false });
+});
+
+test("ledger deduplicates persisted native occurrences by identity, never by equal usage or body", () => {
+  const base = {
+    version: 1,
+    kind: "assistant-complete",
+    sessionId: "session",
+    responsibility: { profile: "solo", control: "inactive" },
+    coverage: "complete-at-boundary",
+    assistantEntryId: "assistant-entry",
+    provider: "openai",
+    model: "fixture-model",
+    stopReason: "stop",
+    usage: { input: 1, output: 1, source: "host-normalized" },
+  };
+  const ledger = new EfficiencyLedger();
+  assert.equal(ledger.append({ ...base, id: "event-1" }), true);
+  assert.equal(ledger.append({ ...base, id: "event-2" }), false);
+  assert.equal(ledger.append({ ...base, id: "event-3", assistantEntryId: "assistant-entry-2" }), true);
+  assert.equal(
+    ledger.append({ ...base, id: "event-4", assistantEntryId: "assistant-entry-3", secret: "must not persist" }),
+    false,
+  );
+  const report = efficiencyReport(ledger.all());
+  assert.equal(report.assistantCompletions, 2);
+  assert.equal(report.usage.input, 2);
+  assert.equal(report.usage.output, 2);
+});
+
+test("prepared-request serialization stays off the provider path and persists before later observations", async () => {
+  const { manager, ctx, observer } = harness();
+  let serialized = 0;
+  const input = [
+    {
+      role: "user",
+      content: "fixture",
+      toJSON() {
+        serialized += 1;
+        return { role: "user", content: "fixture" };
+      },
+    },
+  ];
+  observer.observePrepared({ model: "fixture-model", input, tools: [] }, ctx);
+  assert.equal(serialized, 0, "the provider hook returns before the payload is serialized");
+  observer.observeResponse(200, {}, ctx);
+  assert.ok(serialized > 0);
+  assert.deepEqual(
+    manager
+      .getEntries()
+      .filter((e) => e.customType === "freeflow-efficiency-observation-v1")
+      .map((e) => e.data.kind),
+    ["prepared-request", "response-headers"],
+  );
+  observer.observePrepared({ model: "fixture-model", input: [], tools: [] }, ctx);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(
+    observer.observations().filter((o) => o.kind === "prepared-request").length,
+    2,
+    "idle work drains itself",
+  );
+});

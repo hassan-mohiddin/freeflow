@@ -2,31 +2,31 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 import { dirname, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { RequestHistory } from "./runtime/request-history.js";
+import { RequestHistory } from "./host/request-history.js";
 import { registerProviderSupport } from "./provider-support/index.js";
 import { registerProviderObservation } from "./provider-support/observation.js";
-import { EfficiencyObserver } from "./efficiency/observation.js";
-import { CacheHealth } from "./efficiency/cache-health.js";
-import { CacheMonitor } from "./efficiency/cache-monitor.js";
+import { EfficiencyObserver } from "./tool-runtime/accounting/observation.js";
+import { CacheHealth } from "./provider-support/cache/health.js";
+import { CacheMonitor } from "./provider-support/cache/monitor.js";
 import { registerToolRuntimeTools } from "./tool-runtime/tools.js";
 import { ToolRuntime } from "./tool-runtime/index.js";
 import { DEFAULT_TOOL_EXECUTION_CONFIG } from "./tool-runtime/config.js";
 import { registerDirectToolRuntimeTools, setDirectToolVisibility } from "./tool-runtime/direct-tools.js";
 import { V2ExecutionRecorder } from "./tool-runtime/execution-record.js";
-import { NativeSessionStore, v2StoreLimits } from "./session-store/native.js";
+import { NativeSessionStore, v2StoreLimits } from "./tool-runtime/session-store/native.js";
 import { V2ArtifactReader, openLocalOrigin } from "./tool-runtime/results/v2.js";
 import { V2CapturePublisher } from "./tool-runtime/results/v2-capture.js";
-import { GuidanceRuntime } from "./guidance/runtime.js";
+import { GuidanceRuntime } from "./tool-runtime/guidance.js";
 import { publishCooperatingAdapterEndpoint } from "./tool-runtime/adapters/protocol.js";
 import { EffectRuntime } from "./tool-runtime/effects.js";
 import { ResultRuntime } from "./tool-runtime/results/runtime.js";
 import { ProgramHost } from "./tool-runtime/program/host.js";
-import { RoutingRuntime } from "./cognitive-routing-v2/runtime.js";
-import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-routing-v2/tools.js";
-import { handleFreeflowCommand } from "./settings/settings-ui.js";
-import { tagProjectedMessages } from "./session-sources/sources.js";
-import { trustLoadedSession } from "./session-sources/read-only-session.js";
-import { takeStage } from "./session-sources/staging.js";
+import { RoutingRuntime } from "./cognitive-routing/runtime.js";
+import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-routing/tools.js";
+import { handleFreeflowCommand } from "./host/settings/settings-ui.js";
+import { tagProjectedMessages } from "./host/projection-tags.js";
+import { trustLoadedSession } from "./host/read-only-session.js";
+import { takeStage } from "./host/staging.js";
 import {
   CONTRIBUTOR_COMMANDS,
   WORKFLOW_COMMANDS,
@@ -47,7 +47,7 @@ import {
   withFreeflowRuntimeState,
   writeStagedSessionOverrides,
   type RuntimeStateAnchor,
-} from "./runtime/runtime-context.js";
+} from "./host/runtime-context.js";
 
 type FreeflowAPI = ExtensionAPI;
 async function sendSkillCommand(pi: FreeflowAPI, ctx: ExtensionCommandContext, skill: string, args?: string) {

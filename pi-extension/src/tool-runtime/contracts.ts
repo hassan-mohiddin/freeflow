@@ -1,4 +1,4 @@
-import type { ArtifactId, OccurrenceId } from "../session-store/contracts.js";
+import type { ArtifactId, OccurrenceId } from "./session-store/contracts.js";
 
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 export type Effect = "captured-read" | "live-read" | "mutation";

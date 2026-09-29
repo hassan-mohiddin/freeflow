@@ -11,7 +11,7 @@ import {
 import { isWellFormedUnicode, renderCapturePresentation, sha256 } from "./presentation.js";
 import { CaptureStore, CaptureStoreError } from "./store.js";
 import { V2CaptureError } from "./v2-capture.js";
-import { JournalError } from "../../session-store/journal.js";
+import { JournalError } from "../session-store/journal.js";
 export class ResultRuntimeError extends Error {
   code;
   constructor(code, message) {

@@ -5,8 +5,8 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 
 import { fixture as nativeFixture } from "../fixtures/routing-native.js";
-import { GuidanceRuntime } from "../../dist/guidance/runtime.js";
-import { SessionStoreRuntime } from "../../dist/session-store/store.js";
+import { GuidanceRuntime } from "../../dist/tool-runtime/guidance.js";
+import { SessionStoreRuntime } from "../../dist/tool-runtime/session-store/store.js";
 
 const skillPath = join(process.cwd(), "capabilities", "tool-execution", "SKILL.md");
 const skillBody = await readFile(skillPath, "utf8");

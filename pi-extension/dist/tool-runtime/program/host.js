@@ -4,7 +4,7 @@ import { canonicalJson, freezeJson } from "../schema.js";
 import { PROGRAM_LIMITS, ProgramLimitError, validateProgramRequest } from "./limits.js";
 import { guestFrame } from "./protocol.js";
 import { ProgramScheduler } from "./scheduler.js";
-import { persistedLastEntryMatches } from "../../session-sources/read-only-session.js";
+import { persistedLastEntryMatches } from "../../host/read-only-session.js";
 export const RUN_MANIFEST_ENTRY = "freeflow-tool-run-v1";
 function boundedMessage(value) {
   return (value instanceof Error ? value.message : String(value)).replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 1000);

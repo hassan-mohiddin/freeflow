@@ -10,7 +10,7 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import freeflow from "../../dist/index.js";
-import { replay } from "../../dist/cognitive-routing-v2/state.js";
+import { replay } from "../../dist/cognitive-routing/state.js";
 
 export function response(
   n,

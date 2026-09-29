@@ -8,7 +8,7 @@ import test from "node:test";
 import { resolveToolExecutionConfig } from "../../dist/tool-runtime/config.js";
 import { ToolRuntime } from "../../dist/tool-runtime/index.js";
 import { V2ExecutionRecorder } from "../../dist/tool-runtime/execution-record.js";
-import { SessionStoreRuntime } from "../../dist/session-store/store.js";
+import { SessionStoreRuntime } from "../../dist/tool-runtime/session-store/store.js";
 import { resolveRgBackend } from "../../dist/tool-runtime/adapters/rg-backend.js";
 import { syntheticNativeAncestry } from "../fixtures/v2-sidecar.js";
 

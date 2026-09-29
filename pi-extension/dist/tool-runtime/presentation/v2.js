@@ -1,4 +1,4 @@
-import { isStoreIdentifier } from "../../session-store/contracts.js";
+import { isStoreIdentifier } from "../session-store/contracts.js";
 import { freezeJson } from "../schema.js";
 function validCoverage(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;

@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { isArtifactDescriptor, isSourceIdentity, isStoreEvent } from "../../dist/session-store/contracts.js";
+import {
+  isArtifactDescriptor,
+  isSourceIdentity,
+  isStoreEvent,
+} from "../../dist/tool-runtime/session-store/contracts.js";
 import { OperationRegistry } from "../../dist/tool-runtime/registry.js";
 
 const hash = (character) => character.repeat(64);

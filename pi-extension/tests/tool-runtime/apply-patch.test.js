@@ -17,7 +17,7 @@ import { ToolRuntime } from "../../dist/tool-runtime/index.js";
 import { OperationKernel } from "../../dist/tool-runtime/kernel.js";
 import { OperationRegistry } from "../../dist/tool-runtime/registry.js";
 import { presentV2 } from "../../dist/tool-runtime/presentation/v2.js";
-import { SessionStoreRuntime } from "../../dist/session-store/store.js";
+import { SessionStoreRuntime } from "../../dist/tool-runtime/session-store/store.js";
 import { syntheticNativeAncestry } from "../fixtures/v2-sidecar.js";
 
 const sha = (value) => createHash("sha256").update(value).digest("hex");

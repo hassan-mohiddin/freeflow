@@ -5,11 +5,11 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 
 import { fixture as nativeFixture } from "../fixtures/routing-native.js";
-import { readManifest } from "../../dist/session-store/manifest.js";
-import { SessionStoreRuntime } from "../../dist/session-store/store.js";
-import { piAncestrySnapshot } from "../../dist/session-store/pi-ancestry.js";
-import { v2StoreLimits } from "../../dist/session-store/native.js";
-import { freeflowCapabilitySkillPath } from "../../dist/runtime/runtime-context.js";
+import { readManifest } from "../../dist/tool-runtime/session-store/manifest.js";
+import { SessionStoreRuntime } from "../../dist/tool-runtime/session-store/store.js";
+import { piAncestrySnapshot } from "../../dist/tool-runtime/session-store/pi-ancestry.js";
+import { v2StoreLimits } from "../../dist/tool-runtime/session-store/native.js";
+import { freeflowCapabilitySkillPath } from "../../dist/host/runtime-context.js";
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 async function fixture(script, projection, after, withUI, options) {

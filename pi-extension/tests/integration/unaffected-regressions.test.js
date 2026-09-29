@@ -7,7 +7,7 @@ import test from "node:test";
 import { promisify } from "node:util";
 
 import freeflowExtension from "../../dist/index.js";
-import { resetSessionOverrides, setSessionCoreOverride } from "../../dist/runtime/runtime-context.js";
+import { resetSessionOverrides, setSessionCoreOverride } from "../../dist/host/runtime-context.js";
 import { beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
 const execFileAsync = promisify(execFile);
@@ -335,7 +335,7 @@ test("remaining session overrides apply without changing repository configuratio
     const { pi } = loadExtension();
     const ctx = context(cwd);
     await setSessionCoreOverride("enabled", false, ctx, pi);
-    const state = await import("../../dist/runtime/runtime-context.js").then(({ readCapabilityState }) =>
+    const state = await import("../../dist/host/runtime-context.js").then(({ readCapabilityState }) =>
       readCapabilityState(cwd),
     );
     assert.equal(state.enabled, false);

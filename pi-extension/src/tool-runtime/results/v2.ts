@@ -9,12 +9,12 @@ import {
   type ArtifactDescriptor,
   type AncestrySnapshot,
   type StoreManifest,
-} from "../../session-store/contracts.js";
-import type { ArtifactLimits } from "../../session-store/artifacts.js";
-import { readManifest } from "../../session-store/manifest.js";
-import { SessionStoreRuntime } from "../../session-store/store.js";
-import { piAncestrySnapshot } from "../../session-store/pi-ancestry.js";
-import { activeReadOnlySessionBranch, readOnlySessionSnapshot } from "../../session-sources/read-only-session.js";
+} from "../session-store/contracts.js";
+import type { ArtifactLimits } from "../session-store/artifacts.js";
+import { readManifest } from "../session-store/manifest.js";
+import { SessionStoreRuntime } from "../session-store/store.js";
+import { piAncestrySnapshot } from "../session-store/pi-ancestry.js";
+import { activeReadOnlySessionBranch, readOnlySessionSnapshot } from "../../host/read-only-session.js";
 import type { ResultGrant } from "./contracts.js";
 import type { ResultReadAccess } from "./runtime.js";
 

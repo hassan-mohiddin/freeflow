@@ -7,8 +7,8 @@ import {
   type SessionStore,
   type StoreFence,
   type StoreJson,
-} from "../session-store/contracts.js";
-import { canonicalStoreJson, storeDigest } from "../session-store/journal.js";
+} from "./session-store/contracts.js";
+import { canonicalStoreJson, storeDigest } from "./session-store/journal.js";
 import type {
   CallOutcome,
   CanonicalOutcome,

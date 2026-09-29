@@ -10,8 +10,8 @@ import { V2ExecutionRecorder } from "../../dist/tool-runtime/execution-record.js
 import { ToolRuntime } from "../../dist/tool-runtime/index.js";
 import { registerToolRuntimeTools } from "../../dist/tool-runtime/tools.js";
 import { resolveRgBackend } from "../../dist/tool-runtime/adapters/rg-backend.js";
-import { SessionStoreRuntime } from "../../dist/session-store/store.js";
-import { readOnlySessionSnapshot, activeReadOnlySessionBranch } from "../../dist/session-sources/read-only-session.js";
+import { SessionStoreRuntime } from "../../dist/tool-runtime/session-store/store.js";
+import { readOnlySessionSnapshot, activeReadOnlySessionBranch } from "../../dist/host/read-only-session.js";
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const limits = {

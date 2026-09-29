@@ -9,7 +9,7 @@ import { V2ExecutionRecorder } from "../../dist/tool-runtime/execution-record.js
 import { ToolRuntime } from "../../dist/tool-runtime/index.js";
 import { toolRuntimeResultText } from "../../dist/tool-runtime/renderers.js";
 import { createArtifactReadOperation } from "../../dist/tool-runtime/adapters/artifact.js";
-import { SessionStoreRuntime } from "../../dist/session-store/store.js";
+import { SessionStoreRuntime } from "../../dist/tool-runtime/session-store/store.js";
 import { syntheticNativeAncestry } from "../fixtures/v2-sidecar.js";
 
 const schema = (properties) => ({

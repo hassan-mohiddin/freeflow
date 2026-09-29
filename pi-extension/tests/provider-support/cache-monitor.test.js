@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { registerProviderSupport } from "../../dist/provider-support/index.js";
-import { CacheMonitor } from "../../dist/efficiency/cache-monitor.js";
-import { RequestHistory } from "../../dist/runtime/request-history.js";
+import { CacheMonitor } from "../../dist/provider-support/cache/monitor.js";
+import { RequestHistory } from "../../dist/host/request-history.js";
 
 const claude = {
   provider: "anthropic",

@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { canonicalStoreJson, storeDigest } from "../../session-store/journal.js";
+import { canonicalStoreJson, storeDigest } from "../session-store/journal.js";
 import { MAX_CAPTURE_BYTES } from "./contracts.js";
 import { renderCapturePresentation, sha256 } from "./presentation.js";
-import { persistedLastEntryMatches } from "../../session-sources/read-only-session.js";
+import { persistedLastEntryMatches } from "../../host/read-only-session.js";
 import { anchorFor, V2_ARTIFACT_ENTRY } from "./v2.js";
 export class V2CaptureError extends Error {
   code;

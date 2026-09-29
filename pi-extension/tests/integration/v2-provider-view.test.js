@@ -8,8 +8,8 @@ import { resolveToolExecutionConfig } from "../../dist/tool-runtime/config.js";
 import { V2ExecutionRecorder } from "../../dist/tool-runtime/execution-record.js";
 import { ToolRuntime } from "../../dist/tool-runtime/index.js";
 import { registerToolRuntimeTools } from "../../dist/tool-runtime/tools.js";
-import { SessionStoreRuntime } from "../../dist/session-store/store.js";
-import { activeReadOnlySessionBranch, readOnlySessionSnapshot } from "../../dist/session-sources/read-only-session.js";
+import { SessionStoreRuntime } from "../../dist/tool-runtime/session-store/store.js";
+import { activeReadOnlySessionBranch, readOnlySessionSnapshot } from "../../dist/host/read-only-session.js";
 
 const marker = "PRIVATE_CANONICAL_PAYLOAD_".repeat(80);
 const schema = (properties) => ({

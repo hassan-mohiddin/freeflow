@@ -33,7 +33,7 @@ import { OperationRegistry } from "./registry.js";
 import { canonicalJson, freezeJson } from "./schema.js";
 import { presentV2 } from "./presentation/v2.js";
 import type { ToolProgressReporter } from "./progress.js";
-import { isStoreIdentifier, type OccurrenceId, type SessionStore } from "../session-store/contracts.js";
+import { isStoreIdentifier, type OccurrenceId, type SessionStore } from "./session-store/contracts.js";
 import type { V2ExecutionRecorder } from "./execution-record.js";
 
 export interface ToolRoutingPort {

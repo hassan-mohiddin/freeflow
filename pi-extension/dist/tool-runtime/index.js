@@ -17,7 +17,7 @@ import { OperationKernel } from "./kernel.js";
 import { OperationRegistry } from "./registry.js";
 import { canonicalJson, freezeJson } from "./schema.js";
 import { presentV2 } from "./presentation/v2.js";
-import { isStoreIdentifier } from "../session-store/contracts.js";
+import { isStoreIdentifier } from "./session-store/contracts.js";
 function jsonResult(value) {
   return { content: [{ type: "text", text: JSON.stringify(value) }], details: value };
 }

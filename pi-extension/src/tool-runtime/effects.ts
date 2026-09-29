@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { Admission, CallOutcome, Effect, Json, OperationKey, ToolScope } from "./contracts.js";
 import { canonicalJson, jsonDigest } from "./schema.js";
-import { activeReadOnlySessionBranch, readOnlySessionSnapshot } from "../session-sources/read-only-session.js";
+import { activeReadOnlySessionBranch, readOnlySessionSnapshot } from "../host/read-only-session.js";
 
 export const EFFECT_ENTRY = "freeflow-tool-effect-v1";
 

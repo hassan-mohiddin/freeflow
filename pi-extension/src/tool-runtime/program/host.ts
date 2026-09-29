@@ -7,7 +7,7 @@ import { canonicalJson, freezeJson } from "../schema.js";
 import { PROGRAM_LIMITS, ProgramLimitError, validateProgramRequest } from "./limits.js";
 import { guestFrame, type GuestFrame, type HostFrame } from "./protocol.js";
 import { ProgramScheduler, type ProgramSchedulerProgress } from "./scheduler.js";
-import { persistedLastEntryMatches } from "../../session-sources/read-only-session.js";
+import { persistedLastEntryMatches } from "../../host/read-only-session.js";
 import type { ToolProgressReporter } from "../progress.js";
 
 export const RUN_MANIFEST_ENTRY = "freeflow-tool-run-v1";

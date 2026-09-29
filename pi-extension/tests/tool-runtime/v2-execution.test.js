@@ -10,8 +10,8 @@ import { V2ExecutionRecorder } from "../../dist/tool-runtime/execution-record.js
 import { EffectJournalError } from "../../dist/tool-runtime/effects.js";
 import { OperationKernel } from "../../dist/tool-runtime/kernel.js";
 import { OperationRegistry } from "../../dist/tool-runtime/registry.js";
-import { SessionStoreRuntime } from "../../dist/session-store/store.js";
-import { JournalError } from "../../dist/session-store/journal.js";
+import { SessionStoreRuntime } from "../../dist/tool-runtime/session-store/store.js";
+import { JournalError } from "../../dist/tool-runtime/session-store/journal.js";
 import { syntheticNativeAncestry } from "../fixtures/v2-sidecar.js";
 
 const schema = (properties) => ({

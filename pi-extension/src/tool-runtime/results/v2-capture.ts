@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 
-import type { StoreFence, StoreManifest, StoreJson } from "../../session-store/contracts.js";
-import { canonicalStoreJson, storeDigest } from "../../session-store/journal.js";
-import type { SessionStoreRuntime } from "../../session-store/store.js";
+import type { StoreFence, StoreManifest, StoreJson } from "../session-store/contracts.js";
+import { canonicalStoreJson, storeDigest } from "../session-store/journal.js";
+import type { SessionStoreRuntime } from "../session-store/store.js";
 import type { ResponsibilitySnapshot } from "../contracts.js";
 import { MAX_CAPTURE_BYTES, type ExternalCoverage } from "./contracts.js";
 import { renderCapturePresentation, sha256 } from "./presentation.js";
-import { persistedLastEntryMatches } from "../../session-sources/read-only-session.js";
+import { persistedLastEntryMatches } from "../../host/read-only-session.js";
 import { anchorFor, V2_ARTIFACT_ENTRY } from "./v2.js";
 
 export type V2CaptureObservation = Readonly<{

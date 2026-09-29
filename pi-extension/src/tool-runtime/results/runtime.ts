@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { TextDecoder } from "node:util";
 
-import { canonical } from "../../cognitive-routing-v2/types.js";
+import { canonical } from "../../host/canonical.js";
 import type { ToolExecutionState } from "../config.js";
 import type { ResponsibilitySnapshot } from "../contracts.js";
 import {
@@ -18,7 +18,7 @@ import { isWellFormedUnicode, renderCapturePresentation, sha256 } from "./presen
 import { CaptureStore, CaptureStoreError } from "./store.js";
 import type { V2ArtifactReader, V2ReadValue } from "./v2.js";
 import { V2CaptureError, type V2CapturePublisher } from "./v2-capture.js";
-import { JournalError } from "../../session-store/journal.js";
+import { JournalError } from "../session-store/journal.js";
 
 interface CapturedCall {
   sessionId: string;

@@ -11,7 +11,7 @@ import { resolveToolExecutionConfig } from "../../dist/tool-runtime/config.js";
 import { V2ExecutionRecorder } from "../../dist/tool-runtime/execution-record.js";
 import { ToolRuntime } from "../../dist/tool-runtime/index.js";
 import { ProgramHost } from "../../dist/tool-runtime/program/host.js";
-import { SessionStoreRuntime } from "../../dist/session-store/store.js";
+import { SessionStoreRuntime } from "../../dist/tool-runtime/session-store/store.js";
 
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 const limits = {

@@ -13,8 +13,8 @@ const imported = (path) => import(pathToFileURL(join(packageRoot, "pi-extension/
 const { resolveToolExecutionConfig } = await imported("tool-runtime/config.js");
 const { ToolRuntime } = await imported("tool-runtime/index.js");
 const { V2ExecutionRecorder } = await imported("tool-runtime/execution-record.js");
-const { SessionStoreRuntime } = await imported("session-store/store.js");
-const { canonicalStoreJson } = await imported("session-store/journal.js");
+const { SessionStoreRuntime } = await imported("tool-runtime/session-store/store.js");
+const { canonicalStoreJson } = await imported("tool-runtime/session-store/journal.js");
 const { resolveRgBackend } = await imported("tool-runtime/adapters/rg-backend.js");
 
 const sha = (body) => createHash("sha256").update(body).digest("hex");

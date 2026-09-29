@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { isStoreIdentifier } from "../session-store/contracts.js";
-import { canonicalStoreJson, storeDigest } from "../session-store/journal.js";
+import { isStoreIdentifier } from "./session-store/contracts.js";
+import { canonicalStoreJson, storeDigest } from "./session-store/journal.js";
 import { canonicalJson, jsonDigest } from "./schema.js";
 import { EFFECT_ENTRY } from "./effects.js";
 const MIN_INLINE_COVERAGE_BYTES = 1024;

@@ -1,4 +1,4 @@
-import type { CacheMonitor } from "../efficiency/cache-monitor.js";
+import type { CacheMonitor } from "./cache/monitor.js";
 import { CacheAnchorAdapter } from "./cache/index.js";
 import { CacheKeepAlive } from "./cache/keepalive.js";
 import { registerOpenAIEffortSupport } from "./openai/index.js";
