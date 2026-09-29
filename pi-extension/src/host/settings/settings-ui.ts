@@ -2273,9 +2273,7 @@ export async function handleFreeflowCommand(
         if (!confirmed) return { changed: false, reloadRequired: false };
       }
       await updateConfig(ctx.cwd, item, value, item.configScope ?? "repository");
-      if (!item.id.startsWith("freeflow.cognitiveRouting.sessionStart.")) {
-        reconcileCognitiveRouting = true;
-      }
+      reconcileCognitiveRouting = true;
       return { changed: true, reloadRequired: true };
     },
   });
