@@ -550,3 +550,32 @@ test("rebinding, unbinding, and tree navigation forget the previous turn's deriv
     runtime.unbind();
     assertForgotten("unbind");
   }));
+
+test("status names a switch waiting for the next prompt, then a held model that differs from its profile", async () =>
+  environment(async ({ runtime, make, activate }) => {
+    const a = make("a");
+    activate(a);
+    await runtime.bind(a, cap);
+    await runtime.setManualProfile("executor");
+    assert.equal(runtime.state().pendingPair, "executor/off", "the idle hold waits for the next prompt");
+    assert.equal(runtime.state().pairMismatch, undefined, "a pending switch is not a mismatch");
+    await submit(runtime, a);
+    assert.equal(a.model.id, "executor");
+    assert.equal(runtime.state().pendingPair, undefined);
+    a.model = models.coordinator;
+    await runtime.nativeChange(a);
+    assert.equal(runtime.state().controlMode, "manual-executor", "a native pick does not release the hold");
+    assert.equal(runtime.state().pairMismatch, true, "status says the model differs from the held profile");
+  }));
+
+test("a native model change ends automatic control and status reports routing inactive", async () =>
+  environment(async ({ runtime, make, activate }) => {
+    const a = make("a");
+    activate(a);
+    await runtime.bind(a, cap);
+    assert.equal(runtime.state().runtimeStatus, "active");
+    a.model = models.executor;
+    await runtime.nativeChange(a);
+    assert.equal(runtime.state().runtimeStatus, "inactive");
+    assert.equal(runtime.state().effective, false);
+  }));
