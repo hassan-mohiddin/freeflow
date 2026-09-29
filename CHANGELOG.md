@@ -11,11 +11,7 @@
 
 ### Added
 
-- Adds an optional Cognitive Routing Helper profile and `executor`, `helper`, and `both` delegation modes with mode-aware presets, manual holds, durable worker-specific continuation, and shared worker history.
-- Adds cache-aware Pi request assembly and selected GPT-6 Astra, Luna, and Sol effort-history adaptation on qualified OpenAI Responses and OpenAI-Codex Responses routes; provider cache hits, billing savings, and model-quality improvements remain unguaranteed.
-- Adds attached Cognitive Routing evidence recovery with exact-path reads, preserved original reports and assessments, separate supplements, explicit cancellation, and direct selection of eligible occurrence-linked evidence refs.
-- Adds session-only Cognitive Routing profile presets for Coordinator and enabled workers with complete model/effort pairs, inheritance, reset, and local/shared configuration isolation.
-- Adds a practical Freeflow user guide for prompting, skill selection, Workflow and Track Work management, settings, Cognitive Routing presets, and evidence and cost boundaries.
+- Extends cache-aware effort-history adaptation from GPT-6 Astra to GPT-6 Luna and Sol on qualified OpenAI Responses and OpenAI-Codex Responses routes; provider cache hits, billing savings, and model-quality improvements remain unguaranteed.
 - Adds experimental native-Pi Tool Execution with recoverable bounded Bash output, restricted QuickJS programs, revisioned direct/live operations, deterministic discovery, configured cooperating adapters, effect fencing, factual efficiency export, and extracted Worker/WASM qualification.
 - Adds complete local/shared Tool Execution settings with safe quick presets and confirmed workspace-write enablement, bounded native progress streaming, and concise collapsed plus expanded views for all three Tool Execution facade tools.
 - Warns once when back-to-back requests to the same model and effort repeatedly miss the prompt cache with no compaction, navigation, reload, or model change in between, and shows the warning in `/freeflow status`.
@@ -30,9 +26,6 @@
 ### Changed
 
 - Lets native Pi sessions override the Cognitive Routing delegation mode and stage any profile preset, while showing the effective mode in the footer without changing repository or personal configuration.
-- Clarifies mode-aware Coordinator/Helper/Executor ownership, implementation boundaries, evidence projection, recovery, and Coordinator assessment responsibilities.
-- Batches worker evidence selection during return preparation while preserving saved reports, unresolved evidence, and handoff limits.
-- Repositions Freeflow around Memory, planned Context, and Compute, and expands Cognitive Routing and native Pi documentation with qualified preset and cache-reuse boundaries.
 - Removes most Freeflow per-request overhead in native Pi: routing history replays in one pass, request history and routing attribution reuse Pi's session projection instead of re-hashing the conversation, history and GPT-6 effort records are written only when their state changes, persisted-session checks read only newly appended entries, and accounting serializes requests after dispatch. A disabled repository no longer adds routing provenance, and GPT-6 effort adaptation stays off when a configured repository disables Freeflow.
 - Resumes a Cognitive Routing worker run automatically when a crash or reload interrupted it and no new user input has arrived; reopening an idle session only notes that an unchanged assignment can be resumed.
 - Shows prompt-cache diagnostics (Coordinator keep-alive, context replay, and the GPT-6 effort baseline) on the `prompt cache` line of `/freeflow status` instead of the footer, which now shows only current Freeflow settings.
@@ -43,10 +36,6 @@
 - Preserves Pi 0.87.1's historical system-prompt and tool timeline by contributing Freeflow guidance as a structured section and composing the full request transcript rather than forcing a replacement system head.
 - Rejects workspace searches through intermediate symlinks and operations revoked during asynchronous authorization; keeps failed effect-settlement appends fenced until persisted ancestry confirms their outcome.
 - Preserves BOM/line endings and exact byte ranges in workspace and captured-result operations, bounds legal long-query search excerpts, and reports per-field usage/cost missingness instead of treating absence as reported zero.
-- Clears session-local Cognitive Routing manual-hold state before validating a newly bound session.
-- Clarifies evidence-selection operation shapes, remove-only withdrawal reasons, and the distinction between eligible result bodies and routing controls.
-- Prevents pre-prompt `/reload` and Cognitive Routing preset changes from blocking on Pi's not-yet-materialized session file.
-- Preserves Astra effort-history replay across temporary model round trips and reloads when the qualified request lineage remains compatible.
 - Keeps Cognitive Routing manual-hold and automatic-release shortcuts in step with the host model: requests run in order, the next manual hold is chosen from the latest state, and a profile is recorded only after its model is applied.
 - Applies the same ordering to Cognitive Routing resume, session presets, rebinding, re-enabling, and navigation, so a failed model switch records nothing; a manual hold whose model was changed outside routing is reported once and shown in the footer instead of being overridden.
 - Corrects the Cognitive Routing skill: profiles on the same model reuse the prompt cache only at matching effort or on routes that keep it across effort changes (currently the supported GPT-6 routes).
@@ -54,6 +43,29 @@
 - Delivers evidence that an attention view left out where the assessment resumed, so the resumed Coordinator request extends its cached prefix instead of rewriting it.
 - Keeps Freeflow runtime state and GPT-6 effort history at their original positions after `/tree` branch navigation with a summary, so the request after the branch point reuses the cached path instead of rewriting it; only compaction starts a new history.
 - Counts cache writes in prompt-cache health checks and compares a Cognitive Routing profile that resumes on its own model with its previous request, so write-heavy and handoff misses are reported.
+
+## 0.7.3 - 2026-09-16
+
+### Added
+
+- Adds an optional Cognitive Routing Helper profile and `executor`, `helper`, and `both` delegation modes with mode-aware presets, manual holds, durable worker-specific continuation, and shared worker history.
+- Adds cache-aware Pi request assembly and qualified Astra effort-history adaptation; provider cache hits, billing savings, and model-quality improvements remain unguaranteed.
+- Adds attached Cognitive Routing evidence recovery with exact-path reads, preserved original reports and assessments, separate supplements, explicit cancellation, and direct selection of eligible occurrence-linked evidence refs.
+- Adds session-only Cognitive Routing profile presets for Coordinator and enabled workers with complete model/effort pairs, inheritance, reset, and local/shared configuration isolation.
+- Adds a practical Freeflow user guide for prompting, skill selection, Workflow and Track Work management, settings, Cognitive Routing presets, and evidence and cost boundaries.
+
+### Changed
+
+- Clarifies mode-aware Coordinator/Helper/Executor ownership, implementation boundaries, evidence projection, recovery, and Coordinator assessment responsibilities.
+- Batches worker evidence selection during return preparation while preserving saved reports, unresolved evidence, and handoff limits.
+- Repositions Freeflow around Memory, planned Context, and Compute, and expands Cognitive Routing and PiFlow documentation with qualified preset and cache-reuse boundaries.
+
+### Fixed
+
+- Clears session-local Cognitive Routing manual-hold state before validating a newly bound session.
+- Clarifies evidence-selection operation shapes, remove-only withdrawal reasons, and the distinction between eligible result bodies and routing controls.
+- Prevents pre-prompt `/reload` and Cognitive Routing preset changes from blocking on Pi's not-yet-materialized session file.
+- Preserves Astra effort-history replay across temporary model round trips and reloads when the qualified request lineage remains compatible.
 
 ## 0.7.2 - 2026-09-11
 
