@@ -10,9 +10,10 @@ import {
   freeflowRuntimeStateMessage,
   getRuntimeContext,
   readCapabilityState,
+  hasUsableMandatoryPrompts,
   readFreeflowConfigLayers,
-  runtimeContext,
   setSessionCoreOverride,
+  stableRuntimeContext,
 } from "../../dist/host/runtime-context.js";
 import { contextHandler, beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
@@ -142,14 +143,16 @@ test("core and the separately editable Interaction Contract are mandatory prompt
     assert.match(loaded.corePrompt, /Then continue the covered work toward the agreed end/);
     assert.equal(loaded.skillsPrompt, undefined);
     assert.match(loaded.interactionContractPrompt, /# Freeflow Interaction Contract/);
-    assert.match(runtimeContext(loaded, state), /# Freeflow Stable Guidance/);
-    assert.match(runtimeContext(loaded, state), /# Freeflow Interaction Contract/);
+    assert.match(stableRuntimeContext(loaded), /# Freeflow Stable Guidance/);
+    assert.match(stableRuntimeContext(loaded), /# Freeflow Interaction Contract/);
+    assert.equal(hasUsableMandatoryPrompts(loaded), true);
     assert.match(freeflowRuntimeStateMessage(state).content, /Freeflow: unavailable/);
 
     const missingContract = { ...loaded, interactionContractPrompt: null };
-    assert.equal(runtimeContext(missingContract, state), "");
-    assert.equal(runtimeContext({ ...loaded, interactionContractPrompt: " \n\t" }, state), "");
-    assert.equal(runtimeContext({ ...loaded, corePrompt: " \n\t" }, state), "");
+    // Freeflow runs only when both mandatory fragments are usable; otherwise it reports itself unavailable.
+    assert.equal(hasUsableMandatoryPrompts(missingContract), false);
+    assert.equal(hasUsableMandatoryPrompts({ ...loaded, interactionContractPrompt: " \n\t" }), false);
+    assert.equal(hasUsableMandatoryPrompts({ ...loaded, corePrompt: " \n\t" }), false);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

@@ -326,18 +326,11 @@ test("missing optional prompt fragments preserve the mandatory core surface", as
 
     const loaded = await runtime.getRuntimeContext(state);
     assert.equal(loaded.cognitiveRoutingPrompt, null);
-    assert.match(
-      runtime.runtimeContext(loaded, { ...state, cognitiveRouting: { effective: false } }),
-      /# Freeflow Stable Guidance/,
-    );
-    assert.match(
-      runtime.runtimeContext(loaded, { ...state, cognitiveRouting: { effective: false } }),
-      /# Freeflow Interaction Contract/,
-    );
-    assert.doesNotMatch(
-      runtime.runtimeContext(loaded, { ...state, cognitiveRouting: { effective: false } }),
-      /## Cognitive Routing Cue/,
-    );
+    // A missing optional capability prompt leaves the fixed section with the mandatory core intact.
+    assert.equal(runtime.hasUsableMandatoryPrompts(loaded), true);
+    assert.match(runtime.stableRuntimeContext(loaded), /# Freeflow Stable Guidance/);
+    assert.match(runtime.stableRuntimeContext(loaded), /# Freeflow Interaction Contract/);
+    assert.doesNotMatch(runtime.stableRuntimeContext(loaded), /## Reference guidance: Cognitive Routing/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

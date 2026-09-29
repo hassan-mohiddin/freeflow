@@ -31,7 +31,7 @@ export const WORKFLOW_COMMANDS = [
 
 export const CONTRIBUTOR_COMMANDS = ["setup-freeflow", "write-skill", "evaluate-skill"];
 
-export const FREEFLOW_MODEL_SKILL_NAMES = [
+const FREEFLOW_MODEL_SKILL_NAMES = [
   "action-selection",
   "bypass",
   "commit-work",
@@ -64,8 +64,6 @@ export const STABLE_FREEFLOW_SURFACE = Object.freeze({
   toolExecution: { effective: true },
 });
 
-export const FREEFLOW_CAPABILITY_SKILL_NAMES = ["cognitive-routing", "tool-execution"];
-
 export function freeflowSkillPath(skillName) {
   return fileURLToPath(new URL(`../../../skills/${skillName}/SKILL.md`, import.meta.url));
 }
@@ -95,11 +93,11 @@ type SessionCoreOverrides = Partial<Record<SessionCoreKey, boolean>>;
 const SESSION_OVERRIDES_ENTRY = "freeflow-session-overrides";
 const SESSION_CORE_KEYS = new Set<SessionCoreKey>(["enabled"]);
 
-export const FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-runtime-state";
-export const COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-cognitive-routing-runtime-state";
-export const WORKFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-workflow-bootstrap";
-export const COGNITIVE_ROUTING_BOOTSTRAP_MESSAGE_TYPE = "freeflow-cognitive-routing-bootstrap";
-export const FREEFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-bootstrap";
+const FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-runtime-state";
+const COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-cognitive-routing-runtime-state";
+const WORKFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-workflow-bootstrap";
+const COGNITIVE_ROUTING_BOOTSTRAP_MESSAGE_TYPE = "freeflow-cognitive-routing-bootstrap";
+const FREEFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-bootstrap";
 
 let runtimeContextCache = null;
 let currentSessionOverrides: SessionCoreOverrides = {};
@@ -110,11 +108,11 @@ export function isPromptAvailable(value: unknown): value is string {
 
 // pi-subagents stamps child system prompts with this tag before binding extensions.
 // Keeping detection at the prompt boundary avoids a process-global child flag.
-export const SUBAGENT_AGENT_TAG = /<active_agent\s+name="[^"]+"\s*\/>/;
-export const FREEFLOW_SUBAGENT_CAPABILITIES_DISABLED_MARKER = "<!-- freeflow-subagent-capabilities: disabled -->";
+const SUBAGENT_AGENT_TAG = /<active_agent\s+name="[^"]+"\s*\/>/;
+const FREEFLOW_SUBAGENT_CAPABILITIES_DISABLED_MARKER = "<!-- freeflow-subagent-capabilities: disabled -->";
 const SUBAGENT_OPTIONAL_CAPABILITIES_MESSAGE = "Optional Freeflow capabilities are disabled for subagents.";
 
-export function isSubagentContext(context: unknown): boolean {
+function isSubagentContext(context: unknown): boolean {
   try {
     const systemPrompt = (context as { getSystemPrompt?: () => unknown })?.getSystemPrompt?.();
     return (
@@ -252,6 +250,8 @@ function validateFreeflowConfigShape(value) {
   const removedContextError = removedContextConfigError(value, ".freeflow/config.json");
   if (removedContextError) return removedContextError;
 
+  // outputRouter, observedRouting, and scriptTransform belong to retired features; they are accepted and ignored so
+  // existing configs keep loading.
   const allowedKeys = new Set([
     "enabled",
     "outputRouter",
@@ -290,6 +290,7 @@ function validateFreeflowLocalConfigShape(value) {
   const removedContextError = removedContextConfigError(value, ".freeflow/local.json");
   if (removedContextError) return removedContextError;
 
+  // processing belongs to a retired feature; it is accepted and ignored so existing local configs keep loading.
   const allowedKeys = new Set(["enabled", "processing", "cognitiveRouting", "toolExecution"]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -340,11 +341,11 @@ async function readConfigFileState(path, validate) {
   }
 }
 
-export function readFreeflowConfigState(cwd) {
+function readFreeflowConfigState(cwd) {
   return readConfigFileState(join(cwd, ".freeflow/config.json"), validateFreeflowConfigShape);
 }
 
-export function readFreeflowLocalConfigState(cwd) {
+function readFreeflowLocalConfigState(cwd) {
   return readConfigFileState(join(cwd, ".freeflow/local.json"), validateFreeflowLocalConfigShape);
 }
 
@@ -476,8 +477,6 @@ export async function readCapabilityState(cwd, host = undefined) {
   };
 }
 
-export const readRuntimeState = readCapabilityState;
-
 function recordedSessionOverrides(sessionManager) {
   let recorded = {};
   for (const entry of sessionManager?.getBranch?.() ?? sessionManager?.getEntries?.() ?? [])
@@ -577,11 +576,7 @@ export function setFreeflowStatus(
       options.cognitiveRoutingStartupPending === true &&
       !startupSelectionSuppressesCognitiveRouting
     ) {
-      const startupProfile =
-        cognitiveRouting.sessionStart?.control === "manual"
-          ? (cognitiveRouting.sessionStart.profile ?? "coordinator")
-          : "coordinator";
-      active.push(`${startupProfile} · pending`);
+      active.push("coordinator · pending");
     } else {
       const reason =
         cognitiveRouting.effective === true
@@ -722,7 +717,7 @@ export function freeflowRuntimeStateMessage(
   };
 }
 
-export function withoutFreeflowRuntimeState(messages: readonly FreeflowContextMessage[] | undefined) {
+function withoutFreeflowRuntimeState(messages: readonly FreeflowContextMessage[] | undefined) {
   return (Array.isArray(messages) ? messages : []).filter(
     (message) =>
       message?.customType !== FREEFLOW_RUNTIME_STATE_MESSAGE_TYPE &&
@@ -831,27 +826,6 @@ export function stableRuntimeContext(context) {
       .filter(([, text]) => isPromptAvailable(text))
       .map(([feature, text]) => `## Reference guidance: ${feature}\n\n${text.trim()}`),
   ].join("\n\n");
-}
-
-export function runtimeContext(freeflowContext, capabilityState) {
-  if (
-    capabilityState?.configured !== true ||
-    capabilityState?.enabled !== true ||
-    !hasUsableMandatoryPrompts(freeflowContext)
-  ) {
-    return "";
-  }
-
-  const blocks = [freeflowContext.corePrompt.trim(), freeflowContext.interactionContractPrompt.trim()];
-  if (
-    capabilityState.cognitiveRouting?.effective === true &&
-    isPromptAvailable(freeflowContext.cognitiveRoutingPrompt)
-  ) {
-    blocks.push(freeflowContext.cognitiveRoutingPrompt.trim());
-  }
-  if (capabilityState.toolExecution?.effective === true && isPromptAvailable(freeflowContext.toolExecutionPrompt))
-    blocks.push(freeflowContext.toolExecutionPrompt.trim());
-  return blocks.filter(Boolean).join("\n\n");
 }
 
 export async function setSessionCoreOverride(key: SessionCoreKey, value: boolean | null, ctx, pi) {
