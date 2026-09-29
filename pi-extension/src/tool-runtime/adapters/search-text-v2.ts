@@ -14,7 +14,6 @@ import {
   encodeProjectCursor,
   MAX_PROJECT_PATHS,
   projectFingerprint,
-  type ProjectCursor,
 } from "./rg-project.js";
 import { MAX_WORKSPACE_TEXT_BYTES, readWorkspaceSnapshot, WorkspaceError } from "./workspace.js";
 

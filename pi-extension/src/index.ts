@@ -32,7 +32,6 @@ import {
   WORKFLOW_COMMANDS,
   freeflowModelSkillPaths,
   freeflowCapabilitySkillPath,
-  freeflowSkillPath,
   STABLE_FREEFLOW_SURFACE,
   skillPrompt,
 } from "./host/catalog.js";
@@ -194,7 +193,6 @@ export default function freeflow(pi: FreeflowAPI) {
         thinkingLevel: { enumerable: true, get: () => api.getThinkingLevel?.() ?? ctx.thinkingLevel },
       },
     );
-  let sessionContext: any;
   let surfaceGeneration = 0;
 
   const unavailable = (state: any, message: string) => ({
@@ -216,7 +214,6 @@ export default function freeflow(pi: FreeflowAPI) {
     capability = next;
     toolRuntime.refreshAdapters();
     prompts = loaded;
-    sessionContext = ctx;
     return next;
   }
   function status(ctx: any) {
@@ -293,7 +290,6 @@ export default function freeflow(pi: FreeflowAPI) {
     prompts = undefined;
     refreshState = true;
     restoreSessionOverrides(ctx);
-    const initial = await readCapabilityState(ctx.cwd, ctx);
     await refreshRuntimeContext(STABLE_FREEFLOW_SURFACE);
     if (generation !== surfaceGeneration) return;
     await loadSurface(ctx);
@@ -321,7 +317,6 @@ export default function freeflow(pi: FreeflowAPI) {
     effects.reset();
     capability = undefined;
     prompts = undefined;
-    sessionContext = undefined;
   });
   pi.on("before_agent_start", async (event, ctx) => {
     await update(ctx);

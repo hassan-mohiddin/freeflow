@@ -4,7 +4,6 @@ import { Sources, bodyHash, deliveredSelection, type Source } from "./sources.js
 import {
   canonical,
   emptySelection,
-  idFor,
   isWorkerProfile,
   PROFILES,
   requireCondition as check,

@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { TextDecoder } from "node:util";
 
-import { canonical } from "../../host/canonical.js";
 import type { ToolExecutionState } from "../config.js";
 import type { ResponsibilitySnapshot } from "../contracts.js";
 import {

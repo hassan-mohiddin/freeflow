@@ -10,7 +10,8 @@
     "strict": false,
     "noEmitOnError": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["node"],
+    "noUnusedLocals": true
   },
   "include": ["src/**/*.ts"]
 }
