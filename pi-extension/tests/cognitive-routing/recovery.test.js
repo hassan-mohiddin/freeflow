@@ -41,10 +41,10 @@ for (const recoveryWorker of ["executor", "helper"]) {
           !replayed.has(key)
         ) {
           replayed.add(key);
-          this.receipts.clear();
+          this.session.receipts.clear();
           const repeated = await originalInvoke.call(this, name, id, intercepted, signal, ctx);
           assert.deepEqual(repeated, first, "same accepted operation returns the recorded receipt");
-          this.receipts.clear();
+          this.session.receipts.clear();
           const changed = await originalInvoke.call(
             this,
             name,

@@ -135,7 +135,7 @@ test("a duplicate delegation operation cannot change its recorded worker", { tim
     const result = await originalInvoke.call(this, name, id, input, signal, ctx);
     if (!checked && name === "freeflow_delegate" && input.worker === "helper") {
       checked = true;
-      this.receipts.clear();
+      this.session.receipts.clear();
       const conflict = await originalInvoke.call(this, name, id, { ...input, worker: "executor" }, signal, ctx);
       assert.equal(conflict.details.code, "operation_conflict");
     }

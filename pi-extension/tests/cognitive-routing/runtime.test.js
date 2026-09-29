@@ -517,3 +517,36 @@ test("a mid-session configuration change blocks with a recovery hint until recon
     assert.equal((await runtime.setAutomaticControl()).status, "automatic");
     assert.equal(runtime.state().runtimeStatus, "active");
   }));
+
+test("rebinding, unbinding, and tree navigation forget the previous turn's derived state", async () =>
+  environment(async ({ runtime, make, activate }) => {
+    const a = make("a"),
+      b = make("b");
+    const { session } = runtime;
+    const dirty = () => {
+      session.turn = { bound: false };
+      session.messages = [{ role: "user", content: "stale" }];
+      session.sourceCache = { entries: [], authors: 0, source: {} };
+      session.receipts.set("stale-op", { input: "{}", value: "stale result" });
+      session.pages.set("stale-page", { scope: "ctx", basis: null, rows: [], size: 0 });
+    };
+    const assertForgotten = (when) => {
+      assert.equal(session.turn, undefined, `${when}: turn`);
+      assert.deepEqual(session.messages, [], `${when}: messages`);
+      assert.equal(session.sourceCache, undefined, `${when}: source cache`);
+      assert.equal(session.receipts.size, 0, `${when}: replay receipts`);
+      assert.equal(session.pages.size, 0, `${when}: inspection pages`);
+    };
+    activate(a);
+    await runtime.bind(a, cap);
+    dirty();
+    await runtime.ancestryChanged(a);
+    assertForgotten("tree navigation");
+    dirty();
+    activate(b);
+    await runtime.bind(b, cap);
+    assertForgotten("rebind");
+    dirty();
+    runtime.unbind();
+    assertForgotten("unbind");
+  }));

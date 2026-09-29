@@ -33,8 +33,6 @@ export class RoutingRuntime {
   /** State shared with every part of routing for the bound session. */
   session = new RoutingSession();
   targetSignature;
-  receipts = new Map();
-  pages = new Map();
   resultGrants;
   effectFence;
   constructor(pi, packageRoots = []) {
@@ -42,6 +40,9 @@ export class RoutingRuntime {
     this.packageRoots = packageRoots;
     this.models = new ModelControl(this.session, this.pi);
     this.gate = new ToolGate(this.session, this.packageRoots);
+  }
+  get projectionEnabled() {
+    return this.session.projectionEnabled;
   }
   setResultGrantPort(port) {
     this.resultGrants = port;
@@ -101,13 +102,6 @@ export class RoutingRuntime {
       return;
     }
   }
-  get projectionEnabled() {
-    return (
-      this.session.supported() &&
-      this.session.capability?.projection === true &&
-      this.session.stateData().control === "automatic"
-    );
-  }
   /** The outstanding worker responsibility that no later user input has overtaken, if any. */
   resumableAssignment(state) {
     const assignment = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
@@ -157,13 +151,9 @@ export class RoutingRuntime {
     this.session.token = randomUUID();
     this.session.ctx = ctx;
     this.session.capability = capability;
-    this.session.turn = undefined;
+    this.session.resetTurn();
     this.session.manualHold = undefined;
     this.session.automaticControl = false;
-    this.session.messages = [];
-    this.session.sourceCache = undefined;
-    this.receipts.clear();
-    this.pages.clear();
     this.models.applying = undefined;
     this.models.externalChange = false;
     this.session.error = undefined;
@@ -240,12 +230,8 @@ export class RoutingRuntime {
   unbind() {
     this.session.token = randomUUID();
     this.session.store = undefined;
-    this.session.turn = undefined;
-    this.session.messages = [];
     this.session.ctx = undefined;
-    this.session.sourceCache = undefined;
-    this.receipts.clear();
-    this.pages.clear();
+    this.session.resetTurn();
   }
   async refresh(ctx, capability) {
     this.session.ctx = ctx;
@@ -298,11 +284,7 @@ export class RoutingRuntime {
   async ancestryChanged(ctx, navigation = true) {
     this.session.revision++;
     this.session.ctx = ctx;
-    this.session.turn = undefined;
-    this.session.messages = [];
-    this.session.sourceCache = undefined;
-    this.receipts.clear();
-    this.pages.clear();
+    this.session.resetTurn();
     if (!this.session.store || !this.session.supported()) return;
     const subject = this.session.subject();
     try {
@@ -495,7 +477,7 @@ export class RoutingRuntime {
       sources: this.session.sources(state),
       state,
       view: profile,
-      projection: this.projectionEnabled,
+      projection: this.session.projectionEnabled,
       model,
       pair: this.session.profilePair(profile),
       systemPrompt: this.session.ctx.getSystemPrompt?.() ?? "",
@@ -584,7 +566,7 @@ export class RoutingRuntime {
         (state.profile !== worker ||
           user !== (outstanding ? this.session.workerBasis(state, outstanding.id) : undefined));
       if (!this.session.turn || this.session.turn.bound) {
-        this.receipts.clear();
+        this.session.receipts.clear();
         const execution = {
           id: randomUUID(),
           profile: state.profile,
@@ -684,7 +666,7 @@ export class RoutingRuntime {
           name === "freeflow_delegate" || name === "freeflow_unit" ? "coordinator" : this.session.assignedWorker(state);
         this.session.assertAvailable(expected);
         const op = this.callOperation(callId, name);
-        const cached = this.receipts.get(op);
+        const cached = this.session.receipts.get(op);
         if (cached) {
           check(cached.input === canonical(input), "operation_conflict");
           return this.result(structuredClone(cached.value));
@@ -700,7 +682,7 @@ export class RoutingRuntime {
                   ? await this.unit(input, callId, op)
                   : undefined;
         if (value !== undefined) {
-          this.receipts.set(op, { input: canonical(input), value: structuredClone(value) });
+          this.session.receipts.set(op, { input: canonical(input), value: structuredClone(value) });
           return this.result(value);
         }
         throw new RoutingError("unknown_tool", name);
@@ -982,7 +964,7 @@ export class RoutingRuntime {
     };
   }
   project(input, op) {
-    check(this.projectionEnabled, "projection_disabled");
+    check(this.session.projectionEnabled, "projection_disabled");
     const state = this.session.stateData(),
       a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
     check(a, "assignment_missing");
@@ -1246,7 +1228,7 @@ export class RoutingRuntime {
       if (state.assessment.view === "active") return { status: "unchanged", ready: true };
       const prepared = this.prepared("coordinator", this.session.messages, state.assessment.handoffId, true);
       if (!prepared.ready) return { status: "suspended", ready: false, problems: prepared.problems };
-      if (this.projectionEnabled) check(prepared.reservation, "reservation_missing");
+      if (this.session.projectionEnabled) check(prepared.reservation, "reservation_missing");
       this.session.append(
         {
           type: "assessment-resumed",
@@ -1307,7 +1289,7 @@ export class RoutingRuntime {
       check(match, "invalid_cursor", "Use the returned cursor unchanged.");
       key = match[1];
       offset = Number(match[2]);
-      const page = this.pages.get(key);
+      const page = this.session.pages.get(key);
       check(
         page &&
           page.scope === scope &&
@@ -1323,9 +1305,9 @@ export class RoutingRuntime {
       );
     } else {
       key = randomUUID();
-      if (this.pages.size >= 8) this.pages.delete(this.pages.keys().next().value);
+      if (this.session.pages.size >= 8) this.session.pages.delete(this.session.pages.keys().next().value);
       const items = typeof rows === "function" ? rows() : rows;
-      this.pages.set(key, {
+      this.session.pages.set(key, {
         scope,
         basis: branch.at(-1)?.id ?? null,
         assignment,
@@ -1335,7 +1317,7 @@ export class RoutingRuntime {
         summary: summarize?.(items),
       });
     }
-    const page = this.pages.get(key);
+    const page = this.session.pages.get(key);
     return {
       scope,
       count: page.rows.length,
@@ -1638,7 +1620,7 @@ export class RoutingRuntime {
       "The saved handoff has an incomplete native exchange; reconcile or explicitly dispose of it.",
     );
     let attentionProblems = [];
-    if (["return", "recovery-return"].includes(h.kind) && this.projectionEnabled) {
+    if (["return", "recovery-return"].includes(h.kind) && this.session.projectionEnabled) {
       const prepared = this.prepared("coordinator", inputs, h.id);
       if (!prepared.ready) {
         const attentionFallback = h.kind === "recovery-return" && h.outcome !== "completed";

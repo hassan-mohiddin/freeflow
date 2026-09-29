@@ -64,6 +64,32 @@ export class RoutingSession {
   manualHold?: Profile;
   automaticControl = false;
   sourceCache?: { entries: NativeEntry[]; authors: number; source: Sources };
+  /** Replayed tool results for the current turn, keyed by operation id. */
+  receipts = new Map<string, { input: string; value: any }>();
+  /** Recently served inspection pages, keyed by request; at most eight are kept. */
+  pages = new Map<
+    string,
+    {
+      scope: string;
+      basis: string | null;
+      assignment?: string;
+      compaction?: string;
+      rows: any[];
+      size: number;
+      summary?: any;
+    }
+  >();
+  get projectionEnabled(): boolean {
+    return this.supported() && this.capability?.projection === true && this.stateData().control === "automatic";
+  }
+  /** Forgets everything derived for the current turn: its context view, sources, replay receipts, and pages. */
+  resetTurn(): void {
+    this.turn = undefined;
+    this.messages = [];
+    this.sourceCache = undefined;
+    this.receipts.clear();
+    this.pages.clear();
+  }
   subject(): Subject {
     const branch = this.store?.reader.getBranch() ?? [];
     return {
