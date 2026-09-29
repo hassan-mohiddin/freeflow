@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { RoutingRuntime } from "../../dist/cognitive-routing/runtime.js";
-import { EventStore } from "../../dist/cognitive-routing/events.js";
+import { EventStore } from "../../dist/cognitive-routing/event-store.js";
 import { routingState } from "../fixtures/routing-state.js";
 import { takeStage } from "../../dist/host/staging.js";
 

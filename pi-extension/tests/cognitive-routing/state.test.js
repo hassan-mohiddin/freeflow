@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { initialState, reduce, parseRoutingEvent } from "../../dist/cognitive-routing/state.js";
+import { parseRoutingEvent } from "../../dist/cognitive-routing/event-schema.js";
+import { initialState, reduce } from "../../dist/cognitive-routing/state.js";
 const pair = { provider: "fixture", modelId: "model", thinking: "off" };
 function machine() {
   let s = initialState(),

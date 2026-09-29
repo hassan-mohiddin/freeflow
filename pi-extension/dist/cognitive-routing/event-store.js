@@ -4,47 +4,32 @@ import {
   readOnlySessionSnapshot,
   ReadOnlySessionError,
 } from "../host/read-only-session.js";
-import {
-  ROUTING_ENTRY,
-  RoutingError,
-  canonical,
-  eventKey,
-  eventValue,
-  requireCondition as check,
-  type EventData,
-  type NativeEntry,
-  type RoutingEvent,
-} from "./types.js";
-import { parseRoutingEvent, reduce, replay } from "./state.js";
+import { ROUTING_ENTRY, RoutingError, canonical, eventKey, eventValue, requireCondition as check } from "./types.js";
+import { parseRoutingEvent } from "./event-schema.js";
+import { reduce, replay } from "./state.js";
 import { sessionStage, stagedFor } from "../host/staging.js";
-
-export interface SessionReader {
-  getSessionId(): string;
-  getSessionFile(): string | undefined;
-  getBranch(): readonly NativeEntry[];
-  getEntries(): readonly NativeEntry[];
-  getLeafId(): string | null;
-}
 export class EventStore {
-  private observed = new Map<string, { value: string; eventId: string; entryId: string }>();
-  private attempted = new Map<string, RoutingEvent>();
-  private fault?: string;
-  private ready = false;
-  private cachedEntries: readonly NativeEntry[] = [];
-  private cachedState = replay([]);
-  constructor(
-    private readonly pi: { appendEntry(type: string, data: unknown): void },
-    readonly reader: SessionReader,
-  ) {}
-  get blocked(): string | undefined {
+  pi;
+  reader;
+  observed = new Map();
+  attempted = new Map();
+  fault;
+  ready = false;
+  cachedEntries = [];
+  cachedState = replay([]);
+  constructor(pi, reader) {
+    this.pi = pi;
+    this.reader = reader;
+  }
+  get blocked() {
     return this.fault ?? (!this.ready ? "acknowledgment_unclassified" : undefined);
   }
   /** Routing state from the branch plus control changes staged since the last prompt. */
   state() {
-    const staged = (stagedFor(this.reader)?.events ?? []) as RoutingEvent[];
+    const staged = stagedFor(this.reader)?.events ?? [];
     return staged.reduce((state, event) => reduce(state, event), this.branchState());
   }
-  private branchState() {
+  branchState() {
     const entries = this.reader.getBranch();
     const prefix =
       this.cachedEntries.length <= entries.length && this.cachedEntries.every((entry, i) => entry === entries[i]);
@@ -61,11 +46,11 @@ export class EventStore {
     this.cachedEntries = [...entries];
     return this.cachedState;
   }
-  block(reason: string): void {
+  block(reason) {
     this.fault = reason;
     this.ready = false;
   }
-  make(data: EventData, operationId: string = randomUUID(), stepId: string = data.type): RoutingEvent {
+  make(data, operationId = randomUUID(), stepId = data.type) {
     return parseRoutingEvent({
       version: 2,
       eventId: randomUUID(),
@@ -75,14 +60,14 @@ export class EventStore {
       data,
     });
   }
-  async reconcile(): Promise<void> {
+  async reconcile() {
     const acknowledged = this.ready && !this.fault;
     this.ready = false;
     const branch = this.reader.getBranch();
     const live = branch.filter((e) => e.type === "custom" && e.customType === ROUTING_ENTRY);
     try {
-      const ids = new Set<string>();
-      let parent: string | null = null;
+      const ids = new Set();
+      let parent = null;
       for (const entry of branch) {
         check(
           typeof entry.id === "string" && !ids.has(entry.id) && entry.parentId === parent,
@@ -119,7 +104,7 @@ export class EventStore {
         !this.reader.getEntries().some((entry) => entry.type === "message" && entry.message?.role === "assistant");
       if (preFlush) {
         replay(branch);
-        const known = new Map<string, { value: string; eventId: string; entryId: string }>();
+        const known = new Map();
         for (const entry of branch) {
           if (entry.type === "custom" && entry.customType === ROUTING_ENTRY) {
             const event = parseRoutingEvent(entry.data);
@@ -143,9 +128,9 @@ export class EventStore {
         "snapshot_ancestry_mismatch",
         "Live branch is not the complete persisted ancestry for its claimed leaf.",
       );
-      replay(persistedBranch as NativeEntry[]);
+      replay(persistedBranch);
       const disk = new Map(persistedBranch.map((e) => [e.id, e]));
-      const known = new Map<string, { value: string; eventId: string; entryId: string }>();
+      const known = new Map();
       // Compare the live selected ancestry, not whichever branch was last written on disk.
       for (const entry of branch) {
         const captured = disk.get(entry.id);
@@ -183,14 +168,14 @@ export class EventStore {
     }
   }
   /** Append an event; with `stage`, hold it for the next prompt instead of writing it to the session now. */
-  append(event: RoutingEvent, stage = false): RoutingEvent {
+  append(event, stage = false) {
     const value = parseRoutingEvent(event),
       key = eventKey(value),
       body = eventValue(value);
     if (this.blocked) throw new RoutingError("acknowledgment_uncertain", this.blocked);
     const staged = stage ? sessionStage(this.reader) : stagedFor(this.reader);
     const prior = this.state().events.get(key);
-    if (prior && staged?.events.some((event) => eventKey(event as RoutingEvent) === key)) {
+    if (prior && staged?.events.some((event) => eventKey(event) === key)) {
       check(eventValue(prior) === body, "operation_conflict");
       return prior;
     }
@@ -207,9 +192,7 @@ export class EventStore {
         .getBranch()
         .find(
           (entry) =>
-            entry.type === "custom" &&
-            entry.customType === ROUTING_ENTRY &&
-            (entry.data as any)?.eventId === prior.eventId,
+            entry.type === "custom" && entry.customType === ROUTING_ENTRY && entry.data?.eventId === prior.eventId,
         );
       if (
         this.observed.get(key)?.value !== body ||
@@ -217,7 +200,7 @@ export class EventStore {
         this.observed.get(key)?.entryId !== occurrence?.id
       ) {
         this.block("prior_acknowledgment_unclassified");
-        throw new RoutingError("acknowledgment_uncertain", this.blocked!);
+        throw new RoutingError("acknowledgment_uncertain", this.blocked);
       }
       return prior;
     }
@@ -229,15 +212,13 @@ export class EventStore {
       this.pi.appendEntry(ROUTING_ENTRY, value);
       const found = this.reader
         .getBranch()
-        .find(
-          (e) => e.type === "custom" && e.customType === ROUTING_ENTRY && (e.data as any)?.eventId === value.eventId,
-        );
+        .find((e) => e.type === "custom" && e.customType === ROUTING_ENTRY && e.data?.eventId === value.eventId);
       check(found && eventValue(parseRoutingEvent(found.data)) === body, "append_not_observed");
       this.observed.set(key, { value: body, eventId: value.eventId, entryId: found.id });
       this.attempted.delete(key);
       const branch = this.reader.getBranch();
       const delta = branch.slice(baseline.length).filter((e) => e.type === "custom" && e.customType === ROUTING_ENTRY);
-      if (baseline.every((e, i) => branch[i] === e) && delta.length === 1 && delta[0].id === found!.id) {
+      if (baseline.every((e, i) => branch[i] === e) && delta.length === 1 && delta[0].id === found.id) {
         // Publish the already validated candidate only after acknowledged native append.
         this.cachedState = candidate;
         this.cachedEntries = [...branch];
@@ -255,12 +236,12 @@ export class EventStore {
    * Write the net effect of control changes staged since the last prompt: at most one delegation, one profile
    * override, and one control event, each only when it changes the recorded state.
    */
-  writeStaged(events: readonly unknown[]): void {
+  writeStaged(events) {
     if (!events.length) return;
-    const staged = events as RoutingEvent[];
+    const staged = events;
     const before = this.branchState();
     const after = staged.reduce((state, event) => reduce(state, event), before);
-    const last = (type: string) => staged.filter((event) => event.data.type === type).at(-1)!;
+    const last = (type) => staged.filter((event) => event.data.type === type).at(-1);
     if (before.delegationOverride !== after.delegationOverride) this.append(last("delegation-override"));
     const changed = Object.fromEntries(
       [...new Set([...before.profileOverrides.keys(), ...after.profileOverrides.keys()])]
@@ -270,8 +251,7 @@ export class EventStore {
         )
         .map((profile) => [profile, after.profileOverrides.get(profile) ?? null]),
     );
-    if (Object.keys(changed).length)
-      this.append(this.make({ ...last("profile-overrides").data, overrides: changed } as EventData));
+    if (Object.keys(changed).length) this.append(this.make({ ...last("profile-overrides").data, overrides: changed }));
     if (before.control !== after.control || before.profile !== after.profile) this.append(last("control"));
   }
 }

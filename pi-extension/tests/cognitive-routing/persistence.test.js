@@ -5,7 +5,7 @@ import { mkdtemp, readFile, writeFile, rename, mkdir, rm } from "node:fs/promise
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { EventStore } from "../../dist/cognitive-routing/events.js";
+import { EventStore } from "../../dist/cognitive-routing/event-store.js";
 import {
   parseReadOnlySessionText,
   readOnlySessionSnapshot,

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ContextAssembler } from "./assembler.js";
 import type { CognitiveRoutingCapabilityState } from "./config.js";
-import { EventStore, type SessionReader } from "./events.js";
+import { EventStore, type SessionReader } from "./event-store.js";
 import { ToolGate } from "./gate.js";
 import { Handoffs } from "./handoffs.js";
 import { ToolHandlers } from "./handlers.js";

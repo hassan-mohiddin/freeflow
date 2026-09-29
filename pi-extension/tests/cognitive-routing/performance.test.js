@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { performance } from "node:perf_hooks";
 import { fixture } from "../fixtures/routing-native.js";
-import { EventStore } from "../../dist/cognitive-routing/events.js";
+import { EventStore } from "../../dist/cognitive-routing/event-store.js";
 
 test("unchanged native history reuses state, while deltas and ancestry changes invalidate it", async () => {
   const entries = [];

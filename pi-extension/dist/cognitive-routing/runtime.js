@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { ContextAssembler } from "./assembler.js";
-import { EventStore } from "./events.js";
+import { EventStore } from "./event-store.js";
 import { ToolGate } from "./gate.js";
 import { Handoffs } from "./handoffs.js";
 import { ToolHandlers } from "./handlers.js";

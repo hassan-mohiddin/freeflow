@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { EventStore } from "./events.js";
+import { EventStore } from "./event-store.js";
 import { Sources } from "./sources.js";
 import { pairFromProfile, type CognitiveRoutingCapabilityState } from "./config.js";
 import { initialState } from "./state.js";

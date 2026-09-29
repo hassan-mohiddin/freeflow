@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fixture } from "../fixtures/routing-native.js";
 import { takeStage } from "../../dist/host/staging.js";
-import { EventStore } from "../../dist/cognitive-routing/events.js";
+import { EventStore } from "../../dist/cognitive-routing/event-store.js";
 import { replay } from "../../dist/cognitive-routing/state.js";
 import {
   restoreSessionOverrides,
