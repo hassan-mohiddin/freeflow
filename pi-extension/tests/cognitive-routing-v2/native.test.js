@@ -4,8 +4,8 @@ import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { replay } from "../../dist/cognitive-routing-v2/state.js";
 import { fixture, response } from "../fixtures/routing-native.js";
+import { routingState } from "../fixtures/routing-state.js";
 
 for (const projection of [false, true])
   test(`native delegate/read/return/close with projection=${projection}`, { timeout: 30000 }, async () => {
@@ -96,7 +96,7 @@ test(
       }
       if (n === 4) {
         assert.equal(body.model, "gpt-4.1-mini");
-        const s = replay(manager.getBranch());
+        const s = routingState(manager);
         reportId = s.assessment.handoffId;
         assert.equal(s.handoffs.get(reportId).text, report);
         assert.equal(s.handoffs.get(reportId).state, "blocked");
@@ -121,7 +121,7 @@ test(
         assert.equal(body.model, "gpt-4o");
         assert.match(JSON.stringify(body), new RegExp(report));
         assert.match(JSON.stringify(body), /EXACT_EVIDENCE_BODY_81/);
-        const s = replay(manager.getBranch());
+        const s = routingState(manager);
         assert.equal(s.assessment.handoffId, reportId);
         assert.equal(s.handoffs.get(reportId).reportRevision, 1);
         return [
@@ -190,11 +190,11 @@ test("native projection omits an unselected sibling body but preserves its excha
     },
     true,
     async ({ session, manager, requests }) => {
-      const before = replay(manager.getBranch()).assessment.handoffId;
+      const before = routingState(manager).assessment.handoffId;
       await session.reload();
       await session.prompt("A new question unrelated to the pending assessment.");
       await session.waitForIdle();
-      const state = replay(manager.getBranch());
+      const state = routingState(manager);
       assert.equal(state.assessment.handoffId, before);
       assert.equal(state.assessment.view, "suspended");
       const last = JSON.stringify(requests.at(-1));
@@ -346,7 +346,7 @@ for (const withUI of [false, true])
               },
             ];
           if (n === 2) {
-            const s = replay(manager.getBranch());
+            const s = routingState(manager);
             originalAssignment = s.assignmentId;
             unit = s.unitId;
             return [];
@@ -366,7 +366,7 @@ for (const withUI of [false, true])
           }
           if (n === 4) {
             assert.equal(body.model, "gpt-4.1-mini");
-            const s = replay(manager.getBranch());
+            const s = routingState(manager);
             assert.equal(s.unitId, unit);
             assert.notEqual(s.assignmentId, originalAssignment);
             assert.equal(s.assignments.get(originalAssignment).state, "superseded");
@@ -389,16 +389,16 @@ for (const withUI of [false, true])
         false,
         async ({ session, manager, requests, notices }) => {
           await session.prompt("/freeflow profile coordinator");
-          assert.equal(replay(manager.getBranch()).control, "manual");
+          assert.equal(routingState(manager).control, "manual");
           await session.reload();
-          assert.equal(replay(manager.getBranch()).control, "manual");
-          assert.equal(replay(manager.getBranch()).assignmentId, originalAssignment);
+          assert.equal(routingState(manager).control, "manual");
+          assert.equal(routingState(manager).assignmentId, originalAssignment);
           await session.prompt("/freeflow profile auto");
-          assert.equal(replay(manager.getBranch()).control, "automatic", JSON.stringify(notices));
+          assert.equal(routingState(manager).control, "automatic", JSON.stringify(notices));
           await session.prompt("Replace the old assignment with the revised result.");
           await session.waitForIdle();
           assert.equal(requests.length, 6);
-          assert.equal(replay(manager.getBranch()).unitId, undefined);
+          assert.equal(routingState(manager).unitId, undefined);
         },
         withUI,
       );
@@ -431,7 +431,7 @@ test(
           ];
         }
         if (n === 4) {
-          handoff = replay(manager.getBranch()).assessment.handoffId;
+          handoff = routingState(manager).assessment.handoffId;
           assert.match(JSON.stringify(body), /EXACT_EVIDENCE_BODY_81/);
           return [];
         }
@@ -441,7 +441,7 @@ test(
         }
         if (n === 6) {
           assert.match(JSON.stringify(body), /EXACT_EVIDENCE_BODY_81/);
-          assert.equal(replay(manager.getBranch()).assessment.handoffId, handoff);
+          assert.equal(routingState(manager).assessment.handoffId, handoff);
           return [
             {
               name: "freeflow_unit",
@@ -463,11 +463,11 @@ test(
           !manager.buildContextEntries().some((e) => "ctx:" + e.id === ref),
           "source is no longer in ordinary active context",
         );
-        assert.equal(replay(manager.getBranch()).assessment.handoffId, handoff);
+        assert.equal(routingState(manager).assessment.handoffId, handoff);
         await session.prompt("Return to the saved assessment.");
         await session.waitForIdle();
         assert.equal(requests.length, 7);
-        assert.equal(replay(manager.getBranch()).unitId, undefined);
+        assert.equal(routingState(manager).unitId, undefined);
       },
     );
   },

@@ -28,6 +28,7 @@ export const ROUTING_TOOLS = ["freeflow_delegate", "freeflow_return", "freeflow_
 export const ROUTING_RECOVERY_HINT =
   "Run /freeflow profile auto to reconcile routing, or /freeflow resume to continue saved work.";
 const HANDOFF_TOOLS = new Set(["freeflow_delegate", "freeflow_return"]);
+const STAGED_CONTROL = new Set(["control", "profile-overrides", "delegation-override"]);
 export class RoutingRuntime {
   pi;
   packageRoots;
@@ -342,7 +343,9 @@ export class RoutingRuntime {
   }
   append(data, op, step) {
     check(this.store, "routing_unavailable");
-    return this.store.append(this.store.make(data, op, step));
+    // Control changes made while no run is active affect no request until the next prompt; stage them there.
+    const stage = STAGED_CONTROL.has(data.type) && this.ctx?.isIdle?.() !== false;
+    return this.store.append(this.store.make(data, op, step), stage);
   }
   enqueue(action) {
     const token = this.token;
@@ -557,6 +560,15 @@ export class RoutingRuntime {
         );
     } catch (error) {
       if (this.current(subject)) this.mark(error);
+    }
+  }
+  /** Write routing events staged before the session's first prompt; nothing to write once routing is unbound. */
+  writeStaged(events) {
+    if (!this.store || !events.length) return;
+    try {
+      this.store.writeStaged(events);
+    } catch (error) {
+      this.mark(error);
     }
   }
   unbind() {

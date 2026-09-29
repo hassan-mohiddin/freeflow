@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fixture } from "../fixtures/routing-native.js";
+import { routingState } from "../fixtures/routing-state.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const profileFor = { "gpt-4o": "coordinator", "gpt-4.1-mini": "executor" };
@@ -30,6 +31,15 @@ test("rapid manual-hold shortcuts never record a profile whose model was not app
       }
       await Promise.allSettled(presses);
       await sleep(400);
+      // Holds made between prompts are staged; the effective hold must match the model the host runs.
+      assert.equal(
+        profileFor[session.model.id],
+        routingState(session.sessionManager).profile,
+        "final profile matches the active model",
+      );
+      // When the next prompt writes the net change, it names the model that was active then.
+      await session.prompt("Next task.");
+      await session.waitForIdle();
       let model = "gpt-4o";
       for (const entry of session.sessionManager.getBranch()) {
         if (entry.type === "model_change") model = entry.modelId;
@@ -37,11 +47,6 @@ test("rapid manual-hold shortcuts never record a profile whose model was not app
         if (data?.type === "control" && data.control === "manual")
           assert.equal(profileFor[model], data.profile, `manual ${data.profile} recorded while ${model} was active`);
       }
-      const last = session.sessionManager
-        .getBranch()
-        .filter((e) => e.customType === "freeflow-routing-v2" && e.data.data.type === "control")
-        .at(-1).data.data;
-      assert.equal(profileFor[session.model.id], last.profile, "final profile matches the active model");
       const release = [...runner.getShortcuts({}).values()].find((s) =>
         /Release manual hold/.test(s.description ?? ""),
       );
@@ -50,10 +55,7 @@ test("rapid manual-hold shortcuts never record a profile whose model was not app
       racing.push(release.handler(ctx));
       await Promise.allSettled(racing);
       await sleep(400);
-      const released = session.sessionManager
-        .getBranch()
-        .filter((e) => e.customType === "freeflow-routing-v2" && e.data.data.type === "control")
-        .at(-1).data.data;
+      const released = routingState(session.sessionManager);
       assert.deepEqual([released.control, released.profile], ["automatic", "coordinator"]);
       assert.equal(session.model.id, "gpt-4o", "automatic release applies the Coordinator model");
     },

@@ -3,8 +3,8 @@ import test from "node:test";
 import { access, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fixture } from "../fixtures/routing-native.js";
-import { replay } from "../../dist/cognitive-routing-v2/state.js";
 import { RoutingRuntime } from "../../dist/cognitive-routing-v2/runtime.js";
+import { routingState } from "../fixtures/routing-state.js";
 
 for (const recoveryWorker of ["executor", "helper"]) {
   const cognitiveRouting =
@@ -65,7 +65,7 @@ for (const recoveryWorker of ["executor", "helper"]) {
                 { name: "freeflow_delegate", args: { operation: "assign", contract: "Read two files and report." } },
               ];
             if (n === 2) {
-              assert.equal(replay(manager.getBranch()).profile, recoveryWorker);
+              assert.equal(routingState(manager).profile, recoveryWorker);
               return [
                 { name: "read", args: { path: "evidence.txt" } },
                 { name: "read", args: { path: "unselected.txt" } },
@@ -83,7 +83,7 @@ for (const recoveryWorker of ["executor", "helper"]) {
               ];
             }
             if (n === 4) {
-              const state = replay(manager.getBranch());
+              const state = routingState(manager);
               assignmentId = state.assignmentId;
               baseReportId = state.assignments.get(assignmentId).returnHandoffId;
               baseReportRevision = state.handoffs.get(baseReportId).reportRevision;
@@ -104,7 +104,7 @@ for (const recoveryWorker of ["executor", "helper"]) {
             }
             if (n === 5) {
               assert.equal(body.model, "gpt-4.1-mini");
-              assert.equal(replay(manager.getBranch()).profile, recoveryWorker);
+              assert.equal(routingState(manager).profile, recoveryWorker);
               assert.match(
                 JSON.stringify(body),
                 /Select the omitted result and read the approved third file only\. \[accepted\]/,
@@ -174,7 +174,7 @@ for (const recoveryWorker of ["executor", "helper"]) {
             }
             assert.equal(body.model, "gpt-4o");
             const wire = JSON.stringify(body);
-            const state = replay(manager.getBranch());
+            const state = routingState(manager);
             if (n === 14) {
               assert.equal(state.assessment.view, "suspended");
               assert.equal(state.assessment.suspensionReason, "user-attention");
@@ -295,7 +295,7 @@ for (const returnedWorker of ["executor", "helper"]) {
             { name: "freeflow_delegate", args: { operation: "assign", contract: "Return with a delivery gap." } },
           ];
         if (n === 2) {
-          const state = replay(manager.getBranch());
+          const state = routingState(manager);
           assignmentId = state.assignmentId;
           assert.equal(state.profile, returnedWorker);
           return [
@@ -307,7 +307,7 @@ for (const returnedWorker of ["executor", "helper"]) {
           ];
         }
         if (n === 3) {
-          const state = replay(manager.getBranch());
+          const state = routingState(manager);
           assert.equal(state.profile, returnedWorker);
           assert.equal(state.assignments.get(assignmentId).state, "returned");
           assert.equal(state.handoffs.get(state.assignments.get(assignmentId).returnHandoffId).state, "blocked");
@@ -329,7 +329,7 @@ for (const returnedWorker of ["executor", "helper"]) {
           ];
         }
         assert.equal(body.model, "gpt-4o");
-        const state = replay(manager.getBranch());
+        const state = routingState(manager);
         assert.equal(state.assignmentId, assignmentId);
         assert.equal(state.assignments.get(assignmentId).state, "returned");
         assert.equal(state.handoffs.get(state.assignments.get(assignmentId).returnHandoffId).state, "configured");
@@ -361,7 +361,7 @@ test(
           },
         ];
       if (n === 3) {
-        const state = replay(manager.getBranch());
+        const state = routingState(manager);
         baseReportId = state.assignments.get(state.assignmentId).returnHandoffId;
         return [
           {
@@ -383,7 +383,7 @@ test(
       assert.match(wire, /FALLBACK_BASE_REPORT_19/);
       assert.match(wire, /FALLBACK_SUPPLEMENT_23/);
       assert.match(wire, /source_unavailable|Exact source is unavailable/);
-      const state = replay(manager.getBranch());
+      const state = routingState(manager);
       assert.equal(state.assessment.handoffId, baseReportId);
       assert.equal(state.assessment.view, "suspended");
       assert.equal(state.assessment.suspensionReason, "delivery-gap");
@@ -408,7 +408,7 @@ test(
             { name: "freeflow_return", args: { operation: "submit", report: "CANCEL_BASE_31", outcome: "completed" } },
           ];
         if (n === 3) {
-          const state = replay(manager.getBranch());
+          const state = routingState(manager);
           baseReportId = state.assignments.get(state.assignmentId).returnHandoffId;
           return [{ name: "freeflow_unit", args: { operation: "recover", request: "Wait for cancellation." } }];
         }
@@ -416,7 +416,7 @@ test(
         if (n === 5)
           return [{ name: "freeflow_unit", args: { operation: "cancel-recovery", reason: "No longer needed." } }];
         if (n === 6) {
-          const state = replay(manager.getBranch());
+          const state = routingState(manager);
           assert.equal(state.recoveryId, undefined);
           assert.equal([...state.recoveries.values()].at(-1).state, "cancelled");
           assert.equal(state.handoffs.get(baseReportId).text, "CANCEL_BASE_31");
@@ -424,7 +424,7 @@ test(
           assert.equal(state.assessment.view, "suspended");
           return [{ name: "freeflow_unit", args: { operation: "assess" } }];
         }
-        assert.equal(replay(manager.getBranch()).assessment.view, "active");
+        assert.equal(routingState(manager).assessment.view, "active");
         return [];
       },
       true,
@@ -485,7 +485,7 @@ test("assessment waits for recovery cancellation before resuming", { timeout: 30
         return [{ name: "freeflow_return", args: { operation: "submit", report: "base", outcome: "completed" } }];
       if (n === 3) return [{ name: "freeflow_unit", args: { operation: "recover", request: "Recover later." } }];
       if (n === 4) {
-        const state = replay(manager.getBranch());
+        const state = routingState(manager);
         selection = structuredClone(state.selections.get(state.assignmentId));
         return [];
       }
@@ -499,7 +499,7 @@ test("assessment waits for recovery cancellation before resuming", { timeout: 30
         return [{ name: "freeflow_unit", args: { operation: "assess" } }];
       }
       if (n === 6) {
-        const state = replay(manager.getBranch());
+        const state = routingState(manager);
         const result = manager
           .getBranch()
           .filter((entry) => entry.message?.toolName === "freeflow_unit")
@@ -512,7 +512,7 @@ test("assessment waits for recovery cancellation before resuming", { timeout: 30
         return [{ name: "freeflow_unit", args: { operation: "cancel-recovery", reason: "No longer needed." } }];
       }
       if (n === 7) {
-        const state = replay(manager.getBranch());
+        const state = routingState(manager);
         const wire = JSON.stringify(body);
         assert.equal(state.recoveryId, undefined);
         assert.equal(state.assessment.view, "suspended");
@@ -525,7 +525,7 @@ test("assessment waits for recovery cancellation before resuming", { timeout: 30
         );
         return [{ name: "freeflow_unit", args: { operation: "assess" } }];
       }
-      const state = replay(manager.getBranch());
+      const state = routingState(manager);
       assert.equal(state.assessment.view, "active");
       assert.equal(state.recoveryId, undefined);
       return [];
@@ -546,13 +546,13 @@ test("cancelled unit closure atomically abandons attached recovery", { timeout: 
       if (n === 2)
         return [{ name: "freeflow_return", args: { operation: "submit", report: "close-base", outcome: "completed" } }];
       if (n === 3) {
-        const state = replay(manager.getBranch());
+        const state = routingState(manager);
         baseReportId = state.assignments.get(state.assignmentId).returnHandoffId;
         return [{ name: "freeflow_unit", args: { operation: "recover", request: "Recover later." } }];
       }
       if (n === 4) return [];
       if (n === 5) {
-        selectionSnapshot = structuredClone([...replay(manager.getBranch()).selections]);
+        selectionSnapshot = structuredClone([...routingState(manager).selections]);
         return [
           {
             name: "freeflow_unit",
@@ -560,7 +560,7 @@ test("cancelled unit closure atomically abandons attached recovery", { timeout: 
           },
         ];
       }
-      const state = replay(manager.getBranch());
+      const state = routingState(manager);
       const recovery = [...state.recoveries.values()].at(-1);
       assert.equal(state.unitId, undefined);
       assert.equal(state.assignmentId, undefined);
@@ -614,7 +614,7 @@ test("projection-off recovery can read packaged instructions and resume assessme
         ];
       }
       assert.equal(body.model, "gpt-4o");
-      const state = replay(manager.getBranch());
+      const state = routingState(manager);
       assert.equal(state.assessment.view, "active");
       assert.equal(state.recoveryId, undefined);
       assert.match(JSON.stringify(body), /NO_PROJECTION_BASE_43/);
@@ -644,7 +644,7 @@ test(
             },
           ];
         if (n === 3) {
-          const state = replay(manager.getBranch());
+          const state = routingState(manager);
           assignmentId = state.assignmentId;
           baseReportId = state.assignments.get(assignmentId).returnHandoffId;
           return [
@@ -660,7 +660,7 @@ test(
           return [{ name: "read", args: { path: "recovery.txt" } }];
         }
         if (n === 5) {
-          const state = replay(manager.getBranch());
+          const state = routingState(manager);
           assert.equal(state.assessment.view, "suspended");
           assert.equal(state.assessment.suspensionReason, "user-attention");
           assert.match(JSON.stringify(body), /New delivered user input requires Coordinator attention/);
@@ -682,7 +682,7 @@ test(
         assert.equal(body.model, "gpt-4o");
         assert.match(JSON.stringify(body), /NEW_RECOVERY_ATTENTION_61/);
         assert.match(JSON.stringify(body), /INTERRUPTED_RECOVERY_SUPPLEMENT_67/);
-        const state = replay(manager.getBranch());
+        const state = routingState(manager);
         assert.equal(state.assignmentId, assignmentId);
         assert.equal(state.assignments.get(assignmentId).state, "returned");
         assert.equal(state.assignments.get(assignmentId).returnHandoffId, baseReportId);
@@ -716,20 +716,20 @@ test("manual hold and navigation preserve an unchanged recovery for explicit res
           },
         ];
       if (n === 3) {
-        const state = replay(manager.getBranch());
+        const state = routingState(manager);
         assignmentId = state.assignmentId;
         baseReportId = state.assignments.get(assignmentId).returnHandoffId;
         return [{ name: "freeflow_unit", args: { operation: "recover", request: "Resume this lookup unchanged." } }];
       }
       if (n === 4) {
-        const state = replay(manager.getBranch());
+        const state = routingState(manager);
         recoveryId = state.recoveryId;
         requestHandoffId = state.recoveries.get(recoveryId).requestHandoffId;
         assert.equal(state.recoveries.get(recoveryId).state, "reading");
         return [];
       }
       if (n === 5) {
-        const state = replay(manager.getBranch());
+        const state = routingState(manager);
         assert.equal(body.model, "gpt-4.1-mini");
         assert.equal(state.recoveryId, recoveryId);
         assert.equal(state.recoveries.get(recoveryId).state, "reading");
@@ -742,7 +742,7 @@ test("manual hold and navigation preserve an unchanged recovery for explicit res
           },
         ];
       }
-      const state = replay(manager.getBranch());
+      const state = routingState(manager);
       assert.equal(body.model, "gpt-4o");
       assert.equal(state.control, "automatic");
       assert.equal(state.assignmentId, assignmentId);
@@ -771,13 +771,13 @@ test("manual hold and navigation preserve an unchanged recovery for explicit res
       const before = requests.length;
       await session.prompt("/freeflow resume");
       assert.equal(requests.length, before, "resume cannot release a manual hold");
-      let state = replay(manager.getBranch());
+      let state = routingState(manager);
       assert.equal(state.control, "manual");
       assert.equal(state.profile, "executor");
       assert.equal(state.recoveryId, recoveryId);
       assert.equal(state.recoveries.get(recoveryId).state, "reading");
       await session.prompt("/freeflow profile auto");
-      state = replay(manager.getBranch());
+      state = routingState(manager);
       assert.equal(state.control, "automatic");
       assert.equal(state.profile, "coordinator");
       await session.prompt("/freeflow resume");
@@ -811,7 +811,7 @@ test(
             },
           ];
         if (n === 4) {
-          reportId = replay(manager.getBranch()).pendingId;
+          reportId = routingState(manager).pendingId;
           return [];
         }
         if (n === 5) {
@@ -845,7 +845,7 @@ test(
         assert.equal(body.model, "gpt-4o");
         assert.match(JSON.stringify(body), /ORIGINAL_SAVED_REPORT/);
         assert.match(JSON.stringify(body), /evidence gap remains disclosed/);
-        const state = replay(manager.getBranch());
+        const state = routingState(manager);
         assert.equal(state.assessment.handoffId, reportId);
         assert.equal(state.handoffs.get(reportId).reportRevision, 1);
         assert.equal(state.assessment.view, "active");
@@ -894,7 +894,7 @@ for (const cut of ["delegate-accepted", "executor-configured", "executor-call", 
       assert.equal(requests.length, before + 1);
       assert.equal(requests.at(-1).model, "gpt-4o");
       assert.equal(manager.getEntries().filter((e) => e.message?.toolName === "read").length, reads);
-      assert.equal(replay(manager.getBranch()).profile, "coordinator");
+      assert.equal(routingState(manager).profile, "coordinator");
     });
   });
 }
@@ -908,7 +908,7 @@ test(
       (n, body, manager) => {
         if (n <= 2) return normal(n);
         if (n === 3) {
-          const s = replay(manager.getBranch());
+          const s = routingState(manager);
           assignment = s.assignmentId;
           unit = s.unitId;
           return [];
@@ -919,7 +919,7 @@ test(
         }
         if (n === 5) {
           assert.equal(body.model, "gpt-4.1-mini");
-          const s = replay(manager.getBranch());
+          const s = routingState(manager);
           assert.equal(s.assignmentId, assignment);
           assert.equal(s.unitId, unit);
           assert.equal(s.assignments.size, 1);
@@ -950,7 +950,7 @@ test(
         await session.prompt("/freeflow resume");
         await session.waitForIdle();
         assert.equal(requests.length, 7);
-        assert.equal(replay(manager.getBranch()).assignments.get(assignment).state, "returned");
+        assert.equal(routingState(manager).assignments.get(assignment).state, "returned");
       },
     );
   },
@@ -964,7 +964,7 @@ test("current manual hold survives navigation and resume cannot release it", { t
     const before = requests.length;
     await session.prompt("/freeflow resume");
     assert.equal(requests.length, before);
-    const s = replay(manager.getBranch());
+    const s = routingState(manager);
     assert.equal(s.control, "manual");
     assert.equal(s.profile, "executor");
     assert.equal(session.model.id, "gpt-4.1-mini");

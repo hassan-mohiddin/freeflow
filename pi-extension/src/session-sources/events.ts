@@ -12,6 +12,7 @@ import {
   type RoutingEvent,
 } from "../cognitive-routing-v2/types.js";
 import { parseRoutingEvent, reduce, replay } from "../cognitive-routing-v2/state.js";
+import { sessionStage, stagedFor } from "./staging.js";
 
 export interface SessionReader {
   getSessionId(): string;
@@ -34,7 +35,12 @@ export class EventStore {
   get blocked(): string | undefined {
     return this.fault ?? (!this.ready ? "acknowledgment_unclassified" : undefined);
   }
+  /** Routing state from the branch plus control changes staged since the last prompt. */
   state() {
+    const staged = (stagedFor(this.reader)?.events ?? []) as RoutingEvent[];
+    return staged.reduce((state, event) => reduce(state, event), this.branchState());
+  }
+  private branchState() {
     const entries = this.reader.getBranch();
     const prefix =
       this.cachedEntries.length <= entries.length && this.cachedEntries.every((entry, i) => entry === entries[i]);
@@ -172,12 +178,25 @@ export class EventStore {
       throw error;
     }
   }
-  append(event: RoutingEvent): RoutingEvent {
+  /** Append an event; with `stage`, hold it for the next prompt instead of writing it to the session now. */
+  append(event: RoutingEvent, stage = false): RoutingEvent {
     const value = parseRoutingEvent(event),
       key = eventKey(value),
       body = eventValue(value);
     if (this.blocked) throw new RoutingError("acknowledgment_uncertain", this.blocked);
+    const staged = stage ? sessionStage(this.reader) : stagedFor(this.reader);
     const prior = this.state().events.get(key);
+    if (prior && staged?.events.some((event) => eventKey(event as RoutingEvent) === key)) {
+      check(eventValue(prior) === body, "operation_conflict");
+      return prior;
+    }
+    if (stage && staged) {
+      reduce(this.state(), value);
+      staged.events.push(value);
+      return value;
+    }
+    // Replay applies events in session order, so anything staged is written before a later event.
+    if (staged?.events.length) this.writeStaged(staged.events.splice(0));
     if (prior) {
       check(eventValue(prior) === body, "operation_conflict");
       const occurrence = this.reader
@@ -199,7 +218,7 @@ export class EventStore {
       return prior;
     }
     // Validate the whole state transition before mutating Pi's session memory.
-    const candidate = reduce(this.state(), value);
+    const candidate = reduce(this.branchState(), value);
     const baseline = this.cachedEntries;
     this.attempted.set(key, value);
     try {
@@ -227,5 +246,28 @@ export class EventStore {
         error instanceof Error ? error.message : "Pi append/readback did not acknowledge the event.",
       );
     }
+  }
+  /**
+   * Write the net effect of control changes staged since the last prompt: at most one delegation, one profile
+   * override, and one control event, each only when it changes the recorded state.
+   */
+  writeStaged(events: readonly unknown[]): void {
+    if (!events.length) return;
+    const staged = events as RoutingEvent[];
+    const before = this.branchState();
+    const after = staged.reduce((state, event) => reduce(state, event), before);
+    const last = (type: string) => staged.filter((event) => event.data.type === type).at(-1)!;
+    if (before.delegationOverride !== after.delegationOverride) this.append(last("delegation-override"));
+    const changed = Object.fromEntries(
+      [...new Set([...before.profileOverrides.keys(), ...after.profileOverrides.keys()])]
+        .filter(
+          (profile) =>
+            canonical(before.profileOverrides.get(profile)) !== canonical(after.profileOverrides.get(profile)),
+        )
+        .map((profile) => [profile, after.profileOverrides.get(profile) ?? null]),
+    );
+    if (Object.keys(changed).length)
+      this.append(this.make({ ...last("profile-overrides").data, overrides: changed } as EventData));
+    if (before.control !== after.control || before.profile !== after.profile) this.append(last("control"));
   }
 }

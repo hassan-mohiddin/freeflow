@@ -25,6 +25,7 @@ import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-ro
 import { handleFreeflowCommand } from "./settings/settings-ui.js";
 import { tagProjectedMessages } from "./session-sources/sources.js";
 import { trustLoadedSession } from "./session-sources/read-only-session.js";
+import { takeStage } from "./session-sources/staging.js";
 import {
   CONTRIBUTOR_COMMANDS,
   WORKFLOW_COMMANDS,
@@ -42,6 +43,7 @@ import {
   setFreeflowStatus,
   skillPrompt,
   withFreeflowRuntimeState,
+  writeStagedSessionOverrides,
 } from "./runtime/runtime-context.js";
 async function sendSkillCommand(pi, ctx, skill, args) {
   const state = await readCapabilityState(ctx.cwd, ctx);
@@ -225,6 +227,12 @@ export default function freeflow(pi) {
       },
     });
   }
+  // Control and setting changes made between prompts are staged; their net effect is written as a prompt starts.
+  function writeStagedControl(ctx) {
+    const staged = takeStage(ctx.sessionManager);
+    routing.writeStaged(staged.events);
+    writeStagedSessionOverrides(staged.overrides, api, ctx.sessionManager);
+  }
   async function update(ctx) {
     const next = await loadSurface(ctx);
     await routing.refresh(ctx, next.cognitiveRouting);
@@ -310,6 +318,8 @@ export default function freeflow(pi) {
   pi.on("before_agent_start", async (event, ctx) => {
     await update(ctx);
     await routing.beforeRun(ctx);
+    // After the run's own reconciliation, so everything staged lands ahead of the prompt in one pass.
+    writeStagedControl(ctx);
     status(ctx);
     // Pi 0.87 records changed sections at their native transcript position.
     // Returning systemPrompt would force one replacement head for every request.
@@ -382,6 +392,7 @@ export default function freeflow(pi) {
     status(ctx);
   });
   pi.on("context_with_system", async (event, ctx) => {
+    writeStagedControl(ctx);
     if (!capability) await loadSurface(ctx);
     // Entry identity lets attribution and request history skip hashing unchanged native history.
     tagProjectedMessages(

@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { resolveCognitiveRoutingState } from "../cognitive-routing-v2/config.js";
 import { supportsCognitiveRoutingModelRegistry } from "../cognitive-routing-v2/config.js";
+import { sessionStage, stagedFor } from "../session-sources/staging.js";
 import { resolveToolExecutionConfig, validateToolExecutionConfig } from "../tool-runtime/config.js";
 
 export const WORKFLOW_COMMANDS = [
@@ -477,15 +478,32 @@ export async function readCapabilityState(cwd, host = undefined) {
 
 export const readRuntimeState = readCapabilityState;
 
-export function restoreSessionOverrides(ctx) {
-  currentSessionOverrides = {};
-  const entries = ctx.sessionManager?.getBranch?.() ?? ctx.sessionManager?.getEntries?.() ?? [];
+function recordedSessionOverrides(sessionManager) {
+  let recorded = {};
+  for (const entry of sessionManager?.getBranch?.() ?? sessionManager?.getEntries?.() ?? [])
+    if (entry.type === "custom" && entry.customType === SESSION_OVERRIDES_ENTRY)
+      recorded = normalizeSessionOverrides(entry.data?.overrides);
+  return recorded;
+}
 
-  for (const entry of entries) {
-    if (entry.type === "custom" && entry.customType === SESSION_OVERRIDES_ENTRY) {
-      currentSessionOverrides = normalizeSessionOverrides(entry.data?.overrides);
-    }
-  }
+export function restoreSessionOverrides(ctx) {
+  const staged = stagedFor(ctx.sessionManager)?.overrides;
+  currentSessionOverrides = normalizeSessionOverrides(staged ?? recordedSessionOverrides(ctx.sessionManager));
+}
+
+/** Session overrides change nothing until the next prompt, so they are staged and written then. */
+function recordSessionOverrides(ctx, pi) {
+  const stage = sessionStage(ctx?.sessionManager);
+  if (stage) stage.overrides = { ...currentSessionOverrides };
+  else pi?.appendEntry?.(SESSION_OVERRIDES_ENTRY, { overrides: { ...currentSessionOverrides } });
+}
+
+/** Write staged session overrides at the start of a prompt, unless they equal what the session recorded. */
+export function writeStagedSessionOverrides(overrides, pi, sessionManager) {
+  if (!overrides) return;
+  const next = normalizeSessionOverrides(overrides);
+  if (JSON.stringify(next) === JSON.stringify(recordedSessionOverrides(sessionManager))) return;
+  pi?.appendEntry?.(SESSION_OVERRIDES_ENTRY, { overrides: { ...next } });
 }
 
 type ToolExecutionRuntimeSnapshot = {
@@ -855,7 +873,7 @@ export async function setSessionCoreOverride(key: SessionCoreKey, value: boolean
     next[key] = value;
   }
   currentSessionOverrides = next;
-  pi?.appendEntry?.(SESSION_OVERRIDES_ENTRY, { overrides: { ...currentSessionOverrides } });
+  recordSessionOverrides(ctx, pi);
   return {
     changed: true,
     reloadRequired: key === "enabled",
@@ -870,7 +888,7 @@ export async function resetSessionOverrides(ctx, pi) {
 
   if (hadCoreOverrides) {
     currentSessionOverrides = {};
-    pi?.appendEntry?.(SESSION_OVERRIDES_ENTRY, { overrides: {} });
+    recordSessionOverrides(ctx, pi);
   }
 
   return {

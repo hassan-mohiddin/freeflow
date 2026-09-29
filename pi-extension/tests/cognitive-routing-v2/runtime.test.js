@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { RoutingRuntime } from "../../dist/cognitive-routing-v2/runtime.js";
 import { EventStore } from "../../dist/session-sources/events.js";
-import { replay } from "../../dist/cognitive-routing-v2/state.js";
+import { routingState } from "../fixtures/routing-state.js";
 
 const modelIds = ["coordinator", "helper", "executor", "coordinator-fast", "helper-fast", "executor-cheap"];
 const models = Object.fromEntries(
@@ -133,7 +133,7 @@ test("delayed old control cannot change or poison a newly bound session", async 
       assert.equal(b.sessionManager.getEntries().length, before);
       assert.equal(b.model.id, "coordinator");
       assert.equal(runtime.state().runtimeStatus, "active");
-      assert.equal(replay(b.sessionManager.getBranch()).control, "automatic");
+      assert.equal(routingState(b.sessionManager).control, "automatic");
     } finally {
       release();
       EventStore.prototype.reconcile = original;
@@ -161,8 +161,8 @@ for (const [name, firstCapability, heldWorker, secondCapability] of [
       assert.equal(runtime.state().activeProfile, "coordinator");
       assert.equal(second.model.id, "coordinator");
       assert.equal(first.sessionManager.getEntries().length, firstEntryCount);
-      assert.equal(replay(first.sessionManager.getBranch()).control, "manual");
-      assert.equal(replay(first.sessionManager.getBranch()).profile, heldWorker);
+      assert.equal(routingState(first.sessionManager).control, "manual");
+      assert.equal(routingState(first.sessionManager).profile, heldWorker);
     }));
 }
 
@@ -182,9 +182,9 @@ test("settled unbound attempt is retired truthfully and next request has a new i
     runtime.messageEnd(assistant);
     ctx.sessionManager.appendMessage(assistant);
     runtime.preflight({ toolName: "read", toolCallId: "call" }, ctx);
-    const old = [...replay(ctx.sessionManager.getBranch()).executions.values()][0];
+    const old = [...routingState(ctx.sessionManager).executions.values()][0];
     await runtime.settled(ctx);
-    const retired = replay(ctx.sessionManager.getBranch()).executions.get(old.id);
+    const retired = routingState(ctx.sessionManager).executions.get(old.id);
     assert.match(retired.interrupted, /unresolved/);
     assert.equal(retired.assistantEntryId, undefined);
     const second = { role: "user", content: "two", timestamp: 4 };
@@ -198,7 +198,7 @@ test("settled unbound attempt is retired truthfully and next request has a new i
     runtime.messageEnd(next);
     ctx.sessionManager.appendMessage(next);
     runtime.preflight({ toolName: "read", toolCallId: "next" }, ctx);
-    const executions = [...replay(ctx.sessionManager.getBranch()).executions.values()];
+    const executions = [...routingState(ctx.sessionManager).executions.values()];
     assert.equal(executions.length, 2);
     assert.notEqual(executions[1].id, old.id);
     assert.notEqual(executions[1].basisUserEntryId, old.basisUserEntryId);
@@ -219,7 +219,7 @@ test("session profile overrides apply only to the selected pair and restore conf
     assert.equal(coordinatorOverride.status, "active");
     assert.equal(ctx.model.id, "coordinator-fast");
     assert.equal(ctx.thinkingLevel, "high");
-    assert.deepEqual(replay(ctx.sessionManager.getBranch()).profileOverrides.get("coordinator"), {
+    assert.deepEqual(routingState(ctx.sessionManager).profileOverrides.get("coordinator"), {
       provider: "fixture",
       modelId: "coordinator-fast",
       thinking: "high",
@@ -258,14 +258,14 @@ test("session profile overrides apply only to the selected pair and restore conf
     assert.equal(inheritedExecutor.status, "active");
     assert.equal(ctx.model.id, "executor");
     assert.equal(ctx.thinkingLevel, "off");
-    assert.equal(replay(ctx.sessionManager.getBranch()).profileOverrides.has("coordinator"), true);
-    assert.equal(replay(ctx.sessionManager.getBranch()).profileOverrides.has("executor"), false);
+    assert.equal(routingState(ctx.sessionManager).profileOverrides.has("coordinator"), true);
+    assert.equal(routingState(ctx.sessionManager).profileOverrides.has("executor"), false);
 
     const reset = await runtime.resetSessionProfileOverrides();
     assert.equal(reset.status, "stored");
     assert.equal(ctx.model.id, "executor");
     assert.equal(ctx.thinkingLevel, "off");
-    assert.equal(replay(ctx.sessionManager.getBranch()).profileOverrides.size, 0);
+    assert.equal(routingState(ctx.sessionManager).profileOverrides.size, 0);
     assert.equal(runtime.state().controlMode, "manual-executor");
 
     runtime.unbind();
@@ -302,7 +302,7 @@ test("session delegation switches enabled workers, survives rebind, and inherits
     assert.equal(runtime.state().delegation, "executor");
     assert.equal(runtime.sessionDelegationOverride(), undefined);
     assert.equal((await runtime.setManualProfile("helper")).status, "blocked");
-    assert.equal(replay(ctx.sessionManager.getBranch()).delegationOverride, undefined);
+    assert.equal(routingState(ctx.sessionManager).delegationOverride, undefined);
   }));
 
 test("a session Helper preset can be staged before enabling Helper without a configured Helper preset", async () =>
@@ -343,11 +343,11 @@ test("Helper session presets apply through the same guarded profile path", async
     assert.equal((await runtime.setManualProfile("helper")).status, "active");
     assert.equal(ctx.model.id, "helper-fast");
     assert.equal(ctx.thinkingLevel, "high");
-    assert.deepEqual(replay(ctx.sessionManager.getBranch()).profileOverrides.get("helper"), helperOverride);
+    assert.deepEqual(routingState(ctx.sessionManager).profileOverrides.get("helper"), helperOverride);
     assert.equal((await runtime.resetSessionProfileOverrides()).status, "active");
     assert.equal(ctx.model.id, "helper");
     assert.equal(ctx.thinkingLevel, "off");
-    assert.equal(replay(ctx.sessionManager.getBranch()).profileOverrides.size, 0);
+    assert.equal(routingState(ctx.sessionManager).profileOverrides.size, 0);
     assert.equal(runtime.state().controlMode, "manual-helper");
   }));
 
@@ -379,7 +379,7 @@ test("invalid session profile overrides preserve the native pair and routing sta
     assert.equal(ctx.model.id, "coordinator");
     assert.equal(ctx.thinkingLevel, "off");
     assert.equal(ctx.sessionManager.getEntries().length, beforeEntries);
-    assert.equal(replay(ctx.sessionManager.getBranch()).profileOverrides.size, 0);
+    assert.equal(routingState(ctx.sessionManager).profileOverrides.size, 0);
   }));
 
 test("rebind rejects a persisted session override when its model is unavailable", async () =>
@@ -414,7 +414,7 @@ test("rebind rejects a persisted session override when its model is unavailable"
     assert.equal(corrected.status, "active");
     assert.equal(runtime.state().runtimeStatus, "active");
     assert.equal(ctx.model.id, "coordinator");
-    assert.equal(replay(ctx.sessionManager.getBranch()).profileOverrides.size, 0);
+    assert.equal(routingState(ctx.sessionManager).profileOverrides.size, 0);
   }));
 
 test("failed active session override restores the prior pair and event state", async () =>
@@ -437,7 +437,7 @@ test("failed active session override restores the prior pair and event state", a
     assert.equal(result.status, "blocked");
     assert.equal(ctx.model.id, "coordinator-fast");
     assert.equal(ctx.thinkingLevel, "high");
-    assert.deepEqual(replay(ctx.sessionManager.getBranch()).profileOverrides.get("coordinator"), {
+    assert.deepEqual(routingState(ctx.sessionManager).profileOverrides.get("coordinator"), {
       provider: "fixture",
       modelId: "coordinator-fast",
       thinking: "high",
@@ -455,7 +455,7 @@ test("active session reset restores the configured pair and control mode", async
     assert.equal(result.status, "active");
     assert.equal(ctx.model.id, "coordinator");
     assert.equal(ctx.thinkingLevel, "off");
-    assert.equal(replay(ctx.sessionManager.getBranch()).profileOverrides.size, 0);
+    assert.equal(routingState(ctx.sessionManager).profileOverrides.size, 0);
     assert.equal(runtime.state().controlMode, "automatic");
   }));
 
@@ -475,7 +475,7 @@ for (const operation of ["clear", "reset"]) {
       assert.equal(result.status, "blocked");
       assert.equal(ctx.model.id, "coordinator-fast");
       assert.equal(ctx.thinkingLevel, "high");
-      assert.deepEqual(replay(ctx.sessionManager.getBranch()).profileOverrides.get("coordinator"), override);
+      assert.deepEqual(routingState(ctx.sessionManager).profileOverrides.get("coordinator"), override);
       assert.equal(runtime.state().runtimeStatus, "blocked");
     }));
 }
