@@ -591,3 +591,77 @@ test("profile override events are complete-pair, branch-replayable session state
     (e) => e.code === "invalid_profile_overrides",
   );
 });
+
+// The recovery request has reached the worker, which may start reading.
+function recoveryReading() {
+  const m = recoveryReady();
+  m.apply({ type: "handoff-state", handoffId: "recovery-request", state: "configured", observedPair: pair });
+  return m;
+}
+const recoveryRun = (id) => ({
+  type: "execution-opened",
+  execution: {
+    id,
+    profile: "executor",
+    assignmentId: "a1",
+    recoveryId: "recovery",
+    basisUserEntryId: "user",
+    pair,
+    resultEntryIds: [],
+  },
+});
+const retired = (id) => ({ type: "execution-interrupted", executionId: id, reason: "fixture retirement" });
+
+test("a new assignment cannot start while attached recovery is open", () => {
+  const m = recoveryReading();
+  assert.equal(m.state.recoveries.get("recovery").state, "reading");
+  m.apply(control("coordinator"));
+  m.apply(opened("e5", "coordinator", "a1"));
+  const before = m.state;
+  assert.throws(
+    () => m.apply(delegated("a2", "u1", ["a1", "a2"], "e5")),
+    (e) => e.code === "recovery_outstanding",
+  );
+  assert.equal(m.state, before, "state is unchanged");
+});
+
+test("recovery cannot be cancelled or its unit closed while its worker execution is unresolved", () => {
+  const m = recoveryReading();
+  m.apply(recoveryRun("e4"));
+  m.apply(control("coordinator"));
+  const before = m.state;
+  for (const event of [
+    { type: "recovery-cancelled", recoveryId: "recovery", reason: "no longer needed" },
+    { type: "unit-closed", unitId: "u1", outcome: "cancelled", assessment: "stopped" },
+  ])
+    assert.throws(
+      () => m.apply(event),
+      (e) => e.code === "unresolved_worker_execution",
+      event.type,
+    );
+  assert.equal(m.state, before);
+  m.apply(retired("e4"));
+  m.apply({ type: "recovery-cancelled", recoveryId: "recovery", reason: "no longer needed" });
+  assert.equal(m.state.recoveryId, undefined);
+});
+
+test("closing a unit over an outstanding assignment waits for its worker execution to resolve", () => {
+  const m = started();
+  m.apply(opened("e2", "executor", "a1"));
+  m.apply(control("coordinator"));
+  const close = {
+    type: "unit-closed",
+    unitId: "u1",
+    outcome: "cancelled",
+    assessment: "stopped",
+    supersededAssignmentId: "a1",
+  };
+  assert.throws(
+    () => m.apply(close),
+    (e) => e.code === "unresolved_worker_execution",
+  );
+  m.apply(retired("e2"));
+  m.apply(close);
+  assert.equal(m.state.assignments.get("a1").state, "superseded");
+  assert.equal(m.state.unitId, undefined);
+});

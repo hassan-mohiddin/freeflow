@@ -76,6 +76,11 @@ function applyEvent(state, event, owned = false) {
     check(h?.kind === "delegate" && h.assignmentId === a?.id && isWorkerProfile(h.to), "assignment_worker_missing");
     return h.to;
   };
+  // A worker response that started but was neither bound nor retired may still be producing effects.
+  const workerRunning = (belongs) =>
+    [...s.executions.values()].some(
+      (x) => belongs(x) && isWorkerProfile(x.profile) && !x.assistantEntryId && !x.interrupted,
+    );
   const pending = () => (s.pendingId ? s.handoffs.get(s.pendingId) : undefined);
   const isPending = () => pending() && ["pending", "blocked"].includes(pending().state);
   const currentReturn = (id) => {
@@ -166,19 +171,17 @@ function applyEvent(state, event, owned = false) {
       );
       if (d.replacement) {
         check(a?.state === "outstanding" && a.id === d.replacement.assignmentId && u, "no_replaceable_assignment");
-        check(
-          ![...s.executions.values()].some(
-            (x) => x.assignmentId === a.id && isWorkerProfile(x.profile) && !x.assistantEntryId && !x.interrupted,
-          ),
-          "unresolved_worker_execution",
-        );
+        check(!workerRunning((x) => x.assignmentId === a.id), "unresolved_worker_execution");
         check(
           !isPending() || (pending().kind === "delegate" && d.replacement.supersededHandoffId === pending().id),
           "handoff_pending",
         );
         a.state = "superseded";
         s.handoffs.get(a.delegateHandoffId).state = "superseded";
-      } else check(a?.state !== "outstanding" && !isPending(), "assignment_outstanding");
+      } else {
+        check(a?.state !== "outstanding" && !isPending(), "assignment_outstanding");
+        check(!s.recoveryId, "recovery_outstanding");
+      }
       s.units.set(d.unit.id, d.unit);
       s.unitId = d.unit.id;
       s.assignments.set(d.assignment.id, d.assignment);
@@ -309,6 +312,7 @@ function applyEvent(state, event, owned = false) {
           ["requested", "reading", "returning"].includes(r.state),
         "recovery_not_cancellable",
       );
+      check(!workerRunning((x) => x.recoveryId === r.id), "unresolved_worker_execution");
       const p = pending();
       if (p) {
         check([r.requestHandoffId, r.supplementHandoffId].includes(p.id), "handoff_pending");
@@ -428,6 +432,7 @@ function applyEvent(state, event, owned = false) {
           d.outcome !== "accepted" && ["requested", "reading", "returning"].includes(recovery.state),
           "unfinished_work",
         );
+        check(!workerRunning((x) => x.recoveryId === recovery.id), "unresolved_worker_execution");
         const transfer = pending();
         if (transfer) {
           check([recovery.requestHandoffId, recovery.supplementHandoffId].includes(transfer.id), "handoff_pending");
@@ -440,6 +445,7 @@ function applyEvent(state, event, owned = false) {
       }
       if (a?.state === "outstanding") {
         check(d.supersededAssignmentId === a.id && d.outcome !== "accepted", "supersession_required");
+        check(!workerRunning((x) => x.assignmentId === a.id), "unresolved_worker_execution");
         a.state = "superseded";
       }
       if (pending()) pending().state = "superseded";
