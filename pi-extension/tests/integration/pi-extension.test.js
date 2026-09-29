@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 
 import freeflowExtension from "../../dist/index.js";
-import { handleFreeflowCommand } from "../../dist/host/settings/settings-ui.js";
+import { handleFreeflowCommand } from "../../dist/host/settings/freeflow-command.js";
 import {
   readCapabilityState,
   readFreeflowConfigLayers,

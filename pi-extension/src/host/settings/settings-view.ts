@@ -13,6 +13,10 @@ import {
   type SettingsListTheme,
 } from "@earendil-works/pi-tui";
 
+/*
+ * The terminal widgets behind /freeflow settings: the settings list, choice picker, wizard, and text input. They
+ * render entries and report the user's changes; they know nothing about Freeflow configuration.
+ */
 export type SettingsCommitResult = {
   changed: boolean;
   reloadRequired: boolean;

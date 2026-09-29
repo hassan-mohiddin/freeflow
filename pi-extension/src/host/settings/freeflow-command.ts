@@ -11,6 +11,7 @@ import {
   resetSessionOverrides,
   setSessionCoreOverride,
 } from "../config.js";
+import { freeflowStatusText } from "../status.js";
 import {
   PiSettingsComponent,
   type SettingsCommitResult,
@@ -18,7 +19,7 @@ import {
   type SettingsSessionResult,
   type SettingsWizard,
   type SettingsWizardStep,
-} from "./settings-tui.js";
+} from "./settings-view.js";
 import type {
   CognitiveRoutingCapabilityState,
   CognitiveRoutingDelegationMode,
@@ -29,6 +30,11 @@ import type {
 import { workersForDelegation } from "../../cognitive-routing/types.js";
 import { DEFAULT_TOOL_EXECUTION_CONFIG, type ProgramMode, type ToolExecutionState } from "../../tool-runtime/config.js";
 
+/*
+ * The /freeflow command and the settings model it edits: every Freeflow setting with its repository, personal, and
+ * session scopes, the routing profile wizard, config file writes, and reload after saving. settings-view.ts draws the
+ * screen; this module decides what is on it.
+ */
 const DEFAULT_FREEFLOW_ENABLED = true;
 const LOCAL_INHERIT = "inherit";
 const execFileAsync = promisify(execFile);
@@ -1871,61 +1877,6 @@ async function openSettings(options: OpenSettingsOptions): Promise<SettingsSessi
 
   await component?.waitForWrites();
   return component?.sessionResult() ?? { changed: false, configChanged: false, failed: false };
-}
-
-function freeflowStatusText(
-  state: Awaited<ReturnType<typeof readCapabilityState>>,
-  cognitiveRoutingController?: CognitiveRoutingSettingsController,
-  toolExecutionRuntime?: {
-    queued?: number;
-    failures?: { code?: string; message?: string }[];
-    lastFailure?: { code?: string; message?: string };
-    unresolvedEffects?: number;
-    catalog?: { generation?: string; operations?: number; metadataBytes?: number };
-    adapters?: {
-      allowed?: readonly string[];
-      announced?: readonly { active?: boolean }[];
-      failures?: readonly { code?: string; message?: string }[];
-    };
-    cacheHealth?: readonly string[];
-  },
-): string {
-  if (!state.configured) {
-    if (!state.configExists) return "Freeflow: inactive (repo not set up); run /setup-freeflow";
-    const configPath =
-      state.localConfigExists && !state.localConfigValid ? ".freeflow/local.json" : ".freeflow/config.json";
-    return `Freeflow: inactive (invalid config: ${state.parseError ?? "unknown parse error"}); fix ${configPath} or run /setup-freeflow`;
-  }
-  const sessionSuffix = (source: ConfigSource) => (source === "session" ? " (session override)" : "");
-  const routingState = cognitiveRoutingController?.state();
-  const cognitiveRouting = state.cognitiveRouting;
-  const cognitiveRoutingStatus = cognitiveRouting
-    ? cognitiveRouting.blockingReason?.code === "runtime_disabled"
-      ? "unavailable (host unsupported)"
-      : cognitiveRouting.effective
-        ? routingState?.effective
-          ? `active (${routingState.activeProfile ?? "unknown"}, ${routingState.controlMode})`
-          : "effective (inactive)"
-        : cognitiveRouting.enabled
-          ? `blocked (${cognitiveRouting.blockingReason.code})`
-          : "disabled"
-    : undefined;
-  const toolIssue =
-    toolExecutionRuntime?.lastFailure ??
-    toolExecutionRuntime?.failures?.at(-1) ??
-    toolExecutionRuntime?.adapters?.failures?.at(-1);
-  return [
-    `Freeflow: ${state.enabled ? "enabled" : "disabled"}${sessionSuffix(state.configSources.enabled as ConfigSource)}`,
-    ...(cognitiveRoutingStatus ? [`cognitive routing: ${cognitiveRoutingStatus}`] : []),
-    ...(routingState?.presetWarnings?.length
-      ? [`routing preset warnings: ${routingState.presetWarnings.join(" ")}`]
-      : []),
-    `tool execution: ${state.toolExecution?.effective ? "enabled" : "disabled"} (capture ${state.toolExecution?.capture?.effective ? "enabled" : "disabled"}, verified reader ${state.toolExecution?.effective ? "enabled" : "disabled"}, workspace ${state.toolExecution?.workspace?.effective ? (state.toolExecution.workspace.write ? "read/write" : "read-only") : "disabled"}, programs ${state.toolExecution?.programs?.mode ?? "off"}, live effects ${toolExecutionRuntime?.unresolvedEffects ? `fenced (${toolExecutionRuntime.unresolvedEffects})` : "settled"}, discovery ${state.toolExecution?.discovery?.effective ? "enabled" : "disabled"}, catalog ${toolExecutionRuntime?.catalog?.operations ?? 0} operations/${toolExecutionRuntime?.catalog?.metadataBytes ?? 0} bytes, adapters ${toolExecutionRuntime?.adapters?.announced?.filter((adapter) => adapter.active).length ?? 0} active/${toolExecutionRuntime?.adapters?.allowed?.length ?? 0} allowed, accounting ${state.toolExecution?.accounting?.effective ? "enabled" : "disabled"}; native Bash is built in, custom tools require adapters; captured files are retained until explicit deletion${toolIssue?.code ? `; latest ${toolExecutionRuntime?.lastFailure ? "program" : toolExecutionRuntime?.failures?.length ? "capture" : "adapter"} issue ${toolIssue.code}${toolIssue.message ? `: ${toolIssue.message}` : ""}` : ""})`,
-    ...(toolExecutionRuntime?.queued ? [`capture publications queued: ${toolExecutionRuntime.queued}`] : []),
-    ...(toolExecutionRuntime?.cacheHealth?.length
-      ? [`prompt cache: ${toolExecutionRuntime.cacheHealth.join(" ")}`]
-      : []),
-  ].join("; ");
 }
 
 const NON_TUI_SETTINGS_GUIDANCE =

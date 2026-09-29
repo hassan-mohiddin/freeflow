@@ -23,7 +23,7 @@ import { ResultRuntime } from "./tool-runtime/results/runtime.js";
 import { ProgramHost } from "./tool-runtime/program/host.js";
 import { RoutingRuntime } from "./cognitive-routing/runtime.js";
 import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-routing/tools.js";
-import { handleFreeflowCommand } from "./host/settings/settings-ui.js";
+import { handleFreeflowCommand } from "./host/settings/freeflow-command.js";
 import { tagProjectedMessages } from "./host/projection-tags.js";
 import { trustLoadedSession } from "./host/read-only-session.js";
 import { takeStage } from "./host/staging.js";

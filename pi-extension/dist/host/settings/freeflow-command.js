@@ -10,9 +10,15 @@ import {
   resetSessionOverrides,
   setSessionCoreOverride,
 } from "../config.js";
-import { PiSettingsComponent } from "./settings-tui.js";
+import { freeflowStatusText } from "../status.js";
+import { PiSettingsComponent } from "./settings-view.js";
 import { workersForDelegation } from "../../cognitive-routing/types.js";
 import { DEFAULT_TOOL_EXECUTION_CONFIG } from "../../tool-runtime/config.js";
+/*
+ * The /freeflow command and the settings model it edits: every Freeflow setting with its repository, personal, and
+ * session scopes, the routing profile wizard, config file writes, and reload after saving. settings-view.ts draws the
+ * screen; this module decides what is on it.
+ */
 const DEFAULT_FREEFLOW_ENABLED = true;
 const LOCAL_INHERIT = "inherit";
 const execFileAsync = promisify(execFile);
@@ -1571,44 +1577,6 @@ async function openSettings(options) {
   });
   await component?.waitForWrites();
   return component?.sessionResult() ?? { changed: false, configChanged: false, failed: false };
-}
-function freeflowStatusText(state, cognitiveRoutingController, toolExecutionRuntime) {
-  if (!state.configured) {
-    if (!state.configExists) return "Freeflow: inactive (repo not set up); run /setup-freeflow";
-    const configPath =
-      state.localConfigExists && !state.localConfigValid ? ".freeflow/local.json" : ".freeflow/config.json";
-    return `Freeflow: inactive (invalid config: ${state.parseError ?? "unknown parse error"}); fix ${configPath} or run /setup-freeflow`;
-  }
-  const sessionSuffix = (source) => (source === "session" ? " (session override)" : "");
-  const routingState = cognitiveRoutingController?.state();
-  const cognitiveRouting = state.cognitiveRouting;
-  const cognitiveRoutingStatus = cognitiveRouting
-    ? cognitiveRouting.blockingReason?.code === "runtime_disabled"
-      ? "unavailable (host unsupported)"
-      : cognitiveRouting.effective
-        ? routingState?.effective
-          ? `active (${routingState.activeProfile ?? "unknown"}, ${routingState.controlMode})`
-          : "effective (inactive)"
-        : cognitiveRouting.enabled
-          ? `blocked (${cognitiveRouting.blockingReason.code})`
-          : "disabled"
-    : undefined;
-  const toolIssue =
-    toolExecutionRuntime?.lastFailure ??
-    toolExecutionRuntime?.failures?.at(-1) ??
-    toolExecutionRuntime?.adapters?.failures?.at(-1);
-  return [
-    `Freeflow: ${state.enabled ? "enabled" : "disabled"}${sessionSuffix(state.configSources.enabled)}`,
-    ...(cognitiveRoutingStatus ? [`cognitive routing: ${cognitiveRoutingStatus}`] : []),
-    ...(routingState?.presetWarnings?.length
-      ? [`routing preset warnings: ${routingState.presetWarnings.join(" ")}`]
-      : []),
-    `tool execution: ${state.toolExecution?.effective ? "enabled" : "disabled"} (capture ${state.toolExecution?.capture?.effective ? "enabled" : "disabled"}, verified reader ${state.toolExecution?.effective ? "enabled" : "disabled"}, workspace ${state.toolExecution?.workspace?.effective ? (state.toolExecution.workspace.write ? "read/write" : "read-only") : "disabled"}, programs ${state.toolExecution?.programs?.mode ?? "off"}, live effects ${toolExecutionRuntime?.unresolvedEffects ? `fenced (${toolExecutionRuntime.unresolvedEffects})` : "settled"}, discovery ${state.toolExecution?.discovery?.effective ? "enabled" : "disabled"}, catalog ${toolExecutionRuntime?.catalog?.operations ?? 0} operations/${toolExecutionRuntime?.catalog?.metadataBytes ?? 0} bytes, adapters ${toolExecutionRuntime?.adapters?.announced?.filter((adapter) => adapter.active).length ?? 0} active/${toolExecutionRuntime?.adapters?.allowed?.length ?? 0} allowed, accounting ${state.toolExecution?.accounting?.effective ? "enabled" : "disabled"}; native Bash is built in, custom tools require adapters; captured files are retained until explicit deletion${toolIssue?.code ? `; latest ${toolExecutionRuntime?.lastFailure ? "program" : toolExecutionRuntime?.failures?.length ? "capture" : "adapter"} issue ${toolIssue.code}${toolIssue.message ? `: ${toolIssue.message}` : ""}` : ""})`,
-    ...(toolExecutionRuntime?.queued ? [`capture publications queued: ${toolExecutionRuntime.queued}`] : []),
-    ...(toolExecutionRuntime?.cacheHealth?.length
-      ? [`prompt cache: ${toolExecutionRuntime.cacheHealth.join(" ")}`]
-      : []),
-  ].join("; ");
 }
 const NON_TUI_SETTINGS_GUIDANCE =
   "Freeflow settings require Pi TUI mode. Use /freeflow status to inspect current state; supported non-TUI changes are /freeflow enable and /freeflow disable.";
