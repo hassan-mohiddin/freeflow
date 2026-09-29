@@ -63,3 +63,24 @@ test("an idle reopen does not start work but says the assignment can be resumed"
     );
   });
 });
+
+test("a crashed worker run does not resume over newer user input", { timeout: 30000 }, async () => {
+  await fixture(script, false, async ({ session, manager, requests, notices }) => {
+    simulateCrash(manager);
+    manager.appendMessage({
+      role: "user",
+      content: [{ type: "text", text: "Change of plan." }],
+      timestamp: Date.now(),
+    });
+    const before = requests.length;
+    await session.reload();
+    await sleep(300);
+    await session.waitForIdle();
+    assert.equal(requests.length, before, "the worker waits for the Coordinator to see the new input");
+    assert.ok(!manager.getBranch().some((e) => e.customType === "freeflow-routing-v2-resume"));
+    assert.ok(
+      !notices.some(([text]) => /could not resume/.test(String(text))),
+      "no failed automatic resume is attempted",
+    );
+  });
+});
