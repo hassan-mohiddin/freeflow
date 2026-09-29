@@ -44,7 +44,11 @@ function prepare(state, entries, messages = entries.map((e) => e.message), view 
     systemPrompt: "",
     tools: [],
     runtimeMessage: RoutingRuntime.prototype.runtimeMessage.call(
-      { projectionEnabled: true, token: "test", delegation: () => "executor", evidenceFacts: () => ({ selected: [] }) },
+      {
+        projectionEnabled: true,
+        evidenceFacts: () => ({ selected: [] }),
+        session: { token: "test", delegation: () => "executor", workerBasis: () => null },
+      },
       state,
     ),
     instance: "test",

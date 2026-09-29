@@ -131,7 +131,7 @@ test("the resume rank of the current assessment comes from its latest resumption
     message("m4"),
   ];
   const runtime = new RoutingRuntime({ on() {}, registerTool() {} }, []);
-  runtime.ctx = { sessionManager: { getLeafId: () => "m4", getBranch: () => branch } };
+  runtime.session.ctx = { sessionManager: { getLeafId: () => "m4", getBranch: () => branch } };
   const state = initialState();
   state.assessment = { handoffId: "h1", assignmentId: "a1", view: "active", problems: [] };
   assert.equal(runtime.admissions(state).resumedAt, 4, "rank after four messages");

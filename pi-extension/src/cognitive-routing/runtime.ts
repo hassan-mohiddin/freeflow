@@ -5,59 +5,43 @@ import { randomUUID } from "node:crypto";
 import { existsSync, realpathSync } from "node:fs";
 import { relative, resolve as resolvePath } from "node:path";
 import { EventStore, type SessionReader } from "./events.js";
+import { ROUTING_RECOVERY_HINT, RoutingSession, type Subject } from "./session.js";
+
+export { ROUTING_RECOVERY_HINT };
 import { Sources, bodyHash, deliveredSelection, isTaskEvidence, type Source } from "./sources.js";
 import { sessionStage, stagedFor } from "../host/staging.js";
-import { pairFromProfile, resolveCognitiveRoutingState, type CognitiveRoutingCapabilityState } from "./config.js";
-import { prepareView, changeSelection, representationProblems, type PreparedView } from "./projection.js";
+import { resolveCognitiveRoutingState, type CognitiveRoutingCapabilityState } from "./config.js";
+import { representationProblems, prepareView, changeSelection, type PreparedView } from "./projection.js";
 import { presetWarnings } from "./economics.js";
 import { keepsCacheAcrossEffort } from "../provider-support/effort.js";
 import { initialState } from "./state.js";
 import {
+  PROFILES,
+  workersForDelegation,
   ROUTING_ENTRY,
   ROUTING_MESSAGE,
   ROUTING_ATTENTION_MESSAGE,
-  PROFILES,
   RoutingError,
   canonical,
   emptySelection,
-  idFor,
   isWorkerProfile,
   requireCondition as check,
   samePair,
-  workersForDelegation,
   type DelegationMode,
   type Profile,
   type WorkerProfile,
-  type View,
   type Pair,
   type State,
   type Handoff,
   type Recovery,
   type NativeEntry,
-  type EventData,
   type Execution,
   type Problem,
   type ResultGrant,
 } from "./types.js";
 
 export const ROUTING_TOOLS = ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project"] as const;
-export const ROUTING_RECOVERY_HINT =
-  "Run /freeflow profile auto to reconcile routing, or /freeflow resume to continue saved work.";
 const HANDOFF_TOOLS = new Set(["freeflow_delegate", "freeflow_return"]);
-const STAGED_CONTROL = new Set(["control", "profile-overrides", "delegation-override"]);
-interface Turn {
-  id: string;
-  profile: View;
-  assignmentId?: string;
-  recoveryId?: string;
-  basisUserEntryId: string | null;
-  before: Set<string>;
-  message?: any;
-  bound?: string;
-  sourceFingerprint?: string;
-  opened?: boolean;
-  pair: Pair;
-}
 export interface ResultGrantPort {
   resolve(id: string, ctx: any): Promise<ResultGrant | undefined>;
 }
@@ -75,28 +59,13 @@ export interface RoutingOperationScope {
   turnId?: string;
   basisUserEntryId?: string | null;
 }
-interface Subject {
-  token: string;
-  revision: number;
-  store: EventStore | undefined;
-  leafId: string | null;
-  userId: string | null;
-}
+
 export class RoutingRuntime {
-  private store?: EventStore;
-  private ctx: any;
-  private capability?: CognitiveRoutingCapabilityState;
-  private token = randomUUID();
-  private turn?: Turn;
-  private messages: any[] = [];
-  private error?: string;
-  private projectionError?: string;
-  private suppressed = false;
+  /** State shared with every part of routing for the bound session. */
+  readonly session = new RoutingSession();
   private applying?: Pair;
   private externalChange = false;
   private targetSignature?: string;
-  private operations: Promise<unknown> = Promise.resolve();
-  private revision = 0;
   private receipts = new Map<string, { input: string; value: any }>();
   private pages = new Map<
     string,
@@ -110,9 +79,6 @@ export class RoutingRuntime {
       summary?: any;
     }
   >();
-  private manualHold?: Profile;
-  private automaticControl = false;
-  private sourceCache?: { entries: NativeEntry[]; authors: number; source: Sources };
   private resultGrants?: ResultGrantPort;
   private effectFence?: EffectFencePort;
   constructor(
@@ -125,108 +91,32 @@ export class RoutingRuntime {
   setEffectFencePort(port: EffectFencePort): void {
     this.effectFence = port;
   }
-  private subject(): Subject {
-    const branch = this.store?.reader.getBranch() ?? [];
-    return {
-      token: this.token,
-      revision: this.revision,
-      store: this.store,
-      leafId: branch.at(-1)?.id ?? null,
-      userId: branch.filter((e) => e.message?.role === "user").at(-1)?.id ?? null,
-    };
-  }
-  private current(s: Subject): boolean {
-    if (s.token !== this.token || s.revision !== this.revision || s.store !== this.store) return false;
-    const branch = this.store?.reader.getBranch() ?? [];
-    return (
-      (!s.leafId || branch.some((e) => e.id === s.leafId)) &&
-      (branch.filter((e) => e.message?.role === "user").at(-1)?.id ?? null) === s.userId
-    );
-  }
-  private guard(s: Subject): void {
-    check(
-      this.current(s),
-      "stale_operation",
-      "Routing state changed while the operation was waiting; no further effects applied.",
-    );
-  }
-  private taskBasis(state: State, assignmentId: string): string | null | undefined {
-    return state.resumeBasis.has(assignmentId)
-      ? state.resumeBasis.get(assignmentId)
-      : state.assignments.get(assignmentId)?.basisUserEntryId;
-  }
-  private delegation(state = this.stateData()): DelegationMode {
-    return state.delegationOverride ?? this.capability?.delegation ?? "executor";
-  }
-  private enabledWorkers(state = this.stateData()): readonly WorkerProfile[] {
-    return workersForDelegation(this.delegation(state));
-  }
-  private assignedWorker(state: State, assignmentId = state.assignmentId): WorkerProfile {
-    const assignment = assignmentId ? state.assignments.get(assignmentId) : undefined;
-    const handoff = assignment ? state.handoffs.get(assignment.delegateHandoffId) : undefined;
-    check(
-      handoff?.kind === "delegate" && handoff.assignmentId === assignment?.id && isWorkerProfile(handoff.to),
-      "assignment_worker_missing",
-      "The current assignment has no valid recorded worker.",
-    );
-    return handoff.to;
-  }
-  private requiredProfiles(state = this.stateData(), delegation = this.delegation(state)): Profile[] {
-    const profiles = new Set<Profile>(["coordinator", ...workersForDelegation(delegation)]);
-    if (state.profile) profiles.add(state.profile);
-    if (this.manualHold) profiles.add(this.manualHold);
-    const assignment = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
-    if (assignment?.state === "outstanding" || state.recoveryId) profiles.add(this.assignedWorker(state));
-    const pending = state.pendingId ? state.handoffs.get(state.pendingId) : undefined;
-    if (pending && isWorkerProfile(pending.to)) profiles.add(pending.to);
-    return [...profiles];
-  }
-  private retireUnbound(reason: string): void {
-    for (const execution of this.stateData().executions.values()) {
-      if (!execution.assistantEntryId && !execution.interrupted)
-        this.append({ type: "execution-interrupted", executionId: execution.id, reason });
-    }
-    this.turn = undefined;
-  }
-  private openTurn(): void {
-    if (!this.turn || this.turn.opened) return;
-    const t = this.turn;
-    this.append({
-      type: "execution-opened",
-      execution: {
-        id: t.id,
-        profile: t.profile,
-        assignmentId: t.assignmentId,
-        recoveryId: t.recoveryId,
-        basisUserEntryId: t.basisUserEntryId,
-        pair: t.pair,
-        resultEntryIds: [],
-      },
-    });
-    t.opened = true;
-  }
   async settled(ctx: any): Promise<void> {
-    if (!this.store || !this.supported() || this.store.blocked || !ctx.isIdle?.()) return;
-    this.ctx = ctx;
-    this.retireUnbound("Native run settled without a complete source binding; prior effects remain unresolved.");
+    if (!this.session.store || !this.session.supported() || this.session.store.blocked || !ctx.isIdle?.()) return;
+    this.session.ctx = ctx;
+    this.session.retireUnbound(
+      "Native run settled without a complete source binding; prior effects remain unresolved.",
+    );
   }
   private heldNotice?: string;
   /** A manual hold whose profile model is not what the host runs, e.g. after a change in Pi's model picker. */
-  private heldMismatch(state = this.stateData()): { profile: Profile; expected: Pair; observed: Pair } | undefined {
-    if (!this.supported() || state.control !== "manual" || !state.profile || this.applying) return;
+  private heldMismatch(
+    state = this.session.stateData(),
+  ): { profile: Profile; expected: Pair; observed: Pair } | undefined {
+    if (!this.session.supported() || state.control !== "manual" || !state.profile || this.applying) return;
     const observed = this.intended();
     let expected: Pair;
     try {
-      expected = this.profilePair(state.profile);
+      expected = this.session.profilePair(state.profile);
     } catch {
       return;
     }
     return observed && !samePair(observed, expected) ? { profile: state.profile, expected, observed } : undefined;
   }
   async beforeRun(ctx: any): Promise<void> {
-    this.ctx = ctx;
-    if (this.store && this.supported() && !this.store.blocked && !this.error) {
-      if (this.stateData().control === "automatic" && isWorkerProfile(this.stateData().profile)) {
+    this.session.ctx = ctx;
+    if (this.session.store && this.session.supported() && !this.session.store.blocked && !this.session.error) {
+      if (this.session.stateData().control === "automatic" && isWorkerProfile(this.session.stateData().profile)) {
         const result = await this.control("coordinator", false);
         check(result.status !== "blocked", "reconciliation_required", result.reason);
       }
@@ -235,14 +125,14 @@ export class RoutingRuntime {
       try {
         await this.applyPending();
       } catch (error) {
-        const current = this.observed();
+        const current = this.session.observed();
         ctx.ui?.notify?.(
           `Could not switch to ${target?.modelId}/${target?.thinking} (${error instanceof Error ? error.message : String(error)}); this prompt runs on ${current?.modelId}/${current?.thinking}.`,
           "warning",
         );
       }
     }
-    const held = this.store ? this.heldMismatch() : undefined;
+    const held = this.session.store ? this.heldMismatch() : undefined;
     const notice = held && JSON.stringify(held);
     // The hold is the user's; report the divergence once instead of overriding a deliberate model choice.
     if (notice && notice !== this.heldNotice)
@@ -252,56 +142,27 @@ export class RoutingRuntime {
       );
     this.heldNotice = notice;
   }
-  private stateData(): State {
-    return this.store?.state() ?? initialState();
-  }
-  private sources(state = this.stateData()): Sources {
-    const entries = (this.ctx.sessionManager.getBranch() as NativeEntry[]).filter((e) =>
-      ["message", "custom_message", "compaction", "branch_summary"].includes(e.type),
-    );
-    const cache = this.sourceCache;
-    if (
-      cache &&
-      cache.authors === state.authors.size &&
-      entries.length === cache.entries.length &&
-      entries.every((e, i) => e === cache.entries[i])
-    )
-      return cache.source;
-    const active = this.ctx.sessionManager.buildContextEntries?.();
-    const activeIds = active ? new Set<string>(active.map((e: NativeEntry) => e.id)) : undefined;
-    const source = cache?.source ?? new Sources([], state);
-    source.refresh(entries, state, activeIds);
-    this.sourceCache = { entries, authors: state.authors.size, source };
-    return source;
-  }
-  private observed(ctx = this.ctx): Pair | undefined {
-    return ctx?.model?.provider && ctx?.model?.id && ctx?.thinkingLevel
-      ? { provider: ctx.model.provider, modelId: ctx.model.id, thinking: ctx.thinkingLevel }
-      : undefined;
-  }
-  private supported(): boolean {
-    return !!this.capability?.effective && !this.suppressed;
-  }
   state() {
     let state: State;
     try {
-      state = this.stateData();
+      state = this.session.stateData();
     } catch {
       state = initialState();
     }
-    const blocked = this.error ?? this.store?.blocked;
+    const blocked = this.session.error ?? this.session.store?.blocked;
     return {
-      effective: this.supported() && state.control !== "inactive" && !blocked,
+      effective: this.session.supported() && state.control !== "inactive" && !blocked,
       activeProfile: state.profile,
-      delegation: this.delegation(state),
+      delegation: this.session.delegation(state),
       controlMode: state.control === "manual" ? `manual-${state.profile}` : state.control,
       runtimeStatus: blocked
         ? ("blocked" as const)
-        : this.supported() && state.control !== "inactive"
+        : this.session.supported() && state.control !== "inactive"
           ? ("active" as const)
           : ("inactive" as const),
-      runtimeReason: blocked ?? (this.suppressed ? "startup_selection" : this.capability?.blockingReason.message),
-      projectionFailure: this.projectionError,
+      runtimeReason:
+        blocked ?? (this.session.suppressed ? "startup_selection" : this.session.capability?.blockingReason.message),
+      projectionFailure: this.session.projectionError,
       ...((pending) => (pending ? { pendingPair: `${pending.modelId}/${pending.thinking}` } : {}))(this.pending()),
       ...(this.heldMismatch(state) ? { pairMismatch: true } : {}),
       ...((warnings) => (warnings.length ? { presetWarnings: warnings } : {}))(this.presetWarnings(state)),
@@ -310,10 +171,15 @@ export class RoutingRuntime {
   /** The Coordinator's model while a delegated worker holds the assignment; the Coordinator resumes on return. */
   suspendedCoordinator(): { provider: string; modelId: string; requester: "coordinator" } | undefined {
     try {
-      const state = this.stateData();
-      if (!this.supported() || state.control !== "automatic" || !isWorkerProfile(state.profile) || !state.assignmentId)
+      const state = this.session.stateData();
+      if (
+        !this.session.supported() ||
+        state.control !== "automatic" ||
+        !isWorkerProfile(state.profile) ||
+        !state.assignmentId
+      )
         return;
-      const pair = this.profilePair("coordinator");
+      const pair = this.session.profilePair("coordinator");
       return { provider: pair.provider, modelId: pair.modelId, requester: "coordinator" };
     } catch {
       return;
@@ -322,12 +188,12 @@ export class RoutingRuntime {
   observationScope() {
     let state: State;
     try {
-      state = this.stateData();
+      state = this.session.stateData();
     } catch {
       state = initialState();
     }
     const runtime = this.state();
-    const pair = this.observed();
+    const pair = this.session.observed();
     const profile: Profile | "solo" = runtime.activeProfile ?? "solo";
     const control: "manual" | "automatic" | "inactive" | "unknown" = String(runtime.controlMode).startsWith("manual-")
       ? "manual"
@@ -338,38 +204,38 @@ export class RoutingRuntime {
       profile,
       control,
       ...(state.assignmentId ? { assignmentId: state.assignmentId } : {}),
-      ...(this.turn?.id ? { executionId: this.turn.id } : {}),
+      ...(this.session.turn?.id ? { executionId: this.session.turn.id } : {}),
       ...(pair ? { provider: pair.provider, modelId: pair.modelId, thinking: pair.thinking } : {}),
     };
   }
-  operationScope(ctx = this.ctx): RoutingOperationScope {
+  operationScope(ctx = this.session.ctx): RoutingOperationScope {
     let state: State;
     try {
-      state = this.stateData();
+      state = this.session.stateData();
     } catch {
       state = initialState();
     }
     const sessionId = ctx?.sessionManager?.getSessionId?.();
     return {
-      token: this.token,
-      revision: this.revision,
+      token: this.session.token,
+      revision: this.session.revision,
       ...(typeof sessionId === "string" ? { sessionId } : {}),
-      supported: this.supported(),
+      supported: this.session.supported(),
       control: state.control,
       ...(state.profile ? { profile: state.profile } : {}),
       ...(state.assignmentId ? { assignmentId: state.assignmentId } : {}),
-      ...(this.turn?.id ? { turnId: this.turn.id } : {}),
-      ...(this.turn ? { basisUserEntryId: this.turn.basisUserEntryId } : {}),
+      ...(this.session.turn?.id ? { turnId: this.session.turn.id } : {}),
+      ...(this.session.turn ? { basisUserEntryId: this.session.turn.basisUserEntryId } : {}),
     };
   }
   admitOperation(
     scope: RoutingOperationScope,
     effect: "captured-read" | "live-read" | "mutation",
     _operation: { id: string; revision: string },
-    ctx = this.ctx,
+    ctx = this.session.ctx,
   ): { kind: "allowed" } | { kind: "denied"; code: string; message: string } {
     try {
-      const state = this.stateData();
+      const state = this.session.stateData();
       if (state.recoveryId && effect !== "captured-read")
         return {
           kind: "denied",
@@ -400,10 +266,10 @@ export class RoutingRuntime {
   }
   admitProgram(
     scope: RoutingOperationScope,
-    ctx = this.ctx,
+    ctx = this.session.ctx,
   ): { kind: "allowed" } | { kind: "denied"; code: string; message: string } {
     try {
-      if (this.stateData().recoveryId)
+      if (this.session.stateData().recoveryId)
         return {
           kind: "denied",
           code: "recovery_program_unavailable",
@@ -416,7 +282,7 @@ export class RoutingRuntime {
   }
   resultReadAccess(id: string): { recovery: boolean; sha256?: string } {
     try {
-      const state = this.stateData();
+      const state = this.session.stateData();
       const recovery = state.recoveryId ? state.recoveries.get(state.recoveryId) : undefined;
       if (recovery?.state !== "reading") return { recovery: false };
       const grant = (recovery.results ?? []).find((candidate) => candidate.id === id);
@@ -426,60 +292,11 @@ export class RoutingRuntime {
     }
   }
   get projectionEnabled(): boolean {
-    return this.supported() && this.capability?.projection === true && this.stateData().control === "automatic";
-  }
-  private append(data: EventData, op?: string, step?: string) {
-    check(this.store, "routing_unavailable");
-    // Control changes made while no run is active affect no request until the next prompt; stage them there.
-    const stage = STAGED_CONTROL.has(data.type) && this.ctx?.isIdle?.() !== false;
-    return this.store.append(this.store.make(data, op, step), stage);
-  }
-  private enqueue<T>(action: () => Promise<T> | T): Promise<T> {
-    const token = this.token;
-    const result = this.operations.then(() => {
-      check(token === this.token, "stale_instance");
-      return action();
-    });
-    this.operations = result.catch(() => {});
-    return result;
-  }
-  private mark(error: unknown) {
-    if (this.error && error instanceof RoutingError && error.code === "routing_blocked") return;
-    this.error =
-      error instanceof RoutingError
-        ? `${error.code}: ${error.message}`
-        : error instanceof Error
-          ? error.message
-          : String(error);
-  }
-  private announced?: string;
-  // Tell the user once per distinct block; routing stays blocked until an explicit control clears it.
-  private announceBlock(ctx: any): void {
-    if (!this.error || this.announced === this.error) return;
-    this.announced = this.error;
-    ctx?.ui?.notify?.(`Cognitive Routing blocked: ${this.error}. ${ROUTING_RECOVERY_HINT}`, "warning");
-  }
-  private assertAvailable(profile?: Profile) {
-    check(
-      this.supported() && this.store && !this.error && !this.store.blocked,
-      "routing_unavailable",
-      this.error ?? this.store?.blocked ?? "Routing is inactive.",
+    return (
+      this.session.supported() &&
+      this.session.capability?.projection === true &&
+      this.session.stateData().control === "automatic"
     );
-    const state = this.stateData();
-    check(state.control === "automatic", "manual_control");
-    if (profile) check(state.profile === profile && this.turn?.profile === profile, "wrong_profile");
-    if (state.profile) check(samePair(this.observed(), this.profilePair(state.profile)), "configuration_mismatch");
-  }
-  private configuredProfilePair(profile: Profile): Pair {
-    const configured = this.capability?.profiles[profile];
-    check(configured, "profile_missing");
-    return pairFromProfile(configured);
-  }
-  private profilePair(profile: Profile): Pair {
-    return this.stateData().profileOverrides.get(profile) ?? this.configuredProfilePair(profile);
-  }
-  private profilePairs(profiles = this.requiredProfiles()): Partial<Record<Profile, Pair>> {
-    return Object.fromEntries(profiles.map((profile) => [profile, this.profilePair(profile)]));
   }
   private async validateProfilePairs(pairs: Partial<Record<Profile, Pair>>): Promise<void> {
     check(pairs.coordinator, "profile_missing", "Configure the coordinator profile.");
@@ -496,35 +313,35 @@ export class RoutingRuntime {
     const result = await resolveCognitiveRoutingState(
       { cognitiveRouting: { enabled: true, delegation, profiles } },
       {},
-      this.ctx,
+      this.session.ctx,
     );
     check(result.effective, result.blockingReason.code, result.blockingReason.message);
   }
   private model(profile: Profile) {
-    const pair = this.profilePair(profile);
-    const model = this.ctx?.modelRegistry?.find(pair.provider, pair.modelId);
+    const pair = this.session.profilePair(profile);
+    const model = this.session.ctx?.modelRegistry?.find(pair.provider, pair.modelId);
     check(model, "profile_unavailable");
     return model;
   }
   /** Advisory preset checks for the effective Coordinator and enabled workers. */
-  presetWarnings(state = this.stateData()): string[] {
-    if (!this.supported()) return [];
+  presetWarnings(state = this.session.stateData()): string[] {
+    if (!this.session.supported()) return [];
     const pairs: Partial<Record<Profile, Pair>> = {};
-    for (const profile of ["coordinator", ...this.enabledWorkers(state)] as Profile[])
+    for (const profile of ["coordinator", ...this.session.enabledWorkers(state)] as Profile[])
       try {
-        pairs[profile] = this.profilePair(profile);
+        pairs[profile] = this.session.profilePair(profile);
       } catch {}
     return presetWarnings(
       pairs,
-      this.enabledWorkers(state),
-      (provider, modelId) => this.ctx?.modelRegistry?.find?.(provider, modelId),
+      this.session.enabledWorkers(state),
+      (provider, modelId) => this.session.ctx?.modelRegistry?.find?.(provider, modelId),
       keepsCacheAcrossEffort,
       // Pi's only retention control; unset means the short tier.
       process.env.PI_CACHE_RETENTION === "long" ? "long" : "short",
     );
   }
   private presetNotice?: string;
-  private announcePresets(ctx: any = this.ctx): void {
+  private announcePresets(ctx: any = this.session.ctx): void {
     const warnings = this.presetWarnings();
     const notice = warnings.length ? JSON.stringify(warnings) : undefined;
     if (notice && notice !== this.presetNotice)
@@ -538,13 +355,15 @@ export class RoutingRuntime {
     if (state.control !== "automatic" || !assignment || (assignment.state !== "outstanding" && !reading)) return;
     let worker: WorkerProfile;
     try {
-      worker = this.assignedWorker(state, assignment.id);
+      worker = this.session.assignedWorker(state, assignment.id);
     } catch {
       return;
     }
-    const branch = this.store?.reader.getBranch() ?? [];
+    const branch = this.session.store?.reader.getBranch() ?? [];
     const lastUser = branch.filter((e) => e.message?.role === "user").at(-1)?.id ?? null;
-    return lastUser === this.workerBasis(state, assignment.id) ? { worker, assignmentId: assignment.id } : undefined;
+    return lastUser === this.session.workerBasis(state, assignment.id)
+      ? { worker, assignmentId: assignment.id }
+      : undefined;
   }
   /** A worker run cut off by a crash or reload leaves its execution opened but never bound. */
   private interruptedRun(state: State): boolean {
@@ -562,7 +381,7 @@ export class RoutingRuntime {
     );
   }
   private async resumeAfterCrash(ctx: any, token: string): Promise<void> {
-    if (token !== this.token) return;
+    if (token !== this.session.token) return;
     try {
       check(!ctx.hasPendingMessages?.(), "pending_input", "Queued input needs Coordinator first.");
       await this.resume(ctx);
@@ -575,42 +394,42 @@ export class RoutingRuntime {
     }
   }
   async bind(ctx: any, capability: CognitiveRoutingCapabilityState, startup = false): Promise<void> {
-    this.token = randomUUID();
-    this.ctx = ctx;
-    this.capability = capability;
-    this.turn = undefined;
-    this.manualHold = undefined;
-    this.automaticControl = false;
-    this.messages = [];
-    this.sourceCache = undefined;
+    this.session.token = randomUUID();
+    this.session.ctx = ctx;
+    this.session.capability = capability;
+    this.session.turn = undefined;
+    this.session.manualHold = undefined;
+    this.session.automaticControl = false;
+    this.session.messages = [];
+    this.session.sourceCache = undefined;
     this.receipts.clear();
     this.pages.clear();
     this.applying = undefined;
     this.externalChange = false;
-    this.error = undefined;
-    this.projectionError = undefined;
-    this.operations = Promise.resolve();
+    this.session.error = undefined;
+    this.session.projectionError = undefined;
+    this.session.operations = Promise.resolve();
     this.targetSignature = canonical({ delegation: capability.delegation, profiles: capability.profiles });
-    this.suppressed = startup && process.argv.some((a) => /^(--model|--thinking)(=|$)/.test(a));
-    this.store = new EventStore(this.pi, ctx.sessionManager as SessionReader);
-    const subject = this.subject();
-    if (!capability.effective || this.suppressed) return;
+    this.session.suppressed = startup && process.argv.some((a) => /^(--model|--thinking)(=|$)/.test(a));
+    this.session.store = new EventStore(this.pi, ctx.sessionManager as SessionReader);
+    const subject = this.session.subject();
+    if (!capability.effective || this.session.suppressed) return;
     try {
-      await this.store.reconcile();
-      this.guard(subject);
-      const state = this.stateData();
-      this.manualHold = state.control === "manual" ? state.profile : undefined;
-      this.automaticControl = !state.events.size || state.control === "automatic";
-      await this.validateProfilePairs(this.profilePairs(this.requiredProfiles(state)));
+      await this.session.store.reconcile();
+      this.session.guard(subject);
+      const state = this.session.stateData();
+      this.session.manualHold = state.control === "manual" ? state.profile : undefined;
+      this.session.automaticControl = !state.events.size || state.control === "automatic";
+      await this.validateProfilePairs(this.session.profilePairs(this.session.requiredProfiles(state)));
       this.announcePresets(ctx);
       const interrupted = this.interruptedRun(state);
       const resumable = this.resumableAssignment(state);
-      this.retireUnbound("Session rebind found an unfinished execution; no task effects replayed.");
+      this.session.retireUnbound("Session rebind found an unfinished execution; no task effects replayed.");
       if (!state.events.size) {
         await this.transition(
-          this.profilePair("coordinator"),
+          this.session.profilePair("coordinator"),
           () =>
-            this.append({
+            this.session.append({
               type: "control",
               control: "automatic",
               profile: "coordinator",
@@ -621,13 +440,13 @@ export class RoutingRuntime {
       } else if (
         state.control === "automatic" &&
         state.profile &&
-        !samePair(this.intended(), this.profilePair(state.profile))
+        !samePair(this.intended(), this.session.profilePair(state.profile))
       ) {
         // Reload reconstructs responsibility; it does not silently reapply the last setter.
         await this.transition(
-          this.profilePair("coordinator"),
+          this.session.profilePair("coordinator"),
           () =>
-            this.append({
+            this.session.append({
               type: "control",
               control: "automatic",
               profile: "coordinator",
@@ -638,7 +457,7 @@ export class RoutingRuntime {
       }
       // Only a run cut off mid-flight resumes on its own; reopening an idle session never starts work.
       if (interrupted && ctx.hasUI) {
-        const token = this.token;
+        const token = this.session.token;
         setTimeout(() => void this.resumeAfterCrash(ctx, token), 0);
       } else if (resumable)
         ctx.ui?.notify?.(
@@ -646,53 +465,54 @@ export class RoutingRuntime {
           "info",
         );
     } catch (error) {
-      if (this.current(subject)) this.mark(error);
+      if (this.session.current(subject)) this.session.mark(error);
     }
   }
   /** Write routing events staged before the session's first prompt; nothing to write once routing is unbound. */
   writeStaged(events: readonly unknown[]): void {
-    if (!this.store || !events.length) return;
+    if (!this.session.store || !events.length) return;
     try {
-      this.store.writeStaged(events);
+      this.session.store.writeStaged(events);
     } catch (error) {
-      this.mark(error);
+      this.session.mark(error);
     }
   }
   unbind(): void {
-    this.token = randomUUID();
-    this.store = undefined;
-    this.turn = undefined;
-    this.messages = [];
-    this.ctx = undefined;
-    this.sourceCache = undefined;
+    this.session.token = randomUUID();
+    this.session.store = undefined;
+    this.session.turn = undefined;
+    this.session.messages = [];
+    this.session.ctx = undefined;
+    this.session.sourceCache = undefined;
     this.receipts.clear();
     this.pages.clear();
   }
   async refresh(ctx: any, capability: CognitiveRoutingCapabilityState): Promise<void> {
-    this.ctx = ctx;
-    const was = this.capability?.effective === true;
+    this.session.ctx = ctx;
+    const was = this.session.capability?.effective === true;
     const signature = canonical({ delegation: capability.delegation, profiles: capability.profiles });
-    if (this.capability && (was !== capability.effective || signature !== this.targetSignature)) this.revision++;
-    this.capability = capability;
+    if (this.session.capability && (was !== capability.effective || signature !== this.targetSignature))
+      this.session.revision++;
+    this.session.capability = capability;
     if (!capability.effective) {
-      this.turn = undefined;
+      this.session.turn = undefined;
       return;
     }
-    if (!this.store) {
+    if (!this.session.store) {
       await this.bind(ctx, capability);
       return;
     }
     if (!was) {
-      const subject = this.subject();
-      this.suppressed = false;
+      const subject = this.session.subject();
+      this.session.suppressed = false;
       try {
-        await this.store.reconcile();
-        this.guard(subject);
-        this.error = undefined;
+        await this.session.store.reconcile();
+        this.session.guard(subject);
+        this.session.error = undefined;
         await this.transition(
-          this.profilePair("coordinator"),
+          this.session.profilePair("coordinator"),
           () =>
-            this.append({
+            this.session.append({
               type: "control",
               control: "automatic",
               profile: "coordinator",
@@ -700,41 +520,46 @@ export class RoutingRuntime {
             }),
           subject,
         );
-        this.automaticControl = true;
+        this.session.automaticControl = true;
       } catch (error) {
-        if (this.current(subject)) this.mark(error);
+        if (this.session.current(subject)) this.session.mark(error);
       }
     } else if (this.targetSignature && signature !== this.targetSignature) {
-      this.error = "configuration_changed: reconcile profile configuration before automatic execution";
-      this.announceBlock(ctx);
+      this.session.error = "configuration_changed: reconcile profile configuration before automatic execution";
+      this.session.announceBlock(ctx);
     }
-    if (canonical({ delegation: this.capability?.delegation, profiles: this.capability?.profiles }) === signature)
+    if (
+      canonical({ delegation: this.session.capability?.delegation, profiles: this.session.capability?.profiles }) ===
+      signature
+    )
       this.targetSignature = signature;
     this.announcePresets(ctx);
   }
   async ancestryChanged(ctx: any, navigation = true): Promise<void> {
-    this.revision++;
-    this.ctx = ctx;
-    this.turn = undefined;
-    this.messages = [];
-    this.sourceCache = undefined;
+    this.session.revision++;
+    this.session.ctx = ctx;
+    this.session.turn = undefined;
+    this.session.messages = [];
+    this.session.sourceCache = undefined;
     this.receipts.clear();
     this.pages.clear();
-    if (!this.store || !this.supported()) return;
-    const subject = this.subject();
+    if (!this.session.store || !this.session.supported()) return;
+    const subject = this.session.subject();
     try {
-      await this.store.reconcile();
-      this.guard(subject);
-      this.error = undefined;
-      const state = this.stateData();
-      await this.validateProfilePairs(this.profilePairs(this.requiredProfiles(state)));
-      this.retireUnbound("Selected historical ancestry ends before execution binding; effects are not replayed.");
-      if (this.manualHold) {
-        const held = this.manualHold;
+      await this.session.store.reconcile();
+      this.session.guard(subject);
+      this.session.error = undefined;
+      const state = this.session.stateData();
+      await this.validateProfilePairs(this.session.profilePairs(this.session.requiredProfiles(state)));
+      this.session.retireUnbound(
+        "Selected historical ancestry ends before execution binding; effects are not replayed.",
+      );
+      if (this.session.manualHold) {
+        const held = this.session.manualHold;
         await this.transition(
-          this.profilePair(held),
+          this.session.profilePair(held),
           () =>
-            this.append({
+            this.session.append({
               type: "control",
               control: "manual",
               profile: held,
@@ -743,13 +568,13 @@ export class RoutingRuntime {
           subject,
         );
       } else if (
-        (this.automaticControl || !state.events.size) &&
-        (navigation || !samePair(this.intended(), this.profilePair(state.profile ?? "coordinator")))
+        (this.session.automaticControl || !state.events.size) &&
+        (navigation || !samePair(this.intended(), this.session.profilePair(state.profile ?? "coordinator")))
       ) {
         await this.transition(
-          this.profilePair("coordinator"),
+          this.session.profilePair("coordinator"),
           () =>
-            this.append({
+            this.session.append({
               type: "control",
               control: "automatic",
               profile: "coordinator",
@@ -759,88 +584,93 @@ export class RoutingRuntime {
         );
       }
     } catch (error) {
-      if (this.current(subject)) this.mark(error);
+      if (this.session.current(subject)) this.session.mark(error);
     }
   }
   async nativeChange(ctx: any): Promise<void> {
-    this.ctx = ctx;
-    if (!this.supported() || !this.store) return;
+    this.session.ctx = ctx;
+    if (!this.session.supported() || !this.session.store) return;
     if (this.applying) {
       if (ctx.model?.provider !== this.applying.provider || ctx.model?.id !== this.applying.modelId) {
         this.externalChange = true;
-        this.revision++;
+        this.session.revision++;
       }
       return; // Never await a queue already held by our setter.
     }
     // The user's own pick in Pi wins over a switch still waiting for the next prompt.
     this.setPending(undefined);
-    const state = this.stateData();
-    if (state.control !== "automatic" || !state.profile || samePair(this.observed(), this.profilePair(state.profile)))
+    const state = this.session.stateData();
+    if (
+      state.control !== "automatic" ||
+      !state.profile ||
+      samePair(this.session.observed(), this.session.profilePair(state.profile))
+    )
       return;
     try {
-      this.revision++;
-      this.manualHold = undefined;
-      this.automaticControl = false;
-      this.append({ type: "control", control: "inactive", reason: "External native model/effort change" });
+      this.session.revision++;
+      this.session.manualHold = undefined;
+      this.session.automaticControl = false;
+      this.session.append({ type: "control", control: "inactive", reason: "External native model/effort change" });
     } catch (error) {
-      this.mark(error);
+      this.session.mark(error);
     }
   }
   private async applyPair(target: Pair): Promise<void> {
-    const subject = this.subject(),
-      token = this.token,
-      prior = this.observed();
+    const subject = this.session.subject(),
+      token = this.session.token,
+      prior = this.session.observed();
     if (samePair(prior, target)) return;
-    const model = this.ctx.modelRegistry.find(target.provider, target.modelId);
+    const model = this.session.ctx.modelRegistry.find(target.provider, target.modelId);
     check(model, "profile_unavailable");
-    const auth = await this.ctx.modelRegistry.getApiKeyAndHeaders(model);
-    this.guard(subject);
+    const auth = await this.session.ctx.modelRegistry.getApiKeyAndHeaders(model);
+    this.session.guard(subject);
     check(auth?.ok, "profile_unauthenticated");
     this.applying = target;
     let ownedPair = target;
     this.externalChange = false;
     try {
       check(await this.pi.setModel(model), "model_rejected");
-      this.guard(subject);
+      this.session.guard(subject);
       this.pi.setThinkingLevel(target.thinking);
-      check(!this.externalChange && samePair(this.observed(), target), "configuration_mismatch");
+      check(!this.externalChange && samePair(this.session.observed(), target), "configuration_mismatch");
     } catch (error) {
-      if (this.current(subject) && prior && !this.externalChange) {
-        const old = this.ctx.modelRegistry.find(prior.provider, prior.modelId);
+      if (this.session.current(subject) && prior && !this.externalChange) {
+        const old = this.session.ctx.modelRegistry.find(prior.provider, prior.modelId);
         try {
           this.applying = prior;
           ownedPair = prior;
           check(old && (await this.pi.setModel(old)), "rollback_failed");
-          this.guard(subject);
+          this.session.guard(subject);
           this.pi.setThinkingLevel(prior.thinking);
-          check(samePair(this.observed(), prior), "rollback_failed");
+          check(samePair(this.session.observed(), prior), "rollback_failed");
         } catch {
-          if (this.current(subject)) this.error = "configuration_unknown: rollback could not be observed";
+          if (this.session.current(subject))
+            this.session.error = "configuration_unknown: rollback could not be observed";
         }
       }
       throw error;
     } finally {
-      if (token === this.token && this.applying === ownedPair) this.applying = undefined;
+      if (token === this.session.token && this.applying === ownedPair) this.applying = undefined;
     }
   }
   /** A profile switch made while idle, kept with the session's stage so a reload keeps it. */
   private pending(): Pair | undefined {
-    return stagedFor(this.ctx?.sessionManager)?.pair as Pair | undefined;
+    return stagedFor(this.session.ctx?.sessionManager)?.pair as Pair | undefined;
   }
   private setPending(pair: Pair | undefined): void {
-    const stage = pair ? sessionStage(this.ctx?.sessionManager) : stagedFor(this.ctx?.sessionManager);
+    const stage = pair ? sessionStage(this.session.ctx?.sessionManager) : stagedFor(this.session.ctx?.sessionManager);
     if (!stage) return;
     if (pair) stage.pair = pair;
     else delete stage.pair;
   }
   /** The pair routing intends the host to run: a pending switch, or what the host runs now. */
   private intended(): Pair | undefined {
-    return this.pending() ?? this.observed();
+    return this.pending() ?? this.session.observed();
   }
   private async checkPair(target: Pair): Promise<void> {
-    const model = this.ctx.modelRegistry.find(target.provider, target.modelId);
+    const model = this.session.ctx.modelRegistry.find(target.provider, target.modelId);
     check(model, "profile_unavailable");
-    check((await this.ctx.modelRegistry.getApiKeyAndHeaders(model))?.ok, "profile_unauthenticated");
+    check((await this.session.ctx.modelRegistry.getApiKeyAndHeaders(model))?.ok, "profile_unauthenticated");
   }
   /**
    * Apply a switch made while idle, so the prompt runs on the profile the user chose. If the host cannot run it,
@@ -852,7 +682,7 @@ export class RoutingRuntime {
     try {
       await this.applyPair(target);
     } catch (error) {
-      const stage = stagedFor(this.ctx?.sessionManager);
+      const stage = stagedFor(this.session.ctx?.sessionManager);
       if (stage) stage.events = [];
       throw error;
     } finally {
@@ -865,22 +695,22 @@ export class RoutingRuntime {
    * whose model the host is not running.
    */
   private async transition(target: Pair, record: () => void, subject: Subject): Promise<void> {
-    if (this.ctx?.isIdle?.() !== false) {
+    if (this.session.ctx?.isIdle?.() !== false) {
       // An idle switch reaches Pi's model at the next prompt; checking the target now keeps errors immediate.
       if (!samePair(this.intended(), target)) await this.checkPair(target);
-      this.guard(subject);
+      this.session.guard(subject);
       record();
-      this.setPending(samePair(this.observed(), target) ? undefined : target);
+      this.setPending(samePair(this.session.observed(), target) ? undefined : target);
       return;
     }
     this.setPending(undefined);
-    const prior = this.observed();
+    const prior = this.session.observed();
     await this.applyPair(target);
     try {
-      this.guard(subject);
+      this.session.guard(subject);
       record();
     } catch (error) {
-      if (subject.token === this.token && prior && !samePair(this.observed(), prior))
+      if (subject.token === this.session.token && prior && !samePair(this.session.observed(), prior))
         await this.applyPair(prior).catch(() => {});
       throw error;
     }
@@ -894,36 +724,36 @@ export class RoutingRuntime {
     request: Profile | ((state: State) => Profile),
     manual: boolean,
   ): Promise<{ status: string; reason?: string }> {
-    return this.enqueue(async () => {
-      this.revision++;
-      const subject = this.subject();
+    return this.session.enqueue(async () => {
+      this.session.revision++;
+      const subject = this.session.subject();
       try {
-        check(this.capability?.effective && this.store, "routing_unavailable");
-        await this.store.reconcile();
-        this.guard(subject);
-        const previous = this.stateData();
+        check(this.session.capability?.effective && this.session.store, "routing_unavailable");
+        await this.session.store.reconcile();
+        this.session.guard(subject);
+        const previous = this.session.stateData();
         const profile = typeof request === "function" ? request(previous) : request;
         if (manual && isWorkerProfile(profile))
           check(
-            this.enabledWorkers().includes(profile),
+            this.session.enabledWorkers().includes(profile),
             "worker_disabled",
             `${profile} is not enabled by delegation mode.`,
           );
-        this.error = undefined;
-        this.suppressed = false;
+        this.session.error = undefined;
+        this.session.suppressed = false;
         if (
           previous.control === (manual ? "manual" : "automatic") &&
           previous.profile === profile &&
-          samePair(this.intended(), this.profilePair(profile))
+          samePair(this.intended(), this.session.profilePair(profile))
         ) {
-          this.manualHold = manual ? profile : undefined;
-          this.automaticControl = !manual;
+          this.session.manualHold = manual ? profile : undefined;
+          this.session.automaticControl = !manual;
           return { status: manual ? "active" : "automatic" };
         }
         await this.transition(
-          this.profilePair(profile),
+          this.session.profilePair(profile),
           () =>
-            this.append({
+            this.session.append({
               type: "control",
               control: manual ? "manual" : "automatic",
               profile,
@@ -931,12 +761,12 @@ export class RoutingRuntime {
             }),
           subject,
         );
-        this.manualHold = manual ? profile : undefined;
-        this.automaticControl = !manual;
+        this.session.manualHold = manual ? profile : undefined;
+        this.session.automaticControl = !manual;
         return { status: manual ? "active" : "automatic" };
       } catch (error) {
-        if (this.current(subject) && !(error instanceof RoutingError && error.code === "worker_disabled"))
-          this.mark(error);
+        if (this.session.current(subject) && !(error instanceof RoutingError && error.code === "worker_disabled"))
+          this.session.mark(error);
         return { status: "blocked", reason: error instanceof Error ? error.message : String(error) };
       }
     });
@@ -944,7 +774,7 @@ export class RoutingRuntime {
   /** Advance one manual-hold step from the state left by any earlier queued request. */
   cycleManualProfile() {
     return this.control((state) => {
-      const profiles: Profile[] = ["coordinator", ...workersForDelegation(this.delegation(state))];
+      const profiles: Profile[] = ["coordinator", ...workersForDelegation(this.session.delegation(state))];
       return profiles[(profiles.indexOf(state.profile ?? "coordinator") + 1) % profiles.length]!;
     }, true);
   }
@@ -952,33 +782,33 @@ export class RoutingRuntime {
     return this.control(profile, true);
   }
   sessionProfileOverrides(): Partial<Record<Profile, Pair>> {
-    return Object.fromEntries(this.stateData().profileOverrides) as Partial<Record<Profile, Pair>>;
+    return Object.fromEntries(this.session.stateData().profileOverrides) as Partial<Record<Profile, Pair>>;
   }
   sessionDelegationOverride(): DelegationMode | undefined {
-    return this.stateData().delegationOverride;
+    return this.session.stateData().delegationOverride;
   }
   async setSessionDelegationOverride(
     override: DelegationMode | null,
     mechanism = "Session delegation override",
   ): Promise<{ status: string; reason?: string }> {
-    return this.enqueue(async () => {
-      this.revision++;
-      const subject = this.subject();
+    return this.session.enqueue(async () => {
+      this.session.revision++;
+      const subject = this.session.subject();
       try {
-        check(this.capability?.effective && this.store, "routing_unavailable");
+        check(this.session.capability?.effective && this.session.store, "routing_unavailable");
         check(
-          this.ctx?.isIdle?.() !== false,
+          this.session.ctx?.isIdle?.() !== false,
           "host_busy",
           "Wait for Pi to become idle before changing delegation mode.",
         );
-        await this.store.reconcile();
-        this.guard(subject);
-        const state = this.stateData();
+        await this.session.store.reconcile();
+        this.session.guard(subject);
+        const state = this.session.stateData();
         if ((state.delegationOverride ?? null) === override) return { status: "unchanged" };
-        const delegation = override ?? this.capability.delegation;
-        await this.validateProfilePairs(this.profilePairs(this.requiredProfiles(state, delegation)));
-        this.guard(subject);
-        this.append({ type: "delegation-override", delegation: override, reason: mechanism });
+        const delegation = override ?? this.session.capability.delegation;
+        await this.validateProfilePairs(this.session.profilePairs(this.session.requiredProfiles(state, delegation)));
+        this.session.guard(subject);
+        this.session.append({ type: "delegation-override", delegation: override, reason: mechanism });
         this.announcePresets();
         return { status: "stored" };
       } catch (error) {
@@ -991,48 +821,48 @@ export class RoutingRuntime {
     override: Pair | null,
     mechanism = "Session profile override",
   ): Promise<{ status: string; reason?: string }> {
-    return this.enqueue(async () => {
-      this.revision++;
-      const subject = this.subject();
+    return this.session.enqueue(async () => {
+      this.session.revision++;
+      const subject = this.session.subject();
       try {
-        check(this.capability?.effective && this.store, "routing_unavailable");
+        check(this.session.capability?.effective && this.session.store, "routing_unavailable");
         check(
-          this.ctx?.isIdle?.() !== false,
+          this.session.ctx?.isIdle?.() !== false,
           "host_busy",
           "Wait for Pi to become idle before changing session presets.",
         );
-        await this.store.reconcile();
-        this.guard(subject);
-        const state = this.stateData();
+        await this.session.store.reconcile();
+        this.session.guard(subject);
+        const state = this.session.stateData();
         const previous = state.profileOverrides.get(profile);
         if ((override === null && !previous) || (override !== null && samePair(previous, override)))
           return { status: "unchanged" };
-        const target = override ?? this.configuredProfilePair(profile);
-        const profiles = new Set(this.requiredProfiles(state));
+        const target = override ?? this.session.configuredProfilePair(profile);
+        const profiles = new Set(this.session.requiredProfiles(state));
         profiles.add(profile);
         const pairs = Object.fromEntries(
-          [...profiles].map((name) => [name, name === profile ? target : this.profilePair(name)]),
+          [...profiles].map((name) => [name, name === profile ? target : this.session.profilePair(name)]),
         ) as Partial<Record<Profile, Pair>>;
         await this.validateProfilePairs(pairs);
         const record = () =>
-          this.append({
+          this.session.append({
             type: "profile-overrides",
             overrides: { [profile]: override },
             reason: mechanism,
           });
         if (state.control !== "inactive" && state.profile === profile) {
           await this.transition(target, record, subject);
-          this.error = undefined;
+          this.session.error = undefined;
           this.announcePresets();
           return { status: "active" };
         }
-        this.guard(subject);
+        this.session.guard(subject);
         record();
-        this.error = undefined;
+        this.session.error = undefined;
         this.announcePresets();
         return { status: "stored" };
       } catch (error) {
-        if (this.current(subject)) this.mark(error);
+        if (this.session.current(subject)) this.session.mark(error);
         return { status: "blocked", reason: error instanceof Error ? error.message : String(error) };
       }
     });
@@ -1040,28 +870,28 @@ export class RoutingRuntime {
   async resetSessionProfileOverrides(
     mechanism = "Reset session profile overrides",
   ): Promise<{ status: string; reason?: string }> {
-    return this.enqueue(async () => {
-      this.revision++;
-      const subject = this.subject();
+    return this.session.enqueue(async () => {
+      this.session.revision++;
+      const subject = this.session.subject();
       try {
-        check(this.capability?.effective && this.store, "routing_unavailable");
+        check(this.session.capability?.effective && this.session.store, "routing_unavailable");
         check(
-          this.ctx?.isIdle?.() !== false,
+          this.session.ctx?.isIdle?.() !== false,
           "host_busy",
           "Wait for Pi to become idle before resetting session presets.",
         );
-        await this.store.reconcile();
-        this.guard(subject);
-        const state = this.stateData();
+        await this.session.store.reconcile();
+        this.session.guard(subject);
+        const state = this.session.stateData();
         if (state.profileOverrides.size === 0) return { status: "unchanged" };
         const previous = Object.fromEntries(state.profileOverrides) as Partial<Record<Profile, Pair>>;
-        const required = this.requiredProfiles(state);
+        const required = this.session.requiredProfiles(state);
         const targetPairs = Object.fromEntries(
-          required.map((profile) => [profile, this.configuredProfilePair(profile)]),
+          required.map((profile) => [profile, this.session.configuredProfilePair(profile)]),
         ) as Partial<Record<Profile, Pair>>;
         await this.validateProfilePairs(targetPairs);
         const record = () =>
-          this.append({
+          this.session.append({
             type: "profile-overrides",
             overrides: { coordinator: null, helper: null, executor: null },
             reason: mechanism,
@@ -1069,17 +899,17 @@ export class RoutingRuntime {
         const active = state.control !== "inactive" ? state.profile : undefined;
         if (active && previous[active]) {
           await this.transition(targetPairs[active]!, record, subject);
-          this.error = undefined;
+          this.session.error = undefined;
           this.announcePresets();
           return { status: "active" };
         }
-        this.guard(subject);
+        this.session.guard(subject);
         record();
-        this.error = undefined;
+        this.session.error = undefined;
         this.announcePresets();
         return { status: "stored" };
       } catch (error) {
-        if (this.current(subject)) this.mark(error);
+        if (this.session.current(subject)) this.session.mark(error);
         return { status: "blocked", reason: error instanceof Error ? error.message : String(error) };
       }
     });
@@ -1094,7 +924,7 @@ export class RoutingRuntime {
     // Compaction may remove every user message from the active view. Retain
     // observed delivery on this ancestry; a stored but undelivered user entry
     // must not advance the basis, and absence must not manufacture new input.
-    for (const execution of this.stateData().executions.values())
+    for (const execution of this.session.stateData().executions.values())
       if (execution.basisUserEntryId) delivered.add(execution.basisUserEntryId);
     for (let i = sources.entries.length - 1; i >= 0; i--) {
       const entry = sources.entries[i];
@@ -1144,8 +974,8 @@ export class RoutingRuntime {
         ? `Recovery request: ${recovery.request}\nOnly exact allowed read paths, granted captured results, evidence selection, and recovery return controls are permitted; ordinary task work remains ended.`
         : "",
       evidence,
-      this.error ? `Blocked: ${this.error}` : "",
-      this.projectionError ? `Evidence limitation: ${this.projectionError}` : "",
+      this.session.error ? `Blocked: ${this.session.error}` : "",
+      this.session.projectionError ? `Evidence limitation: ${this.session.projectionError}` : "",
       attention
         ? recovery
           ? `Assessment paused for attention; ordinary admitted history remains. ${selection.selected.length} sources remain selected. Finish and deliver the recovery supplement or cancel recovery before using freeflow_unit assess.`
@@ -1154,8 +984,10 @@ export class RoutingRuntime {
       a?.state === "returned" && recovery?.state !== "reading"
         ? "Worker ordinary task work has ended. Only supported handoff correction is permitted."
         : "",
-      isWorkerProfile(this.turn?.profile) && a && this.turn.basisUserEntryId !== this.workerBasis(state, a.id)
-        ? `Current input differs from the active ${this.turn.profile} responsibility. Account for it; changed direction requires Coordinator attention.`
+      isWorkerProfile(this.session.turn?.profile) &&
+      a &&
+      this.session.turn.basisUserEntryId !== this.session.workerBasis(state, a.id)
+        ? `Current input differs from the active ${this.session.turn.profile} responsibility. Account for it; changed direction requires Coordinator attention.`
         : "",
       ...(state.assessment?.problems ?? []).map((p) => `${p.code}: ${p.detail}`),
     ]
@@ -1167,20 +999,20 @@ export class RoutingRuntime {
       content,
       display: false,
       timestamp: 0,
-      details: { routingInstance: this.token },
+      details: { routingInstance: this.session.token },
     };
   }
   private evidenceFacts(state: State) {
     const selection = state.assignmentId
       ? (state.selections.get(state.assignmentId) ?? emptySelection())
       : emptySelection();
-    const sources = this.sources(state);
+    const sources = this.session.sources(state);
     return {
       revision: selection.revision,
       selected: selection.selected
         .filter((ref) => deliveredSelection(sources, ref))
         .map((ref) => {
-          const entry = this.ctx?.sessionManager.getEntry?.(ref.slice(4));
+          const entry = this.session.ctx?.sessionManager.getEntry?.(ref.slice(4));
           const locator = sources.locator(ref);
           return {
             ref,
@@ -1208,7 +1040,7 @@ export class RoutingRuntime {
    * and the rank at which the current assessment last resumed from an attention suspension.
    */
   private admissions(state: State): { admissions: Map<string, number>; resumedAt?: number } {
-    const reader = this.ctx.sessionManager,
+    const reader = this.session.ctx.sessionManager,
       leaf = reader.getLeafId?.() ?? null;
     const cache = this.admissionCache;
     if (cache && cache.state === state && cache.leaf === leaf) return cache;
@@ -1230,18 +1062,18 @@ export class RoutingRuntime {
     return this.admissionCache;
   }
   private prepared(profile: Profile, input: any[], handoffId?: string, restoring = false): PreparedView {
-    const state = this.stateData(),
+    const state = this.session.stateData(),
       model = this.model(profile);
     return prepareView({
       ...(({ admissions, resumedAt }) => ({ admissions, resumedAt }))(this.admissions(state)),
       messages: input,
-      sources: this.sources(state),
+      sources: this.session.sources(state),
       state,
       view: profile,
       projection: this.projectionEnabled,
       model,
-      pair: this.profilePair(profile),
-      systemPrompt: this.ctx.getSystemPrompt?.() ?? "",
+      pair: this.session.profilePair(profile),
+      systemPrompt: this.session.ctx.getSystemPrompt?.() ?? "",
       tools: (this.pi.getAllTools?.() ?? [])
         .filter((tool: any) => this.pi.getActiveTools?.().includes(tool.name))
         .map((tool: any) =>
@@ -1251,13 +1083,13 @@ export class RoutingRuntime {
         state,
         profile === "coordinator" && state.assessment?.view === "suspended" && !restoring && !handoffId,
       ),
-      instance: this.token,
+      instance: this.session.token,
       preparingReturn: handoffId,
       restoring,
     });
   }
   budgetNotice(messages: any[], ctx: any): any | undefined {
-    if (!this.supported()) return;
+    if (!this.session.supported()) return;
     const tools = (this.pi.getAllTools?.() ?? []).filter((tool: any) => this.pi.getActiveTools?.().includes(tool.name));
     const estimate = estimateRequest(ctx.getSystemPrompt?.() ?? "", tools, messages, ctx.model);
     if (!estimate.warnings.length) return;
@@ -1271,7 +1103,7 @@ export class RoutingRuntime {
   }
   private ordinaryContext(input: any[]): any[] {
     try {
-      const sources = this.sources(),
+      const sources = this.session.sources(),
         associated = sources.associate(input);
       const mapped = new Map(associated.filter((item) => item.source).map((item) => [item.message, item.source!]));
       return annotateSources(
@@ -1279,33 +1111,37 @@ export class RoutingRuntime {
         mapped,
         new Set([...mapped.values()].map((source) => source.ref)),
         sources,
-        this.token,
+        this.session.token,
       );
     } catch {
       return input;
     }
   }
   async context(ctx: any, incoming: any[]): Promise<any[]> {
-    this.ctx = ctx;
+    this.session.ctx = ctx;
     const input = incoming.filter(
       (m) =>
         !(
-          m?.details?.routingInstance === this.token &&
+          m?.details?.routingInstance === this.session.token &&
           [ROUTING_MESSAGE, ROUTING_ATTENTION_MESSAGE, "freeflow-routing-v2-refs"].includes(m.customType)
         ),
     );
-    this.messages = input;
-    if (!this.supported() || !this.store) return this.ordinaryContext(input);
+    this.session.messages = input;
+    if (!this.session.supported() || !this.session.store) return this.ordinaryContext(input);
     try {
-      const state = this.stateData();
+      const state = this.session.stateData();
       if (state.control !== "automatic") return this.ordinaryContext(input);
-      check(!this.error && !this.store.blocked && state.profile, "routing_blocked", this.error ?? this.store.blocked);
-      this.announced = undefined;
-      check(samePair(this.observed(), this.profilePair(state.profile!)), "prepared_pair_mismatch");
-      const sources = this.sources(state),
+      check(
+        !this.session.error && !this.session.store.blocked && state.profile,
+        "routing_blocked",
+        this.session.error ?? this.session.store.blocked,
+      );
+      this.session.announced = undefined;
+      check(samePair(this.session.observed(), this.session.profilePair(state.profile!)), "prepared_pair_mismatch");
+      const sources = this.session.sources(state),
         user = this.lastDeliveredUser(sources, input);
       if (state.assessment && user && user !== state.assessment.basisUserEntryId)
-        this.append(
+        this.session.append(
           {
             type: "assessment-suspended",
             handoffId: state.assessment.handoffId,
@@ -1317,11 +1153,12 @@ export class RoutingRuntime {
         );
       // New input reaching an already prepared worker request cannot be rerouted by changing only the live model.
       const outstanding = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
-      const worker = outstanding ? this.assignedWorker(state, outstanding.id) : undefined;
+      const worker = outstanding ? this.session.assignedWorker(state, outstanding.id) : undefined;
       const interrupted =
         isWorkerProfile(state.profile) &&
-        (state.profile !== worker || user !== (outstanding ? this.workerBasis(state, outstanding.id) : undefined));
-      if (!this.turn || this.turn.bound) {
+        (state.profile !== worker ||
+          user !== (outstanding ? this.session.workerBasis(state, outstanding.id) : undefined));
+      if (!this.session.turn || this.session.turn.bound) {
         this.receipts.clear();
         const execution: Execution = {
           id: randomUUID(),
@@ -1329,11 +1166,11 @@ export class RoutingRuntime {
           assignmentId: state.assignmentId,
           recoveryId: state.recoveryId,
           basisUserEntryId: user,
-          pair: this.observed()!,
+          pair: this.session.observed()!,
           resultEntryIds: [],
         };
         const before = new Set((ctx.sessionManager.getBranch() as NativeEntry[]).map((e) => e.id));
-        this.turn = {
+        this.session.turn = {
           id: execution.id,
           profile: execution.profile,
           assignmentId: execution.assignmentId,
@@ -1342,30 +1179,30 @@ export class RoutingRuntime {
           before,
           pair: execution.pair,
         };
-        this.openTurn();
+        this.session.openTurn();
       }
       let prepared = this.prepared(state.profile!, input);
-      if (!prepared.ready && state.profile === "coordinator" && this.stateData().assessment) {
-        const assessment = this.stateData().assessment!;
-        this.append({
+      if (!prepared.ready && state.profile === "coordinator" && this.session.stateData().assessment) {
+        const assessment = this.session.stateData().assessment!;
+        this.session.append({
           type: "assessment-suspended",
           handoffId: assessment.handoffId,
           reason: "delivery-gap",
           basisUserEntryId: user,
           problems: prepared.problems,
         });
-        this.projectionError = prepared.problems.map((p) => p.code).join(", ");
+        this.session.projectionError = prepared.problems.map((p) => p.code).join(", ");
         prepared = this.prepared("coordinator", input);
       }
       check(prepared.ready, "context_unavailable", prepared.problems.map((p) => p.detail).join("; "));
-      const known = this.stateData().exposure;
+      const known = this.session.stateData().exposure;
       const added = prepared.fullSources.filter((s) => known.get(s.ref) !== s.hash);
-      if (isWorkerProfile(this.turn.profile))
+      if (isWorkerProfile(this.session.turn.profile))
         for (let i = 0; i < added.length; i += 128)
-          this.append({
+          this.session.append({
             type: "sources-exposed",
-            executionId: this.turn.id,
-            view: this.turn.profile,
+            executionId: this.session.turn.id,
+            view: this.session.turn.profile,
             sources: added.slice(i, i + 128).map((s) => ({ ref: s.ref, bodyHash: s.hash })),
           });
       if (interrupted)
@@ -1374,30 +1211,31 @@ export class RoutingRuntime {
           customType: ROUTING_ATTENTION_MESSAGE,
           display: false,
           timestamp: 0,
-          details: { routingInstance: this.token },
+          details: { routingInstance: this.session.token },
           content:
             "New delivered user input requires Coordinator attention. Do not run ordinary task tools; return the current partial result.",
         });
       return prepared.messages;
     } catch (error) {
-      this.mark(error);
-      this.announceBlock(ctx);
+      this.session.mark(error);
+      this.session.announceBlock(ctx);
       ctx.abort?.();
       // Do not send an accidental full worker history on a projection failure.
       return [
         {
           role: "custom",
           customType: ROUTING_MESSAGE,
-          content: `Automatic request blocked: ${this.error}. ${ROUTING_RECOVERY_HINT}`,
+          content: `Automatic request blocked: ${this.session.error}. ${ROUTING_RECOVERY_HINT}`,
           display: false,
           timestamp: 0,
-          details: { routingInstance: this.token, routingRequestBlocked: true },
+          details: { routingInstance: this.session.token, routingRequestBlocked: true },
         },
       ];
     }
   }
   messageEnd(message: any): void {
-    if (message?.role === "assistant" && this.turn && !this.turn.bound) this.turn.message = structuredClone(message);
+    if (message?.role === "assistant" && this.session.turn && !this.session.turn.bound)
+      this.session.turn.message = structuredClone(message);
   }
   private handoffOperation(name: string, input: any): boolean {
     if (name === "freeflow_delegate") return true;
@@ -1416,7 +1254,7 @@ export class RoutingRuntime {
   }
   private canonicalRecoveryPath(path: string): string {
     check(this.stableRecoveryPath(path), "recovery_path_unsupported", `Recovery path spelling is unsupported: ${path}`);
-    const requested = resolvePath(this.ctx.cwd, path);
+    const requested = resolvePath(this.session.ctx.cwd, path);
     check(existsSync(requested), "recovery_path_unavailable", `Recovery path is unavailable: ${path}`);
     try {
       return realpathSync(requested);
@@ -1449,28 +1287,26 @@ export class RoutingRuntime {
       return false;
     }
   }
-  private workerBasis(state: State, assignmentId: string): string | null {
-    const recovery = state.recoveryId ? state.recoveries.get(state.recoveryId) : undefined;
-    if (recovery?.state === "reading") return state.handoffs.get(recovery.requestHandoffId)?.basisUserEntryId ?? null;
-    return this.taskBasis(state, assignmentId);
-  }
   private batch(callId: string, name: string): void {
-    check(this.turn?.message, "batch_unavailable");
-    const matches = (this.ctx.sessionManager.getBranch() as NativeEntry[]).filter(
+    check(this.session.turn?.message, "batch_unavailable");
+    const matches = (this.session.ctx.sessionManager.getBranch() as NativeEntry[]).filter(
       (e) =>
-        !this.turn!.before.has(e.id) &&
+        !this.session.turn!.before.has(e.id) &&
         e.type === "message" &&
         e.message?.role === "assistant" &&
         e.message.content?.some((b: any) => b.type === "toolCall" && b.id === callId),
     );
     check(matches.length === 1, "batch_source_changed");
     const fingerprint = bodyHash(matches[0].message);
-    check(!this.turn.sourceFingerprint || this.turn.sourceFingerprint === fingerprint, "batch_source_changed");
+    check(
+      !this.session.turn.sourceFingerprint || this.session.turn.sourceFingerprint === fingerprint,
+      "batch_source_changed",
+    );
     // Later message_end handlers may legitimately replace the message. The first
     // preflight freezes the actually persisted batch before any of its tools act.
-    this.turn.sourceFingerprint = fingerprint;
-    this.turn.message = structuredClone(matches[0].message);
-    const calls = (this.turn.message.content ?? []).filter((b: any) => b.type === "toolCall");
+    this.session.turn.sourceFingerprint = fingerprint;
+    this.session.turn.message = structuredClone(matches[0].message);
+    const calls = (this.session.turn.message.content ?? []).filter((b: any) => b.type === "toolCall");
     const handoffs = calls.filter((b: any) => this.handoffOperation(b.name, b.arguments));
     check(
       !handoffs.length ||
@@ -1486,32 +1322,32 @@ export class RoutingRuntime {
     );
   }
   preflight(event: any, ctx: any): any {
-    this.ctx = ctx;
+    this.session.ctx = ctx;
     const name = event.toolName,
       isRouting = ROUTING_TOOLS.includes(name);
-    if (!this.supported()) return isRouting ? { block: true, reason: "Routing is unavailable." } : undefined;
+    if (!this.session.supported()) return isRouting ? { block: true, reason: "Routing is unavailable." } : undefined;
     try {
-      const state = this.stateData();
+      const state = this.session.stateData();
       if (state.control === "manual")
         return isRouting && name !== "freeflow_unit" ? { block: true, reason: "Manual control is active." } : undefined;
       if (state.control !== "automatic")
         return isRouting ? { block: true, reason: "Automatic routing is inactive." } : undefined;
       this.batch(event.toolCallId, name);
-      check(!this.error && !this.store?.blocked, "routing_blocked");
-      this.openTurn();
-      if (isWorkerProfile(this.turn?.profile) && !isRouting) {
+      check(!this.session.error && !this.session.store?.blocked, "routing_blocked");
+      this.session.openTurn();
+      if (isWorkerProfile(this.session.turn?.profile) && !isRouting) {
         const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
-        const worker = a ? this.assignedWorker(state, a.id) : undefined;
+        const worker = a ? this.session.assignedWorker(state, a.id) : undefined;
         const ordinary =
           a?.state === "outstanding" &&
-          this.turn.basisUserEntryId === this.taskBasis(state, a.id) &&
+          this.session.turn.basisUserEntryId === this.session.taskBasis(state, a.id) &&
           state.profile === worker &&
-          this.turn.profile === worker;
+          this.session.turn.profile === worker;
         const recovery =
           a?.state === "returned" &&
-          this.turn.basisUserEntryId === this.workerBasis(state, a.id) &&
+          this.session.turn.basisUserEntryId === this.session.workerBasis(state, a.id) &&
           state.profile === worker &&
-          this.turn.profile === worker &&
+          this.session.turn.profile === worker &&
           this.recoveryReadAllowed(state, name, event.input);
         check(ordinary || recovery, "worker_task_phase_ended");
       }
@@ -1521,26 +1357,26 @@ export class RoutingRuntime {
     }
   }
   private callOperation(callId: string, name: string): string {
-    check(this.turn && this.store, "execution_missing");
+    check(this.session.turn && this.session.store, "execution_missing");
     this.batch(callId, name);
-    return JSON.stringify([this.store.reader.getSessionId(), this.turn.id, callId, name]);
+    return JSON.stringify([this.session.store.reader.getSessionId(), this.session.turn.id, callId, name]);
   }
   private result(value: any): any {
     return { content: [{ type: "text", text: JSON.stringify(value) }], details: value };
   }
   async invoke(name: string, callId: string, input: any, signal: AbortSignal | undefined, ctx: any): Promise<any> {
-    return this.enqueue(async () => {
-      this.ctx = ctx;
+    return this.session.enqueue(async () => {
+      this.session.ctx = ctx;
       try {
         check(!signal?.aborted, "cancelled");
         if (name === "freeflow_unit" && input.operation === "inspect") {
-          check(this.supported(), "routing_unavailable");
+          check(this.session.supported(), "routing_unavailable");
           return this.result(this.inspectUnit(input));
         }
-        const state = this.stateData();
+        const state = this.session.stateData();
         const expected =
-          name === "freeflow_delegate" || name === "freeflow_unit" ? "coordinator" : this.assignedWorker(state);
-        this.assertAvailable(expected);
+          name === "freeflow_delegate" || name === "freeflow_unit" ? "coordinator" : this.session.assignedWorker(state);
+        this.session.assertAvailable(expected);
         const op = this.callOperation(callId, name);
         const cached = this.receipts.get(op);
         if (cached) {
@@ -1568,7 +1404,7 @@ export class RoutingRuntime {
           code: error instanceof RoutingError ? error.code : "operation_failed",
           message: error instanceof Error ? error.message : String(error),
           problems: error instanceof RoutingError ? error.problems : [],
-          observed: this.observed(),
+          observed: this.session.observed(),
           expectedProfile:
             name === "freeflow_unit" && input.operation === "inspect"
               ? undefined
@@ -1576,7 +1412,7 @@ export class RoutingRuntime {
                 ? "coordinator"
                 : (() => {
                     try {
-                      return this.assignedWorker(this.stateData());
+                      return this.session.assignedWorker(this.session.stateData());
                     } catch {
                       return undefined;
                     }
@@ -1598,7 +1434,7 @@ export class RoutingRuntime {
     });
   }
   private duplicate(op: string): any {
-    return [...this.stateData().events.values()].find(
+    return [...this.session.stateData().events.values()].find(
       (e) =>
         e.operationId === op &&
         [
@@ -1622,8 +1458,8 @@ export class RoutingRuntime {
       );
       return { status: "accepted", handoff: prior.data.handoff.id, unchanged: true };
     }
-    const state = this.stateData();
-    const enabled = this.enabledWorkers();
+    const state = this.session.stateData();
+    const enabled = this.session.enabledWorkers();
     let worker: WorkerProfile;
     if (input.worker === undefined) {
       check(enabled.length === 1, "worker_required", "Delegation mode 'both' requires choosing helper or executor.");
@@ -1651,7 +1487,7 @@ export class RoutingRuntime {
       contract: input.contract,
       state: "outstanding" as const,
       delegateHandoffId: id,
-      basisUserEntryId: this.turn!.basisUserEntryId,
+      basisUserEntryId: this.session.turn!.basisUserEntryId,
     };
     const h: Handoff = {
       id,
@@ -1660,14 +1496,14 @@ export class RoutingRuntime {
       text: input.contract,
       from: "coordinator",
       to: worker,
-      executionId: this.turn!.id,
+      executionId: this.session.turn!.id,
       toolCallId: callId,
-      basisUserEntryId: this.turn!.basisUserEntryId,
+      basisUserEntryId: this.session.turn!.basisUserEntryId,
       state: "pending",
       reportRevision: 0,
       limitations: [],
     };
-    this.append(
+    this.session.append(
       {
         type: "delegate-accepted",
         unit: { ...unit, assignmentIds: [...unit.assignmentIds, assignmentId] },
@@ -1703,10 +1539,10 @@ export class RoutingRuntime {
     };
   }
   private returnReport(input: any, callId: string, op: string) {
-    const state = this.stateData(),
+    const state = this.session.stateData(),
       a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
     check(a, "assignment_missing");
-    const worker = this.assignedWorker(state, a.id);
+    const worker = this.session.assignedWorker(state, a.id);
     const recovery = state.recoveryId ? state.recoveries.get(state.recoveryId) : undefined;
     const original = a.returnHandoffId ? state.handoffs.get(a.returnHandoffId) : undefined;
     const supplement = recovery?.supplementHandoffId ? state.handoffs.get(recovery.supplementHandoffId) : undefined;
@@ -1731,12 +1567,12 @@ export class RoutingRuntime {
     }
     if (input.operation === "retry") {
       check(saved && ["blocked", "pending"].includes(saved.state), "saved_return_missing");
-      this.append(
+      this.session.append(
         {
           type: "handoff-retry-requested",
           handoffId: saved.id,
           attemptId: randomUUID(),
-          executionId: this.turn!.id,
+          executionId: this.session.turn!.id,
           toolCallId: callId,
           reportRevision: saved.reportRevision,
           selectionRevision: selection.revision,
@@ -1763,15 +1599,15 @@ export class RoutingRuntime {
         text: input.report,
         from: worker,
         to: "coordinator",
-        executionId: this.turn!.id,
+        executionId: this.session.turn!.id,
         toolCallId: callId,
-        basisUserEntryId: this.turn!.basisUserEntryId,
+        basisUserEntryId: this.session.turn!.basisUserEntryId,
         state: "pending",
         reportRevision: (supplement?.reportRevision ?? 0) + 1,
         outcome: input.outcome,
         limitations: input.limitations ?? [],
       };
-      this.append({ type: "recovery-supplement-accepted", recoveryId: recovery.id, handoff: h }, op);
+      this.session.append({ type: "recovery-supplement-accepted", recoveryId: recovery.id, handoff: h }, op);
       return this.returnReadiness(h.id);
     }
     check(input.operation === "submit", "invalid_return_operation");
@@ -1792,21 +1628,21 @@ export class RoutingRuntime {
       text: input.report,
       from: worker,
       to: "coordinator",
-      executionId: this.turn!.id,
+      executionId: this.session.turn!.id,
       toolCallId: callId,
-      basisUserEntryId: this.turn!.basisUserEntryId,
+      basisUserEntryId: this.session.turn!.basisUserEntryId,
       state: "pending",
       reportRevision: (original?.reportRevision ?? 0) + 1,
       outcome: input.outcome,
       limitations: input.limitations ?? [],
     };
-    this.append({ type: "return-accepted", handoff: h }, op);
+    this.session.append({ type: "return-accepted", handoff: h }, op);
     return this.returnReadiness(h.id);
   }
   private returnReadiness(id: string) {
-    const state = this.stateData();
+    const state = this.session.stateData();
     const h = state.handoffs.get(id)!;
-    const prepared = this.prepared("coordinator", this.messages, id);
+    const prepared = this.prepared("coordinator", this.session.messages, id);
     const isSupplement = h.kind === "recovery-return";
     const recovery = isSupplement
       ? [...state.recoveries.values()].find((candidate) => candidate.supplementHandoffId === h.id)
@@ -1840,19 +1676,20 @@ export class RoutingRuntime {
   }
   private project(input: any, op: string) {
     check(this.projectionEnabled, "projection_disabled");
-    const state = this.stateData(),
+    const state = this.session.stateData(),
       a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
     check(a, "assignment_missing");
-    const sources = this.sources(state);
-    sources.associate(this.messages);
+    const sources = this.session.sources(state);
+    sources.associate(this.session.messages);
     const selection = state.selections.get(a.id) ?? emptySelection();
     let next = selection;
     if (input.operation !== "inspect") {
       check(["add", "remove"].includes(input.operation), "invalid_projection_operation");
       next = changeSelection(selection, input, sources, state);
-      if (next !== selection) this.append({ type: "selection-changed", assignmentId: a.id, selection: next }, op);
+      if (next !== selection)
+        this.session.append({ type: "selection-changed", assignmentId: a.id, selection: next }, op);
     }
-    const prepared = this.prepared("coordinator", this.messages, a.returnHandoffId);
+    const prepared = this.prepared("coordinator", this.session.messages, a.returnHandoffId);
     const scope = input.scope ?? "assignment";
     let page: any;
     if (input.operation === "inspect") {
@@ -1947,7 +1784,7 @@ export class RoutingRuntime {
       ready: !next.unresolved.length && prepared.ready,
       problems: prepared.problems,
       warnings: prepared.warnings,
-      evidence: this.evidenceFacts(this.stateData()),
+      evidence: this.evidenceFacts(this.session.stateData()),
       items: (input.refs ? [...new Set<string>(input.refs)] : []).map((ref) => ({
         ref,
         status: next.unresolved.some((p) => p.ref === ref)
@@ -1966,7 +1803,7 @@ export class RoutingRuntime {
     };
   }
   private async unit(input: any, callId: string, op: string) {
-    const state = this.stateData();
+    const state = this.session.stateData();
     const prior = [...state.events.values()].find((e) => e.operationId === op);
     if (prior) {
       if (input.operation === "recover") {
@@ -2024,7 +1861,7 @@ export class RoutingRuntime {
           !this.applying,
         "recovery_not_available",
       );
-      const worker = this.assignedWorker(state, a.id);
+      const worker = this.session.assignedWorker(state, a.id);
       const id = randomUUID(),
         handoffId = randomUUID();
       const paths = [...new Set<string>((input.paths ?? []).map((path: string) => this.canonicalRecoveryPath(path)))];
@@ -2032,7 +1869,7 @@ export class RoutingRuntime {
       check(new Set(requestedResults).size === requestedResults.length, "duplicate_result_grant");
       const results: ResultGrant[] = [];
       for (const resultId of requestedResults) {
-        const grant = await this.resultGrants?.resolve(resultId, this.ctx);
+        const grant = await this.resultGrants?.resolve(resultId, this.session.ctx);
         check(grant?.id === resultId, "result_unavailable", `Captured result is unavailable: ${resultId}`);
         results.push(grant);
       }
@@ -2057,14 +1894,14 @@ export class RoutingRuntime {
         text: input.request,
         from: "coordinator",
         to: worker,
-        executionId: this.turn!.id,
+        executionId: this.session.turn!.id,
         toolCallId: callId,
-        basisUserEntryId: this.turn!.basisUserEntryId,
+        basisUserEntryId: this.session.turn!.basisUserEntryId,
         state: "pending",
         reportRevision: 0,
         limitations: [],
       };
-      this.append({ type: "recovery-request-accepted", recovery, handoff }, op);
+      this.session.append({ type: "recovery-request-accepted", recovery, handoff }, op);
       return {
         status: "accepted",
         recovery: id,
@@ -2088,7 +1925,7 @@ export class RoutingRuntime {
         ),
         "recovery_not_cancellable",
       );
-      this.append({ type: "recovery-cancelled", recoveryId: state.recoveryId, reason: input.reason }, op);
+      this.session.append({ type: "recovery-cancelled", recoveryId: state.recoveryId, reason: input.reason }, op);
       return {
         status: "cancelled",
         recovery: state.recoveryId,
@@ -2100,24 +1937,24 @@ export class RoutingRuntime {
       check(state.assessment, "assessment_missing");
       check(!state.recoveryId, "recovery_outstanding");
       if (state.assessment.view === "active") return { status: "unchanged", ready: true };
-      const prepared = this.prepared("coordinator", this.messages, state.assessment.handoffId, true);
+      const prepared = this.prepared("coordinator", this.session.messages, state.assessment.handoffId, true);
       if (!prepared.ready) return { status: "suspended", ready: false, problems: prepared.problems };
       if (this.projectionEnabled) check(prepared.reservation, "reservation_missing");
-      this.append(
+      this.session.append(
         {
           type: "assessment-resumed",
           handoffId: state.assessment.handoffId,
-          basisUserEntryId: this.turn!.basisUserEntryId,
+          basisUserEntryId: this.session.turn!.basisUserEntryId,
           ...(prepared.reservation ? { reservation: prepared.reservation } : {}),
         },
         op,
       );
-      this.projectionError = undefined;
+      this.session.projectionError = undefined;
       return {
         status: "resumed",
         ready: true,
         stage: "prepared assessment; next request revalidated",
-        evidence: this.evidenceFacts(this.stateData()),
+        evidence: this.evidenceFacts(this.session.stateData()),
       };
     }
     check(input.operation === "close" && state.unitId, "unit_missing");
@@ -2141,7 +1978,7 @@ export class RoutingRuntime {
         "not_quiescent",
       );
     }
-    this.append(
+    this.session.append(
       {
         type: "unit-closed",
         unitId: state.unitId,
@@ -2162,7 +1999,7 @@ export class RoutingRuntime {
     active = false,
     summarize?: (rows: any[]) => any,
   ): any {
-    const branch = this.ctx.sessionManager.getBranch() as NativeEntry[];
+    const branch = this.session.ctx.sessionManager.getBranch() as NativeEntry[];
     const compaction = branch.filter((e) => e.type === "compaction").at(-1)?.id;
     let key: string,
       offset = 0;
@@ -2210,7 +2047,7 @@ export class RoutingRuntime {
     };
   }
   private inspectUnit(input: any): any {
-    const state = this.stateData(),
+    const state = this.session.stateData(),
       view = input.view ?? "current";
     check(view === "detail" || !input.ref, "invalid_inspection", "A work ref belongs to view detail.");
     check(
@@ -2388,13 +2225,13 @@ export class RoutingRuntime {
     };
   }
   status(limit = 0): any {
-    const state = this.stateData();
+    const state = this.session.stateData();
     const unit = state.unitId ? state.units.get(state.unitId) : undefined;
     const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
     return {
       ...this.state(),
       unit: unit ? { id: unit.id, state: unit.state, assignments: unit.assignmentIds.length } : null,
-      assignment: a ? { id: a.id, state: a.state, worker: this.assignedWorker(state, a.id) } : null,
+      assignment: a ? { id: a.id, state: a.state, worker: this.session.assignedWorker(state, a.id) } : null,
       pendingHandoff: state.pendingId ?? null,
       recovery: state.recoveryId
         ? (() => {
@@ -2425,15 +2262,15 @@ export class RoutingRuntime {
     };
   }
   async turnEnd(event: any, ctx: any): Promise<void> {
-    this.ctx = ctx;
-    if (!this.turn || this.turn.bound || !this.supported() || !this.store) return;
-    if (!this.turn.opened) {
-      this.turn = undefined;
+    this.session.ctx = ctx;
+    if (!this.session.turn || this.session.turn.bound || !this.session.supported() || !this.session.store) return;
+    if (!this.session.turn.opened) {
+      this.session.turn = undefined;
       return;
     }
-    const token = this.token,
-      turn = this.turn;
-    const subject = this.subject();
+    const token = this.session.token,
+      turn = this.session.turn;
+    const subject = this.session.subject();
     try {
       const message = event.message ?? turn.message;
       const candidates = (ctx.sessionManager.getBranch() as NativeEntry[]).filter(
@@ -2447,7 +2284,7 @@ export class RoutingRuntime {
       );
       const outcome =
         message?.stopReason === "error" ? "failed" : message?.stopReason === "aborted" ? "aborted" : "completed";
-      this.append(
+      this.session.append(
         {
           type: "execution-bound",
           executionId: turn.id,
@@ -2458,14 +2295,14 @@ export class RoutingRuntime {
         JSON.stringify(["binding", turn.id]),
       );
       turn.bound = assistant.id;
-      const state = this.stateData(),
+      const state = this.session.stateData(),
         pending = state.pendingId ? state.handoffs.get(state.pendingId) : undefined;
       if (!pending || pending.state === "superseded") return;
       const attempt = state.attempts.get(pending.id);
       if (pending.executionId !== turn.id && attempt?.executionId !== turn.id) return;
       if (ctx.signal?.aborted || outcome === "aborted" || state.control !== "automatic") return;
-      const inputs = [...this.messages, message, ...results.map((e) => e.message)].filter(Boolean);
-      const latest = this.stateData();
+      const inputs = [...this.session.messages, message, ...results.map((e) => e.message)].filter(Boolean);
+      const latest = this.session.stateData();
       const retry = latest.attempts.get(pending.id);
       if (retry?.executionId === turn.id)
         check(
@@ -2475,23 +2312,26 @@ export class RoutingRuntime {
         );
       await this.finishHandoff(pending, inputs, token);
     } catch (error) {
-      if (this.current(subject)) {
-        this.mark(error);
+      if (this.session.current(subject)) {
+        this.session.mark(error);
         ctx.abort?.();
       }
     }
   }
   private async finishHandoff(h: Handoff, inputs: any[], token: string): Promise<void> {
-    const subject = this.subject();
-    const state = this.stateData();
-    check(state.control === "automatic" && !this.store?.blocked && token === this.token, "transition_ineligible");
+    const subject = this.session.subject();
+    const state = this.session.stateData();
+    check(
+      state.control === "automatic" && !this.session.store?.blocked && token === this.session.token,
+      "transition_ineligible",
+    );
     const execution = state.executions.get(h.executionId);
     check(
       execution?.assistantEntryId,
       "source_turn_incomplete",
       "Saved communication belongs to an incomplete historical turn. Reconcile its effects and replace or cancel the outstanding work; no tool result is fabricated.",
     );
-    const source = new Sources(this.ctx.sessionManager.getBranch(), state);
+    const source = new Sources(this.session.ctx.sessionManager.getBranch(), state);
     const carrier = source.byRef.get(`ctx:${execution.assistantEntryId}`);
     check(
       carrier && !source.exchange(carrier).problems.length,
@@ -2503,10 +2343,10 @@ export class RoutingRuntime {
       const prepared = this.prepared("coordinator", inputs, h.id);
       if (!prepared.ready) {
         const attentionFallback = h.kind === "recovery-return" && h.outcome !== "completed";
-        this.projectionError = prepared.problems.map((p) => p.code).join(", ");
+        this.session.projectionError = prepared.problems.map((p) => p.code).join(", ");
         if (attentionFallback) attentionProblems = prepared.problems;
         else {
-          this.append({
+          this.session.append({
             type: "handoff-state",
             handoffId: h.id,
             state: "blocked",
@@ -2519,16 +2359,24 @@ export class RoutingRuntime {
         }
       } else {
         check(prepared.reservation, "reservation_missing");
-        this.append({ type: "handoff-prepared", handoffId: h.id, reservation: prepared.reservation });
+        this.session.append({ type: "handoff-prepared", handoffId: h.id, reservation: prepared.reservation });
       }
     }
     try {
-      const current = this.stateData();
-      check(current.pendingId === h.id && current.control === "automatic" && token === this.token, "stale_handoff");
-      await this.applyPair(this.profilePair(h.to));
-      this.guard(subject);
-      this.append({ type: "handoff-state", handoffId: h.id, state: "configured", observedPair: this.observed() });
-      const completed = this.stateData();
+      const current = this.session.stateData();
+      check(
+        current.pendingId === h.id && current.control === "automatic" && token === this.session.token,
+        "stale_handoff",
+      );
+      await this.applyPair(this.session.profilePair(h.to));
+      this.session.guard(subject);
+      this.session.append({
+        type: "handoff-state",
+        handoffId: h.id,
+        state: "configured",
+        observedPair: this.session.observed(),
+      });
+      const completed = this.session.stateData();
       const reservation = completed.reservations.get(h.id);
       const recovery =
         h.kind === "recovery-return"
@@ -2536,40 +2384,45 @@ export class RoutingRuntime {
           : undefined;
       if (h.kind === "recovery-return" && recovery && completed.assessment?.view === "suspended") {
         if (attentionProblems.length) {
-          this.append({
+          this.session.append({
             type: "assessment-suspended",
             handoffId: recovery.assessmentHandoffId,
             reason: "delivery-gap",
-            basisUserEntryId: this.lastDeliveredUser(this.sources(completed), inputs),
+            basisUserEntryId: this.lastDeliveredUser(this.session.sources(completed), inputs),
             problems: attentionProblems,
           });
         } else if (completed.assessment.suspensionReason === "recovery") {
-          this.append({
+          this.session.append({
             type: "assessment-resumed",
             handoffId: recovery.assessmentHandoffId,
-            basisUserEntryId: this.lastDeliveredUser(this.sources(completed), inputs),
+            basisUserEntryId: this.lastDeliveredUser(this.session.sources(completed), inputs),
             ...(reservation ? { reservation } : {}),
           });
         }
       }
       if (h.kind === "return" && completed.assessment?.view === "suspended" && reservation) {
-        this.append({
+        this.session.append({
           type: "assessment-resumed",
           handoffId: h.id,
-          basisUserEntryId: this.lastDeliveredUser(this.sources(completed), inputs),
+          basisUserEntryId: this.lastDeliveredUser(this.session.sources(completed), inputs),
           reservation,
         });
       }
-      if (!attentionProblems.length) this.projectionError = undefined;
+      if (!attentionProblems.length) this.session.projectionError = undefined;
     } catch (error) {
-      if (this.current(subject) && !this.store?.blocked && !this.error && this.stateData().pendingId === h.id) {
-        this.append({
+      if (
+        this.session.current(subject) &&
+        !this.session.store?.blocked &&
+        !this.session.error &&
+        this.session.stateData().pendingId === h.id
+      ) {
+        this.session.append({
           type: "handoff-state",
           handoffId: h.id,
           state: "blocked",
           reason: error instanceof Error ? error.message.slice(0, 4096) : "configuration_failed",
         });
-        this.ctx.ui?.notify?.(
+        this.session.ctx.ui?.notify?.(
           `Couldn’t switch to ${h.to.charAt(0).toUpperCase()}${h.to.slice(1)} — ${["return", "recovery-return"].includes(h.kind) ? "report" : "assignment"} saved.`,
           "warning",
         );
@@ -2577,22 +2430,24 @@ export class RoutingRuntime {
     }
   }
   async resume(ctx: any): Promise<void> {
-    this.ctx = ctx;
+    this.session.ctx = ctx;
     check(ctx.isIdle?.(), "not_idle");
-    check(this.store && this.capability?.effective, "routing_unavailable");
-    return this.enqueue(() => {
-      this.revision++;
-      return this.resumeCurrent(ctx, this.subject());
+    check(this.session.store && this.session.capability?.effective, "routing_unavailable");
+    return this.session.enqueue(() => {
+      this.session.revision++;
+      return this.resumeCurrent(ctx, this.session.subject());
     });
   }
   private async resumeCurrent(ctx: any, subject: Subject): Promise<void> {
-    this.guard(subject);
-    check(this.store, "routing_unavailable");
-    await this.store.reconcile();
-    this.guard(subject);
-    this.error = undefined;
-    this.retireUnbound("Explicit resume retires an interrupted attempt without claiming its effects completed.");
-    const state = this.stateData();
+    this.session.guard(subject);
+    check(this.session.store, "routing_unavailable");
+    await this.session.store.reconcile();
+    this.session.guard(subject);
+    this.session.error = undefined;
+    this.session.retireUnbound(
+      "Explicit resume retires an interrupted attempt without claiming its effects completed.",
+    );
+    const state = this.session.stateData();
     check(state.control === "automatic", "manual_control");
     check(
       !ctx.hasPendingMessages?.(),
@@ -2602,20 +2457,20 @@ export class RoutingRuntime {
     const pending = state.pendingId ? state.handoffs.get(state.pendingId) : undefined;
     if (pending) {
       const source = ctx.sessionManager.buildSessionContext?.().messages;
-      check(Array.isArray(source) || this.messages.length, "resume_context_unavailable");
-      await this.finishHandoff(pending, source ?? this.messages, this.token);
-      this.guard(subject);
-      if (this.stateData().pendingId) {
+      check(Array.isArray(source) || this.session.messages.length, "resume_context_unavailable");
+      await this.finishHandoff(pending, source ?? this.session.messages, this.session.token);
+      this.session.guard(subject);
+      if (this.session.stateData().pendingId) {
         check(
-          ["return", "recovery-return"].includes(pending.kind) && this.projectionError,
+          ["return", "recovery-return"].includes(pending.kind) && this.session.projectionError,
           "handoff_still_blocked",
           "Saved transfer is still blocked; reconcile its configuration before retrying.",
         );
-        const worker = this.assignedWorker(this.stateData(), pending.assignmentId);
+        const worker = this.session.assignedWorker(this.session.stateData(), pending.assignmentId);
         await this.transition(
-          this.profilePair(worker),
+          this.session.profilePair(worker),
           () =>
-            this.append({
+            this.session.append({
               type: "control",
               control: "automatic",
               profile: worker,
@@ -2627,24 +2482,24 @@ export class RoutingRuntime {
       }
     } else {
       const assignment = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
-      const input = ctx.sessionManager.buildSessionContext?.().messages ?? this.messages;
+      const input = ctx.sessionManager.buildSessionContext?.().messages ?? this.session.messages;
       const user = this.lastDeliveredUser(new Sources(ctx.sessionManager.getBranch(), state), input);
       const coordinatorSawInput = [...state.executions.values()].some(
         (x) =>
           x.profile === "coordinator" && x.basisUserEntryId === user && x.assistantEntryId && x.outcome === "completed",
       );
       const recovery = state.recoveryId ? state.recoveries.get(state.recoveryId) : undefined;
-      const worker = assignment ? this.assignedWorker(state, assignment.id) : undefined;
+      const worker = assignment ? this.session.assignedWorker(state, assignment.id) : undefined;
       if (assignment?.state === "returned" && recovery?.state === "reading") {
         check(
-          user === this.workerBasis(state, assignment.id) || coordinatorSawInput,
+          user === this.session.workerBasis(state, assignment.id) || coordinatorSawInput,
           "input_unreconciled",
           "New input needs Coordinator attention before evidence recovery can resume.",
         );
         await this.transition(
-          this.profilePair(worker!),
+          this.session.profilePair(worker!),
           () =>
-            this.append({
+            this.session.append({
               type: "control",
               control: "automatic",
               profile: worker!,
@@ -2654,15 +2509,15 @@ export class RoutingRuntime {
         );
       } else if (assignment?.state === "outstanding") {
         check(
-          user === this.taskBasis(state, assignment.id) || coordinatorSawInput,
+          user === this.session.taskBasis(state, assignment.id) || coordinatorSawInput,
           "input_unreconciled",
           "New input needs Coordinator attention before the unchanged assignment can resume.",
         );
         await this.transition(
-          this.profilePair(worker!),
+          this.session.profilePair(worker!),
           () => {
-            this.append({ type: "assignment-resumed", assignmentId: assignment.id, basisUserEntryId: user });
-            this.append({
+            this.session.append({ type: "assignment-resumed", assignmentId: assignment.id, basisUserEntryId: user });
+            this.session.append({
               type: "control",
               control: "automatic",
               profile: worker!,
@@ -2671,11 +2526,11 @@ export class RoutingRuntime {
           },
           subject,
         );
-      } else await this.applyPair(this.profilePair("coordinator"));
+      } else await this.applyPair(this.session.profilePair("coordinator"));
     }
     // Resume starts its run directly, so the resumed profile's model is applied here rather than at a prompt.
     await this.applyPending();
-    this.guard(subject);
+    this.session.guard(subject);
     this.pi.sendMessage(
       {
         customType: "freeflow-routing-v2-resume",
@@ -2701,7 +2556,7 @@ export class RoutingRuntime {
         return true;
       }
       check(ctx.isIdle?.(), "not_idle");
-      this.ctx = ctx;
+      this.session.ctx = ctx;
       if (words[0] === "resume" && words.length === 1) {
         await this.resume(ctx);
         return true;

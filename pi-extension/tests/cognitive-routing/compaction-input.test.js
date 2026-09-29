@@ -16,7 +16,11 @@ test("delivery identity uses observed ancestry, not unseen storage or an older r
   }));
   state.executions.set("observed", { basisUserEntryId: "delivered" });
   const read = (branch, active) =>
-    RoutingRuntime.prototype.lastDeliveredUser.call({ stateData: () => state }, new Sources(branch, state), active);
+    RoutingRuntime.prototype.lastDeliveredUser.call(
+      { session: { stateData: () => state } },
+      new Sources(branch, state),
+      active,
+    );
   assert.equal(read(entries, []), "delivered", "unseen queued entry is not delivered");
   assert.equal(read(entries, [entries[0].message]), "delivered", "older retained user does not regress delivery");
   assert.equal(read(entries, [entries[2].message]), "queued", "newly represented user advances delivery");
