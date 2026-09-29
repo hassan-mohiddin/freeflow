@@ -8,7 +8,7 @@ import {
   restoreSessionOverrides,
   setSessionCoreOverride,
   writeStagedSessionOverrides,
-} from "../../dist/host/runtime-context.js";
+} from "../../dist/host/config.js";
 
 const freeflowEntries = (manager) =>
   manager.getEntries().filter((e) => e.type === "custom" && e.customType.startsWith("freeflow-"));

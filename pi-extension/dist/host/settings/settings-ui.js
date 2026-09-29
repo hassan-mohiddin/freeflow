@@ -9,7 +9,7 @@ import {
   readFreeflowLocalConfig,
   resetSessionOverrides,
   setSessionCoreOverride,
-} from "../runtime-context.js";
+} from "../config.js";
 import { PiSettingsComponent } from "./settings-tui.js";
 import { workersForDelegation } from "../../cognitive-routing/types.js";
 import { DEFAULT_TOOL_EXECUTION_CONFIG } from "../../tool-runtime/config.js";

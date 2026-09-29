@@ -283,8 +283,11 @@ test("missing optional Tool Execution cue or skill cannot advertise a complete s
     await handlers.get("session_start")({ type: "session_start" }, ctx);
     await rm(join(root, "runtime", "prompts", "tool-execution.md"));
     // Rebuild the optional prompt cache from this copy, without affecting the live package.
-    const runtime = await import(pathToFileURL(join(root, "pi-extension", "dist", "host", "runtime-context.js")));
-    await runtime.refreshRuntimeContext(runtime.STABLE_FREEFLOW_SURFACE);
+    const prompts = await import(pathToFileURL(join(root, "pi-extension", "dist", "host", "prompts.js")));
+    const { STABLE_FREEFLOW_SURFACE } = await import(
+      pathToFileURL(join(root, "pi-extension", "dist", "host", "catalog.js"))
+    );
+    await prompts.refreshRuntimeContext(STABLE_FREEFLOW_SURFACE);
     const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base" }, ctx);
     assert.match(before.renderedGuidance, /# Freeflow Stable Guidance/);
     assert.doesNotMatch(before.renderedGuidance, /## Tool Execution Cue/);
@@ -295,7 +298,7 @@ test("missing optional Tool Execution cue or skill cannot advertise a complete s
     );
     await writeFile(join(root, "runtime", "prompts", "tool-execution.md"), "## Tool Execution Cue\n", "utf8");
     await rm(join(root, "capabilities", "tool-execution", "SKILL.md"));
-    await runtime.refreshRuntimeContext(runtime.STABLE_FREEFLOW_SURFACE);
+    await prompts.refreshRuntimeContext(STABLE_FREEFLOW_SURFACE);
     await beforeAgentStartHandler(handlers)({ systemPrompt: "base" }, ctx);
     resources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.equal(
@@ -316,7 +319,7 @@ test("missing optional prompt fragments preserve the mandatory core surface", as
     await rm(join(root, "runtime", "prompts", "cognitive-routing.md"));
 
     const runtime = await import(
-      `${pathToFileURL(join(root, "pi-extension", "dist", "host", "runtime-context.js")).href}?missing-prompt=${Date.now()}`
+      `${pathToFileURL(join(root, "pi-extension", "dist", "host", "prompts.js")).href}?missing-prompt=${Date.now()}`
     );
     const state = {
       configured: true,

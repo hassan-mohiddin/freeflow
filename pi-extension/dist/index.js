@@ -31,20 +31,19 @@ import {
   WORKFLOW_COMMANDS,
   freeflowModelSkillPaths,
   freeflowCapabilitySkillPath,
+  STABLE_FREEFLOW_SURFACE,
+  skillPrompt,
+} from "./host/catalog.js";
+import { readCapabilityState, restoreSessionOverrides, writeStagedSessionOverrides } from "./host/config.js";
+import {
   getRuntimeContext,
   hasUsableMandatoryPrompts,
   isPromptAvailable,
-  readCapabilityState,
   refreshRuntimeContext,
-  restoreSessionOverrides,
   stableRuntimeContext,
-  STABLE_FREEFLOW_SURFACE,
-  filterBootstrapMessage,
-  setFreeflowStatus,
-  skillPrompt,
-  withFreeflowRuntimeState,
-  writeStagedSessionOverrides,
-} from "./host/runtime-context.js";
+} from "./host/prompts.js";
+import { filterBootstrapMessage, withFreeflowRuntimeState } from "./host/runtime-state.js";
+import { setFreeflowStatus } from "./host/status.js";
 async function sendSkillCommand(pi, ctx, skill, args) {
   const state = await readCapabilityState(ctx.cwd, ctx);
   if (skill === "setup-freeflow" && !state.configured) {

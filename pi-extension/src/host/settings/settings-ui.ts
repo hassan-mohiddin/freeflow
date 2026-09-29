@@ -10,7 +10,7 @@ import {
   readFreeflowLocalConfig,
   resetSessionOverrides,
   setSessionCoreOverride,
-} from "../runtime-context.js";
+} from "../config.js";
 import {
   PiSettingsComponent,
   type SettingsCommitResult,

@@ -33,21 +33,19 @@ import {
   freeflowModelSkillPaths,
   freeflowCapabilitySkillPath,
   freeflowSkillPath,
+  STABLE_FREEFLOW_SURFACE,
+  skillPrompt,
+} from "./host/catalog.js";
+import { readCapabilityState, restoreSessionOverrides, writeStagedSessionOverrides } from "./host/config.js";
+import {
   getRuntimeContext,
   hasUsableMandatoryPrompts,
   isPromptAvailable,
-  readCapabilityState,
   refreshRuntimeContext,
-  restoreSessionOverrides,
   stableRuntimeContext,
-  STABLE_FREEFLOW_SURFACE,
-  filterBootstrapMessage,
-  setFreeflowStatus,
-  skillPrompt,
-  withFreeflowRuntimeState,
-  writeStagedSessionOverrides,
-  type RuntimeStateAnchor,
-} from "./host/runtime-context.js";
+} from "./host/prompts.js";
+import { filterBootstrapMessage, withFreeflowRuntimeState, type RuntimeStateAnchor } from "./host/runtime-state.js";
+import { setFreeflowStatus } from "./host/status.js";
 
 type FreeflowAPI = ExtensionAPI;
 async function sendSkillCommand(pi: FreeflowAPI, ctx: ExtensionCommandContext, skill: string, args?: string) {

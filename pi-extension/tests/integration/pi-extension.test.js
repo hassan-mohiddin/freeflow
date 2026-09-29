@@ -14,9 +14,9 @@ import {
   readFreeflowConfigLayers,
   resetSessionOverrides,
   restoreSessionOverrides,
-  setFreeflowStatus,
   setSessionCoreOverride,
-} from "../../dist/host/runtime-context.js";
+} from "../../dist/host/config.js";
+import { setFreeflowStatus } from "../../dist/host/status.js";
 import { matches } from "../../dist/cognitive-routing/schemas.js";
 import { contextHandler, beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 

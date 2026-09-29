@@ -9,7 +9,7 @@ import { readManifest } from "../../dist/tool-runtime/session-store/manifest.js"
 import { SessionStoreRuntime } from "../../dist/tool-runtime/session-store/store.js";
 import { piAncestrySnapshot } from "../../dist/tool-runtime/session-store/pi-ancestry.js";
 import { v2StoreLimits } from "../../dist/tool-runtime/session-store/native.js";
-import { freeflowCapabilitySkillPath } from "../../dist/host/runtime-context.js";
+import { freeflowCapabilitySkillPath } from "../../dist/host/catalog.js";
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 async function fixture(script, projection, after, withUI, options) {

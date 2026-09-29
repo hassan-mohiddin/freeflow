@@ -147,7 +147,7 @@ const routingCapability = (delegation = "executor") => ({
 });
 
 test("Freeflow Runtime State does not churn on automatic profile switches", async () => {
-  const { freeflowRuntimeStateMessage } = await import("../../dist/host/runtime-context.js");
+  const { freeflowRuntimeStateMessage } = await import("../../dist/host/runtime-state.js");
   const snapshot = (activeProfile, controlMode = "automatic", delegation = "both") => ({
     effective: true,
     runtimeStatus: "active",
@@ -207,7 +207,7 @@ test("routing Runtime State carries responsibility without ids, boilerplate, or 
 });
 
 test("Freeflow Runtime State keeps a fixed position until it changes, then anchors where it changed", async () => {
-  const { withFreeflowRuntimeState } = await import("../../dist/host/runtime-context.js");
+  const { withFreeflowRuntimeState } = await import("../../dist/host/runtime-state.js");
   const user = (text) => ({ role: "user", content: text });
   const assistant = (text) => ({ role: "assistant", content: [{ type: "text", text }] });
   const anchor = {};

@@ -6,15 +6,9 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 
 import freeflowExtension from "../../dist/index.js";
-import {
-  freeflowRuntimeStateMessage,
-  getRuntimeContext,
-  readCapabilityState,
-  hasUsableMandatoryPrompts,
-  readFreeflowConfigLayers,
-  setSessionCoreOverride,
-  stableRuntimeContext,
-} from "../../dist/host/runtime-context.js";
+import { readCapabilityState, readFreeflowConfigLayers, setSessionCoreOverride } from "../../dist/host/config.js";
+import { getRuntimeContext, hasUsableMandatoryPrompts, stableRuntimeContext } from "../../dist/host/prompts.js";
+import { freeflowRuntimeStateMessage } from "../../dist/host/runtime-state.js";
 import { contextHandler, beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
 function context(cwd) {
