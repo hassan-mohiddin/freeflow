@@ -6,6 +6,7 @@ import { existsSync, realpathSync } from "node:fs";
 import { relative, resolve as resolvePath } from "node:path";
 import { EventStore, type SessionReader } from "../session-sources/events.js";
 import { Sources, bodyHash, deliveredSelection, isTaskEvidence, type Source } from "../session-sources/sources.js";
+import { sessionStage, stagedFor } from "../session-sources/staging.js";
 import { pairFromProfile, resolveCognitiveRoutingState, type CognitiveRoutingCapabilityState } from "./config.js";
 import { prepareView, changeSelection, representationProblems, type PreparedView } from "./projection.js";
 import { presetWarnings } from "./economics.js";
@@ -213,7 +214,7 @@ export class RoutingRuntime {
   /** A manual hold whose profile model is not what the host runs, e.g. after a change in Pi's model picker. */
   private heldMismatch(state = this.stateData()): { profile: Profile; expected: Pair; observed: Pair } | undefined {
     if (!this.supported() || state.control !== "manual" || !state.profile || this.applying) return;
-    const observed = this.observed();
+    const observed = this.intended();
     let expected: Pair;
     try {
       expected = this.profilePair(state.profile);
@@ -224,6 +225,23 @@ export class RoutingRuntime {
   }
   async beforeRun(ctx: any): Promise<void> {
     this.ctx = ctx;
+    if (this.store && this.supported() && !this.store.blocked && !this.error) {
+      if (this.stateData().control === "automatic" && isWorkerProfile(this.stateData().profile)) {
+        const result = await this.control("coordinator", false);
+        check(result.status !== "blocked", "reconciliation_required", result.reason);
+      }
+      // A switch made while idle reaches Pi's model now, as the prompt starts and before it is recorded.
+      const target = this.pending();
+      try {
+        await this.applyPending();
+      } catch (error) {
+        const current = this.observed();
+        ctx.ui?.notify?.(
+          `Could not switch to ${target?.modelId}/${target?.thinking} (${error instanceof Error ? error.message : String(error)}); this prompt runs on ${current?.modelId}/${current?.thinking}.`,
+          "warning",
+        );
+      }
+    }
     const held = this.store ? this.heldMismatch() : undefined;
     const notice = held && JSON.stringify(held);
     // The hold is the user's; report the divergence once instead of overriding a deliberate model choice.
@@ -233,11 +251,6 @@ export class RoutingRuntime {
         "warning",
       );
     this.heldNotice = notice;
-    if (!this.store || !this.supported() || this.store.blocked || this.error) return;
-    if (this.stateData().control === "automatic" && isWorkerProfile(this.stateData().profile)) {
-      const result = await this.control("coordinator", false);
-      check(result.status !== "blocked", "reconciliation_required", result.reason);
-    }
   }
   private stateData(): State {
     return this.store?.state() ?? initialState();
@@ -289,6 +302,7 @@ export class RoutingRuntime {
           : ("inactive" as const),
       runtimeReason: blocked ?? (this.suppressed ? "startup_selection" : this.capability?.blockingReason.message),
       projectionFailure: this.projectionError,
+      ...((pending) => (pending ? { pendingPair: `${pending.modelId}/${pending.thinking}` } : {}))(this.pending()),
       ...(this.heldMismatch(state) ? { pairMismatch: true } : {}),
       ...((warnings) => (warnings.length ? { presetWarnings: warnings } : {}))(this.presetWarnings(state)),
     };
@@ -607,7 +621,7 @@ export class RoutingRuntime {
       } else if (
         state.control === "automatic" &&
         state.profile &&
-        !samePair(this.observed(), this.profilePair(state.profile))
+        !samePair(this.intended(), this.profilePair(state.profile))
       ) {
         // Reload reconstructs responsibility; it does not silently reapply the last setter.
         await this.transition(
@@ -730,7 +744,7 @@ export class RoutingRuntime {
         );
       } else if (
         (this.automaticControl || !state.events.size) &&
-        (navigation || !samePair(this.observed(), this.profilePair(state.profile ?? "coordinator")))
+        (navigation || !samePair(this.intended(), this.profilePair(state.profile ?? "coordinator")))
       ) {
         await this.transition(
           this.profilePair("coordinator"),
@@ -758,6 +772,8 @@ export class RoutingRuntime {
       }
       return; // Never await a queue already held by our setter.
     }
+    // The user's own pick in Pi wins over a switch still waiting for the next prompt.
+    this.setPending(undefined);
     const state = this.stateData();
     if (state.control !== "automatic" || !state.profile || samePair(this.observed(), this.profilePair(state.profile)))
       return;
@@ -807,12 +823,57 @@ export class RoutingRuntime {
       if (token === this.token && this.applying === ownedPair) this.applying = undefined;
     }
   }
+  /** A profile switch made while idle, kept with the session's stage so a reload keeps it. */
+  private pending(): Pair | undefined {
+    return stagedFor(this.ctx?.sessionManager)?.pair as Pair | undefined;
+  }
+  private setPending(pair: Pair | undefined): void {
+    const stage = pair ? sessionStage(this.ctx?.sessionManager) : stagedFor(this.ctx?.sessionManager);
+    if (!stage) return;
+    if (pair) stage.pair = pair;
+    else delete stage.pair;
+  }
+  /** The pair routing intends the host to run: a pending switch, or what the host runs now. */
+  private intended(): Pair | undefined {
+    return this.pending() ?? this.observed();
+  }
+  private async checkPair(target: Pair): Promise<void> {
+    const model = this.ctx.modelRegistry.find(target.provider, target.modelId);
+    check(model, "profile_unavailable");
+    check((await this.ctx.modelRegistry.getApiKeyAndHeaders(model))?.ok, "profile_unauthenticated");
+  }
+  /**
+   * Apply a switch made while idle, so the prompt runs on the profile the user chose. If the host cannot run it,
+   * the switch and the control changes staged with it are dropped, so recorded control still names what runs.
+   */
+  private async applyPending(): Promise<void> {
+    const target = this.pending();
+    if (!target) return;
+    try {
+      await this.applyPair(target);
+    } catch (error) {
+      const stage = stagedFor(this.ctx?.sessionManager);
+      if (stage) stage.events = [];
+      throw error;
+    } finally {
+      this.setPending(undefined);
+    }
+  }
   /**
    * Switch the host model, then record what the switch means. A switch that fails records nothing, and a
    * record that cannot be written restores the prior model, so recorded control never names a profile
    * whose model the host is not running.
    */
   private async transition(target: Pair, record: () => void, subject: Subject): Promise<void> {
+    if (this.ctx?.isIdle?.() !== false) {
+      // An idle switch reaches Pi's model at the next prompt; checking the target now keeps errors immediate.
+      if (!samePair(this.intended(), target)) await this.checkPair(target);
+      this.guard(subject);
+      record();
+      this.setPending(samePair(this.observed(), target) ? undefined : target);
+      return;
+    }
+    this.setPending(undefined);
     const prior = this.observed();
     await this.applyPair(target);
     try {
@@ -853,7 +914,7 @@ export class RoutingRuntime {
         if (
           previous.control === (manual ? "manual" : "automatic") &&
           previous.profile === profile &&
-          samePair(this.observed(), this.profilePair(profile))
+          samePair(this.intended(), this.profilePair(profile))
         ) {
           this.manualHold = manual ? profile : undefined;
           this.automaticControl = !manual;
@@ -2612,6 +2673,8 @@ export class RoutingRuntime {
         );
       } else await this.applyPair(this.profilePair("coordinator"));
     }
+    // Resume starts its run directly, so the resumed profile's model is applied here rather than at a prompt.
+    await this.applyPending();
     this.guard(subject);
     this.pi.sendMessage(
       {

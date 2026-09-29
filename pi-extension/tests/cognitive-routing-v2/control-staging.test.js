@@ -35,6 +35,11 @@ test("control changes before the first prompt write nothing, survive reload, and
         "only the net change is written",
       );
       assert.ok(written[0].i < firstUser, "it is written ahead of the prompt");
+      const models = manager
+        .getBranch()
+        .filter((e) => e.type === "model_change")
+        .map((e) => e.modelId);
+      assert.equal(models.at(-1), "gpt-4.1-mini", "the prompt applied the staged hold");
     },
     true,
     {
@@ -42,7 +47,7 @@ test("control changes before the first prompt write nothing, survive reload, and
         assert.deepEqual(freeflowEntries(manager), [], "starting routing writes nothing");
         await hold(session, "executor");
         assert.equal(JSON.parse(notices.at(-1)[0]).status, "active");
-        assert.equal(session.model.id, "gpt-4.1-mini", "the hold applies immediately");
+        assert.equal(session.model.id, "gpt-4o", "the host model waits for the next prompt");
         await session.reload();
         assert.deepEqual(freeflowEntries(manager), [], "a hold and a reload before the first prompt write nothing");
         await hold(session, "executor");
@@ -64,9 +69,13 @@ test("a burst of switches between prompts records only its net change", async ()
       await session.prompt("Next task.");
       await session.waitForIdle();
       assert.equal(controls(manager).length, before, "a burst that ends where it began records nothing");
+      const modelChanges = () => manager.getBranch().filter((e) => e.type === "model_change").length;
+      const changesBefore = modelChanges();
       for (const profile of ["executor", "coordinator", "executor"]) await hold(session, profile);
+      assert.equal(modelChanges(), changesBefore, "switching between prompts leaves Pi's model alone");
       await session.prompt("Another task.");
       await session.waitForIdle();
+      assert.equal(modelChanges(), changesBefore + 1, "the prompt applies one model change");
       assert.deepEqual(
         controls(manager)
           .slice(before)

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fixture } from "../fixtures/routing-native.js";
 import { replay } from "../../dist/cognitive-routing-v2/state.js";
+import { RoutingRuntime } from "../../dist/cognitive-routing-v2/runtime.js";
 
 // Delegate, then let the worker stop without returning so the assignment stays outstanding.
 const unfinished = (n) =>
@@ -46,7 +47,11 @@ test(
       false,
       async ({ session, notices, requests }) => {
         await session.prompt("/freeflow profile executor");
-        assert.equal(session.model.id, "gpt-4.1-mini");
+        await session.waitForIdle();
+        assert.equal(session.model.id, "gpt-4o", "an idle hold waits for the next prompt");
+        await session.prompt("Apply the hold.");
+        await session.waitForIdle();
+        assert.equal(requests.at(-1).model, "gpt-4.1-mini", "the prompt applies the hold");
         await session.setModel(session.extensionRunner.modelRegistry.find("openai", "gpt-4o"));
         const before = notices.length;
         await session.prompt("Continue.");
@@ -60,5 +65,67 @@ test(
         assert.equal(requests.at(-1).model, "gpt-4o", "the user's own model choice is honored");
       },
     );
+  },
+);
+
+test(
+  "picking another model in Pi cancels a profile switch still waiting for the next prompt",
+  { timeout: 30000 },
+  async () => {
+    await fixture(
+      () => [],
+      false,
+      async ({ session, requests }) => {
+        await session.prompt("/freeflow profile executor");
+        await session.waitForIdle();
+        await session.setModel(session.extensionRunner.modelRegistry.find("openai", "gpt-4.1"));
+        await session.prompt("Use my pick.");
+        await session.waitForIdle();
+        assert.equal(requests.at(-1).model, "gpt-4.1", "the user's own pick wins over the pending switch");
+      },
+    );
+  },
+);
+
+test(
+  "a routing failure at the first prompt still sends the fixed Freeflow system prompt",
+  { timeout: 30000 },
+  async () => {
+    const firstInstructions = async (failing) => {
+      const seen = [];
+      const original = RoutingRuntime.prototype.beforeRun;
+      try {
+        const run = fixture(
+          (_n, body) => {
+            const system = JSON.stringify(
+              body.input.find((item) => item.role === "system" || item.role === "developer"),
+            );
+            // Each fixture run has its own temporary working directory.
+            seen.push(system.replace(/[^"\s]*freeflow-v2-native-[^/"\s]*/g, "<root>"));
+            return [];
+          },
+          false,
+          undefined,
+          true,
+          {
+            beforePrompt: () => {
+              if (failing)
+                RoutingRuntime.prototype.beforeRun = async () => {
+                  throw new Error("fixture reconciliation failure");
+                };
+            },
+          },
+        );
+        // Pi reports the handler error, which the fixture rejects with, and still sends the prompt.
+        if (failing) await assert.rejects(run, /extension lifecycle errors/);
+        else await run;
+      } finally {
+        RoutingRuntime.prototype.beforeRun = original;
+      }
+      return seen[0];
+    };
+    const normal = await firstInstructions(false);
+    assert.ok(normal, "the normal run sent a request");
+    assert.equal(await firstInstructions(true), normal, "the cached prompt head is unchanged");
   },
 );

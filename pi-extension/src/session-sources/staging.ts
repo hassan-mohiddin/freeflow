@@ -9,6 +9,8 @@
 export interface Stage {
   events: unknown[];
   overrides?: Record<string, unknown>;
+  /** A profile's model and effort chosen while idle, applied to the host as the next prompt starts. */
+  pair?: unknown;
 }
 
 interface Reader {

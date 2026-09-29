@@ -483,7 +483,7 @@ export function setFreeflowStatus(
     const profile = cognitiveRoutingRuntime.activeProfile;
     const control = String(cognitiveRoutingRuntime.controlMode).startsWith("manual-") ? "manual hold" : "automatic";
     active.push(
-      `${profile} · ${control} · ${cognitiveRoutingRuntime.delegation ?? cognitiveRouting.delegation ?? "executor"} mode${cognitiveRoutingRuntime.pairMismatch ? " · model differs" : ""}`,
+      `${profile} · ${control} · ${cognitiveRoutingRuntime.delegation ?? cognitiveRouting.delegation ?? "executor"} mode${cognitiveRoutingRuntime.pendingPair ? ` · ${cognitiveRoutingRuntime.pendingPair} on next prompt` : ""}${cognitiveRoutingRuntime.pairMismatch ? " · model differs" : ""}`,
     );
   } else if (cognitiveRouting?.enabled === true) {
     if (cognitiveRouting.blockingReason?.code === "runtime_disabled") {

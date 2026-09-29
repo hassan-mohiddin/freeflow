@@ -7,6 +7,13 @@ import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { RoutingRuntime } from "../../dist/cognitive-routing-v2/runtime.js";
 import { EventStore } from "../../dist/session-sources/events.js";
 import { routingState } from "../fixtures/routing-state.js";
+import { takeStage } from "../../dist/session-sources/staging.js";
+
+// Idle switches reach the host model when a prompt starts; this runs that step as index.ts does.
+const submit = async (runtime, ctx) => {
+  await runtime.beforeRun(ctx);
+  runtime.writeStaged(takeStage(ctx.sessionManager).events);
+};
 
 const modelIds = ["coordinator", "helper", "executor", "coordinator-fast", "helper-fast", "executor-cheap"];
 const models = Object.fromEntries(
@@ -209,6 +216,7 @@ test("session profile overrides apply only to the selected pair and restore conf
     const ctx = make("session-profile");
     activate(ctx);
     await runtime.bind(ctx, cap);
+    await submit(runtime, ctx);
     assert.equal(ctx.model.id, "coordinator");
 
     const coordinatorOverride = await runtime.setSessionProfileOverride("coordinator", {
@@ -217,6 +225,7 @@ test("session profile overrides apply only to the selected pair and restore conf
       thinking: "high",
     });
     assert.equal(coordinatorOverride.status, "active");
+    await submit(runtime, ctx);
     assert.equal(ctx.model.id, "coordinator-fast");
     assert.equal(ctx.thinkingLevel, "high");
     assert.deepEqual(routingState(ctx.sessionManager).profileOverrides.get("coordinator"), {
@@ -231,6 +240,7 @@ test("session profile overrides apply only to the selected pair and restore conf
       thinking: "low",
     });
     assert.equal(executorOverride.status, "stored");
+    await submit(runtime, ctx);
     assert.equal(ctx.model.id, "coordinator-fast");
     assert.equal(ctx.thinkingLevel, "high");
 
@@ -239,23 +249,27 @@ test("session profile overrides apply only to the selected pair and restore conf
     ctx.thinkingLevel = "off";
     activate(ctx);
     await runtime.bind(ctx, cap);
+    await submit(runtime, ctx);
     assert.equal(ctx.model.id, "coordinator-fast");
     assert.equal(ctx.thinkingLevel, "high");
 
     const held = await runtime.setManualProfile("executor");
     assert.equal(held.status, "active");
+    await submit(runtime, ctx);
     assert.equal(ctx.model.id, "executor-cheap");
     assert.equal(ctx.thinkingLevel, "low");
 
     ctx.model = models.executor;
     ctx.thinkingLevel = "off";
     await runtime.ancestryChanged(ctx, false);
+    await submit(runtime, ctx);
     assert.equal(ctx.model.id, "executor-cheap");
     assert.equal(ctx.thinkingLevel, "low");
     assert.equal(runtime.state().controlMode, "manual-executor");
 
     const inheritedExecutor = await runtime.setSessionProfileOverride("executor", null);
     assert.equal(inheritedExecutor.status, "active");
+    await submit(runtime, ctx);
     assert.equal(ctx.model.id, "executor");
     assert.equal(ctx.thinkingLevel, "off");
     assert.equal(routingState(ctx.sessionManager).profileOverrides.has("coordinator"), true);
@@ -263,6 +277,7 @@ test("session profile overrides apply only to the selected pair and restore conf
 
     const reset = await runtime.resetSessionProfileOverrides();
     assert.equal(reset.status, "stored");
+    await submit(runtime, ctx);
     assert.equal(ctx.model.id, "executor");
     assert.equal(ctx.thinkingLevel, "off");
     assert.equal(routingState(ctx.sessionManager).profileOverrides.size, 0);
@@ -271,6 +286,7 @@ test("session profile overrides apply only to the selected pair and restore conf
     runtime.unbind();
     activate(ctx);
     await runtime.bind(ctx, cap);
+    await submit(runtime, ctx);
     assert.equal(ctx.model.id, "executor");
   }));
 
@@ -290,6 +306,7 @@ test("session delegation switches enabled workers, survives rebind, and inherits
     assert.equal(runtime.state().delegation, "both");
     assert.equal(runtime.sessionDelegationOverride(), "both");
     assert.equal((await runtime.setManualProfile("helper")).status, "active");
+    await submit(runtime, ctx);
     assert.equal(ctx.model.id, "helper");
 
     runtime.unbind();
@@ -315,6 +332,7 @@ test("a session Helper preset can be staged before enabling Helper without a con
     assert.equal((await runtime.setSessionProfileOverride("helper", helper)).status, "stored");
     assert.equal((await runtime.setSessionDelegationOverride("both")).status, "stored");
     assert.equal((await runtime.setManualProfile("helper")).status, "active");
+    await submit(runtime, ctx);
     assert.equal(ctx.model.id, "helper-fast");
     assert.equal(ctx.thinkingLevel, "low");
   }));
@@ -339,12 +357,15 @@ test("Helper session presets apply through the same guarded profile path", async
     await runtime.bind(ctx, helperCap);
     const helperOverride = { provider: "fixture", modelId: "helper-fast", thinking: "high" };
     assert.equal((await runtime.setSessionProfileOverride("helper", helperOverride)).status, "stored");
+    await submit(runtime, ctx);
     assert.equal(ctx.model.id, "coordinator");
     assert.equal((await runtime.setManualProfile("helper")).status, "active");
+    await submit(runtime, ctx);
     assert.equal(ctx.model.id, "helper-fast");
     assert.equal(ctx.thinkingLevel, "high");
     assert.deepEqual(routingState(ctx.sessionManager).profileOverrides.get("helper"), helperOverride);
     assert.equal((await runtime.resetSessionProfileOverrides()).status, "active");
+    await submit(runtime, ctx);
     assert.equal(ctx.model.id, "helper");
     assert.equal(ctx.thinkingLevel, "off");
     assert.equal(routingState(ctx.sessionManager).profileOverrides.size, 0);
@@ -417,31 +438,25 @@ test("rebind rejects a persisted session override when its model is unavailable"
     assert.equal(routingState(ctx.sessionManager).profileOverrides.size, 0);
   }));
 
-test("failed active session override restores the prior pair and event state", async () =>
+test("a pending override the host cannot apply is dropped at submit, keeping the prior pair and event state", async () =>
   await environment(async ({ runtime, make, activate }) => {
     const ctx = make("session-rollback");
+    const notices = [];
+    ctx.ui = { notify: (message) => notices.push(message) };
     activate(ctx);
     await runtime.bind(ctx, cap);
-    assert.equal(
-      (
-        await runtime.setSessionProfileOverride("coordinator", {
-          provider: "fixture",
-          modelId: "coordinator-fast",
-          thinking: "high",
-        })
-      ).status,
-      "active",
-    );
+    const override = { provider: "fixture", modelId: "coordinator-fast", thinking: "high" };
+    assert.equal((await runtime.setSessionProfileOverride("coordinator", override)).status, "active");
+    await submit(runtime, ctx);
     ctx.failNextModelId = "coordinator";
-    const result = await runtime.setSessionProfileOverride("coordinator", null);
-    assert.equal(result.status, "blocked");
+    await runtime.setSessionProfileOverride("coordinator", null);
+    assert.equal(ctx.model.id, "coordinator-fast", "nothing changes before the prompt");
+    await submit(runtime, ctx);
     assert.equal(ctx.model.id, "coordinator-fast");
     assert.equal(ctx.thinkingLevel, "high");
-    assert.deepEqual(routingState(ctx.sessionManager).profileOverrides.get("coordinator"), {
-      provider: "fixture",
-      modelId: "coordinator-fast",
-      thinking: "high",
-    });
+    assert.deepEqual(routingState(ctx.sessionManager).profileOverrides.get("coordinator"), override);
+    assert.equal(runtime.state().runtimeStatus, "active", "recorded control still names what the host runs");
+    assert.match(notices.at(-1), /Could not switch to coordinator\/off/);
   }));
 
 test("active session reset restores the configured pair and control mode", async () =>
@@ -460,23 +475,22 @@ test("active session reset restores the configured pair and control mode", async
   }));
 
 for (const operation of ["clear", "reset"]) {
-  test(`partial active ${operation} failure restores the prior native pair and override`, async () =>
+  test(`partial ${operation} failure at submit restores the prior native pair and override`, async () =>
     await environment(async ({ runtime, make, activate }) => {
       const ctx = make(`session-partial-${operation}`);
       activate(ctx);
       await runtime.bind(ctx, cap);
       const override = { provider: "fixture", modelId: "coordinator-fast", thinking: "high" };
       assert.equal((await runtime.setSessionProfileOverride("coordinator", override)).status, "active");
+      await submit(runtime, ctx);
       ctx.failNextThinkingLevel = "off";
-      const result =
-        operation === "clear"
-          ? await runtime.setSessionProfileOverride("coordinator", null)
-          : await runtime.resetSessionProfileOverrides();
-      assert.equal(result.status, "blocked");
+      if (operation === "clear") await runtime.setSessionProfileOverride("coordinator", null);
+      else await runtime.resetSessionProfileOverrides();
+      await submit(runtime, ctx);
       assert.equal(ctx.model.id, "coordinator-fast");
       assert.equal(ctx.thinkingLevel, "high");
       assert.deepEqual(routingState(ctx.sessionManager).profileOverrides.get("coordinator"), override);
-      assert.equal(runtime.state().runtimeStatus, "blocked");
+      assert.equal(runtime.state().runtimeStatus, "active");
     }));
 }
 

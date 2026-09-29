@@ -327,13 +327,18 @@ export default function freeflow(pi: FreeflowAPI) {
   });
   pi.on("before_agent_start", async (event, ctx) => {
     await update(ctx);
-    await routing.beforeRun(ctx);
-    // After the run's own reconciliation, so everything staged lands ahead of the prompt in one pass.
-    writeStagedControl(ctx);
-    status(ctx);
-    // Pi 0.87 records changed sections at their native transcript position.
-    // Returning systemPrompt would force one replacement head for every request.
-    event.systemPromptOptions.sections.freeflow_guidance = stableRuntimeContext(prompts);
+    try {
+      await routing.beforeRun(ctx);
+    } finally {
+      // Pi reports a handler error and still sends the prompt, so the fixed guidance section and the staged
+      // control must never be skipped: a missing section would change the cached prompt head.
+      // After the run's own reconciliation, so everything staged lands ahead of the prompt in one pass.
+      writeStagedControl(ctx);
+      status(ctx);
+      // Pi 0.87 records changed sections at their native transcript position.
+      // Returning systemPrompt would force one replacement head for every request.
+      event.systemPromptOptions.sections.freeflow_guidance = stableRuntimeContext(prompts);
+    }
   });
   pi.on("message_end", (event, ctx) => {
     const message = (event as any).message;

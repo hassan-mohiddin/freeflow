@@ -31,15 +31,14 @@ test("rapid manual-hold shortcuts never record a profile whose model was not app
       }
       await Promise.allSettled(presses);
       await sleep(400);
-      // Holds made between prompts are staged; the effective hold must match the model the host runs.
+      // Holds made between prompts wait for the next prompt, which applies the final one.
+      await session.prompt("Next task.");
+      await session.waitForIdle();
       assert.equal(
         profileFor[session.model.id],
         routingState(session.sessionManager).profile,
         "final profile matches the active model",
       );
-      // When the next prompt writes the net change, it names the model that was active then.
-      await session.prompt("Next task.");
-      await session.waitForIdle();
       let model = "gpt-4o";
       for (const entry of session.sessionManager.getBranch()) {
         if (entry.type === "model_change") model = entry.modelId;
@@ -57,6 +56,8 @@ test("rapid manual-hold shortcuts never record a profile whose model was not app
       await sleep(400);
       const released = routingState(session.sessionManager);
       assert.deepEqual([released.control, released.profile], ["automatic", "coordinator"]);
+      await session.prompt("After release.");
+      await session.waitForIdle();
       assert.equal(session.model.id, "gpt-4o", "automatic release applies the Coordinator model");
     },
     true,
@@ -106,13 +107,14 @@ test(
             getSystemPrompt: () => session.systemPrompt,
           };
           await shortcuts.find((s) => pattern.test(s.description ?? "")).handler(ctx);
-          return session.model.id;
+          return routingState(session.sessionManager).profile;
         };
         const cycled = [];
         for (let i = 0; i < 4; i++) cycled.push(await press(/Cycle enabled/));
-        assert.deepEqual(cycled, ["gpt-4.1-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4o"], "every press switches");
+        assert.deepEqual(cycled, ["executor", "coordinator", "executor", "coordinator"], "every press switches");
         await press(/Cycle enabled/);
-        assert.equal(await press(/Release manual hold/), "gpt-4o", "one release returns to the Coordinator");
+        assert.equal(await press(/Release manual hold/), "coordinator", "one release returns to the Coordinator");
+        assert.equal(session.model.id, "gpt-4o", "the host model waits for the next prompt");
       },
     });
   },
