@@ -1,3 +1,3 @@
 ## Tool Execution Cue
 
-When Tool Execution is active, bounded direct read and search calls are self-describing; do not load the full skill solely for one such call. Before a Freeflow program, mutation, exact artifact recovery, or unfamiliar catalog operation, read the Tool Execution skill if its body is absent. Process and job operations follow the same rule when available. Reuse a loaded body only while its guidance remains applicable after compaction, navigation, or reload. If the skill is unavailable, report that limit rather than treating its absence as authority. Tool visibility, guidance, and artifacts never authorize effects.
+When Tool Execution is active, work with the tools declared in this request. Read the Tool Execution skill only when a tool result or error names it. Tool visibility and guidance never authorize effects.

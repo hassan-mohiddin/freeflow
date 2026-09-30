@@ -45,21 +45,6 @@ export function filterBootstrapMessage(message) {
   return bootstrapEntryComponents(message).length === 0 ? message : undefined;
 }
 
-export type ToolExecutionRuntimeSnapshot = {
-  queued?: number;
-  failures?: { code?: string }[];
-  lastFailure?: { code?: string; message?: string };
-  unresolvedEffects?: number;
-  store?: { state?: string; reason?: string };
-  guidance?: { state?: string };
-  catalog?: { generation?: string; operations?: number; metadataBytes?: number };
-  adapters?: {
-    allowed?: readonly string[];
-    announced?: readonly { active?: boolean }[];
-    failures?: readonly { code?: string; message?: string }[];
-  };
-};
-
 type CognitiveRoutingRuntimeSnapshot = {
   effective?: boolean;
   runtimeStatus?: "active" | "inactive" | "blocked";
@@ -121,7 +106,6 @@ export function freeflowRuntimeStateMessage(
   freeflowContext = undefined,
   options: {
     projectionFailure?: string;
-    toolExecutionRuntime?: ToolExecutionRuntimeSnapshot;
   } = {},
 ) {
   const cognitiveRoutingEffective = capabilityState?.cognitiveRouting?.effective === true;
@@ -159,11 +143,7 @@ export function freeflowRuntimeStateMessage(
       "",
       "Capabilities:",
       `- Cognitive Routing: ${publicCognitiveRoutingStatus(capabilityState?.cognitiveRouting, cognitiveRoutingRuntime)}`,
-      `- Tool Execution: ${publicCapabilityStatus(capabilityState?.toolExecution)}${
-        capabilityState?.toolExecution?.effective === true
-          ? ` · capture ${capabilityState.toolExecution.capture?.effective === true ? "active" : "inactive"} · reader enabled · workspace ${capabilityState.toolExecution.workspace?.effective === true ? (capabilityState.toolExecution.workspace.write ? "read/write" : "read-only") : "inactive"} · discovery ${capabilityState.toolExecution.discovery?.effective === true ? "active" : "inactive"} · accounting ${capabilityState.toolExecution.accounting?.effective === true ? "active" : "inactive"} · programs ${capabilityState.toolExecution.programs?.mode ?? "off"} · catalog ${options.toolExecutionRuntime?.catalog?.operations ?? 0} · adapters ${options.toolExecutionRuntime?.adapters?.announced?.filter((adapter) => adapter.active).length ?? 0}/${options.toolExecutionRuntime?.adapters?.allowed?.length ?? 0} · live effects ${options.toolExecutionRuntime?.unresolvedEffects ? `fenced (${options.toolExecutionRuntime.unresolvedEffects})` : "settled"} · native Bash built-in; custom tools require adapters · store ${options.toolExecutionRuntime?.store?.state ?? "unavailable"}${options.toolExecutionRuntime?.store?.reason ? ` (${options.toolExecutionRuntime.store.reason})` : ""} · guidance ${options.toolExecutionRuntime?.guidance?.state ?? "unobserved"}${options.toolExecutionRuntime?.lastFailure?.code ? ` · last program issue ${options.toolExecutionRuntime.lastFailure.code}` : options.toolExecutionRuntime?.failures?.at(-1)?.code ? ` · last capture issue ${options.toolExecutionRuntime.failures.at(-1).code}` : options.toolExecutionRuntime?.adapters?.failures?.at(-1)?.code ? ` · last adapter issue ${options.toolExecutionRuntime.adapters.failures.at(-1).code}` : ""}`
-          : ""
-      }`,
+      `- Tool Execution: ${publicCapabilityStatus(capabilityState?.toolExecution)}`,
       "",
       "Cognitive Routing:",
       `- Control: \`${control}\``,
@@ -209,14 +189,12 @@ export function withFreeflowRuntimeState(
   options: {
     force?: boolean;
     projectionFailure?: string;
-    toolExecutionRuntime?: ToolExecutionRuntimeSnapshot;
     anchor?: RuntimeStateAnchor;
   } = {},
 ) {
   const source = Array.isArray(messages) ? messages : [];
   const runtimeState = freeflowRuntimeStateMessage(capabilityState, cognitiveRoutingRuntime, freeflowContext, {
     projectionFailure: options.projectionFailure,
-    toolExecutionRuntime: options.toolExecutionRuntime,
   });
   const runtimeStateMessages = source.filter(
     (message) =>

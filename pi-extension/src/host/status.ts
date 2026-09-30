@@ -1,10 +1,9 @@
 import type { readCapabilityState } from "./config.js";
 import { hasUsableMandatoryPrompts } from "./prompts.js";
-import type { ToolExecutionRuntimeSnapshot } from "./runtime-state.js";
 
 /**
  * Freeflow's two status surfaces. The footer shows current Freeflow settings only; the /freeflow status report carries
- * diagnostics such as tool-runtime issues and prompt-cache health.
+ * diagnostics such as prompt-cache health.
  */
 export function setFreeflowStatus(
   ctx,
@@ -14,7 +13,6 @@ export function setFreeflowStatus(
   options: {
     cognitiveRoutingStartupPending?: boolean;
     startupSelectionSuppressed?: boolean;
-    toolExecutionRuntime?: ToolExecutionRuntimeSnapshot;
   } = {},
 ) {
   if (capabilityState && !capabilityState.configured) {
@@ -71,13 +69,6 @@ export function setFreeflowStatus(
       active.push(`cognitive blocked · ${reason}`);
     }
   }
-  const toolIssue =
-    options.toolExecutionRuntime?.lastFailure?.code ??
-    options.toolExecutionRuntime?.failures?.at(-1)?.code ??
-    options.toolExecutionRuntime?.adapters?.failures?.at(-1)?.code;
-  if (capabilityState?.toolExecution?.effective === true && options.toolExecutionRuntime?.unresolvedEffects)
-    active.push(`tools fenced ${options.toolExecutionRuntime.unresolvedEffects}`);
-  else if (capabilityState?.toolExecution?.effective === true && toolIssue) active.push(`tools ${toolIssue}`);
   ctx.ui.setStatus("freeflow", `freeflow: ${active.length > 0 ? active.join(" · ") : "active"}`);
 }
 
@@ -92,19 +83,7 @@ export function freeflowStatusText(
       presetWarnings?: readonly string[];
     };
   },
-  toolExecutionRuntime?: {
-    queued?: number;
-    failures?: { code?: string; message?: string }[];
-    lastFailure?: { code?: string; message?: string };
-    unresolvedEffects?: number;
-    catalog?: { generation?: string; operations?: number; metadataBytes?: number };
-    adapters?: {
-      allowed?: readonly string[];
-      announced?: readonly { active?: boolean }[];
-      failures?: readonly { code?: string; message?: string }[];
-    };
-    cacheHealth?: readonly string[];
-  },
+  diagnostics?: { cacheHealth?: readonly string[] },
 ): string {
   if (!state.configured) {
     if (!state.configExists) return "Freeflow: inactive (repo not set up); run /setup-freeflow";
@@ -126,20 +105,13 @@ export function freeflowStatusText(
           ? `blocked (${cognitiveRouting.blockingReason.code})`
           : "disabled"
     : undefined;
-  const toolIssue =
-    toolExecutionRuntime?.lastFailure ??
-    toolExecutionRuntime?.failures?.at(-1) ??
-    toolExecutionRuntime?.adapters?.failures?.at(-1);
   return [
     `Freeflow: ${state.enabled ? "enabled" : "disabled"}${sessionSuffix(state.configSources.enabled)}`,
     ...(cognitiveRoutingStatus ? [`cognitive routing: ${cognitiveRoutingStatus}`] : []),
     ...(routingState?.presetWarnings?.length
       ? [`routing preset warnings: ${routingState.presetWarnings.join(" ")}`]
       : []),
-    `tool execution: ${state.toolExecution?.effective ? "enabled" : "disabled"} (capture ${state.toolExecution?.capture?.effective ? "enabled" : "disabled"}, verified reader ${state.toolExecution?.effective ? "enabled" : "disabled"}, workspace ${state.toolExecution?.workspace?.effective ? (state.toolExecution.workspace.write ? "read/write" : "read-only") : "disabled"}, programs ${state.toolExecution?.programs?.mode ?? "off"}, live effects ${toolExecutionRuntime?.unresolvedEffects ? `fenced (${toolExecutionRuntime.unresolvedEffects})` : "settled"}, discovery ${state.toolExecution?.discovery?.effective ? "enabled" : "disabled"}, catalog ${toolExecutionRuntime?.catalog?.operations ?? 0} operations/${toolExecutionRuntime?.catalog?.metadataBytes ?? 0} bytes, adapters ${toolExecutionRuntime?.adapters?.announced?.filter((adapter) => adapter.active).length ?? 0} active/${toolExecutionRuntime?.adapters?.allowed?.length ?? 0} allowed, accounting ${state.toolExecution?.accounting?.effective ? "enabled" : "disabled"}; native Bash is built in, custom tools require adapters; captured files are retained until explicit deletion${toolIssue?.code ? `; latest ${toolExecutionRuntime?.lastFailure ? "program" : toolExecutionRuntime?.failures?.length ? "capture" : "adapter"} issue ${toolIssue.code}${toolIssue.message ? `: ${toolIssue.message}` : ""}` : ""})`,
-    ...(toolExecutionRuntime?.queued ? [`capture publications queued: ${toolExecutionRuntime.queued}`] : []),
-    ...(toolExecutionRuntime?.cacheHealth?.length
-      ? [`prompt cache: ${toolExecutionRuntime.cacheHealth.join(" ")}`]
-      : []),
+    `tool execution: ${state.toolExecution?.effective ? "enabled" : "disabled"}`,
+    ...(diagnostics?.cacheHealth?.length ? [`prompt cache: ${diagnostics.cacheHealth.join(" ")}`] : []),
   ].join("; ");
 }

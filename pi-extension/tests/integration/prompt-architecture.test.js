@@ -228,7 +228,7 @@ test("provider context reuses the before-agent surface until the next provider t
   }
 });
 
-test("Tool Execution exposes a stable tiered cue and only the effective optional skill", async () => {
+test("Tool Execution exposes a stable cue and only the effective optional skill", async () => {
   const cwd = await configuredRepo({ toolExecution: { enabled: true } });
   try {
     const { handlers } = loadExtension();
@@ -236,9 +236,8 @@ test("Tool Execution exposes a stable tiered cue and only the effective optional
     await handlers.get("session_start")({ type: "session_start" }, ctx);
     const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
     assert.match(before.renderedGuidance, /## Tool Execution Cue/);
-    assert.match(before.renderedGuidance, /do not load the full skill solely for one such call/);
-    assert.match(before.renderedGuidance, /Before a Freeflow program, mutation, exact artifact recovery/);
-    assert.doesNotMatch(before.renderedGuidance, /project\.readRanges@1|catalog generation/);
+    assert.match(before.renderedGuidance, /work with the tools declared in this request/);
+    assert.doesNotMatch(before.renderedGuidance, /freeflow_(run|tools|result|read|search|patch)|catalog generation/);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.equal(
       resources.skillPaths.filter((path) => path.endsWith("/capabilities/tool-execution/SKILL.md")).length,

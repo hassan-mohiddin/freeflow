@@ -348,18 +348,7 @@ test("Pi registers the remaining Freeflow commands without mode controls or reti
   assert.ok(!toolNames.includes("freeflow_context"));
   assert.deepEqual(
     toolNames.filter((name) => name.startsWith("freeflow_")),
-    [
-      "freeflow_delegate",
-      "freeflow_return",
-      "freeflow_unit",
-      "freeflow_project",
-      "freeflow_tools",
-      "freeflow_run",
-      "freeflow_result",
-      "freeflow_read",
-      "freeflow_search",
-      "freeflow_patch",
-    ],
+    ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project"],
   );
   assert.ok(!toolNames.includes("freeflow_switch_profile"));
   assert.ok(!toolNames.includes("freeflow_cognitive_routing_history"));
@@ -408,13 +397,10 @@ test("normal Pi settings expose active Cognitive Routing configuration", async (
   }
 });
 
-test("Pi settings and status disclose capture retention and verified reader availability", async () => {
+test("Pi settings show Tool Execution as one switch and status reports it", async () => {
   const cwd = await configuredRepo({
-    toolExecution: {
-      enabled: true,
-      capture: { enabled: true },
-      accounting: { enabled: true },
-    },
+    // Settings of the retired v2 runtime keep loading and do nothing.
+    toolExecution: { enabled: true, capture: { enabled: true }, programs: { mode: "adapters" } },
   });
   try {
     const { commands } = loadExtension(freeflowExtension, {
@@ -428,262 +414,17 @@ test("Pi settings and status disclose capture retention and verified reader avai
     const settingsCtx = context(cwd);
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
-      assert.match(
-        renderText(component, 180),
-        /Tool Execution\s+enabled \(8\) capture active · programs off · workspace inactive · discovery inactive · adapters 0 allowed · accounting active/,
-      );
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      const detail = renderText(component);
-      assert.match(detail, /Capture new Bash text results/);
-      assert.match(detail, /Disabling new capture retains sidecar files/);
+      const text = renderText(component, 180);
+      assert.match(text, /Tool Execution\s+enabled \(1\) active/);
+      assert.doesNotMatch(text, /capture|programs|workspace|accounting/i);
       return undefined;
     };
     await command.definition.handler("settings repo", settingsCtx);
 
     const statusCtx = context(cwd);
     await command.definition.handler("status", statusCtx);
-    assert.match(statusCtx.notifications.at(-1).message, /verified reader enabled/);
-    assert.match(statusCtx.notifications.at(-1).message, /native Bash is built in, custom tools require adapters/);
-    assert.match(statusCtx.notifications.at(-1).message, /captured files are retained until explicit deletion/);
-
-    const issueCtx = context(cwd);
-    await handleFreeflowCommand("status", issueCtx, async () => {}, {}, undefined, {
-      status: () => ({
-        queued: 0,
-        failures: [
-          {
-            code: "storage_busy",
-            message: "Native output retained; remove stale .capture-reservation only when no process is active.",
-          },
-        ],
-      }),
-    });
-    assert.match(issueCtx.notifications.at(-1).message, /latest capture issue storage_busy/);
-    assert.match(issueCtx.notifications.at(-1).message, /remove stale \.capture-reservation/);
-  } finally {
-    await rm(cwd, { recursive: true, force: true });
-  }
-});
-
-test("Pi settings expose every supported Tool Execution control in grouped local and repository views", async () => {
-  const cwd = await configuredRepo({
-    toolExecution: {
-      enabled: true,
-      capture: { enabled: true },
-      workspace: { enabled: true },
-      discovery: { enabled: true },
-      accounting: { enabled: true },
-    },
-  });
-  try {
-    const { commands } = loadExtension();
-    const command = commands.find((candidate) => candidate.name === "freeflow");
-    const settingsCtx = context(cwd);
-
-    const renderGroup = async (group) => {
-      let rendered = "";
-      settingsCtx.ui.custom = async (factory) => {
-        const component = factory({ requestRender() {} }, testTheme, {}, () => {});
-        component.handleInput("Tool Execution");
-        component.handleInput("\r");
-        if (group) {
-          component.handleInput(group);
-          component.handleInput("\r");
-        }
-        rendered = renderText(component, 180);
-        return undefined;
-      };
-      await command.definition.handler("settings local", settingsCtx);
-      return rendered;
-    };
-
-    const overview = await renderGroup();
-    assert.match(overview, /Configuration preset/);
-    assert.match(overview, /Capture and recovery/);
-    assert.match(overview, /Programs/);
-    assert.match(overview, /Workspace/);
-    assert.match(overview, /Operation discovery/);
-    assert.match(overview, /Cooperating adapters/);
-    assert.match(overview, /Accounting observations/);
-
-    const capture = await renderGroup("Capture and recovery");
-    assert.match(capture, /Capture new Bash text results/);
-    assert.match(capture, /Inline result budget/);
-    assert.match(capture, /Maximum captured result/);
-
-    const programs = await renderGroup("Programs");
-    assert.match(programs, /Program mode/);
-    assert.match(programs, /Program timeout/);
-    assert.match(programs, /Parallel program reads/);
-
-    const workspace = await renderGroup("Workspace");
-    assert.match(workspace, /Local workspace reads/);
-    assert.match(workspace, /Exact workspace replacement/);
-    assert.match(workspace, /Workspace root/);
-    assert.match(workspace, /Denied workspace paths/);
-
-    const adapters = await renderGroup("Cooperating adapters");
-    assert.match(adapters, /Allowed cooperating adapters/);
-  } finally {
-    await rm(cwd, { recursive: true, force: true });
-  }
-});
-
-test("Tool Execution presets atomically configure full and read-only local modes while preserving advanced leaves", async () => {
-  const repository = {
-    toolExecution: {
-      capture: { maxStoredBytes: 16_777_216 },
-      programs: { timeoutMs: 5000, maxParallelReads: 2 },
-      workspace: { root: "workspace-root", denyPaths: [".git", "private"] },
-      adapters: { allow: ["fixture.records"] },
-    },
-  };
-  const local = { toolExecution: { capture: { maxInlineBytes: 2048 } } };
-  const cwd = await configuredRepo(repository);
-  const localPath = join(cwd, ".freeflow/local.json");
-  await writeFile(localPath, JSON.stringify(local, null, 2), "utf8");
-  try {
-    const { commands } = loadExtension();
-    const command = commands.find((candidate) => candidate.name === "freeflow");
-    const settingsCtx = context(cwd);
-    settingsCtx.isIdle = () => true;
-    let confirmations = 0;
-    settingsCtx.ui.confirm = async () => {
-      confirmations += 1;
-      return true;
-    };
-
-    const choosePreset = async (down) => {
-      let rendered = "";
-      settingsCtx.ui.custom = async (factory) => {
-        let result;
-        const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
-          result = value;
-        });
-        component.handleInput("Tool Execution");
-        component.handleInput("\r");
-        component.handleInput("Configuration preset");
-        component.handleInput("\r");
-        for (let index = 0; index < down; index += 1) component.handleInput("\u001b[B");
-        component.handleInput("\r");
-        await component.waitForWrites();
-        rendered = renderText(component, 180);
-        component.handleInput("\u001b");
-        component.handleInput("\u001b");
-        return result;
-      };
-      await command.definition.handler("settings local", settingsCtx);
-      return rendered;
-    };
-
-    const fullPresetView = await choosePreset(2);
-    assert.match(fullPresetView, /Programs\s+enabled \(3\) adapters/);
-    assert.match(fullPresetView, /Workspace\s+enabled \(4\) reads active · writes enabled/);
-    let saved = JSON.parse(await readFile(localPath, "utf8"));
-    assert.equal(saved.toolExecution.enabled, true);
-    assert.equal(saved.toolExecution.capture.enabled, true);
-    assert.equal(saved.toolExecution.capture.maxInlineBytes, 2048);
-    assert.equal(saved.toolExecution.programs.mode, "adapters");
-    assert.equal(saved.toolExecution.workspace.enabled, true);
-    assert.equal(saved.toolExecution.workspace.write, true);
-    assert.equal(saved.toolExecution.discovery.enabled, true);
-    assert.equal(saved.toolExecution.accounting.enabled, true);
-    assert.deepEqual(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")), repository);
-
-    await choosePreset(1);
-    saved = JSON.parse(await readFile(localPath, "utf8"));
-    assert.equal(saved.toolExecution.programs.mode, "adapters");
-    assert.equal(saved.toolExecution.workspace.write, false);
-    assert.equal(saved.toolExecution.capture.maxInlineBytes, 2048);
-    assert.equal(confirmations, 1, "only the full-local preset requires write confirmation");
-    assert.equal(settingsCtx.reloads.length, 2);
-  } finally {
-    await rm(cwd, { recursive: true, force: true });
-  }
-});
-
-test("personal Tool Execution settings enable adapters and confirmed writes without erasing other leaves", async () => {
-  const repository = {
-    toolExecution: {
-      enabled: true,
-      capture: { enabled: true, maxInlineBytes: 4096 },
-      programs: { mode: "reduction", timeoutMs: 5000, maxParallelReads: 2 },
-      workspace: { enabled: true, write: false, denyPaths: [".git", "private"] },
-      discovery: { enabled: true },
-      accounting: { enabled: true },
-    },
-  };
-  const local = { toolExecution: { capture: { maxInlineBytes: 2048 } } };
-  const cwd = await configuredRepo(repository);
-  const localPath = join(cwd, ".freeflow/local.json");
-  await writeFile(localPath, JSON.stringify(local, null, 2), "utf8");
-  try {
-    const { commands } = loadExtension();
-    const command = commands.find((candidate) => candidate.name === "freeflow");
-    const settingsCtx = context(cwd);
-    settingsCtx.isIdle = () => true;
-    let confirmations = 0;
-    settingsCtx.ui.confirm = async () => {
-      confirmations += 1;
-      return true;
-    };
-
-    settingsCtx.ui.custom = async (factory) => {
-      let result;
-      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
-        result = value;
-      });
-      component.handleInput("Tool Execution");
-      component.handleInput("\r");
-      component.handleInput("Programs");
-      component.handleInput("\r");
-      component.handleInput("Program mode");
-      component.handleInput("\r");
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      await component.waitForWrites();
-      component.handleInput("\u001b");
-      component.handleInput("\u001b");
-      component.handleInput("\u001b");
-      return result;
-    };
-    await command.definition.handler("settings local", settingsCtx);
-
-    settingsCtx.ui.custom = async (factory) => {
-      let result;
-      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
-        result = value;
-      });
-      component.handleInput("Tool Execution");
-      component.handleInput("\r");
-      component.handleInput("Workspace");
-      component.handleInput("\r");
-      component.handleInput("Exact workspace replacement");
-      component.handleInput("\r");
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      await component.waitForWrites();
-      component.handleInput("\u001b");
-      component.handleInput("\u001b");
-      component.handleInput("\u001b");
-      return result;
-    };
-    await command.definition.handler("settings local", settingsCtx);
-
-    const saved = JSON.parse(await readFile(localPath, "utf8"));
-    assert.equal(saved.toolExecution.capture.maxInlineBytes, 2048);
-    assert.equal(saved.toolExecution.programs.mode, "adapters");
-    assert.equal(saved.toolExecution.workspace.write, true);
-    assert.deepEqual(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")), repository);
-    assert.equal(confirmations, 1);
-    assert.equal(settingsCtx.reloads.length, 2);
+    assert.match(statusCtx.notifications.at(-1).message, /tool execution: enabled/);
+    assert.doesNotMatch(statusCtx.notifications.at(-1).message, /capture|verified reader|adapters/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -999,11 +740,6 @@ test("Pi describes the mode-free Freeflow argument surface and manual profile co
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions(""), [
     { value: "settings", label: "settings", description: "Open personal override settings" },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
-    {
-      value: "efficiency",
-      label: "efficiency",
-      description: "Show factual Tool Execution and provider observations",
-    },
     { value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" },
     { value: "resume", label: "resume", description: "Resume the current saved routing responsibility" },
     { value: "enable", label: "enable", description: "Enable Freeflow for this repository" },
@@ -1016,9 +752,7 @@ test("Pi describes the mode-free Freeflow argument surface and manual profile co
     { value: "profile auto", label: "auto", description: "Return to automatic Coordinator reconciliation" },
     { value: "profile history", label: "history", description: "Read routing observations" },
   ]);
-  assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("efficiency "), [
-    { value: "efficiency export", label: "export", description: "Export bounded factual efficiency JSON" },
-  ]);
+  assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("efficiency "), []);
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("mode "), []);
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("context "), []);
 });
@@ -1169,44 +903,38 @@ test("Pi resolves only the remaining layered core values", async () => {
   }
 });
 
-test("Pi resolves Tool Execution sub-capabilities and exposes bounded runtime status", async () => {
-  const cwd = await configuredRepo({
-    toolExecution: {
-      enabled: true,
-      accounting: { enabled: true },
-      capture: { enabled: true, maxInlineBytes: 4096 },
-      workspace: { enabled: true },
-      discovery: { enabled: true },
-    },
-  });
+test("Pi resolves Tool Execution as one capability and reports it in the Runtime State", async () => {
+  const cwd = await configuredRepo({ toolExecution: { enabled: true, accounting: { enabled: true } } });
   try {
     const { handlers } = loadExtension(freeflowExtension, {});
     const ctx = context(cwd);
     await handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
     const state = await readCapabilityState(cwd, ctx, null);
-    assert.equal(state.toolExecution.effective, true);
-    assert.equal(state.toolExecution.accounting.effective, true);
-    assert.equal(state.toolExecution.workspace.effective, true);
-    assert.equal(state.toolExecution.discovery.effective, true);
-    assert.equal(state.toolExecution.capture.maxInlineBytes, 4096);
-    const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
-    assert.match(
-      lastRuntimeState(providerContext.messages).content,
-      /Tool Execution: active · capture active · reader enabled · workspace read-only · discovery active · accounting active · programs off/,
+    assert.deepEqual(
+      { enabled: state.toolExecution.enabled, effective: state.toolExecution.effective },
+      { enabled: true, effective: true },
     );
+    assert.equal("accounting" in state.toolExecution, false);
+    const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
+    assert.match(lastRuntimeState(providerContext.messages).content, /Tool Execution: active\n/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
 });
 
 test("Pi rejects invalid Tool Execution configuration", async () => {
-  const cwd = await configuredRepo({ toolExecution: { programs: { mode: "node" } } });
-  try {
-    const layers = await readFreeflowConfigLayers(cwd);
-    assert.equal(layers.configured, false);
-    assert.match(layers.parseError, /programs\.mode must be one of/);
-  } finally {
-    await rm(cwd, { recursive: true, force: true });
+  for (const [toolExecution, error] of [
+    [{ enabled: "yes" }, /toolExecution\.enabled must be a boolean/],
+    [{ sandbox: true }, /toolExecution has unsupported key: sandbox/],
+  ]) {
+    const cwd = await configuredRepo({ toolExecution });
+    try {
+      const layers = await readFreeflowConfigLayers(cwd);
+      assert.equal(layers.configured, false);
+      assert.match(layers.parseError, error);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
   }
 });
 

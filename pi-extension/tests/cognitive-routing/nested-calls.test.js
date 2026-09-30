@@ -28,9 +28,7 @@ test("routing tools are declared to the model but not callable from scripts", { 
     async () => [],
     false,
     async () => {
-      const routing = api
-        .getAllTools()
-        .filter((tool) => tool.name.startsWith("freeflow_") && tool.name !== "freeflow_run");
+      const routing = api.getAllTools().filter((tool) => tool.name.startsWith("freeflow_"));
       const exposures = Object.fromEntries(routing.map((tool) => [tool.name, tool.exposure]));
       for (const name of ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project"])
         assert.equal(exposures[name], "model-only", name);

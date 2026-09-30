@@ -22,9 +22,8 @@
     "build:pi-extension": "node -e \"require('node:fs').rmSync('pi-extension/dist', { recursive: true, force: true })\" && tsc -p pi-extension/tsconfig.json && npm run format:pi-extension-dist",
     "build": "npm run build:pi-extension",
     "typecheck": "tsc -p pi-extension/tsconfig.json --noEmit",
-    "check": "npm run typecheck && npm run check:source && npm run check:bindings && npm run check:host-manifests && npm run check:changelog && npm run check:release-workflow && npm run check:docs && npm run format:check && npm run check:release-version && npm run check:commands && npm run check:activation && npm run check:runtime && npm run check:package && npm run check:installed-tool-runtime && npm run check:eval-coverage",
+    "check": "npm run typecheck && npm run check:source && npm run check:host-manifests && npm run check:changelog && npm run check:release-workflow && npm run check:docs && npm run format:check && npm run check:release-version && npm run check:commands && npm run check:activation && npm run check:runtime && npm run check:package && npm run check:eval-coverage",
     "check:source": "node scripts/validation/check-source-files.mjs",
-    "check:bindings": "node scripts/validation/check-core-bindings.mjs",
     "check:host-manifests": "node scripts/validation/check-host-manifests.mjs",
     "check:changelog": "node scripts/validation/check-changelog.mjs --structure",
     "check:release-workflow": "node scripts/validation/check-release-workflow.mjs",
@@ -34,7 +33,6 @@
     "check:activation": "scripts/validation/check-activation-contract.sh",
     "check:runtime": "hooks/tests/check-runtime-context-hook.sh",
     "check:package": "node scripts/validation/check-package.mjs",
-    "check:installed-tool-runtime": "node scripts/validation/check-installed-tool-runtime.mjs",
     "check:eval-coverage": "node scripts/validation/check-eval-coverage.mjs",
     "check:release-metadata": "scripts/validation/validate-release-metadata.sh --mode prepublish",
     "test:pi-extension": "npm run build && node --test $(find pi-extension/tests -name '*.test.js' | sort)",
@@ -118,8 +116,5 @@
     "prettier": "3.9.5",
     "typescript": "^5.8.3"
   },
-  "dependencies": {
-    "@jitl/quickjs-wasmfile-release-sync": "0.32.0",
-    "quickjs-emscripten-core": "0.32.0"
-  }
+  "dependencies": {}
 }

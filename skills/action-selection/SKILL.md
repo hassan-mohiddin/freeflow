@@ -63,7 +63,7 @@ Use the simplest operation that can establish the required relationship:
 
 Choose scope before running: directory, source kind, pattern, range, test target, time window, result count, fields, affected state, or recovery scope. Exclude unrelated history, generated output, and dependencies unless the question needs them. When volume is uncertain, run a location or count query before requesting all matching bodies, and prefer bounded output with an accessible full result.
 
-When Runtime State shows Tool Execution active, recover exact captured output with `freeflow_result` instead of rerunning its command, and use a `freeflow_run` program when a settled loop over many results (filter, parse, compare, aggregate) would otherwise take many model turns. A program runs known steps; return to ordinary calls when a result needs a new decision.
+Recover saved output instead of rerunning its command, and use a script when a settled loop over many results (filter, parse, compare, aggregate) would otherwise take many model turns. A script runs known steps; return to ordinary calls when a result needs a new decision.
 
 Use host-supplied usage when available; do not invent token counts or treat the provider maximum as a promise that the work will fit. The owner chooses the work horizon: return an unexpectedly large context need to it instead of reading the whole dependency tree or silently shrinking acceptance.
 

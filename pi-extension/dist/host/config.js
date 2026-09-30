@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveCognitiveRoutingState, supportsCognitiveRoutingModelRegistry } from "../cognitive-routing/config.js";
 import { sessionStage, stagedFor } from "./staging.js";
-import { resolveToolExecutionConfig, validateToolExecutionConfig } from "../tool-runtime/config.js";
+import { resolveToolExecutionConfig, validateToolExecutionConfig } from "../tool-execution/config.js";
 const SESSION_OVERRIDES_ENTRY = "freeflow-session-overrides";
 const SESSION_CORE_KEYS = new Set(["enabled"]);
 let currentSessionOverrides = {};

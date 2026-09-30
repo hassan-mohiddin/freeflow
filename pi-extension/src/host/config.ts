@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { resolveCognitiveRoutingState, supportsCognitiveRoutingModelRegistry } from "../cognitive-routing/config.js";
 import { sessionStage, stagedFor } from "./staging.js";
-import { resolveToolExecutionConfig, validateToolExecutionConfig } from "../tool-runtime/config.js";
+import { resolveToolExecutionConfig, validateToolExecutionConfig } from "../tool-execution/config.js";
 
 /**
  * Freeflow configuration: the repository and personal config files, their layering, per-session core overrides, and

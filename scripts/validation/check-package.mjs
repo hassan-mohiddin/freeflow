@@ -26,35 +26,8 @@ const requiredFiles = [
   "pi-extension/dist/provider-support/openai/adapter.js",
   "pi-extension/dist/provider-support/openai/history.js",
   "pi-extension/dist/provider-support/openai/session-state.js",
-  "pi-extension/dist/tool-runtime/accounting/evaluation.js",
-  "pi-extension/dist/tool-runtime/adapters/protocol.js",
-  "pi-extension/dist/tool-runtime/discovery/index.js",
-  "pi-extension/dist/tool-runtime/program/host.js",
-  "pi-extension/dist/tool-runtime/program/worker.js",
-  "pi-extension/dist/tool-runtime/results/runtime.js",
-  "pi-extension/dist/tool-runtime/results/v2.js",
-  "pi-extension/dist/tool-runtime/results/v2-capture.js",
-  "pi-extension/dist/tool-runtime/direct-tools.js",
-  "pi-extension/dist/tool-runtime/execution-record.js",
-  "pi-extension/dist/tool-runtime/bindings.js",
-  "pi-extension/dist/tool-runtime/presentation/v2.js",
-  "pi-extension/dist/tool-runtime/adapters/read-ranges.js",
-  "pi-extension/dist/tool-runtime/adapters/find-paths.js",
-  "pi-extension/dist/tool-runtime/adapters/search-text-v2.js",
-  "pi-extension/dist/tool-runtime/adapters/apply-patch.js",
-  "pi-extension/dist/tool-runtime/session-store/contracts.js",
-  "pi-extension/dist/tool-runtime/session-store/journal.js",
-  "pi-extension/dist/tool-runtime/session-store/manifest.js",
-  "pi-extension/dist/tool-runtime/session-store/artifacts.js",
-  "pi-extension/dist/tool-runtime/session-store/store.js",
-  "pi-extension/dist/tool-runtime/session-store/native.js",
-  "pi-extension/dist/tool-runtime/session-store/pi-ancestry.js",
-  "pi-extension/dist/tool-runtime/guidance.js",
   "runtime/prompts/tool-execution.md",
   "capabilities/tool-execution/SKILL.md",
-  "capabilities/tool-execution/references/programs.md",
-  "capabilities/tool-execution/references/effects-and-recovery.md",
-  "capabilities/tool-execution/references/generated-program-bindings.md",
   "runtime/prompts/core.md",
   "runtime/prompts/interaction-contract.md",
   "runtime/prompts/cognitive-routing.md",
@@ -88,6 +61,8 @@ const retiredContextPrefixes = [
   "pi-extension/tests/context-virtualization/",
   "pi-extension/tests/conversation-history/",
 ];
+// The v2 Tool Execution runtime lives in .deprecated/tool-execution-v2 and must not ship.
+const retiredToolRuntimePrefixes = ["pi-extension/dist/tool-runtime/", "capabilities/tool-execution/references/"];
 const retiredContextFiles = new Set([
   "runtime/prompts/context-virtualization.md",
   "runtime/prompts/conversation-history.md",
@@ -101,16 +76,19 @@ try {
     stdio: ["ignore", "pipe", "inherit"],
   });
   const files = new Set(JSON.parse(output)[0].files.map(({ path }) => path));
-  if (
-    packageJson.dependencies?.["quickjs-emscripten-core"] !== "0.32.0" ||
-    packageJson.dependencies?.["@jitl/quickjs-wasmfile-release-sync"] !== "0.32.0"
-  )
-    throw new Error("Tool Execution runtime dependencies must remain exact qualified 0.32.0 versions");
+  const retiredDependencies = ["quickjs-emscripten-core", "@jitl/quickjs-wasmfile-release-sync"].filter(
+    (name) => packageJson.dependencies?.[name] !== undefined,
+  );
+  if (retiredDependencies.length > 0)
+    throw new Error(`package.json still depends on the retired v2 program runtime: ${retiredDependencies.join(", ")}`);
   const missing = requiredFiles.filter((path) => !files.has(path));
   const excluded = [...files].filter((path) => excludedPrefixes.some((prefix) => path.startsWith(prefix)));
   const forbidden = [...files].filter((path) => forbiddenPrefixes.some((prefix) => path.startsWith(prefix)));
   const retiredContext = [...files].filter(
     (path) => retiredContextFiles.has(path) || retiredContextPrefixes.some((prefix) => path.startsWith(prefix)),
+  );
+  const retiredToolRuntime = [...files].filter((path) =>
+    retiredToolRuntimePrefixes.some((prefix) => path.startsWith(prefix)),
   );
   const retiredSkillFiles = [...files].filter(
     (path) => path === "skills/tdd/SKILL.md" || path.startsWith("skills/tdd/"),
@@ -135,6 +113,8 @@ try {
     throw new Error(`npm package includes retired Output Router files: ${forbidden.join(", ")}`);
   if (retiredContext.length > 0)
     throw new Error(`npm package includes retired context feature files: ${retiredContext.join(", ")}`);
+  if (retiredToolRuntime.length > 0)
+    throw new Error(`npm package includes retired v2 Tool Execution files: ${retiredToolRuntime.join(", ")}`);
   if (retiredSkillFiles.length > 0)
     throw new Error(`npm package includes retired TDD skill files: ${retiredSkillFiles.join(", ")}`);
   if (privateArtifacts.length > 0)

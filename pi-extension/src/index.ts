@@ -1,26 +1,10 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { dirname, resolve } from "node:path";
-import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { RequestHistory } from "./host/request-history.js";
 import { registerProviderSupport } from "./provider-support/index.js";
-import { registerProviderObservation } from "./provider-support/observation.js";
-import { EfficiencyObserver } from "./tool-runtime/accounting/observation.js";
 import { CacheHealth } from "./provider-support/cache/health.js";
 import { CacheMonitor } from "./provider-support/cache/monitor.js";
-import { registerToolRuntimeTools } from "./tool-runtime/tools.js";
-import { ToolRuntime } from "./tool-runtime/index.js";
-import { DEFAULT_TOOL_EXECUTION_CONFIG } from "./tool-runtime/config.js";
-import { registerDirectToolRuntimeTools, setDirectToolVisibility } from "./tool-runtime/direct-tools.js";
-import { V2ExecutionRecorder } from "./tool-runtime/execution-record.js";
-import { NativeSessionStore, v2StoreLimits } from "./tool-runtime/session-store/native.js";
-import { V2ArtifactReader, openLocalOrigin } from "./tool-runtime/results/v2.js";
-import { V2CapturePublisher } from "./tool-runtime/results/v2-capture.js";
-import { GuidanceRuntime } from "./tool-runtime/guidance.js";
-import { publishCooperatingAdapterEndpoint } from "./tool-runtime/adapters/protocol.js";
-import { EffectRuntime } from "./tool-runtime/effects.js";
-import { ResultRuntime } from "./tool-runtime/results/runtime.js";
-import { ProgramHost } from "./tool-runtime/program/host.js";
 import { RoutingRuntime } from "./cognitive-routing/runtime.js";
 import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-routing/tools.js";
 import { handleFreeflowCommand } from "./host/settings/freeflow-command.js";
@@ -31,7 +15,6 @@ import {
   CONTRIBUTOR_COMMANDS,
   WORKFLOW_COMMANDS,
   freeflowModelSkillPaths,
-  freeflowCapabilitySkillPath,
   STABLE_FREEFLOW_SURFACE,
   skillPrompt,
 } from "./host/catalog.js";
@@ -73,29 +56,26 @@ function freeflowCompletions(prefix: string | undefined, routingAvailable: boole
         ["settings local", "local", "Edit personal overrides for this repository"],
         ["settings repo", "repo", "Edit shared repository settings"],
       ]
-    : query.startsWith("efficiency ")
-      ? [["efficiency export", "export", "Export bounded factual efficiency JSON"]]
-      : query.startsWith("profile ") && routingAvailable
-        ? [
-            ["profile coordinator", "coordinator", "Hold Coordinator manually"],
-            ["profile helper", "helper", "Hold Helper manually when enabled"],
-            ["profile executor", "executor", "Hold Executor manually when enabled"],
-            ["profile auto", "auto", "Return to automatic Coordinator reconciliation"],
-            ["profile history", "history", "Read routing observations"],
-          ]
-        : [
-            ["settings", "settings", "Open personal override settings"],
-            ["status", "status", "Show effective Freeflow state"],
-            ["efficiency", "efficiency", "Show factual Tool Execution and provider observations"],
-            ...(routingAvailable
-              ? [
-                  ["profile", "profile", "Hold or release Cognitive Routing profile control"],
-                  ["resume", "resume", "Resume the current saved routing responsibility"],
-                ]
-              : []),
-            ["enable", "enable", "Enable Freeflow for this repository"],
-            ["disable", "disable", "Disable Freeflow for this repository"],
-          ];
+    : query.startsWith("profile ") && routingAvailable
+      ? [
+          ["profile coordinator", "coordinator", "Hold Coordinator manually"],
+          ["profile helper", "helper", "Hold Helper manually when enabled"],
+          ["profile executor", "executor", "Hold Executor manually when enabled"],
+          ["profile auto", "auto", "Return to automatic Coordinator reconciliation"],
+          ["profile history", "history", "Read routing observations"],
+        ]
+      : [
+          ["settings", "settings", "Open personal override settings"],
+          ["status", "status", "Show effective Freeflow state"],
+          ...(routingAvailable
+            ? [
+                ["profile", "profile", "Hold or release Cognitive Routing profile control"],
+                ["resume", "resume", "Resume the current saved routing responsibility"],
+              ]
+            : []),
+          ["enable", "enable", "Enable Freeflow for this repository"],
+          ["disable", "disable", "Disable Freeflow for this repository"],
+        ];
   return choices
     .filter(([value]) => value.startsWith(query))
     .map(([value, label, description]) => ({ value, label, description }));
@@ -126,59 +106,6 @@ export default function freeflow(pi: FreeflowAPI) {
     delete runtimeStateAnchor.index;
   };
   let capability: any;
-  const nativeStore = new NativeSessionStore();
-  const v2Reader = new V2ArtifactReader((anchor, ctx) =>
-    openLocalOrigin(
-      anchor,
-      ctx,
-      v2StoreLimits(
-        capability?.toolExecution?.capture?.maxStoredBytes ?? DEFAULT_TOOL_EXECUTION_CONFIG.capture.maxStoredBytes,
-      ),
-    ),
-  );
-  const v2Capture = new V2CapturePublisher(api, async (ctx) => nativeStore.ensureCurrent(ctx));
-  const results = new ResultRuntime(
-    api,
-    () => capability?.toolExecution,
-    () => routing.observationScope(),
-    (id) => routing.resultReadAccess(id),
-    v2Reader,
-    v2Capture,
-  );
-  routing.setResultGrantPort({ resolve: (id, ctx) => results.resolveGrant(id, ctx) });
-  const effects = new EffectRuntime(api);
-  routing.setEffectFencePort(effects);
-  const recorder = new V2ExecutionRecorder(async (_scope, host) => {
-    const { store, fence } = await nativeStore.ensureCurrent(host);
-    return { store, fence, occurrenceId: () => `occurrence:${randomUUID()}` };
-  }, 65_536);
-  const toolRuntime = new ToolRuntime(
-    () => capability?.toolExecution,
-    {
-      scope: (ctx) => routing.operationScope(ctx),
-      responsibility: () => routing.observationScope(),
-      admit: (fence, effect, operation) => routing.admitOperation(fence as any, effect, operation),
-      admitProgram: (fence) => routing.admitProgram(fence as any),
-    },
-    {
-      read: (input, signal, host) => results.readValue(input, signal, host),
-    },
-    effects,
-    undefined,
-    recorder,
-    { maxBytes: 8192 },
-    { readV2Value: (input, signal, host) => results.readV2Value(input, signal, host) },
-    () => nativeStore.status().state === "ready",
-  );
-  publishCooperatingAdapterEndpoint(toolRuntime.adapters);
-  const guidance = new GuidanceRuntime(freeflowCapabilitySkillPath("tool-execution"), () => nativeStore.binding());
-  const programs = new ProgramHost(api, toolRuntime, () => capability?.toolExecution);
-  const efficiency = new EfficiencyObserver(
-    api,
-    () => routing.observationScope(),
-    () => capability?.toolExecution?.effective === true && capability?.toolExecution?.accounting?.effective === true,
-  );
-  registerProviderObservation(api, efficiency);
   const cacheHealth = new CacheHealth();
   let prompts: any;
   let refreshState = true;
@@ -212,23 +139,12 @@ export default function freeflow(pi: FreeflowAPI) {
     if (next.cognitiveRouting.effective && !isPromptAvailable(loaded.cognitiveRoutingPrompt))
       next.cognitiveRouting = unavailable(next.cognitiveRouting, "Routing bootstrap cue is unavailable.");
     capability = next;
-    toolRuntime.refreshAdapters();
     prompts = loaded;
     return next;
   }
   function status(ctx: any) {
     applyRoutingToolVisibility(api, routing, capability?.cognitiveRouting?.effective === true);
-    setDirectToolVisibility(api, () => capability?.toolExecution, nativeStore.status().state === "ready");
-    setFreeflowStatus(ctx, capability, routing.state(), prompts, {
-      toolExecutionRuntime: {
-        ...results.status(),
-        ...programs.status(),
-        ...effects.status(),
-        ...toolRuntime.status(),
-        store: nativeStore.status(),
-        guidance: guidance.status(ctx),
-      },
-    });
+    setFreeflowStatus(ctx, capability, routing.state(), prompts);
   }
   // Control and setting changes made between prompts are staged; their net effect is written as a prompt starts.
   function writeStagedControl(ctx: any) {
@@ -244,32 +160,6 @@ export default function freeflow(pi: FreeflowAPI) {
   }
 
   registerRoutingTools(api, routing);
-  registerToolRuntimeTools(api, () => capability?.toolExecution, {
-    invokeTools: (callId, input, signal, ctx, progress) =>
-      toolRuntime.invokeTools(callId, input, signal, ctx, progress),
-    runProgram: (callId, input, signal, ctx, progress) => programs.run(callId, input, signal, ctx, progress),
-    readResult: async (input, signal, ctx, progress) => {
-      progress?.publish({
-        version: 1,
-        tool: "freeflow_result",
-        phase: "running",
-        activity: "Reading verified captured bytes",
-      });
-      const result = await results.read(input, signal, ctx);
-      progress?.publish(
-        {
-          version: 1,
-          tool: "freeflow_result",
-          phase: "settling",
-          activity: "Verified captured range",
-        },
-        true,
-      );
-      return result;
-    },
-  });
-  registerDirectToolRuntimeTools(api, () => capability?.toolExecution, toolRuntime);
-
   pi.on("resources_discover", async (event, ctx) => {
     const state = capability ?? (await loadSurface(ctx ?? { cwd: (event as any)?.cwd ?? process.cwd() }));
     return {
@@ -293,28 +183,14 @@ export default function freeflow(pi: FreeflowAPI) {
     await refreshRuntimeContext(STABLE_FREEFLOW_SURFACE);
     if (generation !== surfaceGeneration) return;
     await loadSurface(ctx);
-    efficiency.reset(ctx);
     cacheHealth.reset();
-    results.reset();
-    programs.reset();
-    effects.reset();
-    await effects.recover(ctx);
-    if (capability.toolExecution?.effective === true)
-      await nativeStore.open(ctx, capability.toolExecution.capture.maxStoredBytes);
-    else await nativeStore.close();
-    await guidance.refresh(ctx);
     await routing.bind(ctx, capability.cognitiveRouting, (event as any)?.reason !== "reload");
     status(ctx);
   });
   pi.on("session_shutdown", async () => {
     surfaceGeneration++;
-    await nativeStore.close();
     resetHistory();
     routing.unbind();
-    efficiency.reset();
-    results.reset();
-    programs.reset();
-    effects.reset();
     capability = undefined;
     prompts = undefined;
   });
@@ -357,32 +233,10 @@ export default function freeflow(pi: FreeflowAPI) {
       if (warning) ctx.ui?.notify?.(warning, "warning");
     }
     routing.messageEnd((event as any).message);
-    efficiency.messageEnd((event as any).message, ctx);
   });
-  pi.on("tool_call", (event, ctx) => {
-    const gate = routing.preflight(event, ctx);
-    if (!(gate as any)?.block) {
-      try {
-        results.toolCall(event, ctx);
-      } catch {
-        // Optional capture preparation cannot block the admitted native tool.
-      }
-    }
-    return gate;
-  });
-  pi.on("tool_result", async (event, ctx) => {
-    const capture = await results.capture(event, ctx);
-    if (capability?.toolExecution?.effective === true) guidance.observeRead(event, ctx);
-    const direct = toolRuntime.patchResult(event);
-    const program = programs.patchResult(event);
-    return capture || direct || program ? { ...(capture ?? {}), ...(direct ?? {}), ...(program ?? {}) } : undefined;
-  });
+  pi.on("tool_call", (event, ctx) => routing.preflight(event, ctx));
   pi.on("turn_end", async (event, ctx) => {
     await routing.turnEnd(event, ctx);
-    if (guidance.needsPublication() && nativeStore.binding()) await nativeStore.ensureCurrent(ctx).catch(() => {});
-    await guidance.turnEnd(event, ctx);
-    results.turnEnd(event);
-    efficiency.turnEnd(event, ctx);
     status(ctx);
   });
   pi.on("agent_settled", async (_event, ctx) => {
@@ -413,14 +267,6 @@ export default function freeflow(pi: FreeflowAPI) {
       force: refreshState,
       anchor: runtimeStateAnchor,
       projectionFailure: routing.state().projectionFailure,
-      toolExecutionRuntime: {
-        ...results.status(),
-        ...programs.status(),
-        ...effects.status(),
-        ...toolRuntime.status(),
-        store: nativeStore.status(),
-        guidance: guidance.status(ctx),
-      },
     });
     refreshState = false;
     // Disabled Freeflow pays no per-request provenance work; re-enabling rebuilds it from session history.
@@ -442,15 +288,9 @@ export default function freeflow(pi: FreeflowAPI) {
   const restore = async (ctx: any, navigation = true) => {
     cacheHealth.noteBreak();
     resetHistory();
-    efficiency.reset(ctx);
-    results.reset();
-    programs.reset();
-    effects.reset();
-    await effects.recover(ctx);
     restoreSessionOverrides(ctx);
     refreshState = true;
     await routing.ancestryChanged(ctx, navigation);
-    guidance.ancestryChanged();
     await update(ctx);
   };
   pi.on("session_tree", async (_event, ctx) => restore(ctx));
@@ -511,7 +351,7 @@ export default function freeflow(pi: FreeflowAPI) {
       handler: (args, ctx) => sendSkillCommand(pi, ctx, skill, args),
     });
   pi.registerCommand("freeflow", {
-    description: "Freeflow settings, status, efficiency, profile control, and saved-operation resume",
+    description: "Freeflow settings, status, profile control, and saved-operation resume",
     getArgumentCompletions: (prefix) =>
       freeflowCompletions(
         prefix,
@@ -524,26 +364,8 @@ export default function freeflow(pi: FreeflowAPI) {
         await update(ctx);
         return;
       }
-      const input = (args ?? "").trim();
-      if (input === "efficiency" || input === "efficiency export") {
-        if (!capability?.toolExecution?.accounting?.effective) {
-          ctx.ui.notify("Freeflow Tool Execution accounting is disabled.", "warning");
-          return;
-        }
-        ctx.ui.notify(
-          JSON.stringify(input.endsWith("export") ? efficiency.exportData() : efficiency.report(), null, 2),
-          "info",
-        );
-        return;
-      }
       await handleFreeflowCommand(args, ctx, async () => update(ctx), pi, routing, {
-        status: () => ({
-          ...results.status(),
-          ...programs.status(),
-          ...effects.status(),
-          ...toolRuntime.status(),
-          cacheHealth: [...cacheHealth.status(), ...cacheMonitor.lines()],
-        }),
+        status: () => ({ cacheHealth: [...cacheHealth.status(), ...cacheMonitor.lines()] }),
       });
     },
   });
