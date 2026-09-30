@@ -279,8 +279,14 @@ export class RoutingRuntime {
     }
     return true;
   }
-  beforeRun(ctx) {
-    return this.models.beforeRun(ctx);
+  beforeRun(ctx, fromPrompt = true) {
+    return this.models.beforeRun(ctx, fromPrompt);
+  }
+  runStarted() {
+    this.models.runStarted();
+  }
+  startedByMessage(message) {
+    return this.models.startedByMessage(message);
   }
   nativeChange(ctx) {
     return this.models.nativeChange(ctx);

@@ -335,6 +335,7 @@ export class Handoffs {
     // Resume starts its run directly, so the resumed profile's model is applied here rather than at a prompt.
     await this.models.applyPending();
     this.session.guard(subject);
+    this.models.preparedRun();
     this.pi.sendMessage(
       {
         customType: "freeflow-routing-v2-resume",

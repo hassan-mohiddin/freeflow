@@ -52,13 +52,12 @@ export function registerRoutingTools(pi: any, runtime: RoutingRuntime): void {
 }
 export function applyRoutingToolVisibility(pi: any, _runtime: RoutingRuntime, _available = true): void {
   if (!pi.getActiveTools || !pi.setActiveTools) return;
-  const current = pi.getActiveTools();
-  const ordinary = current.filter(
-    (name: string) =>
-      !ROUTING_TOOLS.includes(name as any) &&
-      name !== "freeflow_switch_profile" &&
-      name !== "freeflow_cognitive_routing_history",
+  const current: string[] = pi.getActiveTools();
+  // Missing routing tools are appended and present ones keep their place, so tools another extension adds later
+  // (tool_search, for one) are never reordered around them.
+  const kept = current.filter(
+    (name: string) => name !== "freeflow_switch_profile" && name !== "freeflow_cognitive_routing_history",
   );
-  const next = [...ordinary, ...ROUTING_TOOLS];
+  const next = [...kept, ...ROUTING_TOOLS.filter((name) => !kept.includes(name))];
   if (JSON.stringify(next) !== JSON.stringify(current)) pi.setActiveTools(next);
 }

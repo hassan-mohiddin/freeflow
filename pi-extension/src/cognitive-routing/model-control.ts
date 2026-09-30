@@ -43,7 +43,30 @@ export class ModelControl {
     }
     return observed && !samePair(observed, expected) ? { profile: state.profile, expected, observed } : undefined;
   }
-  async beforeRun(ctx: any): Promise<void> {
+  /** Set by a user prompt's before_agent_start; consumed by the run it starts. */
+  private promptRun = false;
+  /** A run that no user prompt prepared has started and its first message has not been seen yet. */
+  private unpreparedRun = false;
+  /** The next run is already prepared by routing itself (explicit resume sends the message that starts it). */
+  preparedRun(): void {
+    this.promptRun = true;
+  }
+  /** Pi starts a run: from a user prompt (prepared in beforeRun), a message an extension sent, or a retry. */
+  runStarted(): void {
+    this.unpreparedRun = !this.promptRun;
+    this.promptRun = false;
+  }
+  /**
+   * Whether this message starts a run an extension's message triggered. Pi skips before_agent_start for those runs,
+   * so routing prepares them here, before their first request. A retry's run starts with no message and is left as is.
+   */
+  startedByMessage(message: any): boolean {
+    if (!this.unpreparedRun) return false;
+    this.unpreparedRun = false;
+    return message?.role === "custom";
+  }
+  async beforeRun(ctx: any, fromPrompt = true): Promise<void> {
+    if (fromPrompt) this.promptRun = true;
     this.session.ctx = ctx;
     if (this.session.store && this.session.supported() && !this.session.store.blocked && !this.session.error) {
       if (this.session.stateData().control === "automatic" && isWorkerProfile(this.session.stateData().profile)) {
@@ -146,6 +169,11 @@ export class ModelControl {
       this.session.manualHold = undefined;
       this.session.automaticControl = false;
       this.session.append({ type: "control", control: "inactive", reason: "External native model/effort change" });
+      const now = this.session.observed();
+      ctx.ui?.notify?.(
+        `Cognitive Routing is inactive: the model or effort was changed outside routing${now ? ` (now ${now.modelId}/${now.thinking})` : ""}. Run /freeflow profile auto to resume automatic routing.`,
+        "warning",
+      );
     } catch (error) {
       this.session.mark(error);
     }

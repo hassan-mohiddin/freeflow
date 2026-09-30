@@ -251,7 +251,8 @@ export default function freeflow(pi: FreeflowAPI) {
     if (changed)
       return { message: { customType: "freeflow-files", content: `${NOTICE_PREFIX} ${changed}`, display: true } };
   });
-  pi.on("message_end", (event, ctx) => {
+  pi.on("agent_start", () => routing.runStarted());
+  pi.on("message_end", async (event, ctx) => {
     const message = (event as any).message;
     if (
       capability?.enabled === true &&
@@ -275,6 +276,16 @@ export default function freeflow(pi: FreeflowAPI) {
       if (warning) ctx.ui?.notify?.(warning, "warning");
     }
     routing.messageEnd((event as any).message);
+    // A run started by an extension's message (a background notice, for one) gets the same preparation as a prompt.
+    if (routing.startedByMessage((event as any).message)) {
+      await update(ctx);
+      try {
+        await routing.beforeRun(ctx, false);
+      } finally {
+        writeStagedControl(ctx);
+        status(ctx);
+      }
+    }
   });
   pi.on("tool_call", async (event, ctx) => {
     const gate = routing.preflight(event, ctx);
