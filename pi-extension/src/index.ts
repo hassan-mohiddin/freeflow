@@ -12,7 +12,8 @@ import { toolExecutionSections } from "./tool-execution/prompt.js";
 import { FileTracking } from "./tool-execution/file-tracking.js";
 import { registerApplyPatch } from "./tool-execution/apply-patch/tool.js";
 import { applyToolExecutionTools } from "./tool-execution/tools.js";
-import { BackgroundJobs, NOTICE_TYPE, registerBackgroundTools } from "./tool-execution/background.js";
+import { BackgroundJobs, NOTICE_PREFIX, NOTICE_TYPE, registerBackgroundTools } from "./tool-execution/background.js";
+import { backgroundRefusal } from "./tool-execution/bash-guard.js";
 import { tagProjectedMessages } from "./host/projection-tags.js";
 import { trustLoadedSession } from "./host/read-only-session.js";
 import { takeStage } from "./host/staging.js";
@@ -245,6 +246,10 @@ export default function freeflow(pi: FreeflowAPI) {
       }
       sections.freeflow_guidance = stableRuntimeContext(prompts);
     }
+    // Like Claude Code's next-turn reminder: files the model read that changed while it was not running a tool.
+    const changed = toolExecutionEffective() ? await files.changedNotice(ctx, false) : undefined;
+    if (changed)
+      return { message: { customType: "freeflow-files", content: `${NOTICE_PREFIX} ${changed}`, display: true } };
   });
   pi.on("message_end", (event, ctx) => {
     const message = (event as any).message;
@@ -274,6 +279,8 @@ export default function freeflow(pi: FreeflowAPI) {
   pi.on("tool_call", async (event, ctx) => {
     const gate = routing.preflight(event, ctx);
     if ((gate as any)?.block || !toolExecutionEffective()) return gate;
+    const refusal = event.toolName === "bash" ? backgroundRefusal((event.input as any)?.command) : undefined;
+    if (refusal) return { block: true, reason: refusal };
     return (await files.toolCall(event, ctx)) ?? gate;
   });
   pi.on("tool_result", async (event, ctx) => (toolExecutionEffective() ? files.toolResult(event, ctx) : undefined));

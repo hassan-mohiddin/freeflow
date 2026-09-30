@@ -8,6 +8,8 @@ export const BASH_BACKGROUND = "bash_background";
 export const STOP_BACKGROUND = "stop_background";
 export const NOTICE_TYPE = "freeflow-background";
 export const MAX_RUNNING = 16;
+/** Marks harness messages, which arrive on their own schedule, as not written by the user. */
+export const NOTICE_PREFIX = "[Freeflow notice, not from the user]";
 const newId = () => `bg${randomBytes(6).readUIntBE(0, 6).toString(36).slice(-6).padStart(6, "0")}`;
 function labelFor(command, description) {
   const text = description?.trim() || command.trim().split("\n")[0];
@@ -129,7 +131,7 @@ export class BackgroundJobs {
     if (running.length === 0) return;
     const list = running.map((job) => `${job.id} (${job.label}), output ${job.outputPath}`).join("; ");
     this.host.send(
-      `Still running: ${list}. Do not start them again; stop one with stop_background before restarting it.`,
+      `${NOTICE_PREFIX} Still running: ${list}. Do not start them again; stop one with stop_background before restarting it.`,
       { running: running.map((job) => ({ id: job.id, outputPath: job.outputPath })) },
       false,
     );
@@ -143,7 +145,7 @@ export class BackgroundJobs {
           ? "completed"
           : `failed with exit code ${job.exitCode}`;
     this.host.send(
-      `Background command ${job.id} (${job.label}) ${outcome}. Output: ${job.outputPath}.`,
+      `${NOTICE_PREFIX} Background command ${job.id} (${job.label}) ${outcome}. Output: ${job.outputPath}.`,
       {
         id: job.id,
         status: job.status,
@@ -154,8 +156,10 @@ export class BackgroundJobs {
     );
   }
 }
-const START_DESCRIPTION =
-  "Run a shell command in the background. Use it for servers, watchers and commands expected to run longer than two minutes. Returns an ID and an output file at once; you are notified when the command exits. Read the output file for output so far.";
+const START_DESCRIPTION = [
+  "Run a shell command in the background. Use it for servers, watchers and commands expected to run longer than two minutes. Returns an ID and an output file at once; you are notified once, when the command exits. Read the output file for output so far.",
+  "To be notified when something becomes ready, run a command that exits when it is: until grep -qE 'Listening|Error|Traceback' server.log; do sleep 1; done. Match the failure lines too: a check that waits only for success stays silent when the process crashes.",
+].join("\n\n");
 const STOP_DESCRIPTION =
   "Stop a background command started with bash_background. Returns after the command has exited.";
 /** Registered once, inactive until Tool Execution is effective (see tool-execution/tools.ts). */

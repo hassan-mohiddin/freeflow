@@ -52,6 +52,20 @@ async function fingerprint(file: string): Promise<Fingerprint> {
   return { sha256: createHash("sha256").update(bytes).digest("hex"), size: bytes.length };
 }
 
+type Stat = { size: number; mtimeMs: number } | "absent";
+
+async function statOf(file: string): Promise<Stat> {
+  try {
+    const info = await stat(file);
+    return info.isFile() ? { size: info.size, mtimeMs: info.mtimeMs } : "absent";
+  } catch {
+    return "absent";
+  }
+}
+
+const sameStat = (a: Stat | undefined, b: Stat) =>
+  a !== undefined && (a === "absent" || b === "absent" ? a === b : a.size === b.size && a.mtimeMs === b.mtimeMs);
+
 function sameFingerprint(a: Fingerprint, b: Fingerprint): boolean {
   if (a === "absent" || b === "absent") return a === b;
   if ("sha256" in a && "sha256" in b) return a.sha256 === b.sha256;
@@ -74,11 +88,15 @@ export function touchedPaths(toolName: string, input: any): string[] {
  * and rebuilt from the branch after navigation or resume; never persisted and never consulted on the request path.
  */
 export class FileState {
-  private readonly files = new Map<string, { fingerprint: Fingerprint; via: FileVia }>();
+  private readonly files = new Map<
+    string,
+    { fingerprint: Fingerprint; via: FileVia; stat: Stat; noticed?: Fingerprint }
+  >();
 
   async observe(path: string, cwd: string, via: FileVia): Promise<void> {
     const key = fileKey(path, cwd);
-    this.files.set(key, { fingerprint: await fingerprint(key), via });
+    const at = await statOf(key);
+    this.files.set(key, { fingerprint: await fingerprint(key), via, stat: at });
   }
 
   wasRead(path: string, cwd: string): boolean {
@@ -91,6 +109,25 @@ export class FileState {
     const known = this.files.get(key);
     if (!known) return false;
     return !sameFingerprint(known.fingerprint, await fingerprint(key));
+  }
+
+  /**
+   * Observed files whose content changed since the model last read or wrote them, each reported once per change.
+   * Costs one stat per observed file; a file is hashed only when its size or modification time moved.
+   */
+  async changedSinceNoticed(): Promise<{ path: string; deleted: boolean }[]> {
+    const changed: { path: string; deleted: boolean }[] = [];
+    for (const [key, known] of this.files) {
+      const at = await statOf(key);
+      if (sameStat(known.stat, at)) continue;
+      known.stat = at;
+      const now = await fingerprint(key);
+      if (sameFingerprint(known.fingerprint, now)) continue;
+      if (known.noticed !== undefined && sameFingerprint(known.noticed, now)) continue;
+      known.noticed = now;
+      changed.push({ path: key, deleted: now === "absent" });
+    }
+    return changed;
   }
 
   /** Mark every file a successful read, edit, write or patch on the branch touched, with today's content. */

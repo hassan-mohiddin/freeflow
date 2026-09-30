@@ -43,6 +43,16 @@ async function fingerprint(file) {
   const bytes = await readFile(file);
   return { sha256: createHash("sha256").update(bytes).digest("hex"), size: bytes.length };
 }
+async function statOf(file) {
+  try {
+    const info = await stat(file);
+    return info.isFile() ? { size: info.size, mtimeMs: info.mtimeMs } : "absent";
+  } catch {
+    return "absent";
+  }
+}
+const sameStat = (a, b) =>
+  a !== undefined && (a === "absent" || b === "absent" ? a === b : a.size === b.size && a.mtimeMs === b.mtimeMs);
 function sameFingerprint(a, b) {
   if (a === "absent" || b === "absent") return a === b;
   if ("sha256" in a && "sha256" in b) return a.sha256 === b.sha256;
@@ -66,7 +76,8 @@ export class FileState {
   files = new Map();
   async observe(path, cwd, via) {
     const key = fileKey(path, cwd);
-    this.files.set(key, { fingerprint: await fingerprint(key), via });
+    const at = await statOf(key);
+    this.files.set(key, { fingerprint: await fingerprint(key), via, stat: at });
   }
   wasRead(path, cwd) {
     return this.files.has(fileKey(path, cwd));
@@ -77,6 +88,24 @@ export class FileState {
     const known = this.files.get(key);
     if (!known) return false;
     return !sameFingerprint(known.fingerprint, await fingerprint(key));
+  }
+  /**
+   * Observed files whose content changed since the model last read or wrote them, each reported once per change.
+   * Costs one stat per observed file; a file is hashed only when its size or modification time moved.
+   */
+  async changedSinceNoticed() {
+    const changed = [];
+    for (const [key, known] of this.files) {
+      const at = await statOf(key);
+      if (sameStat(known.stat, at)) continue;
+      known.stat = at;
+      const now = await fingerprint(key);
+      if (sameFingerprint(known.fingerprint, now)) continue;
+      if (known.noticed !== undefined && sameFingerprint(known.noticed, now)) continue;
+      known.noticed = now;
+      changed.push({ path: key, deleted: now === "absent" });
+    }
+    return changed;
   }
   /** Mark every file a successful read, edit, write or patch on the branch touched, with today's content. */
   async rebuild(branch, cwd) {

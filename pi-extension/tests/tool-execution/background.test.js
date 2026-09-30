@@ -49,7 +49,7 @@ test("an exited command reports its code, and stop names it as already exited", 
     const { id, outputPath } = await background.start("printf 'no newline'", "print", cwd, session);
     for (let i = 0; i < 200 && sent.length === 0; i++) await new Promise((r) => setTimeout(r, 25));
     assert.deepEqual(sent[0], [
-      `Background command ${id} (print) completed. Output: ${outputPath}.`,
+      `[Freeflow notice, not from the user] Background command ${id} (print) completed. Output: ${outputPath}.`,
       { id, status: "completed", exitCode: 0, outputPath },
       true,
     ]);

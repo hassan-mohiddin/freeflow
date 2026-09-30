@@ -1,9 +1,11 @@
-import { statSync } from "node:fs";
+import { realpathSync, statSync } from "node:fs";
+import { isAbsolute, relative } from "node:path";
 import { readFile } from "node:fs/promises";
 import { FileState, resolveToolPath } from "./file-state.js";
 import {
   changedAfterEdit,
   changedAfterWrite,
+  changedFilesNotice,
   editableText,
   noNeedToReread,
   rewriteEditError,
@@ -18,9 +20,28 @@ function existingFile(path: string, cwd: string): boolean {
   }
 }
 
+// Tools whose own targets are observed after they run; any other tool may change files behind the model's back.
+const TRACKED_TOOLS = ["read", "edit", "write", "apply_patch"];
+
+/** A tracked file (keyed by real path) as the model would name it: relative to the working directory when inside. */
+function shown(path: string, cwd: string): string {
+  let real = cwd;
+  try {
+    real = realpathSync(cwd);
+  } catch {}
+  for (const base of [real, cwd]) {
+    const inside = relative(base, path);
+    if (inside && !inside.startsWith("..") && !isAbsolute(inside)) return inside;
+  }
+  return path;
+}
+
 function withLines(content: readonly any[], lines: readonly string[]) {
   const text = content.map((part) => (part?.type === "text" ? part.text : "")).join("");
-  return [{ type: "text", text: [text, ...lines].join("\n") }, ...content.filter((part) => part?.type !== "text")];
+  return [
+    { type: "text", text: [text, ...lines].filter(Boolean).join("\n") },
+    ...content.filter((part) => part?.type !== "text"),
+  ];
 }
 
 /**
@@ -77,8 +98,27 @@ export class FileTracking {
     return undefined;
   }
 
+  /** Files the model read that changed since, not yet reported; undefined when there are none. */
+  async changedNotice(ctx: any, build = true): Promise<string | undefined> {
+    // Before a prompt nothing is rebuilt: a branch not yet rebuilt has no baseline to compare against.
+    if (!build && !this.built) return undefined;
+    await this.ensureBuilt(ctx);
+    const found = await this.state.changedSinceNoticed();
+    return changedFilesNotice(
+      found.filter((file) => !file.deleted).map((file) => shown(file.path, ctx.cwd)),
+      found.filter((file) => file.deleted).map((file) => shown(file.path, ctx.cwd)),
+    );
+  }
+
   async toolResult(event: any, ctx: any): Promise<{ content: any[] } | undefined> {
     const name = event.toolName;
+    // A command (or any other tool) may have changed files the model read. Nested calls are reported on the
+    // result of the script that made them, which is what the model sees.
+    if (!TRACKED_TOOLS.includes(name)) {
+      if (event.parentToolCallId) return undefined;
+      const notice = await this.changedNotice(ctx);
+      return notice === undefined ? undefined : { content: withLines(event.content ?? [], [notice]) };
+    }
     const path = event.input?.path;
     if (!["read", "edit", "write"].includes(name) || typeof path !== "string") return undefined;
     await this.ensureBuilt(ctx);

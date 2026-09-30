@@ -120,3 +120,14 @@ export const changedAfterEdit = (path: string) =>
 export const changedAfterWrite = (path: string) =>
   `${path} changed since you read it; the write replaced the current contents.`;
 export const noNeedToReread = (path: string) => `No need to re-read ${path} to confirm this edit.`;
+
+/** Files the model read that changed or disappeared outside its own edits, as a fact and one next action. */
+export function changedFilesNotice(changed: readonly string[], deleted: readonly string[]): string | undefined {
+  const lines: string[] = [];
+  if (changed.length > 0)
+    lines.push(
+      `Files you read earlier changed since you read them: ${changed.join(", ")}. Read what you need from them again before editing them.`,
+    );
+  if (deleted.length > 0) lines.push(`Files you read earlier no longer exist: ${deleted.join(", ")}.`);
+  return lines.length > 0 ? lines.join("\n") : undefined;
+}
