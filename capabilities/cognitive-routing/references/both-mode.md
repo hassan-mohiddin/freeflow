@@ -33,4 +33,4 @@ Executor forms the execution forecast for production work; Coordinator supplies 
 
 ## Mind The Model Configuration
 
-The user may run Coordinator and Executor on the same model at different effort. On routes that keep the provider cache across effort changes (currently the supported GPT-6 routes), handoffs to Executor then reuse the cache and cost less; elsewhere, and with different models, every switch rereads the whole context. Either way the configuration is the user's choice; do not change it.
+The user may run Coordinator and Executor on the same model at different effort. On routes that keep the provider cache across effort changes (currently GPT-6 on an OpenAI API key or OpenAI Codex), handoffs to Executor then reuse the cache and cost less. Elsewhere, including OpenAI's Sign in with ChatGPT, each effort keeps its own cache, so the first handoff at each effort rereads the whole context and later ones reread what was added since that effort last ran. With different models, every switch rereads the whole context. Either way the configuration is the user's choice; do not change it.

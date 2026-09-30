@@ -45,7 +45,10 @@ test("a worker priced at or above Coordinator per input token is flagged", () =>
 
 test("same model at different effort is flagged only where the cache does not survive effort changes", () => {
   const [warning] = check({ coordinator: pair("gpt-5.6-sol", "xhigh"), executor: pair("gpt-5.6-sol", "medium") });
-  assert.match(warning, /rereads the whole context/);
+  assert.match(
+    warning,
+    /keeps a separate prompt cache for each effort, so the first switch to each effort rereads the whole context/,
+  );
   assert.deepEqual(check({ coordinator: pair("gpt-6-sol", "xhigh"), executor: pair("gpt-6-sol", "low") }), []);
 });
 
@@ -55,7 +58,10 @@ test("Claude models with per-message effort keep the cache across effort; others
     [],
   );
   const [warning] = check({ coordinator: pair("claude-sonnet-5", "xhigh"), executor: pair("claude-sonnet-5", "low") });
-  assert.match(warning, /rereads the whole context/);
+  assert.match(
+    warning,
+    /keeps a separate prompt cache for each effort, so the first switch to each effort rereads the whole context/,
+  );
 });
 
 test("only enabled workers are checked", () => {
@@ -187,6 +193,9 @@ test("Sign in with ChatGPT loses the cache across effort; an API key on the same
       () => luna,
       (model) => keepsCacheAcrossEffort(model, { modelRegistry: { isUsingOAuth: () => oauth } }),
     );
-  assert.match(warn(true)[0], /rereads the whole context/);
+  assert.match(
+    warn(true)[0],
+    /keeps a separate prompt cache for each effort, so the first switch to each effort rereads the whole context/,
+  );
   assert.deepEqual(warn(false), []);
 });

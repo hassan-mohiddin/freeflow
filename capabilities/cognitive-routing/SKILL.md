@@ -45,7 +45,7 @@ Total cost is the number of model turns times their average cost. Moving work to
 - A handoff adds a contract, the worker's ramp-up, a return, and an assessment turn.
 - A cheaper worker's mistakes add correction turns and more assessment.
 - Helper and Executor share ordinary history, so one worker's gathered context is available to the other without rediscovery.
-- Switching models never reuses the provider cache. Switching between profiles on the same model reuses it only when their effort matches or the route keeps the cache across effort changes (currently the supported GPT-6 routes and Claude models that take per-message effort, such as Opus 5.5 and Sonnet 5.5); otherwise every switch rereads the whole context.
+- Switching models never reuses the provider cache. Switching between profiles on the same model keeps one cache when their effort matches or the route keeps the cache across effort changes (currently GPT-6 on an OpenAI API key or OpenAI Codex, and Claude models that take per-message effort, such as Opus 5.5 and Sonnet 5.5). Elsewhere, including OpenAI's Sign in with ChatGPT, each effort keeps its own cache: the first switch to an effort rereads the whole context, and later switches reread what was added since that effort last ran, while its cache is still warm.
 - A precise contract narrows the worker's search. This is where most of the saving comes from.
 
 Lower cost never lowers the required quality or evidence. Several cheap corrections can still be economical; repeated misunderstanding, needless handoffs, and unsupported acceptance are not savings.

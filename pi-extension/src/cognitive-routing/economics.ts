@@ -33,7 +33,7 @@ export function presetWarnings(
     if (pair.provider === coordinator.provider && pair.modelId === coordinator.modelId) {
       if (pair.thinking !== coordinator.thinking && !keepsCacheAcrossEffort(model))
         warnings.push(
-          `${title(worker)} and Coordinator both use ${pair.modelId} at different effort (${pair.thinking} vs ${coordinator.thinking}); this route does not keep the prompt cache across effort changes, so every switch between them rereads the whole context.`,
+          `${title(worker)} and Coordinator both use ${pair.modelId} at different effort (${pair.thinking} vs ${coordinator.thinking}); this route keeps a separate prompt cache for each effort, so the first switch to each effort rereads the whole context, and later switches reread what was added since that effort last ran while its cache is still warm.`,
         );
       continue;
     }
