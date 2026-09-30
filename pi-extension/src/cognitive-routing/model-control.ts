@@ -132,7 +132,7 @@ export class ModelControl {
       pairs,
       this.session.enabledWorkers(state),
       (provider, modelId) => this.session.ctx?.modelRegistry?.find?.(provider, modelId),
-      keepsCacheAcrossEffort,
+      (model) => keepsCacheAcrossEffort(model, this.session.ctx),
       // Pi's only retention control; unset means the short tier.
       process.env.PI_CACHE_RETENTION === "long" ? "long" : "short",
     );

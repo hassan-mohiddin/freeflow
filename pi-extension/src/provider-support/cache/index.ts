@@ -28,7 +28,8 @@ const responses: BreakpointProtocol = {
 };
 // APIs with unbounded prefix lookup need no entry: every prefix they wrote stays reachable. The ChatGPT
 // Codex backend is one: live probes found full prefix reuse after 60 appended message endings, and it
-// rejects prompt_cache_breakpoint, so it must never be adapted.
+// rejects prompt_cache_breakpoint, so it must never be adapted. Sign in with ChatGPT on the openai provider
+// reaches the same backend (full reuse after 25 endings, breakpoints rejected) and is skipped in adapt().
 const PROTOCOLS: Record<string, BreakpointProtocol> = {
   "anthropic-messages": { limits: ANTHROPIC_LIMITS, layout: anthropicLayout, apply: applyAnthropicAnchor },
   "openai-responses": responses,

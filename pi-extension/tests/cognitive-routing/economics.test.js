@@ -167,3 +167,26 @@ test("a Coordinator without a declared longer cache tier gets no retention advic
   );
   assert.deepEqual(warnings, []);
 });
+
+test("Sign in with ChatGPT loses the cache across effort; an API key on the same model keeps it", () => {
+  const luna = {
+    id: "gpt-6-luna",
+    provider: "openai",
+    api: "openai-responses",
+    baseUrl: "https://api.openai.com/v1",
+    cost: { input: 0.1 },
+  };
+  const same = {
+    coordinator: { provider: "openai", modelId: "gpt-6-luna", thinking: "xhigh" },
+    executor: { provider: "openai", modelId: "gpt-6-luna", thinking: "low" },
+  };
+  const warn = (oauth) =>
+    presetWarnings(
+      same,
+      ["executor"],
+      () => luna,
+      (model) => keepsCacheAcrossEffort(model, { modelRegistry: { isUsingOAuth: () => oauth } }),
+    );
+  assert.match(warn(true)[0], /rereads the whole context/);
+  assert.deepEqual(warn(false), []);
+});

@@ -134,7 +134,7 @@ export class CacheKeepAlive {
   /** Remember the request just sent on its model; a hold keeps the latest one warm. */
   record(payload: any, ctx: any): void {
     const key = laneKey(ctx, undefined, this.requester());
-    // Sign in with ChatGPT rejects the output cap a replay needs, so its requests are never warmed.
+    // Sign in with ChatGPT rejects max_output_tokens (live, 400), so a replay cannot be capped and is never sent.
     const protocol = isChatGPTSignIn(ctx.model, ctx) ? undefined : PROTOCOLS[ctx.model?.api];
     if (!key || !protocol) return;
     if (protocol.replayable?.(payload) === false) {

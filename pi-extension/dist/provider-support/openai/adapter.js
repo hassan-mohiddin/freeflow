@@ -80,7 +80,7 @@ export class OpenAIEffortAdapter {
   async adapt(payload, ctx) {
     const generation = this.generation;
     const operation = this.queue.then(async () => {
-      // Sign in with ChatGPT is not a qualified effort-history route yet.
+      // Sign in with ChatGPT rejects configuration_update items (live, 400), so effort history cannot apply.
       const key = isChatGPTSignIn(ctx.model, ctx) ? undefined : requestKey(payload, ctx.model);
       if (generation !== this.generation || this.compacting || !key || !this.enabled()) {
         this.status(ctx, undefined);
