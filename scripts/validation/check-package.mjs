@@ -27,9 +27,9 @@ const requiredFiles = [
   "pi-extension/dist/provider-support/openai/history.js",
   "pi-extension/dist/provider-support/openai/session-state.js",
   "runtime/prompts/tool-execution.md",
-  "capabilities/tool-execution/SKILL.md",
   "runtime/prompts/core.md",
   "runtime/prompts/interaction-contract.md",
+  "runtime/prompts/working-method.md",
   "runtime/prompts/cognitive-routing.md",
   "skills/action-selection/SKILL.md",
   "skills/workflow/SKILL.md",
@@ -62,7 +62,8 @@ const retiredContextPrefixes = [
   "pi-extension/tests/conversation-history/",
 ];
 // The v2 Tool Execution runtime lives in .deprecated/tool-execution-v2 and must not ship.
-const retiredToolRuntimePrefixes = ["pi-extension/dist/tool-runtime/", "capabilities/tool-execution/references/"];
+// Its guidance is the Tool Execution system section; the capability skill is retired.
+const retiredToolRuntimePrefixes = ["pi-extension/dist/tool-runtime/", "capabilities/tool-execution/"];
 const retiredContextFiles = new Set([
   "runtime/prompts/context-virtualization.md",
   "runtime/prompts/conversation-history.md",

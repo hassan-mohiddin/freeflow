@@ -228,20 +228,25 @@ test("provider context reuses the before-agent surface until the next provider t
   }
 });
 
-test("Tool Execution exposes a stable cue and only the effective optional skill", async () => {
+test("Tool Execution adds its guidance section after Freeflow's and no skill of its own", async () => {
   const cwd = await configuredRepo({ toolExecution: { enabled: true } });
   try {
     const { handlers } = loadExtension();
     const ctx = context(cwd);
     await handlers.get("session_start")({ type: "session_start" }, ctx);
     const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
-    assert.match(before.renderedGuidance, /## Tool Execution Cue/);
-    assert.match(before.renderedGuidance, /work with the tools declared in this request/);
-    assert.doesNotMatch(before.renderedGuidance, /freeflow_(run|tools|result|read|search|patch)|catalog generation/);
+    const sections = before.systemPromptOptions.sections;
+    assert.match(before.renderedGuidance, /## Reference guidance: Working Method\n\n# Freeflow Working Method/);
+    assert.doesNotMatch(before.renderedGuidance, /Working In The Environment/);
+    assert.match(sections.tool_execution, /^# Working In The Environment/);
+    assert.match(sections.tool_execution, /bash_background/);
+    assert.deepEqual(Object.keys(sections).slice(-3), ["freeflow_guidance", "environment", "tool_execution"]);
+    for (const text of [before.renderedGuidance, sections.tool_execution])
+      assert.doesNotMatch(text, /freeflow_(run|tools|result|read|search|patch)|catalog generation/);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.equal(
-      resources.skillPaths.filter((path) => path.endsWith("/capabilities/tool-execution/SKILL.md")).length,
-      1,
+      resources.skillPaths.some((path) => path.includes("/capabilities/tool-execution/")),
+      false,
     );
     const provider = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(lastRuntimeState(provider.messages).content, /Tool Execution: active/);
@@ -264,15 +269,12 @@ test("Tool Execution exposes a stable cue and only the effective optional skill"
   }
 });
 
-test("missing optional Tool Execution cue or skill cannot advertise a complete skill path", async () => {
+test("a missing Tool Execution prompt leaves out its section and keeps the core surface", async () => {
   const root = await mkdtemp(join(tmpdir(), "freeflow-tool-guidance-failure-"));
   const cwd = await configuredRepo({ toolExecution: { enabled: true } });
   try {
     await cp(join(process.cwd(), "pi-extension", "dist"), join(root, "pi-extension", "dist"), { recursive: true });
     await cp(join(process.cwd(), "runtime", "prompts"), join(root, "runtime", "prompts"), { recursive: true });
-    await cp(join(process.cwd(), "capabilities", "tool-execution"), join(root, "capabilities", "tool-execution"), {
-      recursive: true,
-    });
     await symlink(join(process.cwd(), "node_modules"), join(root, "node_modules"), "dir");
     const extension = (
       await import(`${pathToFileURL(join(root, "pi-extension", "dist", "index.js")).href}?tool-cue=${Date.now()}`)
@@ -289,21 +291,9 @@ test("missing optional Tool Execution cue or skill cannot advertise a complete s
     await prompts.refreshRuntimeContext(STABLE_FREEFLOW_SURFACE);
     const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base" }, ctx);
     assert.match(before.renderedGuidance, /# Freeflow Stable Guidance/);
-    assert.doesNotMatch(before.renderedGuidance, /## Tool Execution Cue/);
-    let resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(
-      resources.skillPaths.some((path) => path.endsWith("/capabilities/tool-execution/SKILL.md")),
-      false,
-    );
-    await writeFile(join(root, "runtime", "prompts", "tool-execution.md"), "## Tool Execution Cue\n", "utf8");
-    await rm(join(root, "capabilities", "tool-execution", "SKILL.md"));
-    await prompts.refreshRuntimeContext(STABLE_FREEFLOW_SURFACE);
-    await beforeAgentStartHandler(handlers)({ systemPrompt: "base" }, ctx);
-    resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(
-      resources.skillPaths.some((path) => path.endsWith("/capabilities/tool-execution/SKILL.md")),
-      false,
-    );
+    assert.match(before.renderedGuidance, /# Freeflow Working Method/);
+    assert.equal(before.systemPromptOptions.sections.tool_execution, undefined);
+    assert.match(before.systemPromptOptions.sections.environment, /^Platform: /);
   } finally {
     await rm(cwd, { recursive: true, force: true });
     await rm(root, { recursive: true, force: true });

@@ -1,6 +1,4 @@
-import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { isPromptAvailable } from "./prompts.js";
 /**
  * Freeflow's fixed command and skill surface: the commands it registers, the skills it lists to the model, and where
  * their files live.
@@ -63,18 +61,10 @@ export function freeflowSkillPath(skillName) {
 export function freeflowCapabilitySkillPath(skillName) {
   return fileURLToPath(new URL(`../../../capabilities/${skillName}/SKILL.md`, import.meta.url));
 }
-export function freeflowModelSkillPaths(capabilityState = undefined, toolExecutionCueAvailable = false) {
+export function freeflowModelSkillPaths(capabilityState = undefined) {
   const paths = FREEFLOW_MODEL_SKILL_NAMES.map((skillName) => freeflowSkillPath(skillName));
   if (capabilityState?.cognitiveRouting?.effective === true)
     paths.push(freeflowCapabilitySkillPath("cognitive-routing"));
-  if (capabilityState?.toolExecution?.effective === true && toolExecutionCueAvailable) {
-    const skill = freeflowCapabilitySkillPath("tool-execution");
-    try {
-      if (isPromptAvailable(readFileSync(skill, "utf8"))) paths.push(skill);
-    } catch {
-      // Missing optional skill does not suppress the core prompt or unrelated skills.
-    }
-  }
   return paths;
 }
 export function skillPrompt(skill, args) {

@@ -52,6 +52,10 @@ export function toolExecutionSections(systemPrompt: string, shellPath: string | 
   if (ownRules !== undefined) sections.rules = ownRules;
   const ownDocs = docs(systemPrompt);
   if (ownDocs !== undefined) sections.docs = ownDocs;
-  sections.environment = environment(shellPath);
   return sections;
+}
+
+/** Sections Tool Execution adds after Freeflow's guidance: the environment facts, then its guidance when available. */
+export function toolExecutionTail(shellPath: string | undefined, guidance: string | null | undefined) {
+  return { environment: environment(shellPath), ...(guidance ? { tool_execution: guidance } : {}) };
 }

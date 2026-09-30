@@ -62,7 +62,7 @@ for (const model of [
         );
         assert.match(
           first,
-          /<environment>\nPlatform: \w+ \S+\. Shell for bash: \S+\.\n<\/environment>\n\n<freeflow_guidance>/,
+          /<\/freeflow_guidance>\n\n<environment>\nPlatform: \w+ \S+\. Shell for bash: \S+\.\n<\/environment>\n\n<tool_execution>\n# Working In The Environment\n/,
         );
       },
       true,
@@ -86,6 +86,8 @@ test("with Tool Execution off, Pi's rules, docs and sections are untouched", asy
       assert.match(text, /- Be concise in your responses/);
       assert.match(text, /<docs>\nPi documentation \(read only when the user asks about pi itself, its SDK/);
       assert.doesNotMatch(text, /<environment>/);
+      assert.doesNotMatch(text, /<tool_execution>|Working In The Environment/);
+      assert.match(text, /# Freeflow Working Method/);
     },
     true,
     {

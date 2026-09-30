@@ -7,7 +7,7 @@ import { CacheMonitor } from "./provider-support/cache/monitor.js";
 import { RoutingRuntime } from "./cognitive-routing/runtime.js";
 import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-routing/tools.js";
 import { handleFreeflowCommand } from "./host/settings/freeflow-command.js";
-import { toolExecutionSections } from "./tool-execution/prompt.js";
+import { toolExecutionSections, toolExecutionTail } from "./tool-execution/prompt.js";
 import { FileTracking } from "./tool-execution/file-tracking.js";
 import { registerApplyPatch } from "./tool-execution/apply-patch/tool.js";
 import { applyToolExecutionTools } from "./tool-execution/tools.js";
@@ -184,10 +184,7 @@ export default function freeflow(pi) {
   pi.on("resources_discover", async (event, ctx) => {
     const state = capability ?? (await loadSurface(ctx ?? { cwd: event?.cwd ?? process.cwd() }));
     return {
-      skillPaths: freeflowModelSkillPaths(
-        { ...STABLE_FREEFLOW_SURFACE, toolExecution: state.toolExecution },
-        isPromptAvailable(prompts?.toolExecutionPrompt),
-      ),
+      skillPaths: freeflowModelSkillPaths({ ...STABLE_FREEFLOW_SURFACE, toolExecution: state.toolExecution }),
     };
   });
   pi.on("session_start", async (event, ctx) => {
@@ -232,12 +229,15 @@ export default function freeflow(pi) {
       // Pi 0.87 records changed sections at their native transcript position.
       // Returning systemPrompt would force one replacement head for every request.
       const sections = event.systemPromptOptions.sections;
-      if (capability?.toolExecution?.effective === true) {
-        // Environment facts precede Freeflow's guidance, which is re-inserted after them.
-        delete sections.freeflow_guidance;
+      const toolExecution = capability?.toolExecution?.effective === true;
+      // Pi's own sections are replaced in place. Freeflow's are re-inserted at the end in a fixed order: its guidance,
+      // then Tool Execution's environment facts and guidance.
+      if (toolExecution)
         Object.assign(sections, toolExecutionSections(event.systemPrompt, api.getSettings?.()?.shellPath));
-      }
+      for (const name of ["freeflow_guidance", "environment", "tool_execution"]) delete sections[name];
       sections.freeflow_guidance = stableRuntimeContext(prompts);
+      if (toolExecution)
+        Object.assign(sections, toolExecutionTail(api.getSettings?.()?.shellPath, prompts?.toolExecutionPrompt));
     }
     // Like Claude Code's next-turn reminder: files the model read that changed while it was not running a tool.
     const changed = toolExecutionEffective() ? await files.changedNotice(ctx, false) : undefined;

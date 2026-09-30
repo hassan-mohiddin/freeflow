@@ -28,22 +28,26 @@ async function readPromptFile(url: URL): Promise<string | null> {
 async function loadRuntimeContext(capabilityState = undefined) {
   const freeflowEnabled = capabilityState?.enabled === true;
   const cognitiveRoutingEnabled = capabilityState?.cognitiveRouting?.effective === true;
-  const [corePrompt, interactionContractPrompt, cognitiveRoutingPrompt, toolExecutionPrompt] = await Promise.all([
-    freeflowEnabled
-      ? readPromptFile(new URL("../../../runtime/prompts/core.md", import.meta.url))
-      : Promise.resolve(null),
-    freeflowEnabled
-      ? readPromptFile(new URL("../../../runtime/prompts/interaction-contract.md", import.meta.url))
-      : Promise.resolve(null),
-    cognitiveRoutingEnabled
-      ? readPromptFile(new URL("../../../runtime/prompts/cognitive-routing.md", import.meta.url))
-      : Promise.resolve(null),
-    capabilityState?.toolExecution?.effective === true
-      ? readPromptFile(new URL("../../../runtime/prompts/tool-execution.md", import.meta.url))
-      : Promise.resolve(null),
-  ]);
+  const [corePrompt, interactionContractPrompt, workingMethodPrompt, cognitiveRoutingPrompt, toolExecutionPrompt] =
+    await Promise.all([
+      freeflowEnabled
+        ? readPromptFile(new URL("../../../runtime/prompts/core.md", import.meta.url))
+        : Promise.resolve(null),
+      freeflowEnabled
+        ? readPromptFile(new URL("../../../runtime/prompts/interaction-contract.md", import.meta.url))
+        : Promise.resolve(null),
+      freeflowEnabled
+        ? readPromptFile(new URL("../../../runtime/prompts/working-method.md", import.meta.url))
+        : Promise.resolve(null),
+      cognitiveRoutingEnabled
+        ? readPromptFile(new URL("../../../runtime/prompts/cognitive-routing.md", import.meta.url))
+        : Promise.resolve(null),
+      capabilityState?.toolExecution?.effective === true
+        ? readPromptFile(new URL("../../../runtime/prompts/tool-execution.md", import.meta.url))
+        : Promise.resolve(null),
+    ]);
 
-  return { corePrompt, interactionContractPrompt, cognitiveRoutingPrompt, toolExecutionPrompt };
+  return { corePrompt, interactionContractPrompt, workingMethodPrompt, cognitiveRoutingPrompt, toolExecutionPrompt };
 }
 
 function runtimeContextCacheSatisfies(capabilityState) {
@@ -72,8 +76,8 @@ export function stableRuntimeContext(context) {
   const sections = [
     ["Freeflow core", context?.corePrompt],
     ["Freeflow core", context?.interactionContractPrompt],
+    ["Working Method", context?.workingMethodPrompt],
     ["Cognitive Routing", context?.cognitiveRoutingPrompt],
-    ["Tool Execution", context?.toolExecutionPrompt],
   ];
   return [
     "# Freeflow availability contract",
