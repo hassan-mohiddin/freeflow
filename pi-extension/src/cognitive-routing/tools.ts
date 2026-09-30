@@ -35,6 +35,8 @@ export function registerRoutingTools(pi: any, runtime: RoutingRuntime): void {
       label: name.replace("freeflow_", "Routing "),
       description: descriptions[name],
       parameters: ROUTING_SCHEMAS[name],
+      // Handoffs and evidence selection are assistant-issued boundaries: codemode scripts must not call them.
+      exposure: "model-only",
       executionMode: "sequential",
       promptGuidelines: guidance[name],
       renderCall: (args: any, _theme: any, context: any) => renderRoutingCall(name, args, context),

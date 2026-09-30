@@ -163,8 +163,11 @@ export class ToolGate {
       return false;
     }
   }
-  batch(callId, name) {
+  // A call another tool makes (codemode, ctx.executeTool) has the id `<issuing call id>/<n>` and never appears in the
+  // assistant message; it belongs to the batch of the model-issued call it descends from.
+  batch(callId, name, nested = false) {
     check(this.session.turn?.message, "batch_unavailable");
+    const issued = (b) => b.type === "toolCall" && (nested ? callId.startsWith(`${b.id}/`) : b.id === callId);
     const matches = this.session.ctx.sessionManager
       .getBranch()
       .filter(
@@ -172,7 +175,7 @@ export class ToolGate {
           !this.session.turn.before.has(e.id) &&
           e.type === "message" &&
           e.message?.role === "assistant" &&
-          e.message.content?.some((b) => b.type === "toolCall" && b.id === callId),
+          e.message.content?.some(issued),
       );
     check(matches.length === 1, "batch_source_changed");
     const fingerprint = bodyHash(matches[0].message);
@@ -195,14 +198,16 @@ export class ToolGate {
       "A handoff must be last and cannot accompany ordinary task tools.",
     );
     check(
-      calls.some((b) => b.id === callId && b.name === name),
+      calls.some((b) => issued(b) && (nested || b.name === name)),
       "call_not_in_batch",
     );
   }
   preflight(event, ctx) {
     this.session.ctx = ctx;
     const name = event.toolName,
-      isRouting = ROUTING_TOOLS.includes(name);
+      isRouting = ROUTING_TOOLS.includes(name),
+      nested = typeof event.parentToolCallId === "string";
+    if (isRouting && nested) return { block: true, reason: `Call ${name} directly, not from a script.` };
     if (!this.session.supported()) return isRouting ? { block: true, reason: "Routing is unavailable." } : undefined;
     try {
       const state = this.session.stateData();
@@ -210,7 +215,7 @@ export class ToolGate {
         return isRouting && name !== "freeflow_unit" ? { block: true, reason: "Manual control is active." } : undefined;
       if (state.control !== "automatic")
         return isRouting ? { block: true, reason: "Automatic routing is inactive." } : undefined;
-      this.batch(event.toolCallId, name);
+      this.batch(event.toolCallId, name, nested);
       check(!this.session.error && !this.session.store?.blocked, "routing_blocked");
       this.session.openTurn();
       if (isWorkerProfile(this.session.turn?.profile) && !isRouting) {
