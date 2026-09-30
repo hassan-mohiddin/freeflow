@@ -1,6 +1,7 @@
 import type { CacheMonitor } from "../cache/monitor.js";
 import { assemble, EFFORTS } from "./history.js";
 import { SessionState } from "./session-state.js";
+import { isChatGPTSignIn } from "../routes.js";
 
 // Only these qualified official routes receive effort-history adaptation; keys isolate models.
 const SUPPORTED_MODELS = new Set(["gpt-6-astra", "gpt-6-luna", "gpt-6-sol"]);
@@ -76,7 +77,8 @@ export class OpenAIEffortAdapter {
   async adapt(payload: any, ctx: any): Promise<any> {
     const generation = this.generation;
     const operation = this.queue.then(async () => {
-      const key = requestKey(payload, ctx.model);
+      // Sign in with ChatGPT is not a qualified effort-history route yet.
+      const key = isChatGPTSignIn(ctx.model, ctx) ? undefined : requestKey(payload, ctx.model);
       if (generation !== this.generation || this.compacting || !key || !this.enabled()) {
         this.status(ctx, undefined);
         return payload;

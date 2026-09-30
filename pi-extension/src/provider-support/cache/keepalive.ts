@@ -1,3 +1,5 @@
+import { isChatGPTSignIn } from "../routes.js";
+
 /** A model whose cached prompt must stay warm because its requester is certain to resume. */
 export interface KeepAliveHold {
   provider: string;
@@ -132,7 +134,8 @@ export class CacheKeepAlive {
   /** Remember the request just sent on its model; a hold keeps the latest one warm. */
   record(payload: any, ctx: any): void {
     const key = laneKey(ctx, undefined, this.requester());
-    const protocol = PROTOCOLS[ctx.model?.api];
+    // Sign in with ChatGPT rejects the output cap a replay needs, so its requests are never warmed.
+    const protocol = isChatGPTSignIn(ctx.model, ctx) ? undefined : PROTOCOLS[ctx.model?.api];
     if (!key || !protocol) return;
     if (protocol.replayable?.(payload) === false) {
       this.lanes.delete(key);

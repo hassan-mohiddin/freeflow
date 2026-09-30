@@ -1,3 +1,4 @@
+import { isChatGPTSignIn } from "../routes.js";
 import { planAnchor } from "./anchor.js";
 import { ANTHROPIC_LIMITS, anthropicLayout, applyAnthropicAnchor } from "./anthropic.js";
 import {
@@ -36,6 +37,7 @@ export class CacheAnchorAdapter {
     const model = ctx?.model;
     const protocol = model && PROTOCOLS[model.api];
     if (!protocol || (protocol.applies && !protocol.applies(model)) || !this.enabled()) return payload;
+    if (isChatGPTSignIn(model, ctx)) return payload;
     try {
       const session = ctx.sessionManager?.getSessionId?.() ?? "memory";
       const lane = JSON.stringify([session, model.provider, model.api, model.id, model.baseUrl ?? ""]);

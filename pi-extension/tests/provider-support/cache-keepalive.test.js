@@ -252,3 +252,14 @@ test("Claude requests with budget-based thinking are never replayed; adaptive th
   assert.equal(adaptive.sent.length, 1);
   assert.equal(adaptive.sent[0].payload.max_tokens, 1);
 });
+
+test("Sign in with ChatGPT is never warmed: it rejects the output cap a replay needs", async () => {
+  const hold = { provider: gptWithLifetime.provider, modelId: gptWithLifetime.id };
+  const h = harness({ hold, model: gptWithLifetime });
+  const signIn = (m) => ({ ...h.ctx(m), modelRegistry: { isUsingOAuth: () => true } });
+  h.keepAlive.record({ model: gpt.id, input: [], max_output_tokens: 8000 }, signIn(gptWithLifetime));
+  h.keepAlive.observe(signIn(gptWithLifetime), { input: 4, output: 10, cacheRead: 2_000_000, cacheWrite: 0 });
+  h.keepAlive.evaluate(h.ctx(claude));
+  await h.advance(HOUR);
+  assert.deepEqual(h.sent, []);
+});

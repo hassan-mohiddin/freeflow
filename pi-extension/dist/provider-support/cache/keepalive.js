@@ -1,3 +1,4 @@
+import { isChatGPTSignIn } from "../routes.js";
 const responses = {
   cap: (payload) => ({ ...payload, max_output_tokens: 16 }),
   retention: (payload) =>
@@ -70,7 +71,8 @@ export class CacheKeepAlive {
   /** Remember the request just sent on its model; a hold keeps the latest one warm. */
   record(payload, ctx) {
     const key = laneKey(ctx, undefined, this.requester());
-    const protocol = PROTOCOLS[ctx.model?.api];
+    // Sign in with ChatGPT rejects the output cap a replay needs, so its requests are never warmed.
+    const protocol = isChatGPTSignIn(ctx.model, ctx) ? undefined : PROTOCOLS[ctx.model?.api];
     if (!key || !protocol) return;
     if (protocol.replayable?.(payload) === false) {
       this.lanes.delete(key);
