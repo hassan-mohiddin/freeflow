@@ -19,6 +19,8 @@ Strong: Cache the parsed config per file path and invalidate when the file's
         with an edit between two loads.
 ```
 
+A cheaper model applies an escape clause literally, so write requirements as outcomes for named things ("each caller listed below still gets X"), never "unless…" or "as today", and say where the change belongs.
+
 Default: give structure where Executor has shown difficulty or the property is easy to get subtly wrong, and freedom where the mechanics are ordinary. Signals the balance is off:
 
 - Executor returns work that misses an unstated decision: the contract left it implicit.

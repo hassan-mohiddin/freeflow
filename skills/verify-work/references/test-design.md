@@ -27,6 +27,8 @@ Characterization records what exists, not what should exist. Protect only accept
 
 A smaller environment is not better when it mocks away the claim. A larger one is not better when extra machinery adds noise without proving more.
 
+Build inputs from what a real caller passes, including each kind of item that reaches the code, not only an idealized example. For a claim about speed, size, or scale, time the real operation next to a baseline: the same work done by a standard tool or by the unchanged code.
+
 Prefer state, outputs, errors, persisted effects, and caller-visible behavior. Assert an internal interaction only when that interaction is itself contractual or the real effect cannot be observed safely. Keep one behavior concept per test; multiple assertions may describe one complete outcome.
 
 ## Preserve The Property When Revising A Check

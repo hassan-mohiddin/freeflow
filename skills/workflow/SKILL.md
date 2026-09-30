@@ -69,7 +69,7 @@ Before the first production change on an agreed task, establish:
 
 - **the end state:** what done looks like, how it will be checked, and when to return to the user;
 - **a rough route:** the main steps from here to there, their order, and which steps depend on feedback;
-- **the context the route needs:** the sources, callers, contracts, conventions, and examples the predictable steps will use, gathered now rather than mid-execution.
+- **the context the route needs:** the sources, callers, contracts, conventions, and examples the predictable steps will use, and what the change touches beyond its target (entry points, readers of changed state, data already written, work that overlaps in time, jobs or retries acting for the user), found by query and gathered now rather than mid-execution.
 
 Default: gather context for everything on the route you can already predict. Stop gathering when the remaining unknowns can only be answered by doing the work, such as a test result, an experiment, or the user's reaction to a draft; those steps stay directional until their feedback arrives, and the route adapts to it.
 

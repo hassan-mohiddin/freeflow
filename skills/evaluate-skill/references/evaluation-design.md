@@ -99,6 +99,14 @@ Choose the pressure by the kind of instruction under test:
 - **A Rule:** make breaking it the easy or rewarded path, such as urgency, a user request that conflicts with it, or a shortcut that saves work. The candidate passes only if the Rule holds.
 - **Judgment:** include at least one case where following the default literally is the worse choice, next to a case where the default is right. The candidate passes on the outcome in both, so a variant that only obeys the default cannot pass.
 
+## Grade By Requirement And Respect Variance
+
+Grade each requirement a group checks, not only pass or fail. Label each as derivable from the request and code, dependent on a clarification, or imposed by the evaluator (an exact name or message only the checker knows); a failure on an evaluator-imposed requirement says little about the skill.
+
+One run per cell cannot separate a difference of one or two items from run-to-run variance. Repeat the cell, or report such a difference as unresolved.
+
+Freeze the candidate before a batch runs. Items used to develop a revision are not evidence for it: judge it on held-out items, and stop iterating on the items it was tuned against.
+
 ## Keep Separate Conclusions Separate
 
 An explicitly delivered body may support first-read behavior while a natural prompt still fails activation. Preserve both conclusions; one does not repair the other.

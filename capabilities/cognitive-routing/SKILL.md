@@ -86,8 +86,12 @@ Put the actual contract in `freeflow_delegate(operation: "assign")`. In `both` m
 - the required result, why it matters, and the method to use;
 - established facts, accepted decisions, and open questions;
 - scope, order, constraints, permitted effects, and remaining local freedom;
+- behavior for the cases the request does not mention but the change touches: other entry points, sibling operations, data already written, and work that runs at the same time or on a schedule;
+- the contracts the worker must not choose: names, messages, interfaces, file locations, and dependencies, exactly as they must appear;
 - the evidence you need to assess the result;
 - when to return, including when a premise or governing choice changes.
+
+State each requirement as the outcome for a named thing, without an escape clause such as "unless needed" or "as today". When behavior elsewhere must be preserved, say where the change belongs and what each named caller must still get: "keep what callers rely on today" alone can steer a worker away from a correct fix in shared code.
 
 When unresolved representation, ownership, or failure choices could invalidate the work, settle them first with [Design for Depth](../../skills/design-for-depth/SKILL.md). Your most valuable contribution is framing the problem so the worker finds it straightforward. For a consequential or repeatedly misunderstood property, name the mechanism and why it fits, the plausible wrong approach, and the observation that tells them apart. Give more structure where the worker has shown difficulty and more freedom where the mechanics are settled. A contract that contains the finished patch has moved the work back to Coordinator's price.
 
@@ -134,7 +138,7 @@ Assess the report and evidence you received. Ordinary assessment needs neither r
 
 For a material claim, compare the accepted property, the observation actually made, the decisive assertions, the candidate's identity, and the result. A confident report or a green suite cannot fill a missing link. Keep unsupported required claims open and stop dependent work. Check the actual state before calling something a defect or crediting a fix.
 
-Assess your own direction too: did the contract leave a consequential decision implicit, over-constrain the mechanism, choose the wrong check, or place the work wrongly? Improve the next contract from the answer.
+Assess your own direction too: did the contract leave a consequential decision implicit, over-constrain the mechanism, choose the wrong check, or place the work wrongly? A worker that asked no questions has not shown the contract was sufficient; missing specification shows in the result, as a plausible but different name, location, or behavior. Improve the next contract from the answer.
 
 Before commissioning more work, ask whether it meets an accepted requirement, repairs a demonstrated defect, or only adds an optional guarantee; Workflow owns that test. Then choose from the gap:
 
