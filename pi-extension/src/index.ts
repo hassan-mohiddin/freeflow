@@ -8,6 +8,7 @@ import { CacheMonitor } from "./provider-support/cache/monitor.js";
 import { RoutingRuntime } from "./cognitive-routing/runtime.js";
 import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-routing/tools.js";
 import { handleFreeflowCommand } from "./host/settings/freeflow-command.js";
+import { toolExecutionSections } from "./tool-execution/prompt.js";
 import { tagProjectedMessages } from "./host/projection-tags.js";
 import { trustLoadedSession } from "./host/read-only-session.js";
 import { takeStage } from "./host/staging.js";
@@ -206,7 +207,13 @@ export default function freeflow(pi: FreeflowAPI) {
       status(ctx);
       // Pi 0.87 records changed sections at their native transcript position.
       // Returning systemPrompt would force one replacement head for every request.
-      event.systemPromptOptions.sections.freeflow_guidance = stableRuntimeContext(prompts);
+      const sections = event.systemPromptOptions.sections;
+      if (capability?.toolExecution?.effective === true) {
+        // Environment facts precede Freeflow's guidance, which is re-inserted after them.
+        delete sections.freeflow_guidance;
+        Object.assign(sections, toolExecutionSections(event.systemPrompt, api.getSettings?.()?.shellPath));
+      }
+      sections.freeflow_guidance = stableRuntimeContext(prompts);
     }
   });
   pi.on("message_end", (event, ctx) => {
