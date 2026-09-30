@@ -10,6 +10,8 @@ import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-ro
 import { handleFreeflowCommand } from "./host/settings/freeflow-command.js";
 import { toolExecutionSections } from "./tool-execution/prompt.js";
 import { FileTracking } from "./tool-execution/file-tracking.js";
+import { registerApplyPatch } from "./tool-execution/apply-patch/tool.js";
+import { applyToolExecutionTools } from "./tool-execution/tools.js";
 import { tagProjectedMessages } from "./host/projection-tags.js";
 import { trustLoadedSession } from "./host/read-only-session.js";
 import { takeStage } from "./host/staging.js";
@@ -148,6 +150,7 @@ export default function freeflow(pi: FreeflowAPI) {
   }
   function status(ctx: any) {
     applyRoutingToolVisibility(api, routing, capability?.cognitiveRouting?.effective === true);
+    applyToolExecutionTools(api, toolExecutionEffective());
     setFreeflowStatus(ctx, capability, routing.state(), prompts);
   }
   // Control and setting changes made between prompts are staged; their net effect is written as a prompt starts.
@@ -164,6 +167,11 @@ export default function freeflow(pi: FreeflowAPI) {
   }
 
   registerRoutingTools(api, routing);
+  registerApplyPatch(api, {
+    effective: toolExecutionEffective,
+    files: (ctx) => files.forPatch(ctx),
+    written: (paths, ctx) => files.written(paths, ctx),
+  });
   pi.on("resources_discover", async (event, ctx) => {
     const state = capability ?? (await loadSurface(ctx ?? { cwd: (event as any)?.cwd ?? process.cwd() }));
     return {

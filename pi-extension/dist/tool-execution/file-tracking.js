@@ -41,6 +41,16 @@ export class FileTracking {
   clearPending() {
     this.changed.clear();
   }
+  /** The branch's file state for apply_patch, built when needed. */
+  async forPatch(ctx) {
+    await this.ensureBuilt(ctx);
+    return this.state;
+  }
+  /** Record files a successful apply_patch wrote or moved, as a successful write records them. */
+  async written(paths, ctx) {
+    await this.ensureBuilt(ctx);
+    for (const path of paths) await this.state.observe(path, ctx.cwd, "apply_patch");
+  }
   async ensureBuilt(ctx) {
     if (this.built) return;
     await this.state.rebuild(ctx.sessionManager?.getBranch?.() ?? [], ctx.cwd);
