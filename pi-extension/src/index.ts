@@ -9,6 +9,7 @@ import { RoutingRuntime } from "./cognitive-routing/runtime.js";
 import { applyRoutingToolVisibility, registerRoutingTools } from "./cognitive-routing/tools.js";
 import { handleFreeflowCommand } from "./host/settings/freeflow-command.js";
 import { toolExecutionSections } from "./tool-execution/prompt.js";
+import { FileTracking } from "./tool-execution/file-tracking.js";
 import { tagProjectedMessages } from "./host/projection-tags.js";
 import { trustLoadedSession } from "./host/read-only-session.js";
 import { takeStage } from "./host/staging.js";
@@ -107,6 +108,8 @@ export default function freeflow(pi: FreeflowAPI) {
     delete runtimeStateAnchor.index;
   };
   let capability: any;
+  const files = new FileTracking();
+  const toolExecutionEffective = () => capability?.toolExecution?.effective === true;
   const cacheHealth = new CacheHealth();
   let prompts: any;
   let refreshState = true;
@@ -185,11 +188,13 @@ export default function freeflow(pi: FreeflowAPI) {
     if (generation !== surfaceGeneration) return;
     await loadSurface(ctx);
     cacheHealth.reset();
+    files.reset();
     await routing.bind(ctx, capability.cognitiveRouting, (event as any)?.reason !== "reload");
     status(ctx);
   });
   pi.on("session_shutdown", async () => {
     surfaceGeneration++;
+    files.reset();
     resetHistory();
     routing.unbind();
     capability = undefined;
@@ -241,9 +246,15 @@ export default function freeflow(pi: FreeflowAPI) {
     }
     routing.messageEnd((event as any).message);
   });
-  pi.on("tool_call", (event, ctx) => routing.preflight(event, ctx));
+  pi.on("tool_call", async (event, ctx) => {
+    const gate = routing.preflight(event, ctx);
+    if ((gate as any)?.block || !toolExecutionEffective()) return gate;
+    return (await files.toolCall(event, ctx)) ?? gate;
+  });
+  pi.on("tool_result", async (event, ctx) => (toolExecutionEffective() ? files.toolResult(event, ctx) : undefined));
   pi.on("turn_end", async (event, ctx) => {
     await routing.turnEnd(event, ctx);
+    files.clearPending();
     status(ctx);
   });
   pi.on("agent_settled", async (_event, ctx) => {
@@ -295,6 +306,8 @@ export default function freeflow(pi: FreeflowAPI) {
   const restore = async (ctx: any, navigation = true) => {
     cacheHealth.noteBreak();
     resetHistory();
+    // Navigation selects another branch, whose reads differ; compaction keeps the branch and its file state.
+    if (navigation) files.invalidate();
     restoreSessionOverrides(ctx);
     refreshState = true;
     await routing.ancestryChanged(ctx, navigation);
