@@ -1408,7 +1408,7 @@ export async function handleFreeflowCommand(
   afterChange: AfterChange,
   pi: any,
   cognitiveRoutingController?: CognitiveRoutingSettingsController,
-  diagnostics?: { status(): { cacheHealth?: readonly string[] } },
+  diagnostics?: { status(): { cacheHealth?: readonly string[]; backgroundRunning?: number } },
 ) {
   const input = (args ?? "settings").trim().toLowerCase() || "settings";
   const [action, ...rest] = input.split(/\s+/);

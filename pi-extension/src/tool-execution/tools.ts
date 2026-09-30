@@ -1,7 +1,8 @@
 import { APPLY_PATCH } from "./apply-patch/tool.js";
+import { BASH_BACKGROUND, STOP_BACKGROUND } from "./background.js";
 
 /** Freeflow's own Tool Execution tools; registered once and declared exactly while Tool Execution is effective. */
-export const TOOL_EXECUTION_TOOLS = [APPLY_PATCH] as const;
+export const TOOL_EXECUTION_TOOLS = [APPLY_PATCH, BASH_BACKGROUND, STOP_BACKGROUND] as const;
 
 /**
  * Declare or withdraw Freeflow's tools when Tool Execution's effective state changes. Missing tools are appended and

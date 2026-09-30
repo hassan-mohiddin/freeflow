@@ -11,6 +11,7 @@ import { toolExecutionSections } from "./tool-execution/prompt.js";
 import { FileTracking } from "./tool-execution/file-tracking.js";
 import { registerApplyPatch } from "./tool-execution/apply-patch/tool.js";
 import { applyToolExecutionTools } from "./tool-execution/tools.js";
+import { BackgroundJobs, NOTICE_TYPE, registerBackgroundTools } from "./tool-execution/background.js";
 import { tagProjectedMessages } from "./host/projection-tags.js";
 import { trustLoadedSession } from "./host/read-only-session.js";
 import { takeStage } from "./host/staging.js";
@@ -165,6 +166,20 @@ export default function freeflow(pi) {
     files: (ctx) => files.forPatch(ctx),
     written: (paths, ctx) => files.written(paths, ctx),
   });
+  const backgroundHost = {
+    effective: toolExecutionEffective,
+    shellPath: () => api.getSettings?.()?.shellPath,
+    // An exit notice starts a turn when idle; mid-run it is steered in after the current turn's tool results.
+    send: (content, details, triggerTurn) =>
+      Promise.resolve(
+        api.sendMessage(
+          { customType: NOTICE_TYPE, content, display: true, details },
+          triggerTurn ? { triggerTurn: true, deliverAs: "steer" } : { triggerTurn: false },
+        ),
+      ).catch(() => {}),
+  };
+  const background = new BackgroundJobs(backgroundHost);
+  registerBackgroundTools(api, background, backgroundHost);
   pi.on("resources_discover", async (event, ctx) => {
     const state = capability ?? (await loadSurface(ctx ?? { cwd: event?.cwd ?? process.cwd() }));
     return {
@@ -195,6 +210,8 @@ export default function freeflow(pi) {
   });
   pi.on("session_shutdown", async () => {
     surfaceGeneration++;
+    // Background processes belong to this extension instance; none may report into the next session.
+    await background.stopAll();
     files.reset();
     resetHistory();
     routing.unbind();
@@ -315,7 +332,10 @@ export default function freeflow(pi) {
     await update(ctx);
   };
   pi.on("session_tree", async (_event, ctx) => restore(ctx));
-  pi.on("session_compact", async (_event, ctx) => restore(ctx, false));
+  pi.on("session_compact", async (_event, ctx) => {
+    await restore(ctx, false);
+    background.restate();
+  });
   pi.on("session_compact_failed", async (_event, ctx) => {
     refreshState = true;
     status(ctx);
@@ -385,7 +405,10 @@ export default function freeflow(pi) {
         return;
       }
       await handleFreeflowCommand(args, ctx, async () => update(ctx), pi, routing, {
-        status: () => ({ cacheHealth: [...cacheHealth.status(), ...cacheMonitor.lines()] }),
+        status: () => ({
+          cacheHealth: [...cacheHealth.status(), ...cacheMonitor.lines()],
+          backgroundRunning: background.running().length,
+        }),
       });
     },
   });
