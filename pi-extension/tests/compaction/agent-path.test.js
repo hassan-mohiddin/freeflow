@@ -209,26 +209,51 @@ test("a worker compacts mid-assignment, recovers, and the unit completes", { tim
         [delegate],
         [{ name: "read", args: { path: "evidence.txt" } }],
         [compact({ summary: "WORKER_SUMMARY" })],
+        // As in a live run: the re-sent contract still reads as a request to compact.
+        [compact({ summary: "AGAIN" })],
         [submit],
         [close],
       ][n - 1] ?? [],
     true,
-    async ({ requests }) => {
+    async ({ requests, manager }) => {
       // The run /freeflow compact started does the whole unit; the last request answers the fixture's own prompt.
       assert.deepEqual(
         requests.map((body) => body.model),
-        ["gpt-4o", "gpt-4.1-mini", "gpt-4.1-mini", "gpt-4.1-mini", "gpt-4o", "gpt-4o", "gpt-4o"],
+        ["gpt-4o", "gpt-4.1-mini", "gpt-4.1-mini", "gpt-4.1-mini", "gpt-4.1-mini", "gpt-4o", "gpt-4o", "gpt-4o"],
       );
       const after = JSON.stringify(requests[3]);
       assert.match(after, /WORKER_SUMMARY/);
       assert.match(after, /Cognitive Routing profile when compacted: executor\./);
-      assert.match(after, /Current exact assignment [^:]+:\\nRead evidence\.txt\./);
+      // The re-sent contract is followed at once by the fact that this assignment's compaction happened.
+      const texts = inputTexts(requests[3]);
+      const contract = texts.findIndex((each) =>
+        /^Current exact assignment [^:]+:\nRead evidence\.txt\.\n\nCompaction: you compacted during this assignment, and cycle 2 began then\. A compaction this contract asks for is done/.test(
+          each,
+        ),
+      );
+      assert.ok(
+        contract > texts.findIndex((each) => /Compaction finished; cycle 2 starts here/.test(each)),
+        "after the recovery message",
+      );
+      assert.equal(
+        manager.getBranch().find((entry) => entry.type === "compaction").details.freeflow.assignment !== undefined,
+        true,
+      );
+      // A second call is refused with where to go next, not with /freeflow compact.
+      const [, again] = toolResults(manager, "freeflow_compact");
+      assert.equal(again.isError, true);
+      assert.match(
+        text(again),
+        /this cycle began with a compaction, and that compaction completed any compaction your request or assignment asked for\. Continue the work, or return the assignment/,
+      );
+      assert.doesNotMatch(text(again), /\/freeflow compact/);
+      assert.equal(manager.getBranch().filter((entry) => entry.type === "compaction").length, 1);
       // The Coordinator learns which worker compacted; the worker's own requests carry no such line.
       const NOTE = "Compaction: cycle 2 began when the Executor compacted; its summary opens your view.";
       assert.ok(!JSON.stringify(requests[3].input).includes(NOTE));
-      assert.ok(JSON.stringify(requests[4].input).includes(NOTE));
+      assert.ok(JSON.stringify(requests[5].input).includes(NOTE));
       // Each new copy of routing's Runtime State is complete, so the latest one still carries it.
-      const states = requests[5].input.filter((item) =>
+      const states = requests[6].input.filter((item) =>
         JSON.stringify(item).includes("# Cognitive Routing Runtime State"),
       );
       assert.ok(JSON.stringify(states.at(-1)).includes(NOTE));

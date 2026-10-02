@@ -194,6 +194,10 @@ export class ContextAssembler {
       instance: this.session.token,
       preparingReturn: handoffId,
       restoring,
+      compactedInAssignment: compactedInAssignment(
+        this.session.ctx?.sessionManager?.getBranch?.() ?? [],
+        state.assignmentId,
+      ),
     });
   }
   budgetNotice(messages, ctx) {
@@ -346,6 +350,12 @@ export class ContextAssembler {
  * The Coordinator learns of a worker's Freeflow compaction from one line, for the cycle that compaction opened: the
  * summary at the start of its view was written by that worker. Stable within the cycle, so it is sent once.
  */
+/** The cycle the latest compaction began, when Freeflow wrote it during this assignment. */
+function compactedInAssignment(branch, assignmentId) {
+  if (!assignmentId) return undefined;
+  const freeflow = [...branch].reverse().find((entry) => entry?.type === "compaction")?.details?.freeflow;
+  return freeflow && !freeflow.fallback && freeflow.assignment === assignmentId ? freeflow.cycle : undefined;
+}
 function workerCompaction(branch) {
   const latest = [...branch].reverse().find((entry) => entry?.type === "compaction");
   const freeflow = latest?.details?.freeflow;

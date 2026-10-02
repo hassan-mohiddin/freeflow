@@ -369,6 +369,11 @@ export class RoutingRuntime {
   state() {
     return this.status.state();
   }
+  /** The assignment in progress, if any; Freeflow compaction records it so routing can tell the worker it compacted. */
+  currentAssignment(): string | undefined {
+    if (!this.state().effective) return undefined;
+    return this.session.stateData().assignmentId ?? undefined;
+  }
   /** A source ref's tool result, for compaction to carry; only task evidence, the results routing lets be selected. */
   evidenceSource(ref: string): { tool: string; text: string } | undefined {
     try {

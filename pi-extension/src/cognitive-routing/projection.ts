@@ -142,6 +142,8 @@ export function prepareView(options: {
   admissions?: ReadonlyMap<string, number>;
   /** Source rank at which a previously suspended assessment resumed. */
   resumedAt?: number;
+  /** The cycle a Freeflow compaction began during the current assignment, which the restored contract then notes. */
+  compactedInAssignment?: number;
 }): PreparedView {
   const { sources, state } = options;
   const associated = sources.associate(options.messages);
@@ -376,7 +378,14 @@ export function prepareView(options: {
   if (a) {
     const accepted = state.handoffs.get(a.delegateHandoffId);
     if (accepted && !hasCommunication(accepted, "contract", a.contract))
-      restore("Current exact assignment", a.id, a.contract);
+      // Directly after the contract, so a contract asking for compaction does not read as still undone.
+      restore(
+        "Current exact assignment",
+        a.id,
+        options.compactedInAssignment === undefined
+          ? a.contract
+          : `${a.contract}\n\nCompaction: you compacted during this assignment, and cycle ${options.compactedInAssignment} began then. A compaction this contract asks for is done: continue with the rest of the contract, or return it if compacting was all it asked.`,
+      );
   }
   if (baseReport) {
     const metadata = { outcome: baseReport.outcome, limitations: baseReport.limitations };

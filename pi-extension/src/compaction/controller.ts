@@ -35,6 +35,8 @@ export interface CompactionHost {
   effective(): boolean;
   /** The routing profile running now, when Cognitive Routing is active. */
   routingProfile(): string | undefined;
+  /** The routing assignment in progress, when Cognitive Routing is active and a worker holds one. */
+  routingAssignment(): string | undefined;
   background(): readonly { id: string; label: string; outputPath: string }[];
   /** Context size that the next request receiving the full history would carry, and the thresholds to judge it. */
   measure(ctx: any): { tokens: number; thresholds: Thresholds } | undefined;
@@ -183,7 +185,9 @@ export class CompactionController {
       );
     if (!this.isDue(ctx))
       throw new Error(
-        "Compaction is not due. Freeflow says when it is; the user can also ask for it with /freeflow compact.",
+        startedByFreeflowCompaction(branchOf(ctx))
+          ? "Compaction is not due: this cycle began with a compaction, and that compaction completed any compaction your request or assignment asked for. Continue the work, or return the assignment if compacting was all it asked."
+          : "Compaction is not due. Freeflow says when it is; the user can also ask for it with /freeflow compact.",
       );
     const summary = typeof params?.summary === "string" ? params.summary.trim() : "";
     if (!summary) throw new Error("Write the summary before compacting: summary must not be empty.");
@@ -285,6 +289,7 @@ export class CompactionController {
               files: cycleFiles(branch),
               requestedBy,
               ...(this.host.routingProfile() ? { profile: this.host.routingProfile() } : {}),
+              ...(this.host.routingAssignment() ? { assignment: this.host.routingAssignment() } : {}),
             },
           },
         },
@@ -372,6 +377,12 @@ const AFTER_REQUESTED =
   "This compaction completes the request for it: do not call freeflow_compact again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment).";
 /** Pi compacted on its own, so a Freeflow compaction being prepared is no longer needed. */
 const AFTER_PI = "Compaction is no longer due: do not call freeflow_compact.";
+
+/** The current cycle began with a Freeflow compaction written on the agent path (not Pi's own, with or without additions). */
+function startedByFreeflowCompaction(branch: readonly any[]): boolean {
+  const latest = [...branch].reverse().find((entry) => entry?.type === "compaction");
+  return Boolean(latest?.details?.freeflow && !latest.details.freeflow.fallback);
+}
 
 /** What the previous Freeflow compaction carried (file paths and result ids), with the cycle each was first carried. */
 function previousCarried(branch: readonly any[]): Map<string, number> {

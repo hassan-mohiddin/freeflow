@@ -23,6 +23,7 @@ Compaction is on by default whenever Freeflow is on: `compaction.enabled` in Fre
 - A list inserted with the warning is context too, so its size moves the warning point earlier.
 - Each notice is sent once per cycle. Mid-run it joins the next request; at the end of a run it waits for the next prompt rather than starting work.
 - After a worker's Freeflow compaction, routing's Runtime State tells the Coordinator which worker compacted, for the rest of that cycle (the compaction details record the profile).
+- The compaction details also record the routing assignment in progress. When routing re-sends that assignment's contract after the compaction, a line directly after it says the worker compacted during this assignment, so a contract asking for compaction does not read as still undone. A later `freeflow_compact` call in a cycle a Freeflow compaction began is refused with the same fact and a pointer to continue or return.
 - A Coordinator under projection never compacts: its notices tell it to delegate compaction to a worker, and `freeflow_compact` refuses it.
 - Under Cognitive Routing the measurement covers the full history whenever the Coordinator is active under projection: its own view is small, but the next worker request carries everything.
 - Pi fires no compaction events for this path, so `index.ts` runs Freeflow's resets at the next `turn_start`: request history, cache tracking, routing reconcile, and file tracking reduced to the carried files.
