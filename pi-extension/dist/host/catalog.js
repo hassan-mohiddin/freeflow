@@ -54,6 +54,7 @@ export const STABLE_FREEFLOW_SURFACE = Object.freeze({
   enabled: true,
   cognitiveRouting: { effective: true },
   toolExecution: { effective: true },
+  compaction: { effective: true },
 });
 export function freeflowSkillPath(skillName) {
   return fileURLToPath(new URL(`../../../skills/${skillName}/SKILL.md`, import.meta.url));
@@ -65,6 +66,7 @@ export function freeflowModelSkillPaths(capabilityState = undefined) {
   const paths = FREEFLOW_MODEL_SKILL_NAMES.map((skillName) => freeflowSkillPath(skillName));
   if (capabilityState?.cognitiveRouting?.effective === true)
     paths.push(freeflowCapabilitySkillPath("cognitive-routing"));
+  if (capabilityState?.compaction?.effective === true) paths.push(freeflowCapabilitySkillPath("compaction"));
   return paths;
 }
 export function skillPrompt(skill, args) {

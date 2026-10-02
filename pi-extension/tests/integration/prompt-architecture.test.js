@@ -192,7 +192,13 @@ test("subagents retain reference definitions while optional capabilities stay in
 
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/action-selection/SKILL.md")));
-    assert.equal(resources.skillPaths.filter((path) => path.includes("/capabilities/")).length, 1);
+    // Capability skills stay listed as references (a stable prompt); the capabilities themselves are inactive.
+    assert.deepEqual(
+      resources.skillPaths
+        .filter((path) => path.includes("/capabilities/"))
+        .map((path) => path.split("/capabilities/")[1]),
+      ["cognitive-routing/SKILL.md", "compaction/SKILL.md"],
+    );
 
     const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
     const runtimeState = lastRuntimeState(providerContext.messages);
@@ -349,14 +355,14 @@ test("missing mandatory Interaction Contract retains a dormant surface with unav
     assert.equal(before.systemPrompt, "base prompt");
     assert.match(before.renderedGuidance, /guidance is dormant/);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 25);
+    assert.equal(resources.skillPaths.length, 26);
 
     await writeFile(join(root, "runtime", "prompts", "interaction-contract.md"), " \n\t", "utf8");
     const whitespaceBefore = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
     assert.equal(whitespaceBefore.systemPrompt, "base prompt");
     assert.match(whitespaceBefore.renderedGuidance, /guidance is dormant/);
     const whitespaceResources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(whitespaceResources.skillPaths.length, 25);
+    assert.equal(whitespaceResources.skillPaths.length, 26);
     const whitespaceContext = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(whitespaceContext.messages.at(-1).content, /Freeflow: unavailable/);
   } finally {
@@ -385,7 +391,7 @@ test("missing mandatory core prompt retains a dormant surface with unavailable s
     assert.equal(before.systemPrompt, "base prompt");
     assert.match(before.renderedGuidance, /guidance is dormant/);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 25);
+    assert.equal(resources.skillPaths.length, 26);
     const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(providerContext.messages.at(-1).content, /Freeflow: unavailable/);
     assert.doesNotMatch(
@@ -401,7 +407,7 @@ test("missing mandatory core prompt retains a dormant surface with unavailable s
     assert.equal(whitespaceBefore.systemPrompt, "base prompt");
     assert.match(whitespaceBefore.renderedGuidance, /guidance is dormant/);
     const whitespaceResources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(whitespaceResources.skillPaths.length, 25);
+    assert.equal(whitespaceResources.skillPaths.length, 26);
     const whitespaceContext = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(whitespaceContext.messages.at(-1).content, /Freeflow: unavailable/);
   } finally {
@@ -427,7 +433,7 @@ test("Runtime State remains present while Freeflow is disabled without optional 
     assert.doesNotMatch(runtimeState.content, /Default mode|Active mode|Interaction Contract|Skills/);
 
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 25);
+    assert.equal(resources.skillPaths.length, 26);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

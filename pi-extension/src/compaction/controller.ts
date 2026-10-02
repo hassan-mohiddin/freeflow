@@ -37,6 +37,8 @@ export interface CompactionHost {
   measure(ctx: any): { tokens: number; thresholds: Thresholds } | undefined;
   /** Prefix that marks a harness message as not written by the user. */
   noticePrefix: string;
+  /** The Coordinator is running under projection: its view leaves out what workers did, so it delegates compaction. */
+  coordinatorUnderProjection(): boolean;
 }
 
 export interface Compacted {
@@ -95,29 +97,31 @@ export class CompactionController {
     const measured = this.host.measure(ctx);
     if (!measured) return undefined;
     const { tokens, thresholds } = measured;
-    const at = `Context is at about ${tokens} of ${thresholds.window} tokens, and Pi compacts on its own at about ${thresholds.trigger}.`;
-    const budget = carryBudget(thresholds.window);
-    // Interim wording; the reviewed texts arrive with the compaction skill.
-    if (tokens >= thresholds.compactNow && !this.sent.compactNow) {
-      this.sent.compactNow = this.sent.warning = true;
-      return {
-        level: "compactNow",
-        text: `${this.host.noticePrefix} ${at} Compact now: finish updating the Working Record if there is one, then call freeflow_compact with your summary and what to carry (budget ${budget} tokens).\n\n${this.indexText(ctx)}`,
-      };
-    }
-    if (tokens >= thresholds.warning && !this.sent.warning) {
-      this.sent.warning = true;
-      return {
-        level: "warning",
-        text: `${this.host.noticePrefix} ${at} Compaction is due. Prepare now: update the Working Record if there is one, then call freeflow_compact with your summary and what to carry (budget ${budget} tokens: files by path, tool results by id). A "compact now" notice follows near Pi's limit.\n\n${this.indexText(ctx)}`,
-      };
-    }
-    return undefined;
+    const level = tokens >= thresholds.compactNow ? "compactNow" : tokens >= thresholds.warning ? "warning" : undefined;
+    if (!level || this.sent[level]) return undefined;
+    this.sent.warning = true;
+    if (level === "compactNow") this.sent.compactNow = true;
+    return { level, text: this.noticeText(level, tokens, thresholds, ctx) };
+  }
+
+  private noticeText(level: Notice["level"], tokens: number, thresholds: Thresholds, ctx: any): string {
+    const prefix = this.host.noticePrefix;
+    const { window, trigger } = thresholds;
+    if (this.host.coordinatorUnderProjection())
+      return `${prefix} ${level === "compactNow" ? "Compact now" : "Compaction is due"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own at about ${trigger}. Your view leaves out what workers did, so do not compact yourself: delegate an assignment asking the worker to read the compaction skill and compact, then continue.`;
+    const index = this.indexText(ctx);
+    if (level === "compactNow")
+      return `${prefix} Compact now: context is at about ${tokens} of ${window} tokens, close to Pi's own compaction at about ${trigger}. Finish preparing and call freeflow_compact; if Pi compacts first, its own summary replaces yours.\n\n${index}`;
+    return `${prefix} Compaction is due: context is at about ${tokens} of ${window} tokens, and Pi compacts on its own at about ${trigger}. Read the compaction skill and prepare now: update the Working Record, choose what to carry (budget ${carryBudget(window)} tokens: files by path, tool results by id below), write the summary, then call freeflow_compact. A "compact now" notice follows near Pi's limit.\n\n${index}`;
   }
 
   /** Check a freeflow_compact call and schedule it for the end of this turn; throws with the reason it is refused. */
   async request(params: any, ctx: any): Promise<string> {
     if (!this.host.effective()) throw new Error("Freeflow compaction is turned off.");
+    if (this.host.coordinatorUnderProjection())
+      throw new Error(
+        "Your view leaves out what workers did, so do not compact yourself: delegate an assignment asking the worker to read the compaction skill and compact.",
+      );
     if (!this.isDue(ctx))
       throw new Error(
         "Compaction is not due. Freeflow says when it is; the user can also ask for it with /freeflow compact.",
@@ -187,8 +191,8 @@ export class CompactionController {
     })}`;
     const carriedText = renderCarried(cycle, latestUserMessages(branch), files, results);
     const recovery = recordPath
-      ? `Compaction finished; cycle ${cycle} starts here. Recover before continuing: read the Working Record at ${recordPath} first, check the carried context, re-read whatever else you need, then continue the interrupted work.`
-      : `Compaction finished; cycle ${cycle} starts here. There is no Working Record for this work, so recover from the summary above and the carried context: re-read the sources the summary lists, then continue the interrupted work.`;
+      ? `Compaction finished; cycle ${cycle} starts here. Recover before you continue, as Track Work says: read the Working Record at ${recordPath} in full, every artifact under What defines this task, and every Recovery source, then reconcile with the live state your next step depends on. The carried context is above. Then continue the interrupted work.`
+      : `Compaction finished; cycle ${cycle} starts here. There is no Working Record, so the summary is your record for this cycle: re-read its Recovery sources and reconcile with the live state your next step depends on. The carried context is above. Then continue the interrupted work.`;
 
     this.requested = undefined;
     this.compacted = { carriedFiles: files.filter((file) => "text" in file).map((file) => file.path) };

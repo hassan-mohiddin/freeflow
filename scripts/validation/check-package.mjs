@@ -37,6 +37,9 @@ const requiredFiles = [
   "capabilities/cognitive-routing/references/helper-mode.md",
   "capabilities/cognitive-routing/references/executor-mode.md",
   "capabilities/cognitive-routing/references/both-mode.md",
+  "capabilities/compaction/SKILL.md",
+  "capabilities/compaction/references/summary-format.md",
+  "pi-extension/dist/compaction/controller.js",
 ];
 const excludedPrefixes = [
   "plugin-docs/",

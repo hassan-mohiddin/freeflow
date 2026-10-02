@@ -2,7 +2,7 @@
 
 Freeflow compaction turns compaction into a planned cycle boundary. After each turn Freeflow measures the context; when it passes the warning point, a notice says compaction is due and lists the results the agent can carry, and a second notice says to compact now near Pi's own limit. The agent updates its Working Record and calls `freeflow_compact` with a summary and the files to carry. At the end of that turn Freeflow writes Pi's compaction entry, keeping nothing raw, followed by the carried context and a recovery message, and the same run continues from them. Pi's own compaction stays unchanged as the fallback.
 
-Compaction is on by default whenever Freeflow is on (`compaction.enabled` in Freeflow config).
+Compaction is on by default whenever Freeflow is on (`compaction.enabled` in Freeflow config). The model-facing guidance is the compaction skill, [`capabilities/compaction/SKILL.md`](../../../capabilities/compaction/SKILL.md), with the summary's exact shape in [`references/summary-format.md`](../../../capabilities/compaction/references/summary-format.md); Freeflow always lists it with its skills, so the system prompt does not change with this setting.
 
 | File | Owns |
 |---|---|
@@ -20,6 +20,7 @@ Compaction is on by default whenever Freeflow is on (`compaction.enabled` in Fre
 
 - `freeflow_compact` is accepted only when compaction is due: the context is past the warning point, or the user ran `/freeflow compact` in this cycle. Due is recomputed from the measurement, so a reload does not lose it.
 - Each notice is sent once per cycle. Mid-run it joins the next request; at the end of a run it waits for the next prompt rather than starting work.
+- A Coordinator under projection never compacts: its notices tell it to delegate compaction to a worker, and `freeflow_compact` refuses it.
 - Under Cognitive Routing the measurement covers the full history whenever the Coordinator is active under projection: its own view is small, but the next worker request carries everything.
 - Pi fires no compaction events for this path, so `index.ts` runs Freeflow's resets at the next `turn_start`: request history, cache tracking, routing reconcile, and file tracking reduced to the carried files.
 - Carried content is copied into the session, never resolved later, so a reopened session needs no Freeflow lookup.

@@ -213,6 +213,11 @@ export default function freeflow(pi) {
     },
     background: () => background.running().map(({ id, label, outputPath }) => ({ id, label, outputPath })),
     noticePrefix: NOTICE_PREFIX,
+    coordinatorUnderProjection: () =>
+      capability?.cognitiveRouting?.effective === true &&
+      capability.cognitiveRouting.projection === true &&
+      routing.state().effective === true &&
+      routing.state().activeProfile === "coordinator",
     measure: (ctx) => {
       // Every model that may receive the full history: the active one and, under routing, each profile's.
       const routingCapability = capability?.cognitiveRouting;
@@ -243,8 +248,7 @@ export default function freeflow(pi) {
     compaction.requestByUser(ctx);
     // The user asked, so this is their message. A user message also starts an ordinary run, which keeps Freeflow's
     // system sections; a run started by an extension message loses them from its second request (Pi #10267).
-    // Interim wording; the reviewed texts arrive with the compaction skill.
-    const text = `Compact the conversation now. Update the Working Record if one exists, then call freeflow_compact with your summary and what to carry: files by path, tool results by id.\n\n${compaction.indexText(ctx)}`;
+    const text = `Compact now: read the compaction skill, prepare the next cycle, and call freeflow_compact.\n\n${compaction.indexText(ctx)}`;
     await Promise.resolve(
       api.sendUserMessage(text, ctx.isIdle?.() === false ? { deliverAs: "steer" } : undefined),
     ).catch(() => {});

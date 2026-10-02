@@ -14,7 +14,7 @@ const withUsage = (tokens) => (n, calls) =>
     total_tokens: tokens(n) + 10,
   });
 const count = (body, text) => JSON.stringify(body.input).split(text).length - 1;
-const WARNING = "Compaction is due.";
+const WARNING = "Compaction is due:";
 const COMPACT_NOW = "Compact now:";
 
 test(
@@ -100,6 +100,8 @@ test(
         // The handoff turn makes the Coordinator active; the full history crosses the point and its first request
         // carries the warning.
         assert.equal(count(requests[3], WARNING), 1);
+        assert.match(JSON.stringify(requests[3].input), /the full history is about \d+ of 128000 tokens/);
+        assert.match(JSON.stringify(requests[3].input), /so do not compact yourself: delegate an assignment/);
         assert.equal(count(requests[4], WARNING), 1, "sent once");
       },
       true,

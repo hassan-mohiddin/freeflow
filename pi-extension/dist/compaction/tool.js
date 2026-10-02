@@ -1,7 +1,6 @@
 export const FREEFLOW_COMPACT = "freeflow_compact";
-// Interim wording; the reviewed texts arrive with the compaction skill.
 const DESCRIPTION =
-  "Compact the conversation when Freeflow says compaction is due. Update the Working Record first, then pass your summary and any files to carry. Compaction happens at the end of this turn and the run continues from the summary.";
+  "Compact the conversation into a new cycle. Use only when Freeflow says compaction is due or the user asks, and read the compaction skill first. Pass your summary and what to carry; compaction happens at the end of this turn, and the run continues from the summary, the carried context and a recovery message.";
 /** Registered once, declared only while Freeflow compaction is effective (see applyCompactionTools). */
 export function registerCompactionTool(pi, controller) {
   pi.registerTool({
@@ -14,7 +13,8 @@ export function registerCompactionTool(pi, controller) {
       properties: {
         summary: {
           type: "string",
-          description: "This cycle's working state for the next cycle: what the Working Record does not hold.",
+          description:
+            "The next cycle's working state, for a reader with none of this conversation. The compaction skill says what it must keep.",
         },
         carry: {
           type: "array",

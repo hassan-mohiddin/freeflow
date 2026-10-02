@@ -68,9 +68,13 @@ test("/freeflow compact leads to one compaction and the same run continues from 
       assert.match(after[0], /Files read this cycle: evidence\.txt\./);
       assert.match(after[1], /# Carried context/);
       assert.match(after[1], /FIRST_USER_MESSAGE/);
-      assert.match(after[1], /Compact the conversation now/, "the user's /freeflow compact request is carried");
+      assert.match(
+        after[1],
+        /Compact now: read the compaction skill/,
+        "the user's /freeflow compact request is carried",
+      );
       assert.match(after[1], /### evidence\.txt\n\n`+\nFRESH_AT_COMPACTION\n`+/);
-      assert.match(after[2], /There is no Working Record for this work/);
+      assert.match(after[2], /There is no Working Record, so the summary is your record for this cycle/);
       // Nothing from before the compaction is sent again: not the old read, not the request that compacted.
       assert.ok(!JSON.stringify(requests[3].input).includes("EXACT_EVIDENCE_BODY_81"));
       assert.ok(!requests[3].input.some((item) => item.type === "function_call"));
@@ -211,5 +215,34 @@ test("a worker compacts mid-assignment, recovers, and the unit completes", { tim
       // Compaction is due from the start; the worker compacts during its assignment.
       beforePrompt: compactNow,
     },
+  );
+});
+
+test("a Coordinator under projection is told to delegate compaction, not to compact", { timeout: 30000 }, async () => {
+  await fixture(
+    async (n) => [[compact({ summary: "COORDINATOR_SUMMARY" })]][n - 1] ?? [],
+    true,
+    async ({ manager }) => {
+      const [result] = toolResults(manager, "freeflow_compact");
+      assert.equal(result.isError, true);
+      assert.match(text(result), /Your view leaves out what workers did, so do not compact yourself/);
+      assert.ok(!manager.getBranch().some((entry) => entry.type === "compaction"));
+    },
+    true,
+    { freeflowConfig: { toolExecution: { enabled: true } }, beforePrompt: compactNow },
+  );
+});
+
+test("the compaction skill is listed to the model with Freeflow's skills", { timeout: 30000 }, async () => {
+  await fixture(
+    async () => [],
+    false,
+    async ({ requests }) => {
+      const system = requests[0].input.find((item) => item.role === "system").content;
+      assert.match(system, /<name>compaction<\/name>\s*<description>Use when Freeflow says compaction is due/);
+      assert.match(system, /capabilities\/compaction\/SKILL\.md/);
+    },
+    true,
+    noRouting(),
   );
 });
