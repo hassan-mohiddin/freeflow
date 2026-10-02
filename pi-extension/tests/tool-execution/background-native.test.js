@@ -183,3 +183,35 @@ test(
     );
   },
 );
+
+test(
+  "a run an idle exit notice starts keeps Freeflow's system sections in every request",
+  { timeout: 30000 },
+  async () => {
+    // A run started by an extension message loses before_agent_start sections from its second request (Pi #10267),
+    // so an idle notice starts its run as a user message.
+    const sections = (body) => {
+      const system = body.input.find((item) => item.role === "system")?.content ?? "";
+      return (system.match(/\n<([a-z_]+)>/g) ?? []).map((tag) => tag.trim());
+    };
+    await fixture(
+      async (n) =>
+        [
+          [{ name: "bash_background", args: { command: "sleep 0.3; echo done" } }],
+          [],
+          [{ name: "read", args: { path: "evidence.txt" } }],
+          [],
+        ][n - 1] ?? [],
+      false,
+      async ({ session, requests }) => {
+        await until(() => requests.length >= 4, "the notice's run to make two requests");
+        await session.waitForIdle();
+        assert.match(JSON.stringify(requests[2].input), /Background command bg[0-9a-z]{6} \(.*\) completed/);
+        for (const body of requests.slice(2)) assert.ok(sections(body).includes("<freeflow_guidance>"));
+        assert.deepEqual(sections(requests[3]), sections(requests[2]));
+      },
+      true,
+      on,
+    );
+  },
+);

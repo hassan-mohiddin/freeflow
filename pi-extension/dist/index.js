@@ -176,13 +176,23 @@ export default function freeflow(pi) {
     effective: toolExecutionEffective,
     shellPath: () => api.getSettings?.()?.shellPath,
     // An exit notice starts a turn when idle; mid-run it is steered in after the current turn's tool results.
-    send: (content, details, triggerTurn) =>
-      Promise.resolve(
-        api.sendMessage(
-          { customType: NOTICE_TYPE, content, display: true, details },
-          triggerTurn ? { triggerTurn: true, deliverAs: "steer" } : { triggerTurn: false },
-        ),
-      ).catch(() => {}),
+    send: (content, details, triggerTurn) => {
+      const notice = () =>
+        Promise.resolve(
+          api.sendMessage(
+            { customType: NOTICE_TYPE, content, display: true, details },
+            triggerTurn ? { triggerTurn: true, deliverAs: "steer" } : { triggerTurn: false },
+          ),
+        ).catch(() => {});
+      // When idle, the notice starts the run as a user message: a run an extension message starts loses Freeflow's
+      // system sections from its second request (Pi #10267). If a run started meanwhile, it is steered in instead.
+      if (!triggerTurn || liveHost?.isIdle?.() !== true) return notice();
+      try {
+        return Promise.resolve(api.sendUserMessage(content)).catch(notice);
+      } catch {
+        return notice();
+      }
+    },
   };
   const background = new BackgroundJobs(backgroundHost);
   registerBackgroundTools(api, background, backgroundHost);
