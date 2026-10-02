@@ -22,15 +22,16 @@ export function registerCompactionTool(pi: any, controller: CompactionController
         },
         carry: {
           type: "array",
-          description: "Files to carry, read fresh at compaction. Optional line ranges keep it inside the budget.",
+          description:
+            "What to carry into the next cycle, within the budget the notice gives: files by path (read fresh at compaction, optional line ranges) and tool results by id from the notice's index.",
           items: {
             type: "object",
             additionalProperties: false,
             properties: {
               file: { type: "string" },
               lines: { type: "array", items: { type: "integer" }, description: "[first, last], 1-based" },
+              result: { type: "string", description: "A result id from the index, such as r12" },
             },
-            required: ["file"],
           },
         },
       },

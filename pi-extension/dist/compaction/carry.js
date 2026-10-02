@@ -15,6 +15,7 @@ export function carryBudget(contextWindow) {
   if (!(typeof contextWindow === "number" && contextWindow > 0)) return 40_000;
   return Math.min(Math.floor(contextWindow * 0.15), 40_000);
 }
+export const isCarryResult = (item) => typeof item?.result === "string";
 /** Read one selected file as it is now. */
 export async function readCarriedFile(item, cwd) {
   let raw;
@@ -38,8 +39,13 @@ export async function readCarriedFile(item, cwd) {
 /** The reason a carry selection is unusable, or undefined. */
 export function carryProblem(item) {
   const value = item;
+  if (typeof value === "object" && value !== null && typeof value.result === "string") {
+    if (value.file !== undefined || value.lines !== undefined)
+      return `${value.result}: give a result id or a file, not both`;
+    return /^r[1-9][0-9]*$/.test(value.result) ? undefined : `${value.result}: result ids look like r12`;
+  }
   if (typeof value !== "object" || value === null || typeof value.file !== "string" || value.file.length === 0)
-    return "each carry item needs a file path";
+    return "each carry item needs a file path or a result id";
   if (value.lines === undefined) return undefined;
   const lines = value.lines;
   if (
@@ -79,7 +85,7 @@ function fenced(body) {
   const fence = "`".repeat(longest + 1);
   return `${fence}\n${body}\n${fence}`;
 }
-export function renderCarried(cycle, userMessages, files) {
+export function renderCarried(cycle, userMessages, files, results = []) {
   const parts = [`# Carried context\n\nFreeflow carried this into cycle ${cycle} at compaction.`];
   if (userMessages.length)
     parts.push(
@@ -96,6 +102,13 @@ export function renderCarried(cycle, userMessages, files) {
               ? `### ${file.path}\n\nNot carried: ${file.error}.`
               : `### ${file.path}${range}\n\n${fenced(file.text)}`;
           })
+          .join("\n\n"),
+    );
+  if (results.length)
+    parts.push(
+      "## Tool results\n\n" +
+        results
+          .map((result) => `### ${result.id} ${result.tool}: ${result.label}\n\n${fenced(result.text)}`)
           .join("\n\n"),
     );
   return parts.join("\n\n");

@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { resolveToolPath } from "../tool-execution/file-state.js";
+import type { Result } from "./results.js";
 
 /**
  * Carried context: what a Freeflow compaction delivers again after the summary. The latest user messages are always
@@ -25,6 +26,14 @@ export interface CarryFile {
   /** First and last line, 1-based and inclusive. */
   lines?: [number, number];
 }
+
+/** A tool result from the result index, by id. */
+export interface CarryResult {
+  result: string;
+}
+
+export type CarryItem = CarryFile | CarryResult;
+export const isCarryResult = (item: CarryItem): item is CarryResult => typeof (item as any)?.result === "string";
 
 export type CarriedFile = { path: string; lines?: [number, number]; text: string } | { path: string; error: string };
 
@@ -52,8 +61,13 @@ export async function readCarriedFile(item: CarryFile, cwd: string): Promise<Car
 /** The reason a carry selection is unusable, or undefined. */
 export function carryProblem(item: unknown): string | undefined {
   const value = item as any;
+  if (typeof value === "object" && value !== null && typeof value.result === "string") {
+    if (value.file !== undefined || value.lines !== undefined)
+      return `${value.result}: give a result id or a file, not both`;
+    return /^r[1-9][0-9]*$/.test(value.result) ? undefined : `${value.result}: result ids look like r12`;
+  }
   if (typeof value !== "object" || value === null || typeof value.file !== "string" || value.file.length === 0)
-    return "each carry item needs a file path";
+    return "each carry item needs a file path or a result id";
   if (value.lines === undefined) return undefined;
   const lines = value.lines;
   if (
@@ -97,7 +111,12 @@ function fenced(body: string): string {
   return `${fence}\n${body}\n${fence}`;
 }
 
-export function renderCarried(cycle: number, userMessages: readonly string[], files: readonly CarriedFile[]): string {
+export function renderCarried(
+  cycle: number,
+  userMessages: readonly string[],
+  files: readonly CarriedFile[],
+  results: readonly Result[] = [],
+): string {
   const parts = [`# Carried context\n\nFreeflow carried this into cycle ${cycle} at compaction.`];
   if (userMessages.length)
     parts.push(
@@ -114,6 +133,13 @@ export function renderCarried(cycle: number, userMessages: readonly string[], fi
               ? `### ${file.path}\n\nNot carried: ${file.error}.`
               : `### ${file.path}${range}\n\n${fenced(file.text)}`;
           })
+          .join("\n\n"),
+    );
+  if (results.length)
+    parts.push(
+      "## Tool results\n\n" +
+        results
+          .map((result) => `### ${result.id} ${result.tool}: ${result.label}\n\n${fenced(result.text)}`)
           .join("\n\n"),
     );
   return parts.join("\n\n");

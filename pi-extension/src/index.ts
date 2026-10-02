@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { estimateTokens } from "@earendil-works/pi-coding-agent";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { RequestHistory } from "./host/request-history.js";
@@ -16,6 +17,7 @@ import { BackgroundJobs, NOTICE_PREFIX, NOTICE_TYPE, registerBackgroundTools } f
 import { backgroundRefusal } from "./tool-execution/bash-guard.js";
 import { CompactionController } from "./compaction/controller.js";
 import { applyCompactionTools, registerCompactionTool } from "./compaction/tool.js";
+import { strictest } from "./compaction/thresholds.js";
 import { tagProjectedMessages } from "./host/projection-tags.js";
 import { trustLoadedSession } from "./host/read-only-session.js";
 import { takeStage } from "./host/staging.js";
@@ -38,6 +40,14 @@ import { filterBootstrapMessage, withFreeflowRuntimeState, type RuntimeStateAnch
 import { setFreeflowStatus } from "./host/status.js";
 
 type FreeflowAPI = ExtensionAPI;
+const COMPACTION_NOTICE_TYPE = "freeflow-compaction-notice";
+
+/** Estimated size of the full native history plus the system prompt: what a request without projection carries. */
+function fullHistoryTokens(ctx: any): number {
+  const messages = ctx.sessionManager?.buildSessionProjection?.()?.messages ?? [];
+  const system = ctx.getSystemPrompt?.() ?? "";
+  return messages.reduce((sum: number, message: any) => sum + estimateTokens(message), Math.ceil(system.length / 4));
+}
 async function sendSkillCommand(pi: FreeflowAPI, ctx: ExtensionCommandContext, skill: string, args?: string) {
   const state = await readCapabilityState(ctx.cwd, ctx);
   if (skill === "setup-freeflow" && !state.configured) {
@@ -210,6 +220,26 @@ export default function freeflow(pi: FreeflowAPI) {
       return state.effective ? state.activeProfile : undefined;
     },
     background: () => background.running().map(({ id, label, outputPath }) => ({ id, label, outputPath })),
+    noticePrefix: NOTICE_PREFIX,
+    measure: (ctx: any) => {
+      // Every model that may receive the full history: the active one and, under routing, each profile's.
+      const routingCapability = capability?.cognitiveRouting;
+      const models = [ctx.model];
+      if (routingCapability?.effective)
+        for (const profile of Object.values(routingCapability.profiles ?? {}) as any[])
+          models.push(ctx.modelRegistry?.find?.(profile.provider, profile.model));
+      const limits = strictest(models, api.getSettings?.());
+      if (!limits) return undefined;
+      let tokens = ctx.getContextUsage?.()?.tokens ?? 0;
+      // A Coordinator under projection sends a reduced view; the next worker request carries the whole history.
+      if (
+        routingCapability?.effective &&
+        routingCapability.projection &&
+        routing.state().activeProfile === "coordinator"
+      )
+        tokens = Math.max(tokens, fullHistoryTokens(ctx));
+      return { tokens, thresholds: limits };
+    },
   });
   registerCompactionTool(api, compaction);
   // The user's /freeflow compact makes compaction due now: the agent prepares, compacts and recovers.
@@ -218,12 +248,11 @@ export default function freeflow(pi: FreeflowAPI) {
       ctx.ui.notify("Freeflow compaction is off; Pi's /compact still works.", "warning");
       return;
     }
-    compaction.arm("command");
+    compaction.requestByUser(ctx);
     // The user asked, so this is their message. A user message also starts an ordinary run, which keeps Freeflow's
     // system sections; a run started by an extension message loses them from its second request (Pi #10267).
     // Interim wording; the reviewed texts arrive with the compaction skill.
-    const text =
-      "Compact the conversation now. Update the Working Record if one exists, then call freeflow_compact with your summary and any files to carry.";
+    const text = `Compact the conversation now. Update the Working Record if one exists, then call freeflow_compact with your summary and what to carry: files by path, tool results by id.\n\n${compaction.indexText(ctx)}`;
     await Promise.resolve(
       api.sendUserMessage(text, ctx.isIdle?.() === false ? { deliverAs: "steer" } : undefined),
     ).catch(() => {});
@@ -341,7 +370,21 @@ export default function freeflow(pi: FreeflowAPI) {
     await routing.turnEnd(event, ctx);
     files.clearPending();
     status(ctx);
-    return compaction.turnEnd(event, ctx);
+    const compacting = await compaction.turnEnd(event, ctx);
+    if (compacting) return compacting;
+    const notice = compaction.observe(ctx);
+    if (notice) {
+      // Mid-run the notice joins the next request; when the run is ending it waits for the next prompt rather than
+      // starting work nobody asked for.
+      const midRun = ((event.message as any)?.content ?? []).some((block: any) => block?.type === "toolCall");
+      await Promise.resolve(
+        api.sendMessage(
+          { customType: COMPACTION_NOTICE_TYPE, content: notice.text, display: true, details: { level: notice.level } },
+          { deliverAs: midRun ? "steer" : "nextTurn" },
+        ),
+      ).catch(() => {});
+    }
+    return undefined;
   });
   // A Freeflow compaction fires no session_compact, so its resets run here, before the new cycle's first request.
   pi.on("turn_start", async (_event, ctx) => {
