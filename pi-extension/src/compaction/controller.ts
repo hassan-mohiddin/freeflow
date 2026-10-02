@@ -168,7 +168,7 @@ export class CompactionController {
     const prefix = this.host.noticePrefix;
     const { window, trigger } = thresholds;
     if (this.host.coordinatorUnderProjection())
-      return `${prefix} ${level === "compactNow" ? "Compact now" : "Compaction is due"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own at about ${trigger}. Your view leaves out what workers did, so do not compact yourself: delegate an assignment asking the worker to read the compaction skill and compact, then continue.`;
+      return `${prefix} ${level === "compactNow" ? "Compact now" : "Compaction is due"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own at about ${trigger}. Your view leaves out what workers did, so do not compact yourself: delegate an assignment asking the worker to read the compaction skill, compact with freeflow_compact, and then return with freeflow_return; then continue.`;
     const index = this.indexText(ctx);
     const list = index ? `\n\n${index}` : "";
     if (level === "compactNow")
@@ -181,12 +181,12 @@ export class CompactionController {
     if (!this.host.effective()) throw new Error("Freeflow compaction is turned off.");
     if (this.host.coordinatorUnderProjection())
       throw new Error(
-        "Your view leaves out what workers did, so do not compact yourself: delegate an assignment asking the worker to read the compaction skill and compact.",
+        "Your view leaves out what workers did, so do not compact yourself: delegate an assignment asking the worker to read the compaction skill, compact with freeflow_compact, and then return with freeflow_return.",
       );
     if (!this.isDue(ctx))
       throw new Error(
         startedByFreeflowCompaction(branchOf(ctx))
-          ? "Compaction is not due: this cycle began with a compaction, and that compaction completed any compaction your request or assignment asked for. Continue the work, or return the assignment if compacting was all it asked."
+          ? "Compaction is not due: this cycle began with a compaction, and that compaction completed any compaction your request or assignment asked for. Continue the work; if this is a routing assignment that only asked for compaction, return it with freeflow_return."
           : "Compaction is not due. Freeflow says when it is; the user can also ask for it with /freeflow compact.",
       );
     const summary = typeof params?.summary === "string" ? params.summary.trim() : "";
@@ -374,7 +374,7 @@ function recoveryText(cycle: number, carried = ""): string {
 
 /** The agent path: the compaction was the request, and it is done. */
 const AFTER_REQUESTED =
-  "This compaction completes the request for it: do not call freeflow_compact again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment).";
+  "This compaction completes the request for it: do not call freeflow_compact again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment with freeflow_return).";
 /** Pi compacted on its own, so a Freeflow compaction being prepared is no longer needed. */
 const AFTER_PI = "Compaction is no longer due: do not call freeflow_compact.";
 

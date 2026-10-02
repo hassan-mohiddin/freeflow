@@ -101,7 +101,11 @@ test(
         // carries the warning.
         assert.equal(count(requests[3], WARNING), 1);
         assert.match(JSON.stringify(requests[3].input), /the full history is about \d+ of 128000 tokens/);
-        assert.match(JSON.stringify(requests[3].input), /so do not compact yourself: delegate an assignment/);
+        // The contract the Coordinator writes then says what the worker does after compacting.
+        assert.match(
+          JSON.stringify(requests[3].input),
+          /so do not compact yourself: delegate an assignment asking the worker to read the compaction skill, compact with freeflow_compact, and then return with freeflow_return/,
+        );
         assert.equal(count(requests[4], WARNING), 1, "sent once");
       },
       true,

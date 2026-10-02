@@ -78,6 +78,7 @@ test("/freeflow compact leads to one compaction and the same run continues from 
       assert.match(after[2], /^\[Freeflow notice, not from the user\] Compaction finished; cycle 2 starts here\./);
       assert.match(after[2], /if the summary names a Working Record for this work/);
       assert.match(after[2], /do not call freeflow_compact again in this cycle/);
+      assert.match(after[2], /a worker returns its assignment with freeflow_return/);
       assert.match(after[2], /verify work the summary calls done instead of redoing it/);
       // A record another session just updated is not this work's record: Freeflow names none.
       assert.ok(!after.slice(0, 3).some((each) => each.includes("task-999-elsewhere")));
@@ -235,6 +236,7 @@ test("a worker compacts mid-assignment, recovers, and the unit completes", { tim
         contract > texts.findIndex((each) => /Compaction finished; cycle 2 starts here/.test(each)),
         "after the recovery message",
       );
+      assert.match(texts[contract], /or return it with freeflow_return if compacting was all it asked\./);
       assert.equal(
         manager.getBranch().find((entry) => entry.type === "compaction").details.freeflow.assignment !== undefined,
         true,
@@ -244,7 +246,7 @@ test("a worker compacts mid-assignment, recovers, and the unit completes", { tim
       assert.equal(again.isError, true);
       assert.match(
         text(again),
-        /this cycle began with a compaction, and that compaction completed any compaction your request or assignment asked for\. Continue the work, or return the assignment/,
+        /this cycle began with a compaction, and that compaction completed any compaction your request or assignment asked for\. Continue the work; if this is a routing assignment that only asked for compaction, return it with freeflow_return\./,
       );
       assert.doesNotMatch(text(again), /\/freeflow compact/);
       assert.equal(manager.getBranch().filter((entry) => entry.type === "compaction").length, 1);

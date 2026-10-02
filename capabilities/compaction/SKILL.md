@@ -18,7 +18,7 @@ The Rules are binding; if one cannot be met, stop and say why. The rest of this 
 - Never write a requested, reported, or expected result as observed. Name every partial or uncommitted change, unverified result, running command, and obligation still waiting on its trigger.
 - Keep exact: paths, identifiers, commands, error text, numbers, and the user's words wherever wording matters. Never paraphrase a decision or a constraint.
 - Material that exists only in the conversation, such as a pasted file or a long message, leaves with it. With a Working Record, save it under the task's `sources/` and point to it; without one, quote what matters in the summary.
-- Under Cognitive Routing with projection, the Coordinator does not compact: its view leaves out what workers did. Delegate an assignment asking the worker to compact. A worker's summary covers the whole session: the user's requests, the Coordinator's decisions, and the state of other work.
+- Under Cognitive Routing with projection, the Coordinator does not compact: its view leaves out what workers did. Delegate an assignment whose contract says to compact with `freeflow_compact` and then return with `freeflow_return`, plus any other work it covers: after compacting, the worker sees the contract again but not its own `freeflow_compact` call. A worker's summary covers the whole session: the user's requests, the Coordinator's decisions, and the state of other work.
 
 ## The summary
 

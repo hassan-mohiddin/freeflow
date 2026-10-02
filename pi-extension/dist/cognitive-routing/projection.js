@@ -330,7 +330,7 @@ export function prepareView(options) {
         a.id,
         options.compactedInAssignment === undefined
           ? a.contract
-          : `${a.contract}\n\nCompaction: you compacted during this assignment, and cycle ${options.compactedInAssignment} began then. A compaction this contract asks for is done: continue with the rest of the contract, or return it if compacting was all it asked.`,
+          : `${a.contract}\n\nCompaction: you compacted during this assignment, and cycle ${options.compactedInAssignment} began then. A compaction this contract asks for is done: continue with the rest of the contract, or return it with freeflow_return if compacting was all it asked.`,
       );
   }
   if (baseReport) {

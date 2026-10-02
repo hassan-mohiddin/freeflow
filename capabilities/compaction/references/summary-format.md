@@ -185,7 +185,7 @@ retries should respect Retry-After, the API team says they ban clients that don'
 …  1 failed  …
 ```
 
-[Freeflow notice, not from the user] Compaction finished; cycle 3 starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on, and verify work the summary calls done instead of redoing it. The carried context is above. Then continue the work the compaction interrupted. This compaction completes the request for it: do not call freeflow_compact again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment).
+[Freeflow notice, not from the user] Compaction finished; cycle 3 starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on, and verify work the summary calls done instead of redoing it. The carried context is above. Then continue the work the compaction interrupted. This compaction completes the request for it: do not call freeflow_compact again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment with freeflow_return).
 ````
 
 ## Example: record-shaped
