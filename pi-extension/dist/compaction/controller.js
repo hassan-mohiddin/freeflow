@@ -173,6 +173,7 @@ export class CompactionController {
               ],
               files: cycleFiles(branch),
               ...(recordPath ? { recordPath } : {}),
+              ...(this.host.routingProfile() ? { profile: this.host.routingProfile() } : {}),
             },
           },
         },

@@ -208,6 +208,15 @@ test("a worker compacts mid-assignment, recovers, and the unit completes", { tim
       assert.match(after, /WORKER_SUMMARY/);
       assert.match(after, /Cognitive Routing profile when compacted: executor\./);
       assert.match(after, /Current exact assignment [^:]+:\\nRead evidence\.txt\./);
+      // The Coordinator learns which worker compacted; the worker's own requests carry no such line.
+      const NOTE = "Compaction: cycle 2 began when the Executor compacted; its summary opens your view.";
+      assert.ok(!JSON.stringify(requests[3].input).includes(NOTE));
+      assert.ok(JSON.stringify(requests[4].input).includes(NOTE));
+      // Each new copy of routing's Runtime State is complete, so the latest one still carries it.
+      const states = requests[5].input.filter((item) =>
+        JSON.stringify(item).includes("# Cognitive Routing Runtime State"),
+      );
+      assert.ok(JSON.stringify(states.at(-1)).includes(NOTE));
     },
     true,
     {

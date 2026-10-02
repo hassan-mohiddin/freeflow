@@ -75,6 +75,7 @@ export class ContextAssembler {
     const content = [
       "# Cognitive Routing Runtime State",
       `Profile: ${state.profile ?? "unresolved"}`,
+      state.profile === "coordinator" ? workerCompaction(this.session.ctx?.sessionManager?.getBranch?.() ?? []) : "",
       `Unit: ${unit ? `U${unitNumber}` : "none"}`,
       `Assignment: ${a ? `A${assignmentNumber} (${worker ?? "unknown"}, ${a.state})` : "none"}`,
       `Handoff: ${h ? `${h.kind} ${h.state}` : "none"}`,
@@ -340,4 +341,15 @@ export class ContextAssembler {
       ];
     }
   }
+}
+/**
+ * The Coordinator learns of a worker's Freeflow compaction from one line, for the cycle that compaction opened: the
+ * summary at the start of its view was written by that worker. Stable within the cycle, so it is sent once.
+ */
+function workerCompaction(branch) {
+  const latest = [...branch].reverse().find((entry) => entry?.type === "compaction");
+  const freeflow = latest?.details?.freeflow;
+  if (!freeflow || freeflow.fallback || !isWorkerProfile(freeflow.profile)) return "";
+  const worker = freeflow.profile === "helper" ? "Helper" : "Executor";
+  return `Compaction: cycle ${freeflow.cycle} began when the ${worker} compacted; its summary opens your view.`;
 }
