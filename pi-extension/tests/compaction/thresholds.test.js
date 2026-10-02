@@ -49,7 +49,7 @@ const result = (id, text) => ({
   message: { role: "toolResult", toolCallId: id, content: [{ type: "text", text }] },
 });
 
-test("the index lists this cycle's larger results newest first, with ids stable across compaction", () => {
+test("the index lists this cycle's larger results newest first, without Freeflow control calls, ids stable across compaction", () => {
   const big = "x".repeat(4_000);
   const branch = [
     call("c1", "read", { path: "old.txt" }),
@@ -61,10 +61,15 @@ test("the index lists this cycle's larger results newest first, with ids stable 
     result("c3", "tiny"),
     call("c4", "read", { path: "new.txt" }),
     result("c4", big),
+    call("c5", "freeflow_project", { operation: "inspect" }),
+    result("c5", big),
+    call("c6", "codemode", { code: "\n  const r = await tools.read({ path: 'x' });\n  return r;" }),
+    result("c6", big),
   ];
   assert.deepEqual(
     resultIndex(branch).map(({ id, tool, label, firstCycle }) => [id, tool, label, firstCycle]),
     [
+      ["r6", "codemode", "script: const r = await tools.read({ path: 'x' });", undefined],
       ["r4", "read", "new.txt", undefined],
       ["r2", "bash", "npm test", undefined],
       ["r1", "read", "old.txt", 2],

@@ -37,7 +37,7 @@ The limit is about 8,000 tokens. Most summaries need far less.
 
 ## What to carry
 
-The notice gives the budget. Carry what the next step needs in full and would otherwise re-read at once: the files you are changing (line ranges for large files) and the output you are working from (tool results by id). Leave out what is cheap to re-read later or already captured in the summary or record. If everything needed fits, carry it; otherwise carry the most important and leave the rest to the recovery sources. The user's latest messages are carried for you.
+The notice gives the budget. Carry what the next step needs in full and would otherwise re-read at once: the files you are changing (line ranges for large files) and the output you are working from (tool results: by routing ref, such as `ctx:1a2b3c4d`, when Cognitive Routing is on; otherwise by the id in the notice's list). Leave out what is cheap to re-read later or already captured in the summary or record. If everything needed fits, carry it; otherwise carry the most important and leave the rest to the recovery sources. The user's latest messages are carried for you. When the notice says context reuse is off, carry nothing.
 
 ## Recover
 

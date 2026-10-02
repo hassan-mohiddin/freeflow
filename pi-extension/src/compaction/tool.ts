@@ -30,7 +30,11 @@ export function registerCompactionTool(pi: any, controller: CompactionController
             properties: {
               file: { type: "string" },
               lines: { type: "array", items: { type: "integer" }, description: "[first, last], 1-based" },
-              result: { type: "string", description: "A result id from the index, such as r12" },
+              result: {
+                type: "string",
+                description:
+                  "A tool result: its routing ref (such as ctx:1a2b3c4d) when Cognitive Routing is on, otherwise its id from the notice's list (such as r12)",
+              },
             },
           },
         },

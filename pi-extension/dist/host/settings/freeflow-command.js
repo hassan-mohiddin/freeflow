@@ -14,7 +14,7 @@ import { freeflowStatusText } from "../status.js";
 import { PiSettingsComponent } from "./settings-view.js";
 import { workersForDelegation } from "../../cognitive-routing/types.js";
 import { DEFAULT_TOOL_EXECUTION_CONFIG } from "../../tool-execution/config.js";
-import { DEFAULT_COMPACTION_ENABLED } from "../../compaction/config.js";
+import { DEFAULT_COMPACTION_CARRY, DEFAULT_COMPACTION_ENABLED } from "../../compaction/config.js";
 /*
  * The /freeflow command and the settings model it edits: every Freeflow setting with its repository, personal, and
  * session scopes, the routing profile wizard, config file writes, and reload after saving. settings-view.ts draws the
@@ -836,7 +836,19 @@ function freeflowItems(rawConfig, options = {}) {
     effectiveSource: toolSource(["compaction", "enabled"]),
     defaultValue: DEFAULT_COMPACTION_ENABLED,
   });
-  const compactionItems = [compactionEnabledItem];
+  const compactionCarryItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.compaction.carry",
+    label: "Context reuse",
+    description: "Let the agent carry selected files and tool results into the next cycle.",
+    path: ["compaction", "carry"],
+    effectiveValue: compactionState?.carry ?? DEFAULT_COMPACTION_CARRY,
+    effectiveSource: toolSource(["compaction", "carry"]),
+    defaultValue: DEFAULT_COMPACTION_CARRY,
+  });
+  const compactionItems = [compactionEnabledItem, compactionCarryItem];
   walkSettingsItems(compactionItems, (item) => {
     item.inactive = freeflowInactive;
   });
@@ -858,6 +870,7 @@ function pruneKnownDefaults(config) {
     { path: ["cognitiveRouting", "delegation"], value: "executor" },
     { path: ["toolExecution", "enabled"], value: DEFAULT_TOOL_EXECUTION_CONFIG.enabled },
     { path: ["compaction", "enabled"], value: DEFAULT_COMPACTION_ENABLED },
+    { path: ["compaction", "carry"], value: DEFAULT_COMPACTION_CARRY },
   ];
   for (const item of defaultPaths) {
     if (valuesEqual(getPath(config, item.path), item.value)) {

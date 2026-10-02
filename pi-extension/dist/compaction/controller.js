@@ -87,9 +87,22 @@ export class CompactionController {
     }
     return parts.join(", ");
   }
-  /** The result index for this cycle, as the agent reads it. */
+  /**
+   * The result list for this cycle, or "" when none is needed: context reuse is off, or routing's refs already name
+   * every result in the agent's context.
+   */
   indexText(ctx) {
+    if (!this.host.carryEnabled() || this.host.nativeRefs()) return "";
     return renderIndex(resultIndex(branchOf(ctx)));
+  }
+  /** How the notices tell the agent what it may carry. */
+  carryText(window) {
+    if (!this.host.carryEnabled())
+      return "context reuse is off, so carry nothing; the user's latest messages are carried for you";
+    const how = this.host.nativeRefs()
+      ? "files by path, tool results by their routing ref such as ctx:1a2b3c4d"
+      : "files by path, tool results by id below";
+    return `choose what to carry (budget ${carryBudget(window)} tokens: ${how})`;
   }
   /** After a turn: the notice to deliver, if the context just crossed a point not yet announced this cycle. */
   observe(ctx) {
@@ -99,7 +112,10 @@ export class CompactionController {
     if (this.sent.cycle !== cycle) this.sent = { cycle, warning: false, compactNow: false };
     const measured = this.host.measure(ctx);
     if (!measured) return undefined;
-    const { tokens, thresholds } = measured;
+    const { tokens: measuredTokens, thresholds } = measured;
+    // A list inserted with the notice is context too, so it moves the point earlier by its own size.
+    const listTokens = this.sent.warning ? 0 : estimateTokens(this.indexText(ctx));
+    const tokens = measuredTokens + listTokens;
     const level = tokens >= thresholds.compactNow ? "compactNow" : tokens >= thresholds.warning ? "warning" : undefined;
     if (!level || this.sent[level]) return undefined;
     this.sent.warning = true;
@@ -112,9 +128,10 @@ export class CompactionController {
     if (this.host.coordinatorUnderProjection())
       return `${prefix} ${level === "compactNow" ? "Compact now" : "Compaction is due"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own at about ${trigger}. Your view leaves out what workers did, so do not compact yourself: delegate an assignment asking the worker to read the compaction skill and compact, then continue.`;
     const index = this.indexText(ctx);
+    const list = index ? `\n\n${index}` : "";
     if (level === "compactNow")
-      return `${prefix} Compact now: context is at about ${tokens} of ${window} tokens, close to Pi's own compaction at about ${trigger}. Finish preparing and call freeflow_compact; if Pi compacts first, its own summary replaces yours.\n\n${index}`;
-    return `${prefix} Compaction is due: context is at about ${tokens} of ${window} tokens, and Pi compacts on its own at about ${trigger}. Read the compaction skill and prepare now: update the Working Record, choose what to carry (budget ${carryBudget(window)} tokens: files by path, tool results by id below), write the summary, then call freeflow_compact. A "compact now" notice follows near Pi's limit.\n\n${index}`;
+      return `${prefix} Compact now: context is at about ${tokens} of ${window} tokens, close to Pi's own compaction at about ${trigger}. Finish preparing and call freeflow_compact; if Pi compacts first, its own summary replaces yours.${list}`;
+    return `${prefix} Compaction is due: context is at about ${tokens} of ${window} tokens, and Pi compacts on its own at about ${trigger}. Read the compaction skill and prepare now: update the Working Record, ${this.carryText(window)}, write the summary, then call freeflow_compact. A "compact now" notice follows near Pi's limit.${list}`;
   }
   /** Check a freeflow_compact call and schedule it for the end of this turn; throws with the reason it is refused. */
   async request(params, ctx) {
@@ -136,6 +153,10 @@ export class CompactionController {
       );
     const carry = params?.carry === undefined ? [] : params.carry;
     if (!Array.isArray(carry)) throw new Error("carry must be a list of { file, lines? } or { result } items.");
+    if (carry.length && !this.host.carryEnabled())
+      throw new Error(
+        "Context reuse is off: call freeflow_compact without carry. The user's latest messages are carried for you.",
+      );
     const problems = carry.map(carryProblem).filter(Boolean);
     if (problems.length) throw new Error(`Fix the carry list: ${problems.join("; ")}.`);
     const { files, results, missing } = await this.read(carry, ctx);
@@ -144,7 +165,10 @@ export class CompactionController {
       throw new Error(
         `These cannot be carried: ${[
           ...unreadable.map((file) => `${file.path} (${file.error})`),
-          ...missing.map((id) => `${id} (no such result)`),
+          ...missing.map(
+            (id) =>
+              `${id} (${this.host.nativeRefs() ? "no routing ref of a carryable tool result" : "no such result"})`,
+          ),
         ].join(", ")}. Remove or correct them.`,
       );
     const carriedTokens =
@@ -164,7 +188,12 @@ export class CompactionController {
       carry.filter((item) => !isCarryResult(item)).map((item) => readCarriedFile(item, ctx.cwd)),
     );
     const ids = carry.filter(isCarryResult).map((item) => item.result);
-    const results = ids.map((id) => resolveResult(branch, id)).filter(Boolean);
+    const resolve = (id) => {
+      if (!this.host.nativeRefs()) return resolveResult(branch, id);
+      const source = this.host.resolveRef(id);
+      return source && { id, tool: source.tool, label: id, tokens: estimateTokens(source.text), text: source.text };
+    };
+    const results = ids.map(resolve).filter(Boolean);
     const missing = ids.filter((id) => !results.some((result) => result.id === id));
     return { files, results, missing };
   }

@@ -2,7 +2,7 @@
 
 Freeflow compaction turns compaction into a planned cycle boundary. After each turn Freeflow measures the context; when it passes the warning point, a notice says compaction is due and lists the results the agent can carry, and a second notice says to compact now near Pi's own limit. The agent updates its Working Record and calls `freeflow_compact` with a summary and the files to carry. At the end of that turn Freeflow writes Pi's compaction entry, keeping nothing raw, followed by the carried context and a recovery message, and the same run continues from them. Pi's own compaction stays unchanged as the fallback.
 
-Compaction is on by default whenever Freeflow is on: `compaction.enabled` in Freeflow config, shown as the Compaction switch in `/freeflow settings`. `/freeflow status` reports the cycle, context use against the warning, compact-now and Pi points, and the last compaction. The model-facing guidance is the compaction skill, [`capabilities/compaction/SKILL.md`](../../../capabilities/compaction/SKILL.md), with the summary's exact shape in [`references/summary-format.md`](../../../capabilities/compaction/references/summary-format.md); Freeflow always lists it with its skills, so the system prompt does not change with this setting.
+Compaction is on by default whenever Freeflow is on: `compaction.enabled` in Freeflow config, shown as the Compaction switch in `/freeflow settings`, with Context reuse (`compaction.carry`, on by default) beneath it. `/freeflow status` reports the cycle, context use against the warning, compact-now and Pi points, and the last compaction. The model-facing guidance is the compaction skill, [`capabilities/compaction/SKILL.md`](../../../capabilities/compaction/SKILL.md), with the summary's exact shape in [`references/summary-format.md`](../../../capabilities/compaction/references/summary-format.md); Freeflow always lists it with its skills, so the system prompt does not change with this setting.
 
 | File | Owns |
 |---|---|
@@ -10,7 +10,7 @@ Compaction is on by default whenever Freeflow is on: `compaction.enabled` in Fre
 | [`controller.ts`](controller.ts) | The agent path: when a request is accepted, validating it, the entries written at turn end, and the handoff to the post-compaction resets. |
 | [`tool.ts`](tool.ts) | Registers `freeflow_compact` (model-only, not callable from codemode) and declares it only while compaction is effective. |
 | [`thresholds.ts`](thresholds.ts) | When compaction is due: the warning at 80% of the window or 30k tokens before Pi's trigger, whichever is first, and "compact now" 10k before it, using Pi's effective reserve and the smallest window that may receive the full history. |
-| [`results.ts`](results.ts) | The result index: this cycle's larger tool results with ids (`r12`) the agent carries by; ids stay stable across compactions. |
+| [`results.ts`](results.ts) | The result list for sessions without Cognitive Routing: this cycle's larger tool results, except Freeflow's control calls, with ids (`r12`) the agent carries by; ids stay stable across compactions. Under routing no list is inserted: the agent's context already names each result by routing's source ref, and carry resolves those refs. |
 | [`carry.ts`](carry.ts) | The carried context: the latest user messages verbatim, selected files read fresh at compaction, selected tool results copied by id, the carry budget, and the summary limit. |
 | [`harness.ts`](harness.ts) | The part of the summary Freeflow writes itself: cycle, Working Record to read first, routing profile, running background commands, and the session-wide file lists in Pi's `<read-files>`/`<modified-files>` form (codemode nested calls included). |
 
@@ -19,6 +19,8 @@ Compaction is on by default whenever Freeflow is on: `compaction.enabled` in Fre
 ## Rules
 
 - `freeflow_compact` is accepted only when compaction is due: the context is past the warning point, or the user ran `/freeflow compact` in this cycle. Due is recomputed from the measurement, so a reload does not lose it.
+- Context reuse off: no list, no carry budget, and `carry` items are refused; the user's latest messages are still carried.
+- A list inserted with the warning is context too, so its size moves the warning point earlier.
 - Each notice is sent once per cycle. Mid-run it joins the next request; at the end of a run it waits for the next prompt rather than starting work.
 - After a worker's Freeflow compaction, routing's Runtime State tells the Coordinator which worker compacted, for the rest of that cycle (the compaction details record the profile).
 - A Coordinator under projection never compacts: its notices tell it to delegate compaction to a worker, and `freeflow_compact` refuses it.

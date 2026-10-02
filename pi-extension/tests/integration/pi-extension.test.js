@@ -444,7 +444,7 @@ test("Pi settings show Compaction as one switch, on by default, and status repor
     const settingsCtx = context(cwd);
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
-      assert.match(renderText(component, 180), /Compaction\s+enabled \(1\) active/);
+      assert.match(renderText(component, 180), /Compaction\s+enabled \(2\) active/);
       return undefined;
     };
     await command.definition.handler("settings repo", settingsCtx);

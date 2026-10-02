@@ -7,11 +7,24 @@ import { currentCycle } from "./harness.js";
  */
 const SIZE_FLOOR = 500;
 const MAX_ROWS = 40;
+/** Freeflow's own control calls: no evidence to carry, as routing's evidence selection also excludes them. */
+const CONTROL_TOOLS = new Set([
+  "freeflow_delegate",
+  "freeflow_return",
+  "freeflow_project",
+  "freeflow_unit",
+  "freeflow_compact",
+]);
 const resultText = (message) =>
   (message?.content ?? [])
     .map((part) => (part?.type === "text" ? part.text : part?.type === "image" ? "[image]" : ""))
     .join("");
 function label(name, input) {
+  const firstLine = (text) =>
+    text
+      .split("\n")
+      .map((line) => line.trim())
+      .find(Boolean) ?? "";
   const value =
     typeof input?.command === "string"
       ? input.command
@@ -19,8 +32,14 @@ function label(name, input) {
         ? input.path
         : typeof input?.url === "string"
           ? input.url
-          : JSON.stringify(input ?? {});
-  const line = String(value).split("\n")[0];
+          : typeof input?.code === "string"
+            ? `script: ${firstLine(input.code)}`
+            : Array.isArray(input?.queries)
+              ? input.queries.join("; ")
+              : typeof input?.query === "string"
+                ? input.query
+                : name;
+  const line = firstLine(String(value));
   return line.length > 80 ? `${line.slice(0, 77)}...` : line;
 }
 /** Every tool result on the branch with its id, oldest first. */
@@ -58,7 +77,7 @@ export function resultIndex(branch) {
   const cycle = new Set(currentCycle(branch));
   const results = allResults(branch);
   const rows = results
-    .filter((result) => cycle.has(result.entry) && result.tokens >= SIZE_FLOOR)
+    .filter((result) => cycle.has(result.entry) && result.tokens >= SIZE_FLOOR && !CONTROL_TOOLS.has(result.tool))
     .reverse()
     .map(({ id, tool, label, tokens }) => ({ id, tool, label, tokens }));
   const latest = [...branch].reverse().find((entry) => entry?.type === "compaction" && entry.details?.freeflow);

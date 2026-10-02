@@ -42,7 +42,7 @@ export function carryProblem(item) {
   if (typeof value === "object" && value !== null && typeof value.result === "string") {
     if (value.file !== undefined || value.lines !== undefined)
       return `${value.result}: give a result id or a file, not both`;
-    return /^r[1-9][0-9]*$/.test(value.result) ? undefined : `${value.result}: result ids look like r12`;
+    return value.result.trim() ? undefined : "a result id must not be empty";
   }
   if (typeof value !== "object" || value === null || typeof value.file !== "string" || value.file.length === 0)
     return "each carry item needs a file path or a result id";
@@ -108,7 +108,10 @@ export function renderCarried(cycle, userMessages, files, results = []) {
     parts.push(
       "## Tool results\n\n" +
         results
-          .map((result) => `### ${result.id} ${result.tool}: ${result.label}\n\n${fenced(result.text)}`)
+          .map(
+            (result) =>
+              `### ${result.id} ${result.tool}${result.label && result.label !== result.id ? `: ${result.label}` : ""}\n\n${fenced(result.text)}`,
+          )
           .join("\n\n"),
     );
   return parts.join("\n\n");
