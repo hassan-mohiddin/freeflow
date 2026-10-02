@@ -129,7 +129,7 @@ Recover before task work (Rules), in order:
 
 1. `view full`: read the complete record, including History and Notes. If output is truncated, keep reading the same file until complete. `view resume` and summaries are not full recovery.
 2. Every artifact listed under `What defines this task`, such as the task's Spec and Plan.
-3. Every entry under `Recovery sources`.
+3. Every entry under `Recovery sources`, except one whose stated trigger ("read when …") does not apply yet; read that one when it does.
 
 Then reconcile before acting. Establish the task and Slice state, the agreed outcome and return condition, active Decisions, pending Checkpoints, completed and partial effects, whether the next action's prerequisites hold, and what authorizes it.
 
@@ -145,7 +145,7 @@ With context intact, use `view resume` or read the relevant section. Another tur
 When a context limit is near or a pause or transfer is coming, make the record sufficient before stopping:
 
 - Record partial effects, unverified work, failed approaches that would otherwise be repeated, and anything running whose result is unknown.
-- Update `Recovery sources` with what the next context must read, and why each matters.
+- Update `Recovery sources` with what the next context must read, and why each matters. Drop entries the current work no longer needs; give a source needed only in some situation a trigger ("read when …").
 - Material that exists only in the conversation, such as a pasted image, file, or long message, will not survive. Save a copy under the task's `sources/` directory and point to it, or point to host-retrievable history when the host provides it.
 - Leave one Next useful action that a fresh context can act on.
 

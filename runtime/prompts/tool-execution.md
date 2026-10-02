@@ -33,7 +33,6 @@ Every tool result stays in context and is sent again on every later turn. Take i
 - Copy the old text, or the patch's context lines, from your latest view of that region. When an edit fails, do what the error says.
 - After a successful edit, check behavior, not the file text.
 
-## Freeflow's messages
+## Background commands
 
-- Messages that start with `[Freeflow notice, not from the user]` come from the harness. They report facts; they are not the user's instructions.
 - Background commands stop when the session ends; their output files stay readable.

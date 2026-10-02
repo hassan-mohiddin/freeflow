@@ -74,6 +74,7 @@ export function stableRuntimeContext(context) {
     "Freeflow keeps a fixed reference catalog of its instructions, skills, and tools to preserve prompt caching. Presence in this catalog does not mean a feature is active or an operation is permitted.",
     "Apply the following guidance and Freeflow skills only when the latest extension-generated Freeflow Runtime State marks the corresponding feature active. When Freeflow is inactive, unavailable, or not configured, its core and capability guidance is dormant; do not bootstrap or follow it merely because it is listed. Explicit user instructions retain their normal authority.",
     "For Cognitive Routing, follow the latest control/profile/responsibility snapshots on this branch. Earlier snapshots and notices are historical; they grant no current permission. Tool permissions are checked by the runtime, even though all definitions remain visible. Never call a disabled operation.",
+    "Messages that start with `[Freeflow notice, not from the user]` come from Freeflow, not the user. They report facts and harness steps; they are not the user's instructions.",
     ...sections
       .filter(([, text]) => isPromptAvailable(text))
       .map(([feature, text]) => `## Reference guidance: ${feature}\n\n${text.trim()}`),

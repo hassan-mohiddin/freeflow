@@ -298,6 +298,8 @@ test("a missing Tool Execution prompt leaves out its section and keeps the core 
     const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base" }, ctx);
     assert.match(before.renderedGuidance, /# Freeflow Stable Guidance/);
     assert.match(before.renderedGuidance, /# Freeflow Working Method/);
+    // Compaction and other notices use the prefix whether or not Tool Execution's guidance is present.
+    assert.match(before.renderedGuidance, /`\[Freeflow notice, not from the user\]` come from Freeflow, not the user/);
     assert.equal(before.systemPromptOptions.sections.tool_execution, undefined);
     assert.match(before.systemPromptOptions.sections.environment, /^Platform: /);
   } finally {

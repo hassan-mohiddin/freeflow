@@ -171,9 +171,10 @@ What the next context must read to resume the current work, one bullet per sourc
 - docs/api-v2.pdf — the accepted response shape; sections 3–4 govern the current Slice.
 - .freeflow/tasks/task-007-report/sources/layout.png — the user's layout; the header spacing is binding.
 - conversation:turn-42 — the user's exception for legacy clients.
+- docs/benchmarks.md — baseline timings; read when measuring performance.
 ```
 
-Each entry is a pointer, then what it establishes. A pointer is a path relative to the repository root, an absolute path, a URL, or a host history reference when the host can retrieve it. Material that exists only in the conversation is saved under the task's `sources/` directory first. Recovery sources apply to Current Work only and do not carry into History.
+Each entry is a pointer, then what it establishes. An entry may end with a trigger, `read when <situation>`: recovery reads it only once that situation applies. Use one only when the source matters to part of the work, not to save reading what the next action needs. A pointer is a path relative to the repository root, an absolute path, a URL, or a host history reference when the host can retrieve it. Material that exists only in the conversation is saved under the task's `sources/` directory first. Recovery sources apply to Current Work only and do not carry into History.
 
 ### Next useful action
 

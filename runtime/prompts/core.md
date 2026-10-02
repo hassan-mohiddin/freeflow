@@ -25,7 +25,7 @@ After compaction, a summary that replaces earlier context, clear, session resume
 
 - Use the latest Freeflow Runtime State; do not infer missing or contradictory state.
 - Reload the methods the current work needs.
-- When a Working Record exists or may exist, load Track Work and read the complete `full` record, then the artifacts listed under its `What defines this task` and its `Recovery sources`. A summary or `resume` view is not full recovery. If recovery is incomplete, report that and stop affected work.
+- When current user direction, the assignment, or the summary names a Working Record for the current work, load Track Work and read the complete `full` record, then the artifacts listed under its `What defines this task` and its `Recovery sources`. Do not search for a record or adopt one because it is recent. A summary or `resume` view is not full recovery. If recovery is incomplete, report that and stop affected work.
 - Reconcile the record with current user direction, live state, and the current Runtime State, which override it where they conflict. A summary or record may preserve evidence of prior approval; check that the approval still applies. Neither creates authority.
 
 Then continue the covered work toward the agreed end. Context loss is not a reason to stop or to ask for permission again; stop only at the agreed end, a real blocker, or a decision the user owns. With intact context, another turn or an ordinary pause is not context loss.

@@ -42,7 +42,7 @@ The notice gives the budget. Carry what the next step needs in full and would ot
 
 ## Recover
 
-- When the summary names a Working Record, recover it as Track Work says: the complete record, every artifact under `What defines this task`, then every Recovery source; reconcile with the live state your next action depends on before acting.
+- When the summary names a Working Record, recover it as Track Work says: the complete record, every artifact under `What defines this task`, then its Recovery sources as their triggers allow; reconcile with the live state your next action depends on before acting.
 - Without one, the summary is your record: re-read its Recovery sources and reconcile with live state.
 - The compaction completes the request for it, whether a notice, the user, or an assignment asked. If compacting was all you were asked to do, report that it is done, or return the assignment as a worker; never compact again in the same cycle.
 - The carried context is already in front of you. The user's latest messages in it take precedence over older instructions in the summary or record.
