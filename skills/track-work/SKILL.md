@@ -26,6 +26,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Use [working-record.mjs](scripts/working-record.mjs) for every lifecycle change: IDs, states, and moves between sections. Edit only meaning directly.
 - Only the user changes task state.
 - After context loss, recover in this order before any task action: the complete record through `view full`, then every artifact listed under `What defines this task`, then `Recovery sources`. If any of them cannot be read completely, report that and stop affected work.
+- Recover only the current work's record: one that current user direction, the assignment, or the summary names or describes. A recent change does not show that a record belongs to the current work. When they conflict, report the mismatch instead of recovering it.
 - Never record a requested, reported, or expected result as observed. Keep unverified work, failures, and contradictions visible.
 - Never claim that state will survive context loss unless it is written in the record or in a source the record points to.
 
@@ -123,9 +124,7 @@ On long tasks, a `preserve` Checkpoint every few Slices keeps a recoverable poin
 
 ## Recover After Context Loss
 
-Context loss includes compaction, summarization that replaces context, clear, session resume or navigation, transfer to another context, or uncertain continuity. Recover only the record of the current work: one that current user direction, the assignment, or the summary names for it. A record that is merely recent, or that they do not name, is not a recovery source; when a pointer conflicts with them, report the mismatch instead of recovering it.
-
-Recover before task work (Rules), in order:
+Context loss includes compaction, summarization that replaces context, clear, session resume or navigation, transfer to another context, or uncertain continuity. Recover before task work (Rules), in order:
 
 1. `view full`: read the complete record, including History and Notes. If output is truncated, keep reading the same file until complete. `view resume` and summaries are not full recovery.
 2. Every artifact listed under `What defines this task`, such as the task's Spec and Plan.

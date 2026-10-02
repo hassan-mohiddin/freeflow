@@ -11,6 +11,8 @@ The summary works like a Working Record ([Track Work](../../skills/track-work/SK
 
 ## Rules
 
+The Rules are binding; if one cannot be met, stop and say why. The rest of this skill is judgment: follow its goal, and adapt when a different choice serves it better.
+
 - Prepare in this order, then call `freeflow_compact` once: the Working Record if one exists (Track Work, "Prepare For A Context Boundary"), then what to carry, then the summary.
 - Compaction is a context boundary, not a Slice transition or a Checkpoint. Do not rush, close, or pause a Slice to compact, claim an unfinished check passed, or guess the outcome of a running operation.
 - Write state, not a story: what is true now, each item marked as settled, tentative, superseded, or unverified, not the order things happened in.
