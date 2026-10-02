@@ -69,6 +69,14 @@ export class FileTracking {
     this.changed.clear();
   }
 
+  /** After a Freeflow compaction the model holds only the carried files, read at compaction time. */
+  async compacted(carried: readonly string[], ctx: any): Promise<void> {
+    this.state.reset();
+    this.changed.clear();
+    for (const path of carried) await this.state.observe(path, ctx.cwd, "read");
+    this.built = true;
+  }
+
   /** The branch's file state for apply_patch, built when needed. */
   async forPatch(ctx: any): Promise<FileState> {
     await this.ensureBuilt(ctx);

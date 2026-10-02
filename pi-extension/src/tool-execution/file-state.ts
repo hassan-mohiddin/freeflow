@@ -130,12 +130,20 @@ export class FileState {
     return changed;
   }
 
-  /** Mark every file a successful read, edit, write or patch on the branch touched, with today's content. */
+  /**
+   * Mark every file a successful read, edit, write or patch on the branch touched, with today's content. A Freeflow
+   * compaction starts over: the model then holds only the files it carried.
+   */
   async rebuild(branch: readonly any[], cwd: string): Promise<void> {
     this.files.clear();
     const calls = new Map<string, { name: string; input: any }>();
     const touched = new Set<string>();
     for (const entry of branch) {
+      if (entry?.type === "compaction" && entry.details?.freeflow) {
+        touched.clear();
+        for (const item of entry.details.freeflow.carried ?? [])
+          if (item?.kind === "file" && typeof item.path === "string" && !item.error) touched.add(item.path);
+      }
       const message = entry?.type === "message" ? entry.message : undefined;
       if (message?.role === "assistant")
         for (const block of message.content ?? [])

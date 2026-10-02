@@ -13,6 +13,8 @@ import { registerApplyPatch } from "./tool-execution/apply-patch/tool.js";
 import { applyToolExecutionTools } from "./tool-execution/tools.js";
 import { BackgroundJobs, NOTICE_PREFIX, NOTICE_TYPE, registerBackgroundTools } from "./tool-execution/background.js";
 import { backgroundRefusal } from "./tool-execution/bash-guard.js";
+import { CompactionController } from "./compaction/controller.js";
+import { applyCompactionTools, registerCompactionTool } from "./compaction/tool.js";
 import { tagProjectedMessages } from "./host/projection-tags.js";
 import { trustLoadedSession } from "./host/read-only-session.js";
 import { takeStage } from "./host/staging.js";
@@ -69,6 +71,7 @@ function freeflowCompletions(prefix, routingAvailable) {
       : [
           ["settings", "settings", "Open personal override settings"],
           ["status", "status", "Show effective Freeflow state"],
+          ["compact", "compact", "Prepare, compact and recover now"],
           ...(routingAvailable
             ? [
                 ["profile", "profile", "Hold or release Cognitive Routing profile control"],
@@ -109,6 +112,7 @@ export default function freeflow(pi) {
   let capability;
   const files = new FileTracking();
   const toolExecutionEffective = () => capability?.toolExecution?.effective === true;
+  const compactionEffective = () => capability?.compaction?.effective === true;
   const cacheHealth = new CacheHealth();
   let prompts;
   let refreshState = true;
@@ -147,6 +151,7 @@ export default function freeflow(pi) {
   function status(ctx) {
     applyRoutingToolVisibility(api, routing, capability?.cognitiveRouting?.effective === true);
     applyToolExecutionTools(api, toolExecutionEffective());
+    applyCompactionTools(api, compactionEffective());
     setFreeflowStatus(ctx, capability, routing.state(), prompts);
   }
   // Control and setting changes made between prompts are staged; their net effect is written as a prompt starts.
@@ -181,6 +186,31 @@ export default function freeflow(pi) {
   };
   const background = new BackgroundJobs(backgroundHost);
   registerBackgroundTools(api, background, backgroundHost);
+  const compaction = new CompactionController({
+    effective: compactionEffective,
+    routingProfile: () => {
+      const state = routing.state();
+      return state.effective ? state.activeProfile : undefined;
+    },
+    background: () => background.running().map(({ id, label, outputPath }) => ({ id, label, outputPath })),
+  });
+  registerCompactionTool(api, compaction);
+  // The user's /freeflow compact makes compaction due now: the agent prepares, compacts and recovers.
+  async function compactNow(ctx) {
+    if (!compactionEffective()) {
+      ctx.ui.notify("Freeflow compaction is off; Pi's /compact still works.", "warning");
+      return;
+    }
+    compaction.arm("command");
+    // The user asked, so this is their message. A user message also starts an ordinary run, which keeps Freeflow's
+    // system sections; a run started by an extension message loses them from its second request (Pi #10267).
+    // Interim wording; the reviewed texts arrive with the compaction skill.
+    const text =
+      "Compact the conversation now. Update the Working Record if one exists, then call freeflow_compact with your summary and any files to carry.";
+    await Promise.resolve(
+      api.sendUserMessage(text, ctx.isIdle?.() === false ? { deliverAs: "steer" } : undefined),
+    ).catch(() => {});
+  }
   pi.on("resources_discover", async (event, ctx) => {
     const state = capability ?? (await loadSurface(ctx ?? { cwd: event?.cwd ?? process.cwd() }));
     return {
@@ -203,6 +233,7 @@ export default function freeflow(pi) {
     await loadSurface(ctx);
     cacheHealth.reset();
     files.reset();
+    compaction.reset();
     await routing.bind(ctx, capability.cognitiveRouting, event?.reason !== "reload");
     status(ctx);
   });
@@ -211,6 +242,7 @@ export default function freeflow(pi) {
     // Background processes belong to this extension instance; none may report into the next session.
     await background.stopAll();
     files.reset();
+    compaction.reset();
     resetHistory();
     routing.unbind();
     capability = undefined;
@@ -292,6 +324,14 @@ export default function freeflow(pi) {
     await routing.turnEnd(event, ctx);
     files.clearPending();
     status(ctx);
+    return compaction.turnEnd(event, ctx);
+  });
+  // A Freeflow compaction fires no session_compact, so its resets run here, before the new cycle's first request.
+  pi.on("turn_start", async (_event, ctx) => {
+    const compacted = compaction.takeCompacted();
+    if (!compacted) return;
+    await restore(ctx, false);
+    await files.compacted(compacted.carriedFiles, ctx);
   });
   pi.on("agent_settled", async (_event, ctx) => {
     await routing.settled(ctx);
@@ -418,6 +458,10 @@ export default function freeflow(pi) {
           typeof api.setThinkingLevel === "function",
       ),
     handler: async (args, ctx) => {
+      if ((args ?? "").trim().toLowerCase() === "compact") {
+        await compactNow(ctx);
+        return;
+      }
       if (await routing.command(args ?? "", ctx)) {
         await update(ctx);
         return;

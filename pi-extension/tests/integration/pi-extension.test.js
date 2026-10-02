@@ -348,7 +348,7 @@ test("Pi registers the remaining Freeflow commands without mode controls or reti
   assert.ok(!toolNames.includes("freeflow_context"));
   assert.deepEqual(
     toolNames.filter((name) => name.startsWith("freeflow_")),
-    ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project"],
+    ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project", "freeflow_compact"],
   );
   assert.ok(!toolNames.includes("freeflow_switch_profile"));
   assert.ok(!toolNames.includes("freeflow_cognitive_routing_history"));
@@ -740,6 +740,7 @@ test("Pi describes the mode-free Freeflow argument surface and manual profile co
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions(""), [
     { value: "settings", label: "settings", description: "Open personal override settings" },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
+    { value: "compact", label: "compact", description: "Prepare, compact and recover now" },
     { value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" },
     { value: "resume", label: "resume", description: "Resume the current saved routing responsibility" },
     { value: "enable", label: "enable", description: "Enable Freeflow for this repository" },

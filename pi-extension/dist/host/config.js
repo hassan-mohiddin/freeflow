@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { resolveCognitiveRoutingState, supportsCognitiveRoutingModelRegistry } from "../cognitive-routing/config.js";
 import { sessionStage, stagedFor } from "./staging.js";
 import { resolveToolExecutionConfig, validateToolExecutionConfig } from "../tool-execution/config.js";
+import { resolveCompactionConfig, validateCompactionConfig } from "../compaction/config.js";
 const SESSION_OVERRIDES_ENTRY = "freeflow-session-overrides";
 const SESSION_CORE_KEYS = new Set(["enabled"]);
 let currentSessionOverrides = {};
@@ -62,6 +63,7 @@ function validateFreeflowConfigShape(value) {
     "scriptTransform",
     "cognitiveRouting",
     "toolExecution",
+    "compaction",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -79,6 +81,10 @@ function validateFreeflowConfigShape(value) {
     const error = validateToolExecutionConfig(value.toolExecution);
     if (error) return error;
   }
+  if (value.compaction !== undefined) {
+    const error = validateCompactionConfig(value.compaction);
+    if (error) return error;
+  }
   return null;
 }
 function validateFreeflowLocalConfigShape(value) {
@@ -88,7 +94,7 @@ function validateFreeflowLocalConfigShape(value) {
   const removedContextError = removedContextConfigError(value, ".freeflow/local.json");
   if (removedContextError) return removedContextError;
   // processing belongs to a retired feature; it is accepted and ignored so existing local configs keep loading.
-  const allowedKeys = new Set(["enabled", "processing", "cognitiveRouting", "toolExecution"]);
+  const allowedKeys = new Set(["enabled", "processing", "cognitiveRouting", "toolExecution", "compaction"]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       return `unsupported top-level local config key: ${key}`;
@@ -96,7 +102,11 @@ function validateFreeflowLocalConfigShape(value) {
   }
   const coreError = validateCoreConfigFields(value);
   if (coreError) return coreError;
-  if (value.toolExecution !== undefined) return validateToolExecutionConfig(value.toolExecution);
+  if (value.toolExecution !== undefined) {
+    const error = validateToolExecutionConfig(value.toolExecution);
+    if (error) return error;
+  }
+  if (value.compaction !== undefined) return validateCompactionConfig(value.compaction);
   return null;
 }
 async function readConfigFileState(path, validate) {
@@ -231,6 +241,7 @@ export async function readCapabilityState(cwd, host = undefined) {
   const repositoryConfig = layers.repository.valid ? layers.repository.parsed : {};
   const localConfig = layers.local.valid ? layers.local.parsed : {};
   const toolExecution = resolveToolExecutionConfig(repositoryConfig, localConfig, enabled);
+  const compaction = resolveCompactionConfig(repositoryConfig, localConfig, enabled);
   const capabilityState = {
     configured: layers.configured,
     repositoryConfigured: layers.repositoryConfigured,
@@ -250,12 +261,14 @@ export async function readCapabilityState(cwd, host = undefined) {
     hostSupportsCognitiveRouting,
     cognitiveRouting,
     toolExecution,
+    compaction,
   };
   if (!subagentContext) return capabilityState;
   return {
     ...capabilityState,
     cognitiveRouting: disableSubagentCapability(capabilityState.cognitiveRouting),
     toolExecution: disableSubagentCapability(capabilityState.toolExecution),
+    compaction: disableSubagentCapability(capabilityState.compaction),
   };
 }
 function recordedSessionOverrides(sessionManager) {

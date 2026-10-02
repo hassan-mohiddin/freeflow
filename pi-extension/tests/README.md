@@ -22,6 +22,7 @@ Rebuild after changing `src/`; a stale `dist/` tests old code.
 | [`cognitive-routing/`](cognitive-routing/README.md) | Routing state, delegation, handoffs, projection, recovery, and its behavior on the current Pi. |
 | [`tool-execution/`](tool-execution/README.md) | File tracking, notices, `apply_patch`, background commands, the bash guard, prompt sections. |
 | [`provider-support/`](provider-support/README.md) | Cache breakpoints, keep-alive, cache health, OpenAI effort history, Sign in with ChatGPT. |
+| [`compaction/`](compaction/README.md) | Freeflow compaction: when it is accepted, what the turn end writes, carried context, resets, and routing. |
 | [`cache-reuse/`](cache-reuse/README.md) | End-to-end prompt-cache reuse: each request extends the previous one, per view and per provider. |
 | [`host/`](host/README.md) | Settings widgets and persisted-session checks. |
 | [`integration/`](integration/README.md) | The whole extension: prompt architecture, Runtime State placement, configuration, and regressions. |

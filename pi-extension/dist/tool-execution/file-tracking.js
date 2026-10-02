@@ -60,6 +60,13 @@ export class FileTracking {
   clearPending() {
     this.changed.clear();
   }
+  /** After a Freeflow compaction the model holds only the carried files, read at compaction time. */
+  async compacted(carried, ctx) {
+    this.state.reset();
+    this.changed.clear();
+    for (const path of carried) await this.state.observe(path, ctx.cwd, "read");
+    this.built = true;
+  }
   /** The branch's file state for apply_patch, built when needed. */
   async forPatch(ctx) {
     await this.ensureBuilt(ctx);
