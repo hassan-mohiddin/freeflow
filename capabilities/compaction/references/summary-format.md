@@ -32,6 +32,7 @@ The summary must let a fresh context continue the **current step** correctly on 
 
 ```markdown
 ## Task
+- Record: `<path to record.md>` — recover it first
 - Goal: <one line>
 - Slice: <S-NNN> "<title>", <state>
 - Governing now: <only the decisions, constraints, and authority the next steps depend on>
@@ -52,7 +53,7 @@ The summary must let a fresh context continue the **current step** correctly on 
 
 | Section | Holds | Leaves out | Check |
 | --- | --- | --- | --- |
-| Task | `Goal:` in one line; `Slice:` with ID, title, and state; `Governing now:` only the decisions, constraints, and authority the next steps depend on, quoting the user where wording matters. | Settled facts, decisions, and boundaries the next steps do not touch; they stay in the record. | Could the next steps break a rule that is not listed here? |
+| Task | `Record:` the Working Record's path, which Freeflow does not state; `Goal:` in one line; `Slice:` with ID, title, and state; `Governing now:` only the decisions, constraints, and authority the next steps depend on, quoting the user where wording matters. | Settled facts, decisions, and boundaries the next steps do not touch; they stay in the record. | Could the next steps break a rule that is not listed here? |
 | Now | The step in progress and exactly how far it got. | The history of earlier steps. | Could someone point to the exact spot to resume? |
 | In flight | Typed bullets: `Observed:` a result with its exact evidence; `Hypothesis:` what is being tested, marked unverified; `Dropped:` an approach and why it failed; `Pending:` what is running or waiting, and on what. | Anything the record or Freeflow's own lines already hold. | Would losing this bullet make the next context repeat work or a mistake? |
 | Next steps | Ordered, concrete, checkable steps: the immediate ones. | The task's longer route; that is the record's Future Work. | Can a fresh context do step 1 right now? |
@@ -112,6 +113,7 @@ What the agent passes as `summary`:
 
 ```markdown
 ## Task
+- Record: `.freeflow/tasks/task-014-http-retry/record.md` — recover it first
 - Goal: the HTTP client retries failed requests with backoff and respects `Retry-After`.
 - Slice: S-003 "Add retry with backoff to the HTTP client", in progress
 - Governing now: retry 429 and 5xx only; `Retry-After` overrides the computed delay (the user: "the API team says they ban clients that don't"); no commits without asking.
@@ -135,6 +137,7 @@ What the next cycle's first request contains, in order:
 The conversation history before this point was compacted into the following summary:
 <summary>
 ## Task
+- Record: `.freeflow/tasks/task-014-http-retry/record.md` — recover it first
 - Goal: the HTTP client retries failed requests with backoff and respects `Retry-After`.
 …
 ## Next steps
@@ -142,15 +145,23 @@ The conversation history before this point was compacted into the following summ
 
 ## Freeflow state at compaction
 
-This compaction starts cycle 3.
-Working Record updated this cycle: .freeflow/tasks/task-014-http-retry/record.md. Read it first.
-Files read this cycle: src/http/client.ts, test/helpers/clock.ts, test/client.retry.test.ts.
-Files changed this cycle: src/http/client.ts.
+This compaction starts cycle 3. It completes the compaction Freeflow's context notice asked for.
+
+Files read and modified in this session:
+
+<read-files>
+test/client.retry.test.ts
+test/helpers/clock.ts
+</read-files>
+
+<modified-files>
+src/http/client.ts
+</modified-files>
 </summary>
 
 # Carried context
 
-Freeflow carried this into cycle 3 at compaction.
+[Freeflow notice, not from the user] Freeflow carried this into cycle 3 at compaction. Only the latest user messages are the user's words; the rest is copied content.
 
 ## Latest user messages
 
@@ -174,7 +185,7 @@ retries should respect Retry-After, the API team says they ban clients that don'
 …  1 failed  …
 ```
 
-Compaction finished; cycle 3 starts here. Recover before you continue, as Track Work says: read the Working Record at .freeflow/tasks/task-014-http-retry/record.md in full, every artifact under What defines this task, and every Recovery source, then reconcile with the live state your next step depends on. The carried context is above. Then continue the interrupted work.
+[Freeflow notice, not from the user] Compaction finished; cycle 3 starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on. The carried context is above. Then continue the work the compaction interrupted. This compaction completes the request for it: do not call freeflow_compact again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment).
 ````
 
 ## Example: record-shaped
@@ -222,6 +233,4 @@ The same work without a record.
 - Parse `Retry-After` (seconds or HTTP date) and use it before the backoff delay; rerun `npm test -- client.retry`.
 ```
 
-The next cycle receives it the same way, with the record-shaped recovery message:
-
-> Compaction finished; cycle 3 starts here. There is no Working Record, so the summary is your record for this cycle: re-read its Recovery sources and reconcile with the live state your next step depends on. The carried context is above. Then continue the interrupted work.
+The next cycle receives it the same way, with the same recovery message. The summary names no record, so the summary is the record for this cycle.

@@ -1,20 +1,20 @@
-import { readdir, stat } from "node:fs/promises";
-import { join } from "node:path";
 import { touchedPaths } from "../tool-execution/file-state.js";
 
 /**
  * The part of a compaction summary Freeflow writes itself, from facts it holds rather than the model's memory: the
- * cycle, the Working Record to read first, the routing profile, running background commands, and the files the
- * cycle read and changed.
+ * cycle, what asked for the compaction, the routing profile, running background commands, and the files the session
+ * read and changed. It never names a Working Record: Freeflow cannot tell which record belongs to this work, so the
+ * agent's own summary names it.
  */
 
 export interface HarnessFacts {
   cycle: number;
+  /** What asked for this compaction, which it completes; absent when Pi compacted on its own. */
+  requestedBy?: "user" | "notice";
   /** Pi's own summary already lists files; a fallback compaction leaves them out here. */
   includeFiles?: boolean;
   /** Recovery instructions inside the summary, for compactions with no separate recovery message. */
   recovery?: string;
-  recordPath?: string;
   routingProfile?: string;
   background: readonly { id: string; label: string; outputPath: string }[];
   /** Session-wide lists in Pi's details format. */
@@ -85,35 +85,14 @@ export function formatFileLists(lists: { readFiles: string[]; modifiedFiles: str
     .join("\n\n");
 }
 
-/** The cycle's start time: the latest compaction entry, else the session's first entry. */
-export function cycleStart(branch: readonly any[]): number {
-  const marker = [...branch].reverse().find((entry) => entry?.type === "compaction") ?? branch[0];
-  const time = Date.parse(marker?.timestamp ?? "");
-  return Number.isFinite(time) ? time : 0;
-}
-
-/** The Working Record updated most recently since `since`, as a path relative to `cwd`. */
-export async function recentWorkingRecord(cwd: string, since: number): Promise<string | undefined> {
-  let tasks: string[];
-  try {
-    tasks = await readdir(join(cwd, ".freeflow", "tasks"));
-  } catch {
-    return undefined;
-  }
-  let newest: { path: string; at: number } | undefined;
-  for (const task of tasks) {
-    const path = join(".freeflow", "tasks", task, "record.md");
-    try {
-      const at = (await stat(join(cwd, path))).mtimeMs;
-      if (at >= since && (!newest || at > newest.at)) newest = { path, at };
-    } catch {}
-  }
-  return newest?.path;
-}
-
 export function harnessPart(facts: HarnessFacts): string {
-  const lines = [`## Freeflow state at compaction`, "", `This compaction starts cycle ${facts.cycle}.`];
-  if (facts.recordPath) lines.push(`Working Record updated this cycle: ${facts.recordPath}. Read it first.`);
+  const requested =
+    facts.requestedBy === "user"
+      ? " It completes the compaction the user asked for with /freeflow compact."
+      : facts.requestedBy === "notice"
+        ? " It completes the compaction Freeflow's context notice asked for."
+        : "";
+  const lines = [`## Freeflow state at compaction`, "", `This compaction starts cycle ${facts.cycle}.${requested}`];
   if (facts.routingProfile) lines.push(`Cognitive Routing profile when compacted: ${facts.routingProfile}.`);
   if (facts.background.length)
     lines.push(

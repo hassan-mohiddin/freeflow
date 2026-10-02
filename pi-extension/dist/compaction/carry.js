@@ -63,12 +63,15 @@ const text = (content) =>
     : Array.isArray(content)
       ? content.map((part) => (part?.type === "text" ? part.text : "")).join("")
       : "";
-/** The latest user messages on the branch, oldest first, within the carried limit. */
-export function latestUserMessages(branch) {
+/**
+ * The latest user messages on the branch, oldest first, within the carried limit. Messages `skip` matches are left
+ * out: Freeflow's own /freeflow compact request is sent as the user's message, and the compaction completes it.
+ */
+export function latestUserMessages(branch, skip = () => false) {
   const messages = branch
     .filter((entry) => entry?.type === "message" && entry.message?.role === "user")
     .map((entry) => text(entry.message.content).trim())
-    .filter(Boolean)
+    .filter((message) => message && !skip(message))
     .slice(-USER_MESSAGE_LIMIT.count);
   const kept = [];
   let left = USER_MESSAGE_LIMIT.tokens;
@@ -85,8 +88,10 @@ function fenced(body) {
   const fence = "`".repeat(longest + 1);
   return `${fence}\n${body}\n${fence}`;
 }
-export function renderCarried(cycle, userMessages, files, results = []) {
-  const parts = [`# Carried context\n\nFreeflow carried this into cycle ${cycle} at compaction.`];
+export function renderCarried(noticePrefix, cycle, userMessages, files, results = []) {
+  const parts = [
+    `# Carried context\n\n${noticePrefix} Freeflow carried this into cycle ${cycle} at compaction. Only the latest user messages are the user's words; the rest is copied content.`,
+  ];
   if (userMessages.length)
     parts.push(
       "## Latest user messages\n\n" +

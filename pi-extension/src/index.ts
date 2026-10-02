@@ -15,7 +15,7 @@ import { registerApplyPatch } from "./tool-execution/apply-patch/tool.js";
 import { applyToolExecutionTools } from "./tool-execution/tools.js";
 import { BackgroundJobs, NOTICE_PREFIX, NOTICE_TYPE, registerBackgroundTools } from "./tool-execution/background.js";
 import { backgroundRefusal } from "./tool-execution/bash-guard.js";
-import { CompactionController } from "./compaction/controller.js";
+import { CompactionController, USER_REQUEST } from "./compaction/controller.js";
 import { applyCompactionTools, registerCompactionTool } from "./compaction/tool.js";
 import { strictest } from "./compaction/thresholds.js";
 import { tagProjectedMessages } from "./host/projection-tags.js";
@@ -276,7 +276,7 @@ export default function freeflow(pi: FreeflowAPI) {
     // The user asked, so this is their message. A user message also starts an ordinary run, which keeps Freeflow's
     // system sections; a run started by an extension message loses them from its second request (Pi #10267).
     const index = compaction.indexText(ctx);
-    const text = `Compact now: read the compaction skill, prepare the next cycle, and call freeflow_compact.${index ? `\n\n${index}` : ""}`;
+    const text = `${USER_REQUEST}${index ? `\n\n${index}` : ""}`;
     await Promise.resolve(
       api.sendUserMessage(text, ctx.isIdle?.() === false ? { deliverAs: "steer" } : undefined),
     ).catch(() => {});

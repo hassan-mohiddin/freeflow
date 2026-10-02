@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
@@ -64,17 +64,20 @@ test("/freeflow compact leads to one compaction and the same run continues from 
       const after = inputTexts(requests[3]);
       assert.match(after[0], /compacted into the following summary/);
       assert.match(after[0], /AGENT_SUMMARY_MARKER/);
-      assert.match(after[0], /This compaction starts cycle 2\./);
-      assert.match(after[0], /<read-files>\nevidence\.txt\n<\/read-files>/);
-      assert.match(after[1], /# Carried context/);
-      assert.match(after[1], /FIRST_USER_MESSAGE/);
       assert.match(
-        after[1],
-        /Compact now: read the compaction skill/,
-        "the user's /freeflow compact request is carried",
+        after[0],
+        /This compaction starts cycle 2\. It completes the compaction the user asked for with \/freeflow compact\./,
       );
+      assert.match(after[0], /<read-files>\nevidence\.txt\n<\/read-files>/);
+      assert.match(after[1], /^# Carried context\n\n\[Freeflow notice, not from the user\]/);
+      assert.match(after[1], /FIRST_USER_MESSAGE/);
+      assert.doesNotMatch(after[1], /Compact now/, "the compaction completes /freeflow compact, so it is not carried");
       assert.match(after[1], /### evidence\.txt\n\n`+\nFRESH_AT_COMPACTION\n`+/);
-      assert.match(after[2], /There is no Working Record, so the summary is your record for this cycle/);
+      assert.match(after[2], /^\[Freeflow notice, not from the user\] Compaction finished; cycle 2 starts here\./);
+      assert.match(after[2], /if the summary names a Working Record for this work/);
+      assert.match(after[2], /do not call freeflow_compact again in this cycle/);
+      // A record another session just updated is not this work's record: Freeflow names none.
+      assert.ok(!after.slice(0, 3).some((each) => each.includes("task-999-elsewhere")));
       // Nothing from before the compaction is sent again: not the old read, not the request that compacted.
       assert.ok(!JSON.stringify(requests[3].input).includes("EXACT_EVIDENCE_BODY_81"));
       assert.ok(!requests[3].input.some((item) => item.type === "function_call"));
@@ -84,6 +87,8 @@ test("/freeflow compact leads to one compaction and the same run continues from 
       const entry = manager.getBranch().find((each) => each.type === "compaction");
       assert.equal(entry.firstKeptEntryId, entry.id, "keeps no earlier entries");
       assert.equal(entry.details.freeflow.cycle, 2);
+      assert.equal(entry.details.freeflow.requestedBy, "user");
+      assert.equal(entry.details.freeflow.recordPath, undefined);
       assert.deepEqual(
         entry.details.freeflow.carried.map(({ kind, path, firstCycle }) => [kind, path, firstCycle]),
         [["file", "evidence.txt", 2]],
@@ -107,6 +112,8 @@ test("/freeflow compact leads to one compaction and the same run continues from 
       ...noRouting(),
       beforePrompt: async (run) => {
         cwd = run.cwd;
+        await mkdir(join(cwd, ".freeflow", "tasks", "task-999-elsewhere"), { recursive: true });
+        await writeFile(join(cwd, ".freeflow", "tasks", "task-999-elsewhere", "record.md"), "# Working Record: other");
         await run.session.prompt("FIRST_USER_MESSAGE");
         await run.session.waitForIdle();
         await compactNow(run);

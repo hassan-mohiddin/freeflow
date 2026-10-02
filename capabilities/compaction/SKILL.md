@@ -18,7 +18,8 @@ The summary works like a Working Record ([Track Work](../../skills/track-work/SK
 - Never write a requested, reported, or expected result as observed. Name every partial or uncommitted change, unverified result, running command, and obligation still waiting on its trigger.
 - Keep exact: paths, identifiers, commands, error text, numbers, and the user's words wherever wording matters. Never paraphrase a decision or a constraint.
 - Material that exists only in the conversation, such as a pasted file or a long message, leaves with it. With a Working Record, save it under the task's `sources/` and point to it; without one, quote what matters in the summary.
-- Do not repeat what the Working Record holds or what Freeflow states itself: the cycle, the record's path, the routing profile, running background commands, and the files read and changed.
+- With a Working Record, name its path in the summary: Freeflow never names one, and recovery starts from it.
+- Do not repeat what the Working Record holds or what Freeflow states itself: the cycle, the routing profile, running background commands, and the files read and changed.
 - Under Cognitive Routing with projection, the Coordinator does not compact: its view leaves out what workers did. Delegate an assignment asking the worker to compact. A worker's summary covers the whole session: the user's requests, the Coordinator's decisions, and the state of other work.
 - After compaction, recover before continuing.
 
@@ -41,8 +42,9 @@ The notice gives the budget. Carry what the next step needs in full and would ot
 
 ## Recover
 
-- With a Working Record, recover as Track Work says: the complete record, every artifact under `What defines this task`, then every Recovery source; reconcile with the live state your next action depends on before acting.
+- When the summary names a Working Record, recover it as Track Work says: the complete record, every artifact under `What defines this task`, then every Recovery source; reconcile with the live state your next action depends on before acting.
 - Without one, the summary is your record: re-read its Recovery sources and reconcile with live state.
+- The compaction completes the request for it, whether a notice, the user, or an assignment asked. If compacting was all you were asked to do, report that it is done, or return the assignment as a worker; never compact again in the same cycle.
 - The carried context is already in front of you. The user's latest messages in it take precedence over older instructions in the summary or record.
 - If the summary, the record, and live state disagree, resolve it from sources before any consequential action.
 - Verify work the summary or record calls done instead of redoing it, then continue the interrupted work.

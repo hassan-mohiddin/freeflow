@@ -9,15 +9,7 @@ import {
   renderCarried,
   SUMMARY_LIMIT_TOKENS,
 } from "./carry.js";
-import {
-  cycleFiles,
-  cycleStart,
-  harnessPart,
-  nextCycle,
-  previousFileLists,
-  recentWorkingRecord,
-  sessionFileLists,
-} from "./harness.js";
+import { cycleFiles, harnessPart, nextCycle, previousFileLists, sessionFileLists } from "./harness.js";
 import { renderIndex, resolveResult, resultIndex } from "./results.js";
 /**
  * Freeflow compaction's agent path. After each turn Freeflow measures the context and, once per cycle each, says
@@ -29,6 +21,9 @@ import { renderIndex, resolveResult, resultIndex } from "./results.js";
  */
 export const CARRIED_TYPE = "freeflow-carried-context";
 export const RECOVERY_TYPE = "freeflow-compaction-recovery";
+/** What /freeflow compact sends as the user's message; a list of results may follow it. */
+export const USER_REQUEST =
+  "Compact now: read the compaction skill, prepare the next cycle, and call freeflow_compact.";
 const ABNORMAL_STOPS = new Set(["error", "aborted", "length"]);
 const hash = (text) => createHash("sha256").update(text).digest("hex");
 const branchOf = (ctx) => ctx.sessionManager?.getBranch?.() ?? [];
@@ -206,18 +201,19 @@ export class CompactionController {
     if (ABNORMAL_STOPS.has(event?.message?.stopReason)) return undefined;
     const branch = branchOf(ctx);
     const cycle = nextCycle(branch);
-    const recordPath = await recentWorkingRecord(ctx.cwd, cycleStart(branch));
+    const requestedBy = this.requested === cycleOf(branch) ? "user" : "notice";
     const { files, results } = await this.read(pending.carry, ctx);
     const previous = previousCarried(branch);
     const summary = `${pending.summary}\n\n${harnessPart({
       cycle,
-      recordPath,
+      requestedBy,
       routingProfile: this.host.routingProfile(),
       background: this.host.background(),
       files: sessionFileLists(branch),
     })}`;
-    const carriedText = renderCarried(cycle, latestUserMessages(branch), files, results);
-    const recovery = recoveryText(cycle, recordPath, "The carried context is above. ");
+    const userMessages = latestUserMessages(branch, (message) => message.startsWith(USER_REQUEST));
+    const carriedText = renderCarried(this.host.noticePrefix, cycle, userMessages, files, results);
+    const recovery = `${this.host.noticePrefix} ${recoveryText(cycle, "The carried context is above. ")} ${AFTER_REQUESTED}`;
     this.requested = undefined;
     this.compacted = { carriedFiles: files.filter((file) => "text" in file).map((file) => file.path) };
     return {
@@ -237,7 +233,7 @@ export class CompactionController {
                 ...results.map((result) => resultRecord(result, cycle, previous)),
               ],
               files: cycleFiles(branch),
-              ...(recordPath ? { recordPath } : {}),
+              requestedBy,
               ...(this.host.routingProfile() ? { profile: this.host.routingProfile() } : {}),
             },
           },
@@ -260,7 +256,6 @@ export class CompactionController {
     try {
       const branch = branchOf(ctx);
       const cycle = nextCycle(branch);
-      const recordPath = await recentWorkingRecord(ctx.cwd, cycleStart(branch));
       const instructions = [FALLBACK_INSTRUCTIONS, event.customInstructions].filter(Boolean).join("\n\n");
       // Pi merges the previous compaction's file lists only when Pi wrote it; add them back for Freeflow's.
       const previousFiles = previousFileLists(branch);
@@ -273,12 +268,11 @@ export class CompactionController {
       if (!result?.summary) return undefined;
       const summary = `${result.summary}\n\n${harnessPart({
         cycle,
-        recordPath,
         routingProfile: this.host.routingProfile(),
         background: this.host.background(),
         files: { readFiles: [], modifiedFiles: [] },
         includeFiles: false,
-        recovery: recoveryText(cycle, recordPath),
+        recovery: `${recoveryText(cycle)} ${AFTER_PI}`,
       })}`;
       this.requested = undefined;
       return {
@@ -287,7 +281,7 @@ export class CompactionController {
           summary,
           details: {
             ...(result.details ?? {}),
-            freeflow: { version: 1, cycle, fallback: true, carried: [], ...(recordPath ? { recordPath } : {}) },
+            freeflow: { version: 1, cycle, fallback: true, carried: [] },
           },
         },
       };
@@ -311,11 +305,18 @@ const FALLBACK_INSTRUCTIONS = [
   "Say what the user has authorized and what still needs asking.",
   "If the conversation uses a Working Record (.freeflow/tasks/*/record.md), name its path and do not restate what it holds; keep what it does not hold.",
 ].join(" ");
-function recoveryText(cycle, recordPath, carried = "") {
-  return recordPath
-    ? `Compaction finished; cycle ${cycle} starts here. Recover before you continue, as Track Work says: read the Working Record at ${recordPath} in full, every artifact under What defines this task, and every Recovery source, then reconcile with the live state your next step depends on. ${carried}Then continue the interrupted work.`
-    : `Compaction finished; cycle ${cycle} starts here. There is no Working Record, so the summary is your record for this cycle: re-read its Recovery sources and reconcile with the live state your next step depends on. ${carried}Then continue the interrupted work.`;
+/**
+ * How to recover. Freeflow never names a Working Record here: it cannot tell which record belongs to this work, and
+ * pointing at the wrong one sends recovery into another task. The summary names the record when there is one.
+ */
+function recoveryText(cycle, carried = "") {
+  return `Compaction finished; cycle ${cycle} starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on. ${carried}Then continue the work the compaction interrupted.`;
 }
+/** The agent path: the compaction was the request, and it is done. */
+const AFTER_REQUESTED =
+  "This compaction completes the request for it: do not call freeflow_compact again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment).";
+/** Pi compacted on its own, so a Freeflow compaction being prepared is no longer needed. */
+const AFTER_PI = "Compaction is no longer due: do not call freeflow_compact.";
 /** What the previous Freeflow compaction carried (file paths and result ids), with the cycle each was first carried. */
 function previousCarried(branch) {
   const latest = [...branch].reverse().find((entry) => entry?.type === "compaction" && entry.details?.freeflow);

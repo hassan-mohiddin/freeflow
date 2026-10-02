@@ -123,7 +123,9 @@ On long tasks, a `preserve` Checkpoint every few Slices keeps a recoverable poin
 
 ## Recover After Context Loss
 
-Context loss includes compaction, summarization that replaces context, clear, session resume or navigation, transfer to another context, or uncertain continuity. Recover before task work (Rules), in order:
+Context loss includes compaction, summarization that replaces context, clear, session resume or navigation, transfer to another context, or uncertain continuity. Recover only the record of the current work: one that current user direction, the assignment, or the summary names for it. A record that is merely recent, or that they do not name, is not a recovery source; when a pointer conflicts with them, report the mismatch instead of recovering it.
+
+Recover before task work (Rules), in order:
 
 1. `view full`: read the complete record, including History and Notes. If output is truncated, keep reading the same file until complete. `view resume` and summaries are not full recovery.
 2. Every artifact listed under `What defines this task`, such as the task's Spec and Plan.

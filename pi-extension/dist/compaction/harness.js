@@ -1,5 +1,3 @@
-import { readdir, stat } from "node:fs/promises";
-import { join } from "node:path";
 import { touchedPaths } from "../tool-execution/file-state.js";
 /** Entries after the latest compaction on the branch: the current cycle. */
 export function currentCycle(branch) {
@@ -58,33 +56,14 @@ export function formatFileLists(lists) {
     .filter(Boolean)
     .join("\n\n");
 }
-/** The cycle's start time: the latest compaction entry, else the session's first entry. */
-export function cycleStart(branch) {
-  const marker = [...branch].reverse().find((entry) => entry?.type === "compaction") ?? branch[0];
-  const time = Date.parse(marker?.timestamp ?? "");
-  return Number.isFinite(time) ? time : 0;
-}
-/** The Working Record updated most recently since `since`, as a path relative to `cwd`. */
-export async function recentWorkingRecord(cwd, since) {
-  let tasks;
-  try {
-    tasks = await readdir(join(cwd, ".freeflow", "tasks"));
-  } catch {
-    return undefined;
-  }
-  let newest;
-  for (const task of tasks) {
-    const path = join(".freeflow", "tasks", task, "record.md");
-    try {
-      const at = (await stat(join(cwd, path))).mtimeMs;
-      if (at >= since && (!newest || at > newest.at)) newest = { path, at };
-    } catch {}
-  }
-  return newest?.path;
-}
 export function harnessPart(facts) {
-  const lines = [`## Freeflow state at compaction`, "", `This compaction starts cycle ${facts.cycle}.`];
-  if (facts.recordPath) lines.push(`Working Record updated this cycle: ${facts.recordPath}. Read it first.`);
+  const requested =
+    facts.requestedBy === "user"
+      ? " It completes the compaction the user asked for with /freeflow compact."
+      : facts.requestedBy === "notice"
+        ? " It completes the compaction Freeflow's context notice asked for."
+        : "";
+  const lines = [`## Freeflow state at compaction`, "", `This compaction starts cycle ${facts.cycle}.${requested}`];
   if (facts.routingProfile) lines.push(`Cognitive Routing profile when compacted: ${facts.routingProfile}.`);
   if (facts.background.length)
     lines.push(

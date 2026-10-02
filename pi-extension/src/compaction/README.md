@@ -12,7 +12,7 @@ Compaction is on by default whenever Freeflow is on: `compaction.enabled` in Fre
 | [`thresholds.ts`](thresholds.ts) | When compaction is due: the warning at 80% of the window or 30k tokens before Pi's trigger, whichever is first, and "compact now" 10k before it, using Pi's effective reserve and the smallest window that may receive the full history. |
 | [`results.ts`](results.ts) | The result list for sessions without Cognitive Routing: this cycle's larger tool results, except Freeflow's control calls, with ids (`r12`) the agent carries by; ids stay stable across compactions. Under routing no list is inserted: the agent's context already names each result by routing's source ref, and carry resolves those refs. |
 | [`carry.ts`](carry.ts) | The carried context: the latest user messages verbatim, selected files read fresh at compaction, selected tool results copied by id, the carry budget, and the summary limit. |
-| [`harness.ts`](harness.ts) | The part of the summary Freeflow writes itself: cycle, Working Record to read first, routing profile, running background commands, and the session-wide file lists in Pi's `<read-files>`/`<modified-files>` form (codemode nested calls included). |
+| [`harness.ts`](harness.ts) | The part of the summary Freeflow writes itself: cycle, the request this compaction completes, routing profile, running background commands, and the session-wide file lists in Pi's `<read-files>`/`<modified-files>` form (codemode nested calls included). |
 
 `/freeflow compact` (in `src/index.ts`) makes compaction due and sends the request as the user's message.
 
@@ -27,6 +27,8 @@ Compaction is on by default whenever Freeflow is on: `compaction.enabled` in Fre
 - Under Cognitive Routing the measurement covers the full history whenever the Coordinator is active under projection: its own view is small, but the next worker request carries everything.
 - Pi fires no compaction events for this path, so `index.ts` runs Freeflow's resets at the next `turn_start`: request history, cache tracking, routing reconcile, and file tracking reduced to the carried files.
 - Carried content is copied into the session, never resolved later, so a reopened session needs no Freeflow lookup.
+- Freeflow never names a Working Record: it cannot tell which record belongs to this work. The agent's summary names it, and the recovery message says to recover a record the summary names.
+- The compaction completes the request that asked for it, and the summary and recovery message say so; `/freeflow compact`'s own text is not carried as a user message. The carried context and recovery message carry Freeflow's notice prefix, so the agent never reads them as the user's words.
 - A turn that errors, aborts or hits its length limit writes no compaction; compaction stays due.
 - Pi's own compaction (its threshold, an overflow, or `/compact`) keeps Pi's summarizer and kept tail. Freeflow adds its summary instructions (Pi appends them as "Additional focus") and its own state with recovery steps, and drops any scheduled Freeflow compaction. When Pi summarizes only a split turn's prefix, its prompt takes no extra instructions, so only the appended state applies. If anything fails, Freeflow steps aside and Pi compacts as it would alone.
 - File lists stay session-wide across any mix of Freeflow and Pi compactions: Freeflow stores them in Pi's details shape (`readFiles`, `modifiedFiles`), and before Pi's summarizer runs it adds back the previous compaction's lists, which Pi skips when an extension wrote that compaction.

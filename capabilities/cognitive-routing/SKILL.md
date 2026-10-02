@@ -163,6 +163,8 @@ During a Manual hold, preserve any interrupted assignment, partial effects, and 
 
 After context loss, follow the bootstrap in the capability cue, reload the methods and the mode reference, and recover control, mode, contract or report, user direction, partial effects, and stop conditions. When a Working Record exists, Coordinator reads it in full through Track Work, and the artifacts under `What defines this task`, directly, in every mode. Large Recovery sources that only serve execution stay with the worker that needs them. An outstanding worker reconstructs and continues its recorded assignment; do not wrap existing responsibility in a new assignment. A summary mentioning a superseded contract does not revive it.
 
+A worker recovers what its assignment needs, within the contract's limits: a recovery source the contract excludes, or one belonging to other work, stays unread. An assignment to compact is complete once the compaction happened; recover, then return it. The Coordinator answers questions about what a worker did from `freeflow_unit` inspection or by asking that worker, never from what its own view omits.
+
 ### Recover Missing Evidence For An Assessment
 
 Outstanding assignments use ordinary continuation, not this. For the current returned assessment, Coordinator uses `freeflow_unit(operation: "recover")` with the missing-evidence question, any exact task-file `paths`, and any captured result ids in `results`. Recovery belongs to the assignment's recorded worker. Preserve the unit, assignment, original report, outcome, revision, selections, and assessment.

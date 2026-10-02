@@ -32,7 +32,8 @@ test("Pi's own compaction gets Freeflow's instructions, state and recovery steps
       const entry = compaction(manager);
       assert.match(entry.summary, /^fixture response/, "Pi's summary comes first");
       assert.match(entry.summary, /## Freeflow state at compaction\n\nThis compaction starts cycle 2\./);
-      assert.match(entry.summary, /There is no Working Record, so the summary is your record for this cycle/);
+      assert.match(entry.summary, /if the summary names a Working Record for this work/);
+      assert.match(entry.summary, /Compaction is no longer due: do not call freeflow_compact\./);
       assert.doesNotMatch(entry.summary, /Files read this cycle/, "Pi's summary already lists files");
       assert.notEqual(entry.firstKeptEntryId, entry.id, "Pi's kept tail stays");
       assert.equal(entry.details.freeflow.fallback, true);
