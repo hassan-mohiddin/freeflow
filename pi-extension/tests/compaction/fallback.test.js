@@ -68,3 +68,37 @@ test("when Freeflow's summarizer fails, Pi compacts exactly as it would alone", 
     },
   );
 });
+
+test("file lists cover the whole session across a Freeflow compaction and then Pi's", { timeout: 30000 }, async () => {
+  await fixture(
+    async (n) =>
+      [
+        [{ name: "read", args: { path: "evidence.txt" } }],
+        [{ name: "freeflow_compact", args: { summary: "S" } }],
+        [],
+        [{ name: "read", args: { path: "recovery.txt" } }],
+      ][n - 1] ?? [],
+    false,
+    async ({ session, manager }) => {
+      const [freeflow] = manager.getBranch().filter((entry) => entry.type === "compaction");
+      assert.deepEqual(freeflow.details.readFiles, ["evidence.txt"]);
+      await session.compact();
+      const pi = manager
+        .getBranch()
+        .filter((entry) => entry.type === "compaction")
+        .at(-1);
+      assert.deepEqual(pi.details.readFiles, ["evidence.txt", "recovery.txt"], "Pi's lists include the earlier cycle");
+      assert.match(pi.summary, /<read-files>\nevidence\.txt\nrecovery\.txt\n<\/read-files>/);
+    },
+    true,
+    {
+      ...options,
+      beforePrompt: async ({ session, requests }) => {
+        const before = requests.length;
+        await session.prompt("/freeflow compact");
+        for (let i = 0; i < 200 && requests.length === before; i++) await new Promise((r) => setTimeout(r, 10));
+        await session.waitForIdle();
+      },
+    },
+  );
+});

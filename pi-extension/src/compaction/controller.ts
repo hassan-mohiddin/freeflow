@@ -12,7 +12,15 @@ import {
   type CarryFile,
   type CarryItem,
 } from "./carry.js";
-import { cycleFiles, cycleStart, harnessPart, nextCycle, recentWorkingRecord } from "./harness.js";
+import {
+  cycleFiles,
+  cycleStart,
+  harnessPart,
+  nextCycle,
+  previousFileLists,
+  recentWorkingRecord,
+  sessionFileLists,
+} from "./harness.js";
 import { renderIndex, resolveResult, resultIndex, type Result } from "./results.js";
 import type { Thresholds } from "./thresholds.js";
 
@@ -189,7 +197,7 @@ export class CompactionController {
       recordPath,
       routingProfile: this.host.routingProfile(),
       background: this.host.background(),
-      files: cycleFiles(branch),
+      files: sessionFileLists(branch),
     })}`;
     const carriedText = renderCarried(cycle, latestUserMessages(branch), files, results);
     const recovery = recoveryText(cycle, recordPath, "The carried context is above. ");
@@ -203,6 +211,8 @@ export class CompactionController {
           summary,
           firstKeptEntryId: null,
           details: {
+            // Pi's own details shape, so later compactions (Pi's or Freeflow's) carry the lists forward.
+            ...sessionFileLists(branch),
             freeflow: {
               version: 1,
               cycle,
@@ -237,6 +247,13 @@ export class CompactionController {
       const cycle = nextCycle(branch);
       const recordPath = await recentWorkingRecord(ctx.cwd, cycleStart(branch));
       const instructions = [FALLBACK_INSTRUCTIONS, event.customInstructions].filter(Boolean).join("\n\n");
+      // Pi merges the previous compaction's file lists only when Pi wrote it; add them back for Freeflow's.
+      const previousFiles = previousFileLists(branch);
+      const fileOps = event.preparation?.fileOps;
+      if (fileOps?.read && fileOps?.edited) {
+        for (const path of previousFiles.readFiles) fileOps.read.add(path);
+        for (const path of previousFiles.modifiedFiles) fileOps.edited.add(path);
+      }
       const result = await this.host.summarize(event.preparation, instructions, event.signal, ctx);
       if (!result?.summary) return undefined;
       const summary = `${result.summary}\n\n${harnessPart({
@@ -244,7 +261,7 @@ export class CompactionController {
         recordPath,
         routingProfile: this.host.routingProfile(),
         background: this.host.background(),
-        files: { read: [], changed: [] },
+        files: { readFiles: [], modifiedFiles: [] },
         includeFiles: false,
         recovery: recoveryText(cycle, recordPath),
       })}`;

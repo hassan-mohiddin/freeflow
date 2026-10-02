@@ -65,7 +65,7 @@ test("/freeflow compact leads to one compaction and the same run continues from 
       assert.match(after[0], /compacted into the following summary/);
       assert.match(after[0], /AGENT_SUMMARY_MARKER/);
       assert.match(after[0], /This compaction starts cycle 2\./);
-      assert.match(after[0], /Files read this cycle: evidence\.txt\./);
+      assert.match(after[0], /<read-files>\nevidence\.txt\n<\/read-files>/);
       assert.match(after[1], /# Carried context/);
       assert.match(after[1], /FIRST_USER_MESSAGE/);
       assert.match(
