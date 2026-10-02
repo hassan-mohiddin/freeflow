@@ -58,7 +58,7 @@ test("/freeflow compact leads to one compaction and the same run continues from 
       return [];
     },
     false,
-    async ({ requests, manager }) => {
+    async ({ requests, manager, session, notices }) => {
       // 1: the first prompt; 2-4: the run /freeflow compact started, compacting after request 3; 5: the next prompt.
       assert.equal(requests.length, 5);
       const after = inputTexts(requests[3]);
@@ -87,6 +87,11 @@ test("/freeflow compact leads to one compaction and the same run continues from 
       assert.deepEqual(
         entry.details.freeflow.carried.map(({ kind, path, firstCycle }) => [kind, path, firstCycle]),
         [["file", "evidence.txt", 2]],
+      );
+      await session.prompt("/freeflow status");
+      assert.match(
+        notices.at(-1)[0],
+        /compaction: enabled \(cycle 2, .*last compaction: Freeflow, carried about \dk\)/,
       );
       const reopened = SessionManager.open(manager.getSessionFile()).buildSessionProjection().messages;
       assert.deepEqual(

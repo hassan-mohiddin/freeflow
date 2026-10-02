@@ -4,7 +4,7 @@ The `/freeflow` command.
 
 | File | Owns |
 |---|---|
-| [`freeflow-command.ts`](freeflow-command.ts) | Parses `/freeflow` arguments and runs them: `settings` (the default) opens the settings screens, `status` prints the status report. Builds every setting entry with its scope (repository, personal, or session), current value, and where that value comes from, and writes changes back through `host/config.ts`. |
+| [`freeflow-command.ts`](freeflow-command.ts) | Parses `/freeflow` arguments and runs them: `settings` (the default) opens the settings screens, `status` prints the status report. Builds every setting entry (Freeflow, Cognitive Routing, Tool Execution, Compaction) with its scope (repository, personal, or session), current value, and where that value comes from, and writes changes back through `host/config.ts`. |
 | [`settings-view.ts`](settings-view.ts) | The terminal widgets the command uses: the settings list, choice picker, wizard steps, and text input. They render entries and report the user's choices; they know nothing about Freeflow configuration. |
 
 Routing's own commands (`/freeflow profile …`, `/freeflow resume`) are handled by [`cognitive-routing/runtime.ts`](../../cognitive-routing/runtime.ts).

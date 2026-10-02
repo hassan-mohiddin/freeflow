@@ -553,6 +553,7 @@ export default function freeflow(pi: FreeflowAPI) {
         status: () => ({
           cacheHealth: [...cacheHealth.status(), ...cacheMonitor.lines()],
           backgroundRunning: background.running().length,
+          compaction: compaction.statusText(ctx),
         }),
       });
     },

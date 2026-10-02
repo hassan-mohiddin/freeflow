@@ -430,6 +430,44 @@ test("Pi settings show Tool Execution as one switch and status reports it", asyn
   }
 });
 
+test("Pi settings show Compaction as one switch, on by default, and status reports it", async () => {
+  const cwd = await configuredRepo({});
+  try {
+    const { commands, handlers } = loadExtension(freeflowExtension, {
+      appendEntry() {},
+      async setModel() {
+        return true;
+      },
+      setThinkingLevel() {},
+    });
+    const command = commands.find((candidate) => candidate.name === "freeflow");
+    const settingsCtx = context(cwd);
+    settingsCtx.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+      assert.match(renderText(component, 180), /Compaction\s+enabled \(1\) active/);
+      return undefined;
+    };
+    await command.definition.handler("settings repo", settingsCtx);
+
+    // Detail comes from the live session state, loaded when the session starts.
+    const statusCtx = context(cwd);
+    await handlers.get("session_start")({ type: "session_start" }, statusCtx);
+    await command.definition.handler("status", statusCtx);
+    assert.match(statusCtx.notifications.at(-1).message, /compaction: enabled \(cycle 1/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+  const off = await configuredRepo({ compaction: { enabled: false } });
+  try {
+    const { commands } = loadExtension(freeflowExtension);
+    const statusCtx = context(off);
+    await commands.find((candidate) => candidate.name === "freeflow").definition.handler("status", statusCtx);
+    assert.match(statusCtx.notifications.at(-1).message, /compaction: disabled/);
+  } finally {
+    await rm(off, { recursive: true, force: true });
+  }
+});
+
 test("Pi settings persist delegation mode without rewriting complete presets", async () => {
   const initial = {
     cognitiveRouting: {

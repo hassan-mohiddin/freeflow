@@ -61,6 +61,32 @@ export class CompactionController {
     const measured = this.host.measure(ctx);
     return measured !== undefined && measured.tokens >= measured.thresholds.warning;
   }
+  /** The compaction part of /freeflow status: the cycle, context against each point, and the last compaction. */
+  statusText(ctx) {
+    if (!this.host.effective()) return undefined;
+    const branch = branchOf(ctx);
+    const k = (tokens) => `${Math.round(tokens / 1000)}k`;
+    const parts = [`cycle ${cycleOf(branch)}`];
+    const measured = this.host.measure(ctx);
+    if (measured) {
+      const { tokens, thresholds } = measured;
+      parts.push(
+        `context about ${k(tokens)} of ${k(thresholds.window)} (warning ${k(thresholds.warning)}, compact now ${k(thresholds.compactNow)}, Pi compacts at ${k(thresholds.trigger)})`,
+      );
+    }
+    const index = branch.map((entry) => entry?.type).lastIndexOf("compaction");
+    if (index >= 0) {
+      const freeflow = branch[index].details?.freeflow;
+      const carried = branch
+        .slice(index + 1)
+        .find((entry) => entry?.type === "custom_message" && entry.customType === CARRIED_TYPE);
+      const kind = !freeflow ? "Pi" : freeflow.fallback ? "Pi with Freeflow's additions" : "Freeflow";
+      parts.push(
+        `last compaction: ${kind}${carried ? `, carried about ${k(estimateTokens(String(carried.content ?? "")))}` : ""}`,
+      );
+    }
+    return parts.join(", ");
+  }
   /** The result index for this cycle, as the agent reads it. */
   indexText(ctx) {
     return renderIndex(resultIndex(branchOf(ctx)));

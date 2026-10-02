@@ -29,6 +29,7 @@ import type {
 } from "../../cognitive-routing/config.js";
 import { workersForDelegation } from "../../cognitive-routing/types.js";
 import { DEFAULT_TOOL_EXECUTION_CONFIG, type ToolExecutionState } from "../../tool-execution/config.js";
+import { DEFAULT_COMPACTION_ENABLED, type CompactionState } from "../../compaction/config.js";
 
 /*
  * The /freeflow command and the settings model it edits: every Freeflow setting with its repository, personal, and
@@ -902,6 +903,7 @@ function freeflowItems(
     layers?: Awaited<ReturnType<typeof readFreeflowConfigLayers>>;
     cognitiveRouting?: CognitiveRoutingCapabilityState;
     toolExecution?: ToolExecutionState;
+    compaction?: CompactionState;
     ctx?: any;
     runtimeAvailable?: boolean;
   } = {},
@@ -1046,7 +1048,35 @@ function freeflowItems(
     children: toolExecutionItems,
   };
 
-  return [freeflowItem, ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []), toolExecutionGroup];
+  const compactionState = options.compaction;
+  const compactionEnabledItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.compaction.enabled",
+    label: "Enabled",
+    description: "Warn before Pi's compaction limit and let the agent compact itself and recover in the same run.",
+    path: ["compaction", "enabled"],
+    effectiveValue: compactionState?.enabled ?? DEFAULT_COMPACTION_ENABLED,
+    effectiveSource: toolSource(["compaction", "enabled"]),
+    defaultValue: DEFAULT_COMPACTION_ENABLED,
+  });
+  const compactionItems = [compactionEnabledItem];
+  walkSettingsItems(compactionItems, (item) => {
+    item.inactive = freeflowInactive;
+  });
+  const compactionGroup: SettingsItem = {
+    id: "freeflow.compaction",
+    label: "Compaction",
+    description: "Configure Freeflow compaction; Pi's own compaction stays as the fallback.",
+    kind: "group",
+    value: compactionState?.enabled ?? DEFAULT_COMPACTION_ENABLED,
+    inactive: freeflowInactive,
+    displaySuffix: compactionState?.effective ? "active" : compactionState?.enabled ? "inactive" : "disabled",
+    children: compactionItems,
+  };
+
+  return [freeflowItem, ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []), toolExecutionGroup, compactionGroup];
 }
 
 function pruneKnownDefaults(config: Record<string, unknown>) {
@@ -1054,6 +1084,7 @@ function pruneKnownDefaults(config: Record<string, unknown>) {
     { path: ["enabled"], value: DEFAULT_FREEFLOW_ENABLED },
     { path: ["cognitiveRouting", "delegation"], value: "executor" },
     { path: ["toolExecution", "enabled"], value: DEFAULT_TOOL_EXECUTION_CONFIG.enabled },
+    { path: ["compaction", "enabled"], value: DEFAULT_COMPACTION_ENABLED },
   ];
 
   for (const item of defaultPaths) {
@@ -1227,6 +1258,14 @@ function refreshSettingsDerivedState(items: SettingsItem[]) {
       : effectiveItemValue(toolExecutionEnabled) === true
         ? "inactive"
         : "disabled";
+  }
+
+  const compactionGroup = findSettingsItem(items, "freeflow.compaction");
+  const compactionEnabled = findSettingsItem(items, "freeflow.compaction.enabled");
+  if (compactionGroup && compactionEnabled) {
+    const on = effectiveItemValue(compactionEnabled) === true;
+    compactionGroup.value = on;
+    compactionGroup.displaySuffix = on && !freeflowInactive ? "active" : on ? "inactive" : "disabled";
   }
 
   walkSettingsItems(items, (candidate) => {
@@ -1408,7 +1447,7 @@ export async function handleFreeflowCommand(
   afterChange: AfterChange,
   pi: any,
   cognitiveRoutingController?: CognitiveRoutingSettingsController,
-  diagnostics?: { status(): { cacheHealth?: readonly string[]; backgroundRunning?: number } },
+  diagnostics?: { status(): { cacheHealth?: readonly string[]; backgroundRunning?: number; compaction?: string } },
 ) {
   const input = (args ?? "settings").trim().toLowerCase() || "settings";
   const [action, ...rest] = input.split(/\s+/);
@@ -1450,6 +1489,7 @@ export async function handleFreeflowCommand(
       layers,
       cognitiveRouting: state.cognitiveRouting as CognitiveRoutingCapabilityState,
       toolExecution: state.toolExecution,
+      compaction: state.compaction,
       ctx,
       runtimeAvailable: isCognitiveRoutingRuntimeAvailable(pi),
     }).find((candidate) => candidate.id === "freeflow.enabled")!;
@@ -1496,6 +1536,7 @@ export async function handleFreeflowCommand(
           layers,
           cognitiveRouting: state.cognitiveRouting as CognitiveRoutingCapabilityState,
           toolExecution: state.toolExecution,
+          compaction: state.compaction,
           ctx,
           runtimeAvailable: isCognitiveRoutingRuntimeAvailable(pi),
         });

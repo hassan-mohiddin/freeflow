@@ -95,6 +95,7 @@ export function freeflowStatusText(state, cognitiveRoutingController, diagnostic
       : []),
     `tool execution: ${state.toolExecution?.effective ? "enabled" : "disabled"}`,
     ...(diagnostics?.backgroundRunning ? [`background commands: ${diagnostics.backgroundRunning} running`] : []),
+    `compaction: ${state.compaction?.effective ? `enabled${diagnostics?.compaction ? ` (${diagnostics.compaction})` : ""}` : "disabled"}`,
     ...(diagnostics?.cacheHealth?.length ? [`prompt cache: ${diagnostics.cacheHealth.join(" ")}`] : []),
   ].join("; ");
 }

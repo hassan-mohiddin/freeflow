@@ -83,7 +83,7 @@ export function freeflowStatusText(
       presetWarnings?: readonly string[];
     };
   },
-  diagnostics?: { cacheHealth?: readonly string[]; backgroundRunning?: number },
+  diagnostics?: { cacheHealth?: readonly string[]; backgroundRunning?: number; compaction?: string },
 ): string {
   if (!state.configured) {
     if (!state.configExists) return "Freeflow: inactive (repo not set up); run /setup-freeflow";
@@ -113,6 +113,7 @@ export function freeflowStatusText(
       : []),
     `tool execution: ${state.toolExecution?.effective ? "enabled" : "disabled"}`,
     ...(diagnostics?.backgroundRunning ? [`background commands: ${diagnostics.backgroundRunning} running`] : []),
+    `compaction: ${state.compaction?.effective ? `enabled${diagnostics?.compaction ? ` (${diagnostics.compaction})` : ""}` : "disabled"}`,
     ...(diagnostics?.cacheHealth?.length ? [`prompt cache: ${diagnostics.cacheHealth.join(" ")}`] : []),
   ].join("; ");
 }
