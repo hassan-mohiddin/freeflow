@@ -174,7 +174,7 @@ test(
         [
           [delegate],
           [{ name: "codemode", args: { code: script } }],
-          [{ name: "codemode", args: { code: "return typeof tools.freeflow_return;" } }],
+          [{ name: "codemode", args: { code: "return 'freeflow_return' in tools;" } }],
           [submit],
           [close],
         ][n - 1] ?? [],
@@ -190,7 +190,9 @@ test(
             ["bash", "ok"],
           ],
         );
-        assert.match(JSON.stringify(second.content), /undefined/);
+        // Pi 1.0 throws on a missing tool member, so scripts test presence with `in`.
+        assert.equal(second.isError, false);
+        assert.match(JSON.stringify(second.content), /\bfalse\b/);
       },
       true,
       {
