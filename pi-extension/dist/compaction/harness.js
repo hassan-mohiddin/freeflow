@@ -61,7 +61,10 @@ export function harnessPart(facts) {
     lines.push(
       `Background commands still running: ${facts.background.map((job) => `${job.id} (${job.label}), output ${job.outputPath}`).join("; ")}.`,
     );
-  if (facts.files.read.length) lines.push(`Files read this cycle: ${facts.files.read.join(", ")}.`);
-  if (facts.files.changed.length) lines.push(`Files changed this cycle: ${facts.files.changed.join(", ")}.`);
+  if (facts.includeFiles !== false) {
+    if (facts.files.read.length) lines.push(`Files read this cycle: ${facts.files.read.join(", ")}.`);
+    if (facts.files.changed.length) lines.push(`Files changed this cycle: ${facts.files.changed.join(", ")}.`);
+  }
+  if (facts.recovery) lines.push("", facts.recovery);
   return lines.join("\n");
 }

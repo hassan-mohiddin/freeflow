@@ -217,6 +217,13 @@ export async function fixture(script, projection = true, after, withUI = true, o
   globalThis.fetch = async (url, init) => {
     assert.match(String(url), /^https:\/\/fixture\.invalid\//, "no unexpected network destination");
     const body = JSON.parse(String(init.body));
+    // While the fixture supplies the compaction summary, a summarizer request (Freeflow's fallback asks Pi's
+    // summarizer first) is answered here and kept out of the scripted request sequence.
+    if (
+      options.fixtureCompaction !== false &&
+      JSON.stringify(body).includes("You are a context summarization assistant")
+    )
+      return Array.isArray(body.messages) ? anthropicResponse(0, []) : response(0, []);
     requests.push(body);
     assert.ok(requests.length <= (options.maxRequests ?? 15), "bounded fixture request count");
     try {
@@ -261,13 +268,15 @@ export async function fixture(script, projection = true, after, withUI = true, o
           pi.on("context", (event) => {
             contexts.push(structuredClone(event.messages));
           });
-          pi.on("session_before_compact", () => ({
-            compaction: {
-              summary: "Fixture compacted prior work; evidence must come from canonical sources.",
-              firstKeptEntryId: manager.getLeafId(),
-              tokensBefore: 100,
-            },
-          }));
+          // A fixed summary, unless a test exercises the real compaction path (fixtureCompaction: false).
+          if (options.fixtureCompaction !== false)
+            pi.on("session_before_compact", () => ({
+              compaction: {
+                summary: "Fixture compacted prior work; evidence must come from canonical sources.",
+                firstKeptEntryId: manager.getLeafId(),
+                tokensBefore: 100,
+              },
+            }));
           pi.on("tool_execution_update", (event) => {
             toolUpdates.push(structuredClone(event));
           });

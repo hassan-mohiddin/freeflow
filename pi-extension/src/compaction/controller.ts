@@ -39,6 +39,8 @@ export interface CompactionHost {
   noticePrefix: string;
   /** The Coordinator is running under projection: its view leaves out what workers did, so it delegates compaction. */
   coordinatorUnderProjection(): boolean;
+  /** Pi's own summarizer over Pi's preparation, with extra instructions; throws on failure. */
+  summarize(preparation: any, instructions: string, signal: AbortSignal | undefined, ctx: any): Promise<any>;
 }
 
 export interface Compacted {
@@ -190,9 +192,7 @@ export class CompactionController {
       files: cycleFiles(branch),
     })}`;
     const carriedText = renderCarried(cycle, latestUserMessages(branch), files, results);
-    const recovery = recordPath
-      ? `Compaction finished; cycle ${cycle} starts here. Recover before you continue, as Track Work says: read the Working Record at ${recordPath} in full, every artifact under What defines this task, and every Recovery source, then reconcile with the live state your next step depends on. The carried context is above. Then continue the interrupted work.`
-      : `Compaction finished; cycle ${cycle} starts here. There is no Working Record, so the summary is your record for this cycle: re-read its Recovery sources and reconcile with the live state your next step depends on. The carried context is above. Then continue the interrupted work.`;
+    const recovery = recoveryText(cycle, recordPath, "The carried context is above. ");
 
     this.requested = undefined;
     this.compacted = { carriedFiles: files.filter((file) => "text" in file).map((file) => file.path) };
@@ -222,12 +222,69 @@ export class CompactionController {
     };
   }
 
+  /**
+   * Pi is compacting on its own (its threshold, an overflow, or /compact). Freeflow keeps Pi's summarizer and kept
+   * tail, adds its summary instructions, and appends its own state with recovery steps. A scheduled Freeflow
+   * compaction is dropped: Pi's compaction replaces it. Returns undefined, so Pi compacts as usual, when compaction
+   * is off or anything fails; it never cancels Pi's compaction.
+   */
+  async fallback(event: any, ctx: any): Promise<{ compaction: any } | undefined> {
+    this.pending = undefined;
+    if (!this.host.effective()) return undefined;
+    try {
+      const branch = branchOf(ctx);
+      const cycle = nextCycle(branch);
+      const recordPath = await recentWorkingRecord(ctx.cwd, cycleStart(branch));
+      const instructions = [FALLBACK_INSTRUCTIONS, event.customInstructions].filter(Boolean).join("\n\n");
+      const result = await this.host.summarize(event.preparation, instructions, event.signal, ctx);
+      if (!result?.summary) return undefined;
+      const summary = `${result.summary}\n\n${harnessPart({
+        cycle,
+        recordPath,
+        routingProfile: this.host.routingProfile(),
+        background: this.host.background(),
+        files: { read: [], changed: [] },
+        includeFiles: false,
+        recovery: recoveryText(cycle, recordPath),
+      })}`;
+      this.requested = undefined;
+      return {
+        compaction: {
+          ...result,
+          summary,
+          details: {
+            ...(result.details ?? {}),
+            freeflow: { version: 1, cycle, fallback: true, carried: [], ...(recordPath ? { recordPath } : {}) },
+          },
+        },
+      };
+    } catch {
+      // Pi's own compaction is the fallback's fallback.
+      return undefined;
+    }
+  }
+
   /** The compaction written at the last turn end, once; the caller then runs the post-compaction resets. */
   takeCompacted(): Compacted | undefined {
     const compacted = this.compacted;
     this.compacted = undefined;
     return compacted;
   }
+}
+
+/** Freeflow's additions to Pi's own summarizer, written for a reader that summarizes someone else's conversation. */
+const FALLBACK_INSTRUCTIONS = [
+  "Write state, not a story: what is true now, each item marked as settled, tentative, superseded, or unverified.",
+  "Keep exact paths, identifiers, commands, error text, numbers, and the user's words where wording matters; never paraphrase a decision or a constraint.",
+  "Never record a requested, reported, or expected result as observed. Name partial or uncommitted changes, unverified results, running commands, and obligations with what triggers each.",
+  "Say what the user has authorized and what still needs asking.",
+  "If the conversation uses a Working Record (.freeflow/tasks/*/record.md), name its path and do not restate what it holds; keep what it does not hold.",
+].join(" ");
+
+function recoveryText(cycle: number, recordPath: string | undefined, carried = ""): string {
+  return recordPath
+    ? `Compaction finished; cycle ${cycle} starts here. Recover before you continue, as Track Work says: read the Working Record at ${recordPath} in full, every artifact under What defines this task, and every Recovery source, then reconcile with the live state your next step depends on. ${carried}Then continue the interrupted work.`
+    : `Compaction finished; cycle ${cycle} starts here. There is no Working Record, so the summary is your record for this cycle: re-read its Recovery sources and reconcile with the live state your next step depends on. ${carried}Then continue the interrupted work.`;
 }
 
 /** What the previous Freeflow compaction carried (file paths and result ids), with the cycle each was first carried. */

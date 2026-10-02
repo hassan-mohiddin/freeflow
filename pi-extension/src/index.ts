@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { estimateTokens } from "@earendil-works/pi-coding-agent";
+import { compact as piCompact, estimateTokens } from "@earendil-works/pi-coding-agent";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { RequestHistory } from "./host/request-history.js";
@@ -226,6 +226,22 @@ export default function freeflow(pi: FreeflowAPI) {
       capability.cognitiveRouting.projection === true &&
       routing.state().effective === true &&
       routing.state().activeProfile === "coordinator",
+    summarize: async (preparation: any, instructions: string, signal: AbortSignal | undefined, ctx: any) => {
+      const auth = await ctx.modelRegistry?.getApiKeyAndHeaders?.(ctx.model);
+      if (!ctx.model || !auth?.ok) throw new Error("No request auth for the summarizer");
+      const model = auth.baseUrl ? { ...ctx.model, baseUrl: auth.baseUrl } : ctx.model;
+      return piCompact(
+        preparation,
+        model,
+        auth.apiKey,
+        auth.headers,
+        instructions,
+        signal,
+        api.getThinkingLevel?.(),
+        undefined,
+        auth.env,
+      );
+    },
     measure: (ctx: any) => {
       // Every model that may receive the full history: the active one and, under routing, each profile's.
       const routingCapability = capability?.cognitiveRouting;
@@ -454,6 +470,8 @@ export default function freeflow(pi: FreeflowAPI) {
     await update(ctx);
   };
   pi.on("session_tree", async (_event, ctx) => restore(ctx));
+  // Pi compacting on its own (threshold, overflow, /compact) keeps its summarizer and kept tail, with Freeflow's additions.
+  pi.on("session_before_compact", async (event, ctx) => compaction.fallback(event, ctx));
   pi.on("session_compact", async (_event, ctx) => {
     await restore(ctx, false);
     background.restate();

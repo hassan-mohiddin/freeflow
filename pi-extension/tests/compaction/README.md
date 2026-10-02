@@ -6,6 +6,7 @@ Tests for [`src/compaction/`](../../src/compaction/README.md). `thresholds.test.
 |---|---|
 | `thresholds.test.js` | Warning and compact-now points for several windows, Pi's reserve lookup, the strictest window, and the result index (ordering, size floor, ids stable across compaction, previously carried results). |
 | `notices.test.js` | The warning once mid-run, then compact now, either making compaction acceptable and carrying a result by id; a warning at the end of a run waiting for the next prompt; the Coordinator warned through the full-history estimate under projection. |
+| `fallback.test.js` | Pi's own compaction with Freeflow's instructions reaching Pi's summarizer, Freeflow's state and recovery appended, and Pi's kept tail; Pi compacting exactly as alone when Freeflow's summarizer fails. |
 | `agent-path.test.js` | `freeflow_compact` refused until compaction is due; `/freeflow compact` leading to one compaction in the same run, with the next request holding summary, carried context and recovery, files carried as they are at compaction time, and the next cycle extending its own requests; limit and budget refusals; file tracking reduced to carried files; the tool declared only while compaction is on; a worker compacting mid-assignment under Cognitive Routing; a Coordinator under projection refused and told to delegate; the compaction skill listed to the model. |
 
 `/freeflow compact` starts its run after the command returns, so the tests wait for the run's first request before waiting for idle.

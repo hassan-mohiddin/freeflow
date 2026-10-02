@@ -10,6 +10,10 @@ import { touchedPaths } from "../tool-execution/file-state.js";
 
 export interface HarnessFacts {
   cycle: number;
+  /** Pi's own summary already lists files; a fallback compaction leaves them out here. */
+  includeFiles?: boolean;
+  /** Recovery instructions inside the summary, for compactions with no separate recovery message. */
+  recovery?: string;
   recordPath?: string;
   routingProfile?: string;
   background: readonly { id: string; label: string; outputPath: string }[];
@@ -82,7 +86,10 @@ export function harnessPart(facts: HarnessFacts): string {
     lines.push(
       `Background commands still running: ${facts.background.map((job) => `${job.id} (${job.label}), output ${job.outputPath}`).join("; ")}.`,
     );
-  if (facts.files.read.length) lines.push(`Files read this cycle: ${facts.files.read.join(", ")}.`);
-  if (facts.files.changed.length) lines.push(`Files changed this cycle: ${facts.files.changed.join(", ")}.`);
+  if (facts.includeFiles !== false) {
+    if (facts.files.read.length) lines.push(`Files read this cycle: ${facts.files.read.join(", ")}.`);
+    if (facts.files.changed.length) lines.push(`Files changed this cycle: ${facts.files.changed.join(", ")}.`);
+  }
+  if (facts.recovery) lines.push("", facts.recovery);
   return lines.join("\n");
 }

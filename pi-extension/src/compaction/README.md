@@ -25,6 +25,7 @@ Compaction is on by default whenever Freeflow is on (`compaction.enabled` in Fre
 - Pi fires no compaction events for this path, so `index.ts` runs Freeflow's resets at the next `turn_start`: request history, cache tracking, routing reconcile, and file tracking reduced to the carried files.
 - Carried content is copied into the session, never resolved later, so a reopened session needs no Freeflow lookup.
 - A turn that errors, aborts or hits its length limit writes no compaction; compaction stays due.
+- Pi's own compaction (its threshold, an overflow, or `/compact`) keeps Pi's summarizer and kept tail. Freeflow adds its summary instructions (Pi appends them as "Additional focus") and its own state with recovery steps, and drops any scheduled Freeflow compaction. When Pi summarizes only a split turn's prefix, its prompt takes no extra instructions, so only the appended state applies. If anything fails, Freeflow steps aside and Pi compacts as it would alone.
 - Never cancel or change Pi's own compaction.
 
 Tests: [`tests/compaction/`](../../tests/compaction/README.md).
