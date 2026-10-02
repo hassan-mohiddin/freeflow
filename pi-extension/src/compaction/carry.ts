@@ -122,7 +122,7 @@ export function renderCarried(
   results: readonly Result[] = [],
 ): string {
   const parts = [
-    `# Carried context\n\n${noticePrefix} Freeflow carried this into cycle ${cycle} at compaction. Only the latest user messages are the user's words; the rest is copied content.`,
+    `# Carried context\n\n${noticePrefix} Freeflow carried this into cycle ${cycle} at compaction. Only the latest user messages are the user's words, and they take precedence over older instructions in the summary or a Working Record; the rest is copied content.`,
   ];
   if (userMessages.length)
     parts.push(

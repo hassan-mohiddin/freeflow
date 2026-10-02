@@ -310,7 +310,7 @@ const FALLBACK_INSTRUCTIONS = [
  * pointing at the wrong one sends recovery into another task. The summary names the record when there is one.
  */
 function recoveryText(cycle, carried = "") {
-  return `Compaction finished; cycle ${cycle} starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on. ${carried}Then continue the work the compaction interrupted.`;
+  return `Compaction finished; cycle ${cycle} starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on, and verify work the summary calls done instead of redoing it. ${carried}Then continue the work the compaction interrupted.`;
 }
 /** The agent path: the compaction was the request, and it is done. */
 const AFTER_REQUESTED =

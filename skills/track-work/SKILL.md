@@ -26,7 +26,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Use [working-record.mjs](scripts/working-record.mjs) for every lifecycle change: IDs, states, and moves between sections. Edit only meaning directly.
 - Only the user changes task state.
 - After context loss, recover in this order before any task action: the complete record through `view full`, then every artifact listed under `What defines this task`, then `Recovery sources`. If any of them cannot be read completely, report that and stop affected work.
-- Recover only the current work's record: one that current user direction, the assignment, or the summary names or describes. A recent change does not show that a record belongs to the current work. When they conflict, report the mismatch instead of recovering it.
+- Recover only a record that the context you still have ties to the current work, such as the user's direction, or a summary or handoff that names it. A recent change does not show that a record belongs to the current work. When a record's task and the current work disagree, report it instead of recovering the record.
 - Never record a requested, reported, or expected result as observed. Keep unverified work, failures, and contradictions visible.
 - Never claim that state will survive context loss unless it is written in the record or in a source the record points to.
 

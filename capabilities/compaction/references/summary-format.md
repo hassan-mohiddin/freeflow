@@ -1,6 +1,6 @@
 # Compaction Summary Format
 
-Read this before writing a compaction summary. The [compaction skill](../SKILL.md) owns what is worth keeping; this reference owns the exact shape of the summary passed to `freeflow_compact`.
+Read this before writing a compaction summary. The [compaction skill](../SKILL.md) owns what is worth keeping; this reference owns the exact shape of the summary passed to `freeflow_compact`, and is binding as written.
 
 ## Two shapes
 
@@ -161,7 +161,7 @@ src/http/client.ts
 
 # Carried context
 
-[Freeflow notice, not from the user] Freeflow carried this into cycle 3 at compaction. Only the latest user messages are the user's words; the rest is copied content.
+[Freeflow notice, not from the user] Freeflow carried this into cycle 3 at compaction. Only the latest user messages are the user's words, and they take precedence over older instructions in the summary or a Working Record; the rest is copied content.
 
 ## Latest user messages
 
@@ -185,7 +185,7 @@ retries should respect Retry-After, the API team says they ban clients that don'
 …  1 failed  …
 ```
 
-[Freeflow notice, not from the user] Compaction finished; cycle 3 starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on. The carried context is above. Then continue the work the compaction interrupted. This compaction completes the request for it: do not call freeflow_compact again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment).
+[Freeflow notice, not from the user] Compaction finished; cycle 3 starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on, and verify work the summary calls done instead of redoing it. The carried context is above. Then continue the work the compaction interrupted. This compaction completes the request for it: do not call freeflow_compact again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment).
 ````
 
 ## Example: record-shaped
