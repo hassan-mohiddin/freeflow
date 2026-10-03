@@ -88,6 +88,23 @@ async function configuredRepo(config = {}) {
   return cwd;
 }
 
+const KEY = { down: "\u001b[B", enter: "\r", escape: "\u001b" };
+
+/** Move the settings cursor to the row with this label inside this section. */
+function choose(component, label, section) {
+  for (let i = 0; i < 60; i++) {
+    const lines = component.render(120);
+    const at = lines.findIndex((line) => line.startsWith("  › "));
+    const header = lines
+      .slice(0, at)
+      .reverse()
+      .find((line) => /^ {2}\S/.test(line));
+    if (at >= 0 && lines[at].startsWith(`  › ${label} `) && header?.trim().startsWith(section)) return;
+    component.handleInput(KEY.down);
+  }
+  throw new Error(`No settings row ${section} › ${label}`);
+}
+
 function freeflowCommand(commands) {
   const command = commands.find((candidate) => candidate.name === "freeflow");
   assert.ok(command);
@@ -188,9 +205,8 @@ test("Cognitive Routing preset cancellation preserves the previous repository va
       const component = factory({ requestRender() {} }, theme, {}, (value) => {
         result = value;
       });
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      for (let index = 0; index < 4; index += 1) component.handleInput("\u001b[B");
+      // Opening the preset picker and leaving it changes nothing.
+      choose(component, "Executor preset", "Cognitive Routing");
       component.handleInput("\r");
       component.handleInput("\u001b");
       component.handleInput("\u001b");
@@ -229,14 +245,11 @@ test("Cognitive Routing settings refresh after enabling the capability", async (
       const component = factory({ requestRender() {} }, theme, {}, (value) => {
         result = value;
       });
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      component.handleInput("\r");
-      component.handleInput("\u001b[A");
+      // Enabled toggles in place, and the section's status follows.
+      choose(component, "Enabled", "Cognitive Routing");
       component.handleInput("\r");
       await component.waitForWrites();
-      component.handleInput("\u001b");
-      assert.match(component.render(120).join("\n"), /Cognitive Routing\s+enabled \(6\) configured/);
+      assert.match(component.render(120).join("\n"), /Cognitive Routing\s+configured\n\s+› Enabled\s+enabled\n/);
       component.handleInput("\u001b");
       return result;
     };
@@ -275,11 +288,7 @@ test("Cognitive Routing settings can disable projection without disabling routin
       const component = factory({ requestRender() {} }, theme, {}, (value) => {
         result = value;
       });
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      for (let index = 0; index < 5; index += 1) component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      component.handleInput("\u001b[B");
+      choose(component, "Context projection", "Cognitive Routing");
       component.handleInput("\r");
       await component.waitForWrites();
       component.handleInput("\u001b");
@@ -368,3 +377,79 @@ function cognitiveRoutingModelRegistry() {
     },
   };
 }
+
+test("a session can switch each capability without changing either config file", async () => {
+  const cwd = await configuredRepo({
+    toolExecution: { enabled: true },
+    cognitiveRouting: {
+      enabled: true,
+      projection: true,
+      profiles: {
+        coordinator: { provider: "test", model: "model-a", thinking: "low" },
+        executor: { provider: "test", model: "model-b", thinking: "high" },
+      },
+    },
+  });
+  try {
+    const configPath = join(cwd, ".freeflow/config.json");
+    const original = await readFile(configPath, "utf8");
+    const { pi } = loadExtension();
+    const ctx = context(cwd);
+    const { readCapabilityState } = await import("../../dist/host/config.js");
+    for (const key of [
+      "toolExecution.enabled",
+      "compaction.enabled",
+      "compaction.carry",
+      "cognitiveRouting.projection",
+    ])
+      assert.equal((await setSessionCoreOverride(key, false, ctx, pi)).reloadRequired, true);
+    const state = await readCapabilityState(cwd);
+    assert.equal(state.toolExecution.enabled, false);
+    assert.equal(state.compaction.enabled, false);
+    assert.equal(state.compaction.carry, false);
+    assert.equal(state.cognitiveRouting.projection, false);
+    assert.equal(state.cognitiveRouting.projectionSource, "session");
+    assert.equal(state.cognitiveRouting.enabled, true, "an override of one switch leaves the others configured");
+    assert.equal(await readFile(configPath, "utf8"), original);
+    assert.equal(await readFile(join(cwd, ".freeflow/local.json"), "utf8").catch(() => undefined), undefined);
+
+    await resetSessionOverrides(ctx, pi);
+    const reset = await readCapabilityState(cwd);
+    assert.equal(reset.toolExecution.enabled, true);
+    assert.equal(reset.compaction.carry, true);
+    assert.equal(reset.cognitiveRouting.projection, true);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("session settings list every capability switch and change one in place", async () => {
+  const cwd = await configuredRepo({ toolExecution: { enabled: true } });
+  try {
+    const { commands } = loadExtension({ appendEntry() {}, setModel: () => true, setThinkingLevel() {} });
+    const command = freeflowCommand(commands);
+    const settings = context(cwd, { isIdle: () => true });
+    let rendered;
+    settings.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, theme, {}, () => {});
+      choose(component, "Context reuse", "Compaction");
+      component.handleInput(KEY.enter);
+      await component.waitForWrites();
+      rendered = component.render(120).join("\n");
+      component.handleInput(KEY.escape);
+    };
+    await command.definition.handler("settings session", settings);
+    assert.match(rendered, /\[Session\]/);
+    assert.match(rendered, /Tool Execution\s+active\n\s+Enabled\s+inherit → enabled \(repository\)/);
+    assert.match(
+      rendered,
+      /Compaction\s+active\n\s+Enabled\s+inherit → enabled \(default\)\n\s+› Context reuse\s+enabled · session/,
+    );
+    assert.match(rendered, /Reset overrides\s+1 active/, "the reset row counts the override just made");
+    const { readCapabilityState } = await import("../../dist/host/config.js");
+    assert.equal((await readCapabilityState(cwd)).compaction.carry, true);
+    await resetSessionOverrides(settings, {});
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});

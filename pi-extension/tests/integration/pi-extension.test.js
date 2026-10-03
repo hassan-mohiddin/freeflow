@@ -134,6 +134,31 @@ function renderText(component, width = 120) {
   return component.render(width).join("\n");
 }
 
+const KEY = { down: "\u001b[B", enter: "\r", tab: "\t", backtab: "\u001b[Z", escape: "\u001b" };
+
+/** Move the settings cursor to the row with this label, inside this section when labels repeat across sections. */
+function choose(component, label, section) {
+  for (let i = 0; i < 60; i++) {
+    const lines = renderText(component).split("\n");
+    const at = lines.findIndex((line) => line.startsWith("  › "));
+    const header = lines
+      .slice(0, at)
+      .reverse()
+      .find((line) => /^ {2}\S/.test(line));
+    const inSection = section ? header?.trim().startsWith(section) : true;
+    if (at >= 0 && lines[at].startsWith(`  › ${label} `) && inSection) return;
+    component.handleInput(KEY.down);
+  }
+  throw new Error(`No settings row ${section ? `${section} › ` : ""}${label}`);
+}
+
+/** Choose a row and press Enter, waiting for any write. */
+async function press(component, label, section) {
+  choose(component, label, section);
+  component.handleInput(KEY.enter);
+  await component.waitForWrites();
+}
+
 async function configuredRepo(config = {}) {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-integration-"));
   await mkdir(join(cwd, ".freeflow"));
@@ -387,7 +412,8 @@ test("normal Pi settings expose active Cognitive Routing configuration", async (
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
       const rootText = renderText(component);
-      assert.match(rootText, /Cognitive Routing\s+enabled \(6\) active/);
+      assert.match(rootText, /Cognitive Routing\s+active/);
+      assert.match(rootText, /Coordinator preset\s+inherit → test\/model-a · low \(repository\)/);
       return undefined;
     };
 
@@ -415,7 +441,7 @@ test("Pi settings show Tool Execution as one switch and status reports it", asyn
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
       const text = renderText(component, 180);
-      assert.match(text, /Tool Execution\s+enabled \(1\) active/);
+      assert.match(text, /Tool Execution\s+active\n\s+Enabled\s+enabled\n/);
       assert.doesNotMatch(text, /capture|programs|workspace|accounting/i);
       return undefined;
     };
@@ -444,7 +470,10 @@ test("Pi settings show Compaction as one switch, on by default, and status repor
     const settingsCtx = context(cwd);
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
-      assert.match(renderText(component, 180), /Compaction\s+enabled \(2\) active/);
+      assert.match(
+        renderText(component, 180),
+        /Compaction\s+active\n\s+Enabled\s+enabled · default\n\s+Context reuse\s+enabled · default/,
+      );
       return undefined;
     };
     await command.definition.handler("settings repo", settingsCtx);
@@ -497,16 +526,11 @@ test("Pi settings persist delegation mode without rewriting complete presets", a
       const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
         result = value;
       });
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      await component.waitForWrites();
-      component.handleInput("\u001b");
-      component.handleInput("\u001b");
+      // Delegation cycles in place: executor → helper → both.
+      await press(component, "Delegation", "Cognitive Routing");
+      await press(component, "Delegation", "Cognitive Routing");
+      assert.match(renderText(component), /› Delegation\s+Helper and Executor/);
+      component.handleInput(KEY.escape);
       return result;
     };
     await command.definition.handler("settings repo", settingsCtx);
@@ -554,42 +578,37 @@ test("personal delegation override and inherit preserve repository mode and othe
     settingsCtx.isIdle = () => true;
     settingsCtx.modelRegistry = cognitiveRoutingModelRegistry();
 
-    const chooseDelegation = async (direction, commit = true) => {
+    // Personal delegation cycles inherit → executor → helper → both → inherit, in place.
+    const chooseDelegation = async (presses) => {
       settingsCtx.ui.custom = async (factory) => {
         let result;
         const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
           result = value;
         });
-        component.handleInput("\u001b[B");
-        component.handleInput("\r");
-        component.handleInput("\u001b[B");
-        component.handleInput("\r");
-        component.handleInput(direction);
-        component.handleInput(commit ? "\r" : "\u001b");
-        if (commit) await component.waitForWrites();
-        component.handleInput("\u001b");
-        component.handleInput("\u001b");
+        choose(component, "Delegation", "Cognitive Routing");
+        for (let i = 0; i < presses; i++) await press(component, "Delegation", "Cognitive Routing");
+        component.handleInput(KEY.escape);
         return result;
       };
       await command.definition.handler("settings", settingsCtx);
     };
 
-    await chooseDelegation("\u001b[B");
+    await chooseDelegation(1);
     let saved = JSON.parse(await readFile(localPath, "utf8"));
     assert.equal(saved.cognitiveRouting.delegation, "executor");
     assert.deepEqual(saved.cognitiveRouting.profiles, local.cognitiveRouting.profiles);
     assert.deepEqual(JSON.parse(await readFile(repositoryPath, "utf8")), repository);
     assert.equal((await readCapabilityState(cwd, settingsCtx)).cognitiveRouting.delegation, "executor");
 
-    await chooseDelegation("\u001b[A");
+    await chooseDelegation(3);
     saved = JSON.parse(await readFile(localPath, "utf8"));
     assert.equal(saved.cognitiveRouting.delegation, undefined);
     assert.deepEqual(saved.cognitiveRouting.profiles, local.cognitiveRouting.profiles);
     assert.equal((await readCapabilityState(cwd, settingsCtx)).cognitiveRouting.delegation, "helper");
 
     const beforeCancel = await readFile(localPath, "utf8");
-    await chooseDelegation("\u001b[B", false);
-    assert.equal(await readFile(localPath, "utf8"), beforeCancel);
+    await chooseDelegation(0);
+    assert.equal(await readFile(localPath, "utf8"), beforeCancel, "moving to a row without pressing changes nothing");
     assert.deepEqual(JSON.parse(await readFile(repositoryPath, "utf8")), repository);
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -682,15 +701,10 @@ test("session delegation setting enables Helper in the same panel without writin
     };
     ctx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      for (let i = 0; i < 3; i++) component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      await component.waitForWrites();
+      // Session delegation cycles inherit → executor → helper → both, in place.
+      for (let i = 0; i < 3; i++) await press(component, "Delegation", "Cognitive Routing");
       assert.equal(mode, "both");
-      for (let i = 0; i < 3; i++) component.handleInput("\u001b[B");
-      component.handleInput("\r");
+      assert.match(component.render(180).join("\n"), /› Delegation\s+Helper and Executor · session/);
       assert.match(component.render(180).join("\n"), /Helper preset/);
       return { changed: false };
     };
@@ -776,7 +790,11 @@ test("Pi describes the mode-free Freeflow argument surface and manual profile co
   const freeflowCommand = commands.find((command) => command.name === "freeflow");
   assert.ok(freeflowCommand);
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions(""), [
-    { value: "settings", label: "settings", description: "Open personal override settings" },
+    {
+      value: "settings",
+      label: "settings",
+      description: "Open settings; Tab switches Session, Personal and Repository",
+    },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
     { value: "compact", label: "compact", description: "Prepare, compact and recover now" },
     { value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" },
@@ -1089,7 +1107,7 @@ test("Pi settings expose no mode, Skills, or Interaction Contract controls", asy
         result = value;
       });
       const text = renderText(component);
-      assert.match(text, /Freeflow Settings/);
+      assert.match(text, /Freeflow settings/);
       assert.doesNotMatch(text, /Freeflow Context|Context Virtualization|Conversation History/);
       assert.doesNotMatch(text, /Interaction Contract|Skills|Session mode|Default mode|Mode/);
       component.handleInput("\u001b");
@@ -1206,14 +1224,13 @@ test("Pi Cognitive Routing settings preserve complete presets", async () => {
       const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
         result = value;
       });
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      for (let index = 0; index < 4; index++) component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      component.handleInput("\r");
-      for (let index = 0; index < 1; index++) component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      component.handleInput("\r");
+      // The preset opens its picker over the list: model, then effort, then confirm.
+      choose(component, "Executor preset", "Cognitive Routing");
+      component.handleInput(KEY.enter);
+      component.handleInput(KEY.enter);
+      component.handleInput(KEY.down);
+      component.handleInput(KEY.enter);
+      component.handleInput(KEY.enter);
       await component.waitForWrites();
       return result;
     };
@@ -1261,12 +1278,7 @@ test("Pi session settings expose both routing preset wizards without changing co
       const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
         result = value;
       });
-      const rendered = component.render(180).join("\\n");
-      assert.match(rendered, /Cognitive Routing presets/);
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
+      // The session's presets are rows of the Cognitive Routing section, not a separate page.
       const presetRendered = component.render(180).join("\\n");
       assert.match(presetRendered, /Coordinator preset/);
       assert.match(presetRendered, /Helper preset/);
@@ -1326,10 +1338,7 @@ test("Pi session preset wizard applies a complete pair without writing config", 
       const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
         finish = value;
       });
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
+      choose(component, "Coordinator preset", "Cognitive Routing");
       component.handleInput("\r");
       component.handleInput("\u001b[B");
       component.handleInput("\r");
@@ -1398,11 +1407,7 @@ test("both mode session wizard applies a Helper pair without writing config", as
       const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
         finish = value;
       });
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\r");
-      component.handleInput("\u001b[B");
+      choose(component, "Helper preset", "Cognitive Routing");
       component.handleInput("\r");
       component.handleInput("\u001b[B");
       component.handleInput("\r");
@@ -1473,10 +1478,7 @@ test("session reset preserves core overrides when routing reset fails", async ()
       const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
         finish = value;
       });
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
-      component.handleInput("\u001b[B");
+      choose(component, "Reset overrides", "Session");
       component.handleInput("\r");
       component.handleInput("\r");
       await component.waitForWrites();

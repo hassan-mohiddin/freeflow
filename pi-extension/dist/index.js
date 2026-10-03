@@ -78,7 +78,7 @@ function freeflowCompletions(prefix, routingAvailable) {
           ["profile history", "history", "Read routing observations"],
         ]
       : [
-          ["settings", "settings", "Open personal override settings"],
+          ["settings", "settings", "Open settings; Tab switches Session, Personal and Repository"],
           ["status", "status", "Show effective Freeflow state"],
           ["compact", "compact", "Prepare, compact and recover now"],
           ...(routingAvailable

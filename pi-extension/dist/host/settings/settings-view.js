@@ -1,4 +1,4 @@
-import { Input, matchesKey, SelectList, SettingsList, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { Input, matchesKey, SelectList, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 class SettingsCoordinator {
   requestRender;
   notify;
@@ -40,6 +40,10 @@ class SettingsCoordinator {
   requestRenderNow() {
     this.requestRender();
   }
+  notifyError(message) {
+    this.notify?.(message, "error");
+    this.requestRender();
+  }
   commit(entry, value) {
     if (this.pending || !entry.commit) return Promise.resolve(false);
     this.pending = true;
@@ -75,15 +79,6 @@ class SettingsCoordinator {
     return { ...this.result };
   }
 }
-function settingsTheme(theme) {
-  return {
-    label: (text, selected) => (selected ? (theme.fg?.("accent", text) ?? text) : text),
-    value: (text, selected) => (selected ? (theme.fg?.("accent", text) ?? text) : text),
-    description: (text) => theme.fg?.("muted", text) ?? text,
-    cursor: theme.fg?.("accent", "› ") ?? "› ",
-    hint: (text) => theme.fg?.("dim", text) ?? text,
-  };
-}
 function selectTheme(theme) {
   return {
     selectedPrefix: (text) => theme.fg?.("accent", text) ?? text,
@@ -101,84 +96,195 @@ function panelLines(title, body, width, theme, pending) {
   lines.push(truncateToWidth(border, width, ""));
   return lines;
 }
-class SettingsPanel {
+const HINT_KEYS = "↑↓ move · Enter/Space change · Esc close";
+const MAX_ROWS = 18;
+/**
+ * The settings screen: one list per scope, with section headers, values changed in place where they are small choices,
+ * and Tab between scopes. Pickers for presets, free text, and confirmations open over it and return to it.
+ */
+class SettingsScreen {
   title;
-  entries;
+  scopes;
   theme;
   coordinator;
   onCancel;
-  list;
-  constructor(title, entries, theme, coordinator, onCancel) {
+  scopeIndex = 0;
+  entries = [];
+  selected = 0;
+  loading = false;
+  submenu = null;
+  constructor(title, scopes, theme, coordinator, onCancel, initialScope) {
     this.title = title;
-    this.entries = entries;
+    this.scopes = scopes;
     this.theme = theme;
     this.coordinator = coordinator;
     this.onCancel = onCancel;
-    this.list = this.createList();
-  }
-  createList() {
-    const hostItems = this.entries.map((entry) => {
-      const inactive = entry.inactive();
-      const currentValue = entry.currentValue();
-      const inactiveSuffix = inactive && !currentValue.includes("inactive") ? " · inactive" : "";
-      const dim = (text) => (inactive ? (this.theme.fg?.("dim", text) ?? text) : text);
-      const item = {
-        id: entry.id,
-        label: dim(entry.label),
-        description: entry.description,
-        currentValue: dim(`${currentValue}${inactiveSuffix}`),
-      };
-      if (inactive) return item;
-      if (entry.children) {
-        item.submenu = (_currentValue, done) =>
-          new SettingsPanel(`${this.title} › ${entry.label}`, entry.children(), this.theme, this.coordinator, () => {
-            this.refresh();
-            done();
-          });
-      } else if (entry.wizard) {
-        item.submenu = (_currentValue, done) =>
-          new WizardEditor(entry, `${this.title} › ${entry.label}`, this.theme, this.coordinator, () => {
-            this.refresh();
-            done();
-          });
-      } else if (entry.choices?.length) {
-        item.submenu = (_currentValue, done) =>
-          new ChoiceEditor(entry, `${this.title} › ${entry.label}`, this.theme, this.coordinator, () => {
-            this.refresh();
-            done();
-          });
-      } else if (entry.edit) {
-        item.submenu = (_currentValue, done) =>
-          new InputEditor(entry, `${this.title} › ${entry.label}`, this.theme, this.coordinator, () => {
-            this.refresh();
-            done();
-          });
-      }
-      return item;
-    });
-    return new SettingsList(
-      hostItems,
-      Math.min(hostItems.length + 2, 18),
-      settingsTheme(this.theme),
-      () => {},
-      this.onCancel,
-      {
-        enableSearch: true,
-      },
+    this.scopeIndex = Math.max(
+      0,
+      scopes.findIndex((scope) => scope.id === initialScope),
     );
+    this.load();
   }
-  refresh() {
-    this.list = this.createList();
+  /** Entries already at hand show at once; a scope read from disk shows "Loading…" until it arrives. */
+  load() {
+    const loaded = this.scopes[this.scopeIndex].load();
+    if (!(loaded instanceof Promise)) {
+      this.show(loaded);
+      return;
+    }
+    this.loading = true;
+    this.coordinator.requestRenderNow();
+    void loaded
+      .then((entries) => this.show(entries))
+      .catch((error) => {
+        this.loading = false;
+        this.entries = [];
+        this.coordinator.notifyError(
+          `Could not load settings: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+  }
+  show(entries) {
+    this.entries = entries;
+    this.loading = false;
+    this.selected = this.firstSelectable(0, 1);
     this.coordinator.requestRenderNow();
   }
-  render(width) {
-    return panelLines(this.title, this.list.render(width), width, this.theme, this.coordinator.pending);
+  /** Settle any pending scope load; tests and callers that render synchronously use this. */
+  async ready() {
+    while (this.loading) await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  firstSelectable(from, step) {
+    const count = this.entries.length;
+    for (let i = 0; i < count; i++) {
+      const index = (((from + i * step) % count) + count) % count;
+      if (!this.entries[index]?.section) return index;
+    }
+    return 0;
+  }
+  move(step) {
+    this.selected = this.firstSelectable(this.selected + step, step);
+  }
+  switchScope(step) {
+    if (this.scopes.length < 2 || this.coordinator.pending) return;
+    this.scopeIndex = (this.scopeIndex + step + this.scopes.length) % this.scopes.length;
+    this.load();
+  }
+  closeSubmenu = () => {
+    this.submenu = null;
+    this.coordinator.requestRenderNow();
+  };
+  activate() {
+    const entry = this.entries[this.selected];
+    if (!entry || entry.section || entry.inactive()) return;
+    const title = `${this.title} › ${this.scopes[this.scopeIndex].label} › ${entry.label}`;
+    if (entry.cycle && entry.choices?.length) {
+      const choices = entry.choices;
+      const current = choices.findIndex((choice) => choice.key === entry.currentChoiceKey?.());
+      const next = choices[(current + 1) % choices.length];
+      void this.coordinator.commit(entry, next.value);
+      return;
+    }
+    if (entry.wizard) this.submenu = new WizardEditor(entry, title, this.theme, this.coordinator, this.closeSubmenu);
+    else if (entry.choices?.length)
+      this.submenu = new ChoiceEditor(entry, title, this.theme, this.coordinator, this.closeSubmenu);
+    else if (entry.edit) this.submenu = new InputEditor(entry, title, this.theme, this.coordinator, this.closeSubmenu);
+    else if (entry.children) {
+      const children = entry.children();
+      this.submenu = new SettingsScreen(
+        title,
+        [{ id: entry.id, label: entry.label, summary: entry.description, load: () => children }],
+        this.theme,
+        this.coordinator,
+        this.closeSubmenu,
+      );
+    }
   }
   handleInput(data) {
-    this.list.handleInput(data);
+    if (this.submenu) {
+      this.submenu.handleInput?.(data);
+      return;
+    }
+    if (matchesKey(data, "up")) this.move(-1);
+    else if (matchesKey(data, "down")) this.move(1);
+    else if (matchesKey(data, "tab")) this.switchScope(1);
+    else if (matchesKey(data, "shift+tab")) this.switchScope(-1);
+    else if (matchesKey(data, "enter") || data === " ") this.activate();
+    else if (matchesKey(data, "escape")) this.onCancel();
+  }
+  color(name, text) {
+    return this.theme.fg?.(name, text) ?? text;
+  }
+  header(width) {
+    const title = this.color("accent", this.theme.bold?.(this.title) ?? this.title);
+    if (this.scopes.length < 2) return [truncateToWidth(title, width, "")];
+    const tabs = this.scopes
+      .map((scope, index) =>
+        index === this.scopeIndex
+          ? this.color("accent", this.theme.bold?.(`[${scope.label}]`) ?? `[${scope.label}]`)
+          : this.color("dim", ` ${scope.label} `),
+      )
+      .join(" ");
+    return [
+      truncateToWidth(`${title}   ${tabs}`, width, ""),
+      truncateToWidth(this.color("muted", `  ${this.scopes[this.scopeIndex].summary}`), width, ""),
+    ];
+  }
+  rows(width) {
+    if (this.loading) return [this.color("dim", "  Loading…")];
+    if (!this.entries.length) return [this.color("dim", "  No settings in this scope.")];
+    const items = this.entries.filter((entry) => !entry.section);
+    const labelWidth = Math.min(32, Math.max(...items.map((entry) => visibleWidth(entry.label))));
+    const lines = this.entries.map((entry, index) => {
+      if (entry.section) {
+        const status = entry.currentValue();
+        const label = this.color("accent", this.theme.bold?.(entry.label) ?? entry.label);
+        return truncateToWidth(`  ${label}${status ? this.color("dim", `  ${status}`) : ""}`, width, "");
+      }
+      const selected = index === this.selected;
+      const inactive = entry.inactive();
+      const cursor = selected ? this.color("accent", "› ") : "  ";
+      const padded = entry.label + " ".repeat(Math.max(0, labelWidth - visibleWidth(entry.label)));
+      const label = selected ? this.color("accent", padded) : inactive ? this.color("dim", padded) : padded;
+      const value = entry.currentValue() + (inactive ? " · inactive" : "");
+      const shown = selected ? this.color("accent", value) : inactive ? this.color("dim", value) : value;
+      return truncateToWidth(`  ${cursor}${label}  ${shown}`, width, "");
+    });
+    if (lines.length <= MAX_ROWS) return lines;
+    const start = Math.max(0, Math.min(this.selected - Math.floor(MAX_ROWS / 2), lines.length - MAX_ROWS));
+    return [...lines.slice(start, start + MAX_ROWS), this.color("dim", `  (${this.selected + 1}/${lines.length})`)];
+  }
+  details(width) {
+    const entry = this.entries[this.selected];
+    if (!entry || this.loading) return [];
+    const wrap = (text, color) =>
+      wrapTextWithAnsi(text, Math.max(1, width - 4)).map((line) => this.color(color, `  ${line}`));
+    const lines = wrap(entry.description, "muted");
+    const choice = entry.cycle
+      ? entry.choices?.find((candidate) => candidate.key === entry.currentChoiceKey?.())
+      : undefined;
+    if (choice?.description) lines.push(...wrap(`${choice.label}: ${choice.description}`, "dim"));
+    return lines;
+  }
+  render(width) {
+    if (this.submenu) return this.submenu.render(width);
+    const border = this.color("border", "─".repeat(Math.max(1, width)));
+    const keys = this.scopes.length > 1 ? HINT_KEYS.replace(" · Esc", " · Tab scope · Esc") : HINT_KEYS;
+    const hint = this.coordinator.pending ? "Saving…" : keys;
+    return [
+      truncateToWidth(border, width, ""),
+      ...this.header(width),
+      "",
+      ...this.rows(width),
+      "",
+      ...this.details(width),
+      "",
+      truncateToWidth(this.color("dim", `  ${hint}`), width, ""),
+      truncateToWidth(border, width, ""),
+    ];
   }
   invalidate() {
-    this.list.invalidate();
+    this.submenu?.invalidate?.();
   }
 }
 class ChoiceEditor {
@@ -359,9 +465,12 @@ export class PiSettingsComponent {
   constructor(options) {
     this.coordinator = new SettingsCoordinator(options.requestRender, options.notify, options.done);
     const close = () => this.coordinator.requestClose();
+    const scopes = options.scopes ?? [
+      { id: "settings", label: options.title, summary: "", load: () => options.entries ?? [] },
+    ];
     this.component = options.initialChoice
       ? new ChoiceEditor(options.initialChoice, options.title, options.theme, this.coordinator, close)
-      : new SettingsPanel(options.title, options.entries, options.theme, this.coordinator, close);
+      : new SettingsScreen(options.title, scopes, options.theme, this.coordinator, close, options.initialScope);
   }
   get focused() {
     return this.coordinator.focused;
@@ -385,6 +494,10 @@ export class PiSettingsComponent {
   }
   async waitForWrites() {
     await this.coordinator.waitForWrites();
+  }
+  /** Resolves once the current scope's settings are loaded. */
+  async ready() {
+    if (this.component instanceof SettingsScreen) await this.component.ready();
   }
   sessionResult() {
     return this.coordinator.sessionResult();

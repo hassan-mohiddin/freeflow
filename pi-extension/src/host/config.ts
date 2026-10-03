@@ -10,13 +10,25 @@ import { resolveCompactionConfig, validateCompactionConfig } from "../compaction
  * Freeflow configuration: the repository and personal config files, their layering, per-session core overrides, and
  * the resulting capability state, with optional capabilities disabled inside subagents.
  */
-type SessionCoreKey = "enabled";
+/**
+ * Settings a session may override, as dotted config paths. "enabled" is Freeflow's master switch; the others switch a
+ * capability and are applied as a layer above the personal config.
+ */
+export const SESSION_OVERRIDE_KEYS = [
+  "enabled",
+  "cognitiveRouting.enabled",
+  "cognitiveRouting.projection",
+  "toolExecution.enabled",
+  "compaction.enabled",
+  "compaction.carry",
+] as const;
+export type SessionCoreKey = (typeof SESSION_OVERRIDE_KEYS)[number];
 
 type SessionCoreOverrides = Partial<Record<SessionCoreKey, boolean>>;
 
 const SESSION_OVERRIDES_ENTRY = "freeflow-session-overrides";
 
-const SESSION_CORE_KEYS = new Set<SessionCoreKey>(["enabled"]);
+const SESSION_CORE_KEYS = new Set<SessionCoreKey>(SESSION_OVERRIDE_KEYS);
 
 let currentSessionOverrides: SessionCoreOverrides = {};
 
@@ -225,6 +237,24 @@ function normalizeSessionOverrides(value): SessionCoreOverrides {
   return overrides;
 }
 
+/** The capability overrides of this session as a config layer, e.g. { compaction: { carry: false } }. */
+function sessionConfigLayer(overrides: SessionCoreOverrides): Record<string, Record<string, boolean>> {
+  const layer: Record<string, Record<string, boolean>> = {};
+  for (const [key, value] of Object.entries(overrides)) {
+    const [section, field] = key.split(".");
+    if (!field || typeof value !== "boolean") continue;
+    layer[section] = { ...(layer[section] ?? {}), [field]: value };
+  }
+  return layer;
+}
+
+function withSessionLayer(local: Record<string, unknown>, session: Record<string, Record<string, boolean>>) {
+  const merged: Record<string, unknown> = { ...local };
+  for (const [section, fields] of Object.entries(session))
+    merged[section] = { ...(isRecord(local[section]) ? (local[section] as Record<string, unknown>) : {}), ...fields };
+  return merged;
+}
+
 function resolveSessionCoreConfig(layers) {
   const configured = layers.coreConfig;
   const sources = layers.sources;
@@ -268,10 +298,12 @@ export async function readCapabilityState(cwd, host = undefined) {
   const enabled = layers.configured && effectiveCore.config.enabled;
   const subagentContext = isSubagentContext(host);
   const hostSupportsCognitiveRouting = !subagentContext && supportsCognitiveRoutingModelRegistry(host);
+  const sessionLayer = sessionConfigLayer(currentSessionOverrides);
   const configuredCognitiveRouting = await resolveCognitiveRoutingState(
     layers.repository.parsed,
     layers.local.parsed,
     hostSupportsCognitiveRouting ? host : undefined,
+    sessionLayer,
   );
   const disabledReason = enabled ? undefined : { code: "disabled" as const, message: "Freeflow is disabled" };
   const cognitiveRouting = enabled
@@ -284,8 +316,9 @@ export async function readCapabilityState(cwd, host = undefined) {
       };
   const repositoryConfig = layers.repository.valid ? layers.repository.parsed : {};
   const localConfig = layers.local.valid ? layers.local.parsed : {};
-  const toolExecution = resolveToolExecutionConfig(repositoryConfig, localConfig, enabled);
-  const compaction = resolveCompactionConfig(repositoryConfig, localConfig, enabled);
+  const sessionLocalConfig = withSessionLayer(localConfig, sessionLayer);
+  const toolExecution = resolveToolExecutionConfig(repositoryConfig, sessionLocalConfig, enabled);
+  const compaction = resolveCompactionConfig(repositoryConfig, sessionLocalConfig, enabled);
   const capabilityState = {
     configured: layers.configured,
     repositoryConfigured: layers.repositoryConfigured,
@@ -368,7 +401,8 @@ export async function setSessionCoreOverride(key: SessionCoreKey, value: boolean
   recordSessionOverrides(ctx, pi);
   return {
     changed: true,
-    reloadRequired: key === "enabled",
+    // Every session override switches Freeflow or a capability, which changes tools and guidance: reload.
+    reloadRequired: true,
     sessionOverrides: { ...currentSessionOverrides },
     capabilityState: await readCapabilityState(ctx.cwd, ctx),
   };
@@ -376,7 +410,7 @@ export async function setSessionCoreOverride(key: SessionCoreKey, value: boolean
 
 export async function resetSessionOverrides(ctx, pi) {
   const hadCoreOverrides = Object.keys(currentSessionOverrides).length > 0;
-  const reloadRequired = Object.hasOwn(currentSessionOverrides, "enabled");
+  const reloadRequired = hadCoreOverrides;
 
   if (hadCoreOverrides) {
     currentSessionOverrides = {};

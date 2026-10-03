@@ -74,6 +74,7 @@ export async function resolveCognitiveRoutingState(
   repository: any,
   personal: any,
   ctx: any,
+  session?: any,
 ): Promise<CognitiveRoutingCapabilityState> {
   const state: CognitiveRoutingCapabilityState = {
     configured: repository?.cognitiveRouting !== undefined || personal?.cognitiveRouting !== undefined,
@@ -93,6 +94,8 @@ export async function resolveCognitiveRoutingState(
     for (const [source, raw] of [
       ["repository", repository?.cognitiveRouting],
       ["personal", personal?.cognitiveRouting],
+      // A session overrides only switches (enabled, projection), never profiles.
+      ["session", session?.cognitiveRouting],
     ] as const) {
       const layer = parseLayer(raw);
       if (layer.enabled !== undefined) {

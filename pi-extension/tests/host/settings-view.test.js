@@ -201,20 +201,95 @@ test("Pi settings keep typed input open when parsing fails", () => {
   assert.match(component.render(60).join("\n"), /Invalid value: expected a positive integer/);
 });
 
-test("Pi settings search accepts bracketed paste", () => {
-  const entries = ["Alpha", "Beta"].map((label) => ({
+function cycling(label, keys, initial = keys[0]) {
+  let current = initial;
+  const commits = [];
+  return {
+    entry: {
+      id: label.toLowerCase(),
+      label,
+      description: `${label} setting.`,
+      currentValue: () => current,
+      inactive: () => false,
+      cycle: true,
+      currentChoiceKey: () => current,
+      choices: keys.map((key) => ({ key, value: key, label: key, description: `${key} meaning` })),
+      async commit(value) {
+        commits.push(value);
+        current = value;
+        return { changed: true, reloadRequired: false };
+      },
+    },
+    commits,
+    current: () => current,
+  };
+}
+
+test("a small choice changes in place on Enter or Space, cycling back to the start", async () => {
+  const setting = cycling("Compaction", ["inherit", "true", "false"]);
+  const { component } = createComponent([setting.entry]);
+
+  component.handleInput("\r");
+  await component.waitForWrites();
+  component.handleInput(" ");
+  await component.waitForWrites();
+  assert.deepEqual(setting.commits, ["true", "false"]);
+  // No picker page opened: the list and the chosen value's meaning are on screen.
+  const rendered = component.render(80).join("\n");
+  assert.match(rendered, /› Compaction\s+false/);
+  assert.match(rendered, /false: false meaning/);
+  component.handleInput("\r");
+  await component.waitForWrites();
+  assert.equal(setting.current(), "inherit");
+});
+
+test("the cursor skips section headers and inactive settings do not change", async () => {
+  const first = cycling("First", ["on", "off"]);
+  const second = cycling("Second", ["on", "off"]);
+  second.entry.inactive = () => true;
+  const section = {
+    id: "s",
+    label: "Section",
+    description: "",
+    section: true,
+    currentValue: () => "active",
+    inactive: () => false,
+  };
+  const { component } = createComponent([first.entry, section, second.entry]);
+
+  component.handleInput("\u001b[B");
+  assert.match(component.render(80).join("\n"), /› Second/, "down moves past the header");
+  component.handleInput("\r");
+  await component.waitForWrites();
+  assert.deepEqual(second.commits, []);
+  assert.match(component.render(80).join("\n"), /Second\s+on · inactive/);
+});
+
+test("Tab and Shift+Tab switch scopes, each with its own settings", async () => {
+  const scopes = ["Session", "Personal", "Repository"].map((label) => ({
     id: label.toLowerCase(),
     label,
-    description: `${label} setting`,
-    currentValue: () => "off",
-    inactive: () => true,
+    summary: `${label} values.`,
+    load: () => [cycling(`${label} switch`, ["on", "off"]).entry],
   }));
-  const { component } = createComponent(entries);
-
-  component.handleInput("\u001b[200~Beta\u001b[201~");
-  const rendered = component.render(60).join("\n");
-  assert.match(rendered, /Beta/);
-  assert.doesNotMatch(rendered, /Alpha/);
+  const component = new PiSettingsComponent({
+    title: "Freeflow settings",
+    scopes,
+    initialScope: "personal",
+    theme,
+    requestRender() {},
+    done() {},
+  });
+  await component.ready();
+  assert.match(component.render(90).join("\n"), /\[Personal\][\s\S]*Personal values\.[\s\S]*Personal switch/);
+  component.handleInput("\t");
+  await component.ready();
+  assert.match(component.render(90).join("\n"), /\[Repository\][\s\S]*Repository switch/);
+  component.handleInput("\u001b[Z");
+  component.handleInput("\u001b[Z");
+  await component.ready();
+  assert.match(component.render(90).join("\n"), /\[Session\][\s\S]*Session switch/);
+  assert.match(component.render(90).join("\n"), /Tab scope/);
 });
 
 test("Pi settings keep ANSI and Unicode rendering within terminal width", () => {
