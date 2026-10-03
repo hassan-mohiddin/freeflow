@@ -83,9 +83,16 @@ function check(file) {
     else {
       try {
         git(root, ["cat-file", "-e", `${commit}^{commit}`]);
-        const changed = git(root, ["diff", "--name-only", commit, "--", ...covers])
-          .split("\n")
-          .filter(Boolean);
+        const lines = (args) => git(root, args).split("\n").filter(Boolean);
+        // A change made together with the document (same commit, or both uncommitted) was reviewed with it.
+        const self = relative(root, file);
+        const withDoc = new Set(lines(["log", "--format=%H", `${commit}..HEAD`, "--", self]));
+        const docDirty = lines(["status", "--porcelain", "--", self]).length > 0;
+        const changed = lines(["diff", "--name-only", commit, "--", ...covers]).filter(
+          (path) =>
+            lines(["log", "--format=%H", `${commit}..HEAD`, "--", path]).some((each) => !withDoc.has(each)) ||
+            (!docDirty && lines(["status", "--porcelain", "--", path]).length > 0),
+        );
         stale = { since: commit, changed };
       } catch {
         errors.push(`Verified at names a commit this repository does not have: ${commit}`);

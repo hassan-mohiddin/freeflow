@@ -19,7 +19,7 @@ An overview and a subsystem doc start with a title and a header block:
 > **User docs:** `plugin-docs/capabilities/compaction.md`
 ```
 
-- **Covers:** the files and directories the document describes, as repository-relative paths in backticks, separated by commas. The check reports a document as possibly stale when any of them changes after the verified commit.
+- **Covers:** the files and directories the document describes, as repository-relative paths in backticks, separated by commas. The check reports a document as possibly stale when any of them changes after the verified commit, unless the document changed in the same commit.
 - **Tests:** the tests that prove the document's claims, in the same form. Optional.
 - **Verified at:** the commit the document was last checked against, in backticks, with the date. Update it only after checking the document against the code at that commit.
 - **User docs:** the user guide for the same feature, when one exists. Optional.

@@ -11,6 +11,7 @@ Freeflow is a portable skill pack and context-loading runtime for coding agents.
 - [Prompt assembly](subsystems/prompt-assembly.md): prompt fragments, Runtime State, discoverable skills, gating, and nested execution context.
 - [Skill routing](subsystems/skill-routing.md): shipped skills, ownership, sibling routes, and reference dependencies.
 - [Cognitive Routing](subsystems/cognitive-routing.md): unit and assignment lifecycle, routing tools, evidence selection and recovery, persistence.
+- [Compaction](subsystems/compaction.md): when compaction is due, the agent path and carried context, Cognitive Routing and Pi's own compaction, and the behavior that looks wrong but is intended.
 - [Pi extension](subsystems/pi-extension.md): what the extension registers, cache reuse boundaries, persistence and recovery limits, development snapshots.
 
 **Guides** (how to do maintainer work):

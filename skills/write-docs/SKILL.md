@@ -70,7 +70,7 @@ Run the bundled [docs check](scripts/docs-check.mjs) after writing or changing d
 node <write-docs-directory>/scripts/docs-check.mjs <docs-file-or-directory>... [--root <repository>] [--strict] [--json]
 ```
 
-It reports paths a document names that do not exist and, for documents with the header, those whose covered code changed since the commit they record as verified. Missing paths are errors (exit code 1). Changed code is a warning, since many changes leave a document true; `--strict` makes it an error. Read the changes it lists and update the document or its verified commit.
+It reports paths a document names that do not exist and, for documents with the header, those whose covered code changed since the commit they record as verified. A change made together with the document, in the same commit or both uncommitted, counts as reviewed with it. Missing paths are errors (exit code 1). Changed code is a warning, since many changes leave a document true; `--strict` makes it an error. Read the changes it lists and update the document or its verified commit.
 
 For a new subsystem doc or overview, or one you substantially rewrote, test it on a reader without your context. Write five to ten questions a newcomer would ask: where is the code that does X, why does it do Y, is Z a bug, what breaks if W changes, which test proves V. Give a fresh agent only the document and the questions (a subagent where the host has one; otherwise ask the user to run it in a new session). Compare each answer with the code. Where an answer is wrong or unsure, fix the document and ask again. The check passes when the answers are right without new gaps.
 
