@@ -214,3 +214,47 @@ for (const [name, profiles] of [
         assert.deepEqual(findings, []);
       },
     );
+
+// Freeflow changes the active tools mid-session (Tool Execution, freeflow_compact), as other extensions may. On Claude
+// models with native tool changes, Pi 1.0.1 and later define a later tool inside the conversation and keep the
+// request's tool list fixed (Pi 1.0.0 appended it to the list, which changed every later request's prefix and left
+// Freeflow's cache anchor nothing to find).
+test("a tool activated mid-session on Claude keeps the earlier request a prefix", { timeout: 30000 }, async () => {
+  const bodies = [];
+  await fixture(
+    async () => [],
+    false,
+    async ({ session }) => {
+      session.setActiveToolsByName([...session.getActiveToolNames(), "grep"]);
+      await session.prompt("Second prompt.");
+      await session.waitForIdle();
+    },
+    false,
+    {
+      model: ["anthropic", "claude-sonnet-5-5"],
+      thinkingLevel: "low",
+      modelsStore,
+      cognitiveRouting: { enabled: false },
+      response: (n, calls, body) => {
+        bodies.push(body);
+        return anthropicResponse(n, calls, { model: body.model });
+      },
+    },
+  );
+  const [before, after] = bodies.slice(-2);
+  const strip = (value) => JSON.parse(JSON.stringify(value, (key, v) => (key === "cache_control" ? undefined : v)));
+  assert.deepEqual(strip(after.tools), strip(before.tools), "the request's tool list does not change");
+  assert.deepEqual(strip(after.messages.slice(0, before.messages.length)), strip(before.messages));
+  assert.ok(
+    after.messages.some((m) =>
+      m.content?.some?.((b) => b.type === "tool_addition" && b.tool?.definition?.name === "grep"),
+    ),
+    "the new tool is defined inside the conversation",
+  );
+  // Freeflow's anchor looks for the earlier request's last breakpoint in the later request's layout.
+  const earlier = anthropicLayout(before).layout,
+    later = anthropicLayout(after).layout;
+  const entry = earlier.breakpoints.at(-1);
+  assert.ok(entry !== undefined);
+  assert.equal(later.chain[entry], earlier.chain[entry], "the earlier cache entry is findable in the later request");
+});
