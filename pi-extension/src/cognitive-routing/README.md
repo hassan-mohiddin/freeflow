@@ -2,7 +2,7 @@
 
 Splits one Pi session between a **Coordinator** profile, which talks to the user and judges the work, and **worker** profiles (Helper, Executor), which do delegated work, usually on a cheaper model or lower effort. Routing switches Pi's model and effort per profile, and with **projection** on, gives the Coordinator a reduced view of the worker's history: the report plus the evidence it selected.
 
-User-facing behavior: [Cognitive Routing](../../../plugin-docs/capabilities/cognitive-routing.md). The model-facing contract lives in `capabilities/cognitive-routing/`.
+How it works and why, including behavior that looks wrong but is intended: [`dev-docs/subsystems/cognitive-routing.md`](../../../dev-docs/subsystems/cognitive-routing.md). User-facing behavior: [Cognitive Routing](../../../plugin-docs/capabilities/cognitive-routing.md). The model-facing contract lives in `capabilities/cognitive-routing/`.
 
 ## Concepts
 
