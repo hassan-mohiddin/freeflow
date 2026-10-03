@@ -6,7 +6,7 @@ Freeflow runs inside Pi on every turn: before each model request it assembles co
 
 Freeflow's work is not visible as a feature, so it regresses quietly. Twice it has grown with session length:
 
-- **September 2026.** On a 28 MB real session Freeflow added about 750 ms at session start and 60 to 120 ms to every request, including while disabled. Every cost came from recomputing state from all history, re-reading session files, writing an entry per request, or serializing diagnostics before dispatch. Commits `c71d545`, `1d0ef13` and `61fbb5d` fixed it, and the rules below were written then.
+- **September 2026.** On a 28 MB real session Freeflow added about 750 ms at session start and 60 to 120 ms to every request, including while disabled. Every cost came from recomputing state from all history, re-reading session files, writing an entry per request, or serializing diagnostics before dispatch. Commits `ca50b55`, `634d1c3` and `0f37dba` fixed it, and the rules below were written then.
 - **October 2026.** Features added since (compaction, Tool Execution, more routing state) asked Pi for the whole session branch 75 times per prompt with routing on, and compaction re-estimated the whole history on every turn. On a 47 MB session routing's per-prompt work had nearly doubled. A per-leaf branch cache and an incremental compaction measurement fixed it, and the request-path budget test now guards both.
 
 ## Rules

@@ -15,7 +15,7 @@ An overview and a subsystem doc start with a title and a header block:
 
 > **Covers:** `pi-extension/src/compaction/`, `pi-extension/src/index.ts`
 > **Tests:** `pi-extension/tests/compaction/`
-> **Verified at:** `be97a55` (2026-10-03)
+> **Verified at:** `9078dd0` (2026-10-03)
 > **User docs:** `plugin-docs/capabilities/compaction.md`
 ```
 

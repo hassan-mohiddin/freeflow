@@ -12,7 +12,7 @@
     "baseline": {
       "source": {
         "kind": "git",
-        "ref": "7dafc0e"
+        "ref": "942057d"
       },
       "skills": ["skills/track-work"],
       "target": 0,

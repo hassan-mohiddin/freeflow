@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/host/request-history.ts`, `pi-extension/src/host/runtime-state.ts`, `pi-extension/src/host/projection-tags.ts`, `pi-extension/src/host/read-only-session.ts`, `pi-extension/src/provider-support/`
 > **Tests:** `pi-extension/tests/cache-reuse/`, `pi-extension/tests/provider-support/`, `pi-extension/tests/host/persisted-branch.test.js`
-> **Verified at:** `3a8fdf42` (2026-10-03)
+> **Verified at:** `c2e36114` (2026-10-03)
 > **User docs:** `plugin-docs/prompt-caching.md`
 
 For contributors changing how Freeflow assembles requests or touches provider payloads. This doc explains the mechanisms: how generated messages keep their positions, where cache breakpoints are added, when a cache is kept warm, and how regressions are detected. The rules every change must follow, and how to verify one, are in [Prompt cache rules](../guides/prompt-cache.md); this doc does not repeat them.
@@ -113,19 +113,19 @@ On `message_end` with usage (Freeflow enabled), `CacheHealth.observe()` compares
 | --- | --- | --- | --- |
 | Persist positions of generated messages as frames (hashes plus the generated messages), not as session messages. | Generated state must keep its position across requests, reloads and forks. A frame stores no second copy of native bodies, and replay checks the native prefix before using it. | — | `c6702bb3` |
 | Match frames by prefix hash within a generation, not by view. | A view change (projection on or off, Coordinator or worker) should keep whatever prefix is still identical. | Matching by view label. | `c6702bb3` |
-| Only compaction starts a generation; a `/tree` branch summary does not. | A branch summary follows its branch point and leaves the path before it unchanged. Treating it as a new generation moved state to the tail and rewrote the prefix (a live request read 26k of about 97k cached tokens). | Resetting on both. | `6e676fa0` |
+| Only compaction starts a generation; a `/tree` branch summary does not. | A branch summary follows its branch point and leaves the path before it unchanged. Treating it as a new generation moved state to the tail and rewrote the prefix (a live request read 26k of about 97k cached tokens). | Resetting on both. | `70d9e517` |
 | On any failure, return the current projected view without replay; after a failed frame append, stop replaying until reset. | An uncertain append could replay state that was never sent. The projected view is already safe to send (it never exposes hidden worker history); it only costs a cache miss. | Failing the request; replaying anyway. | `c6702bb3` |
-| Write a frame only when generated state changes. | One frame per request grew the session and cost time on every request. | A frame per request. | `c71d5457` |
-| Verify persisted ancestry by the session file's new tail, not by re-reading the file; set the trust point only where Pi just parsed the file (`trustStartedSession()`), never on `/reload`. | Pi has just parsed the file at session start. On a 28 MB session the first request went from 224 ms to 36 ms (disabled) and 321 ms to 134 ms (routing). A reload does not re-read the file, so trusting it there could hide an entry a failed write left out. | Full re-read after every reset; trusting on every `session_start`. | `af545a73`; Task 013 |
-| Fingerprint unchanged native messages once per session through Pi's projection tags. | Per-request work went from 38 ms to 20 ms (enabled) on a 28 MB session. Host-edited and generated messages keep content hashes. | Hashing every message every request. | `61fbb5dd` |
-| Add an anchor breakpoint on the previous request's final entry when it fell out of the lookback window, yielding only a redundant breakpoint. | A Coordinator resuming after a worker sent its previous request unchanged yet rewrote most of it. Replaying a captured handoff cut that request's cost by about 84%. | Leaving breakpoints to Pi. | `2148bc0f` |
-| Keep the Coordinator's cache warm with capped replays while its worker runs, priced from the model catalog. | The Coordinator is certain to resume, but Pi's own warmer keeps only the latest request warm, which is the worker's. | Advising longer retention only. | `2148bc0f` |
-| Keep a separate keep-alive lane per requester on a shared model. | A worker on the Coordinator's model replaced the Coordinator's request, and the hold warmed the worker's prompt. | One lane per model. | `b6a5aa7f` |
-| Skip Anthropic requests with budget-based thinking for keep-alive. | A one-token replay is rejected or cached under a different key; Pi's own warmer skips them too. | — | `649cd9c1` |
-| Never adapt the ChatGPT Codex backend or Sign in with ChatGPT. | Live probes: they reuse the full prefix without breakpoints (Codex after 60 appended message endings, Sign in with ChatGPT after 25) and reject `prompt_cache_breakpoint`, `max_output_tokens`, and `configuration_update`. | Treating them as OpenAI Responses. | `667b8ee1`, `dfe5d53f`, `ca275c72` |
-| Advise `PI_CACHE_RETENTION=long` instead of setting it. | The host owns retention, and Pi's own warmer plans around it. | Setting retention. | `667b8ee1` |
-| Cache diagnostics go to `/freeflow status`, not the footer. | The footer shows current settings only. | Footer indicators. | `a7508551` |
-| Cache health warns at 4 misses in 8 comparable requests. | Provider-side misses are about 2–4% of requests with or without Freeflow (September 2026 Codex sessions), so repeated misses mean something rewrites the prompt. | — | `aba6d840` |
+| Write a frame only when generated state changes. | One frame per request grew the session and cost time on every request. | A frame per request. | `ca50b550` |
+| Verify persisted ancestry by the session file's new tail, not by re-reading the file; set the trust point only where Pi just parsed the file (`trustStartedSession()`), never on `/reload`. | Pi has just parsed the file at session start. On a 28 MB session the first request went from 224 ms to 36 ms (disabled) and 321 ms to 134 ms (routing). A reload does not re-read the file, so trusting it there could hide an entry a failed write left out. | Full re-read after every reset; trusting on every `session_start`. | `72ecb2b4`; Task 013 |
+| Fingerprint unchanged native messages once per session through Pi's projection tags. | Per-request work went from 38 ms to 20 ms (enabled) on a 28 MB session. Host-edited and generated messages keep content hashes. | Hashing every message every request. | `0f37dba7` |
+| Add an anchor breakpoint on the previous request's final entry when it fell out of the lookback window, yielding only a redundant breakpoint. | A Coordinator resuming after a worker sent its previous request unchanged yet rewrote most of it. Replaying a captured handoff cut that request's cost by about 84%. | Leaving breakpoints to Pi. | `e2291227` |
+| Keep the Coordinator's cache warm with capped replays while its worker runs, priced from the model catalog. | The Coordinator is certain to resume, but Pi's own warmer keeps only the latest request warm, which is the worker's. | Advising longer retention only. | `e2291227` |
+| Keep a separate keep-alive lane per requester on a shared model. | A worker on the Coordinator's model replaced the Coordinator's request, and the hold warmed the worker's prompt. | One lane per model. | `e312562f` |
+| Skip Anthropic requests with budget-based thinking for keep-alive. | A one-token replay is rejected or cached under a different key; Pi's own warmer skips them too. | — | `d0ceeec8` |
+| Never adapt the ChatGPT Codex backend or Sign in with ChatGPT. | Live probes: they reuse the full prefix without breakpoints (Codex after 60 appended message endings, Sign in with ChatGPT after 25) and reject `prompt_cache_breakpoint`, `max_output_tokens`, and `configuration_update`. | Treating them as OpenAI Responses. | `c45f16f6`, `aaf5e7cb`, `097e8d7e` |
+| Advise `PI_CACHE_RETENTION=long` instead of setting it. | The host owns retention, and Pi's own warmer plans around it. | Setting retention. | `c45f16f6` |
+| Cache diagnostics go to `/freeflow status`, not the footer. | The footer shows current settings only. | Footer indicators. | `6191f2a2` |
+| Cache health warns at 4 misses in 8 comparable requests. | Provider-side misses are about 2–4% of requests with or without Freeflow (September 2026 Codex sessions), so repeated misses mean something rewrites the prompt. | — | `9d62cf20` |
 
 ## Intended Behavior That Looks Wrong
 
@@ -180,7 +180,7 @@ On `message_end` with usage (Freeflow enabled), `CacheHealth.observe()` compares
 
 ## Cost
 
-Request history runs on every request; the rules are in [Performance](../guides/performance.md). It walks only new branch entries, fingerprints native messages once per session, reuses prefix hashes while the prefix is unchanged, and writes only on change. Measured on a 28 MB session in September 2026: per-request work enabled 38 → 20 ms (`61fbb5dd`); first request after start 321 → 134 ms with routing (`af545a73`). The anchor adapter hashes the payload per request on qualified routes. Keep-alive spends money: each refresh costs about the prompt at cache-read price plus a few output tokens.
+Request history runs on every request; the rules are in [Performance](../guides/performance.md). It walks only new branch entries, fingerprints native messages once per session, reuses prefix hashes while the prefix is unchanged, and writes only on change. Measured on a 28 MB session in September 2026: per-request work enabled 38 → 20 ms (`0f37dba7`); first request after start 321 → 134 ms with routing (`72ecb2b4`). The anchor adapter hashes the payload per request on qualified routes. Keep-alive spends money: each refresh costs about the prompt at cache-read price plus a few output tokens.
 
 ## Code Map
 
@@ -215,10 +215,10 @@ Request history runs on every request; the rules are in [Performance](../guides/
 
 ## Changes
 
-- `be97a55d` (2026-10-03): one branch walk per leaf through `cachedBranch()`.
-- `dfe5d53f`, `ca275c72` (2026-09-30): Sign in with ChatGPT left untouched, from live results.
-- `649cd9c1`, `e21fe440` (2026-09-29): Claude routing and caching qualified; keep-alive skips budget thinking.
-- `6e676fa0` (2026-09-27): branch summaries keep generated positions.
-- `2148bc0f`, `b6a5aa7f`, `667b8ee1`, `a7508551` (2026-09-27): anchor breakpoints, keep-alive per requester, retention advice, diagnostics to status.
-- `61fbb5dd`, `af545a73`, `c71d5457` (2026-09-26): per-session fingerprints, tail readback, frames only on change.
+- `9078dd06` (2026-10-03): one branch walk per leaf through `cachedBranch()`.
+- `aaf5e7cb`, `097e8d7e` (2026-09-30): Sign in with ChatGPT left untouched, from live results.
+- `d0ceeec8`, `212e40b9` (2026-09-29): Claude routing and caching qualified; keep-alive skips budget thinking.
+- `70d9e517` (2026-09-27): branch summaries keep generated positions.
+- `e2291227`, `e312562f`, `c45f16f6`, `6191f2a2` (2026-09-27): anchor breakpoints, keep-alive per requester, retention advice, diagnostics to status.
+- `0f37dba7`, `72ecb2b4`, `ca50b550` (2026-09-26): per-session fingerprints, tail readback, frames only on change.
 - `c6702bb3` (2026-09-15): request history.

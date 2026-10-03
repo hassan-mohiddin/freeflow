@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/cognitive-routing/`, `capabilities/cognitive-routing/`, `runtime/prompts/cognitive-routing.md`
 > **Tests:** `pi-extension/tests/cognitive-routing/`, `pi-extension/tests/cache-reuse/`
-> **Verified at:** `4bcccc7d` (2026-10-03)
+> **Verified at:** `e58354ec` (2026-10-03)
 > **User docs:** `plugin-docs/capabilities/cognitive-routing.md`
 
 For contributors changing Cognitive Routing on Pi: how routing moves work between profiles in one session, how it records and recovers its state, how the Coordinator's projected view is built, and which of its behaviors are deliberate. What routing is for users, how to configure it, and how to choose a mode are in the user guide.
@@ -147,18 +147,18 @@ Freeflow's and Pi's compaction may remove active user or evidence bodies while t
 | Keep admitted communication: closing, replacing, returning or new attention update responsibility and status but never remove context already admitted to a profile's view. | A report-only explanation must survive the unit closing before the Coordinator answers, without a duplicate delegation (the spec's required example). Deliberate reduction belongs to a future Context Control. | Automatic cleanup on unit close. | Task 001 D-002 |
 | Natural-language input always goes through the Coordinator; an unchanged outstanding assignment resumes only through `/freeflow resume`; manual holds survive navigation until released. | Keeps restrictions and identity without a prose classifier deciding whether input means "continue". | Inferring resumption from the user's words. | Task 001 D-001 |
 | Mode intents: `helper` maximizes quality (the Coordinator implements, Helper takes what needs no Coordinator-level reasoning); `executor` is the cost saver (Executor does environment work from contracts); `both` sends consequential work to Executor and support to Helper. | The modes serve different goals: quality in `helper`, where under-delegation is the failure to prevent, and cost in `executor`. | Helper by default everywhere (Task 001 D-007, superseded). | Task 007 D-001; Task 001 D-006 |
-| State is native session events replayed by a reducer that enforces every transition rule. | Inherits Pi's ancestry (navigation, forks) and avoids two sources of truth. Rules once enforced only in handlers could be bypassed. | A separate state store; handler-only checks. | Spec §1.3; Task 009 D-008, `6bd0031e` |
+| State is native session events replayed by a reducer that enforces every transition rule. | Inherits Pi's ancestry (navigation, forks) and avoids two sources of truth. Rules once enforced only in handlers could be bypassed. | A separate state store; handler-only checks. | Spec §1.3; Task 009 D-008, `f0abfb11` |
 | Tool definitions stay visible to every profile; the gate decides what may run. | Changing tool lists with profile or settings rewrites the cached prompt on every switch. | Showing each profile only its tools. | Task 004 |
-| Only tool results are selectable evidence; worker assistant messages are not. | Workers rarely write text, and what they would select belongs in the report; assistant text candidates flooded evidence inspection. | Selecting whole assistant messages or their text. | Task 009 D-003, `e21fe440` |
-| A profile receives another profile's reasoning only on the same model and the same view. | A worker replaying the Coordinator's signed thinking after a different view broke Claude requests and the cache. | Never sharing; always sharing. | Task 009 D-002, `e21fe440` |
+| Only tool results are selectable evidence; worker assistant messages are not. | Workers rarely write text, and what they would select belongs in the report; assistant text candidates flooded evidence inspection. | Selecting whole assistant messages or their text. | Task 009 D-003, `212e40b9` |
+| A profile receives another profile's reasoning only on the same model and the same view. | A worker replaying the Coordinator's signed thinking after a different view broke Claude requests and the cache. | Never sharing; always sharing. | Task 009 D-002, `212e40b9` |
 | Idle profile switches are staged and applied at the next prompt. | Pi writes a model change and two effort changes per switch (103 of 246 entries in one real session) and checks auth each time; deferring leaves at most one change per prompt and removed stale-context switch bugs. | Applying at once. | Task 009 D-004 |
 | A worker selects evidence and returns in one response; problems are fixed with `retry`. | Waiting for a separate selection receipt cost about one extra worker request per assignment. | Waiting for a selection receipt. | Task 009 D-007 |
 | A model or effort the user picks in Pi turns routing off for the session, visibly, through the Session switch; any routing control turns it back on. | A hidden `inactive` state left the settings switch showing on with no obvious way back (user, 2026-10-03: "routing should go off and to turn it on, i should either use short cuts or slash commands or freeflow settings"). | Keeping a hidden inactive state resumed only by `/freeflow profile auto`. | user, 2026-10-03 |
 | Keep switching the host model; no virtual-model dispatch. A virtual model selected by the user turns routing off. | Host switching works on Pi 0.99.1; virtual dispatch would rework every observed-model invariant for no attribution gain. | Dispatching through a virtual model. | Task 010 D-001 |
-| Projection is on by default with routing. | It is where routing's Coordinator saving comes from. | Off by default. | `15cd43b2` |
+| Projection is on by default with routing. | It is where routing's Coordinator saving comes from. | Off by default. | `1315e57e` |
 | Startup verifies persistence by the bytes appended since Pi parsed the file, falling back to a whole-file snapshot; the trust point is set only where Pi just parsed the file, never on `/reload`. | Re-reading and comparing the whole file cost 130 ms on a 24 MB session. A reload keeps Pi's session in memory without re-reading the file, so trusting it there could hide an entry a failed write left out (Pi 1.0.0 source, tag v1.0.0). | Always the full snapshot; trusting on every start. | Task 013 D-001 |
 | Event replay at startup stays proportional to the number of routing events; no checkpoints. | A checkpoint would be as large as the log, because routing state keeps every event for idempotency, unless idempotency is redesigned, which touches the persistence guarantees. Replay costs about 15 µs per event. | Checkpoint entries. Revisit if a real session's replay passes 100 ms (about 7,000 events). | Task 013 D-001 |
-| Routing tools cannot be called from codemode scripts. | A handoff must be the last call of the persisted assistant message, and a script's nested call never appears in it. Nested calls of ordinary tools are admitted with the call that issued them. | — | `24096258` |
+| Routing tools cannot be called from codemode scripts. | A handoff must be the last call of the persisted assistant message, and a script's nested call never appears in it. Nested calls of ordinary tools are admitted with the call that issued them. | — | `92d1d78d` |
 
 ## Intended Behavior That Looks Wrong
 
@@ -255,11 +255,11 @@ Deterministic source and fixture checks establish configuration and gating rules
 
 ## Changes
 
-- Task 013 (2026-10-03): view renderings cached with stable identities (`14a61a40`); startup verified by the file's tail, no trust point on `/reload`.
-- `15cd43b2` (2026-10-03): projection on by default.
-- `9bf18905`, `9d80fdcd`, `c3e23538`, `a7474bc0`, `d56ab99e` (2026-10-02 to 03): compaction under routing.
-- `00a06204`, `24096258` (2026-09-30): Pi 0.99.1 support: message-started runs, codemode nested calls admitted, routing tools kept out of scripts.
-- `e41d62da` to `6bd0031e` (2026-09-29): the runtime split into session, model control, gate, assembler, handoffs and handlers; the reducer enforces every transition rule.
-- `e21fe440` (2026-09-29): Claude routing qualified; reasoning shared only on the same model and view; worker messages no longer selectable.
+- Task 013 (2026-10-03): view renderings cached with stable identities (`25ec4b04`); startup verified by the file's tail, no trust point on `/reload`.
+- `1315e57e` (2026-10-03): projection on by default.
+- `70702419`, `b44ccc2a`, `305f20b6`, `01505b0f`, `9849a16c` (2026-10-02 to 03): compaction under routing.
+- `e2ea7d38`, `92d1d78d` (2026-09-30): Pi 0.99.1 support: message-started runs, codemode nested calls admitted, routing tools kept out of scripts.
+- `5e302941` to `f0abfb11` (2026-09-29): the runtime split into session, model control, gate, assembler, handoffs and handlers; the reducer enforces every transition rule.
+- `212e40b9` (2026-09-29): Claude routing qualified; reasoning shared only on the same model and view; worker messages no longer selectable.
 - `c6702bb3` (2026-09-15): Helper profile and cache reuse.
 - `d05f5615` (2026-09-10): the native routing redesign (Task 001).

@@ -1,5 +1,5 @@
 // Retired v2 Tool Execution settings tests, moved from pi-extension/tests/integration/pi-extension.test.js
-// at commit 2409625 (D-024). They rely on that file's helpers and imports and are not runnable on their own.
+// at commit 92d1d78 (D-024). They rely on that file's helpers and imports and are not runnable on their own.
 
 test("Pi settings and status disclose capture retention and verified reader availability", async () => {
   const cwd = await configuredRepo({

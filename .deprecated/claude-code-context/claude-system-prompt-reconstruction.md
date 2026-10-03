@@ -820,9 +820,9 @@ M pi-extension/dist/tool-runtime/index.js
 ?? pi-extension/tests/tool-runtime/v2-presentation.test.js
 
 Recent commits:
-f6b005c Remove legacy context capabilities
-09216f1 Convert main-loop skills to Rules and judgment
-7071da3 Rework core skills, rewrite Cognitive Routing guidance, and fix routing runtime
+4e1eba8 Remove legacy context capabilities
+1f72388 Convert main-loop skills to Rules and judgment
+b2b9c6b Rework core skills, rewrite Cognitive Routing guidance, and fix routing runtime
 8798fda Harden Tool Execution and adopt Pi 0.87.1
 bc2f3bf feat(cognitive-routing): add session mode controls and footer status
 

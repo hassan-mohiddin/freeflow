@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/tool-execution/`, `runtime/prompts/tool-execution.md`
 > **Tests:** `pi-extension/tests/tool-execution/`
-> **Verified at:** `d0498295` (2026-10-03)
+> **Verified at:** `5bc17417` (2026-10-03)
 > **User docs:** `plugin-docs/capabilities/tool-execution.md`
 
 For contributors changing Tool Execution on Pi: what Freeflow adds around Pi's own tools, how each part hooks into Pi, and which of its behaviors are deliberate.
@@ -110,18 +110,18 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 
 | Decision | Reason | Rejected | Source |
 | --- | --- | --- | --- |
-| Keep Pi's tools and add a layer through hooks; build only what Pi lacks (`apply_patch`, background commands). | Pi's tools match Claude Code's where it matters. The advantage of a strong harness is the file-state layer and guidance around the tools. Replacing tools Pi maintains would break codemode and other extensions that rely on them. | Claude Code-style replacement tools; the earlier Execution Runtime v2 (its own read, search, patch and script tools, output capture, a session store), which Pi 0.99's codemode, tool exposure and saved truncated output overlapped. | `bc59b8e`, `9a47aa8`; v2 kept in `.deprecated/tool-execution-v2/` |
-| One switch for the whole layer. | Users get complete workflows without internal seams as settings. | Sub-switches per part. | `bc59b8e` |
-| Replace Pi's `rules` and `docs` sections in place, add `environment` and `tool_execution` after Freeflow's guidance; never touch Pi's preamble. | Three of Pi's generic lines contradict the taught working style (bash-first reading, full reports). The Claude subscription plugin shapes prompts only when Pi's preamble is present. Replacing the whole prompt would drop project context, skills and other extensions' guidelines. | Replacing Pi's whole prompt; removing the preamble. | `2ba0ba7`, `a264631` |
-| Guidance lives only in the system section, with no capability skill. | Nothing in it is needed only sometimes, and always-present, command-shaped text is the form that changes model behavior in Freeflow's research. | A Tool Execution skill or cue. | `a264631` |
-| Both edit tools stay visible to every model. | Each model does best in the edit format it was trained on: GPT models in Codex's patch format, others in search-and-replace. | Per-family exposure, to be decided by a comparison run that has not happened. | `8a2052f` |
-| `apply_patch` plans the whole patch before writing. | A failed hunk then changes no file. A write failure after planning is reported as partial rather than hidden. | Applying section by section. | `8a2052f` |
-| File state: fingerprint per file in memory, rebuilt from the branch; nothing persisted. | The lowest-coordination way to know what the model saw. It is rebuilt after resume and navigation without a store. | A persisted session store (retired with v2). | `9a47aa8` |
-| Notices for files changed behind the model are appended to the result of the next untracked tool (normally the command that changed them), or sent as a message at prompt start. | The model sees the fact when it next acts, and nothing earlier in the conversation is edited (prompt cache). | — | `0c79b31` |
-| Background exit notices start an idle turn as a user message. | A run started by an extension message loses Freeflow's system sections from its second request (Pi issue #10267). | `sendMessage` with `triggerTurn`. | `ae82688` |
-| Freeflow does not set `TMPDIR`; background output goes to a per-session folder under the OS temp directory. | Pi's `bash` inherits the whole Pi process environment, so changing `TMPDIR` would change it for every tool, extension and MCP server. | Pointing `TMPDIR` at a session folder. | `2dacf24` |
-| Messages state the fact and one next step, with no reassurance. | The wording was reviewed against Freeflow's Beyond the Weights research on model behavior. | — | `9a47aa8`, `0c79b31` |
-| Settings of the retired v2 runtime still load and do nothing. | Existing configuration files stay valid. | Rejecting them. | `bc59b8e` |
+| Keep Pi's tools and add a layer through hooks; build only what Pi lacks (`apply_patch`, background commands). | Pi's tools match Claude Code's where it matters. The advantage of a strong harness is the file-state layer and guidance around the tools. Replacing tools Pi maintains would break codemode and other extensions that rely on them. | Claude Code-style replacement tools; the earlier Execution Runtime v2 (its own read, search, patch and script tools, output capture, a session store), which Pi 0.99's codemode, tool exposure and saved truncated output overlapped. | `ca1cc90`, `48a9387`; v2 kept in `.deprecated/tool-execution-v2/` |
+| One switch for the whole layer. | Users get complete workflows without internal seams as settings. | Sub-switches per part. | `ca1cc90` |
+| Replace Pi's `rules` and `docs` sections in place, add `environment` and `tool_execution` after Freeflow's guidance; never touch Pi's preamble. | Three of Pi's generic lines contradict the taught working style (bash-first reading, full reports). The Claude subscription plugin shapes prompts only when Pi's preamble is present. Replacing the whole prompt would drop project context, skills and other extensions' guidelines. | Replacing Pi's whole prompt; removing the preamble. | `ccfe0be`, `f51aff6` |
+| Guidance lives only in the system section, with no capability skill. | Nothing in it is needed only sometimes, and always-present, command-shaped text is the form that changes model behavior in Freeflow's research. | A Tool Execution skill or cue. | `f51aff6` |
+| Both edit tools stay visible to every model. | Each model does best in the edit format it was trained on: GPT models in Codex's patch format, others in search-and-replace. | Per-family exposure, to be decided by a comparison run that has not happened. | `e4d1a62` |
+| `apply_patch` plans the whole patch before writing. | A failed hunk then changes no file. A write failure after planning is reported as partial rather than hidden. | Applying section by section. | `e4d1a62` |
+| File state: fingerprint per file in memory, rebuilt from the branch; nothing persisted. | The lowest-coordination way to know what the model saw. It is rebuilt after resume and navigation without a store. | A persisted session store (retired with v2). | `48a9387` |
+| Notices for files changed behind the model are appended to the result of the next untracked tool (normally the command that changed them), or sent as a message at prompt start. | The model sees the fact when it next acts, and nothing earlier in the conversation is edited (prompt cache). | — | `3894a01` |
+| Background exit notices start an idle turn as a user message. | A run started by an extension message loses Freeflow's system sections from its second request (Pi issue #10267). | `sendMessage` with `triggerTurn`. | `f41f1e0` |
+| Freeflow does not set `TMPDIR`; background output goes to a per-session folder under the OS temp directory. | Pi's `bash` inherits the whole Pi process environment, so changing `TMPDIR` would change it for every tool, extension and MCP server. | Pointing `TMPDIR` at a session folder. | `fc32691` |
+| Messages state the fact and one next step, with no reassurance. | The wording was reviewed against Freeflow's Beyond the Weights research on model behavior. | — | `48a9387`, `3894a01` |
+| Settings of the retired v2 runtime still load and do nothing. | Existing configuration files stay valid. | Rejecting them. | `ca1cc90` |
 
 ## Intended Behavior That Looks Wrong
 
@@ -224,10 +224,10 @@ See [the tests README](../../pi-extension/tests/tool-execution/README.md). In sh
 
 ## Changes
 
-- `a264631` (2026-09-30): "Working In The Environment" as its own system section; the Tool Execution skill retired.
-- `0c79b31` (2026-09-30): notices for files changed behind the model; bash guard; notice prefix.
-- `2dacf24` (2026-09-30): background commands.
-- `8a2052f` (2026-09-30): `apply_patch`.
-- `9a47aa8` (2026-09-30): file tracking and edit error rewrites.
-- `2ba0ba7` (2026-09-30): prompt sections.
-- `bc59b8e` (2026-09-30): Execution Runtime v2 retired to `.deprecated/tool-execution-v2/`.
+- `f51aff6` (2026-09-30): "Working In The Environment" as its own system section; the Tool Execution skill retired.
+- `3894a01` (2026-09-30): notices for files changed behind the model; bash guard; notice prefix.
+- `fc32691` (2026-09-30): background commands.
+- `e4d1a62` (2026-09-30): `apply_patch`.
+- `48a9387` (2026-09-30): file tracking and edit error rewrites.
+- `ccfe0be` (2026-09-30): prompt sections.
+- `ca1cc90` (2026-09-30): Execution Runtime v2 retired to `.deprecated/tool-execution-v2/`.
