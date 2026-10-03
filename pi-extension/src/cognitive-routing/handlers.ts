@@ -21,7 +21,7 @@ import {
   type ResultGrantPort,
   type WorkerProfile,
 } from "./types.js";
-
+import { cachedBranch } from "../host/branch.js";
 /**
  * Runs the routing tools (freeflow_delegate, freeflow_return, freeflow_project, freeflow_unit) one at a time on the
  * session's queue. Each accepted call is recorded once under its operation id, so a repeated call returns the saved
@@ -695,7 +695,7 @@ export class ToolHandlers {
     active = false,
     summarize?: (rows: any[]) => any,
   ): any {
-    const branch = this.session.ctx.sessionManager.getBranch() as NativeEntry[];
+    const branch = cachedBranch(this.session.ctx.sessionManager) as NativeEntry[];
     const compaction = branch.filter((e) => e.type === "compaction").at(-1)?.id;
     let key: string,
       offset = 0;

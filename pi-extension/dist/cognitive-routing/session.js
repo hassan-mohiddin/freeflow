@@ -3,6 +3,7 @@ import { Sources } from "./sources.js";
 import { pairFromProfile } from "./config.js";
 import { initialState } from "./state.js";
 import { RoutingError, isWorkerProfile, requireCondition as check, samePair, workersForDelegation } from "./types.js";
+import { cachedBranch } from "../host/branch.js";
 const STAGED_CONTROL = new Set(["control", "profile-overrides", "delegation-override"]);
 export const ROUTING_RECOVERY_HINT =
   "Run /freeflow profile auto to reconcile routing, or /freeflow resume to continue saved work.";
@@ -41,7 +42,7 @@ export class RoutingSession {
     this.pages.clear();
   }
   subject() {
-    const branch = this.store?.reader.getBranch() ?? [];
+    const branch = cachedBranch(this.store?.reader) ?? [];
     return {
       token: this.token,
       revision: this.revision,
@@ -52,7 +53,7 @@ export class RoutingSession {
   }
   current(s) {
     if (s.token !== this.token || s.revision !== this.revision || s.store !== this.store) return false;
-    const branch = this.store?.reader.getBranch() ?? [];
+    const branch = cachedBranch(this.store?.reader) ?? [];
     return (
       (!s.leafId || branch.some((e) => e.id === s.leafId)) &&
       (branch.filter((e) => e.message?.role === "user").at(-1)?.id ?? null) === s.userId
@@ -124,9 +125,9 @@ export class RoutingSession {
     return this.store?.state() ?? initialState();
   }
   sources(state = this.stateData()) {
-    const entries = this.ctx.sessionManager
-      .getBranch()
-      .filter((e) => ["message", "custom_message", "compaction", "branch_summary"].includes(e.type));
+    const entries = cachedBranch(this.ctx.sessionManager).filter((e) =>
+      ["message", "custom_message", "compaction", "branch_summary"].includes(e.type),
+    );
     const cache = this.sourceCache;
     if (
       cache &&

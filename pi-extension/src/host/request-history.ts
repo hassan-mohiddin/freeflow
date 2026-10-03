@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { CacheMonitor } from "../provider-support/cache/monitor.js";
 import { persistedBranchMatches } from "./read-only-session.js";
 import { projectedEntryId } from "./projection-tags.js";
-
+import { cachedBranch as activeBranch } from "./branch.js";
 const ENTRY = "freeflow-request-history-v1";
 const TRANSIENT = new Set([
   "freeflow-runtime-state",
@@ -169,7 +169,7 @@ export class RequestHistory {
       this.identity = identity;
     }
     if (this.fault) throw new Error("Uncertain Freeflow context append");
-    const branch = reader.getBranch(),
+    const branch = activeBranch(reader),
       leaf = reader.getLeafId();
     const cachedBranch = this.branchCache;
     // Pi appends immutable native entry objects. A sibling/edited branch breaks this exact prefix.
@@ -318,7 +318,7 @@ export class RequestHistory {
       };
       try {
         this.pi.appendEntry(ENTRY, frame);
-        const entry = reader.getBranch().find((e: any) => e.customType === ENTRY && e.data?.id === frame.id);
+        const entry = activeBranch(reader).find((e: any) => e.customType === ENTRY && e.data?.id === frame.id);
         if (!entry || entry.parentId !== leaf || JSON.stringify(entry.data) !== JSON.stringify(frame))
           throw new Error("Context append not acknowledged");
         const entryHash = hash(entry);

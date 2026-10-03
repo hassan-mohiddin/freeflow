@@ -28,6 +28,7 @@
 
 ### Changed
 
+- Reduces Freeflow's per-request and per-turn work on long native Pi sessions: the session branch is walked once per change instead of dozens of times per prompt, compaction measures context from the turn's own usage and extends its whole-history estimate instead of recomputing it, and routing's startup check compares entries with the native serializer. On a 24 MB routed session Freeflow's added time per prompt fell from about 28 to 16 ms with routing, and from about 15 to 8 ms on defaults.
 - Replaces `/freeflow settings` with one screen: Session, Personal, and Repository scopes switched with Tab, switches that change in place (three-way switches cycle inherit, enabled, and disabled), and the source of each value. The Session scope can also override Cognitive Routing, projection, Tool Execution, Compaction, and Context reuse.
 - Leaves OpenAI's Sign in with ChatGPT route (Pi 0.99 and later) untouched: no cache breakpoints, Coordinator keep-alive, or effort-history rewriting, which that route rejects. Cognitive Routing presets that switch effort on that route warn that it keeps a separate prompt cache per effort.
 - Allows Cognitive Routing tools only as direct calls, not from codemode scripts; other tools a script calls are admitted under routing like direct calls.

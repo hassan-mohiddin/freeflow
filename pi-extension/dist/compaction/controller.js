@@ -13,7 +13,15 @@ import {
   SUMMARY_LIMIT_TOKENS,
 } from "./carry.js";
 import { cycleFiles, harnessPart, nextCycle, previousFileLists, sessionFileLists } from "./harness.js";
-import { renderIndex, resolveResult, resultFirstLine, resultIndex, scopeResults } from "./results.js";
+import {
+  INDEX_TOKEN_BOUND,
+  renderIndex,
+  resolveResult,
+  resultFirstLine,
+  resultIndex,
+  scopeResults,
+} from "./results.js";
+import { cachedBranch } from "../host/branch.js";
 /**
  * Freeflow compaction's agent path. After each turn Freeflow measures the context and, once per cycle each, says
  * compaction is due (the warning, with the result index) and then to compact now. The agent asks to compact with
@@ -33,7 +41,7 @@ const MAX_LISTED = 60;
 /** "Compact now" repeats as the context keeps growing, so a long step that passed it is reminded before Pi compacts. */
 const COMPACT_NOW_REPEAT = 10_000;
 const hash = (text) => createHash("sha256").update(text).digest("hex");
-const branchOf = (ctx) => ctx.sessionManager?.getBranch?.() ?? [];
+const branchOf = (ctx) => cachedBranch(ctx.sessionManager);
 const cycleOf = (branch) => nextCycle(branch) - 1;
 export class CompactionController {
   host;
@@ -114,16 +122,18 @@ export class CompactionController {
    * After a turn: the notice to deliver. The warning comes once per cycle; "compact now" comes when the context
    * crosses its point and again each time it grows another COMPACT_NOW_REPEAT tokens.
    */
-  observe(ctx) {
+  observe(ctx, turn) {
     if (!this.host.effective()) return undefined;
     const branch = branchOf(ctx);
     const cycle = cycleOf(branch);
     if (this.sent.cycle !== cycle) this.sent = { cycle, warning: false };
-    const measured = this.host.measure(ctx);
+    const measured = this.host.measure(ctx, turn);
     if (!measured) return undefined;
     const { tokens: measuredTokens, thresholds } = measured;
-    // A list inserted with the notice is context too, so it moves the point earlier by its own size.
-    const listTokens = this.sent.warning ? 0 : estimateTokens(this.indexText(ctx));
+    // A list inserted with the notice is context too, so it moves the point earlier by its own size. Far below the
+    // warning it cannot reach it, so the list is built only near the point.
+    const nearWarning = measuredTokens + INDEX_TOKEN_BOUND >= thresholds.warning;
+    const listTokens = this.sent.warning || !nearWarning ? 0 : estimateTokens(this.indexText(ctx));
     const tokens = measuredTokens + listTokens;
     const level = tokens >= thresholds.compactNow ? "compactNow" : tokens >= thresholds.warning ? "warning" : undefined;
     if (!level) return undefined;

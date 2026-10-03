@@ -1,6 +1,6 @@
 import { persistedBranchMatches } from "../../host/read-only-session.js";
 import { ENTRY_TYPE, parseAttempt, type Attempt } from "./history.js";
-
+import { cachedBranch } from "../../host/branch.js";
 export class SessionState {
   private acknowledged = new Map<string, string>();
   private fault?: string;
@@ -8,8 +8,8 @@ export class SessionState {
     private readonly pi: any,
     private readonly reader: any,
   ) {}
-  private branch(): any[] {
-    const entries = this.reader.getBranch();
+  private branch(): readonly any[] {
+    const entries = cachedBranch(this.reader);
     let parent: string | null = null;
     const seen = new Set<string>();
     for (const entry of entries) {

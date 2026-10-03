@@ -11,6 +11,7 @@ import {
   rewriteEditError,
   writeRefusal,
 } from "./edit-messages.js";
+import { cachedBranch } from "../host/branch.js";
 function existingFile(path, cwd) {
   try {
     return statSync(resolveToolPath(path, cwd)).isFile();
@@ -79,7 +80,7 @@ export class FileTracking {
   }
   async ensureBuilt(ctx) {
     if (this.built) return;
-    await this.state.rebuild(ctx.sessionManager?.getBranch?.() ?? [], ctx.cwd);
+    await this.state.rebuild(cachedBranch(ctx.sessionManager) ?? [], ctx.cwd);
     this.built = true;
   }
   async toolCall(event, ctx) {

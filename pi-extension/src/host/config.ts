@@ -5,7 +5,7 @@ import { resolveCognitiveRoutingState, supportsCognitiveRoutingModelRegistry } f
 import { sessionStage, stagedFor } from "./staging.js";
 import { resolveToolExecutionConfig, validateToolExecutionConfig } from "../tool-execution/config.js";
 import { resolveCompactionConfig, validateCompactionConfig } from "../compaction/config.js";
-
+import { cachedBranch } from "./branch.js";
 /**
  * Freeflow configuration: the repository and personal config files, their layering, per-session core overrides, and
  * the resulting capability state, with optional capabilities disabled inside subagents.
@@ -352,7 +352,7 @@ export async function readCapabilityState(cwd, host = undefined) {
 
 function recordedSessionOverrides(sessionManager) {
   let recorded = {};
-  for (const entry of sessionManager?.getBranch?.() ?? sessionManager?.getEntries?.() ?? [])
+  for (const entry of sessionManager?.getBranch ? cachedBranch(sessionManager) : (sessionManager?.getEntries?.() ?? []))
     if (entry.type === "custom" && entry.customType === SESSION_OVERRIDES_ENTRY)
       recorded = normalizeSessionOverrides(entry.data?.overrides);
   return recorded;

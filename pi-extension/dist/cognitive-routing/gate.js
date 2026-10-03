@@ -5,6 +5,7 @@ export { ROUTING_RECOVERY_HINT };
 import { bodyHash } from "./sources.js";
 import { initialState } from "./state.js";
 import { RoutingError, isWorkerProfile, requireCondition as check, ROUTING_TOOLS } from "./types.js";
+import { cachedBranch } from "../host/branch.js";
 /**
  * What routing allows while a profile runs, and what it tells the tool runtime: which ordinary tools a worker may
  * still call, which recovery reads an assessment permits, handoff batching rules, and the operation, admission, and
@@ -168,15 +169,13 @@ export class ToolGate {
   batch(callId, name, nested = false) {
     check(this.session.turn?.message, "batch_unavailable");
     const issued = (b) => b.type === "toolCall" && (nested ? callId.startsWith(`${b.id}/`) : b.id === callId);
-    const matches = this.session.ctx.sessionManager
-      .getBranch()
-      .filter(
-        (e) =>
-          !this.session.turn.before.has(e.id) &&
-          e.type === "message" &&
-          e.message?.role === "assistant" &&
-          e.message.content?.some(issued),
-      );
+    const matches = cachedBranch(this.session.ctx.sessionManager).filter(
+      (e) =>
+        !this.session.turn.before.has(e.id) &&
+        e.type === "message" &&
+        e.message?.role === "assistant" &&
+        e.message.content?.some(issued),
+    );
     check(matches.length === 1, "batch_source_changed");
     const fingerprint = bodyHash(matches[0].message);
     check(

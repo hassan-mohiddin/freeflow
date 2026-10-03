@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { changeSelection, representationProblems } from "./projection.js";
 import { bodyHash, isTaskEvidence } from "./sources.js";
 import { RoutingError, canonical, emptySelection, idFor, isWorkerProfile, requireCondition as check } from "./types.js";
+import { cachedBranch } from "../host/branch.js";
 /**
  * Runs the routing tools (freeflow_delegate, freeflow_return, freeflow_project, freeflow_unit) one at a time on the
  * session's queue. Each accepted call is recorded once under its operation id, so a repeated call returns the saved
@@ -670,7 +671,7 @@ export class ToolHandlers {
     return { status: "closed", unit: state.unitId, outcome: input.outcome, assessment: input.assessment };
   }
   page(scope, rows, cursor, size = 30, assignment, active = false, summarize) {
-    const branch = this.session.ctx.sessionManager.getBranch();
+    const branch = cachedBranch(this.session.ctx.sessionManager);
     const compaction = branch.filter((e) => e.type === "compaction").at(-1)?.id;
     let key,
       offset = 0;

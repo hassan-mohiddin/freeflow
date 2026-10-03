@@ -1,5 +1,6 @@
 import { persistedBranchMatches } from "../../host/read-only-session.js";
 import { ENTRY_TYPE, parseAttempt } from "./history.js";
+import { cachedBranch } from "../../host/branch.js";
 export class SessionState {
   pi;
   reader;
@@ -10,7 +11,7 @@ export class SessionState {
     this.reader = reader;
   }
   branch() {
-    const entries = this.reader.getBranch();
+    const entries = cachedBranch(this.reader);
     let parent = null;
     const seen = new Set();
     for (const entry of entries) {

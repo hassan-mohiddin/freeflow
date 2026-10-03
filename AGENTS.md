@@ -89,6 +89,14 @@ Freeflow must never make a user pay more than native Pi for the same work. Read 
 - Advise on host cache settings such as retention; never override them.
 - Report cache diagnostics to `/freeflow status`, not the footer.
 
+## Request-Path Performance
+
+Freeflow runs on every Pi turn and request, so its work delays every model call and can grow with session length unnoticed. Read [Performance](plugin-docs/performance.md) before changing Freeflow's event handlers or anything they call.
+
+- Follow its rules: memory-first state, ask Pi for the branch once per change (`cachedBranch()`), hash once, extend whole-history values incrementally, write only on change, and keep diagnostics off the request path.
+- Keep `pi-extension/tests/integration/request-path-budget.test.js` passing, and add a count there for any new work that could grow with the session.
+- Run `npm run perf:request` before and after a request-path change, and report the numbers when they move.
+
 ## Documentation And Changelog Policy
 
 - Agents may update `CHANGELOG.md` under `## Unreleased` for verified consumer-visible work when the task authorization covers that update. Use only the canonical categories `Breaking Changes`, `Added`, `Changed`, `Fixed`, and `Removed`; keep each entry as a bullet under exactly one category. Defer the entry until the final implementation slice unless bounded write-ahead authorization says otherwise.

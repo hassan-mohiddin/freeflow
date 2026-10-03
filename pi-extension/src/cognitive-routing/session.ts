@@ -18,7 +18,7 @@ import {
   type NativeEntry,
   type EventData,
 } from "./types.js";
-
+import { cachedBranch } from "../host/branch.js";
 const STAGED_CONTROL = new Set(["control", "profile-overrides", "delegation-override"]);
 
 export interface Turn {
@@ -91,7 +91,7 @@ export class RoutingSession {
     this.pages.clear();
   }
   subject(): Subject {
-    const branch = this.store?.reader.getBranch() ?? [];
+    const branch = cachedBranch(this.store?.reader) ?? [];
     return {
       token: this.token,
       revision: this.revision,
@@ -102,7 +102,7 @@ export class RoutingSession {
   }
   current(s: Subject): boolean {
     if (s.token !== this.token || s.revision !== this.revision || s.store !== this.store) return false;
-    const branch = this.store?.reader.getBranch() ?? [];
+    const branch = cachedBranch(this.store?.reader) ?? [];
     return (
       (!s.leafId || branch.some((e) => e.id === s.leafId)) &&
       (branch.filter((e) => e.message?.role === "user").at(-1)?.id ?? null) === s.userId
@@ -174,7 +174,7 @@ export class RoutingSession {
     return this.store?.state() ?? initialState();
   }
   sources(state = this.stateData()): Sources {
-    const entries = (this.ctx.sessionManager.getBranch() as NativeEntry[]).filter((e) =>
+    const entries = (cachedBranch(this.ctx.sessionManager) as NativeEntry[]).filter((e) =>
       ["message", "custom_message", "compaction", "branch_summary"].includes(e.type),
     );
     const cache = this.sourceCache;

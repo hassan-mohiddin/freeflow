@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { compact as piCompact, estimateTokens } from "@earendil-works/pi-coding-agent";
+import { calculateContextTokens, compact as piCompact, estimateTokens } from "@earendil-works/pi-coding-agent";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { RequestHistory } from "./host/request-history.js";
@@ -15,7 +15,7 @@ import { registerApplyPatch } from "./tool-execution/apply-patch/tool.js";
 import { applyToolExecutionTools } from "./tool-execution/tools.js";
 import { BackgroundJobs, NOTICE_PREFIX, NOTICE_TYPE, registerBackgroundTools } from "./tool-execution/background.js";
 import { backgroundRefusal } from "./tool-execution/bash-guard.js";
-import { CompactionController, USER_REQUEST } from "./compaction/controller.js";
+import { CompactionController, USER_REQUEST, type TurnEnd } from "./compaction/controller.js";
 import { applyCompactionTools, registerCompactionTool } from "./compaction/tool.js";
 import { strictest } from "./compaction/thresholds.js";
 import { tagProjectedMessages } from "./host/projection-tags.js";
@@ -38,15 +38,63 @@ import {
 } from "./host/prompts.js";
 import { filterBootstrapMessage, withFreeflowRuntimeState, type RuntimeStateAnchor } from "./host/runtime-state.js";
 import { setFreeflowStatus } from "./host/status.js";
-
+import { cachedBranch } from "./host/branch.js";
 type FreeflowAPI = ExtensionAPI;
 const COMPACTION_NOTICE_TYPE = "freeflow-compaction-notice";
 
 /** Estimated size of the full native history plus the system prompt: what a request without projection carries. */
+/**
+ * The context a turn ended with, as Pi estimates it: the turn's own usage plus the tool results after it. Pi's
+ * getContextUsage rebuilds the session projection to find the same numbers. Undefined when the turn has no usable usage
+ * (aborted, failed, or none reported), where Pi's own estimate applies.
+ */
+function turnContextTokens(turn: TurnEnd | undefined): number | undefined {
+  const message = turn?.message;
+  if (message?.role !== "assistant" || message.stopReason === "aborted" || message.stopReason === "error") return;
+  if (!message.usage || calculateContextTokens(message.usage) <= 0) return;
+  return (turn!.toolResults ?? []).reduce(
+    (sum: number, result: any) => sum + estimateTokens(result),
+    calculateContextTokens(message.usage),
+  );
+}
+
+/** Entry types that add no message to Pi's session projection. */
+const NO_MESSAGE = new Set(["custom", "label", "session_info", "model_change", "thinking_level_change"]);
+const historyEstimate = new WeakMap<object, { branch: readonly any[]; tokens: number }>();
+
+/**
+ * The full history's size, as every message's estimate plus the system prompt. Kept per session and extended by the
+ * messages appended since, because the branch only grows between compactions; a compaction, summary or custom
+ * message (which Pi's projection may place or replace) recomputes it from Pi's projection.
+ */
 function fullHistoryTokens(ctx: any): number {
-  const messages = ctx.sessionManager?.buildSessionProjection?.()?.messages ?? [];
-  const system = ctx.getSystemPrompt?.() ?? "";
-  return messages.reduce((sum: number, message: any) => sum + estimateTokens(message), Math.ceil(system.length / 4));
+  const manager = ctx.sessionManager;
+  const system = Math.ceil((ctx.getSystemPrompt?.() ?? "").length / 4);
+  if (!manager?.buildSessionProjection) return system;
+  const branch = cachedBranch(manager);
+  const previous = historyEstimate.get(manager);
+  let tokens: number | undefined;
+  if (previous && branch === previous.branch) tokens = previous.tokens;
+  else if (
+    previous &&
+    previous.branch.length > 0 &&
+    branch.length >= previous.branch.length &&
+    branch[previous.branch.length - 1] === previous.branch.at(-1)
+  ) {
+    const added = branch.slice(previous.branch.length);
+    if (added.every((entry) => entry.type === "message" || NO_MESSAGE.has(entry.type)))
+      tokens = added.reduce(
+        (sum: number, entry: any) => sum + (entry.type === "message" ? estimateTokens(entry.message) : 0),
+        previous.tokens,
+      );
+  }
+  if (tokens === undefined)
+    tokens = (manager.buildSessionProjection()?.messages ?? []).reduce(
+      (sum: number, message: any) => sum + estimateTokens(message),
+      0,
+    );
+  historyEstimate.set(manager, { branch, tokens });
+  return tokens + system;
 }
 async function sendSkillCommand(pi: FreeflowAPI, ctx: ExtensionCommandContext, skill: string, args?: string) {
   const state = await readCapabilityState(ctx.cwd, ctx);
@@ -247,7 +295,7 @@ export default function freeflow(pi: FreeflowAPI) {
         auth.env,
       );
     },
-    measure: (ctx: any) => {
+    measure: (ctx: any, turn?: TurnEnd) => {
       // Every model that may receive the full history: the active one and, under routing, each profile's.
       const routingCapability = capability?.cognitiveRouting;
       const models = [ctx.model];
@@ -256,7 +304,7 @@ export default function freeflow(pi: FreeflowAPI) {
           models.push(ctx.modelRegistry?.find?.(profile.provider, profile.model));
       const limits = strictest(models, api.getSettings?.());
       if (!limits) return undefined;
-      let tokens = ctx.getContextUsage?.()?.tokens ?? 0;
+      let tokens = turnContextTokens(turn) ?? ctx.getContextUsage?.()?.tokens ?? 0;
       // A Coordinator under projection sends a reduced view; the next worker request carries the whole history.
       if (
         routingCapability?.effective &&
@@ -398,7 +446,7 @@ export default function freeflow(pi: FreeflowAPI) {
     status(ctx);
     const compacting = await compaction.turnEnd(event, ctx);
     if (compacting) return compacting;
-    const notice = compaction.observe(ctx);
+    const notice = compaction.observe(ctx, event);
     if (notice) {
       // Mid-run the notice joins the next request; when the run is ending it waits for the next prompt rather than
       // starting work nobody asked for.
@@ -440,7 +488,7 @@ export default function freeflow(pi: FreeflowAPI) {
     tagProjectedMessages(
       event.messages,
       ctx.sessionManager?.buildSessionProjection?.(),
-      ctx.sessionManager?.getBranch?.() ?? [],
+      cachedBranch(ctx.sessionManager) ?? [],
     );
     let messages = event.messages.map(filterBootstrapMessage).filter(Boolean);
     messages = withFreeflowRuntimeState(messages, capability, routing.state(), prompts, {

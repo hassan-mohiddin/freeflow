@@ -17,6 +17,7 @@ import {
 } from "./carry.js";
 import { cycleFiles, harnessPart, nextCycle, previousFileLists, sessionFileLists } from "./harness.js";
 import {
+  INDEX_TOKEN_BOUND,
   renderIndex,
   resolveResult,
   resultFirstLine,
@@ -26,7 +27,7 @@ import {
   type ScopeResult,
 } from "./results.js";
 import type { Thresholds } from "./thresholds.js";
-
+import { cachedBranch } from "../host/branch.js";
 /**
  * Freeflow compaction's agent path. After each turn Freeflow measures the context and, once per cycle each, says
  * compaction is due (the warning, with the result index) and then to compact now. The agent asks to compact with
@@ -50,7 +51,7 @@ export interface CompactionHost {
   routingAssignment(): string | undefined;
   background(): readonly { id: string; label: string; outputPath: string }[];
   /** Context size that the next request receiving the full history would carry, and the thresholds to judge it. */
-  measure(ctx: any): { tokens: number; thresholds: Thresholds } | undefined;
+  measure(ctx: any, turn?: TurnEnd): { tokens: number; thresholds: Thresholds } | undefined;
   /** Prefix that marks a harness message as not written by the user. */
   noticePrefix: string;
   /** The Coordinator is running under projection: its view leaves out what workers did, so it delegates compaction. */
@@ -76,6 +77,8 @@ export interface Compacted {
 }
 
 export type Notice = { level: "warning" | "compactNow"; text: string };
+/** The turn that just ended, as Pi's turn_end reports it: its assistant message and tool results. */
+export type TurnEnd = { message?: any; toolResults?: readonly any[] };
 
 const ABNORMAL_STOPS = new Set(["error", "aborted", "length"]);
 /** The most results the carried context lists by ref; the newest are listed. */
@@ -83,7 +86,7 @@ const MAX_LISTED = 60;
 /** "Compact now" repeats as the context keeps growing, so a long step that passed it is reminded before Pi compacts. */
 const COMPACT_NOW_REPEAT = 10_000;
 const hash = (text: string) => createHash("sha256").update(text).digest("hex");
-const branchOf = (ctx: any): any[] => ctx.sessionManager?.getBranch?.() ?? [];
+const branchOf = (ctx: any): readonly any[] => cachedBranch(ctx.sessionManager);
 const cycleOf = (branch: readonly any[]) => nextCycle(branch) - 1;
 
 export class CompactionController {
@@ -171,16 +174,18 @@ export class CompactionController {
    * After a turn: the notice to deliver. The warning comes once per cycle; "compact now" comes when the context
    * crosses its point and again each time it grows another COMPACT_NOW_REPEAT tokens.
    */
-  observe(ctx: any): Notice | undefined {
+  observe(ctx: any, turn?: TurnEnd): Notice | undefined {
     if (!this.host.effective()) return undefined;
     const branch = branchOf(ctx);
     const cycle = cycleOf(branch);
     if (this.sent.cycle !== cycle) this.sent = { cycle, warning: false };
-    const measured = this.host.measure(ctx);
+    const measured = this.host.measure(ctx, turn);
     if (!measured) return undefined;
     const { tokens: measuredTokens, thresholds } = measured;
-    // A list inserted with the notice is context too, so it moves the point earlier by its own size.
-    const listTokens = this.sent.warning ? 0 : estimateTokens(this.indexText(ctx));
+    // A list inserted with the notice is context too, so it moves the point earlier by its own size. Far below the
+    // warning it cannot reach it, so the list is built only near the point.
+    const nearWarning = measuredTokens + INDEX_TOKEN_BOUND >= thresholds.warning;
+    const listTokens = this.sent.warning || !nearWarning ? 0 : estimateTokens(this.indexText(ctx));
     const tokens = measuredTokens + listTokens;
     const level = tokens >= thresholds.compactNow ? "compactNow" : tokens >= thresholds.warning ? "warning" : undefined;
     if (!level) return undefined;

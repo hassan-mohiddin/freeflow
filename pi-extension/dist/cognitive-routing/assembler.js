@@ -15,6 +15,7 @@ import {
   requireCondition as check,
   samePair,
 } from "./types.js";
+import { cachedBranch } from "../host/branch.js";
 /**
  * Builds each routed request: finds the last delivered user input, opens the execution for the prepared profile,
  * prepares that profile's view with its Runtime State message and admitted evidence, and records newly exposed
@@ -75,7 +76,7 @@ export class ContextAssembler {
     const content = [
       "# Cognitive Routing Runtime State",
       `Profile: ${state.profile ?? "unresolved"}`,
-      state.profile === "coordinator" ? workerCompaction(this.session.ctx?.sessionManager?.getBranch?.() ?? []) : "",
+      state.profile === "coordinator" ? workerCompaction(cachedBranch(this.session.ctx?.sessionManager) ?? []) : "",
       `Unit: ${unit ? `U${unitNumber}` : "none"}`,
       `Assignment: ${a ? `A${assignmentNumber} (${worker ?? "unknown"}, ${a.state})` : "none"}`,
       `Handoff: ${h ? `${h.kind} ${h.state}` : "none"}`,
@@ -158,7 +159,7 @@ export class ContextAssembler {
     let rank = 0,
       resumedAt,
       suspension;
-    for (const entry of reader.getBranch()) {
+    for (const entry of cachedBranch(reader)) {
       if (entry.type === "compaction") assessedSinceCompaction.clear();
       if (["message", "custom_message", "compaction", "branch_summary"].includes(entry.type)) rank++;
       else if (entry.type === "custom" && entry.customType === ROUTING_ENTRY) {
@@ -219,7 +220,7 @@ export class ContextAssembler {
       preparingReturn: handoffId,
       restoring,
       compactedInAssignment: compactedInAssignment(
-        this.session.ctx?.sessionManager?.getBranch?.() ?? [],
+        cachedBranch(this.session.ctx?.sessionManager) ?? [],
         state.assignmentId,
       ),
     });
@@ -305,7 +306,7 @@ export class ContextAssembler {
           pair: this.session.observed(),
           resultEntryIds: [],
         };
-        const before = new Set(ctx.sessionManager.getBranch().map((e) => e.id));
+        const before = new Set(cachedBranch(ctx.sessionManager).map((e) => e.id));
         this.session.turn = {
           id: execution.id,
           profile: execution.profile,

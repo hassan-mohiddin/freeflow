@@ -35,6 +35,7 @@
     "check:package": "node scripts/validation/check-package.mjs",
     "check:eval-coverage": "node scripts/validation/check-eval-coverage.mjs",
     "check:release-metadata": "scripts/validation/validate-release-metadata.sh --mode prepublish",
+    "perf:request": "node scripts/perf/request-overhead.mjs",
     "test:pi-extension": "npm run build && node --test $(find pi-extension/tests -name '*.test.js' | sort)",
     "test:host-manifests": "node --test scripts/validation/check-host-manifests.test.mjs hooks/tests/check-host-adapters.test.mjs",
     "test:skill-author": "node --test $(find .skill-eval/write-skill/tests -name '*.test.mjs' | sort)",

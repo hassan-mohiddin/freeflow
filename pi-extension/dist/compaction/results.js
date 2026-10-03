@@ -9,6 +9,11 @@ import { currentCycle } from "./harness.js";
  */
 const SIZE_FLOOR = 500;
 const MAX_ROWS = 40;
+/**
+ * The most tokens the rendered index can take: 40 rows of at most about 140 characters (an 80-character label plus
+ * id, tool, size and carried note) and a heading. Below the warning by more than this, the index cannot reach it.
+ */
+export const INDEX_TOKEN_BOUND = 2_000;
 /** Freeflow's own control calls: no evidence to carry, as routing's evidence selection also excludes them. */
 const CONTROL_TOOLS = new Set([
   "freeflow_delegate",

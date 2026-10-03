@@ -1,5 +1,6 @@
 import { Sources } from "./sources.js";
 import { canonical, requireCondition as check } from "./types.js";
+import { cachedBranch } from "../host/branch.js";
 /**
  * Finishes each routed turn and moves work between profiles: binds the finished response to its execution, completes
  * an accepted delegation or return by preparing and switching to the receiving profile, and resumes an outstanding
@@ -27,7 +28,7 @@ export class Handoffs {
     } catch {
       return;
     }
-    const branch = this.session.store?.reader.getBranch() ?? [];
+    const branch = cachedBranch(this.session.store?.reader) ?? [];
     const lastUser = branch.filter((e) => e.message?.role === "user").at(-1)?.id ?? null;
     return lastUser === this.session.workerBasis(state, assignment.id)
       ? { worker, assignmentId: assignment.id }
@@ -77,15 +78,15 @@ export class Handoffs {
     const subject = this.session.subject();
     try {
       const message = event.message ?? turn.message;
-      const candidates = ctx.sessionManager
-        .getBranch()
-        .filter((e) => !turn.before.has(e.id) && e.type === "message" && canonical(e.message) === canonical(message));
+      const candidates = cachedBranch(ctx.sessionManager).filter(
+        (e) => !turn.before.has(e.id) && e.type === "message" && canonical(e.message) === canonical(message),
+      );
       check(candidates.length === 1, "execution_binding_ambiguous");
       const assistant = candidates[0];
       const callIds = new Set((message?.content ?? []).filter((b) => b.type === "toolCall").map((b) => b.id));
-      const results = ctx.sessionManager
-        .getBranch()
-        .filter((e) => !turn.before.has(e.id) && e.message?.role === "toolResult" && callIds.has(e.message.toolCallId));
+      const results = cachedBranch(ctx.sessionManager).filter(
+        (e) => !turn.before.has(e.id) && e.message?.role === "toolResult" && callIds.has(e.message.toolCallId),
+      );
       const outcome =
         message?.stopReason === "error" ? "failed" : message?.stopReason === "aborted" ? "aborted" : "completed";
       this.session.append(
@@ -135,7 +136,7 @@ export class Handoffs {
       "source_turn_incomplete",
       "Saved communication belongs to an incomplete historical turn. Reconcile its effects and replace or cancel the outstanding work; no tool result is fabricated.",
     );
-    const source = new Sources(this.session.ctx.sessionManager.getBranch(), state);
+    const source = new Sources(cachedBranch(this.session.ctx.sessionManager), state);
     const carrier = source.byRef.get(`ctx:${execution.assistantEntryId}`);
     check(
       carrier && !source.exchange(carrier).problems.length,
@@ -287,7 +288,7 @@ export class Handoffs {
     } else {
       const assignment = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
       const input = ctx.sessionManager.buildSessionContext?.().messages ?? this.session.messages;
-      const user = this.assembler.lastDeliveredUser(new Sources(ctx.sessionManager.getBranch(), state), input);
+      const user = this.assembler.lastDeliveredUser(new Sources(cachedBranch(ctx.sessionManager), state), input);
       const coordinatorSawInput = [...state.executions.values()].some(
         (x) =>
           x.profile === "coordinator" && x.basisUserEntryId === user && x.assistantEntryId && x.outcome === "completed",

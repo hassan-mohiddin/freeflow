@@ -8,6 +8,7 @@ import { ROUTING_ENTRY, RoutingError, canonical, eventKey, eventValue, requireCo
 import { parseRoutingEvent } from "./event-schema.js";
 import { reduce, replay } from "./state.js";
 import { sessionStage, stagedFor } from "../host/staging.js";
+import { cachedBranch } from "../host/branch.js";
 export class EventStore {
   pi;
   reader;
@@ -30,7 +31,9 @@ export class EventStore {
     return staged.reduce((state, event) => reduce(state, event), this.branchState());
   }
   branchState() {
-    const entries = this.reader.getBranch();
+    const entries = cachedBranch(this.reader);
+    // The cached branch is the same frozen array until the leaf moves, so an unchanged branch needs no comparison.
+    if (entries === this.cachedEntries) return this.cachedState;
     const prefix =
       this.cachedEntries.length <= entries.length && this.cachedEntries.every((entry, i) => entry === entries[i]);
     // An empty cache is a trivial prefix; the copying reducer would make that first fold quadratic.
@@ -43,7 +46,7 @@ export class EventStore {
           state = reduce(state, parseRoutingEvent(entry.data));
       this.cachedState = state;
     }
-    this.cachedEntries = [...entries];
+    this.cachedEntries = entries;
     return this.cachedState;
   }
   block(reason) {
@@ -63,7 +66,7 @@ export class EventStore {
   async reconcile() {
     const acknowledged = this.ready && !this.fault;
     this.ready = false;
-    const branch = this.reader.getBranch();
+    const branch = cachedBranch(this.reader);
     const live = branch.filter((e) => e.type === "custom" && e.customType === ROUTING_ENTRY);
     try {
       const ids = new Set();
@@ -128,14 +131,16 @@ export class EventStore {
         "snapshot_ancestry_mismatch",
         "Live branch is not the complete persisted ancestry for its claimed leaf.",
       );
-      replay(persistedBranch);
+      const replayed = replay(persistedBranch);
       const disk = new Map(persistedBranch.map((e) => [e.id, e]));
       const known = new Map();
       // Compare the live selected ancestry, not whichever branch was last written on disk.
       for (const entry of branch) {
         const captured = disk.get(entry.id);
+        // Both copies come from the same JSON, so their keys share an order and the native serializer decides
+        // equality at a fraction of canonical()'s cost; canonical() settles only a mismatch in key order.
         check(
-          captured && canonical(captured) === canonical(entry),
+          captured && (JSON.stringify(captured) === JSON.stringify(entry) || canonical(captured) === canonical(entry)),
           "snapshot_divergence",
           "Live ancestry is not fully established by the fresh persisted snapshot; reconcile the session before retrying.",
         );
@@ -154,8 +159,9 @@ export class EventStore {
       this.attempted.clear();
       this.fault = undefined;
       this.ready = true;
-      this.cachedEntries = [];
-      this.cachedState = replay([]);
+      // The live branch matches the persisted one entry for entry, so its replay is the state the next read needs.
+      this.cachedEntries = branch;
+      this.cachedState = replayed;
     } catch (error) {
       this.block(
         error instanceof RoutingError
@@ -188,12 +194,10 @@ export class EventStore {
     if (staged?.events.length) this.writeStaged(staged.events.splice(0));
     if (prior) {
       check(eventValue(prior) === body, "operation_conflict");
-      const occurrence = this.reader
-        .getBranch()
-        .find(
-          (entry) =>
-            entry.type === "custom" && entry.customType === ROUTING_ENTRY && entry.data?.eventId === prior.eventId,
-        );
+      const occurrence = cachedBranch(this.reader).find(
+        (entry) =>
+          entry.type === "custom" && entry.customType === ROUTING_ENTRY && entry.data?.eventId === prior.eventId,
+      );
       if (
         this.observed.get(key)?.value !== body ||
         this.observed.get(key)?.eventId !== prior.eventId ||
@@ -210,18 +214,18 @@ export class EventStore {
     this.attempted.set(key, value);
     try {
       this.pi.appendEntry(ROUTING_ENTRY, value);
-      const found = this.reader
-        .getBranch()
-        .find((e) => e.type === "custom" && e.customType === ROUTING_ENTRY && e.data?.eventId === value.eventId);
+      const found = cachedBranch(this.reader).find(
+        (e) => e.type === "custom" && e.customType === ROUTING_ENTRY && e.data?.eventId === value.eventId,
+      );
       check(found && eventValue(parseRoutingEvent(found.data)) === body, "append_not_observed");
       this.observed.set(key, { value: body, eventId: value.eventId, entryId: found.id });
       this.attempted.delete(key);
-      const branch = this.reader.getBranch();
+      const branch = cachedBranch(this.reader);
       const delta = branch.slice(baseline.length).filter((e) => e.type === "custom" && e.customType === ROUTING_ENTRY);
       if (baseline.every((e, i) => branch[i] === e) && delta.length === 1 && delta[0].id === found.id) {
         // Publish the already validated candidate only after acknowledged native append.
         this.cachedState = candidate;
-        this.cachedEntries = [...branch];
+        this.cachedEntries = branch;
       }
       return value;
     } catch (error) {

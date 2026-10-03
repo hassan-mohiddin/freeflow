@@ -15,7 +15,7 @@ import {
   ROUTING_TOOLS,
   type RoutingOperationScope,
 } from "./types.js";
-
+import { cachedBranch } from "../host/branch.js";
 /**
  * What routing allows while a profile runs, and what it tells the tool runtime: which ordinary tools a worker may
  * still call, which recovery reads an assessment permits, handoff batching rules, and the operation, admission, and
@@ -185,7 +185,7 @@ export class ToolGate {
   batch(callId: string, name: string, nested = false): void {
     check(this.session.turn?.message, "batch_unavailable");
     const issued = (b: any) => b.type === "toolCall" && (nested ? callId.startsWith(`${b.id}/`) : b.id === callId);
-    const matches = (this.session.ctx.sessionManager.getBranch() as NativeEntry[]).filter(
+    const matches = (cachedBranch(this.session.ctx.sessionManager) as NativeEntry[]).filter(
       (e) =>
         !this.session.turn!.before.has(e.id) &&
         e.type === "message" &&
