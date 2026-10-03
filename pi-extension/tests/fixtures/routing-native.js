@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { appendFile, mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import {
   createAgentSession,
   DefaultResourceLoader,
@@ -11,6 +11,29 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import freeflow from "../../dist/index.js";
 import { replay } from "../../dist/cognitive-routing/state.js";
+
+/**
+ * With FREEFLOW_CAPTURE_DIR set, every provider request body a fixture run sends is written there, one file per run,
+ * so two builds' requests can be compared byte for byte. Values that differ between runs (the temporary directory,
+ * UUIDs, entry ids, and background command ids) are replaced by their order of first appearance.
+ */
+let captureRun = 0;
+function capture(root, bodies) {
+  const dir = process.env.FREEFLOW_CAPTURE_DIR;
+  if (!dir || !bodies.length) return;
+  const ids = new Map();
+  const ordinal = (prefix) => (value) => `${prefix}#${ids.get(value) ?? ids.set(value, ids.size).get(value)}`;
+  const text = bodies
+    .map((body) => JSON.stringify(body))
+    .join("\n")
+    .replaceAll(root, "<root>")
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, ordinal("uuid"))
+    .replace(/\b[0-9a-f]{8}\b/g, ordinal("id"))
+    .replace(/\bbg[0-9a-z]{6}\b/g, ordinal("bg"));
+  return mkdir(dir, { recursive: true }).then(() =>
+    appendFile(join(dir, `${basename(process.argv[1] ?? "run")}-${++captureRun}.jsonl`), text + "\n"),
+  );
+}
 
 export function response(
   n,
@@ -338,6 +361,7 @@ export async function fixture(script, projection = true, after, withUI = true, o
     globalThis.fetch = priorFetch;
     if (offline === undefined) delete process.env.PI_OFFLINE;
     else process.env.PI_OFFLINE = offline;
+    await capture(root, requests);
     await rm(root, { recursive: true, force: true });
   }
 }

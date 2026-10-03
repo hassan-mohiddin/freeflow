@@ -9,6 +9,7 @@
 //   npm run perf:request
 //   npm run perf:request -- --session ~/.pi/agent/sessions/<dir>/<file>.jsonl --prompts 8
 //   npm run perf:request -- --dist /path/to/other/build/pi-extension/dist
+//   npm run perf:request -- --capture <dir>   (writes every provider request body per scenario, to compare builds)
 //
 // Numbers vary between machines and runs; compare builds on the same machine and session, and read the medians.
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -34,6 +35,7 @@ const { values } = parseArgs({
     turns: { type: "string", default: "2000" },
     "compact-every": { type: "string", default: "150" },
     scenario: { type: "string" },
+    capture: { type: "string" },
     json: { type: "boolean", default: false },
   },
 });
@@ -151,8 +153,11 @@ async function run(label, config, sessionPath) {
   const priorFetch = globalThis.fetch,
     offline = process.env.PI_OFFLINE;
   let requests = 0;
-  globalThis.fetch = async () =>
-    response(++requests, [], "ok", { input_tokens: 1000, output_tokens: 2, total_tokens: 1002 });
+  const bodies = [];
+  globalThis.fetch = async (_url, init) => {
+    if (values.capture) bodies.push(typeof init?.body === "string" ? init.body : JSON.stringify(init?.body ?? null));
+    return response(++requests, [], "ok", { input_tokens: 1000, output_tokens: 2, total_tokens: 1002 });
+  };
   process.env.PI_OFFLINE = "1";
   const timings = new Map();
   const timed = (pi) =>
@@ -232,6 +237,18 @@ async function run(label, config, sessionPath) {
       walksPerPrompt.push(walks.count - before);
       const last = session.messages.at(-1);
       if (last?.stopReason === "error") errors.push(String(last.errorMessage).slice(0, 200));
+    }
+    if (values.capture) {
+      await mkdir(values.capture, { recursive: true });
+      // The run directory and the ids Pi gives entries created during the run differ per run; replace them (ids by
+      // order of first appearance) so captures of two builds compare byte for byte.
+      const ids = new Map();
+      const text =
+        bodies
+          .join("\n")
+          .replaceAll(dir, "<run>")
+          .replace(/ctx:([0-9a-f]{8})/g, (_, id) => `ctx:#${ids.get(id) ?? ids.set(id, ids.size).get(id)}`) + "\n";
+      await writeFile(join(values.capture, `${label.replace(/[^a-z0-9]+/gi, "-")}.jsonl`), text);
     }
     return { label, entries: manager.getEntries().length, startMs, walls, walksPerPrompt, timings, errors };
   } finally {
