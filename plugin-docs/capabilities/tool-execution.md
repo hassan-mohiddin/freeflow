@@ -30,7 +30,7 @@ The settings of the retired v2 runtime (`capture`, `programs`, `workspace`, `dis
 
 **Pi's tools stay.** Freeflow does not replace or rename any Pi tool. Calls that codemode scripts make to other tools are tracked like direct calls.
 
-**`apply_patch`.** The patch tool OpenAI Codex trains GPT models on, ported so their patches apply the same way in Pi. GPT-5 and later models on OpenAI endpoints receive it in Codex's grammar-constrained form; other models receive a one-string function. It adds, deletes, updates and moves files, matches hunks leniently as Codex does (exact, then ignoring trailing whitespace, then surrounding whitespace, then normalized punctuation), plans every change before writing, refuses to update an existing file the model has not read, and reports each file as written, not written or failed. Pi's `edit` and `write` stay beside it.
+**`apply_patch`.** The patch tool OpenAI Codex trains GPT models on, ported so their patches apply the same way in Pi. GPT-5 and later models on OpenAI endpoints receive it in Codex's grammar-constrained form; other models receive a one-string function. It adds, deletes, updates and moves files, matches hunks leniently as Codex does (exact, then ignoring trailing whitespace, then surrounding whitespace, then normalized punctuation), plans every change before writing, refuses to add a file over an existing one the model has not read, and reports each file as written, not written or failed. Pi's `edit` and `write` stay beside it.
 
 **Background commands.** `bash_background` starts a command in the background and returns an ID and an output file at once; the model is notified once, when the command exits, and reads the output file for output so far. `stop_background` stops one. Up to 16 can run at a time. Output files are private to the session; running commands are stopped when Pi shuts down. A background command that exits while the model is idle starts a new turn so the model can react.
 
@@ -60,3 +60,4 @@ Tool Execution v2 (`freeflow_run`, `freeflow_tools`, `freeflow_search`, `freeflo
 - [Compaction](compaction.md)
 - [Cognitive Routing](cognitive-routing.md)
 - [System prompt architecture](../../dev-docs/subsystems/prompt-assembly.md)
+- [How Tool Execution works](../../dev-docs/subsystems/tool-execution.md) (developer docs)

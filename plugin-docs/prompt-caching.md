@@ -45,7 +45,7 @@ Freeflow keeps what it adds to a request fixed and appends new content instead o
 
 Cache diagnostics appear on the `prompt cache` line of `/freeflow status`, never in the footer. The footer shows only current Freeflow settings.
 
-How Freeflow keeps requests cache-safe, and the rules for changing it, are in the developer guide [Prompt cache rules](../dev-docs/guides/prompt-cache.md).
+How Freeflow keeps requests cache-safe, and the rules for changing it, are in the developer guide [Prompt cache rules](../dev-docs/guides/prompt-cache.md); how each mechanism works is in [Request history and prompt cache](../dev-docs/subsystems/request-history-and-cache.md).
 
 ## Recorded observations
 

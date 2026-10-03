@@ -281,7 +281,7 @@ Manual control does not grant additional task authority or erase outstanding rou
 
 ## How work moves between profiles
 
-Coordinator opens a unit for one outcome and assigns work to a worker; the worker returns a saved report, and Coordinator assesses it, assigns more, or closes the unit. Workers select the tool results that support their report as evidence, and Coordinator can ask the same worker to recover missing evidence without redoing the work. Routing state is recorded in the session, so it survives reloads and compaction. The developer doc [Cognitive Routing internals](../../dev-docs/subsystems/cognitive-routing.md) describes the lifecycle, tools, evidence selection, recovery, and persistence in detail.
+Coordinator opens a unit for one outcome and assigns work to a worker; the worker returns a saved report, and Coordinator assesses it, assigns more, or closes the unit. Workers select the tool results that support their report as evidence, and Coordinator can ask the same worker to recover missing evidence without redoing the work. Routing state is recorded in the session, so it survives reloads and compaction. The developer doc [Cognitive Routing](../../dev-docs/subsystems/cognitive-routing.md) describes the lifecycle, tools, evidence selection, recovery, persistence, and the design decisions behind them.
 
 ## Context projection
 

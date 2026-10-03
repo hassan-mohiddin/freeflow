@@ -81,3 +81,4 @@ Known limits:
 - [Tool Execution](tool-execution.md)
 - [Pi integration](../integrations/pi.md)
 - [Prompt caching](../prompt-caching.md)
+- [How compaction works](../../dev-docs/subsystems/compaction.md) (developer docs)
