@@ -67,6 +67,12 @@ test("host adapters share rendered mandatory context but emit host-native envelo
   assert.equal(outputs.cursor.hookSpecificOutput, undefined);
   assert.match(legacyContext, /# Freeflow Stable Guidance/);
   assert.match(legacyContext, /# Freeflow Interaction Contract/);
+  assert.match(legacyContext, /# Freeflow Working Method/);
+  assert.ok(
+    legacyContext.indexOf("# Freeflow Interaction Contract") < legacyContext.indexOf("# Freeflow Working Method") &&
+      legacyContext.indexOf("# Freeflow Working Method") < legacyContext.indexOf("Freeflow: active"),
+    "Pi's order: core, Interaction Contract, Working Method, then the Runtime State",
+  );
   assert.match(legacyContext, /Freeflow: active/);
   assert.doesNotMatch(legacyContext, /Cognitive Routing/);
 });

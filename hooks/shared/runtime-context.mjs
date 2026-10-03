@@ -102,8 +102,10 @@ function loadRuntimeContext() {
   if (!corePrompt || !interactionContract) {
     throw new Error("Freeflow core runtime prompt files are missing.");
   }
+  // Optional, as on Pi: without the file the hook still delivers the core.
+  const workingMethod = readText(path.join(PLUGIN_ROOT, "runtime", "prompts", "working-method.md"));
 
-  return { corePrompt, interactionContract };
+  return { corePrompt, interactionContract, workingMethod };
 }
 
 function runtimeStateContext() {
@@ -125,8 +127,8 @@ export function renderRuntimeContext(root) {
   }
   if (!config.enabled) return "";
 
-  const { corePrompt, interactionContract } = loadRuntimeContext();
-  return [corePrompt, interactionContract, runtimeStateContext()].filter(Boolean).join("\n\n");
+  const { corePrompt, interactionContract, workingMethod } = loadRuntimeContext();
+  return [corePrompt, interactionContract, workingMethod, runtimeStateContext()].filter(Boolean).join("\n\n");
 }
 
 export function emitHookOutput(output) {

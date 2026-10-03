@@ -93,6 +93,8 @@ for expected in \
   "## Cues" \
   "# Freeflow Interaction Contract" \
   "Only a request to act authorizes action." \
+  "# Freeflow Working Method" \
+  "Claim only what you observed." \
   "Freeflow: active"; do
   assert_contains "$codex_output" "$expected" "configured core context"
 done
@@ -120,6 +122,12 @@ printf ' \n\t\n' >"$whitespace_root/runtime/prompts/core.md"
 printf '{}\n' >"$whitespace_root/repo/.freeflow/config.json"
 whitespace_output="$(printf '{\"cwd\":\"%s\"}\n' "$whitespace_root/repo" | node "$whitespace_root/hooks/freeflow-runtime-context.mjs" SessionStart)"
 [[ -z "$whitespace_output" ]] || fail "whitespace-only mandatory prompt should fail closed"
+# The Working Method is optional, as on Pi: without it the core is still delivered.
+cp "$CORE_PROMPT" "$whitespace_root/runtime/prompts/core.md"
+rm "$whitespace_root/runtime/prompts/working-method.md"
+no_method_output="$(printf '{\"cwd\":\"%s\"}\n' "$whitespace_root/repo" | node "$whitespace_root/hooks/freeflow-runtime-context.mjs" SessionStart)"
+assert_contains "$no_method_output" "# Freeflow Interaction Contract" "missing Working Method"
+assert_not_contains "$no_method_output" "# Freeflow Working Method" "missing Working Method"
 rm -rf "$whitespace_root"
 
 claude_output="$(printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s"}\n' "$tmp_dir" | node "$HOOK_PATH" SessionStart)"
@@ -133,6 +141,7 @@ for source in startup resume clear compact; do
   output="$(printf '{"hook_event_name":"SessionStart","source":"%s","cwd":"%s"}\n' "$source" "$tmp_dir" | node "$HOOK_PATH" SessionStart)"
   assert_contains "$output" "# Freeflow Stable Guidance" "$source SessionStart context"
   assert_contains "$output" "# Freeflow Interaction Contract" "$source SessionStart context"
+  assert_contains "$output" "# Freeflow Working Method" "$source SessionStart context"
   assert_contains "$output" "Freeflow: active" "$source SessionStart context"
 done
 
