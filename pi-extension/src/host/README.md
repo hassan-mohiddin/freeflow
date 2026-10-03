@@ -17,6 +17,8 @@ Everything Freeflow needs on Pi that is not one capability: reading configuratio
 | [`canonical.ts`](canonical.ts) | Deterministic JSON, so equal values serialize, compare, and hash equally. |
 | [`settings/`](settings/README.md) | The `/freeflow` command and its settings screens. |
 
+How request history, Runtime State placement and projection tags work and why: [Request history and prompt cache](../../../dev-docs/subsystems/request-history-and-cache.md).
+
 ## Rules
 
 - The fixed system section must not depend on feature state. State belongs in the Runtime State message.

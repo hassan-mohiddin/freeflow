@@ -43,5 +43,6 @@ Cache diagnostics appear on the `prompt cache` line of `/freeflow status`, never
 
 ## Related
 
+- [Request history and prompt cache](../subsystems/request-history-and-cache.md): how each mechanism above works, its decisions, and its failure behavior.
 - [Prompt caching](../../plugin-docs/prompt-caching.md): provider cache behavior, what Freeflow adds, and recorded observations.
 - [Performance](performance.md): the other request-path contract.

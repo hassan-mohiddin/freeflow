@@ -13,6 +13,7 @@ Freeflow is a portable skill pack and context-loading runtime for coding agents.
 - [Cognitive Routing](subsystems/cognitive-routing.md): unit and assignment lifecycle, routing tools, evidence selection and recovery, persistence.
 - [Compaction](subsystems/compaction.md): when compaction is due, the agent path and carried context, Cognitive Routing and Pi's own compaction, and the behavior that looks wrong but is intended.
 - [Tool Execution](subsystems/tool-execution.md): the layer over Pi's tools: prompt sections, file tracking, edit error rewrites, `apply_patch`, background commands, and the bash guard.
+- [Request history and prompt cache](subsystems/request-history-and-cache.md): how generated messages keep their positions, cache breakpoints, the Coordinator keep-alive, effort history, and cache health.
 - [Pi extension](subsystems/pi-extension.md): what the extension registers, cache reuse boundaries, persistence and recovery limits, development snapshots.
 
 **Guides** (how to do maintainer work):

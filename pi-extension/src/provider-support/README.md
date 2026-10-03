@@ -2,7 +2,7 @@
 
 Provider-specific request changes that keep prompt caches working, so Freeflow never costs more than native Pi for the same work. Everything here acts in Pi's `before_provider_request` hook, on qualified routes only; any other route gets its request exactly as Pi built it.
 
-Background: [Prompt cache rules](../../../dev-docs/guides/prompt-cache.md) and the user guide [Prompt caching](../../../plugin-docs/prompt-caching.md).
+How it works and why: [Request history and prompt cache](../../../dev-docs/subsystems/request-history-and-cache.md). Rules for changing it: [Prompt cache rules](../../../dev-docs/guides/prompt-cache.md). User guide: [Prompt caching](../../../plugin-docs/prompt-caching.md).
 
 | Path | Owns |
 |---|---|
