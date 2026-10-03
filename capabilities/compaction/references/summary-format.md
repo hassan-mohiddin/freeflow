@@ -101,7 +101,7 @@ Each heading means exactly what it means in the Working Record format ([Working 
 Freeflow builds the new cycle from four pieces. The agent writes only the first part of the first piece.
 
 1. **The summary**, wrapped by Pi as a user message: `The conversation history before this point was compacted into the following summary: <summary>…</summary>`. Inside: the agent's summary, then `## Freeflow state at compaction`, which Freeflow writes.
-2. **The carried context:** the user's latest messages verbatim, then the carried files (read at compaction) and tool results.
+2. **The carried context:** the user's latest messages verbatim, then the carried files (read at compaction) and tool results, with files and read results numbered by file line.
 3. **The recovery message.**
 4. **Freeflow's Runtime State**, as on every request.
 
@@ -171,10 +171,13 @@ retries should respect Retry-After, the API team says they ban clients that don'
 
 ## Files, read at compaction
 
+Numbered by file line, as are read results below.
+
 ### src/http/client.ts (lines 40-118)
 
-```ts
-…
+```
+ 40	…
+118	…
 ```
 
 ## Tool results

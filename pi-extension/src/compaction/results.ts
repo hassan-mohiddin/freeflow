@@ -31,6 +31,8 @@ export interface ResultRow {
 
 export interface Result extends ResultRow {
   text: string;
+  /** For a text read of a file, the file line its text starts at, so a carried copy can show line numbers. */
+  firstLine?: number;
 }
 
 const resultText = (message: any): string =>
@@ -91,11 +93,24 @@ function allResults(branch: readonly any[]): (Result & { entry: any; input: any 
       label: label(tool, call?.input),
       tokens: estimateTokens(text),
       text,
+      ...firstLineOf(tool, call?.input, message),
       entry,
       input: call?.input,
     });
   }
   return results;
+}
+
+/** A text read of a file starts at its offset (Pi's read is 1-based); an image or failed read has no lines. */
+function firstLineOf(tool: string, input: any, message: any): { firstLine?: number } {
+  if (tool !== "read" || typeof input?.path !== "string" || message?.isError) return {};
+  if ((message?.content ?? []).some((part: any) => part?.type === "image")) return {};
+  return { firstLine: Number.isInteger(input?.offset) && input.offset > 0 ? input.offset : 1 };
+}
+
+/** The first line of the read result in a session entry, for a result carried by routing ref. */
+export function resultFirstLine(branch: readonly any[], entryId: string): number | undefined {
+  return allResults(branch).find((result) => result.entry?.id === entryId)?.firstLine;
 }
 
 export function resolveResult(branch: readonly any[], id: string): Result | undefined {

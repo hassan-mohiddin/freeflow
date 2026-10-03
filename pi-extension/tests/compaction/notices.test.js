@@ -38,7 +38,7 @@ test(
         assert.match(JSON.stringify(requests[2].input), /- r1  read  big\.txt  ~1000 tokens/);
         // Without routing a final answer ends the context's growth, so finishing stays an option; no return is mentioned.
         assert.match(JSON.stringify(requests[2].input), /finish it instead/);
-        assert.doesNotMatch(JSON.stringify(requests[2].input), /compact before you return/);
+        assert.doesNotMatch(JSON.stringify(requests[2].input), /with a return/);
         assert.equal(count(requests[3], WARNING), 1, "sent once per cycle");
         assert.equal(count(requests[4], COMPACT_NOW), 1);
         // Accepted without /freeflow compact: the notices made it due. The new cycle carries r1's body.
@@ -122,25 +122,24 @@ test(
   },
 );
 
-test(
-  "compact now repeats as the context keeps growing, since Pi does not compact within a run",
-  { timeout: 30000 },
-  async () => {
-    // Compact now at 102,999: crossed at 120k, not repeated at 125k, repeated at 131k (10k past the last one).
-    const usage = [50_000, 100_000, 120_000, 125_000, 131_000, 1_000];
-    const read = [{ name: "read", args: { path: "evidence.txt" } }];
-    await fixture(
-      async (n) => (n <= 5 ? read : []),
-      false,
-      async ({ requests }) => {
-        assert.equal(count(requests[3], COMPACT_NOW), 1, "the first compact now");
-        assert.equal(count(requests[4], COMPACT_NOW), 1, "not repeated before another 10k");
-        assert.equal(count(requests[5], COMPACT_NOW), 2, "repeated 10k past the last one");
-        assert.match(JSON.stringify(requests[5].input), /once this run ends, or when a request overflows/);
-        assert.equal(count(requests[5], WARNING), 1, "the warning stays once per cycle");
-      },
-      true,
-      { ...noRouting, response: withUsage((n) => usage[n - 1] ?? 1_000) },
-    );
-  },
-);
+test("compact now repeats as the context keeps growing", { timeout: 30000 }, async () => {
+  // Compact now at 102,999: crossed at 120k, not repeated at 125k, repeated at 131k (10k past the last one).
+  const usage = [50_000, 100_000, 120_000, 125_000, 131_000, 1_000];
+  const read = [{ name: "read", args: { path: "evidence.txt" } }];
+  await fixture(
+    async (n) => (n <= 5 ? read : []),
+    false,
+    async ({ requests }) => {
+      assert.equal(count(requests[3], COMPACT_NOW), 1, "the first compact now");
+      assert.equal(count(requests[4], COMPACT_NOW), 1, "not repeated before another 10k");
+      assert.equal(count(requests[5], COMPACT_NOW), 2, "repeated 10k past the last one");
+      assert.match(
+        JSON.stringify(requests[5].input),
+        /Pi compacts on its own past about \d+, or when a request overflows/,
+      );
+      assert.equal(count(requests[5], WARNING), 1, "the warning stays once per cycle");
+    },
+    true,
+    { ...noRouting, response: withUsage((n) => usage[n - 1] ?? 1_000) },
+  );
+});

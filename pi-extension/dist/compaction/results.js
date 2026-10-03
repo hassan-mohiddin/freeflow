@@ -71,11 +71,22 @@ function allResults(branch) {
       label: label(tool, call?.input),
       tokens: estimateTokens(text),
       text,
+      ...firstLineOf(tool, call?.input, message),
       entry,
       input: call?.input,
     });
   }
   return results;
+}
+/** A text read of a file starts at its offset (Pi's read is 1-based); an image or failed read has no lines. */
+function firstLineOf(tool, input, message) {
+  if (tool !== "read" || typeof input?.path !== "string" || message?.isError) return {};
+  if ((message?.content ?? []).some((part) => part?.type === "image")) return {};
+  return { firstLine: Number.isInteger(input?.offset) && input.offset > 0 ? input.offset : 1 };
+}
+/** The first line of the read result in a session entry, for a result carried by routing ref. */
+export function resultFirstLine(branch, entryId) {
+  return allResults(branch).find((result) => result.entry?.id === entryId)?.firstLine;
 }
 export function resolveResult(branch, id) {
   const found = allResults(branch).find((result) => result.id === id);

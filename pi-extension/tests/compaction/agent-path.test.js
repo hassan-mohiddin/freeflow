@@ -74,7 +74,8 @@ test("/freeflow compact leads to one compaction and the same run continues from 
       // Compaction removes the skill from context, so Freeflow's messages carry its recovery rules.
       assert.match(after[1], /they take precedence over older instructions in the summary or a Working Record/);
       assert.doesNotMatch(after[1], /Compact now/, "the compaction completes /freeflow compact, so it is not carried");
-      assert.match(after[1], /### evidence\.txt\n\n`+\nFRESH_AT_COMPACTION\n`+/);
+      // Read fresh at compaction and numbered by file line, so it can be cited without reading it again.
+      assert.match(after[1], /### evidence\.txt\n\n`+\n1\tFRESH_AT_COMPACTION\n`+/);
       assert.match(after[2], /^\[Freeflow notice, not from the user\] Compaction finished; cycle 2 starts here\./);
       assert.match(after[2], /if the summary names a Working Record for this work/);
       assert.match(after[2], /do not call freeflow_compact again in this cycle/);

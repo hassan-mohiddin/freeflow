@@ -16,7 +16,15 @@ import {
   type CarryItem,
 } from "./carry.js";
 import { cycleFiles, harnessPart, nextCycle, previousFileLists, sessionFileLists } from "./harness.js";
-import { renderIndex, resolveResult, resultIndex, scopeResults, type Result, type ScopeResult } from "./results.js";
+import {
+  renderIndex,
+  resolveResult,
+  resultFirstLine,
+  resultIndex,
+  scopeResults,
+  type Result,
+  type ScopeResult,
+} from "./results.js";
 import type { Thresholds } from "./thresholds.js";
 
 /**
@@ -72,7 +80,7 @@ export type Notice = { level: "warning" | "compactNow"; text: string };
 const ABNORMAL_STOPS = new Set(["error", "aborted", "length"]);
 /** The most results the carried context lists by ref; the newest are listed. */
 const MAX_LISTED = 60;
-/** Pi checks its own threshold only after a run ends, so within a run "compact now" repeats as context keeps growing. */
+/** "Compact now" repeats as the context keeps growing, so a long step that passed it is reminded before Pi compacts. */
 const COMPACT_NOW_REPEAT = 10_000;
 const hash = (text: string) => createHash("sha256").update(text).digest("hex");
 const branchOf = (ctx: any): any[] => ctx.sessionManager?.getBranch?.() ?? [];
@@ -195,17 +203,16 @@ export class CompactionController {
     const prefix = this.host.noticePrefix;
     const { window, trigger } = thresholds;
     if (this.host.coordinatorUnderProjection())
-      return `${prefix} ${level === "compactNow" ? "Compact now" : "Compaction is due soon"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger} once this run ends. Your view leaves out what workers did, so do not compact yourself: ${level === "compactNow" ? "now" : "at a safe point (after the current assessment, or before the next assignment)"}, delegate an assignment asking the worker to read the compaction skill, compact with freeflow_compact, and then return with freeflow_return; then continue.`;
+      return `${prefix} ${level === "compactNow" ? "Compact now" : "Compaction is due soon"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger}. Your view leaves out what workers did, so do not compact yourself: ${level === "compactNow" ? "now" : "at a safe point (after the current assessment, or before the next assignment)"}, delegate an assignment asking the worker to read the compaction skill, compact with freeflow_compact, and then return with freeflow_return; then continue.`;
     const index = withList ? this.indexText(ctx) : "";
     const list = index ? `\n\n${index}` : "";
     // A worker's return hands the same history to the Coordinator and the next assignment, so it ends no growth.
     const worker = this.host.routingAssignment() !== undefined;
     if (level === "compactNow")
-      return `${prefix} Compact now: context is at about ${tokens} of ${window} tokens. Pi compacts on its own past about ${trigger} once this run ends, or when a request overflows the model's window. The end of your current step is the safe point: write down any partial state, then prepare and call freeflow_compact; ${worker ? "compact before you return, since the next assignment continues this history; " : ""}if Pi compacts first, its own summary replaces yours.${list}`;
-    const end = worker
-      ? "If you are at one now, compact now. A return does not end this history: the Coordinator and the next assignment continue it, so compact before you return, not after."
-      : "If you are at one now, compact now; if your work ends within a step or two with a final answer, finish it instead.";
-    return `${prefix} Compaction is due soon: context is at about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger} once this run ends. Keep working until a safe point: a finished step whose result you know (a check read, an edit set complete, a report written), not mid-edit or with a command running. ${end} At the safe point, read the compaction skill, update the Working Record, ${this.carryText(ctx)}, write the summary, and call freeflow_compact. A "compact now" notice follows near Pi's limit.${list}`;
+      return `${prefix} Compact now: context is at about ${tokens} of ${window} tokens. Pi compacts on its own past about ${trigger}, or when a request overflows the model's window. The end of your current step is the safe point: write down any partial state, then prepare and call freeflow_compact; ${worker ? "compact before you return, since the Coordinator and the next assignment continue this history; " : ""}if Pi compacts first, its own summary replaces yours.${list}`;
+    // Before compact now there is room for the Coordinator's next turn, so a worker may finish a return first.
+    const end = `If you are at one now, compact now; if your work ends within a step or two with ${worker ? "a return" : "a final answer"}, finish it instead.`;
+    return `${prefix} Compaction is due soon: context is at about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger}. Keep working until a safe point: a finished step whose result you know (a check read, an edit set complete, a report written), not mid-edit or with a command running. ${end} At the safe point, read the compaction skill, update the Working Record, ${this.carryText(ctx)}, write the summary, and call freeflow_compact. A "compact now" notice follows near Pi's limit.${list}`;
   }
 
   /** Check a freeflow_compact call and schedule it for the end of this turn; throws with the reason it is refused. */
@@ -322,7 +329,17 @@ export class CompactionController {
     const resolve = (id: string): Result | undefined => {
       if (!this.host.nativeRefs()) return resolveResult(branch, id);
       const source = this.host.resolveRef(id);
-      return source && { id, tool: source.tool, label: id, tokens: estimateTokens(source.text), text: source.text };
+      const firstLine = resultFirstLine(branch, id.replace(/^ctx:/, ""));
+      return (
+        source && {
+          id,
+          tool: source.tool,
+          label: id,
+          tokens: estimateTokens(source.text),
+          text: source.text,
+          ...(firstLine === undefined ? {} : { firstLine }),
+        }
+      );
     };
     const results = ids.map(resolve).filter(Boolean) as Result[];
     const missing = ids.filter((id) => !results.some((result) => result.id === id));

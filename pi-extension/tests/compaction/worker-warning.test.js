@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { CompactionController } from "../../dist/compaction/controller.js";
+import { thresholds } from "../../dist/compaction/thresholds.js";
 import { fixture, response } from "../fixtures/routing-native.js";
 
 // The warning reaching a worker in the middle of its own assignment, under projection: the worker gets the worker's
@@ -38,9 +40,8 @@ test("a worker warned mid-assignment compacts, continues its contract, and retur
       const notice = JSON.stringify(requests[3].input);
       assert.match(notice, /Keep working until a safe point/, "the worker's notice, not the Coordinator's");
       assert.doesNotMatch(notice, /do not compact yourself/);
-      // A return hands the same history on, so the worker is told to compact before it, not to finish instead.
-      assert.match(notice, /A return does not end this history: .* compact before you return, not after\./);
-      assert.doesNotMatch(notice, /finish it instead/);
+      // Before compact now a return may still finish first; compact now asks for compaction before the return.
+      assert.match(notice, /if your work ends within a step or two with a return, finish it instead/);
 
       const compactions = manager.getBranch().filter((entry) => entry.type === "compaction");
       assert.equal(compactions.length, 1);
@@ -64,4 +65,30 @@ test("a worker warned mid-assignment compacts, continues its contract, and retur
         }),
     },
   );
+});
+
+test("a worker's compact now asks it to compact before returning; the warning lets a return finish", () => {
+  const limits = thresholds(128_000, 16_384);
+  const notice = (tokens, assignment) =>
+    new CompactionController({
+      effective: () => true,
+      routingProfile: () => (assignment ? "executor" : undefined),
+      routingAssignment: () => assignment,
+      background: () => [],
+      noticePrefix: "[notice]",
+      coordinatorUnderProjection: () => false,
+      carryEnabled: () => true,
+      nativeRefs: () => assignment !== undefined,
+      assignmentResults: () => undefined,
+      resolveRef: () => undefined,
+      summarize: async () => undefined,
+      measure: () => ({ tokens, thresholds: limits }),
+    }).observe({ sessionManager: { getBranch: () => [] } })?.text;
+  assert.match(
+    notice(limits.compactNow, "a1"),
+    /compact before you return, since the Coordinator and the next assignment/,
+  );
+  assert.doesNotMatch(notice(limits.compactNow, undefined), /return/);
+  assert.match(notice(limits.warning, "a1"), /with a return, finish it instead/);
+  assert.match(notice(limits.warning, undefined), /with a final answer, finish it instead/);
 });

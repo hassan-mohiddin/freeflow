@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import test from "node:test";
+import { numberLines } from "../../dist/compaction/carry.js";
 import { CompactionController } from "../../dist/compaction/controller.js";
 import { thresholds } from "../../dist/compaction/thresholds.js";
 import { fixture } from "../fixtures/routing-native.js";
@@ -43,7 +46,7 @@ test(
         assert.ok(!JSON.stringify(requests[0].input).includes(LIST), "/freeflow compact inserts no list under routing");
         assert.match(
           JSON.stringify(requests[3].input),
-          new RegExp(`### ${ref} read\\\\n\\\\n\`+\\\\nEXACT_EVIDENCE_BODY_81`),
+          new RegExp(`### ${ref} read\\\\n\\\\n\`+\\\\n1\\\\tEXACT_EVIDENCE_BODY_81`),
         );
         const entry = manager.getBranch().find((each) => each.type === "compaction");
         assert.deepEqual(
@@ -111,4 +114,41 @@ test("a list inserted with the warning moves the warning point earlier by the li
   const ctx = { sessionManager: { getBranch: () => branch } };
   assert.equal(controller(false).observe(ctx)?.level, "warning", "the list's size pushes it over");
   assert.equal(controller(true).observe(ctx), undefined, "with routing refs there is no list and no shift");
+});
+
+test("carried text is numbered by file line, from a read's offset, leaving Pi's partial-read note as it is", () => {
+  assert.equal(numberLines("a\nb", 1), "1\ta\n2\tb");
+  assert.equal(numberLines("x\ny\nz", 9), " 9\tx\n10\ty\n11\tz", "numbers align to the widest");
+  assert.equal(
+    numberLines("x\ny\n\n[Showing lines 40-41 of 90. Use offset=42 to continue.]", 40),
+    "40\tx\n41\ty\n\n[Showing lines 40-41 of 90. Use offset=42 to continue.]",
+  );
+  assert.equal(
+    numberLines("x\n\n[12 more lines in file. Use offset=3 to continue.]", 2),
+    "2\tx\n\n[12 more lines in file. Use offset=3 to continue.]",
+  );
+});
+
+test("a carried read result is numbered from the offset it was read at", { timeout: 30000 }, async () => {
+  await fixture(
+    async (n) =>
+      [
+        [{ name: "read", args: { path: "lines.txt", offset: 3 } }],
+        [{ name: "freeflow_compact", args: { summary: "S", carry: [{ result: "r1" }] } }],
+      ][n - 1] ?? [],
+    false,
+    async ({ manager }) => {
+      const carried = manager.getBranch().find((entry) => entry.customType === "freeflow-carried-context");
+      assert.match(String(carried.content), /### r1 read: lines\.txt\n\n`+\n3\tLINE_THREE\n4\tLINE_FOUR\n`+/);
+    },
+    true,
+    {
+      cognitiveRouting: { enabled: false },
+      freeflowConfig: { toolExecution: { enabled: true } },
+      beforePrompt: async (run) => {
+        await writeFile(join(run.cwd, "lines.txt"), "LINE_ONE\nLINE_TWO\nLINE_THREE\nLINE_FOUR");
+        await compactNow(run);
+      },
+    },
+  );
 });

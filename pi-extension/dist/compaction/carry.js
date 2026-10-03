@@ -88,6 +88,17 @@ export function latestUserMessages(branch, skip = () => false) {
   }
   return kept;
 }
+/**
+ * Text with each line's number in front, as `nl -ba` prints it, so a copy can be cited by file line without being read
+ * again. Pi's note after a partial read ("[Showing lines …]", "[N more lines in file …]") stays unnumbered.
+ */
+export function numberLines(text, first) {
+  const note = /\n\n\[(?:Showing lines \d+-\d+ of \d+|\d+ more lines in file)[^\n]*\]$/.exec(text);
+  const body = note ? text.slice(0, note.index) : text;
+  const lines = body.split("\n");
+  const width = String(first + lines.length - 1).length;
+  return lines.map((line, i) => `${String(first + i).padStart(width)}\t${line}`).join("\n") + (note ? note[0] : "");
+}
 function fenced(body) {
   const longest = Math.max(2, ...[...body.matchAll(/`+/g)].map((match) => match[0].length));
   const fence = "`".repeat(longest + 1);
@@ -104,13 +115,13 @@ export function renderCarried(noticePrefix, cycle, userMessages, files, results 
     );
   if (files.length)
     parts.push(
-      "## Files, read at compaction\n\n" +
+      "## Files, read at compaction\n\nNumbered by file line, as are read results below.\n\n" +
         files
           .map((file) => {
             const range = "lines" in file && file.lines ? ` (lines ${file.lines[0]}-${file.lines[1]})` : "";
             return "error" in file
               ? `### ${file.path}\n\nNot carried: ${file.error}.`
-              : `### ${file.path}${range}\n\n${fenced(file.text)}`;
+              : `### ${file.path}${range}\n\n${fenced(numberLines(file.text, "lines" in file && file.lines ? file.lines[0] : 1))}`;
           })
           .join("\n\n"),
     );
@@ -120,7 +131,7 @@ export function renderCarried(noticePrefix, cycle, userMessages, files, results 
         results
           .map(
             (result) =>
-              `### ${result.id} ${result.tool}${result.label && result.label !== result.id ? `: ${result.label}` : ""}\n\n${fenced(result.text)}`,
+              `### ${result.id} ${result.tool}${result.label && result.label !== result.id ? `: ${result.label}` : ""}\n\n${fenced(result.firstLine === undefined ? result.text : numberLines(result.text, result.firstLine))}`,
           )
           .join("\n\n"),
     );
