@@ -39,7 +39,7 @@ Read [Summary Format](references/summary-format.md) before writing, and use the 
 
 Compaction never creates a record; whether a task needs one is decided at its start or when facts change its scope.
 
-The limit is about 8,000 tokens. Most summaries need far less. Call `freeflow_compact` directly, not from code mode: code mode does not list it, and its absence there does not mean compaction is unavailable. If `freeflow_compact` refuses the call, fix what it names and call it again.
+The limit is about 8,000 tokens. Most summaries need far less. If `freeflow_compact` refuses the call, fix what it names and call it again.
 
 ## What to carry
 

@@ -37,8 +37,9 @@ export function registerCompactionTool(pi, controller) {
       },
       required: ["summary"],
     },
-    // A compaction is an assistant-issued boundary: codemode scripts must not call it.
-    exposure: "model-only",
+    // Callable from codemode scripts as well: agents that look for tools there first concluded, when it was missing,
+    // that they could not compact. The compaction still happens at the end of the turn, after the script returns.
+    exposure: "direct",
     defaultActive: false,
     executionMode: "sequential",
     async execute(_id, params, _signal, _update, ctx) {

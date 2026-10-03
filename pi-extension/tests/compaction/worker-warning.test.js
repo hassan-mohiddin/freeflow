@@ -41,8 +41,6 @@ test("a worker warned mid-assignment compacts, continues its contract, and retur
       // A return hands the same history on, so the worker is told to compact before it, not to finish instead.
       assert.match(notice, /A return does not end this history: .* compact before you return, not after\./);
       assert.doesNotMatch(notice, /finish it instead/);
-      // Code mode does not list model-only tools; a worker took that to mean it could not compact.
-      assert.match(notice, /call freeflow_compact \(directly: code mode does not list it\)/);
 
       const compactions = manager.getBranch().filter((entry) => entry.type === "compaction");
       assert.equal(compactions.length, 1);
