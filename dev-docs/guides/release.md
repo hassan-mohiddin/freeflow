@@ -85,7 +85,7 @@ Do not reuse a published npm version or force-move a release tag. Do not publish
 
 ## Release evidence
 
-For each candidate or release, preserve versioned evidence under [`release-evidence/`](release-evidence/). A version record must state what was checked and what remains unavailable. Keep behavioral evaluation, remote host installation, host trust UI, registry propagation, signatures, marketplace review, and consumer installation claims separate from local deterministic checks. Host-specific smoke checks should cover Codex, Claude, Gemini, Cursor, Copilot/VS Code, Kiro, OpenCode, Hermes, and Pi when those clients are available; their absence leaves the corresponding claim deferred.
+For each candidate or release, preserve versioned evidence under [`release-evidence/`](../../plugin-docs/release-evidence/). A version record must state what was checked and what remains unavailable. Keep behavioral evaluation, remote host installation, host trust UI, registry propagation, signatures, marketplace review, and consumer installation claims separate from local deterministic checks. Host-specific smoke checks should cover Codex, Claude, Gemini, Cursor, Copilot/VS Code, Kiro, OpenCode, Hermes, and Pi when those clients are available; their absence leaves the corresponding claim deferred.
 
 ## Pi development snapshots
 
@@ -99,6 +99,6 @@ The host's launch, import, isolated state, and updates remain host-owned. Freefl
 
 ## Related documentation
 
-- [Release evidence index](release-evidence/README.md)
-- [Architecture](architecture.md)
-- [Root changelog](../CHANGELOG.md)
+- [Release evidence index](../../plugin-docs/release-evidence/README.md)
+- [Architecture](../README.md)
+- [Root changelog](../../CHANGELOG.md)

@@ -32,7 +32,7 @@ Compaction composes with Cognitive Routing: workers compact themselves mid-assig
 ## Related documentation
 
 - [Getting Started](../getting-started.md)
-- [System prompt architecture](../prompt-architecture.md)
-- [Architecture](../architecture.md)
+- [System prompt architecture](../../dev-docs/subsystems/prompt-assembly.md)
+- [Architecture](../../dev-docs/README.md)
 - [Pi integration](../integrations/pi.md)
 - [Workflow](../workflow.md)

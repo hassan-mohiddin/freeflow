@@ -50,13 +50,13 @@ released sections or guess categories during automation.
 
 Use this ownership map:
 
-- runtime or host behavior -> `plugin-docs/architecture.md` and the relevant integration page;
-- skill ownership or routes -> `plugin-docs/skill-routing.md` and the owning skill;
+- runtime or host behavior -> `dev-docs/README.md`, the relevant subsystem doc in `dev-docs/subsystems/`, and the relevant integration page;
+- skill ownership or routes -> `dev-docs/subsystems/skill-routing.md` and the owning skill;
 - public installation or commands -> `README.md` and the relevant getting-started or integration page;
-- release behavior or evidence -> `plugin-docs/release.md`, versioned `plugin-docs/release-evidence/` records, and `CHANGELOG.md`;
-- durable, surprising decisions -> `plugin-docs/adr/`.
+- release behavior or evidence -> `dev-docs/guides/release.md`, versioned `plugin-docs/release-evidence/` records, and `CHANGELOG.md`;
+- durable, surprising decisions -> `dev-docs/adr/`.
 
-Historical `docs/` material is provenance, not a substitute for current public docs. Do not edit released changelog sections. Public contract, install guidance, ADR, release-evidence, deletion, package-boundary, versioning, and release changes require explicit authorization and human review at their selected checkpoints.
+User docs live in `plugin-docs/` and developer docs in `dev-docs/`; developer docs change in the same commit as the behavior they describe (see the Write Docs skill). Historical `docs/` material is provenance, not a substitute for current public docs. Do not edit released changelog sections. Public contract, install guidance, ADR, release-evidence, deletion, package-boundary, versioning, and release changes require explicit authorization and human review at their selected checkpoints.
 
 ## Pull requests
 

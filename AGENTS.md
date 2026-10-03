@@ -11,8 +11,9 @@ This file governs contributing to the Freeflow repository. It does not define th
 Use the smallest current source set relevant to the change:
 
 - Read `CONTEXT.md` for project language and direction.
-- Read `plugin-docs/README.md` for the current documentation map, then open only the relevant topic or integration pages.
-- Read `plugin-docs/adr/` when the change touches a durable decision.
+- Read `dev-docs/README.md` for the architecture and the developer docs index, then the subsystem doc or guide for the area you change. Read `plugin-docs/README.md` for user-facing behavior when the change touches it.
+- Before treating behavior as a bug, read its subsystem doc's decisions and intended behavior that looks wrong; listed behavior is a design choice for the user to change, not a fix.
+- Read `dev-docs/adr/` when the change touches a durable decision.
 - Recover the active Working Record through Track Work when an ongoing task has one.
 - Before designing or changing a capability, check `.freeflow/tasks/` for related tasks and read their `record.md`, `specs/`, and `plans/`. Accepted designs and their rationale often live only there. The directory is Git-ignored: `.ignore` keeps it visible to ripgrep-based search, but tools that honor only `.gitignore` skip it, so search that path explicitly.
 - Read the latest relevant file in `docs/handoffs/` only when a point-in-time transfer is needed or the current record does not cover it.
@@ -78,7 +79,7 @@ When reference skills conflict during skill development:
 
 ## Prompt Cache
 
-Freeflow must never make a user pay more than native Pi for the same work. Read [Prompt caching](plugin-docs/prompt-caching.md) before changing prompts, tools, projection, request history, routing, tool results, or provider support.
+Freeflow must never make a user pay more than native Pi for the same work. Read [Prompt cache rules](dev-docs/guides/prompt-cache.md) before changing prompts, tools, projection, request history, routing, tool results, or provider support.
 
 - Never change content a provider has already cached: no edits, reordering, truncation, or re-rendering of earlier messages or tool results.
 - Append new content after what the requester already received; do not insert it earlier.
@@ -91,7 +92,7 @@ Freeflow must never make a user pay more than native Pi for the same work. Read 
 
 ## Request-Path Performance
 
-Freeflow runs on every Pi turn and request, so its work delays every model call and can grow with session length unnoticed. Read [Performance](plugin-docs/performance.md) before changing Freeflow's event handlers or anything they call.
+Freeflow runs on every Pi turn and request, so its work delays every model call and can grow with session length unnoticed. Read [Performance](dev-docs/guides/performance.md) before changing Freeflow's event handlers or anything they call.
 
 - Follow its rules: memory-first state, ask Pi for the branch once per change (`cachedBranch()`), hash once, extend whole-history values incrementally, write only on change, and keep diagnostics off the request path.
 - Keep `pi-extension/tests/integration/request-path-budget.test.js` passing, and add a count there for any new work that could grow with the session.
@@ -102,7 +103,9 @@ Freeflow runs on every Pi turn and request, so its work delays every model call 
 - Agents may update `CHANGELOG.md` under `## Unreleased` for verified consumer-visible work when the task authorization covers that update. Use only the canonical categories `Breaking Changes`, `Added`, `Changed`, `Fixed`, and `Removed`; keep each entry as a bullet under exactly one category. Defer the entry until the final implementation slice unless bounded write-ahead authorization says otherwise.
 - Run `npm run check:changelog` after changelog changes. Never hand-edit versioned release sections or ask automation to infer a category; release preparation only normalizes already categorized entries.
 - Never edit released changelog sections.
-- Changes to `plugin-docs/`, public contract or install guidance, durable project docs, ADRs, or release evidence require explicit authorization and should be deferred to the final documentation slice.
+- Two kinds of documentation, each for its own reader: user docs in `plugin-docs/` (installing, configuring, using Freeflow) and developer docs in `dev-docs/` (architecture, subsystems, maintainer guides, decision records). Write and update both with the [Write Docs](skills/write-docs/SKILL.md) skill.
+- Developer docs change in the same commit as the behavior they describe, without separate authorization; run `node skills/write-docs/scripts/docs-check.mjs dev-docs` after changing them.
+- Changes to `plugin-docs/`, public contract or install guidance, ADRs, or release evidence require explicit authorization and should be deferred to the final documentation slice.
 - If leaving a document stale would make the repository misleading, stop and ask rather than silently editing it.
 
 ## Release And CI

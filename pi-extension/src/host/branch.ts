@@ -2,7 +2,7 @@
  * The active branch, walked once per leaf. Pi only appends entries, so the branch ending at a given leaf never
  * changes; every reader that asks again before the leaf moves gets the same frozen array. Pi's own getBranch walks
  * the whole tree on each call, and Freeflow asks for the branch dozens of times per request (see
- * plugin-docs/performance.md).
+ * dev-docs/guides/performance.md).
  */
 type Reader = { getBranch?(): readonly any[]; getLeafId?(): string | null };
 

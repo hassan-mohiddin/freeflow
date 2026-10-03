@@ -13,7 +13,7 @@ Everything Freeflow needs on Pi that is not one capability: reading configuratio
 | [`read-only-session.ts`](read-only-session.ts) | Bounded, read-only parsing of Pi session files, and checks that the persisted branch still matches what Pi holds in memory. |
 | [`staging.ts`](staging.ts) | Control changes made between prompts are staged and only their net effect is written when the next prompt starts. |
 | [`status.ts`](status.ts) | The two status surfaces: the footer (current settings only) and the `/freeflow status` report (diagnostics, including prompt-cache health). |
-| [`branch.ts`](branch.ts) | The active session branch, walked once per leaf: every reader gets the same frozen array until the leaf moves (see `plugin-docs/performance.md`, rule R-3). |
+| [`branch.ts`](branch.ts) | The active session branch, walked once per leaf: every reader gets the same frozen array until the leaf moves (see `dev-docs/guides/performance.md`, rule R-3). |
 | [`canonical.ts`](canonical.ts) | Deterministic JSON, so equal values serialize, compare, and hash equally. |
 | [`settings/`](settings/README.md) | The `/freeflow` command and its settings screens. |
 

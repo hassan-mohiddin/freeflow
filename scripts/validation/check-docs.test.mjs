@@ -5,25 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { CURRENT_DOCUMENTS, validateDocs } from "./check-docs.mjs";
 
-const CURRENT_DOCS = [
-  "README.md",
-  "AGENTS.md",
-  "CONTRIBUTING.md",
-  "plugin-docs/README.md",
-  "plugin-docs/getting-started.md",
-  "plugin-docs/architecture.md",
-  "plugin-docs/prompt-architecture.md",
-  "plugin-docs/prompt-caching.md",
-  "plugin-docs/capabilities/README.md",
-  "plugin-docs/capabilities/cognitive-routing.md",
-  "plugin-docs/capabilities/tool-execution.md",
-  "plugin-docs/workflow.md",
-  "plugin-docs/skill-routing.md",
-  "plugin-docs/release.md",
-  "plugin-docs/release-evidence/README.md",
-  "plugin-docs/integrations/pi.md",
-  "plugin-docs/adr/README.md",
-];
+const CURRENT_DOCS = CURRENT_DOCUMENTS;
 
 async function writeFixtureFile(root, relativePath, content = "# Fixture\n") {
   const filePath = path.join(root, relativePath);
@@ -36,7 +18,7 @@ async function createFixture({
   missing = [],
   brokenLink = false,
   legacyActive = false,
-  legacyActivePath = "plugin-docs/architecture.md",
+  legacyActivePath = "plugin-docs/getting-started.md",
 } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), "freeflow-docs-"));
   await writeFixtureFile(root, "package.json", JSON.stringify({ version }));
@@ -44,7 +26,7 @@ async function createFixture({
   for (const relativePath of CURRENT_DOCS) {
     if (missing.includes(relativePath)) continue;
     let content = "# Fixture\n";
-    if (relativePath === "README.md") content = "[Architecture](plugin-docs/architecture.md)\n";
+    if (relativePath === "README.md") content = "[Developer docs](dev-docs/README.md)\n";
     if (relativePath === "plugin-docs/README.md") {
       content = brokenLink ? "[Missing](missing.md)\n" : "[Pi](integrations/pi.md)\n";
     }

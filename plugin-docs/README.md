@@ -2,7 +2,7 @@
 
 These docs describe the public plugin behavior.
 
-Start with [Getting Started](getting-started.md) for host-specific installation, repository activation, and first-session verification. Then use [Using Freeflow Effectively](using-freeflow.md) for prompting, skills, Workflow, Track Work, settings, Cognitive Routing modes, and practical operating guidance. This page is a navigation hub; detailed behavior belongs in the linked user, integration, architecture, workflow, routing, and release pages.
+Start with [Getting Started](getting-started.md) for host-specific installation, repository activation, and first-session verification. Then use [Using Freeflow Effectively](using-freeflow.md) for prompting, skills, Workflow, Track Work, settings, Cognitive Routing modes, and practical operating guidance. This page is a navigation hub for user documentation; developer documentation lives in [`dev-docs/`](../dev-docs/README.md).
 
 ## Integrations
 
@@ -22,16 +22,12 @@ The Freeflow Context tool, Context Virtualization, and Conversation History have
 - [Using Freeflow Effectively](using-freeflow.md): prompt well, choose skills and routing modes, manage Workflow and task memory, configure settings, and interpret evidence/cost limits.
 - [Getting Started](getting-started.md): install, activate, and verify Freeflow on each supported host.
 - [Workflow](workflow.md): the adaptive Workflow, entry points, loops, and the compact workflow map.
-- [Skill routing](skill-routing.md): shipped skills, ownership, sibling routes, and reference dependencies.
-- [Architecture](architecture.md): package layout, layered configuration, runtime delivery, review topology, and task memory.
-- [System prompt architecture](prompt-architecture.md): prompt fragments, Runtime State, discoverable skills, gating, and nested execution context.
-- [Performance](performance.md): the rules, budgets and tools that keep Freeflow's per-request and per-turn work small, and the current numbers.
-- [Prompt caching](prompt-caching.md): how provider caches behave, what Freeflow adds to a request, how it keeps the cache intact, and the rules for changing request assembly.
-- [Release process](release.md): one-package preparation, evidence, and human-controlled release boundaries.
+- [Prompt caching](prompt-caching.md): how provider caches behave, what Freeflow adds to a request, and what it does to keep cache reuse high.
 - [Release evidence](release-evidence/README.md): versioned evidence records and deferred checks.
-- [ADRs](adr/README.md): durable release decisions.
 
 ## For contributors
+
+These pages are for using Freeflow. How Freeflow works inside, and how to change it, is in the [developer docs](../dev-docs/README.md): architecture, subsystems, the prompt cache and performance rules, release process, and decision records.
 
 - [Repository agent guidance](../AGENTS.md): source selection, task continuity, snapshots, and release boundaries.
 - [Contribution guidance](../CONTRIBUTING.md): checks, documentation ownership, changelog rules, and human-controlled operations.

@@ -11,8 +11,8 @@ workflow_skill="$repo_root/skills/workflow/SKILL.md"
 action_selection_skill="$repo_root/skills/action-selection/SKILL.md"
 cognitive_routing_prompt="$repo_root/runtime/prompts/cognitive-routing.md"
 agents_file="$repo_root/AGENTS.md"
-runtime_doc="$repo_root/plugin-docs/architecture.md"
-architecture_doc="$repo_root/plugin-docs/architecture.md"
+runtime_doc="$repo_root/dev-docs/README.md"
+architecture_doc="$repo_root/dev-docs/README.md"
 workflow_doc="$repo_root/plugin-docs/workflow.md"
 pi_runtime="$repo_root/pi-extension/src/host/prompts.ts"
 shared_hook="$repo_root/hooks/freeflow-runtime-context.mjs"
@@ -100,7 +100,7 @@ for file in \
 	"$repo_root/README.md" \
 	"$repo_root/plugin-docs/README.md" \
 	"$workflow_doc" \
-	"$repo_root/plugin-docs/release.md" \
+	"$repo_root/dev-docs/guides/release.md" \
 	"$repo_root/plugin-docs/integrations/pi.md" \
 	"$architecture_doc" \
 	"$repo_root/plugin-docs/release-evidence/README.md"; do

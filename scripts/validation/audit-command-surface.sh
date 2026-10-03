@@ -177,7 +177,7 @@ for legacy_skill in deprecation-and-migration shipping-and-launch; do
 		"$pi_extension" \
 		"$pi_extension_dist" \
 		"$plugin_root/README.md" \
-		"$plugin_root/plugin-docs/skill-routing.md" \
+		"$plugin_root/dev-docs/subsystems/skill-routing.md" \
 		"$plugin_root/README.md" \
 		"$plugin_root/plugin-docs" \
 		"$command_docs" \

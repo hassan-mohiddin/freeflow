@@ -65,5 +65,5 @@ On the development machine, Pi 1.0.0, at the commit that added this page. Added 
 
 ## Related
 
-- [Prompt caching](prompt-caching.md): the other request-path contract; a change that is fast but rewrites cached content still costs the user.
+- [Prompt cache rules](prompt-cache.md): the other request-path contract; a change that is fast but rewrites cached content still costs the user.
 - `pi-extension/src/host/branch.ts`, `pi-extension/tests/integration/request-path-budget.test.js`, `scripts/perf/request-overhead.mjs`.

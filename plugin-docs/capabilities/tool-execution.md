@@ -59,4 +59,4 @@ Tool Execution v2 (`freeflow_run`, `freeflow_tools`, `freeflow_search`, `freeflo
 - [Capabilities](README.md)
 - [Compaction](compaction.md)
 - [Cognitive Routing](cognitive-routing.md)
-- [System prompt architecture](../prompt-architecture.md)
+- [System prompt architecture](../../dev-docs/subsystems/prompt-assembly.md)

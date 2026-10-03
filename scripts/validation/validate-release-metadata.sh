@@ -101,10 +101,10 @@ host_manifest_stderr="$(mktemp "${TMPDIR:-/tmp}/freeflow-host-manifest.err.XXXXX
 host_adapter_stdout="$(mktemp "${TMPDIR:-/tmp}/freeflow-host-adapter.out.XXXXXX")"
 host_adapter_stderr="$(mktemp "${TMPDIR:-/tmp}/freeflow-host-adapter.err.XXXXXX")"
 readme="$plugin_root/README.md"
-architecture_doc="$plugin_root/plugin-docs/architecture.md"
-release_doc="$plugin_root/plugin-docs/release.md"
+architecture_doc="$plugin_root/dev-docs/README.md"
+release_doc="$plugin_root/dev-docs/guides/release.md"
 release_evidence="$plugin_root/plugin-docs/release-evidence/v${release_version}.md"
-release_boundary_adr="$plugin_root/plugin-docs/adr/0003-release-boundary.md"
+release_boundary_adr="$plugin_root/dev-docs/adr/0003-release-boundary.md"
 
 checks_file="$(mktemp "${TMPDIR:-/tmp}/freeflow-release-checks.XXXXXX")"
 findings_file="$(mktemp "${TMPDIR:-/tmp}/freeflow-release-findings.XXXXXX")"

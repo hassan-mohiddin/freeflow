@@ -172,4 +172,4 @@ Commit, branch integration, migration, release, launch, and destructive cleanup 
 
 A Supported Exit may answer, wait, pause, hand off, defer, stop, preserve a controlled boundary, or complete. Completion requires fresh verification, the required self-review for every completed bounded activity, resolved selected reviews, accurate task memory, synchronized required docs, and no hidden owner decision or source conflict.
 
-See [Skill routing](skill-routing.md) for the shipped methods, ownership, routes, and references.
+See [Skill routing](../dev-docs/subsystems/skill-routing.md) for the shipped methods, ownership, routes, and references.

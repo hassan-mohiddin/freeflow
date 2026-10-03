@@ -29,12 +29,13 @@ Commit `dist/` together with the `src/` change that produced it. Pi development 
 
 ## Rules that apply everywhere here
 
-- **Prompt cache.** Never change content a provider already cached, keep the Freeflow system section and tool definitions fixed, and append new content at the end. Every request-assembly change needs a test in which a later request starts with the earlier one. See [Prompt caching](../plugin-docs/prompt-caching.md).
+- **Performance.** Keep per-request and per-turn work small and independent of session length; keep `tests/integration/request-path-budget.test.js` passing. See [Performance](../dev-docs/guides/performance.md).
+- **Prompt cache.** Never change content a provider already cached, keep the Freeflow system section and tool definitions fixed, and append new content at the end. Every request-assembly change needs a test in which a later request starts with the earlier one. See [Prompt cache rules](../dev-docs/guides/prompt-cache.md).
 - **Host source.** Work from a pinned upstream Pi checkout, not installed or cached docs (`AGENTS.md`, "External Host Source Provenance").
 - **Pi imports.** Pi provides `@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui` to extensions at runtime. They are peer dependencies, never bundled.
 
 ## Further reading
 
 - [Pi integration](../plugin-docs/integrations/pi.md)
-- [Architecture](../plugin-docs/architecture.md) and [Prompt architecture](../plugin-docs/prompt-architecture.md)
+- [Architecture](../dev-docs/README.md) and [Prompt architecture](../dev-docs/subsystems/prompt-assembly.md)
 - [Cognitive Routing](../plugin-docs/capabilities/cognitive-routing.md) and [Tool Execution](../plugin-docs/capabilities/tool-execution.md)

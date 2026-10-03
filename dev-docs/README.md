@@ -1,6 +1,27 @@
-# Architecture
+# Freeflow Developer Docs
 
-Freeflow is a portable skill pack and context-loading runtime for coding agents. It is not a new agent, permission system, or enforcement engine.
+For anyone working on Freeflow itself, people or agents: how it works inside, why it works that way, and how to change it safely. Using Freeflow is covered by the [user docs](../plugin-docs/README.md).
+
+Freeflow is a portable skill pack and context-loading runtime for coding agents. It is not a new agent, permission system, or enforcement engine. This page is the architecture overview; the sections below link the detailed documents.
+
+## Index
+
+**Subsystems** (how each part works and why):
+
+- [Prompt assembly](subsystems/prompt-assembly.md): prompt fragments, Runtime State, discoverable skills, gating, and nested execution context.
+- [Skill routing](subsystems/skill-routing.md): shipped skills, ownership, sibling routes, and reference dependencies.
+- [Cognitive Routing](subsystems/cognitive-routing.md): unit and assignment lifecycle, routing tools, evidence selection and recovery, persistence.
+- [Pi extension](subsystems/pi-extension.md): what the extension registers, cache reuse boundaries, persistence and recovery limits, development snapshots.
+
+**Guides** (how to do maintainer work):
+
+- [Prompt cache rules](guides/prompt-cache.md): how Freeflow keeps requests cache-safe, and the rules for changing request assembly.
+- [Performance](guides/performance.md): the rules, budgets, and tools that keep Freeflow's per-request and per-turn work small.
+- [Release process](guides/release.md): one-package preparation, evidence, and human-controlled release boundaries.
+
+**Decisions:** [decision records](adr/README.md) for hard-to-reverse choices.
+
+Write and update these documents with the [Write Docs](../skills/write-docs/SKILL.md) skill. A developer doc changes in the same commit as the behavior it describes.
 
 ## Package Boundary
 
@@ -20,7 +41,8 @@ freeflow/
   pi-extension/
   .deprecated/
   command-surface.json
-  plugin-docs/
+  plugin-docs/                   # user docs
+  dev-docs/                      # developer docs
   .deprecated/project-docs/
   .skill-eval/
 ```
@@ -29,7 +51,8 @@ The npm tarball contains runtime-required files, including the built Pi entrypoi
 
 ## Documentation and source boundaries
 
-- `plugin-docs/` is the canonical current public documentation surface.
+- `plugin-docs/` holds the user docs: installing, configuring, and using Freeflow. Changing them needs the user's approval.
+- `dev-docs/` holds the developer docs: architecture, subsystems, maintainer guides, and decision records. They change with the code they describe.
 - `plugin-docs/release-evidence/` stores immutable versioned evidence records rather than a rolling current-state page.
 - `CHANGELOG.md` records release history for the single published Freeflow package.
 - `.deprecated/project-docs/` preserves project plans, handoffs, research, issues, and historical evidence; it is not the normal current-runtime reading path.
@@ -83,7 +106,7 @@ Freeflow has four coordinated model-facing parts:
 3. **Runtime State:** the extension supplies current capability availability and Cognitive Routing Control/Profile/Delegation/Projection at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the current provider context. It is not system-prompt policy.
 4. **Discoverable skills:** 25 base skills under `skills/` are exposed with the core surface; child capability skills under `capabilities/` are exposed only when their own gates are effective.
 
-The Interaction Contract is prompt-only and not discoverable. Full skill and capability bodies are discoverable methods, not persistent bootstrap content. Context loading does not enforce policy, block tools, grant permissions, or replace repository instructions. See [System Prompt Architecture](prompt-architecture.md) for the canonical assembly and gating contract, and [Capabilities](capabilities/README.md) for detailed capability contracts.
+The Interaction Contract is prompt-only and not discoverable. Full skill and capability bodies are discoverable methods, not persistent bootstrap content. Context loading does not enforce policy, block tools, grant permissions, or replace repository instructions. See [System Prompt Architecture](subsystems/prompt-assembly.md) for the canonical assembly and gating contract, and [Capabilities](../plugin-docs/capabilities/README.md) for detailed capability contracts.
 
 ## Host Delivery
 
@@ -136,7 +159,7 @@ Workflow owns authority interpretation, work-agreement coordination, readiness, 
 
 A skill body establishes the first-read job and normal route from guaranteed context. Separately owned required depth and conditional branch depth live in linked references whose read points are declared by the body; deterministic repeated work may live in scripts. Cross-skill links are project dependencies, not bundled local resources.
 
-See [Skill routing](skill-routing.md) for the typed owner, route, and reference adjacency map.
+See [Skill routing](subsystems/skill-routing.md) for the typed owner, route, and reference adjacency map.
 
 The active cross-host model/contributor surface has 24 skills under `skills/`, including Action Selection and Workflow. Agent Plugins-compatible hosts, Gemini, Cursor, Codex, Claude, OpenCode, Hermes, and the Pi extension all consume this one canonical skill tree through their documented discovery surfaces. Cognitive Routing is a Pi-specific capability skill under `capabilities/`, outside non-Pi host delivery. The removed Context Virtualization and Conversation History skills, source, and evaluations are preserved under `.deprecated/legacy-context/`; they are not an active package surface. Retired Output Router material is preserved under `.deprecated/output-router/`. Removed Mode Contract material is preserved under `.deprecated/modes/` and is not an active package surface.
 
@@ -170,13 +193,13 @@ The former Freeflow Context tool, Context Virtualization, and Conversation Histo
 
 The v2 Cognitive Routing capability owns Coordinator plus optional Helper and Executor profiles, `executor`/`helper`/`both` delegation modes, native session-entry state, automatic assignment/report/assessment flow, `/freeflow profile coordinator|helper|executor|auto|history`, `/freeflow resume`, and the tools `freeflow_delegate`, `freeflow_return`, `freeflow_unit`, and `freeflow_project`. Coordinator alone delegates one worker at a time. Helper is the normal delegate for supporting work when enabled; Executor is commissioned for substantive or consequential results; Coordinator implements directly in `helper` mode. Projection is enabled by default; with it, Helper and Executor share ordinary history while worker evidence is selected for Coordinator with native dependencies and explicit readiness problems. Saved reports and the assigned worker remain independent of a later profile or mode change. Its current source path is experimental: the native Pi entrypoint is wired but unreleased and uninstalled.
 
-The legacy context transforms are no longer part of the runtime, so their former composition restriction is not an active configuration choice. Context Control v2 remains planned and unavailable; this page does not define its future composition boundary. Routing state uses native `freeflow-routing-v2` entries and a strict read-only persisted snapshot for reconciliation; it does not patch host files, claim `fsync`, or promise exactly-once behavior. Pi-specific prefix reuse and cache-breaking boundaries are documented in [Pi cache reuse boundaries](integrations/pi.md#cache-reuse-boundaries).
+The legacy context transforms are no longer part of the runtime, so their former composition restriction is not an active configuration choice. Context Control v2 remains planned and unavailable; this page does not define its future composition boundary. Routing state uses native `freeflow-routing-v2` entries and a strict read-only persisted snapshot for reconciliation; it does not patch host files, claim `fsync`, or promise exactly-once behavior. Pi-specific prefix reuse and cache-breaking boundaries are documented in [Pi cache reuse boundaries](subsystems/pi-extension.md#cache-reuse-boundaries).
 
 Delegation Harness is retired from the live package. Its implementation and historical evidence remain under `.deprecated/delegation-harness/`.
 
-Tool Execution owns the layer over Pi's tools: its prompt section and environment facts, file tracking, rewritten edit errors and refusals, `apply_patch`, and background commands. The retired v2 runtime (Session Store, programs, discovery, adapters, efficiency reports) is preserved under `.deprecated/tool-execution-v2/`. See [Tool Execution](capabilities/tool-execution.md).
+Tool Execution owns the layer over Pi's tools: its prompt section and environment facts, file tracking, rewritten edit errors and refusals, `apply_patch`, and background commands. The retired v2 runtime (Session Store, programs, discovery, adapters, efficiency reports) is preserved under `.deprecated/tool-execution-v2/`. See [Tool Execution](../plugin-docs/capabilities/tool-execution.md).
 
-Compaction owns the compaction thresholds and notices, `freeflow_compact`, the carried context and recovery message, and Freeflow's additions to Pi's own compaction. Cognitive Routing remains the responsibility owner; RequestHistory remains the generated-occurrence replay owner; selected OpenAI-model support owns qualified provider-request effort-history adaptation. See [Compaction](capabilities/compaction.md).
+Compaction owns the compaction thresholds and notices, `freeflow_compact`, the carried context and recovery message, and Freeflow's additions to Pi's own compaction. Cognitive Routing remains the responsibility owner; RequestHistory remains the generated-occurrence replay owner; selected OpenAI-model support owns qualified provider-request effort-history adaptation. See [Compaction](../plugin-docs/capabilities/compaction.md).
 
 ## Deferred Enforcement
 

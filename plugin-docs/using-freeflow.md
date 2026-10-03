@@ -628,10 +628,10 @@ Keep claims at the boundary actually observed.
 
 - [Getting Started](getting-started.md)
 - [Workflow](workflow.md)
-- [Skill routing and dependencies](skill-routing.md)
+- [Skill routing and dependencies](../dev-docs/subsystems/skill-routing.md)
 - [Cognitive Routing](capabilities/cognitive-routing.md)
 - [Tool Execution](capabilities/tool-execution.md)
 - [Pi integration](integrations/pi.md)
 - [Capabilities](capabilities/README.md)
-- [Release process](release.md)
+- [Release process](../dev-docs/guides/release.md)
 - [Release evidence](release-evidence/README.md)

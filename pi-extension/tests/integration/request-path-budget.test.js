@@ -4,7 +4,7 @@ import { AgentSession, SessionManager } from "@earendil-works/pi-coding-agent";
 import { fixture } from "../fixtures/routing-native.js";
 
 // Request-path work Freeflow may add per prompt, counted rather than timed so the check is deterministic. Timing on a
-// real or generated session is `npm run perf:request`; the rules and budgets are in plugin-docs/performance.md.
+// real or generated session is `npm run perf:request`; the rules and budgets are in dev-docs/guides/performance.md.
 //
 // Pi's getBranch walks the whole session each call, and Pi's getContextUsage rebuilds the session projection. In
 // September 2026 Freeflow walked the branch 75 times per prompt with routing on, and compaction (October 2026) called

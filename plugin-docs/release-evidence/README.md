@@ -27,7 +27,7 @@ After a release is frozen, its version record is historical evidence. Do not rew
 
 ## Related documentation
 
-- [Release process](../release.md)
-- [Architecture](../architecture.md)
+- [Release process](../../dev-docs/guides/release.md)
+- [Architecture](../../dev-docs/README.md)
 - [Workflow](../workflow.md)
 - [Root changelog](../../CHANGELOG.md)

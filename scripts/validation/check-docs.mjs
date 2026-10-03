@@ -10,18 +10,24 @@ export const CURRENT_DOCUMENTS = [
   "CONTRIBUTING.md",
   "plugin-docs/README.md",
   "plugin-docs/getting-started.md",
-  "plugin-docs/architecture.md",
-  "plugin-docs/prompt-architecture.md",
+  "plugin-docs/using-freeflow.md",
   "plugin-docs/prompt-caching.md",
   "plugin-docs/capabilities/README.md",
   "plugin-docs/capabilities/cognitive-routing.md",
   "plugin-docs/capabilities/tool-execution.md",
+  "plugin-docs/capabilities/compaction.md",
   "plugin-docs/workflow.md",
-  "plugin-docs/skill-routing.md",
-  "plugin-docs/release.md",
   "plugin-docs/release-evidence/README.md",
   "plugin-docs/integrations/pi.md",
-  "plugin-docs/adr/README.md",
+  "dev-docs/README.md",
+  "dev-docs/subsystems/prompt-assembly.md",
+  "dev-docs/subsystems/skill-routing.md",
+  "dev-docs/subsystems/cognitive-routing.md",
+  "dev-docs/subsystems/pi-extension.md",
+  "dev-docs/guides/performance.md",
+  "dev-docs/guides/prompt-cache.md",
+  "dev-docs/guides/release.md",
+  "dev-docs/adr/README.md",
 ];
 
 export const LEGACY_CURRENT_PATHS = [
@@ -31,6 +37,13 @@ export const LEGACY_CURRENT_PATHS = [
   "docs/freeflow-runtime-and-lifecycle.md",
   "docs/plugin-contract.md",
   "plugin-docs/release-evidence.md",
+  // Developer pages moved to dev-docs/ (2026-10-03).
+  "plugin-docs/architecture.md",
+  "plugin-docs/prompt-architecture.md",
+  "plugin-docs/skill-routing.md",
+  "plugin-docs/performance.md",
+  "plugin-docs/release.md",
+  "plugin-docs/adr/",
 ];
 
 const ACTIVE_SCAN_PATHS = [
@@ -40,6 +53,7 @@ const ACTIVE_SCAN_PATHS = [
   "package.json",
   ".github",
   "plugin-docs",
+  "dev-docs",
   "skills",
   "capabilities",
   "runtime",
@@ -87,7 +101,9 @@ function currentMarkdownFiles(root) {
   return activeFiles(root).filter(
     (relativePath) =>
       extname(relativePath).toLowerCase() === ".md" &&
-      (CURRENT_MARKDOWN_ROOTS.has(relativePath) || relativePath.startsWith("plugin-docs/")),
+      (CURRENT_MARKDOWN_ROOTS.has(relativePath) ||
+        relativePath.startsWith("plugin-docs/") ||
+        relativePath.startsWith("dev-docs/")),
   );
 }
 

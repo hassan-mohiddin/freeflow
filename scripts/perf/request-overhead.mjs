@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Freeflow's request-path overhead in an in-process Pi, offline. See plugin-docs/performance.md.
+// Freeflow's request-path overhead in an in-process Pi, offline. See dev-docs/guides/performance.md.
 //
 // It opens a copy of a session (a generated one by default, or --session <path> for a real one), loads the built
 // extension from pi-extension/dist (or --dist <dir> to compare another build), answers every model request from a

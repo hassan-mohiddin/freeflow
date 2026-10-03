@@ -95,7 +95,7 @@ On Pi, Freeflow's section also carries the Working Method (`runtime/prompts/work
 
 Pi exposes Cognitive Routing when its native model, thinking, session-entry, and ancestry gates are effective.
 
-See [Pi integration](integrations/pi.md) for native-host behavior and its evidence limits.
+See [Pi integration](../../plugin-docs/integrations/pi.md) for native-host behavior and its evidence limits.
 
 ## Nested execution model
 
@@ -136,9 +136,9 @@ Deterministic prompt, gating, discovery, package, and host-adapter checks prove 
 
 ## Related documentation
 
-- [Workflow](workflow.md)
-- [Architecture](architecture.md)
+- [Workflow](../../plugin-docs/workflow.md)
+- [Architecture](../README.md)
 - [Skill routing](skill-routing.md)
-- [Capabilities](capabilities/README.md)
-- [Getting Started](getting-started.md)
-- [Release evidence](release-evidence/README.md)
+- [Capabilities](../../plugin-docs/capabilities/README.md)
+- [Getting Started](../../plugin-docs/getting-started.md)
+- [Release evidence](../../plugin-docs/release-evidence/README.md)

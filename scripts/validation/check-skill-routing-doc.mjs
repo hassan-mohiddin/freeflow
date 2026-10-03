@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const skillsRoot = resolve(repoRoot, "skills");
-const mapPath = resolve(repoRoot, "plugin-docs/skill-routing.md");
+const mapPath = resolve(repoRoot, "dev-docs/subsystems/skill-routing.md");
 const optionalCapabilityPaths = new Map();
 
 const markdownLinks = (text) => [...text.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map((match) => match[1].split("#", 1)[0]);
@@ -20,7 +20,7 @@ const skillNames = new Set(skillEntries);
 const activeSkills = skillEntries;
 const mapText = await readFile(mapPath, "utf8");
 
-const rowPattern = /^\| \[`([^`]+)`\]\(\.\.\/skills\/([^/]+)\/SKILL\.md\) \| ([^|]*) \| ([^|]*) \| ([^|]*) \|$/gm;
+const rowPattern = /^\| \[`([^`]+)`\]\((?:\.\.\/)+skills\/([^/]+)\/SKILL\.md\) \| ([^|]*) \| ([^|]*) \| ([^|]*) \|$/gm;
 const rows = new Map();
 for (const match of mapText.matchAll(rowPattern)) {
   const [, label, pathName, ownerCell, routeCell, referenceCell] = match;
