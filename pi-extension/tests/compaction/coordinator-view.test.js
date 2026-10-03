@@ -78,3 +78,67 @@ test(
     );
   },
 );
+
+// An evidence recovery after the compaction: the Coordinator suspends its assessment by asking for recovery and makes
+// no requests until the supplement, so the evidence it had already received keeps its place when it resumes.
+test("after a worker compacts, a recovery round keeps the Coordinator's prefix", { timeout: 30000 }, async () => {
+  const usage = [5_000, 50_000, 100_000, 100_000];
+  const refOf = (manager, marker) => {
+    const entry = [...manager.getBranch()]
+      .reverse()
+      .find(
+        (e) =>
+          e.type === "message" && e.message.role === "toolResult" && JSON.stringify(e.message.content).includes(marker),
+      );
+    return `ctx:${entry.id.slice(0, 8)}`;
+  };
+  await fixture(
+    async (n, body, manager) =>
+      [
+        () => [
+          {
+            name: "freeflow_delegate",
+            args: { operation: "assign", contract: "Read big.txt and return it as evidence." },
+          },
+        ],
+        () => [{ name: "read", args: { path: "big.txt" } }],
+        () => [{ name: "read", args: { path: "evidence.txt" } }],
+        () => [{ name: "freeflow_compact", args: { summary: "WORKER_SUMMARY" } }],
+        () => [{ name: "freeflow_project", args: { operation: "add", refs: [refOf(manager, "BIG_EVIDENCE")] } }],
+        () => [{ name: "freeflow_return", args: { operation: "submit", report: "Done.", outcome: "completed" } }],
+        () => [
+          {
+            name: "freeflow_unit",
+            args: { operation: "recover", request: "Read the recovery file.", paths: ["recovery.txt"] },
+          },
+        ],
+        () => [{ name: "read", args: { path: "recovery.txt" } }],
+        () => [{ name: "freeflow_project", args: { operation: "add", refs: [refOf(manager, "FRESH_RECOVERY")] } }],
+        () => [
+          { name: "freeflow_return", args: { operation: "supplement", report: "Recovered.", outcome: "completed" } },
+        ],
+        () => [{ name: "freeflow_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } }],
+      ][n - 1]?.() ?? [],
+    true,
+    async ({ requests }) => {
+      const [, assessing, resumed, closing] = requests.filter((body) => body.model === "gpt-4o");
+      assert.ok(assessing && resumed && closing, "assess, resume after the supplement, answer after closing");
+      assert.match(JSON.stringify(resumed.input), /FRESH_RECOVERY/, "the supplement's evidence reaches it");
+      assert.ok(extendsPrevious(assessing, resumed), "the resumed view extends the assessing one");
+      assert.ok(extendsPrevious(resumed, closing), "the view after closing extends the resumed one");
+      assert.equal(occurrences(closing, "BIG_EVIDENCE"), 1);
+    },
+    true,
+    {
+      freeflowConfig: { toolExecution: { enabled: true } },
+      maxRequests: 20,
+      beforePrompt: async ({ cwd }) => writeFile(join(cwd, "big.txt"), BIG),
+      response: (n, calls) =>
+        response(n, calls, "fixture response", {
+          input_tokens: usage[n - 1] ?? 2_000,
+          output_tokens: 10,
+          total_tokens: (usage[n - 1] ?? 2_000) + 10,
+        }),
+    },
+  );
+});

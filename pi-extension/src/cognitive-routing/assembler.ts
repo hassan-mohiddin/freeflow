@@ -169,13 +169,28 @@ export class ContextAssembler {
     const admissions = new Map<string, number>();
     const assessedSinceCompaction = new Set<string>();
     let rank = 0,
-      resumedAt: number | undefined;
+      resumedAt: number | undefined,
+      suspension: string | undefined;
     for (const entry of reader.getBranch() as NativeEntry[]) {
       if (entry.type === "compaction") assessedSinceCompaction.clear();
       if (["message", "custom_message", "compaction", "branch_summary"].includes(entry.type)) rank++;
       else if (entry.type === "custom" && entry.customType === ROUTING_ENTRY) {
         const data = (entry as any).data?.data;
-        if (data?.type === "assessment-resumed" && data.handoffId === state.assessment?.handoffId) resumedAt = rank;
+        if (data?.type === "assessment-suspended" && data.handoffId === state.assessment?.handoffId)
+          suspension = data.reason;
+        if (
+          data?.type === "recovery-request-accepted" &&
+          data.recovery?.assessmentHandoffId === state.assessment?.handoffId
+        )
+          suspension = "recovery";
+        // After a recovery the Coordinator resumes the view it last saw, since it made no requests while suspended:
+        // only a suspension it kept working through (user attention) leaves evidence new to it at the resume.
+        if (
+          data?.type === "assessment-resumed" &&
+          data.handoffId === state.assessment?.handoffId &&
+          suspension !== "recovery"
+        )
+          resumedAt = rank;
         if (data?.type === "return-accepted" || data?.type === "recovery-supplement-accepted")
           assessedSinceCompaction.add(data.handoff.assignmentId);
         if (data?.type !== "selection-changed") continue;
