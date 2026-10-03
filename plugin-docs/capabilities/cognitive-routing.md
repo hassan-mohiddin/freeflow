@@ -206,7 +206,7 @@ Personal configuration may override `enabled`, `delegation`, `projection`, or co
 
 Session settings may override delegation mode and complete Coordinator, Helper, or Executor presets, including a worker not yet enabled by the current mode. Choose its preset before enabling that worker if it has no configured preset. Session overrides are stored on the selected Pi session ancestry, take precedence over personal/repository values, and can be reset or set to inherit without changing either file. A mode change affects future assignments; an accepted assignment retains its recorded worker. The footer shows the active profile, automatic/manual control, and current delegation mode.
 
-Profile changes made while Pi is idle, such as manual holds, releases, and session presets for the active profile, are validated immediately but reach Pi's model and effort when the next prompt is submitted; the footer shows the pending model until then, and a model picked in Pi's own picker cancels the pending change. Only the net change is recorded in the session at that prompt, not every intermediate switch. Changing an inactive profile stores the preset for its next transition. Direct native `/model` or thinking changes are external changes; they do not rewrite a Freeflow preset and may require reconciliation or release automatic control.
+Profile changes made while Pi is idle, such as manual holds, releases, and session presets for the active profile, are validated immediately but reach Pi's model and effort when the next prompt is submitted; the footer shows the pending model until then, and a model picked in Pi's own picker cancels the pending change. Only the net change is recorded in the session at that prompt, not every intermediate switch. Changing an inactive profile stores the preset for its next transition. Picking a model or effort in Pi itself (`/model`, Shift+Tab, or a virtual model) while routing is automatic turns Cognitive Routing off for the session, shown as off in `/freeflow settings` and the footer; it does not rewrite a Freeflow preset. Turn it back on with `/freeflow profile auto` or a profile hold, `Ctrl+Shift+A`, `Ctrl+Shift+R`, or the Session switch in `/freeflow settings`; control then returns to the automatic Coordinator.
 
 ### Unsupported legacy configuration
 
@@ -250,6 +250,7 @@ When native controls are available:
 
 - `Ctrl+Shift+R` cycles Coordinator and workers enabled by the delegation mode.
 - `Ctrl+Shift+A` releases a manual hold to automatic Coordinator control.
+- Both turn Cognitive Routing on first when it is off for the session.
 
 Source wiring for a command or shortcut is not proof that an installed host dispatches it.
 

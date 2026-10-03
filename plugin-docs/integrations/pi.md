@@ -112,6 +112,7 @@ When the source adapter exposes the native controls:
 
 - `Ctrl+Shift+R` cycles Coordinator and the workers enabled by the current delegation mode.
 - `Ctrl+Shift+A` releases a manual hold to automatic Coordinator control; repeating it while already automatic is idempotent.
+- Both shortcuts turn Cognitive Routing on first when picking a model or effort in Pi turned it off for the session.
 
 ## Routing behavior
 
