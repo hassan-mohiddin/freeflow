@@ -165,7 +165,7 @@ After context loss, follow the bootstrap in the capability cue, reload the metho
 
 ### Recover Missing Evidence For An Assessment
 
-Outstanding assignments use ordinary continuation, not this. For the current returned assessment, Coordinator uses `freeflow_unit(operation: "recover")` with the missing-evidence question, any exact task-file `paths`, and any captured result ids in `results`. Recovery belongs to the assignment's recorded worker. Preserve the unit, assignment, original report, outcome, revision, selections, and assessment.
+Outstanding assignments use ordinary continuation, not this. For the current returned assessment, Coordinator uses `freeflow_unit(operation: "recover")` with the missing-evidence question, any exact task-file `paths`, and any captured result ids in `results` (a context ref such as `ctx:1a2b3c4d` goes in the request instead; the worker selects it). Recovery belongs to the assignment's recorded worker. Preserve the unit, assignment, original report, outcome, revision, selections, and assessment.
 
 During recovery, the worker may select previously exposed evidence and read only exact admitted task paths, granted captured results, or packaged Freeflow skill and reference files. It must not edit, run commands or tests, broaden discovery, or resume task work. Report stale or unavailable evidence without rerunning anything. Return with `freeflow_return(operation: "supplement")` and stop reading. A `partial` or `blocked` supplement can deliver its communication while the full evidence obligation stays suspended; payload-free `retry` resends an unchanged saved supplement.
 

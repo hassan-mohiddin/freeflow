@@ -10,6 +10,7 @@ import {
   RoutingError,
   canonical,
   emptySelection,
+  idFor,
   isWorkerProfile,
   requireCondition as check,
   type EffectFencePort,
@@ -558,6 +559,12 @@ export class ToolHandlers {
       check(new Set(requestedResults).size === requestedResults.length, "duplicate_result_grant");
       const results: ResultGrant[] = [];
       for (const resultId of requestedResults) {
+        // A context ref is evidence the worker selects, not a captured result the Coordinator grants.
+        check(
+          !idFor(resultId),
+          "result_unavailable",
+          `${resultId} is a context ref, not a captured result id: name it in the request instead, and the worker selects it as evidence with freeflow_project.`,
+        );
         const grant = await this.resultGrants?.resolve(resultId, this.session.ctx);
         check(grant?.id === resultId, "result_unavailable", `Captured result is unavailable: ${resultId}`);
         results.push(grant);
