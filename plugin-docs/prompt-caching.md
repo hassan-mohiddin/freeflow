@@ -80,4 +80,9 @@ Live observations from September 2026, on Pi 0.87.1 with a Claude subscription a
 - **Anthropic keep-alive.** With the 5-minute lifetime, a replay at 4 minutes kept an entry alive at 8 minutes (2,069 tokens read, none written). The unrefreshed control wrote its prompt again.
 - **Codex.** `gpt-6-luna` and `gpt-6-sol` reused the full prefix after 10, 25, and 60 appended message endings, and rejected `prompt_cache_breakpoint`, `prompt_cache_options`, and `max_output_tokens`. An untouched `gpt-6-sol` entry had expired at 35 minutes while `gpt-6-luna` was still cached; entries read at 25 minutes were still cached at 50 minutes on both models.
 
+Live observations from September and October 2026, on Pi 0.99 and 1.0 with GPT-6 Luna and Sol 6.1:
+
+- **Sign in with ChatGPT** (the `openai` provider with a ChatGPT credential, added in Pi 0.99) rejected `prompt_cache_breakpoint`, `max_output_tokens` and `configuration_update` ("use an API key instead"), reused the full cached prefix after 25 appended turns, and kept a separate cache per reasoning effort: the first request at a new effort reread the prefix, and returning to an earlier effort read that effort's cache again. Freeflow leaves this route untouched: no breakpoints, no keep-alive replay, no effort-history rewriting.
+- **Compaction under Cognitive Routing.** After a worker's Freeflow compaction, the Coordinator's next request wrote its view once (about 50k to 106k tokens, depending on the evidence the worker selected), and every later Coordinator request read its whole previous request from cache, through an evidence recovery and the unit's close.
+
 These observations describe the recorded sessions and models only. They do not establish behavior for other models, accounts, or future provider versions.

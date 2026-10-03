@@ -28,7 +28,7 @@ The extension supplies one compact volatile Runtime State record at session star
 
 - whether Freeflow is active, inactive, unavailable, or awaiting setup;
 - optional capability availability;
-- Cognitive Routing `Control`, `Profile`, and `Delegation`.
+- Cognitive Routing `Control`, `Profile`, `Delegation`, and `Projection`.
 
 Runtime State is current-state data, not stable policy. It does not replace the prompt fragments, contain hidden reasoning, authorize a tool call, or reconstruct state from earlier transition history.
 
@@ -37,10 +37,10 @@ Runtime State is current-state data, not stable policy. It does not replace the 
 Complete methods live in discoverable packages:
 
 - 24 base model/contributor skills under `skills/` whenever Freeflow is enabled and the mandatory core fragments are available;
-- Cognitive Routing and Tool Execution under `capabilities/` only when each gate is effective;
+- the Cognitive Routing and Compaction capability skills under `capabilities/` only when each gate is effective;
 - capability tools from the same effective surface snapshot.
 
-The stable Tool Execution cue distinguishes self-describing bounded direct reads/searches from programs, patches, exact recovery and unfamiliar catalog work that need the capability skill. Programs additionally use generated exact bindings for core operations or a complete described long-tail contract. An exact full skill read can establish introduction; delivery requires observation of the exact body at a qualified completed request boundary, which the ordinary Pi hook alone does not prove. Neither state establishes comprehension or authority.
+Tool Execution has no capability skill: its guidance is a prompt section (below), and its tools describe themselves.
 
 ## One effective surface snapshot
 
@@ -57,7 +57,7 @@ resolve activation and host capability
 
 Do not resolve these surfaces independently and report contradictory state in the same request. A missing mandatory core fragment leaves Freeflow guidance unavailable and preserves the host’s ordinary operation. A missing optional capability fragment removes only that capability’s cue, skill, and tools while reporting it unavailable.
 
-The `enabled` setting is the only Freeflow core switch. Cognitive Routing and Tool Execution are the remaining optional capabilities. The former Freeflow Context operations, Context Virtualization, and Conversation History are removed. Configurations containing the removed `defaultMode`, `interactionContract`, `skills`, `contextVirtualization`, or `conversationHistory` keys are invalid.
+The `enabled` setting is the only Freeflow core switch. Cognitive Routing, Tool Execution and Compaction are the optional capabilities; Compaction is on by default. The former Freeflow Context operations, Context Virtualization, and Conversation History are removed. Configurations containing the removed `defaultMode`, `interactionContract`, `skills`, `contextVirtualization`, or `conversationHistory` keys are invalid.
 
 ## Host delivery
 
@@ -89,7 +89,9 @@ OpenCode v2 and Hermes consume the canonical `skills/` surface through their doc
 
 ### Pi
 
-The native Pi 0.87.1 extension contributes stable core/capability guidance through `systemPromptOptions.sections` and composes one request in `context_with_system`, preserving Pi's leading prompt and later system/tool patches while applying Runtime State, routing, RequestHistory and effective Tool Execution status/guidance. It filters historical one-time Workflow or Cognitive Routing bootstrap entries rather than creating new persistent bootstrap messages. This is an assembled-host boundary, not proof of provider cache hits; another extension may still alter the final request.
+The native Pi extension (Pi 0.99.1 or later) contributes stable core/capability guidance through `systemPromptOptions.sections` and composes one request in `context_with_system`, preserving Pi's leading prompt and later system/tool patches while applying Runtime State, routing and RequestHistory.
+
+On Pi, Freeflow's section also carries the Working Method (`runtime/prompts/working-method.md`: how to approach and check work) whenever Freeflow is enabled, and with Tool Execution a separate section (`runtime/prompts/tool-execution.md`: working in the environment) plus platform, shell and OS facts, with three of Pi's generic rule lines removed. These sections are fixed for a configuration, so the system prompt stays the same from request to request. The Codex, Claude Code and other hook-based hosts receive the core prompt and Interaction Contract only. It filters historical one-time Workflow or Cognitive Routing bootstrap entries rather than creating new persistent bootstrap messages. This is an assembled-host boundary, not proof of provider cache hits; another extension may still alter the final request.
 
 Pi exposes Cognitive Routing when its native model, thinking, session-entry, and ancestry gates are effective.
 

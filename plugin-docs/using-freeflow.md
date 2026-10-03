@@ -26,7 +26,8 @@ Freeflow also includes focused methods for discussion, planning, implementation,
 - separates factual verification from judgment and independent review;
 - keeps commit, integration, release, and launch as controlled boundaries;
 - optionally places compute across configured profiles on a qualified native Pi host;
-- optionally captures/reduces tool output and runs bounded revisioned operations through native Pi Tool Execution.
+- optionally adds a layer over Pi's tools (working guidance, file tracking, clearer edit errors, `apply_patch`, background commands) through Tool Execution;
+- lets the agent compact a long session itself at a safe point, with Pi's compaction as the fallback.
 
 ### What Freeflow does not do
 
@@ -37,7 +38,7 @@ Freeflow also includes focused methods for discussion, planning, implementation,
 - guarantee lower cost, better model output, or provider cache hits;
 - implement Context Control v2 in the current release;
 - make Cognitive Routing or Tool Execution available on every host;
-- turn restricted QuickJS programs into an audited OS sandbox or a universal native-tool dispatcher.
+- replace Pi's own tools, permissions, or compaction.
 
 ## Start here
 
@@ -426,33 +427,19 @@ Configuration proves neither installation nor effective runtime delivery. Verify
 
 ## Use Tool Execution on native Pi
 
-Tool Execution is experimental and opt-in in the native Pi source candidate. Start with captured-data reduction before enabling live local access:
+Tool Execution is experimental and off by default. Turn it on in `/freeflow settings` or with:
 
 ```json
 {
-  "toolExecution": {
-    "enabled": true,
-    "capture": { "enabled": true },
-    "programs": { "mode": "reduction" },
-    "discovery": { "enabled": true },
-    "accounting": { "enabled": true }
-  }
+  "toolExecution": { "enabled": true }
 }
 ```
 
-Use `freeflow_read` for known line ranges, `freeflow_search` for path discovery or bounded text modes, and `freeflow_patch` for a revision-bound dry run or update-only change. Load the Tool Execution skill before a mutation, program, exact recovery or unfamiliar catalog operation; one bounded direct read/search needs no skill solely for that call. Use `freeflow_tools` when the exact revision or schema is missing. Use `freeflow_run` only for mechanical dependent work and explicitly `emit` the bounded value the model needs; a program does not replace semantic judgment.
+It keeps Pi's `read`, `bash`, `edit`, `write`, `grep`, `find` and codemode, and adds guidance on searching, reading and running commands narrowly; notices when files the model read change behind it; edit errors that show the closest lines; `apply_patch` for GPT models; and `bash_background` / `stop_background` for servers, watchers and long commands, with a notice when they exit. Ask the agent to run a long command in the background when you want to keep working while it runs. See [Tool Execution](capabilities/tool-execution.md).
 
-Enabling `workspace` selects a distinct local execution world. Writing additionally requires `workspace.write`. Custom integrations require an explicitly allowlisted cooperating adapter; arbitrary native or third-party tools remain on their ordinary Pi path. New output is session-retained in the v2 store, while historical v1 captures remain readable; exact `freeflow_result` ranges report coverage and may use base64 for non-text bytes. There is no automatic deletion, stale-lease reclaim or replay of an unresolved mutation; inspect partial receipts and the effect fence before more live work.
+## Long sessions and compaction
 
-Use:
-
-```text
-/freeflow status
-/freeflow efficiency
-/freeflow efficiency export
-```
-
-Efficiency reports separate provider and tool telemetry and label byte/accounting boundaries. They do not prove cache hits, billing savings or model quality. Read the full [Tool Execution reference](capabilities/tool-execution.md) before enabling live adapters or local writes.
+On native Pi, Freeflow compaction is on by default. As the context nears the model's window, Freeflow warns the agent; at a safe point it updates its Working Record, writes a summary, picks what to carry, and compacts itself, then continues the same run. Pi's own compaction stays on as the fallback. Run `/freeflow compact` to ask for a compaction now, and `/freeflow status` to see the cycle and how close the context is to each point. If a task matters across compactions, keep a Working Record (Track Work): the summary names it, and recovery starts from it. See [Compaction](capabilities/compaction.md).
 
 ## Choose a Cognitive Routing mode
 
@@ -497,7 +484,7 @@ These are operating recommendations, not Freeflow requirements or benchmark resu
   "cognitiveRouting": {
     "enabled": true,
     "delegation": "both",
-    "projection": false,
+    "projection": true,
     "profiles": {
       "coordinator": {
         "provider": "provider-id",
@@ -543,7 +530,7 @@ Manual profile control runs an unsplit Workflow. It does not create an automatic
 
 The former Freeflow Context tool (`freeflow_context`), Context Virtualization, and Conversation History were removed in this breaking change. Their source, guidance, tests, and evaluation definitions are preserved in the [legacy context archive](../.deprecated/legacy-context/README.md), not as current runtime guidance. Delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present; either key makes that config invalid and prevents Freeflow activation until removed.
 
-Tool Execution remains a separate optional capability for captured results and attached recovery. It is not Context Control v2.
+Tool Execution and Compaction are separate capabilities; neither is Context Control v2.
 
 ### Planned Context Control v2
 

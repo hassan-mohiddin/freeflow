@@ -11,7 +11,7 @@ The host agent still owns tools, permissions, and execution. Freeflow helps it u
 - **New to Freeflow?** Read [Using Freeflow Effectively](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/using-freeflow.md).
 - **Installing it?** Start with [Getting Started](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/getting-started.md).
 - **Using Cognitive Routing?** Read the detailed [Cognitive Routing reference](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/cognitive-routing.md).
-- **Using bounded tool output or programs on Pi?** Read [Tool Execution](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/tool-execution.md).
+- **Using Freeflow on Pi?** Read [Tool Execution](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/tool-execution.md) and [Compaction](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/compaction.md).
 
 ## Memory · Context · Compute
 
@@ -47,7 +47,8 @@ Coding agents commonly fail at control boundaries:
 | A passing command becomes an unsupported completion claim. | Verify Work ties the claim to the actual observer and evidence boundary. |
 | Context loss erases decisions and partial work. | Track Work restores a complete Working Record and reconciles it with live state. |
 | Expensive models perform routine supporting work. | Cognitive Routing can place bounded support and substantive execution on configured profiles. |
-| Large tool results and mechanical child work repeatedly consume model context. | Tool Execution can capture/recover exact output and run bounded revisioned direct or restricted program operations. |
+| Models flood their context with whole files and long command output, or lose edits to files that changed behind them. | Tool Execution teaches narrow reads and capped output, tracks what the model has read, and adds `apply_patch` and background commands. |
+| Pi's automatic compaction summarizes work the agent was in the middle of, and the next step drifts. | Compaction warns the agent first, so it compacts at a safe point from its own summary, Working Record and carried context. |
 | Request history changes destroy reusable prefixes unnecessarily. | RequestHistory and qualified selected-model effort adaptation preserve compatible request structure. |
 
 ## How it works
@@ -100,7 +101,8 @@ A comparatively economical but capable Helper can contribute much of Both mode's
 | Context Control v2 | Planned/in development; not available in this release |
 | Cognitive Routing | Experimental native Pi source candidate |
 | Selected GPT-6 effort history | Narrow source/fixture-qualified native Pi route for Astra, Luna, and Sol; provider savings unverified |
-| Tool Execution | Experimental native-Pi candidate; extracted Worker/WASM artifact fixture passes; installed-user and model behavior remain unverified |
+| Tool Execution | Experimental native Pi; off by default; native fixtures and live sessions exercise it, its effect on task results is unmeasured |
+| Compaction | Experimental native Pi; on by default; native fixtures and live sessions exercise it, summary quality against Pi's summarizer is unmeasured |
 
 Configuration or installation alone does not establish runtime delivery.
 
@@ -118,7 +120,7 @@ Freeflow is one package with different host boundaries:
 | Kiro | Agent Plugins 1.0 Power and shared skills | Not available; skills-only claim |
 | OpenCode v2 | Canonical `skills/` through a documented project skill source | Not available; skills-only support |
 | Hermes Agent | Agent Plugins 1.0 package and canonical skills | Not available; skills-only support |
-| Pi | Shared skills and native extension source entrypoint | Experimental Cognitive Routing and Tool Execution candidate; installed-user and model-behavior evidence remain separate |
+| Pi | Shared skills and the native extension (core prompt, Compaction, Tool Execution) | Experimental; native fixtures and live Pi 1.0 sessions on GPT-6 Luna and Sol 6.1 |
 
 Freeflow owns workflow policy, portable prompts, skills, capability source, host adapters, and the Pi extension. Each host owns launch, package installation, session state, trust, and updates. Freeflow's PiFlow integration was removed as a breaking change; use native Pi for the Freeflow extension. Freeflow does not change or uninstall a separate PiFlow installation. See the [Unreleased changelog](CHANGELOG.md#unreleased).
 
@@ -244,7 +246,7 @@ Contributor calls:
 /evaluate-skill
 ```
 
-Qualified native-Pi Cognitive Routing controls:
+Native Pi controls:
 
 ```text
 /freeflow
@@ -259,8 +261,7 @@ Qualified native-Pi Cognitive Routing controls:
 /freeflow profile auto
 /freeflow profile history
 /freeflow resume
-/freeflow efficiency
-/freeflow efficiency export
+/freeflow compact
 ```
 
 Profile changes and resume require an idle host. These commands do not prove installed-host delivery or authorize task work.
@@ -271,7 +272,6 @@ Freeflow is explicit about what observations prove:
 
 - deterministic checks can establish source structure, prompt assembly, schemas, package boundaries, and named fixtures;
 - package shape does not prove native host dispatch, trust UI, or marketplace availability;
-- the extracted Tool Execution Worker/WASM fixture proves artifact resolution at that boundary, not user-host installation or sandbox audit;
 - request-prefix compatibility does not prove a provider cache hit;
 - model/profile availability does not prove quality or cost improvement;
 - local release preparation is not publication;
@@ -286,6 +286,7 @@ Cognitive Routing remains experimental pending broader behavioral acceptance. Co
 - [Workflow](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/workflow.md)
 - [Cognitive Routing](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/cognitive-routing.md)
 - [Tool Execution](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/tool-execution.md)
+- [Compaction](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/compaction.md)
 - [Pi integration](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/integrations/pi.md)
 - [Architecture](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/architecture.md)
 - [System prompt architecture](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/prompt-architecture.md)

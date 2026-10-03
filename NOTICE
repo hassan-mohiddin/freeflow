@@ -1,0 +1,14 @@
+Freeflow
+Copyright (c) 2026 Hassan Mohiddin. Licensed under the MIT License (see LICENSE).
+
+This product includes software derived from OpenAI Codex
+(https://github.com/openai/codex), Copyright 2025 OpenAI, licensed under the
+Apache License, Version 2.0 (see licenses/Apache-2.0.txt):
+
+- pi-extension/src/tool-execution/apply-patch/grammar.ts: the apply_patch Lark
+  grammar (codex-rs/core/assets/tools/apply_patch.lark), unmodified.
+- pi-extension/src/tool-execution/apply-patch/parser.ts and match.ts: ported
+  from codex-rs/apply-patch (parser and seek_sequence), with changes for Pi.
+
+Ported at upstream commit bcd6d9ab. The built files under pi-extension/dist/
+carry the same code and attribution.

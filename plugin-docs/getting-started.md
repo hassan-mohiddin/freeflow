@@ -14,7 +14,7 @@ Freeflow is a portable workflow layer for coding agents. Choose the host that ma
 | Kiro | Agent Plugins 1.0 Power and shared skills | Not available; no Kiro-specific runtime adapter |
 | OpenCode v2 | Canonical `skills/` through the documented project skill source | Not available; skills-only support |
 | Hermes Agent | Agent Plugins 1.0 portable package and canonical skills | Not available; skills-only support |
-| Pi | Shared skills, native extension source and experimental Tool Execution | Cognitive Routing remains experimental; local native fixtures and an extracted Tool Execution tarball exercise store recovery, direct operations and Worker/WASM, not installation into a user's Pi process or model behavior |
+| Pi | Shared skills and the native extension: core prompt, Compaction, and experimental Tool Execution | Cognitive Routing, Tool Execution and Compaction are experimental; native fixtures and live Pi 1.0 sessions exercise them, not every model or provider |
 
 Cognitive Routing is not established merely by configuration or installation. The native Pi source entrypoint is wired, but installed-host dispatch and model behavior require separate evidence. Freeflow's PiFlow integration was removed as a breaking change; use native Pi for the Freeflow extension. Freeflow does not change or uninstall a separate PiFlow installation. See the [Unreleased changelog](../CHANGELOG.md#unreleased).
 
@@ -104,7 +104,7 @@ pi install git:github.com/hassan-mohiddin/freeflow
 
 Restart Pi or use `/reload` after installing or updating the package.
 
-Native Pi 0.87.1 is the minimum supported version (within the package's 0.87.x peer range); Pi 0.85.x is unsupported. The development dependency is 0.87.1. Scripted host and extracted-package checks qualify bounded source/artifact behavior, not a released or installed user integration, provider cache hits, billing or model quality.
+Native Pi 0.99.1 is the minimum supported version (peer range `>=0.99.1`); Pi 1.0 is supported and is the development dependency. Earlier Pi versions are unsupported. Scripted host checks and live sessions qualify the named behavior, not provider billing or model quality across models.
 
 ## Activate a repository
 
@@ -116,16 +116,16 @@ Run this in the repository where Freeflow should operate:
 
 Setup creates the shared `.freeflow/config.json` activation boundary. Minimal activation is `{}`. `.freeflow/local.json` is an optional personal override and cannot activate Freeflow by itself.
 
-Freeflow's core guidance and separately editable Interaction Contract are delivered together whenever Freeflow is enabled. The 24 base skills are exposed with that core surface. Cognitive Routing and Tool Execution remain individually optional capabilities. The former Freeflow Context tool, Context Virtualization, and Conversation History are removed; before updating, delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present. Either key makes its config invalid and blocks Freeflow activation until removed.
+Freeflow's core guidance and separately editable Interaction Contract are delivered together whenever Freeflow is enabled. The 24 base skills are exposed with that core surface. Cognitive Routing and Tool Execution are optional and off by default; Compaction is on by default. The former Freeflow Context tool, Context Virtualization, and Conversation History are removed; before updating, delete `contextVirtualization` and `conversationHistory` from `.freeflow/config.json` and `.freeflow/local.json` wherever present. Either key makes its config invalid and blocks Freeflow activation until removed.
 
-For a future qualified native host, Cognitive Routing uses this v2 configuration under `.freeflow/config.json` or `.freeflow/local.json`:
+Cognitive Routing uses this v2 configuration under `.freeflow/config.json` or `.freeflow/local.json`:
 
 ```json
 {
   "cognitiveRouting": {
     "enabled": true,
     "delegation": "both",
-    "projection": false,
+    "projection": true,
     "profiles": {
       "coordinator": { "provider": "openai", "model": "gpt-4o", "thinking": "off" },
       "helper": { "provider": "openai", "model": "gpt-4.1-mini", "thinking": "off" },
@@ -135,23 +135,18 @@ For a future qualified native host, Cognitive Routing uses this v2 configuration
 }
 ```
 
-`delegation` accepts `executor`, `helper`, or `both` and defaults to `executor`; `projection` defaults to `false`. Profiles are `coordinator`, `helper`, and `executor`. Coordinator must differ from each worker enabled by the selected mode; Helper and Executor may share a pair. Repository delegation can be overridden personally or for one Pi session without changing repository or personal files. Older experimental routing names or fields such as `standard`, `reasoning`, `contextProjection`, and `sessionStart` are unsupported and have no migration; rewrite them manually. Configuration does not establish host availability or model evaluation.
+`delegation` accepts `executor`, `helper`, or `both` and defaults to `executor`; `projection` defaults to `true`. Profiles are `coordinator`, `helper`, and `executor`. Coordinator must differ from each worker enabled by the selected mode; Helper and Executor may share a pair. Repository delegation can be overridden personally or for one Pi session without changing repository or personal files. Older experimental routing names or fields such as `standard`, `reasoning`, `contextProjection`, and `sessionStart` are unsupported and have no migration; rewrite them manually. Configuration does not establish host availability or model evaluation.
 
-Tool Execution is also opt-in. For captured-data programs without live workspace access:
+Tool Execution is opt-in, and Compaction is on unless you turn it off:
 
 ```json
 {
-  "toolExecution": {
-    "enabled": true,
-    "capture": { "enabled": true },
-    "programs": { "mode": "reduction" },
-    "discovery": { "enabled": true },
-    "accounting": { "enabled": true }
-  }
+  "toolExecution": { "enabled": true },
+  "compaction": { "enabled": true, "carry": true }
 }
 ```
 
-Live local reads/search require `workspace.enabled`; replacement also requires `workspace.write`; trusted external adapters require explicit IDs under `adapters.allow`. Review the retention and execution-world limits in [Tool Execution](capabilities/tool-execution.md) before enabling them.
+See [Tool Execution](capabilities/tool-execution.md) and [Compaction](capabilities/compaction.md). On Pi, `/freeflow settings` changes all of these for the repository, for you, or for one session.
 
 Setup does not write Freeflow instructions into `AGENTS.md`, `CLAUDE.md`, or other repository-owned host files.
 
@@ -167,7 +162,7 @@ Use the host-native surface to confirm the installation:
 - **Kiro:** confirm the Power is installed and the shared skills appear in the Agent Steering & Skills surface. Do not infer an always-on prompt adapter from the Power manifest alone.
 - **OpenCode v2:** confirm the configured `skills` array points at the canonical `skills/` directory and inspect the native `skill` catalog. Do not infer runtime prompt delivery.
 - **Hermes Agent:** confirm the portable package is listed/enabled or the checkout is trusted as a skills source, then inspect the skills catalog. Do not infer runtime prompt delivery from portable package installation.
-- **Pi:** use `/freeflow` to inspect settings/status and confirm the core prompt, Interaction Contract, and base skills. If Tool Execution is configured, verify its mode, workspace root/policy, catalog and adapter counts, and effect-fence status; use `/freeflow efficiency` only for factual observations. The source-built native fixture and extracted local package exercise v2 routing and Tool Execution at their named boundaries, but neither proves import into a user's Pi process or model behavior.
+- **Pi:** use `/freeflow status` to confirm the core prompt, Interaction Contract and base skills, which capabilities are effective, and the compaction cycle; `/freeflow settings` shows each setting and where its value comes from.
 
 Activation is not proof of runtime delivery. Setup reports delivery as `confirmed`, `unavailable`, or `unconfirmed`.
 
@@ -176,6 +171,7 @@ Activation is not proof of runtime delivery. Setup reports delivery as `confirme
 - [Using Freeflow Effectively](using-freeflow.md)
 - [Pi integration](integrations/pi.md)
 - [Tool Execution](capabilities/tool-execution.md)
+- [Compaction](capabilities/compaction.md)
 - [Architecture](architecture.md)
 - [Workflow](workflow.md)
 - [Skill routing](skill-routing.md)

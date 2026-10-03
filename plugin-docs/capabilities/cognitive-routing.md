@@ -160,7 +160,7 @@ Configure Cognitive Routing in shared `.freeflow/config.json` or personal `.free
   "cognitiveRouting": {
     "enabled": true,
     "delegation": "both",
-    "projection": false,
+    "projection": true,
     "profiles": {
       "coordinator": {
         "provider": "provider-id",
@@ -188,7 +188,7 @@ Configure Cognitive Routing in shared `.freeflow/config.json` or personal `.free
 | --- | --- | --- |
 | `enabled` | Enables Cognitive Routing when the host and required profiles qualify. | `false` |
 | `delegation` | Enables `helper`, `executor`, or `both`. | `executor` |
-| `projection` | Enables explicit worker-evidence selection for Coordinator. | `false` |
+| `projection` | Enables explicit worker-evidence selection for Coordinator. | `true` |
 | `profiles.<name>.provider` | Provider identifier known to Pi. | Required for configured profile |
 | `profiles.<name>.model` | Model identifier known to that provider. | Required for configured profile |
 | `profiles.<name>.thinking` | Exact thinking level: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. | Required for configured profile |
@@ -351,7 +351,7 @@ The harness owns unit, assignment, handoff, and event identities. Models use ret
 
 ## Context projection
 
-Projection is optional and disabled by default.
+Projection is on by default; set `projection: false` to turn it off. It is where routing's Coordinator saving comes from: the Coordinator, usually the most expensive model, sees selected evidence instead of every worker turn.
 
 ### Projection off
 
@@ -480,7 +480,11 @@ These are accepted processing bounds, not latency or memory guarantees. Freeflow
 
 ### Compaction
 
-Native compaction may remove active user or evidence bodies while canonical session history remains. Routing preserves the last observed delivered-user basis so stored-but-undelivered entries do not look like new input.
+Freeflow's [Compaction](compaction.md) and Pi's own compaction may remove active user or evidence bodies while canonical session history remains. Routing preserves the last observed delivered-user basis so stored-but-undelivered entries do not look like new input.
+
+Under routing a worker compacts itself mid-assignment with `freeflow_compact` and continues; afterwards routing re-sends the assignment's contract with a note that the compaction it asks for is done. At "compact now" a worker compacts before returning, because the Coordinator and the next assignment continue the same history. A Coordinator under projection never compacts: its notices tell it to delegate an assignment that compacts and returns, folded into other work where possible. Compaction is measured on the full history the next worker request carries.
+
+After a worker's compaction the Coordinator sees a version of the carried context that names the worker's copies instead of repeating them; selected evidence from before the compaction is rebuilt from its stored originals, and once delivered it stays in the Coordinator's view, through an evidence recovery and the unit's close, until the next compaction. The Coordinator's requests therefore keep extending each other, apart from the one rewrite any compaction costs. Runtime State tells the Coordinator which worker's summary opens its view.
 
 A configured outstanding assignment can be resumed explicitly after compaction. Required selected evidence may be recovered from known canonical sources when available. Compaction is not task completion, permission renewal, or automatic restoration of every historical body.
 
@@ -579,7 +583,7 @@ Use Executor-only when an appropriate Executor preset can own most environment w
 }
 ```
 
-Projection may reduce Coordinator's worker-history view, but evidence selection and handoff overhead are part of total cost. Start with projection off when debugging context behavior.
+Projection may reduce Coordinator's worker-history view, but evidence selection and handoff overhead are part of total cost. Turn projection off when debugging context behavior.
 
 ### Mixed support and substantive execution
 

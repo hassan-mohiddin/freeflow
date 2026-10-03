@@ -89,6 +89,8 @@
     ".cursor-plugin/**",
     "com.github.copilot/**",
     "LICENSE",
+    "NOTICE",
+    "licenses/**",
     "README.md",
     "assets/**",
     "capabilities/**",
