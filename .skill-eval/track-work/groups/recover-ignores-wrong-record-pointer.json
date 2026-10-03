@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "recover-ignores-wrong-record-pointer",
+  "type": "body",
+  "input": {
+    "prompt": "The conversation history before this point was compacted into the following summary:\n<summary>\n## Goal\n- Finish retry with backoff in the HTTP client (src/http/client.ts): 429 responses must honor Retry-After.\n\n## Current work\n- The retry loop and the 5xx path work; the 429 path still ignores Retry-After.\n\n## Next useful action\n- Honor Retry-After on 429 in retryWithBackoff.\n</summary>\n\n[Freeflow notice, not from the user] Working Record updated this cycle: .freeflow/tasks/task-020-docs-cleanup/record.md. Read it first.\n\ncontinue"
+  },
+  "fixture": ".skill-eval/track-work/fixtures/recover-wrong-pointer",
+  "tools": ["read", "edit", "write"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "7dafc0e"
+      },
+      "skills": ["skills/track-work"],
+      "target": 0,
+      "context": []
+    },
+    "candidate": {
+      "source": {
+        "kind": "working-tree"
+      },
+      "skills": ["skills/track-work"],
+      "target": 0,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-wrong-recovery-source-not-read",
+      "variant": "baseline",
+      "comparison": "wrong-recovery-source-not-read",
+      "kind": "resource-read",
+      "resource": "workspace",
+      "path": "docs/cleanup-plan.md",
+      "expect": "not-read"
+    },
+    {
+      "id": "candidate-wrong-recovery-source-not-read",
+      "variant": "candidate",
+      "comparison": "wrong-recovery-source-not-read",
+      "kind": "resource-read",
+      "resource": "workspace",
+      "path": "docs/cleanup-plan.md",
+      "expect": "not-read"
+    },
+    {
+      "id": "baseline-wrong-next-action-not-taken",
+      "variant": "baseline",
+      "comparison": "wrong-next-action-not-taken",
+      "kind": "changed-paths",
+      "expect": "excludes",
+      "paths": ["docs/legacy.md", ".freeflow/tasks/task-020-docs-cleanup/record.md"]
+    },
+    {
+      "id": "candidate-wrong-next-action-not-taken",
+      "variant": "candidate",
+      "comparison": "wrong-next-action-not-taken",
+      "kind": "changed-paths",
+      "expect": "excludes",
+      "paths": ["docs/legacy.md", ".freeflow/tasks/task-020-docs-cleanup/record.md"]
+    }
+  ],
+  "review_questions": [
+    "Did the agent treat the docs-cleanup record as the record of its current work, or did it notice that the record's task differs from the HTTP retry work in the summary and say so instead of recovering it?"
+  ],
+  "model": {
+    "model": "openai/gpt-6-luna",
+    "thinking": "xhigh"
+  }
+}
