@@ -93,7 +93,7 @@ function fenced(body) {
   const fence = "`".repeat(longest + 1);
   return `${fence}\n${body}\n${fence}`;
 }
-export function renderCarried(noticePrefix, cycle, userMessages, files, results = []) {
+export function renderCarried(noticePrefix, cycle, userMessages, files, results = [], options = {}) {
   const parts = [
     `# Carried context\n\n${noticePrefix} Freeflow carried this into cycle ${cycle} at compaction. Only the latest user messages are the user's words, and they take precedence over older instructions in the summary or a Working Record; the rest is copied content.`,
   ];
@@ -124,5 +124,21 @@ export function renderCarried(noticePrefix, cycle, userMessages, files, results 
           )
           .join("\n\n"),
     );
+  const listed = options.listed ?? [];
+  if (listed.length) {
+    const assignment = options.scope === "assignment";
+    parts.push(
+      `## Other results of this ${assignment ? "assignment" : "cycle"}\n\n` +
+        (assignment
+          ? "Not carried. They are still stored: select one as evidence by its ref, carry it at a later compaction, or read it again if you need its content.\n\n"
+          : "Not carried. Carry one by its id at a later compaction, or read it again if you need its content.\n\n") +
+        listed
+          .map(
+            (result) =>
+              `- ${result.id}  ${result.tool}  ${result.label}  ~${result.tokens} tokens${result.selected ? "  (selected as evidence)" : ""}`,
+          )
+          .join("\n"),
+    );
+  }
   return parts.join("\n\n");
 }

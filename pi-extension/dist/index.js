@@ -212,6 +212,7 @@ export default function freeflow(pi) {
       return state.effective ? state.activeProfile : undefined;
     },
     routingAssignment: () => routing.currentAssignment(),
+    assignmentResults: () => routing.assignmentResults(),
     background: () => background.running().map(({ id, label, outputPath }) => ({ id, label, outputPath })),
     noticePrefix: NOTICE_PREFIX,
     carryEnabled: () => capability?.compaction?.carry !== false,

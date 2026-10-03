@@ -1,3 +1,5 @@
+import { resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { estimateTokens } from "./carry.js";
 import { currentCycle } from "./harness.js";
 /**
@@ -42,6 +44,14 @@ function label(name, input) {
   const line = firstLine(String(value));
   return line.length > 80 ? `${line.slice(0, 77)}...` : line;
 }
+/** The Freeflow package root: reads of its skills, references and prompts are instructions, not work to carry. */
+const FREEFLOW_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
+const INSTRUCTION_DIRS = ["capabilities", "skills", "runtime"].map((dir) => resolve(FREEFLOW_ROOT, dir) + sep);
+function isFreeflowInstruction(tool, input) {
+  if (tool !== "read" || typeof input?.path !== "string") return false;
+  const path = resolve(input.path);
+  return INSTRUCTION_DIRS.some((dir) => path.startsWith(dir));
+}
 /** Every tool result on the branch with its id, oldest first. */
 function allResults(branch) {
   const calls = new Map();
@@ -62,6 +72,7 @@ function allResults(branch) {
       tokens: estimateTokens(text),
       text,
       entry,
+      input: call?.input,
     });
   }
   return results;
@@ -69,15 +80,39 @@ function allResults(branch) {
 export function resolveResult(branch, id) {
   const found = allResults(branch).find((result) => result.id === id);
   if (!found) return undefined;
-  const { entry: _entry, ...result } = found;
+  const { entry: _entry, input: _input, ...result } = found;
   return result;
+}
+/**
+ * The tool results of the work in progress, newest first: the current assignment's under Cognitive Routing (by
+ * routing ref), otherwise this cycle's (by r-id). Freeflow's control calls and reads of its own instructions are left
+ * out: they are how the agent works, not what it worked on.
+ */
+export function scopeResults(branch, assignment) {
+  const cycle = new Set(currentCycle(branch));
+  return allResults(branch)
+    .filter((result) => (assignment ? assignment.entryIds.has(result.entry.id) : cycle.has(result.entry)))
+    .filter((result) => !CONTROL_TOOLS.has(result.tool) && !isFreeflowInstruction(result.tool, result.input))
+    .reverse()
+    .map(({ entry, input, ...result }) => ({
+      ...result,
+      id: assignment ? `ctx:${entry.id}` : result.id,
+      entryId: entry.id,
+      ...(typeof input?.path === "string" ? { path: input.path } : {}),
+    }));
 }
 /** This cycle's results above the size floor, newest first, then results the last Freeflow compaction carried. */
 export function resultIndex(branch) {
   const cycle = new Set(currentCycle(branch));
   const results = allResults(branch);
   const rows = results
-    .filter((result) => cycle.has(result.entry) && result.tokens >= SIZE_FLOOR && !CONTROL_TOOLS.has(result.tool))
+    .filter(
+      (result) =>
+        cycle.has(result.entry) &&
+        result.tokens >= SIZE_FLOOR &&
+        !CONTROL_TOOLS.has(result.tool) &&
+        !isFreeflowInstruction(result.tool, result.input),
+    )
     .reverse()
     .map(({ id, tool, label, tokens }) => ({ id, tool, label, tokens }));
   const latest = [...branch].reverse().find((entry) => entry?.type === "compaction" && entry.details?.freeflow);

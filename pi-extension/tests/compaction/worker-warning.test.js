@@ -4,8 +4,8 @@ import { fixture, response } from "../fixtures/routing-native.js";
 
 // The warning reaching a worker in the middle of its own assignment, under projection: the worker gets the worker's
 // notice, compacts, continues its contract, and returns. The fixture's gpt-4o has a 128,000-token window and Pi's
-// reserve is 1 token, so the warning comes at 97,999.
-const WARNING = "Compaction is due:";
+// reserve is 1 token, so the warning comes at 89,600 (70%).
+const WARNING = "Compaction is due soon:";
 const count = (body, text) => JSON.stringify(body.input).split(text).length - 1;
 
 test("a worker warned mid-assignment compacts, continues its contract, and returns", { timeout: 30000 }, async () => {
@@ -36,7 +36,7 @@ test("a worker warned mid-assignment compacts, continues its contract, and retur
       assert.equal(count(requests[2], WARNING), 0);
       assert.equal(count(requests[3], WARNING), 1, "the worker's next request carries the warning");
       const notice = JSON.stringify(requests[3].input);
-      assert.match(notice, /Read the compaction skill and prepare now/, "the worker's notice, not the Coordinator's");
+      assert.match(notice, /Keep working until a safe point/, "the worker's notice, not the Coordinator's");
       assert.doesNotMatch(notice, /do not compact yourself/);
 
       const compactions = manager.getBranch().filter((entry) => entry.type === "compaction");

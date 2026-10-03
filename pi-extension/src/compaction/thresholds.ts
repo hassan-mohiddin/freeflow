@@ -1,11 +1,11 @@
 /**
  * When compaction is due. Pi compacts on its own once context passes the window minus its reserve; Freeflow warns
- * earlier so the agent has room to prepare: at 80% of the window, or 30k tokens before Pi's trigger when that comes
+ * earlier so the agent has room to reach a safe point and prepare: at 70% of the window, or 30k tokens before Pi's trigger when that comes
  * first, and says "compact now" 10k tokens before it.
  */
 
 export const DEFAULT_RESERVE_TOKENS = 16_384;
-const WARNING_SHARE = 0.8;
+const WARNING_SHARE = 0.7;
 const WARNING_HEADROOM = 30_000;
 const COMPACT_NOW_HEADROOM = 10_000;
 

@@ -4,15 +4,15 @@ import { reserveTokens, strictest, thresholds } from "../../dist/compaction/thre
 import { renderIndex, resolveResult, resultIndex } from "../../dist/compaction/results.js";
 import { carryBudget } from "../../dist/compaction/carry.js";
 
-test("the warning comes at 80% or 30k before Pi's trigger, whichever is first; compact now 10k before it", () => {
+test("the warning comes at 70% or 30k before Pi's trigger, whichever is first; compact now 10k before it", () => {
   const at = (window) => {
     const { warning, compactNow, trigger } = thresholds(window, 16_384);
     return [warning, compactNow, trigger];
   };
   assert.deepEqual(at(128_000), [81_616, 101_616, 111_616]);
-  assert.deepEqual(at(200_000), [153_616, 173_616, 183_616]);
-  assert.deepEqual(at(400_000), [320_000, 373_616, 383_616]);
-  assert.deepEqual(at(1_000_000), [800_000, 973_616, 983_616]);
+  assert.deepEqual(at(200_000), [140_000, 173_616, 183_616]);
+  assert.deepEqual(at(400_000), [280_000, 373_616, 383_616]);
+  assert.deepEqual(at(1_000_000), [700_000, 973_616, 983_616]);
 });
 
 test("Pi's reserve comes from the model override, then the ordinary setting, then Pi's default", () => {

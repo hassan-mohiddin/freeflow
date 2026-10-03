@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { resolveToolPath } from "../tool-execution/file-state.js";
 import {
   carryBudget,
   carryProblem,
@@ -13,7 +14,7 @@ import {
   type CarryItem,
 } from "./carry.js";
 import { cycleFiles, harnessPart, nextCycle, previousFileLists, sessionFileLists } from "./harness.js";
-import { renderIndex, resolveResult, resultIndex, type Result } from "./results.js";
+import { renderIndex, resolveResult, resultIndex, scopeResults, type Result, type ScopeResult } from "./results.js";
 import type { Thresholds } from "./thresholds.js";
 
 /**
@@ -51,6 +52,8 @@ export interface CompactionHost {
    * then inserts no list, and carries results by those refs.
    */
   nativeRefs(): boolean;
+  /** Under Cognitive Routing, the current assignment's tool results and the refs selected as its evidence. */
+  assignmentResults(): { entryIds: Set<string>; selected: Set<string> } | undefined;
   /** A routing source ref's tool result, or undefined when it names no carryable result. */
   resolveRef(ref: string): { tool: string; text: string } | undefined;
   /** Pi's own summarizer over Pi's preparation, with extra instructions; throws on failure. */
@@ -65,6 +68,8 @@ export interface Compacted {
 export type Notice = { level: "warning" | "compactNow"; text: string };
 
 const ABNORMAL_STOPS = new Set(["error", "aborted", "length"]);
+/** The most results the carried context lists by ref; the newest are listed. */
+const MAX_LISTED = 60;
 /** Pi checks its own threshold only after a run ends, so within a run "compact now" repeats as context keeps growing. */
 const COMPACT_NOW_REPEAT = 10_000;
 const hash = (text: string) => createHash("sha256").update(text).digest("hex");
@@ -147,9 +152,9 @@ export class CompactionController {
     if (!this.host.carryEnabled())
       return "context reuse is off, so carry nothing; the user's latest messages are carried for you";
     const how = this.host.nativeRefs()
-      ? "files by path, tool results by their routing ref such as ctx:1a2b3c4d"
-      : "files by path, tool results by id below";
-    return `choose what to carry (budget ${this.budget(ctx)} tokens: ${how})`;
+      ? "tool results by their routing ref such as ctx:1a2b3c4d, files by path"
+      : "tool results by id below, files by path";
+    return `pick older work you will need (budget ${this.budget(ctx)} tokens; Freeflow adds your newest results itself; ${how})`;
   }
 
   /**
@@ -188,12 +193,12 @@ export class CompactionController {
     const prefix = this.host.noticePrefix;
     const { window, trigger } = thresholds;
     if (this.host.coordinatorUnderProjection())
-      return `${prefix} ${level === "compactNow" ? "Compact now" : "Compaction is due"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own at about ${trigger}. Your view leaves out what workers did, so do not compact yourself: delegate an assignment asking the worker to read the compaction skill, compact with freeflow_compact, and then return with freeflow_return; then continue.`;
+      return `${prefix} ${level === "compactNow" ? "Compact now" : "Compaction is due soon"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger} once this run ends. Your view leaves out what workers did, so do not compact yourself: ${level === "compactNow" ? "now" : "at a safe point (after the current assessment, or before the next assignment)"}, delegate an assignment asking the worker to read the compaction skill, compact with freeflow_compact, and then return with freeflow_return; then continue.`;
     const index = withList ? this.indexText(ctx) : "";
     const list = index ? `\n\n${index}` : "";
     if (level === "compactNow")
-      return `${prefix} Compact now: context is at about ${tokens} of ${window} tokens. Pi compacts on its own past about ${trigger} once this run ends, or when a request overflows the model's window. Finish preparing and call freeflow_compact; if Pi compacts first, its own summary replaces yours.${list}`;
-    return `${prefix} Compaction is due: context is at about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger} once this run ends. Read the compaction skill and prepare now: update the Working Record, ${this.carryText(ctx)}, write the summary, then call freeflow_compact. A "compact now" notice follows near Pi's limit.${list}`;
+      return `${prefix} Compact now: context is at about ${tokens} of ${window} tokens. Pi compacts on its own past about ${trigger} once this run ends, or when a request overflows the model's window. The end of your current step is the safe point: write down any partial state, then prepare and call freeflow_compact; if Pi compacts first, its own summary replaces yours.${list}`;
+    return `${prefix} Compaction is due soon: context is at about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger} once this run ends. Keep working until a safe point: a finished step whose result you know (a check read, an edit set complete, a report written), not mid-edit or with a command running. If you are at one now, compact now; if your work ends within a step or two (a return, a final answer), finish it instead. At the safe point, read the compaction skill, update the Working Record, ${this.carryText(ctx)}, write the summary, and call freeflow_compact. A "compact now" notice follows near Pi's limit.${list}`;
   }
 
   /** Check a freeflow_compact call and schedule it for the end of this turn; throws with the reason it is refused. */
@@ -243,6 +248,46 @@ export class CompactionController {
     return `Compaction will happen at the end of this turn: about ${carriedTokens} tokens carried. The run then continues from the summary, the carried context and a recovery message.`;
   }
 
+  /**
+   * The automatic part of carry and the list of what stays behind. After the agent's picks, the newest results of the
+   * work in progress (the current assignment under Cognitive Routing, otherwise this cycle) fill the rest of the
+   * budget; the others are listed by ref so the agent knows what exists. With context reuse off nothing is copied, and
+   * only routing keeps the list, which it needs for evidence selection.
+   */
+  private fill(
+    branch: readonly any[],
+    ctx: any,
+    files: readonly CarriedFile[],
+    picked: readonly Result[],
+  ): { automatic: ScopeResult[]; listed: Array<ScopeResult & { selected: boolean }> } {
+    const assignment = this.host.nativeRefs() ? this.host.assignmentResults() : undefined;
+    const carryOn = this.host.carryEnabled();
+    if (!carryOn && !assignment) return { automatic: [], listed: [] };
+    // A file the agent carries fresh makes any earlier read of it stale: those reads are neither copied nor listed.
+    const freshFiles = new Set(files.map((file) => resolveToolPath(file.path, ctx.cwd)));
+    const scope = scopeResults(branch, assignment).filter(
+      (result) => !(result.tool === "read" && result.path && freshFiles.has(resolveToolPath(result.path, ctx.cwd))),
+    );
+    const pickedIds = new Set(picked.map((result) => result.id));
+    let room = carryOn
+      ? this.budget(ctx) -
+        files.reduce((sum, file) => sum + ("text" in file ? estimateTokens(file.text) : 0), 0) -
+        picked.reduce((sum, result) => sum + result.tokens, 0)
+      : 0;
+    const automatic: ScopeResult[] = [];
+    for (const result of scope) {
+      if (pickedIds.has(result.id) || result.tokens > room) continue;
+      automatic.push(result);
+      room -= result.tokens;
+    }
+    const carried = new Set([...pickedIds, ...automatic.map((result) => result.id)]);
+    const listed = scope
+      .filter((result) => !carried.has(result.id))
+      .slice(0, MAX_LISTED)
+      .map((result) => ({ ...result, selected: assignment?.selected.has(result.id) === true }));
+    return { automatic, listed };
+  }
+
   private async read(carry: readonly CarryItem[], ctx: any) {
     const branch = branchOf(ctx);
     const files = await Promise.all(
@@ -280,7 +325,11 @@ export class CompactionController {
       files: sessionFileLists(branch),
     })}`;
     const userMessages = latestUserMessages(branch, (message) => message.startsWith(USER_REQUEST));
-    const carriedText = renderCarried(this.host.noticePrefix, cycle, userMessages, files, results);
+    const { automatic, listed } = this.fill(branch, ctx, files, results);
+    const carriedText = renderCarried(this.host.noticePrefix, cycle, userMessages, files, [...results, ...automatic], {
+      listed,
+      scope: this.host.nativeRefs() && this.host.assignmentResults() ? "assignment" : "cycle",
+    });
     const recovery = `${this.host.noticePrefix} ${recoveryText(cycle, "The carried context is above. ")} ${AFTER_REQUESTED}`;
 
     this.requested = undefined;
@@ -300,6 +349,7 @@ export class CompactionController {
               carried: [
                 ...files.map((file) => fileRecord(file, cycle, previous)),
                 ...results.map((result) => resultRecord(result, cycle, previous)),
+                ...automatic.map((result) => ({ ...resultRecord(result, cycle, previous), automatic: true })),
               ],
               files: cycleFiles(branch),
               requestedBy,

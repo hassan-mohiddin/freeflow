@@ -5,7 +5,7 @@ import test from "node:test";
 import { fixture, response } from "../fixtures/routing-native.js";
 
 // When Freeflow says compaction is due. The fixture's gpt-4o has a 128,000-token window and the fixture sets Pi's
-// reserve to 1 token, so Pi's trigger is 127,999: the warning comes at 97,999 and "compact now" at 117,999.
+// reserve to 1 token, so Pi's trigger is 127,999: the warning comes at 89,600 (70%) and "compact now" at 117,999.
 const noRouting = { cognitiveRouting: { enabled: false }, freeflowConfig: { toolExecution: { enabled: true } } };
 const withUsage = (tokens) => (n, calls) =>
   response(n, calls, "fixture response", {
@@ -14,7 +14,7 @@ const withUsage = (tokens) => (n, calls) =>
     total_tokens: tokens(n) + 10,
   });
 const count = (body, text) => JSON.stringify(body.input).split(text).length - 1;
-const WARNING = "Compaction is due:";
+const WARNING = "Compaction is due soon:";
 const COMPACT_NOW = "Compact now:";
 
 test(
@@ -84,8 +84,8 @@ test(
     const delegate = { name: "freeflow_delegate", args: { operation: "assign", contract: "Read the part files." } };
     const submit = { name: "freeflow_return", args: { operation: "submit", report: "Done.", outcome: "completed" } };
     const close = { name: "freeflow_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } };
-    // Pi's read returns at most about 50 KB per call, so the history grows through ten reads of ~9,200 tokens. The
-    // worker measures about 92k (under the 97,999 warning); the full history with the system prompt is over it.
+    // Pi's read returns at most about 50 KB per call, so the history grows through ten reads of ~8,500 tokens. The
+    // worker measures about 86k (under the 89,600 warning); the full history with the system prompt is over it.
     const parts = Array.from({ length: 10 }, (_, i) => `part${i}.txt`);
     await fixture(
       async (n) =>
@@ -104,7 +104,7 @@ test(
         // The contract the Coordinator writes then says what the worker does after compacting.
         assert.match(
           JSON.stringify(requests[3].input),
-          /so do not compact yourself: delegate an assignment asking the worker to read the compaction skill, compact with freeflow_compact, and then return with freeflow_return/,
+          /so do not compact yourself: at a safe point \(after the current assessment, or before the next assignment\), delegate an assignment asking the worker to read the compaction skill, compact with freeflow_compact, and then return with freeflow_return/,
         );
         assert.equal(count(requests[4], WARNING), 1, "sent once");
       },
@@ -112,7 +112,7 @@ test(
       {
         freeflowConfig: { toolExecution: { enabled: true } },
         beforePrompt: async ({ cwd }) => {
-          for (const path of parts) await writeFile(join(cwd, path), "y".repeat(36_800));
+          for (const path of parts) await writeFile(join(cwd, path), "y".repeat(34_000));
         },
       },
     );

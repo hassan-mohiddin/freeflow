@@ -20,6 +20,13 @@ The Rules are binding; if one cannot be met, stop and say why. The rest of this 
 - Material that exists only in the conversation, such as a pasted file or a long message, leaves with it. With a Working Record, save it under the task's `sources/` and point to it; without one, quote what matters in the summary.
 - Under Cognitive Routing with projection, the Coordinator does not compact: its view leaves out what workers did. Delegate an assignment whose contract says to compact with `freeflow_compact` and then return with `freeflow_return`, plus any other work it covers: after compacting, the worker sees the contract again but not its own `freeflow_compact` call. A worker's summary covers the whole session: the user's requests, the Coordinator's decisions, and the state of other work.
 
+## When to compact
+
+Goal: compact where stopping loses nothing that is not written down. That is a safe point: a finished step whose result you know, such as a check you ran and read, a complete set of edits, or a written report. Halfway through an edit set, with a command still running, or partway through a batch of reads you need together is not one.
+
+- At Freeflow's first notice ("compaction is due soon"): if you are at a safe point, compact now. If your work ends within a step or two, such as a return or a final answer, finish it instead; it ends the context's growth without a compaction. Otherwise finish the current step, start nothing large, then compact.
+- At "compact now", or when the user asks: the end of your current step is the safe point. If the step cannot end soon, write its partial state into the record or summary and compact.
+
 ## The summary
 
 The previous cycle's summary is at the top of your context. Fold what still holds into the new one; drop what is done or no longer matters. Write state, not a story: what is true now, not the order things happened in. Leave out what the Working Record holds and what Freeflow states itself: the cycle, the routing profile, running background commands, and the files read and changed.
@@ -35,7 +42,7 @@ The limit is about 8,000 tokens. Most summaries need far less. If `freeflow_comp
 
 ## What to carry
 
-The notice gives the budget. Carry what the next step needs in full and would otherwise re-read at once: the files you are changing (line ranges for large files) and the output you are working from (tool results: by routing ref, such as `ctx:1a2b3c4d`, when Cognitive Routing is on; otherwise by the id in the notice's list). Leave out what is cheap to re-read later or already captured in the summary or record. If everything needed fits, carry it; otherwise carry the most important and leave the rest to be re-read during recovery. The user's latest messages are carried for you. When the notice says context reuse is off, carry nothing.
+The notice gives the budget. Freeflow carries the newest results of your work in progress itself (under Cognitive Routing, those of your current assignment; otherwise, those of this cycle), filling whatever budget your picks leave, and lists the rest by ref. Pick only what that misses and the next step needs in full: older output you are working from (by routing ref, such as `ctx:1a2b3c4d`, when Cognitive Routing is on; otherwise by the id in the notice's list) and files you are changing (line ranges for large files), which are read fresh at compaction. Leave out what is cheap to re-read or already in the summary or record. The user's latest messages are carried for you. When the notice says context reuse is off, pick nothing.
 
 ## After compaction
 

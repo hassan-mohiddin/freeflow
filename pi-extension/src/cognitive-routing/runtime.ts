@@ -374,6 +374,23 @@ export class RoutingRuntime {
     if (!this.state().effective) return undefined;
     return this.session.stateData().assignmentId ?? undefined;
   }
+  /**
+   * The assignment in progress, for compaction: the entries of the tool results it produced (task evidence only) and
+   * the refs already selected as its evidence. Undefined when no worker holds an assignment.
+   */
+  assignmentResults(): { entryIds: Set<string>; selected: Set<string> } | undefined {
+    try {
+      const state = this.session.stateData();
+      const assignmentId = state.assignmentId;
+      if (!this.state().effective || !assignmentId) return undefined;
+      const entryIds = new Set<string>();
+      for (const source of this.session.sources().byRef.values())
+        if (source.assignmentId === assignmentId && isTaskEvidence(source)) entryIds.add(source.entry.id);
+      return { entryIds, selected: new Set(state.selections.get(assignmentId)?.selected ?? []) };
+    } catch {
+      return undefined;
+    }
+  }
   /** A source ref's tool result, for compaction to carry; only task evidence, the results routing lets be selected. */
   evidenceSource(ref: string): { tool: string; text: string } | undefined {
     try {
