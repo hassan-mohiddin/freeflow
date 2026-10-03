@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.8.0 - 2026-10-03
+
 ### Breaking Changes
 
 - Replaces the Astra effort-history entry type with `freeflow-openai-effort-v1` and removes the old Astra provider-support import paths. Existing `freeflow-astra-effort-v1` entries are not replayed or migrated; the next supported request starts a fresh effort chain.
