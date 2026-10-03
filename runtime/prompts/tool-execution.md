@@ -15,13 +15,13 @@ Every tool result stays in context and is sent again on every later turn. Take i
 ## Command output
 
 - Cap every command's output: `2>&1 | tail -40`, or a filter for the lines you need.
-- Save long output to a file and query the file instead of running the command again: `cmd > "${TMPDIR:-/tmp}/run.log" 2>&1; echo "exit=$?"; grep -E 'FAIL|ERROR' "${TMPDIR:-/tmp}/run.log" | head -20`.
-- Put scratch files under `${TMPDIR:-/tmp}`, never in the repository.
+- Put scratch files in the current task's `scratch/` when the task has a Working Record, otherwise under `${TMPDIR:-/tmp}`; never elsewhere in the repository.
+- Save long output to a scratch file and query the file instead of running the command again: `cmd > "$SCRATCH/run.log" 2>&1; echo "exit=$?"; grep -E 'FAIL|ERROR' "$SCRATCH/run.log" | head -20`, where `$SCRATCH` is that location.
 - Start servers, watchers and any command expected to run longer than two minutes with `bash_background`. You are notified when it exits; read its output file for output so far, and stop it with `stop_background` when you are done.
 
 ## Running the code
 
-- To learn what code does, run it: write a throwaway script in `${TMPDIR:-/tmp}` that imports the code, calls it with realistic input, and prints the result.
+- To learn what code does, run it: write a throwaway script in your scratch location that imports the code, calls it with realistic input, and prints the result.
 - Run each new script first on a case whose answer you know. A script that prints nothing may have matched nothing.
 - Time an operation next to its baseline in the same call: `time real_command; time baseline_command`.
 

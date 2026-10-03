@@ -127,8 +127,8 @@ try {
     );
   if (absoluteSourcePaths.length > 0)
     throw new Error(`npm package embeds the local source checkout path: ${absoluteSourcePaths.join(", ")}`);
-  if (portableSkillFiles.length !== 24)
-    throw new Error(`npm package must contain exactly 24 canonical skill files; found ${portableSkillFiles.length}`);
+  if (portableSkillFiles.length !== 25)
+    throw new Error(`npm package must contain exactly 25 canonical skill files; found ${portableSkillFiles.length}`);
   if (duplicateSkillTrees.length > 0)
     throw new Error(`npm package includes duplicate maintained skill trees: ${duplicateSkillTrees.join(", ")}`);
   if (files.has("opencode.json")) throw new Error("npm package must exclude the repository-only opencode.json");

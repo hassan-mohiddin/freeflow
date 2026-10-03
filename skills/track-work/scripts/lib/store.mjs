@@ -168,6 +168,8 @@ export async function createRecordPath(root, taskName, slug) {
     if (error?.code === "EEXIST") fail("task-already-exists", `Task directory already exists: ${directory}`);
     throw error;
   }
+  // The task's place for temporary work, ignored by Git with the rest of the task directory.
+  await mkdir(join(directory, "scratch"));
   return { path, taskName };
 }
 

@@ -24,6 +24,8 @@
 - Advises `PI_CACHE_RETENTION=long` once and in `/freeflow status` when the Cognitive Routing Coordinator's model has a longer prompt-cache tier than the host uses; Freeflow does not change retention.
 - Adds a prompt caching guide covering provider cache behavior, what Freeflow adds to requests, how it keeps them cache-safe, and the rules for changing request assembly.
 - Adds Track Work `slice record`, which records a Slice that finished before it could be recorded directly into History with `Occurred` and `Recorded: retroactively on <date>`, without closing a live Slice or supplying placeholder fields. Working Record commands also accept an absolute `--record` path from any directory.
+- Adds the Write Docs skill (`/write-docs`) for documentation of how existing software works and why: which document serves which reader, adaptable shapes for overviews, subsystem docs, folder READMEs, and user guides, correcting documentation in the same change that makes it wrong, and a `docs-check.mjs` script that reports missing named paths and documents whose covered code changed since they were verified. Execute Work, Track Work, and Workflow point to it where documentation matters.
+- Gives each Track Work task a `scratch/` directory for temporary work, created by `init`; with Tool Execution, the guidance puts scratch files there when a Working Record exists.
 - Ships a `NOTICE` and the Apache-2.0 license text for the `apply_patch` code ported from OpenAI Codex.
 
 ### Changed

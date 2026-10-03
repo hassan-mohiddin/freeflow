@@ -96,7 +96,7 @@ A comparatively economical but capable Helper can contribute much of Both mode's
 
 | Surface | Availability |
 | --- | --- |
-| Interaction Contract, Workflow, and 24 base skills | Shared supported package surface when Freeflow is effectively activated |
+| Interaction Contract, Workflow, and 25 base skills | Shared supported package surface when Freeflow is effectively activated |
 | Track Work / Working Records | Shared skill surface |
 | Context Control v2 | Planned/in development; not available in this release |
 | Cognitive Routing | Experimental native Pi source candidate |
@@ -224,6 +224,7 @@ Canonical Pi direct calls include:
 /write-spec
 /review-artifact
 /write-plan
+/write-docs
 /execute-work
 /simplify-code
 /migration-work

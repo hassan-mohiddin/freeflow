@@ -158,7 +158,7 @@ test("Pi exposes base skills without mode or Skills controls", async () => {
     const { handlers, commands } = loadExtension();
     const ctx = context(cwd);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 26);
+    assert.equal(resources.skillPaths.length, 27);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/workflow/SKILL.md")));
     assert.ok(
       !resources.skillPaths.some(
@@ -209,7 +209,7 @@ test("mandatory prompt readiness gates Runtime State, discovery, and direct skil
     assert.equal(before.systemPrompt, "base prompt");
     assert.match(before.renderedGuidance, /guidance is dormant/);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 26);
+    assert.equal(resources.skillPaths.length, 27);
 
     const discuss = commands.find((command) => command.name === "discuss");
     assert.ok(discuss);

@@ -358,14 +358,14 @@ test("missing mandatory Interaction Contract retains a dormant surface with unav
     assert.equal(before.systemPrompt, "base prompt");
     assert.match(before.renderedGuidance, /guidance is dormant/);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 26);
+    assert.equal(resources.skillPaths.length, 27);
 
     await writeFile(join(root, "runtime", "prompts", "interaction-contract.md"), " \n\t", "utf8");
     const whitespaceBefore = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
     assert.equal(whitespaceBefore.systemPrompt, "base prompt");
     assert.match(whitespaceBefore.renderedGuidance, /guidance is dormant/);
     const whitespaceResources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(whitespaceResources.skillPaths.length, 26);
+    assert.equal(whitespaceResources.skillPaths.length, 27);
     const whitespaceContext = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(whitespaceContext.messages.at(-1).content, /Freeflow: unavailable/);
   } finally {
@@ -394,7 +394,7 @@ test("missing mandatory core prompt retains a dormant surface with unavailable s
     assert.equal(before.systemPrompt, "base prompt");
     assert.match(before.renderedGuidance, /guidance is dormant/);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 26);
+    assert.equal(resources.skillPaths.length, 27);
     const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(providerContext.messages.at(-1).content, /Freeflow: unavailable/);
     assert.doesNotMatch(
@@ -410,7 +410,7 @@ test("missing mandatory core prompt retains a dormant surface with unavailable s
     assert.equal(whitespaceBefore.systemPrompt, "base prompt");
     assert.match(whitespaceBefore.renderedGuidance, /guidance is dormant/);
     const whitespaceResources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(whitespaceResources.skillPaths.length, 26);
+    assert.equal(whitespaceResources.skillPaths.length, 27);
     const whitespaceContext = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(whitespaceContext.messages.at(-1).content, /Freeflow: unavailable/);
   } finally {
@@ -436,7 +436,7 @@ test("Runtime State remains present while Freeflow is disabled without optional 
     assert.doesNotMatch(runtimeState.content, /Default mode|Active mode|Interaction Contract|Skills/);
 
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 26);
+    assert.equal(resources.skillPaths.length, 27);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

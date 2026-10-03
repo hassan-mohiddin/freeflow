@@ -302,8 +302,8 @@ function validateSkillSurface(root, errors) {
     .filter((entry) => entry.isDirectory() && existsSync(join(skillsRoot, entry.name, "SKILL.md")))
     .map((entry) => entry.name)
     .sort();
-  if (skillDirectories.length !== 24) {
-    errors.push(`portable skills directory must contain exactly 24 skills, found ${skillDirectories.length}`);
+  if (skillDirectories.length !== 25) {
+    errors.push(`portable skills directory must contain exactly 25 skills, found ${skillDirectories.length}`);
   }
   if (skillDirectories.includes("tdd")) {
     errors.push("portable skills directory must not expose retired standalone TDD");

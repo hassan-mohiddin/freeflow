@@ -72,6 +72,7 @@ The record serves both halves of the work; update it at meaningful boundaries, n
 - Add Material updates at boundaries: evidence, identities such as commit SHAs or document versions, scope extensions, and contradictions.
 - Add Recovery sources as the work reveals what a resume would need.
 - Close Checkpoints as their boundaries happen, then close the Slice with a distilled result.
+- Keep temporary files for the task, such as throwaway scripts, saved command output, and downloads, in the task directory's `scratch/`. They stay with the task and out of version control; nothing in them is memory unless the record points to it.
 
 ## Use Slices For Work With Partial State
 
@@ -169,6 +170,8 @@ If a record uses another schema or fails validation, read it through `view full`
 Close a Slice as `completed` only when its result is supported by evidence, live state agrees, no material contradiction or authority conflict remains, and no Checkpoint on it is pending or deferred. Close as `blocked` from `paused` when it cannot continue, or as `abandoned` with explicit authority and a reason.
 
 Closing keeps only the historical fields; Material updates and Recovery sources do not carry over. Before closing, put every evidence pointer, residual effect, and limit that still matters into `Evidence and limits` or `Task effect`, and remove Recovery sources that no longer apply.
+
+When the Slice settled how a documented part of the software works or why, such as a design choice, a rejected alternative, or a limit accepted on purpose, record it in that documentation with [Write Docs](../write-docs/SKILL.md) before closing. The record is task memory; it does not outlive the task.
 
 Closing selects nothing. Set the Next useful action from the actual result.
 

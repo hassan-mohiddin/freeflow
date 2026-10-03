@@ -182,6 +182,7 @@ Freeflow skills are focused methods. Workflow chooses the current owner accordin
 | Explore goals, alternatives, or approach | `/discuss` | Collaborative direction and bounded learning decisions |
 | Preserve accepted behavior or design | `/write-spec` | Durable content, constraints, interfaces, and uncertainty |
 | Order settled execution | `/write-plan` | Dependencies, ordered outcomes, checks, and invalidation conditions |
+| Document how the software works and why | `/write-docs` | Overviews, subsystem docs, folder READMEs, and user guides kept true as the code changes |
 | Implement approved work | `/execute-work` | Preparation, production, focused evidence, correction, and continuation |
 | Establish an unsupported cause | `/diagnose-failure` | Reproduction, hypotheses, discriminating evidence, and cause |
 | Establish what a check proves | `/verify-work` | Factual support at the required observer boundary |

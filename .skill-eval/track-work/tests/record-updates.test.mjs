@@ -457,3 +457,11 @@ test("help documents slice record, root resolution, and that input never carries
     assert.match(propose.stdout, /input never includes it/);
   });
 });
+
+test("init creates the task's scratch directory beside the record", async () => {
+  await withWorkspace(async (workspace) => {
+    const recordPath = await init(workspace, "scratchpad");
+    const entries = await readdir(join(recordPath, ".."), { withFileTypes: true });
+    assert.ok(entries.some((entry) => entry.isDirectory() && entry.name === "scratch"));
+  });
+});

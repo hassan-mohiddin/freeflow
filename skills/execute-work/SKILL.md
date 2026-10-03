@@ -137,6 +137,8 @@ A green check proves only its exercised assertions; a source read does not prove
 
 Independent review is separately selected. A self-review finding does not require a reviewer, and a reviewer suggestion does not authorize another change.
 
+If the result makes existing documentation say something no longer true, such as a user guide, a subsystem doc, or a folder README, correcting it is part of this work: use [Write Docs](../write-docs/SKILL.md). New documentation still needs a request.
+
 ## Continue Or Return
 
 Goal: covered work continues without unnecessary stops, and the report describes exactly what exists.

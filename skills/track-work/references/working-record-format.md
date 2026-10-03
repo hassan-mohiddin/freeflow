@@ -12,9 +12,10 @@ Each task has one directory:
   specs/       task-local Specs
   plans/       task-local Plans
   sources/     saved copies of material that exists only in conversation
+  scratch/     temporary work: throwaway scripts, saved output, downloads
 ```
 
-`NNN` is three or more digits. A new task takes the next number after the highest existing one; numbers are never reused. `specs/`, `plans/`, and `sources/` are created only when needed. The directory must be ignored by Git and untracked.
+`NNN` is three or more digits. A new task takes the next number after the highest existing one; numbers are never reused. `specs/`, `plans/`, and `sources/` are created only when needed; `init` creates `scratch/`. Nothing in `scratch/` is part of the record unless the record points to it, and it may be deleted when the task ends. The directory must be ignored by Git and untracked.
 
 A Spec or Plan may instead live in the repository's own documentation; the record points to it either way.
 

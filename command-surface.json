@@ -31,6 +31,10 @@
       "skill": "write-plan"
     },
     {
+      "command": "/write-docs",
+      "skill": "write-docs"
+    },
+    {
       "command": "/execute-work",
       "skill": "execute-work"
     },

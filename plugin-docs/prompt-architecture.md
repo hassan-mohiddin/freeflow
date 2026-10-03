@@ -36,7 +36,7 @@ Runtime State is current-state data, not stable policy. It does not replace the 
 
 Complete methods live in discoverable packages:
 
-- 24 base model/contributor skills under `skills/` whenever Freeflow is enabled and the mandatory core fragments are available;
+- 25 base model/contributor skills under `skills/` whenever Freeflow is enabled and the mandatory core fragments are available;
 - the Cognitive Routing and Compaction capability skills under `capabilities/` only when each gate is effective;
 - capability tools from the same effective surface snapshot.
 

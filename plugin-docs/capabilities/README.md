@@ -1,6 +1,6 @@
 # Freeflow Capabilities
 
-Capabilities are optional Pi extensions outside the shared 24-skill surface. They add bounded host or context behavior; they do not replace Workflow, change authority, or become a second agent.
+Capabilities are optional Pi extensions outside the shared 25-skill surface. They add bounded host or context behavior; they do not replace Workflow, change authority, or become a second agent.
 
 ## Common rules
 

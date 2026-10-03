@@ -91,7 +91,7 @@ Choose the narrowest activity whose responsibility matches the current question 
 - [Diagnose Failure](../diagnose-failure/SKILL.md) establishes unsupported or repeatedly failing causes before correction.
 - [Verify Work](../verify-work/SKILL.md) establishes factual support; [Review Work](../review-work/SKILL.md) and [Review Artifact](../review-artifact/SKILL.md) judge resulting work and guiding artifacts.
 - [Track Work](../track-work/SKILL.md) owns Working Record creation, reconstruction, reconciliation, and lifecycle.
-- [Write Spec](../write-spec/SKILL.md) owns durable accepted content; [Write Plan](../write-plan/SKILL.md) owns a sufficiently settled ordered strategy.
+- [Write Spec](../write-spec/SKILL.md) owns durable accepted content; [Write Plan](../write-plan/SKILL.md) owns a sufficiently settled ordered strategy; [Write Docs](../write-docs/SKILL.md) owns documentation of how existing software works and why.
 - [Migration Work](../migration-work/SKILL.md) owns movement of consumers, state, or traffic.
 - [Commit Work](../commit-work/SKILL.md), [Handoff](../handoff/SKILL.md), [Finish Branch](../finish-branch/SKILL.md), [Release Work](../release-work/SKILL.md), and [Launch Work](../launch-work/SKILL.md) own their selected preservation or delivery boundaries.
 

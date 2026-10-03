@@ -814,7 +814,7 @@ test("Pi describes the mode-free Freeflow argument surface and manual profile co
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("context "), []);
 });
 
-test("Pi exposes 24 base skills without TDD, a mode skill, or compatibility aliases", async () => {
+test("Pi exposes 25 base skills without TDD, a mode skill, or compatibility aliases", async () => {
   const cwd = await configuredRepo();
   try {
     const { handlers, commands, sentMessages, sentMessageOptions } = loadExtension();
@@ -826,7 +826,7 @@ test("Pi exposes 24 base skills without TDD, a mode skill, or compatibility alia
         assert.ok(match, `unexpected skill path: ${path}`);
         return match[1];
       });
-    assert.equal(skillNames.length, 24);
+    assert.equal(skillNames.length, 25);
     assert.ok(skillNames.includes("workflow"));
     assert.ok(!skillNames.includes("tdd"));
     assert.ok(!skillNames.includes("mode-contract"));
@@ -871,7 +871,7 @@ test("Pi keeps Freeflow inactive until repository activation exists", async () =
   try {
     const { handlers } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 26);
+    assert.equal(resources.skillPaths.length, 27);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
     const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, context(cwd));
     assert.equal(result.systemPrompt, "base prompt");
@@ -930,7 +930,7 @@ test("Pi treats invalid configuration as inactive", async () => {
   try {
     const { handlers, commands } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 26);
+    assert.equal(resources.skillPaths.length, 27);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
     const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, context(cwd));
     assert.equal(result.systemPrompt, "base prompt");
@@ -1052,7 +1052,7 @@ test("Pi fails closed when an existing local override is invalid", async () => {
     assert.equal(state.enabled, false);
     const { handlers } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 26);
+    assert.equal(resources.skillPaths.length, 27);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -1078,7 +1078,7 @@ test("Pi master Freeflow toggle makes features inactive while preserving remaini
     const { handlers, activeToolNames } = loadExtension();
     const ctx = context(cwd);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 26);
+    assert.equal(resources.skillPaths.length, 27);
     const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
     assert.equal(result.systemPrompt, "base prompt");
     assert.match(result.renderedGuidance, /guidance is dormant/);
@@ -1537,7 +1537,7 @@ test("Pi preserves the host prompt prefix and dormant contract when a mandatory 
     assert.equal(before.systemPrompt, "base prompt");
     assert.match(before.renderedGuidance, /guidance is dormant/);
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 26);
+    assert.equal(resources.skillPaths.length, 27);
   } finally {
     await rm(cwd, { recursive: true, force: true });
     await rm(root, { recursive: true, force: true });

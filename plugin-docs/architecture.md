@@ -53,7 +53,7 @@ host session enablement
 -> built-in default
 ```
 
-`enabled` is the only Freeflow core switch. When it is effective, the core prompt, Interaction Contract, and 24 base skills are present. Cognitive Routing and Tool Execution are optional gated capabilities, off by default; Compaction is gated by `compaction.enabled` and on by default. Configurations containing the removed `defaultMode`, `interactionContract`, or `skills` keys, or the retired `contextVirtualization` and `conversationHistory` keys, are invalid. An invalid existing personal layer fails closed; remove either legacy context key from both config layers before using Freeflow.
+`enabled` is the only Freeflow core switch. When it is effective, the core prompt, Interaction Contract, and 25 base skills are present. Cognitive Routing and Tool Execution are optional gated capabilities, off by default; Compaction is gated by `compaction.enabled` and on by default. Configurations containing the removed `defaultMode`, `interactionContract`, or `skills` keys, or the retired `contextVirtualization` and `conversationHistory` keys, are invalid. An invalid existing personal layer fails closed; remove either legacy context key from both config layers before using Freeflow.
 
 Cognitive Routing has its own v2 shape under `cognitiveRouting`:
 
@@ -81,7 +81,7 @@ Freeflow has four coordinated model-facing parts:
 1. **Core guidance:** `runtime/prompts/core.md` owns stable identity, shared terms, the three nested loops (Interaction Lifecycle, Feedback Loop, and Environment Interaction Loop), recovery, and Workflow, Action Selection, and Supported Exit cues.
 2. **Interaction Contract:** `runtime/prompts/interaction-contract.md` is a separate mandatory fragment for whole-turn interpretation and establishing outcome, scope, and the user-facing return condition without redundant confirmation.
 3. **Runtime State:** the extension supplies current capability availability and Cognitive Routing Control/Profile/Delegation/Projection at session start, after context reconstruction or loss, and when displayed state changes; unchanged state remains in the current provider context. It is not system-prompt policy.
-4. **Discoverable skills:** 24 base skills under `skills/` are exposed with the core surface; child capability skills under `capabilities/` are exposed only when their own gates are effective.
+4. **Discoverable skills:** 25 base skills under `skills/` are exposed with the core surface; child capability skills under `capabilities/` are exposed only when their own gates are effective.
 
 The Interaction Contract is prompt-only and not discoverable. Full skill and capability bodies are discoverable methods, not persistent bootstrap content. Context loading does not enforce policy, block tools, grant permissions, or replace repository instructions. See [System Prompt Architecture](prompt-architecture.md) for the canonical assembly and gating contract, and [Capabilities](capabilities/README.md) for detailed capability contracts.
 
@@ -117,7 +117,7 @@ The source Pi entrypoint:
 - composes the mandatory core prompt and Interaction Contract plus effective optional capability prompts in `before_agent_start`;
 - supplies one unified volatile `Freeflow Runtime State` message at session start, after context reconstruction or loss, and when displayed state changes, preserving it when unchanged;
 - restores branch-aware session overrides for enablement, the optional capabilities and Compaction, Cognitive Routing delegation mode, and complete profile pairs;
-- dynamically exposes 24 base model/contributor skills plus effective child capability skills;
+- dynamically exposes 25 base model/contributor skills plus effective child capability skills;
 - registers canonical direct commands, the v2 routing tools, Tool Execution's `apply_patch`, `bash_background` and `stop_background`, and `freeflow_compact`, each declared only while its gate is effective;
 - with Tool Execution, adds its prompt section and the file-tracking layer around Pi's own tools, which stay available;
 - with Compaction, measures context after each turn, sends the compaction notices, writes Freeflow compactions at turn end, and adds its instructions and state to Pi's own compaction;
