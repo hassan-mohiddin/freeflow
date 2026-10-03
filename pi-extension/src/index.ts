@@ -19,7 +19,7 @@ import { CompactionController, USER_REQUEST, type TurnEnd } from "./compaction/c
 import { applyCompactionTools, registerCompactionTool } from "./compaction/tool.js";
 import { strictest } from "./compaction/thresholds.js";
 import { tagProjectedMessages } from "./host/projection-tags.js";
-import { trustLoadedSession } from "./host/read-only-session.js";
+import { trustStartedSession } from "./host/read-only-session.js";
 import { takeStage } from "./host/staging.js";
 import {
   CONTRIBUTOR_COMMANDS,
@@ -341,8 +341,8 @@ export default function freeflow(pi: FreeflowAPI) {
     liveHost = ctx;
     const generation = ++surfaceGeneration;
     resetHistory();
-    // Pi has just loaded this native session. Future acknowledgment checks read only new JSONL tail bytes.
-    trustLoadedSession(ctx.sessionManager);
+    // Where Pi has just parsed this session file, later checks read only the bytes appended since.
+    trustStartedSession((event as any)?.reason, ctx.sessionManager);
     routing.unbind();
     capability = undefined;
     prompts = undefined;

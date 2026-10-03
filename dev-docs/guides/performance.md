@@ -30,7 +30,7 @@ A new feature on the request path states which rules its work follows. Work that
 - **Per turn:** `turn_end` stays at or below 1 ms without routing.
 - **Branch walks:** at most 10 calls to Pi's `getBranch()` per prompt, the same for a short and a long session (enforced by `pi-extension/tests/integration/request-path-budget.test.js`).
 - **Context-usage estimates:** Freeflow adds none when the turn reports its usage (enforced by the same test).
-- **Session start:** at or below 100 ms plus work for routing events since a checkpoint (not yet met with routing on; see Known costs).
+- **Session start:** at or below 100 ms plus about 15 µs per routing event. Routing replays every event at startup by decision (October 2026): a checkpoint would need an idempotency redesign. Revisit if a real session's replay passes 100 ms (about 7,000 events).
 
 ## Measuring
 
@@ -48,21 +48,22 @@ When a change touches the request path:
 
 ## Current numbers
 
-On the development machine, Pi 1.0.0, at the commit that added this page. Added time is the median prompt with Freeflow minus without.
+On the development machine, Pi 1.0.0, October 2026 after the routing view and startup changes; earlier numbers in parentheses. Added time is the median prompt with Freeflow minus without.
 
 | Session | Scenario | Freeflow adds per prompt | Freeflow at session start |
 | --- | --- | --- | --- |
-| Generated (2,000 turns, 8k entries) | disabled | about 5 ms | about 3 ms |
-| | defaults | about 11 ms | about 1 ms |
-| | routing + projection + Tool Execution | about 16 ms | about 4 ms |
-| Real, 24 MB (7.8k entries, 4.8k routing events) | disabled | about 7 ms (13 in September) | 33 ms |
-| | defaults | about 8 ms (15) | 26 ms |
-| | routing + projection + Tool Execution | about 16 ms (28) | about 190 ms (260) |
+| Generated (2,000 turns, 8k entries) | disabled | about 5 ms | about 2 ms |
+| | defaults | about 6 ms (11) | about 1 ms |
+| | routing + projection + Tool Execution | about 12 ms (16) | about 4 ms |
+| Real, 24 MB (7.8k entries, 2.1k routing events) | disabled | about 8 ms (13 in September) | about 30 ms |
+| | defaults | about 10 ms (15) | about 27 ms |
+| | routing + projection + Tool Execution | about 14 ms (28) | about 40 to 50 ms (190) |
+| Real, 45 MB (17k entries, 4.2k routing events) | routing + projection + Tool Execution | | about 90 ms (350) |
 
 ## Known costs
 
 - **Routing view assembly.** With projection on, routing makes one pass over the live context per request to build the Coordinator's view. Renderings are cached and keep their identity, so nothing is cloned or re-hashed: about 7 ms per request at a normal window and 25 ms at 8,000 live messages (73 ms before October 2026). Compaction keeps live context near one window.
-- **Routing session start.** Startup re-reads and decodes the session file and replays every routing event to check that the session is fully persisted (R-7 and R-2 not yet met): about 190 ms on a 24 MB routed session and about 500 ms on a 47 MB one.
+- **Routing session start.** Startup verifies persistence by the bytes appended since Pi parsed the file (R-7) and replays every routing event, about 15 µs per event: about 50 ms on a 24 MB session and 90 ms on a 45 MB one. Replay stays proportional to the number of routing events (R-2, accepted; see Budgets). After `/reload` the first verification reads the whole file, because Pi does not re-read it then.
 
 ## Related
 

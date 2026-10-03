@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   activeReadOnlySessionBranch,
+  persistedTailMatches,
   readOnlySessionSnapshot,
   ReadOnlySessionError,
 } from "../host/read-only-session.js";
@@ -138,6 +139,20 @@ export class EventStore {
       }
       const path = this.reader.getSessionFile();
       check(path, "persisted_snapshot_unavailable", "Existing or uncertain routing state needs a persisted snapshot.");
+      // Pi parsed this file when it opened the session and appends each entry synchronously after that. When the
+      // bytes appended since that trust point are exactly Pi's in-memory entries, the live branch is persisted and
+      // no snapshot is needed. Otherwise the full comparison below decides.
+      if (await persistedTailMatches(this.reader)) {
+        const known = new Map<string, { value: string; eventId: string; entryId: string }>();
+        for (const entry of live) {
+          const event = parseRoutingEvent(entry.data);
+          known.set(eventKey(event), { value: eventValue(event), eventId: event.eventId, entryId: entry.id });
+        }
+        this.acknowledge(known);
+        this.cachedEntries = branch;
+        this.cachedState = replay(branch);
+        return;
+      }
       const snapshot = await readOnlySessionSnapshot(path);
       check(snapshot.sessionId === this.reader.getSessionId(), "session_identity_changed");
       const persistedBranch = activeReadOnlySessionBranch(snapshot, this.reader.getLeafId());
@@ -164,16 +179,7 @@ export class EventStore {
           known.set(eventKey(event), { value: eventValue(event), eventId: event.eventId, entryId: entry.id });
         }
       }
-      for (const [key, event] of this.attempted)
-        check(
-          known.get(key)?.value === eventValue(event) && known.get(key)?.eventId === event.eventId,
-          "append_acknowledgment_uncertain",
-          "The attempted routing event is not established by persisted readback.",
-        );
-      this.observed = known;
-      this.attempted.clear();
-      this.fault = undefined;
-      this.ready = true;
+      this.acknowledge(known);
       // The live branch matches the persisted one entry for entry, so its replay is the state the next read needs.
       this.cachedEntries = branch;
       this.cachedState = replayed;
@@ -187,6 +193,19 @@ export class EventStore {
       );
       throw error;
     }
+  }
+  /** Accept persisted events as observed; every attempted (uncertain) append must be among them. */
+  private acknowledge(known: Map<string, { value: string; eventId: string; entryId: string }>): void {
+    for (const [key, event] of this.attempted)
+      check(
+        known.get(key)?.value === eventValue(event) && known.get(key)?.eventId === event.eventId,
+        "append_acknowledgment_uncertain",
+        "The attempted routing event is not established by persisted readback.",
+      );
+    this.observed = known;
+    this.attempted.clear();
+    this.fault = undefined;
+    this.ready = true;
   }
   /** Append an event; with `stage`, hold it for the next prompt instead of writing it to the session now. */
   append(event: RoutingEvent, stage = false): RoutingEvent {

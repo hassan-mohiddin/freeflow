@@ -1,9 +1,9 @@
 import { OpenAIEffortAdapter } from "./adapter.js";
-import { trustLoadedSession } from "../../host/read-only-session.js";
+import { trustStartedSession } from "../../host/read-only-session.js";
 export function registerOpenAIEffortSupport(pi, enabled, monitor) {
   const adapter = new OpenAIEffortAdapter(pi, enabled, monitor);
-  pi.on("session_start", (_event, ctx) => {
-    trustLoadedSession(ctx.sessionManager);
+  pi.on("session_start", (event, ctx) => {
+    trustStartedSession(event?.reason, ctx.sessionManager);
     adapter.reset(ctx);
   });
   pi.on("session_shutdown", (_event, ctx) => adapter.reset(ctx));

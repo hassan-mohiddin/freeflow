@@ -1,11 +1,11 @@
 import type { CacheMonitor } from "../cache/monitor.js";
 import { OpenAIEffortAdapter } from "./adapter.js";
-import { trustLoadedSession } from "../../host/read-only-session.js";
+import { trustStartedSession } from "../../host/read-only-session.js";
 
 export function registerOpenAIEffortSupport(pi: any, enabled?: () => boolean, monitor?: CacheMonitor): void {
   const adapter = new OpenAIEffortAdapter(pi, enabled, monitor);
-  pi.on("session_start", (_event: any, ctx: any) => {
-    trustLoadedSession(ctx.sessionManager);
+  pi.on("session_start", (event: any, ctx: any) => {
+    trustStartedSession(event?.reason, ctx.sessionManager);
     adapter.reset(ctx);
   });
   pi.on("session_shutdown", (_event: any, ctx: any) => adapter.reset(ctx));

@@ -9,6 +9,7 @@ Tests for [`src/cognitive-routing/`](../../src/cognitive-routing/README.md). Mos
 | Turns and handoffs | `handoffs.test.js`, `transitions.test.js`, `control-staging.test.js` (control changes staged until the next prompt), `shortcut-control.test.js` |
 | Projection and evidence | `projection.test.js`, `projected-association.test.js`, `communication.test.js` (refs, locators, evidence selection), `assembler.test.js` |
 | Recovery and compaction | `recovery.test.js`, `crash-resume.test.js`, `compaction-input.test.js`, `stabilization.test.js` |
+| Startup verification | `startup-verification.test.js`: a start Pi just loaded is verified by the file's tail without a snapshot; without a trust point the snapshot decides; an entry held only in memory blocks routing; a reload does not trust a file it did not re-read |
 | Pi 0.99 and later | `pi-099.test.js` (message-started runs, retries, virtual models, codemode, tools other extensions add), `nested-calls.test.js` (routing tools stay out of codemode scripts) |
 | Runtime, status and rendering | `runtime.test.js` (binding sessions and stale control), `status.test.js`, `render.test.js`, `economics.test.js` (preset warnings) |
 | Regressions | `review-fixes.test.js`: fixes from earlier code reviews, each named by the behavior it protects |

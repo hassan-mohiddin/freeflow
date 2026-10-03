@@ -66,10 +66,13 @@ export function parseReadOnlySessionText(text: string): readonly ReadOnlySession
   const seen = new Set<string>();
   return lines.map((line, i) => decodeEntry(line, i + 1, seen));
 }
+/** Whole-file snapshots read so far; tests check that a verified startup reads none. */
+export const readOnlySessionCounters = { snapshots: 0 };
 export async function readOnlySessionSnapshot(
   path: string,
   options: { maxBytes?: number; maxEntryBytes?: number; maxEntries?: number } = {},
 ): Promise<ReadOnlySessionSnapshot> {
+  readOnlySessionCounters.snapshots++;
   const limits = { ...SESSION_READ_LIMITS, ...options };
   if (Object.values(limits).some((n) => !Number.isSafeInteger(n) || n <= 0))
     throw new ReadOnlySessionError("invalid_limit", "Invalid snapshot limit.");
@@ -189,6 +192,15 @@ export function trustLoadedSession(reader: PersistedBranchReader): void {
   }
 }
 
+/**
+ * At `session_start`, trust the file only when Pi just parsed it. A reload keeps Pi's session in memory without
+ * re-reading the file, so it establishes nothing: after a failed write, memory could hold an entry the file lacks.
+ * The previous trust point, or a full check, still applies after a reload.
+ */
+export function trustStartedSession(reason: unknown, reader: PersistedBranchReader): void {
+  if (reason !== "reload") trustLoadedSession(reader);
+}
+
 async function tailMatches(path: string, reader: PersistedBranchReader): Promise<boolean> {
   const point = verified.get(path);
   if (!point) return false;
@@ -213,6 +225,16 @@ async function tailMatches(path: string, reader: PersistedBranchReader): Promise
   } finally {
     await file?.close();
   }
+}
+
+/**
+ * Whether every entry Pi holds is persisted, judged only by the bytes appended since the trust point: true when the
+ * file grew by exactly those entries. False when there is no trust point or anything differs; callers then fall back
+ * to a full snapshot.
+ */
+export async function persistedTailMatches(reader: PersistedBranchReader): Promise<boolean> {
+  const path = reader.getSessionFile?.();
+  return !!path && (await tailMatches(path, reader));
 }
 
 /** Verify one newly appended native anchor without re-reading the historical session. */
