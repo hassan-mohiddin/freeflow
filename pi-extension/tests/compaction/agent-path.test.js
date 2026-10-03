@@ -80,6 +80,9 @@ test("/freeflow compact leads to one compaction and the same run continues from 
       assert.match(after[2], /do not call freeflow_compact again in this cycle/);
       assert.match(after[2], /a worker returns its assignment with freeflow_return/);
       assert.match(after[2], /verify work the summary calls done instead of redoing it/);
+      // The carry is fresh: reading it again, or the compaction skill, only refills the new cycle.
+      assert.match(after[2], /its files were read at compaction, so do not read them or its results again/);
+      assert.match(after[2], /do not re-read the compaction skill or its summary format/);
       // A record another session just updated is not this work's record: Freeflow names none.
       assert.ok(!after.slice(0, 3).some((each) => each.includes("task-999-elsewhere")));
       // Nothing from before the compaction is sent again: not the old read, not the request that compacted.

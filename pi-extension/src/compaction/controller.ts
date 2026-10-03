@@ -349,7 +349,10 @@ export class CompactionController {
       listed,
       scope: this.host.nativeRefs() && this.host.assignmentResults() ? "assignment" : "cycle",
     });
-    const recovery = `${this.host.noticePrefix} ${recoveryText(cycle, "The carried context is above. ")} ${AFTER_REQUESTED}`;
+    const recovery = `${this.host.noticePrefix} ${recoveryText(
+      cycle,
+      "The carried context is above: its files were read at compaction, so do not read them or its results again unless something has changed them since. ",
+    )} ${AFTER_REQUESTED}`;
 
     this.requested = undefined;
     this.compacted = { carriedFiles: files.filter((file) => "text" in file).map((file) => file.path) };
@@ -454,7 +457,7 @@ const FALLBACK_INSTRUCTIONS = [
  * pointing at the wrong one sends recovery into another task. The summary names the record when there is one.
  */
 function recoveryText(cycle: number, carried = ""): string {
-  return `Compaction finished; cycle ${cycle} starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on, and verify work the summary calls done instead of redoing it. ${carried}Then continue the work the compaction interrupted.`;
+  return `Compaction finished; cycle ${cycle} starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on, and verify work the summary calls done instead of redoing it. ${carried}This compaction is done, so do not re-read the compaction skill or its summary format. Then continue the work the compaction interrupted.`;
 }
 
 /** The agent path: the compaction was the request, and it is done. */

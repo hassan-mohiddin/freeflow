@@ -36,6 +36,8 @@ test("Pi's own compaction gets Freeflow's instructions, state and recovery steps
       assert.match(entry.summary, /## Freeflow state at compaction\n\nThis compaction starts cycle 2\./);
       assert.match(entry.summary, /if the summary names a Working Record for this work/);
       assert.match(entry.summary, /Compaction is no longer due: do not call freeflow_compact\./);
+      assert.match(entry.summary, /do not re-read the compaction skill or its summary format/);
+      assert.doesNotMatch(entry.summary, /carried context is above/, "Pi's own compaction carries nothing");
       assert.doesNotMatch(entry.summary, /Files read this cycle/, "Pi's summary already lists files");
       assert.notEqual(entry.firstKeptEntryId, entry.id, "Pi's kept tail stays");
       assert.equal(entry.details.freeflow.fallback, true);

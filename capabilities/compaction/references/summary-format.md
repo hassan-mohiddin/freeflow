@@ -60,7 +60,7 @@ The summary must let a fresh context continue the **current step** correctly on 
 
 ## Record-shaped shape
 
-Each heading means exactly what it means in the Working Record format ([Working Record Format](../../../skills/track-work/references/working-record-format.md)). `Current work` stands in for the Current Slice: in-progress work, partial or uncommitted effects, unverified results, running commands, and obligations with their trigger, using the same `Observed:`, `Dropped:`, and `Pending:` labels where they fit.
+Each heading means exactly what it means in the Working Record format ([Working Record Format](../../../skills/track-work/references/working-record-format.md)). `Current work` stands in for the Current Slice: in-progress work, partial or uncommitted effects, unverified results, running commands, and obligations with their trigger, using the same `Observed:`, `Dropped:`, and `Pending:` labels where they fit. `Recovery sources` names only what the next cycle must read again: what you carry is read at compaction and arrives with the summary, so leave it out.
 
 ```markdown
 ## Goal
@@ -185,7 +185,7 @@ retries should respect Retry-After, the API team says they ban clients that don'
 …  1 failed  …
 ```
 
-[Freeflow notice, not from the user] Compaction finished; cycle 3 starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on, and verify work the summary calls done instead of redoing it. The carried context is above. Then continue the work the compaction interrupted. This compaction completes the request for it: do not call freeflow_compact again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment with freeflow_return).
+[Freeflow notice, not from the user] Compaction finished; cycle 3 starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on, and verify work the summary calls done instead of redoing it. The carried context is above: its files were read at compaction, so do not read them or its results again unless something has changed them since. This compaction is done, so do not re-read the compaction skill or its summary format. Then continue the work the compaction interrupted. This compaction completes the request for it: do not call freeflow_compact again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment with freeflow_return).
 ````
 
 ## Example: record-shaped
