@@ -5,6 +5,7 @@ Everything Freeflow needs on Pi that is not one capability: reading configuratio
 | File | Owns |
 |---|---|
 | [`config.ts`](config.ts) | Repository and personal config files, how they layer, per-session overrides, and the resulting capability state. Optional capabilities are turned off inside subagents. |
+| [`config-validation.ts`](config-validation.ts) | Whether each config file is valid. The hooks of other hosts import the built file, so it imports no Pi package. |
 | [`catalog.ts`](catalog.ts) | The fixed command and skill surface: the commands Freeflow registers, the skills it lists to the model, and where their files live. |
 | [`prompts.ts`](prompts.ts) | Freeflow's prompt files and the fixed system section built from them. The section never changes with feature state, so it stays cached. |
 | [`runtime-state.ts`](runtime-state.ts) | The Runtime State message: what is active for this request. Unchanged state keeps its position; changed state is placed before the latest user message so earlier input is never rewritten. |

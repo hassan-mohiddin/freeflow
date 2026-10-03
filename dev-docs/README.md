@@ -1,7 +1,7 @@
 # Freeflow Developer Docs
 
 > **Covers:** `pi-extension/src/README.md`, `hooks/`, `runtime/prompts/`, `plugin.json`, `package.json`, `command-surface.json`
-> **Verified at:** `76539785` (2026-10-03)
+> **Verified at:** `37b52b87` (2026-10-04)
 
 For anyone working on Freeflow itself, people or agents: what the parts are, how they relate, the rules that hold across them, and where each part's detailed document is. Using Freeflow is covered by the [user docs](../plugin-docs/README.md).
 
@@ -51,7 +51,7 @@ skills/  capabilities/  runtime/prompts/      model-facing methods and guidance 
 - On Pi, Freeflow never makes a request cost more than native Pi would: content a provider cached is never rewritten, the system section and tool definitions stay fixed for a configuration, and generated content is appended. See [Prompt cache rules](guides/prompt-cache.md).
 - Freeflow's work on every request and turn stays small and does not grow with session age. See [Performance](guides/performance.md).
 - Freeflow never patches Pi, rewrites session files, or replaces Pi's tools; it uses Pi's extension API and appends session entries.
-- In the Pi extension, configuration is read only through `pi-extension/src/host/config.ts`; other code receives capability state. Hook adapters read it through the shared renderer.
+- In the Pi extension, configuration is read only through `pi-extension/src/host/config.ts`; other code receives capability state. Hook adapters read it through the shared renderer, which validates both files with the same `host/config-validation.ts` (built to `pi-extension/dist/`), so a config is valid or invalid on every host alike.
 - A failure in an optimization (cache placement, request history replay, compaction additions) falls back to Pi's own behavior; it never fails the user's request.
 
 ## Cross-Cutting Concerns
@@ -74,7 +74,7 @@ Freeflow does not ship a CLI, duplicate manifest command handlers, enforcement h
 - **Kiro, OpenCode, Hermes and other skills-compatible hosts:** the root Agent Plugins 1.0 package or their skill-source configuration pointing at `skills/`; no always-on prompt surface.
 - **Pi:** the root package manifest loads `pi-extension/freeflow/index.js` (Pi 0.99.1 or later).
 
-All hook adapters stay inert without valid repository activation and never expose Pi capabilities. Hook trust and registration remain host concerns; local checks prove package and hook shapes, not host dispatch. Per-host detail: [Prompt assembly](subsystems/prompt-assembly.md#host-delivery).
+All hook adapters stay inert without valid repository activation and never expose Pi capabilities. An existing but invalid `.freeflow/config.json` or `.freeflow/local.json` delivers a short configuration error naming the file instead of the core prompt, as Pi's status does; a missing repository config delivers nothing. Hook trust and registration remain host concerns; local checks prove package and hook shapes, not host dispatch. Per-host detail: [Prompt assembly](subsystems/prompt-assembly.md#host-delivery).
 
 ## Subsystem Docs
 

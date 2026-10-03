@@ -65,6 +65,8 @@ The `enabled` setting is the only Freeflow core switch. Cognitive Routing, Tool 
 
 The Codex and Claude adapters load the mandatory core fragments at `SessionStart` for startup, resume, clear, and compact boundaries. They share `hooks/shared/runtime-context.mjs` but keep host-specific hook manifests and output envelopes. They do not process ordinary submitted prompts, persist session controls, or create clear-transfer state. Codex and Claude do not receive Pi-specific capability delivery.
 
+The renderer decides config validity with Pi's own validator (`pi-extension/src/host/config-validation.ts`, imported from its built file), so settings written on Pi, such as Tool Execution or Compaction, never switch Freeflow off elsewhere. Until October 2026 the hooks kept their own copy of the check, which rejected those keys and left Freeflow silently missing. That module and its imports must stay free of Pi packages, because hooks run in plain Node; `hooks/tests/check-host-adapters.test.mjs` checks this and that the hooks and Pi agree on a set of configs. An existing invalid config renders a configuration error naming the file; a missing one renders nothing.
+
 Hook delivery does not enforce Workflow policy, block tools, grant permissions, or replace repository instructions. Hook trust and registration are host concerns; Setup reports delivery as confirmed, unavailable, or unconfirmed.
 
 ### Gemini CLI

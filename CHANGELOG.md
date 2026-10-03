@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- Freeflow no longer goes silently inactive on Codex, Claude Code, Gemini CLI, Cursor, and GitHub Copilot in a repository whose `.freeflow/config.json` or `.freeflow/local.json` has `toolExecution` or `compaction` settings, such as those written by `/freeflow settings` on Pi. The session-start hooks now check configuration with the same validator as Pi, and an existing invalid configuration file now produces a short configuration error naming the file instead of no Freeflow context.
+
 ## 0.8.0 - 2026-10-03
 
 ### Breaking Changes
