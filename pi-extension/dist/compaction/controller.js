@@ -25,6 +25,8 @@ export const RECOVERY_TYPE = "freeflow-compaction-recovery";
 export const USER_REQUEST =
   "Compact now: read the compaction skill, prepare the next cycle, and call freeflow_compact.";
 const ABNORMAL_STOPS = new Set(["error", "aborted", "length"]);
+/** Pi checks its own threshold only after a run ends, so within a run "compact now" repeats as context keeps growing. */
+const COMPACT_NOW_REPEAT = 10_000;
 const hash = (text) => createHash("sha256").update(text).digest("hex");
 const branchOf = (ctx) => ctx.sessionManager?.getBranch?.() ?? [];
 const cycleOf = (branch) => nextCycle(branch) - 1;
@@ -33,7 +35,7 @@ export class CompactionController {
   /** The user ran /freeflow compact in this cycle. */
   requested;
   /** Notices sent in the current cycle. */
-  sent = { cycle: 0, warning: false, compactNow: false };
+  sent = { cycle: 0, warning: false };
   pending;
   compacted;
   constructor(host) {
@@ -42,7 +44,7 @@ export class CompactionController {
   /** Session start or shutdown: nothing is due, scheduled or waiting to reset. */
   reset() {
     this.requested = undefined;
-    this.sent = { cycle: 0, warning: false, compactNow: false };
+    this.sent = { cycle: 0, warning: false };
     this.pending = undefined;
     this.compacted = undefined;
   }
@@ -90,21 +92,28 @@ export class CompactionController {
     if (!this.host.carryEnabled() || this.host.nativeRefs()) return "";
     return renderIndex(resultIndex(branchOf(ctx)));
   }
+  /** The carry budget for this context: from the window, capped by the room before the warning. */
+  budget(ctx) {
+    return carryBudget(ctx.model?.contextWindow, this.host.measure(ctx)?.thresholds.warning);
+  }
   /** How the notices tell the agent what it may carry. */
-  carryText(window) {
+  carryText(ctx) {
     if (!this.host.carryEnabled())
       return "context reuse is off, so carry nothing; the user's latest messages are carried for you";
     const how = this.host.nativeRefs()
       ? "files by path, tool results by their routing ref such as ctx:1a2b3c4d"
       : "files by path, tool results by id below";
-    return `choose what to carry (budget ${carryBudget(window)} tokens: ${how})`;
+    return `choose what to carry (budget ${this.budget(ctx)} tokens: ${how})`;
   }
-  /** After a turn: the notice to deliver, if the context just crossed a point not yet announced this cycle. */
+  /**
+   * After a turn: the notice to deliver. The warning comes once per cycle; "compact now" comes when the context
+   * crosses its point and again each time it grows another COMPACT_NOW_REPEAT tokens.
+   */
   observe(ctx) {
     if (!this.host.effective()) return undefined;
     const branch = branchOf(ctx);
     const cycle = cycleOf(branch);
-    if (this.sent.cycle !== cycle) this.sent = { cycle, warning: false, compactNow: false };
+    if (this.sent.cycle !== cycle) this.sent = { cycle, warning: false };
     const measured = this.host.measure(ctx);
     if (!measured) return undefined;
     const { tokens: measuredTokens, thresholds } = measured;
@@ -112,21 +121,25 @@ export class CompactionController {
     const listTokens = this.sent.warning ? 0 : estimateTokens(this.indexText(ctx));
     const tokens = measuredTokens + listTokens;
     const level = tokens >= thresholds.compactNow ? "compactNow" : tokens >= thresholds.warning ? "warning" : undefined;
-    if (!level || this.sent[level]) return undefined;
+    if (!level) return undefined;
+    if (level === "warning" && this.sent.warning) return undefined;
+    const repeat = level === "compactNow" && this.sent.compactNowAt !== undefined;
+    if (repeat && tokens < this.sent.compactNowAt + COMPACT_NOW_REPEAT) return undefined;
+    const withList = !this.sent.warning || (level === "compactNow" && !repeat);
     this.sent.warning = true;
-    if (level === "compactNow") this.sent.compactNow = true;
-    return { level, text: this.noticeText(level, tokens, thresholds, ctx) };
+    if (level === "compactNow") this.sent.compactNowAt = tokens;
+    return { level, text: this.noticeText(level, tokens, thresholds, ctx, withList) };
   }
-  noticeText(level, tokens, thresholds, ctx) {
+  noticeText(level, tokens, thresholds, ctx, withList = true) {
     const prefix = this.host.noticePrefix;
     const { window, trigger } = thresholds;
     if (this.host.coordinatorUnderProjection())
       return `${prefix} ${level === "compactNow" ? "Compact now" : "Compaction is due"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own at about ${trigger}. Your view leaves out what workers did, so do not compact yourself: delegate an assignment asking the worker to read the compaction skill, compact with freeflow_compact, and then return with freeflow_return; then continue.`;
-    const index = this.indexText(ctx);
+    const index = withList ? this.indexText(ctx) : "";
     const list = index ? `\n\n${index}` : "";
     if (level === "compactNow")
-      return `${prefix} Compact now: context is at about ${tokens} of ${window} tokens, close to Pi's own compaction at about ${trigger}. Finish preparing and call freeflow_compact; if Pi compacts first, its own summary replaces yours.${list}`;
-    return `${prefix} Compaction is due: context is at about ${tokens} of ${window} tokens, and Pi compacts on its own at about ${trigger}. Read the compaction skill and prepare now: update the Working Record, ${this.carryText(window)}, write the summary, then call freeflow_compact. A "compact now" notice follows near Pi's limit.${list}`;
+      return `${prefix} Compact now: context is at about ${tokens} of ${window} tokens. Pi compacts on its own past about ${trigger} once this run ends, or when a request overflows the model's window. Finish preparing and call freeflow_compact; if Pi compacts first, its own summary replaces yours.${list}`;
+    return `${prefix} Compaction is due: context is at about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger} once this run ends. Read the compaction skill and prepare now: update the Working Record, ${this.carryText(ctx)}, write the summary, then call freeflow_compact. A "compact now" notice follows near Pi's limit.${list}`;
   }
   /** Check a freeflow_compact call and schedule it for the end of this turn; throws with the reason it is refused. */
   async request(params, ctx) {
@@ -135,12 +148,7 @@ export class CompactionController {
       throw new Error(
         "Your view leaves out what workers did, so do not compact yourself: delegate an assignment asking the worker to read the compaction skill, compact with freeflow_compact, and then return with freeflow_return.",
       );
-    if (!this.isDue(ctx))
-      throw new Error(
-        startedByFreeflowCompaction(branchOf(ctx))
-          ? "Compaction is not due: this cycle began with a compaction, and that compaction completed any compaction your request or assignment asked for. Continue the work; if this is a routing assignment that only asked for compaction, return it with freeflow_return."
-          : "Compaction is not due. Freeflow says when it is; the user can also ask for it with /freeflow compact.",
-      );
+    if (!this.isDue(ctx)) throw new Error(notDueText(branchOf(ctx)));
     const summary = typeof params?.summary === "string" ? params.summary.trim() : "";
     if (!summary) throw new Error("Write the summary before compacting: summary must not be empty.");
     const summaryTokens = estimateTokens(summary);
@@ -171,7 +179,7 @@ export class CompactionController {
     const carriedTokens =
       files.reduce((sum, file) => sum + ("text" in file ? estimateTokens(file.text) : 0), 0) +
       results.reduce((sum, result) => sum + result.tokens, 0);
-    const budget = carryBudget(ctx.model?.contextWindow);
+    const budget = this.budget(ctx);
     if (carriedTokens > budget)
       throw new Error(
         `The carried items are about ${carriedTokens} tokens; the budget is ${budget}. Drop or narrow about ${carriedTokens - budget} tokens (line ranges help) and re-read the rest during recovery.`,
@@ -320,10 +328,16 @@ const AFTER_REQUESTED =
   "This compaction completes the request for it: do not call freeflow_compact again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment with freeflow_return).";
 /** Pi compacted on its own, so a Freeflow compaction being prepared is no longer needed. */
 const AFTER_PI = "Compaction is no longer due: do not call freeflow_compact.";
-/** The current cycle began with a Freeflow compaction written on the agent path (not Pi's own, with or without additions). */
-function startedByFreeflowCompaction(branch) {
+/** Why freeflow_compact is refused when compaction is not due, and where to go next if a compaction began this cycle. */
+function notDueText(branch) {
   const latest = [...branch].reverse().find((entry) => entry?.type === "compaction");
-  return Boolean(latest?.details?.freeflow && !latest.details.freeflow.fallback);
+  const next =
+    "Continue the work; if this is a routing assignment that only asked for compaction, return it with freeflow_return.";
+  if (!latest)
+    return "Compaction is not due. Freeflow says when it is; the user can also ask for it with /freeflow compact.";
+  if (latest.details?.freeflow && !latest.details.freeflow.fallback)
+    return `Compaction is not due: this cycle began with a compaction, and that compaction completed any compaction your request or assignment asked for. ${next}`;
+  return `Compaction is not due: this cycle began with Pi's own compaction, so the compaction you were preparing is no longer needed. ${next}`;
 }
 /** What the previous Freeflow compaction carried (file paths and result ids), with the cycle each was first carried. */
 function previousCarried(branch) {

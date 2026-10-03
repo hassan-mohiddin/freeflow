@@ -103,3 +103,41 @@ test("file lists cover the whole session across a Freeflow compaction and then P
     },
   );
 });
+
+test("after Pi's own compaction, freeflow_compact is refused with where to go next", { timeout: 30000 }, async () => {
+  let compacted = false;
+  let called = false;
+  await fixture(
+    async (n) => {
+      if (n === 1) return [{ name: "read", args: { path: "evidence.txt" } }];
+      // The fixture's own prompt, after Pi compacted: the agent tries to finish a compaction it was preparing.
+      if (compacted && !called) {
+        called = true;
+        return [{ name: "freeflow_compact", args: { summary: "S" } }];
+      }
+      return [];
+    },
+    false,
+    async ({ manager }) => {
+      const refusal = manager
+        .getBranch()
+        .find((entry) => entry.message?.role === "toolResult" && entry.message.toolName === "freeflow_compact");
+      assert.equal(refusal.message.isError, true);
+      const text = refusal.message.content.map((part) => part.text).join("");
+      assert.match(
+        text,
+        /this cycle began with Pi's own compaction, so the compaction you were preparing is no longer needed/,
+      );
+      assert.doesNotMatch(text, /\/freeflow compact/);
+    },
+    true,
+    {
+      ...options,
+      beforePrompt: async (run) => {
+        await earlierPrompt(run);
+        await run.session.compact();
+        compacted = true;
+      },
+    },
+  );
+});

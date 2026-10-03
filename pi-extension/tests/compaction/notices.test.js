@@ -118,3 +118,26 @@ test(
     );
   },
 );
+
+test(
+  "compact now repeats as the context keeps growing, since Pi does not compact within a run",
+  { timeout: 30000 },
+  async () => {
+    // Compact now at 117,999: crossed at 120k, not repeated at 125k, repeated at 131k (10k past the last one).
+    const usage = [50_000, 100_000, 120_000, 125_000, 131_000, 1_000];
+    const read = [{ name: "read", args: { path: "evidence.txt" } }];
+    await fixture(
+      async (n) => (n <= 5 ? read : []),
+      false,
+      async ({ requests }) => {
+        assert.equal(count(requests[3], COMPACT_NOW), 1, "the first compact now");
+        assert.equal(count(requests[4], COMPACT_NOW), 1, "not repeated before another 10k");
+        assert.equal(count(requests[5], COMPACT_NOW), 2, "repeated 10k past the last one");
+        assert.match(JSON.stringify(requests[5].input), /once this run ends, or when a request overflows/);
+        assert.equal(count(requests[5], WARNING), 1, "the warning stays once per cycle");
+      },
+      true,
+      { ...noRouting, response: withUsage((n) => usage[n - 1] ?? 1_000) },
+    );
+  },
+);

@@ -10,10 +10,15 @@ export const estimateTokens = (text) => Math.ceil(text.length / 4);
 export const SUMMARY_LIMIT_TOKENS = 8_000;
 /** The latest user messages are carried outside the budget, up to this many and this size. */
 export const USER_MESSAGE_LIMIT = { count: 3, tokens: 8_000 };
-/** Carry budget: 15% of the context window, never above 40k tokens. */
-export function carryBudget(contextWindow) {
-  if (!(typeof contextWindow === "number" && contextWindow > 0)) return 40_000;
-  return Math.min(Math.floor(contextWindow * 0.15), 40_000);
+/**
+ * Carry budget: 15% of the context window, never above 40k tokens, and never above a quarter of the warning point.
+ * The next cycle starts from the carried context plus the summary and the methods the agent reloads; when Pi's reserve
+ * is large, a budget from the window alone refills the cycle to the warning before any work.
+ */
+export function carryBudget(contextWindow, warning) {
+  const fromWindow = typeof contextWindow === "number" && contextWindow > 0 ? Math.floor(contextWindow * 0.15) : 40_000;
+  const fromWarning = typeof warning === "number" && warning > 0 ? Math.floor(warning / 4) : Infinity;
+  return Math.min(fromWindow, 40_000, fromWarning);
 }
 export const isCarryResult = (item) => typeof item?.result === "string";
 /** Read one selected file as it is now. */

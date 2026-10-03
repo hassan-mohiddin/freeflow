@@ -21,7 +21,9 @@ Compaction is on by default whenever Freeflow is on: `compaction.enabled` in Fre
 - `freeflow_compact` is accepted only when compaction is due: the context is past the warning point, or the user ran `/freeflow compact` in this cycle. Due is recomputed from the measurement, so a reload does not lose it.
 - Context reuse off: no list, no carry budget, and `carry` items are refused; the user's latest messages are still carried.
 - A list inserted with the warning is context too, so its size moves the warning point earlier.
-- Each notice is sent once per cycle. Mid-run it joins the next request; at the end of a run it waits for the next prompt rather than starting work.
+- The warning is sent once per cycle; "compact now" when the context crosses its point and again each time it grows another 10k tokens, because Pi 1.0 checks its own threshold only after a run ends, not between turns. Mid-run a notice joins the next request; at the end of a run it waits for the next prompt rather than starting work.
+- The carry budget is 15% of the window, at most 40k, and at most a quarter of the warning point, so a large Pi reserve cannot make the carried context refill the next cycle.
+- A `freeflow_compact` call refused in a cycle a compaction began says where to go next: after Freeflow's compaction, that it completed the request; after Pi's own, that the compaction being prepared is no longer needed.
 - After a worker's Freeflow compaction, routing's Runtime State tells the Coordinator which worker compacted, for the rest of that cycle (the compaction details record the profile).
 - The compaction details also record the routing assignment in progress. When routing re-sends that assignment's contract after the compaction, a line directly after it says the worker compacted during this assignment, so a contract asking for compaction does not read as still undone. A later `freeflow_compact` call in a cycle a Freeflow compaction began is refused with the same fact and a pointer to continue or return.
 - A Coordinator under projection never compacts: its notices tell it to delegate compaction to a worker, and `freeflow_compact` refuses it.

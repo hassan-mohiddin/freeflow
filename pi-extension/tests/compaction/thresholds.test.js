@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { reserveTokens, strictest, thresholds } from "../../dist/compaction/thresholds.js";
 import { renderIndex, resolveResult, resultIndex } from "../../dist/compaction/results.js";
+import { carryBudget } from "../../dist/compaction/carry.js";
 
 test("the warning comes at 80% or 30k before Pi's trigger, whichever is first; compact now 10k before it", () => {
   const at = (window) => {
@@ -78,4 +79,14 @@ test("the index lists this cycle's larger results newest first, without Freeflow
   assert.equal(resolveResult(branch, "r1").text, big, "a result from before compaction still resolves");
   assert.equal(resolveResult(branch, "r9"), undefined);
   assert.match(renderIndex(resultIndex(branch)), /- r1  read  old\.txt  ~1000 tokens  \(carried since cycle 2\)/);
+});
+
+test("the carry budget is 15% of the window, at most 40k, and at most a quarter of the warning point", () => {
+  const warningAt = (window, reserve) => thresholds(window, reserve).warning;
+  // Pi's default reserve: the window decides, as before.
+  assert.equal(carryBudget(128_000, warningAt(128_000, 16_384)), 19_200);
+  assert.equal(carryBudget(272_000, warningAt(272_000, 16_384)), 40_000);
+  // A large reserve leaves little room before the warning, so the carried context must shrink with it.
+  assert.equal(carryBudget(272_000, warningAt(272_000, 180_000)), 15_500);
+  assert.equal(carryBudget(undefined, undefined), 40_000);
 });
