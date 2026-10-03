@@ -36,6 +36,9 @@ test(
         assert.equal(count(requests[1], WARNING), 0, "below the warning point");
         assert.equal(count(requests[2], WARNING), 1, "the warning joins the next request of the run");
         assert.match(JSON.stringify(requests[2].input), /- r1  read  big\.txt  ~1000 tokens/);
+        // Without routing a final answer ends the context's growth, so finishing stays an option; no return is mentioned.
+        assert.match(JSON.stringify(requests[2].input), /finish it instead/);
+        assert.doesNotMatch(JSON.stringify(requests[2].input), /compact before you return/);
         assert.equal(count(requests[3], WARNING), 1, "sent once per cycle");
         assert.equal(count(requests[4], COMPACT_NOW), 1);
         // Accepted without /freeflow compact: the notices made it due. The new cycle carries r1's body.

@@ -38,6 +38,9 @@ test("a worker warned mid-assignment compacts, continues its contract, and retur
       const notice = JSON.stringify(requests[3].input);
       assert.match(notice, /Keep working until a safe point/, "the worker's notice, not the Coordinator's");
       assert.doesNotMatch(notice, /do not compact yourself/);
+      // A return hands the same history on, so the worker is told to compact before it, not to finish instead.
+      assert.match(notice, /A return does not end this history: .* compact before you return, not after\./);
+      assert.doesNotMatch(notice, /finish it instead/);
 
       const compactions = manager.getBranch().filter((entry) => entry.type === "compaction");
       assert.equal(compactions.length, 1);

@@ -24,7 +24,8 @@ The Rules are binding; if one cannot be met, stop and say why. The rest of this 
 
 Goal: compact where stopping loses nothing that is not written down. That is a safe point: a finished step whose result you know, such as a check you ran and read, a complete set of edits, or a written report. Halfway through an edit set, with a command still running, or partway through a batch of reads you need together is not one.
 
-- At Freeflow's first notice ("compaction is due soon"): if you are at a safe point, compact now. If your work ends within a step or two, such as a return or a final answer, finish it instead; it ends the context's growth without a compaction. Otherwise finish the current step, start nothing large, then compact.
+- At Freeflow's first notice ("compaction is due soon"): if you are at a safe point, compact now. If your work ends within a step or two with a final answer, finish it instead; it ends the context's growth without a compaction. Otherwise finish the current step, start nothing large, then compact.
+- Under Cognitive Routing, a worker's return is not such an end: the Coordinator and the next assignment continue the same history. Compact before returning, not after.
 - At "compact now", or when the user asks: the end of your current step is the safe point. If the step cannot end soon, write its partial state into the record or summary and compact.
 
 ## The summary

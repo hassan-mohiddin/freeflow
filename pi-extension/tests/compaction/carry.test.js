@@ -98,6 +98,7 @@ test("a list inserted with the warning moves the warning point earlier by the li
     new CompactionController({
       effective: () => true,
       routingProfile: () => undefined,
+      routingAssignment: () => undefined,
       background: () => [],
       noticePrefix: "[notice]",
       coordinatorUnderProjection: () => false,
