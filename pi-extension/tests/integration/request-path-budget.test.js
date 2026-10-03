@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { AgentSession, SessionManager } from "@earendil-works/pi-coding-agent";
 import { fixture } from "../fixtures/routing-native.js";
+import { requestHistoryCounters } from "../../dist/host/request-history.js";
 
 // Request-path work Freeflow may add per prompt, counted rather than timed so the check is deterministic. Timing on a
 // real or generated session is `npm run perf:request`; the rules and budgets are in dev-docs/guides/performance.md.
@@ -85,6 +86,41 @@ for (const [name, options] of [
       assert.ok(long.walks <= BRANCH_WALKS_PER_PROMPT, `${long.walks} branch walks in one prompt`);
       assert.equal(long.walks, short.walks, "branch walks do not grow with session length");
       assert.equal(long.usage, short.usage, "context-usage estimates do not grow with session length");
+    },
+  );
+
+/**
+ * Whole-message fingerprints request history computes while assembling one later request of a prompt. The first
+ * request of a session fingerprints each message once; later requests may fingerprint only what is new or generated.
+ * Before October 2026 routing's views gave every message a new identity, so each request fingerprinted all of them.
+ */
+async function fingerprintsForLaterRequest(turns, options) {
+  const at = [];
+  await fixture(
+    async (n) => {
+      at[n] = requestHistoryCounters.fingerprints;
+      return n < 3 ? [{ name: "read", args: { path: "missing.txt" } }] : [];
+    },
+    true,
+    async () => {},
+    true,
+    { ...options, beforePrompt: async ({ manager }) => history(manager, turns) },
+  );
+  return at[3] - at[2];
+}
+
+for (const [name, options] of [
+  ["Freeflow defaults", { cognitiveRouting: { enabled: false } }],
+  ["Cognitive Routing with projection", {}],
+])
+  test(
+    `${name}: a later request fingerprints only what is new, however long the history`,
+    { timeout: 60000 },
+    async () => {
+      const short = await fingerprintsForLaterRequest(20, options);
+      const long = await fingerprintsForLaterRequest(400, options);
+      assert.ok(long <= 20, `${long} fingerprints for one later request`);
+      assert.equal(long, short, "fingerprints per request do not grow with the history");
     },
   );
 

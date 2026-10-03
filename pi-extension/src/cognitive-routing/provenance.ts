@@ -1,4 +1,5 @@
 import { isWorkerProfile } from "./types.js";
+import { tagDerived } from "../host/projection-tags.js";
 import { isTaskEvidence, type Sources, type Source } from "./sources.js";
 
 /**
@@ -13,19 +14,32 @@ export function annotateSources(
   sources: Sources,
   instance: string,
   mergeWorkerRuns = false,
+  /** Notes kept across requests by content, so an unchanged note keeps one identity and is fingerprinted once. */
+  notes?: Map<string, any>,
 ): any[] {
   const annotated: any[] = [];
   let pending: { key?: string; rows: string[]; exchanges: number } | undefined;
   const flush = () => {
-    if (pending?.rows.length)
-      annotated.push({
-        role: "custom",
-        customType: "freeflow-routing-v2-refs",
-        display: false,
-        content: `Source provenance for the preceding ${pending.exchanges > 1 ? "worker run" : "message/exchange"}:\n${pending.rows.join("\n")}`,
-        details: { routingInstance: instance },
-        timestamp: 0,
-      });
+    if (pending?.rows.length) {
+      const content = `Source provenance for the preceding ${pending.exchanges > 1 ? "worker run" : "message/exchange"}:\n${pending.rows.join("\n")}`;
+      const key = `${instance}\u0000${content}`;
+      let note = notes?.get(key);
+      if (!note) {
+        note = {
+          role: "custom",
+          customType: "freeflow-routing-v2-refs",
+          display: false,
+          content,
+          details: { routingInstance: instance },
+          timestamp: 0,
+        };
+        if (notes) {
+          tagDerived(note, `refs:${key}`);
+          notes.set(key, note);
+        }
+      }
+      annotated.push(note);
+    }
     pending = undefined;
   };
   for (let i = 0; i < messages.length;) {

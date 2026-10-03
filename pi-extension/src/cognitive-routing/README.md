@@ -47,7 +47,7 @@ How it works and why, including behavior that looks wrong but is intended: [`dev
 | File | Owns |
 |---|---|
 | [`assembler.ts`](assembler.ts) | Builds each routed request: finds the latest delivered user input, opens the execution, and prepares the profile's view. |
-| [`projection.ts`](projection.ts) | Prepares a profile's view. Only the Coordinator's view under projection is selective; workers see the full history. |
+| [`projection.ts`](projection.ts) | Prepares a profile's view. Only the Coordinator's view under projection is selective; workers see the full history. Renderings are cached per entry and variant (`ViewCache`) and reused across requests. |
 | [`sources.ts`](sources.ts) | Turns session history into sources with refs and hashes, and associates request messages with them. |
 | [`provenance.ts`](provenance.ts) | Notes that name each exchange's attributed sources. |
 | [`budget.ts`](budget.ts) | A local planning estimate of request size (not a provider token count). |
@@ -61,5 +61,6 @@ How it works and why, including behavior that looks wrong but is intended: [`dev
 - State changes go through events; never mutate routing state directly.
 - A refused routing call returns a blocked result that names what to reconcile; it never half-applies.
 - Projection must never send a worker's full history to the Coordinator, even on failure. A projection error blocks the request instead.
+- Cached view renderings are shared across requests: never mutate a message in a view. Tests set `FREEFLOW_FREEZE_VIEWS` to catch it.
 
 Tests: [`tests/cognitive-routing/`](../../tests/cognitive-routing/README.md).

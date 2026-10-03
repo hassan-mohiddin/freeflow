@@ -235,6 +235,7 @@ export class ContextAssembler {
         cachedBranch(this.session.ctx?.sessionManager) ?? [],
         state.assignmentId,
       ),
+      cache: this.session.viewCache,
     });
   }
   budgetNotice(messages: any[], ctx: any): any | undefined {
@@ -344,9 +345,10 @@ export class ContextAssembler {
         prepared = this.prepared("coordinator", input);
       }
       check(prepared.ready, "context_unavailable", prepared.problems.map((p) => p.detail).join("; "));
-      const known = this.session.stateData().exposure;
-      const added = prepared.fullSources.filter((s) => known.get(s.ref) !== s.hash);
-      if (isWorkerProfile(this.session.turn.profile))
+      // Only worker views record exposure; hashing every source for the Coordinator's view would be wasted.
+      if (isWorkerProfile(this.session.turn.profile)) {
+        const known = this.session.stateData().exposure;
+        const added = prepared.fullSources.filter((s) => known.get(s.ref) !== s.hash);
         for (let i = 0; i < added.length; i += 128)
           this.session.append({
             type: "sources-exposed",
@@ -354,6 +356,7 @@ export class ContextAssembler {
             view: this.session.turn.profile,
             sources: added.slice(i, i + 128).map((s) => ({ ref: s.ref, bodyHash: s.hash })),
           });
+      }
       if (interrupted)
         prepared.messages.push({
           role: "custom",

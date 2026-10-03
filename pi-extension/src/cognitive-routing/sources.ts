@@ -103,6 +103,8 @@ export class Sources {
   private tail?: Exchange;
   private associated?: { messages: readonly any[]; items: Associated[] };
   entries: readonly NativeEntry[] = [];
+  private ranks?: Map<string, number>;
+  private nonWorker?: number[];
   private activeIds?: ReadonlySet<string>;
   private readonly locatorProvider?: EvidenceLocatorProvider;
   constructor(
@@ -118,6 +120,8 @@ export class Sources {
     const prefix = this.entries.length <= entries.length && this.entries.every((e, i) => e === entries[i]);
     const start = prefix ? this.entries.length : 0;
     this.associated = undefined;
+    this.ranks = undefined;
+    this.nonWorker = undefined;
     if (!prefix) {
       this.byRef.clear();
       this.byBody.clear();
@@ -176,6 +180,22 @@ export class Sources {
       source.assignmentId = author?.assignmentId;
     }
     this.entries = [...entries];
+  }
+  /** Each entry's position in `entries`; computed once per refresh rather than per request. */
+  get rank(): ReadonlyMap<string, number> {
+    return (this.ranks ??= new Map(this.entries.map((entry, index) => [entry.id, index])));
+  }
+  /** For each position in `entries` (and one past the end), how many earlier entries no worker produced. */
+  get nonWorkerBefore(): readonly number[] {
+    if (!this.nonWorker) {
+      const counts = [0];
+      for (const entry of this.entries) {
+        const producer = this.byRef.get(`ctx:${entry.id}`)?.producer ?? "common";
+        counts.push(counts.at(-1)! + (isWorkerProfile(producer) ? 0 : 1));
+      }
+      this.nonWorker = counts;
+    }
+    return this.nonWorker;
   }
   private bodyIndex(): Map<string, Source[]> {
     for (const source of this.unindexed) {

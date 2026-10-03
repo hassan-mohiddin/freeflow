@@ -16,6 +16,7 @@ import {
 } from "./types.js";
 
 import { estimateRequest } from "./budget.js";
+import { occurrenceIdentity, tagDerived } from "../host/projection-tags.js";
 
 export interface PreparedView {
   warnings: Problem[];
@@ -102,11 +103,6 @@ function withoutReasoning(message: any, unpaired: Map<string, string>): any {
   };
 }
 
-const repaired = (message: any, unpaired: Map<string, string>) =>
-  message.role === "toolResult" && unpaired.has(message.toolCallId)
-    ? { ...message, toolCallId: unpaired.get(message.toolCallId) }
-    : message;
-
 export function representationProblems(source: Source, model: any): Problem[] {
   const message = source.message,
     content = Array.isArray(message.content) ? message.content : [];
@@ -124,6 +120,50 @@ export function representationProblems(source: Source, model: any): Problem[] {
       { ref: source.ref, code: "target_representation", detail: "The receiving model does not support image input." },
     ];
   return [];
+}
+/** A rendering of one entry for one variant, shared across requests; `renames` are the call ids it unpaired. */
+interface Rendering {
+  message: any;
+  renames?: [string, string][];
+}
+/**
+ * Renderings reused across requests, so each view message keeps one identity (request history then fingerprints it
+ * once) and nothing is cloned per request. Entries are immutable, so a rendering keyed by its entry object and variant
+ * never goes stale; a replaced entry is a different object. Cached messages are shared and must never be mutated.
+ */
+export class ViewCache {
+  readonly renderings = new WeakMap<object, Map<string, Rendering>>();
+  readonly notes = new Map<string, any>();
+  readonly coordinatorVersions = new WeakMap<object, any>();
+}
+/** Tests set FREEFLOW_FREEZE_VIEWS to make any later mutation of a shared rendering throw. */
+const FREEZE = !!process.env.FREEFLOW_FREEZE_VIEWS;
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const child of Object.values(value)) deepFreeze(child);
+  }
+  return value;
+}
+/** Messages normalized() produced, so normalizing a shared rendering again keeps it (and its identity) as it is. */
+const NORMALIZED = new WeakSet<object>();
+/** Request metadata as Pi must see it in a routed view: a finite timestamp, and no recorded usage on assistants. */
+function normalized(message: any): any {
+  const finite = Number.isFinite(message?.timestamp);
+  if ((finite && message?.role !== "assistant") || NORMALIZED.has(message)) return message;
+  const result = {
+    ...message,
+    timestamp: finite ? message.timestamp : 0,
+    ...(message.role === "assistant"
+      ? { usage: { ...message.usage, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 } }
+      : {}),
+  };
+  NORMALIZED.add(result);
+  return result;
+}
+function shareRendering<T extends object>(message: T, identity: string): T {
+  tagDerived(message, identity);
+  return FREEZE ? deepFreeze(message) : message;
 }
 export function prepareView(options: {
   messages: readonly any[];
@@ -146,7 +186,10 @@ export function prepareView(options: {
   assessedSinceCompaction?: ReadonlySet<string>;
   /** The cycle a Freeflow compaction began during the current assignment, which the restored contract then notes. */
   compactedInAssignment?: number;
+  /** Renderings kept across requests; without one, every request renders afresh. */
+  cache?: ViewCache;
 }): PreparedView {
+  const cache = options.cache ?? new ViewCache();
   const { sources, state } = options;
   const associated = sources.associate(options.messages);
   const selective = options.projection && options.view === "coordinator";
@@ -229,38 +272,48 @@ export function prepareView(options: {
     if (source.message.role === "assistant" && required.size)
       problems.push(...representationProblems(source, options.model));
   const unpaired = new Map<string, string>();
+  // Rendering depends only on the entry and these facts, so a rendering is reused for the same variant.
   const render = (source: Source) => {
-    let message = structuredClone(source.message);
-    if (
-      source.message.role === "assistant" &&
-      privateReasoning(source, options.view, options.projection, options.model)
-    )
-      message = withoutReasoning(message, unpaired);
+    const role = source.message.role;
+    const withheld = role === "assistant" && privateReasoning(source, options.view, options.projection, options.model);
     // A structural worker envelope keeps only its calls for the selected results; worker narration is never evidence.
-    const structuralWorker = selective && isWorkerProfile(source.producer) && !full.has(source.ref);
-    if (source.message.role === "assistant" && structuralWorker)
-      message.content = message.content.filter((b: any) => b.type === "toolCall");
-    if (full.has(source.ref) || source.message.role !== "toolResult") return repaired(message, unpaired);
-    return repaired(
-      {
-        ...structuredClone(source.message),
-        content: [{ type: "text", text: "[Worker result omitted from this view]" }],
-        details: undefined,
-      },
-      unpaired,
-    );
+    const structuralWorker =
+      role === "assistant" && selective && isWorkerProfile(source.producer) && !full.has(source.ref);
+    const omitted = role === "toolResult" && !full.has(source.ref);
+    const renamed = role === "toolResult" ? unpaired.get(source.message.toolCallId) : undefined;
+    const variant = `${withheld ? 1 : 0}${structuralWorker ? 1 : 0}${omitted ? 1 : 0}${renamed === undefined ? "" : `:${renamed}`}`;
+    let variants = cache.renderings.get(source.entry);
+    if (!variants) cache.renderings.set(source.entry, (variants = new Map()));
+    let rendering = variants.get(variant);
+    if (!rendering) {
+      const renames = new Map<string, string>();
+      let message = structuredClone(source.message);
+      if (withheld) message = withoutReasoning(message, renames);
+      if (structuralWorker) message.content = message.content.filter((b: any) => b.type === "toolCall");
+      if (omitted)
+        message = {
+          ...message,
+          content: [{ type: "text", text: "[Worker result omitted from this view]" }],
+          details: undefined,
+        };
+      if (renamed !== undefined) message = { ...message, toolCallId: renamed };
+      rendering = {
+        message: shareRendering(normalized(message), `${source.entry.id}#${variant}`),
+        ...(renames.size ? { renames: [...renames] } : {}),
+      };
+      variants.set(variant, rendering);
+    }
+    // A reused assistant rendering still tells its results which call ids it unpaired.
+    for (const [from, to] of rendering.renames ?? []) unpaired.set(from, to);
+    return rendering.message;
   };
   // Insert resolved historical occurrences before the first later native occurrence, retaining
   // opaque/common messages in their original order rather than moving user input wholesale.
   const ordered = sources.ordered(new Map([...structural, ...full]).values());
-  const rank = new Map(options.sources.entries.map((entry, index) => [entry.id, index]));
+  const rank = sources.rank;
   // Worker evidence admitted after the Coordinator has seen later content is delivered where it was admitted,
   // with its whole call group, so the Coordinator's already-sent prefix is extended rather than rewritten.
-  const shared: number[] = [0];
-  for (const entry of options.sources.entries) {
-    const producer = sources.byRef.get(`ctx:${entry.id}`)?.producer ?? "common";
-    shared.push(shared.at(-1)! + (isWorkerProfile(producer) ? 0 : 1));
-  }
+  const shared = sources.nonWorkerBefore;
   const activeRefs = new Set(associated.flatMap((i) => (i.source ? [i.source.ref] : [])));
   const deferredAt = new Map<string, number>();
   if (selective && (options.admissions || options.resumedAt !== undefined))
@@ -314,15 +367,29 @@ export function prepareView(options: {
   deliver(Infinity);
   const fullSources = [...full.values()];
   // The Coordinator only sees completed worker runs, so one note per run keeps its prefix stable.
-  messages = annotateSources(messages, renderedSources, new Set(full.keys()), sources, options.instance, selective);
+  messages = annotateSources(
+    messages,
+    renderedSources,
+    new Set(full.keys()),
+    sources,
+    options.instance,
+    selective,
+    cache.notes,
+  );
   // A message may hold its own version for the Coordinator's selective view: Freeflow's carried context names the
   // worker's copies there instead of repeating them, since the Coordinator receives evidence by selection.
   if (selective)
-    messages = messages.map((message) =>
-      message?.role === "custom" && typeof message.details?.coordinatorContent === "string"
-        ? { ...message, content: message.details.coordinatorContent }
-        : message,
-    );
+    messages = messages.map((message) => {
+      if (message?.role !== "custom" || typeof message.details?.coordinatorContent !== "string") return message;
+      let version = cache.coordinatorVersions.get(message);
+      if (!version) {
+        version = { ...message, content: message.details.coordinatorContent };
+        const identity = occurrenceIdentity(message);
+        if (identity) shareRendering(version, `${identity}#coordinator`);
+        cache.coordinatorVersions.set(message, version);
+      }
+      return version;
+    });
   // Restore exact current communication only when its accepted occurrence is absent.
   const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
   const baseReport = assessment
@@ -487,13 +554,8 @@ export function prepareView(options: {
     // Recorded usage describes a prior provider view, which may belong to the
     // other profile. Pi must estimate this assembled view when allocating output.
     // Normalize request metadata only; canonical usage/billing records stay intact.
-    messages: messages.map((message) => ({
-      ...message,
-      timestamp: Number.isFinite(message.timestamp) ? message.timestamp : 0,
-      ...(message.role === "assistant"
-        ? { usage: { ...message.usage, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 } }
-        : {}),
-    })),
+    // Renderings are already normalized; other messages are copied only when they need it.
+    messages: messages.map(normalized),
     problems,
     fullSources,
     reservation,

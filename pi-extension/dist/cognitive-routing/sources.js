@@ -52,6 +52,8 @@ export class Sources {
   tail;
   associated;
   entries = [];
+  ranks;
+  nonWorker;
   activeIds;
   locatorProvider;
   constructor(entries, state, activeIds, locatorProvider) {
@@ -62,6 +64,8 @@ export class Sources {
     const prefix = this.entries.length <= entries.length && this.entries.every((e, i) => e === entries[i]);
     const start = prefix ? this.entries.length : 0;
     this.associated = undefined;
+    this.ranks = undefined;
+    this.nonWorker = undefined;
     if (!prefix) {
       this.byRef.clear();
       this.byBody.clear();
@@ -116,6 +120,22 @@ export class Sources {
       source.assignmentId = author?.assignmentId;
     }
     this.entries = [...entries];
+  }
+  /** Each entry's position in `entries`; computed once per refresh rather than per request. */
+  get rank() {
+    return (this.ranks ??= new Map(this.entries.map((entry, index) => [entry.id, index])));
+  }
+  /** For each position in `entries` (and one past the end), how many earlier entries no worker produced. */
+  get nonWorkerBefore() {
+    if (!this.nonWorker) {
+      const counts = [0];
+      for (const entry of this.entries) {
+        const producer = this.byRef.get(`ctx:${entry.id}`)?.producer ?? "common";
+        counts.push(counts.at(-1) + (isWorkerProfile(producer) ? 0 : 1));
+      }
+      this.nonWorker = counts;
+    }
+    return this.nonWorker;
   }
   bodyIndex() {
     for (const source of this.unindexed) {

@@ -25,7 +25,8 @@ A new feature on the request path states which rules its work follows. Work that
 
 ## Budgets
 
-- **Per prompt:** Freeflow's handlers together stay at or below about 10 ms on a long session with Freeflow on, plus work for the entries appended since the last request. Routing with projection may take more, because it assembles the Coordinator's view (see Known costs).
+- **Per prompt:** Freeflow's handlers together stay at or below about 10 ms on a long session with Freeflow on, plus work for the entries appended since the last request. Routing with projection adds a pass over the live context for the Coordinator's view (see Known costs).
+- **Fingerprints:** a request after the first in a session fingerprints only new or generated messages, at most 20, the same for a short and a long history (enforced by `request-path-budget.test.js`).
 - **Per turn:** `turn_end` stays at or below 1 ms without routing.
 - **Branch walks:** at most 10 calls to Pi's `getBranch()` per prompt, the same for a short and a long session (enforced by `pi-extension/tests/integration/request-path-budget.test.js`).
 - **Context-usage estimates:** Freeflow adds none when the turn reports its usage (enforced by the same test).
@@ -35,8 +36,8 @@ A new feature on the request path states which rules its work follows. Work that
 
 Two tools, for different questions:
 
-- **`npm test` (deterministic).** `request-path-budget.test.js` counts Pi branch walks and context-usage estimates during one prompt, on a short and a long history, with Freeflow on defaults and with routing. It fails when a change makes either grow with session length or exceed its budget. Counts do not depend on machine speed, so the test is reliable in CI.
-- **`npm run perf:request` (timing).** Runs an in-process Pi offline against a copy of a session and times each Freeflow handler and each prompt, in four scenarios: no Freeflow, Freeflow disabled, Freeflow defaults, and routing with projection plus Tool Execution. By default it generates a session of 2,000 tool-using turns compacted every 150 turns (a large file, about one model window of live context). `--session <path>` measures a real session (a copy is used; the original is not touched), `--dist <dir>` measures another build for comparison, `--json` prints machine-readable output. Timing varies by machine and run: compare builds on the same machine and session, using the medians, and treat differences under a few milliseconds as noise.
+- **`npm test` (deterministic).** `request-path-budget.test.js` counts Pi branch walks and context-usage estimates during one prompt, and request history's fingerprints for a later request, on a short and a long history, with Freeflow on defaults and with routing. It fails when a change makes either grow with session length or exceed its budget. Counts do not depend on machine speed, so the test is reliable in CI.
+- **`npm run perf:request` (timing).** Runs an in-process Pi offline against a copy of a session and times each Freeflow handler and each prompt, in four scenarios: no Freeflow, Freeflow disabled, Freeflow defaults, and routing with projection plus Tool Execution. By default it generates a session of 2,000 tool-using turns compacted every 150 turns (a large file, about one model window of live context). `--session <path>` measures a real session (a copy is used; the original is not touched), `--dist <dir>` measures another build for comparison, `--json` prints machine-readable output, and `--capture <dir>` writes every provider request body per scenario so two builds can be compared byte for byte (the routing test fixture does the same with `FREEFLOW_CAPTURE_DIR`). Timing varies by machine and run: compare builds on the same machine and session, using the medians, and treat differences under a few milliseconds as noise.
 
 When a change touches the request path:
 
@@ -60,7 +61,7 @@ On the development machine, Pi 1.0.0, at the commit that added this page. Added 
 
 ## Known costs
 
-- **Routing view assembly.** With projection on, routing renders and fingerprints every message in the live context for the Coordinator's view on each request, which breaks R-5 for that view: about 85 ms per request when the live context holds 8,000 messages, and a few milliseconds at a normal model window. Compaction keeps live context near one window, which bounds it.
+- **Routing view assembly.** With projection on, routing makes one pass over the live context per request to build the Coordinator's view. Renderings are cached and keep their identity, so nothing is cloned or re-hashed: about 7 ms per request at a normal window and 25 ms at 8,000 live messages (73 ms before October 2026). Compaction keeps live context near one window.
 - **Routing session start.** Startup re-reads and decodes the session file and replays every routing event to check that the session is fully persisted (R-7 and R-2 not yet met): about 190 ms on a 24 MB routed session and about 500 ms on a 47 MB one.
 
 ## Related

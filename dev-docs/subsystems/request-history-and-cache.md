@@ -49,7 +49,7 @@ Terms from Cognitive Routing ([its doc](cognitive-routing.md)): the **Coordinato
 
 `index.ts` runs request assembly in Pi's `context_with_system` hook, on every request:
 
-1. Tag Pi's projected messages with the session entry behind each (`tagProjectedMessages()`), so unchanged native messages are fingerprinted once per session instead of on every request.
+1. Tag Pi's projected messages with the session entry behind each (`tagProjectedMessages()`), so unchanged native messages are fingerprinted once per session instead of on every request. Routing's views render their own copies of messages; each rendering carries a derived identity (`tagDerived()`, `<entry id>#<variant>`), and request history keys fingerprints by `occurrenceIdentity()`, which covers both.
 2. Add the Runtime State (`withFreeflowRuntimeState()`).
 3. Let routing build its view and add its transient messages (`routing.context()`).
 4. Call `requestHistory.assemble(messages, view, ctx, budgetNotice)`.
@@ -165,7 +165,7 @@ On `message_end` with usage (Freeflow enabled), `CacheHealth.observe()` compares
 - Breakpoints change markers only, never content. Not compared directly; `cache-anchor-native.test.js` checks marker placement in real Pi requests.
 - Unqualified routes, Codex and Sign in with ChatGPT receive Pi's payload unchanged. Guarded by `chatgpt-sign-in.test.js`, `cache-anchor.test.js` and `cache-keepalive.test.js`.
 - Keep-alive never replays an uncapped request, and stops at 6 hours or $2 per hold. Guarded by `cache-keepalive.test.js`.
-- Unchanged native history is fingerprinted once per session (`history.test.js`, "entry-backed messages are fingerprinted once"), and the session file is checked by its new tail rather than re-read (`persisted-branch.test.js`).
+- Unchanged native history, and routing's renderings of it, are fingerprinted once per session (`history.test.js`, "entry-backed messages are fingerprinted once"; `request-path-budget.test.js`, "a later request fingerprints only what is new"), and the session file is checked by its new tail rather than re-read (`persisted-branch.test.js`).
 
 ## Failure Behavior
 
@@ -187,7 +187,7 @@ Request history runs on every request; the rules are in [Performance](../guides/
 - `pi-extension/src/host/`
   - `request-history.ts`: `RequestHistory` (`assemble`, `prepare`, `reset`), `TRANSIENT`, `SITUATIONAL`, `Frame`.
   - `runtime-state.ts`: `freeflowRuntimeStateMessage()`, `withFreeflowRuntimeState()`, `RuntimeStateAnchor`, `filterBootstrapMessage()`.
-  - `projection-tags.ts`: `tagProjectedMessages()`, `projectedEntryId()`, `isProjected()`, `isHostEdited()`.
+  - `projection-tags.ts`: `tagProjectedMessages()`, `projectedEntryId()`, `tagDerived()`, `occurrenceIdentity()`, `isProjected()`, `isHostEdited()`.
   - `read-only-session.ts`: `persistedBranchMatches()`, `trustLoadedSession()`.
 - `pi-extension/src/provider-support/`: see its [README](../../pi-extension/src/provider-support/README.md).
   - `index.ts`: `registerProviderSupport()` and its hooks.
@@ -210,7 +210,7 @@ Request history runs on every request; the rules are in [Performance](../guides/
 - A preserved local prefix is not a provider cache hit; only provider-reported usage at a qualified boundary shows a hit.
 - Provider expiry, eviction, minimum cacheable length, and per-effort caches on Sign in with ChatGPT are outside Freeflow's control.
 - Another extension that changes the final request can break the prefix after Freeflow.
-- Request history still fingerprints messages without a projected entry identity (generated and host-edited ones) on every request.
+- Request history still fingerprints messages with no stable identity (generated and host-edited ones) on every request; `request-path-budget.test.js` bounds how many a later request may fingerprint.
 - Keep-alive covers only the suspended Coordinator, not other requesters that will resume.
 
 ## Changes

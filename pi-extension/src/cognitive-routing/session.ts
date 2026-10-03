@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { EventStore } from "./event-store.js";
 import { Sources } from "./sources.js";
+import { ViewCache } from "./projection.js";
 import { pairFromProfile, type CognitiveRoutingCapabilityState } from "./config.js";
 import { initialState } from "./state.js";
 import {
@@ -63,7 +64,9 @@ export class RoutingSession {
   revision = 0;
   manualHold?: Profile;
   automaticControl = false;
-  sourceCache?: { entries: NativeEntry[]; authors: number; source: Sources };
+  sourceCache?: { branch: readonly NativeEntry[]; entries: NativeEntry[]; authors: number; source: Sources };
+  /** Rendered view messages reused across requests (see ViewCache); rebuilt after a rebind or ancestry change. */
+  viewCache = new ViewCache();
   /** Replayed tool results for the current turn, keyed by operation id. */
   receipts = new Map<string, { input: string; value: any }>();
   /** Recently served inspection pages, keyed by request; at most eight are kept. */
@@ -87,6 +90,7 @@ export class RoutingSession {
     this.turn = undefined;
     this.messages = [];
     this.sourceCache = undefined;
+    this.viewCache = new ViewCache();
     this.receipts.clear();
     this.pages.clear();
   }
@@ -174,22 +178,27 @@ export class RoutingSession {
     return this.store?.state() ?? initialState();
   }
   sources(state = this.stateData()): Sources {
-    const entries = (cachedBranch(this.ctx.sessionManager) as NativeEntry[]).filter((e) =>
+    const branch = cachedBranch(this.ctx.sessionManager) as readonly NativeEntry[];
+    const cache = this.sourceCache;
+    // The cached branch is the same array until the leaf moves, so an unchanged branch needs no filtering.
+    if (cache && cache.branch === branch && cache.authors === state.authors.size) return cache.source;
+    const entries = branch.filter((e) =>
       ["message", "custom_message", "compaction", "branch_summary"].includes(e.type),
     );
-    const cache = this.sourceCache;
     if (
       cache &&
       cache.authors === state.authors.size &&
       entries.length === cache.entries.length &&
       entries.every((e, i) => e === cache.entries[i])
-    )
+    ) {
+      cache.branch = branch;
       return cache.source;
+    }
     const active = this.ctx.sessionManager.buildContextEntries?.();
     const activeIds = active ? new Set<string>(active.map((e: NativeEntry) => e.id)) : undefined;
     const source = cache?.source ?? new Sources([], state);
     source.refresh(entries, state, activeIds);
-    this.sourceCache = { entries, authors: state.authors.size, source };
+    this.sourceCache = { branch, entries, authors: state.authors.size, source };
     return source;
   }
   observed(ctx = this.ctx): Pair | undefined {

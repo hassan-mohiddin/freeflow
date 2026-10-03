@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { Sources } from "../../dist/cognitive-routing/sources.js";
 import { initialState } from "../../dist/cognitive-routing/state.js";
-import { prepareView } from "../../dist/cognitive-routing/projection.js";
+import { prepareView, ViewCache } from "../../dist/cognitive-routing/projection.js";
+import { occurrenceIdentity } from "../../dist/host/projection-tags.js";
 import { fixture } from "../fixtures/routing-native.js";
 
 test(
@@ -70,7 +71,14 @@ const assistant = (content) => ({
   timestamp: 1,
 });
 const entry = (id, parentId, message) => ({ type: "message", id, parentId, message });
-function project(entries, refs, messages = entries.map((e) => e.message), producers = {}, view = "coordinator") {
+function project(
+  entries,
+  refs,
+  messages = entries.map((e) => e.message),
+  producers = {},
+  view = "coordinator",
+  cache = undefined,
+) {
   const state = initialState();
   state.assignmentId = "a";
   state.selections.set("a", { revision: 1, selected: refs, unresolved: [], withdrawals: [] });
@@ -90,6 +98,7 @@ function project(entries, refs, messages = entries.map((e) => e.message), produc
     tools: [],
     runtimeMessage: { role: "custom", content: "state" },
     instance: "test",
+    cache,
   });
 }
 for (const thinking of [
@@ -162,6 +171,42 @@ test("withheld reasoning unpairs the calls it produced, and their results follow
   assert.equal(prepared.messages.find((m) => m.role === "toolResult").toolCallId, "call_1");
   assert.deepEqual(entries[0].message, a, "canonical history is not modified");
   assert.deepEqual(entries[1].message, r);
+});
+
+test("a cached rendering is reused across requests and still unpairs its results", () => {
+  const signed = { type: "thinking", thinking: "plan", thinkingSignature: '{"type":"reasoning","id":"rs_1"}' };
+  const entries = [
+    entry("a", null, assistant([signed, call("call_1|fc_1")])),
+    entry("r", "a", result("call_1|fc_1", 2)),
+  ];
+  const cache = new ViewCache();
+  const first = project(entries, ["ctx:r"], undefined, {}, "coordinator", cache);
+  const second = project(entries, ["ctx:r"], undefined, {}, "coordinator", cache);
+  const pick = (prepared, role) => prepared.messages.find((m) => m.role === role);
+  // The second request takes the assistant from the cache, so its renames must still reach the result.
+  assert.equal(pick(second, "toolResult").toolCallId, "call_1");
+  assert.equal(pick(second, "assistant"), pick(first, "assistant"), "the same rendering, not a copy");
+  assert.equal(pick(second, "toolResult"), pick(first, "toolResult"));
+  assert.match(occurrenceIdentity(pick(second, "assistant")), /^a#/);
+});
+
+test("one entry rendered for two views keeps two renderings with distinct identities", () => {
+  const plan = assistant([{ type: "thinking", thinking: "COORDINATOR_PLAN", thinkingSignature: "s1" }, call("c1")]);
+  const entries = [entry("p", null, plan), entry("pr", "p", result("c1", 2))];
+  const producers = { p: "coordinator", pr: "coordinator" };
+  const cache = new ViewCache();
+  const pick = (prepared) => prepared.messages.find((m) => m.role === "assistant");
+  const own = pick(project(entries, [], undefined, producers, "coordinator", cache));
+  const worker = pick(project(entries, [], undefined, producers, "executor", cache));
+  assert.match(JSON.stringify(own), /COORDINATOR_PLAN/);
+  assert.doesNotMatch(JSON.stringify(worker), /COORDINATOR_PLAN/);
+  assert.notEqual(
+    occurrenceIdentity(own),
+    occurrenceIdentity(worker),
+    "request history must not share their fingerprint",
+  );
+  assert.equal(pick(project(entries, [], undefined, producers, "coordinator", cache)), own);
+  assert.equal(pick(project(entries, [], undefined, producers, "executor", cache)), worker);
 });
 
 test("a worker view carries the Coordinator's history without its reasoning, and keeps the worker's own", () => {

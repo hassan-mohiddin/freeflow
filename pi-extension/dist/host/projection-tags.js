@@ -35,6 +35,21 @@ export function tagProjectedMessages(messages, projection, branch) {
     }
   }
 }
+// Messages Freeflow renders from an entry (routing's views): the entry and the rendering variant, so a consumer can
+// fingerprint each rendering once. Kept apart from projectedEntryIds, which names only unedited native messages.
+const derivedIdentities = new WeakMap();
+/** Mark a message rendered from a native entry with a stable identity: `<entry id>#<variant>` or another unique key. */
+export function tagDerived(message, identity) {
+  derivedIdentities.set(message, identity);
+}
+/**
+ * A stable identity for a request message whose content never changes under that identity: the unedited native entry
+ * behind it, or the identity of a rendering. Undefined for generated or host-edited messages.
+ */
+export function occurrenceIdentity(message) {
+  if (!message || typeof message !== "object") return undefined;
+  return derivedIdentities.get(message) ?? projectedEntryIds.get(message);
+}
 /** Whether a request message came from an aligned Pi projection. */
 export function isProjected(message) {
   return !!message && typeof message === "object" && projectedMessages.has(message);

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Sources } from "./sources.js";
+import { ViewCache } from "./projection.js";
 import { pairFromProfile } from "./config.js";
 import { initialState } from "./state.js";
 import { RoutingError, isWorkerProfile, requireCondition as check, samePair, workersForDelegation } from "./types.js";
@@ -26,6 +27,8 @@ export class RoutingSession {
   manualHold;
   automaticControl = false;
   sourceCache;
+  /** Rendered view messages reused across requests (see ViewCache); rebuilt after a rebind or ancestry change. */
+  viewCache = new ViewCache();
   /** Replayed tool results for the current turn, keyed by operation id. */
   receipts = new Map();
   /** Recently served inspection pages, keyed by request; at most eight are kept. */
@@ -38,6 +41,7 @@ export class RoutingSession {
     this.turn = undefined;
     this.messages = [];
     this.sourceCache = undefined;
+    this.viewCache = new ViewCache();
     this.receipts.clear();
     this.pages.clear();
   }
@@ -125,22 +129,27 @@ export class RoutingSession {
     return this.store?.state() ?? initialState();
   }
   sources(state = this.stateData()) {
-    const entries = cachedBranch(this.ctx.sessionManager).filter((e) =>
+    const branch = cachedBranch(this.ctx.sessionManager);
+    const cache = this.sourceCache;
+    // The cached branch is the same array until the leaf moves, so an unchanged branch needs no filtering.
+    if (cache && cache.branch === branch && cache.authors === state.authors.size) return cache.source;
+    const entries = branch.filter((e) =>
       ["message", "custom_message", "compaction", "branch_summary"].includes(e.type),
     );
-    const cache = this.sourceCache;
     if (
       cache &&
       cache.authors === state.authors.size &&
       entries.length === cache.entries.length &&
       entries.every((e, i) => e === cache.entries[i])
-    )
+    ) {
+      cache.branch = branch;
       return cache.source;
+    }
     const active = this.ctx.sessionManager.buildContextEntries?.();
     const activeIds = active ? new Set(active.map((e) => e.id)) : undefined;
     const source = cache?.source ?? new Sources([], state);
     source.refresh(entries, state, activeIds);
-    this.sourceCache = { entries, authors: state.authors.size, source };
+    this.sourceCache = { branch, entries, authors: state.authors.size, source };
     return source;
   }
   observed(ctx = this.ctx) {

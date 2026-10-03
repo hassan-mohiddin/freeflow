@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { persistedBranchMatches } from "./read-only-session.js";
-import { projectedEntryId } from "./projection-tags.js";
+import { occurrenceIdentity } from "./projection-tags.js";
 import { cachedBranch as activeBranch } from "./branch.js";
 const ENTRY = "freeflow-request-history-v1";
 const TRANSIENT = new Set([
@@ -14,7 +14,10 @@ const TRANSIENT = new Set([
 // Situational notices describe a condition, not standing state; once absent, the next occurrence is new.
 const SITUATIONAL = new Set(["freeflow-routing-attention"]);
 const hash = (value) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+/** Whole-message fingerprints computed so far; the request-path budget test counts them per request. */
+export const requestHistoryCounters = { fingerprints: 0 };
 function fingerprint(message) {
+  requestHistoryCounters.fingerprints++;
   const { usage: _usage, timestamp: _timestamp, details: _details, ...body } = message;
   return hash(body);
 }
@@ -61,10 +64,11 @@ export class RequestHistory {
     const cached = this.validatedFrames.get(entry.id);
     return cached?.entry === entry ? cached.hash : hash(entry);
   };
-  // Unedited native entries are immutable, so their fingerprints are computed once per session.
+  // Unedited native entries and Freeflow's renderings of them never change under their identity, so their
+  // fingerprints are computed once per session.
   fingerprints = new Map();
   fingerprintOf = (message) => {
-    const id = projectedEntryId(message);
+    const id = occurrenceIdentity(message);
     if (id === undefined) return fingerprint(message);
     let value = this.fingerprints.get(id);
     if (value === undefined) this.fingerprints.set(id, (value = fingerprint(message)));
@@ -77,8 +81,8 @@ export class RequestHistory {
     let samePrefix = true;
     for (let i = 0; i < messages.length; i++) {
       const message = messages[i];
-      const entryId = projectedEntryId(message);
-      // Host-edited/generated messages lack an unedited entry identity and must be hashed anew.
+      const entryId = occurrenceIdentity(message);
+      // Generated and host-edited messages have no stable identity and must be hashed anew.
       const body = entryId === undefined ? fingerprint(message) : undefined;
       const identity = entryId === undefined ? `body:${body}` : `entry:${entryId}`;
       identities.push(identity);
