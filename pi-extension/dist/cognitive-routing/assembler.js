@@ -145,7 +145,8 @@ export class ContextAssembler {
   admissionCache;
   /**
    * Source rank at which each currently selected ref was first admitted, derived from native selection events,
-   * and the rank at which the current assessment last resumed from an attention suspension.
+   * the rank at which the current assessment last resumed from an attention suspension, and the assignments whose
+   * return or supplement the Coordinator received since the latest compaction.
    */
   admissions(state) {
     const reader = this.session.ctx.sessionManager,
@@ -153,27 +154,35 @@ export class ContextAssembler {
     const cache = this.admissionCache;
     if (cache && cache.state === state && cache.leaf === leaf) return cache;
     const admissions = new Map();
+    const assessedSinceCompaction = new Set();
     let rank = 0,
       resumedAt;
     for (const entry of reader.getBranch()) {
+      if (entry.type === "compaction") assessedSinceCompaction.clear();
       if (["message", "custom_message", "compaction", "branch_summary"].includes(entry.type)) rank++;
       else if (entry.type === "custom" && entry.customType === ROUTING_ENTRY) {
         const data = entry.data?.data;
         if (data?.type === "assessment-resumed" && data.handoffId === state.assessment?.handoffId) resumedAt = rank;
+        if (data?.type === "return-accepted" || data?.type === "recovery-supplement-accepted")
+          assessedSinceCompaction.add(data.handoff.assignmentId);
         if (data?.type !== "selection-changed") continue;
         const current = state.selections.get(data.assignmentId)?.selected ?? [];
         for (const ref of data.selection?.selected ?? [])
           if (current.includes(ref) && !admissions.has(ref)) admissions.set(ref, rank);
       }
     }
-    this.admissionCache = { state, leaf, admissions, resumedAt };
+    this.admissionCache = { state, leaf, admissions, resumedAt, assessedSinceCompaction };
     return this.admissionCache;
   }
   prepared(profile, input, handoffId, restoring = false) {
     const state = this.session.stateData(),
       model = this.models.model(profile);
     return prepareView({
-      ...(({ admissions, resumedAt }) => ({ admissions, resumedAt }))(this.admissions(state)),
+      ...(({ admissions, resumedAt, assessedSinceCompaction }) => ({
+        admissions,
+        resumedAt,
+        assessedSinceCompaction,
+      }))(this.admissions(state)),
       messages: input,
       sources: this.session.sources(state),
       state,

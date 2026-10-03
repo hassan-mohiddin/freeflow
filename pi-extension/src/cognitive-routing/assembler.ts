@@ -150,38 +150,52 @@ export class ContextAssembler {
     leaf: string | null;
     admissions: Map<string, number>;
     resumedAt?: number;
+    assessedSinceCompaction: Set<string>;
   };
   /**
    * Source rank at which each currently selected ref was first admitted, derived from native selection events,
-   * and the rank at which the current assessment last resumed from an attention suspension.
+   * the rank at which the current assessment last resumed from an attention suspension, and the assignments whose
+   * return or supplement the Coordinator received since the latest compaction.
    */
-  admissions(state: State): { admissions: Map<string, number>; resumedAt?: number } {
+  admissions(state: State): {
+    admissions: Map<string, number>;
+    resumedAt?: number;
+    assessedSinceCompaction: Set<string>;
+  } {
     const reader = this.session.ctx.sessionManager,
       leaf = reader.getLeafId?.() ?? null;
     const cache = this.admissionCache;
     if (cache && cache.state === state && cache.leaf === leaf) return cache;
     const admissions = new Map<string, number>();
+    const assessedSinceCompaction = new Set<string>();
     let rank = 0,
       resumedAt: number | undefined;
     for (const entry of reader.getBranch() as NativeEntry[]) {
+      if (entry.type === "compaction") assessedSinceCompaction.clear();
       if (["message", "custom_message", "compaction", "branch_summary"].includes(entry.type)) rank++;
       else if (entry.type === "custom" && entry.customType === ROUTING_ENTRY) {
         const data = (entry as any).data?.data;
         if (data?.type === "assessment-resumed" && data.handoffId === state.assessment?.handoffId) resumedAt = rank;
+        if (data?.type === "return-accepted" || data?.type === "recovery-supplement-accepted")
+          assessedSinceCompaction.add(data.handoff.assignmentId);
         if (data?.type !== "selection-changed") continue;
         const current = state.selections.get(data.assignmentId)?.selected ?? [];
         for (const ref of data.selection?.selected ?? [])
           if (current.includes(ref) && !admissions.has(ref)) admissions.set(ref, rank);
       }
     }
-    this.admissionCache = { state, leaf, admissions, resumedAt };
+    this.admissionCache = { state, leaf, admissions, resumedAt, assessedSinceCompaction };
     return this.admissionCache;
   }
   prepared(profile: Profile, input: any[], handoffId?: string, restoring = false): PreparedView {
     const state = this.session.stateData(),
       model = this.models.model(profile);
     return prepareView({
-      ...(({ admissions, resumedAt }) => ({ admissions, resumedAt }))(this.admissions(state)),
+      ...(({ admissions, resumedAt, assessedSinceCompaction }) => ({
+        admissions,
+        resumedAt,
+        assessedSinceCompaction,
+      }))(this.admissions(state)),
       messages: input,
       sources: this.session.sources(state),
       state,

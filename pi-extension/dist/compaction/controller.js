@@ -8,6 +8,7 @@ import {
   latestUserMessages,
   readCarriedFile,
   renderCarried,
+  renderCarriedForCoordinator,
   renderListed,
   SUMMARY_LIMIT_TOKENS,
 } from "./carry.js";
@@ -314,7 +315,23 @@ export class CompactionController {
             },
           },
         },
-        { type: "custom_message", customType: CARRIED_TYPE, content: carriedText, display: false },
+        {
+          type: "custom_message",
+          customType: CARRIED_TYPE,
+          content: carriedText,
+          display: false,
+          // Under Cognitive Routing the Coordinator's projected view shows this version instead of the copies.
+          ...(this.host.nativeRefs()
+            ? {
+                details: {
+                  coordinatorContent: renderCarriedForCoordinator(this.host.noticePrefix, cycle, userMessages, files, [
+                    ...results,
+                    ...automatic,
+                  ]),
+                },
+              }
+            : {}),
+        },
         { type: "custom_message", customType: RECOVERY_TYPE, content: recovery, display: true },
       ],
       continue: true,

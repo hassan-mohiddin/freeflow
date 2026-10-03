@@ -165,6 +165,44 @@ export function renderCarried(
   return parts.join("\n\n");
 }
 
+/**
+ * The carried context as the Coordinator sees it under projection: the user's latest messages, and only the names of
+ * the worker's copies. The Coordinator receives evidence by selection; the copies would repeat it and enlarge its view.
+ */
+export function renderCarriedForCoordinator(
+  noticePrefix: string,
+  cycle: number,
+  userMessages: readonly string[],
+  files: readonly CarriedFile[],
+  results: readonly Result[],
+): string {
+  const parts = [
+    `# Carried context\n\n${noticePrefix} Freeflow carried this into cycle ${cycle} at the worker's compaction. Only the latest user messages are the user's words, and they take precedence over older instructions in the summary or a Working Record.`,
+  ];
+  if (userMessages.length)
+    parts.push(
+      "## Latest user messages\n\n" +
+        userMessages.map((message, i) => `### Message ${i + 1}\n\n${message}`).join("\n\n"),
+    );
+  const names = [
+    ...files
+      .filter((file) => "text" in file)
+      .map(
+        (file) => `- ${file.path}${"lines" in file && file.lines ? ` (lines ${file.lines[0]}-${file.lines[1]})` : ""}`,
+      ),
+    ...results.map(
+      (result) =>
+        `- ${result.id} ${result.tool}${result.label && result.label !== result.id ? `: ${result.label}` : ""}`,
+    ),
+  ];
+  if (names.length)
+    parts.push(
+      "## Carried for the worker\n\nThe worker's copies are left out of this view; evidence it selects reaches you as usual.\n\n" +
+        names.join("\n"),
+    );
+  return parts.join("\n\n");
+}
+
 /** Results of the work in progress named by ref, so the agent knows they exist without their content in context. */
 export function renderListed(
   listed: readonly ListedResult[],

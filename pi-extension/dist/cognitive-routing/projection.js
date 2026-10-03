@@ -154,6 +154,15 @@ export function prepareView(options) {
     }
     full.set(ref, source);
   }
+  // After a compaction, selected evidence is rebuilt from history only while it is required. Evidence the
+  // Coordinator already received this cycle stays once that ends, so its later requests extend the earlier ones.
+  if (selective)
+    for (const id of options.assessedSinceCompaction ?? [])
+      for (const ref of state.selections.get(id)?.selected ?? []) {
+        const source = sources.byRef.get(ref);
+        if (!full.has(ref) && source && delivered(ref) && !sources.ambiguous.has(ref) && !sources.eligible(ref, state))
+          full.set(ref, source);
+      }
   // A selected result carries its complete native call group; siblings may be structural only.
   for (const source of full.values()) {
     const exchange = sources.exchange(source);
@@ -250,6 +259,14 @@ export function prepareView(options) {
   const fullSources = [...full.values()];
   // The Coordinator only sees completed worker runs, so one note per run keeps its prefix stable.
   messages = annotateSources(messages, renderedSources, new Set(full.keys()), sources, options.instance, selective);
+  // A message may hold its own version for the Coordinator's selective view: Freeflow's carried context names the
+  // worker's copies there instead of repeating them, since the Coordinator receives evidence by selection.
+  if (selective)
+    messages = messages.map((message) =>
+      message?.role === "custom" && typeof message.details?.coordinatorContent === "string"
+        ? { ...message, content: message.details.coordinatorContent }
+        : message,
+    );
   // Restore exact current communication only when its accepted occurrence is absent.
   const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
   const baseReport = assessment
