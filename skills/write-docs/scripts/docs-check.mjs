@@ -49,6 +49,8 @@ const ticks = (text) => [...text.matchAll(/`([^`\n]+)`/g)].map((match) => match[
 // A repository path: segments joined by "/", no spaces, no URL scheme, no placeholders or globs.
 const PATH = /^[A-Za-z0-9_.@-]+(\/[A-Za-z0-9_.@-]+)*\/?$/;
 const looksLikePath = (token) => PATH.test(token) && token.includes("/") && !token.includes("://");
+// The header names paths on purpose, so a root-level file (`command-surface.json`) counts there too.
+const headerPath = (token) => looksLikePath(token) || (PATH.test(token) && /^[^/]+\.[A-Za-z0-9]+$/.test(token));
 // A named path outside a header counts only when its first segment exists in the repository and is not hidden or
 // relative, so commands, examples, other tools' conventions (`.claude/skills/`), and import spellings (`./x.js`)
 // are not mistaken for this repository's files.
@@ -65,7 +67,7 @@ function check(file) {
   const named = new Set();
   for (const key of ["Covers", "Tests", "User docs"])
     for (const token of header[key] ? ticks(header[key]) : [])
-      if (looksLikePath(token)) named.add(token);
+      if (headerPath(token)) named.add(token);
       else errors.push(`${key} names something that is not a repository path: ${token}`);
   // Body paths outside fenced code blocks: code blocks hold commands and examples, not claims about this repository.
   const prose = text.replace(/^```[\s\S]*?^```/gm, "");
@@ -77,7 +79,7 @@ function check(file) {
   let stale;
   if (header["Verified at"] !== undefined) {
     const commit = ticks(header["Verified at"])[0];
-    const covers = header.Covers ? ticks(header.Covers).filter(looksLikePath) : [];
+    const covers = header.Covers ? ticks(header.Covers).filter(headerPath) : [];
     if (!commit) errors.push("Verified at names no commit in backticks");
     else if (!covers.length) errors.push("Verified at needs a Covers line naming the code it was verified against");
     else {

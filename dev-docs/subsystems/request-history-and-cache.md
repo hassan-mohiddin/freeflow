@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/host/request-history.ts`, `pi-extension/src/host/runtime-state.ts`, `pi-extension/src/host/projection-tags.ts`, `pi-extension/src/host/read-only-session.ts`, `pi-extension/src/provider-support/`
 > **Tests:** `pi-extension/tests/cache-reuse/`, `pi-extension/tests/provider-support/`, `pi-extension/tests/host/persisted-branch.test.js`
-> **Verified at:** `77cf48bc` (2026-10-03)
+> **Verified at:** `3a8fdf42` (2026-10-03)
 > **User docs:** `plugin-docs/prompt-caching.md`
 
 For contributors changing how Freeflow assembles requests or touches provider payloads. This doc explains the mechanisms: how generated messages keep their positions, where cache breakpoints are added, when a cache is kept warm, and how regressions are detected. The rules every change must follow, and how to verify one, are in [Prompt cache rules](../guides/prompt-cache.md); this doc does not repeat them.

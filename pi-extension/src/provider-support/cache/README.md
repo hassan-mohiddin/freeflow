@@ -1,6 +1,6 @@
 # Prompt-cache support
 
-Providers with explicit cache breakpoints can only find an earlier cached prefix within a limited lookback. When Freeflow adds messages, routing switches views, or a profile resumes later, the useful cached prefix can fall out of that window. This directory places breakpoints so each request can reach its own earlier prefix, keeps a cache warm while its requester is certain to come back, and watches for cache regressions.
+Providers with explicit cache breakpoints can only find an earlier cached prefix within a limited lookback. When Freeflow adds messages, routing switches views, or a profile resumes later, the useful cached prefix can fall out of that window. This directory places breakpoints so each request can reach its own earlier prefix, keeps a cache warm while its requester is certain to come back, and watches for cache regressions. How and why: [Request history and prompt cache](../../../../dev-docs/subsystems/request-history-and-cache.md).
 
 | File | Owns |
 |---|---|

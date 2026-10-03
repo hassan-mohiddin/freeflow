@@ -1,6 +1,6 @@
 # Source
 
-[`index.ts`](index.ts) is the extension: Pi calls its default export with the extension API, and it registers Freeflow's commands, tools, and event handlers. Each feature lives in its own directory, and `index.ts` connects Pi's events to them.
+[`index.ts`](index.ts) is the extension: Pi calls its default export with the extension API, and it registers Freeflow's commands, tools, and event handlers. Each feature lives in its own directory, and `index.ts` connects Pi's events to them. How the parts fit together, and each part's developer doc: [`dev-docs/README.md`](../../dev-docs/README.md).
 
 | Directory | Responsibility |
 |---|---|
