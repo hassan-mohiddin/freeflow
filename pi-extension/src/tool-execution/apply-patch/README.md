@@ -7,7 +7,7 @@ The patch-editing tool GPT models are trained on in OpenAI Codex, ported so thei
 | [`grammar.ts`](grammar.ts) | The tool's Lark grammar, byte-identical to Codex's. GPT-5+ models on OpenAI endpoints get the tool in this grammar-constrained form; other models get a one-string function. |
 | [`parser.ts`](parser.ts) | Parses a patch into add, delete, update, and move operations, including Codex's lenient forms. |
 | [`match.ts`](match.ts) | Finds a hunk's lines in a file with Codex's four passes: exact, ignoring trailing whitespace, ignoring surrounding whitespace, then normalized Unicode punctuation and spaces. |
-| [`plan.ts`](plan.ts) | Plans all changes, refuses to update an existing file the model has not read, then writes through Pi's file-mutation queue and reports each file's outcome (written, not written, failed). |
+| [`plan.ts`](plan.ts) | Plans all changes, refuses to add over an existing file the model has not read, then writes through Pi's file-mutation queue and reports each file's outcome (written, not written, failed). |
 | [`tool.ts`](tool.ts) | Registers the tool and formats results as Codex does, so models read the summary they were trained on. |
 
 ## Provenance and license

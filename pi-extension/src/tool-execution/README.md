@@ -2,7 +2,7 @@
 
 Freeflow's layer over Pi's own tools (`read`, `bash`, `edit`, `write`, `grep`, `find`, codemode). It keeps Pi's tools and adds what Pi lacks: guidance on working in the environment, notices when files change behind the model, clearer edit errors, `apply_patch` for GPT models, and background commands.
 
-User-facing behavior: [Tool Execution](../../../plugin-docs/capabilities/tool-execution.md).
+How it works and why, including behavior that looks wrong but is intended: [`dev-docs/subsystems/tool-execution.md`](../../../dev-docs/subsystems/tool-execution.md). User-facing behavior: [Tool Execution](../../../plugin-docs/capabilities/tool-execution.md).
 
 | File | Owns |
 |---|---|
@@ -22,5 +22,7 @@ User-facing behavior: [Tool Execution](../../../plugin-docs/capabilities/tool-ex
 - Messages to the model state facts and one next step, with no reassurance. Their wording was reviewed against the Beyond the Weights research (Task 006 evidence).
 - Notices are appended (file changes, background exits); nothing earlier in the conversation is edited.
 - Calls a tool makes for another tool (codemode's nested calls) are tracked like direct calls.
+- Keep the system prompt sections and tool definitions fixed for a configuration; nothing here runs in `context_with_system` ([Performance](../../../dev-docs/guides/performance.md)).
+- Update the subsystem doc in the same change when behavior described there changes.
 
 Tests: [`tests/tool-execution/`](../../tests/tool-execution/README.md).
