@@ -247,7 +247,8 @@ export async function fixture(script, projection = true, after, withUI = true, o
     await modelRuntime.setRuntimeApiKey("openai", "fixture-not-a-real-key");
     await modelRuntime.setRuntimeApiKey("anthropic", "fixture-not-a-real-key");
     const settingsManager = SettingsManager.inMemory({
-      compaction: { enabled: false, keepRecentTokens: 1, reserveTokens: 1 },
+      // Pi's own automatic compaction stays off unless a test exercises it (piAutoCompaction: true).
+      compaction: { enabled: options.piAutoCompaction === true, keepRecentTokens: 1, reserveTokens: 1 },
       retry: { enabled: false, maxRetries: 0, provider: { maxRetries: 0 } },
       ...options.settings,
     });

@@ -4,15 +4,15 @@ import { reserveTokens, strictest, thresholds } from "../../dist/compaction/thre
 import { renderIndex, resolveResult, resultIndex } from "../../dist/compaction/results.js";
 import { carryBudget } from "../../dist/compaction/carry.js";
 
-test("the warning comes at 70% or 30k before Pi's trigger, whichever is first; compact now 10k before it", () => {
+test("compact now comes 25k before Pi's trigger; the warning at 70%, and at least 20k before compact now", () => {
   const at = (window) => {
     const { warning, compactNow, trigger } = thresholds(window, 16_384);
     return [warning, compactNow, trigger];
   };
-  assert.deepEqual(at(128_000), [81_616, 101_616, 111_616]);
-  assert.deepEqual(at(200_000), [140_000, 173_616, 183_616]);
-  assert.deepEqual(at(400_000), [280_000, 373_616, 383_616]);
-  assert.deepEqual(at(1_000_000), [700_000, 973_616, 983_616]);
+  assert.deepEqual(at(128_000), [66_616, 86_616, 111_616]);
+  assert.deepEqual(at(200_000), [138_616, 158_616, 183_616]);
+  assert.deepEqual(at(400_000), [280_000, 358_616, 383_616]);
+  assert.deepEqual(at(1_000_000), [700_000, 958_616, 983_616]);
 });
 
 test("Pi's reserve comes from the model override, then the ordinary setting, then Pi's default", () => {
@@ -83,10 +83,10 @@ test("the index lists this cycle's larger results newest first, without Freeflow
 
 test("the carry budget is 15% of the window, at most 40k, and at most a quarter of the warning point", () => {
   const warningAt = (window, reserve) => thresholds(window, reserve).warning;
-  // Pi's default reserve: the window decides, as before.
-  assert.equal(carryBudget(128_000, warningAt(128_000, 16_384)), 19_200);
+  // Pi's default reserve: on a large window the 40k cap decides; on a small one the warning point does.
+  assert.equal(carryBudget(128_000, warningAt(128_000, 16_384)), 16_654);
   assert.equal(carryBudget(272_000, warningAt(272_000, 16_384)), 40_000);
   // A large reserve leaves little room before the warning, so the carried context must shrink with it.
-  assert.equal(carryBudget(272_000, warningAt(272_000, 180_000)), 15_500);
+  assert.equal(carryBudget(272_000, warningAt(272_000, 180_000)), 11_750);
   assert.equal(carryBudget(undefined, undefined), 40_000);
 });

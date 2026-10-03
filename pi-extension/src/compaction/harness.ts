@@ -15,6 +15,8 @@ export interface HarnessFacts {
   includeFiles?: boolean;
   /** Recovery instructions inside the summary, for compactions with no separate recovery message. */
   recovery?: string;
+  /** Results of the work in progress listed by ref, for compactions with no carried-context message. */
+  listed?: string;
   routingProfile?: string;
   background: readonly { id: string; label: string; outputPath: string }[];
   /** Session-wide lists in Pi's details format. */
@@ -100,6 +102,7 @@ export function harnessPart(facts: HarnessFacts): string {
     );
   const files = facts.includeFiles === false ? "" : formatFileLists(facts.files);
   if (files) lines.push("", "Files read and modified in this session:", "", files);
+  if (facts.listed) lines.push("", facts.listed.replace(/^## /, "### "));
   if (facts.recovery) lines.push("", facts.recovery);
   return lines.join("\n");
 }

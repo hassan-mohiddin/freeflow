@@ -5,7 +5,7 @@ import test from "node:test";
 import { fixture, response } from "../fixtures/routing-native.js";
 
 // When Freeflow says compaction is due. The fixture's gpt-4o has a 128,000-token window and the fixture sets Pi's
-// reserve to 1 token, so Pi's trigger is 127,999: the warning comes at 89,600 (70%) and "compact now" at 117,999.
+// reserve to 1 token, so Pi's trigger is 127,999: "compact now" comes at 102,999 and the warning 20k before it, at 82,999.
 const noRouting = { cognitiveRouting: { enabled: false }, freeflowConfig: { toolExecution: { enabled: true } } };
 const withUsage = (tokens) => (n, calls) =>
   response(n, calls, "fixture response", {
@@ -84,8 +84,8 @@ test(
     const delegate = { name: "freeflow_delegate", args: { operation: "assign", contract: "Read the part files." } };
     const submit = { name: "freeflow_return", args: { operation: "submit", report: "Done.", outcome: "completed" } };
     const close = { name: "freeflow_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } };
-    // Pi's read returns at most about 50 KB per call, so the history grows through ten reads of ~8,500 tokens. The
-    // worker measures about 86k (under the 89,600 warning); the full history with the system prompt is over it.
+    // Pi's read returns at most about 50 KB per call, so the history grows through ten reads of ~8,000 tokens. The
+    // worker measures about 81k (under the 82,999 warning); the full history with the system prompt is over it.
     const parts = Array.from({ length: 10 }, (_, i) => `part${i}.txt`);
     await fixture(
       async (n) =>
@@ -112,7 +112,7 @@ test(
       {
         freeflowConfig: { toolExecution: { enabled: true } },
         beforePrompt: async ({ cwd }) => {
-          for (const path of parts) await writeFile(join(cwd, path), "y".repeat(34_000));
+          for (const path of parts) await writeFile(join(cwd, path), "y".repeat(32_000));
         },
       },
     );
@@ -123,7 +123,7 @@ test(
   "compact now repeats as the context keeps growing, since Pi does not compact within a run",
   { timeout: 30000 },
   async () => {
-    // Compact now at 117,999: crossed at 120k, not repeated at 125k, repeated at 131k (10k past the last one).
+    // Compact now at 102,999: crossed at 120k, not repeated at 125k, repeated at 131k (10k past the last one).
     const usage = [50_000, 100_000, 120_000, 125_000, 131_000, 1_000];
     const read = [{ name: "read", args: { path: "evidence.txt" } }];
     await fixture(

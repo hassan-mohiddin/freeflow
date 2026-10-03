@@ -8,6 +8,7 @@ import {
   latestUserMessages,
   readCarriedFile,
   renderCarried,
+  renderListed,
   SUMMARY_LIMIT_TOKENS,
   type CarriedFile,
   type CarryFile,
@@ -249,6 +250,24 @@ export class CompactionController {
   }
 
   /**
+   * Under Cognitive Routing, the current assignment's results by ref for Pi's own compaction, which copies nothing
+   * itself: without it a worker cannot tell its earlier results are still stored and re-reads them.
+   */
+  private assignmentList(branch: readonly any[]): string {
+    const assignment = this.host.nativeRefs() ? this.host.assignmentResults() : undefined;
+    if (!assignment) return "";
+    const listed = scopeResults(branch, assignment)
+      .slice(0, MAX_LISTED)
+      .map((result) => ({ ...result, selected: assignment.selected.has(result.id) }));
+    return renderListed(
+      listed,
+      "assignment",
+      "Results",
+      "Pi kept the most recent as they were; all are still stored: select one as evidence by its ref, or read it again if you need its content.",
+    );
+  }
+
+  /**
    * The automatic part of carry and the list of what stays behind. After the agent's picks, the newest results of the
    * work in progress (the current assignment under Cognitive Routing, otherwise this cycle) fill the rest of the
    * budget; the others are listed by ref so the agent knows what exists. With context reuse off nothing is copied, and
@@ -393,6 +412,7 @@ export class CompactionController {
         background: this.host.background(),
         files: { readFiles: [], modifiedFiles: [] },
         includeFiles: false,
+        listed: this.assignmentList(branch),
         recovery: `${recoveryText(cycle)} ${AFTER_PI}`,
       })}`;
       this.requested = undefined;

@@ -71,6 +71,7 @@ export function harnessPart(facts) {
     );
   const files = facts.includeFiles === false ? "" : formatFileLists(facts.files);
   if (files) lines.push("", "Files read and modified in this session:", "", files);
+  if (facts.listed) lines.push("", facts.listed.replace(/^## /, "### "));
   if (facts.recovery) lines.push("", facts.recovery);
   return lines.join("\n");
 }

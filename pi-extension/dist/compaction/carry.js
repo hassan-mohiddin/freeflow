@@ -124,21 +124,26 @@ export function renderCarried(noticePrefix, cycle, userMessages, files, results 
           )
           .join("\n\n"),
     );
-  const listed = options.listed ?? [];
-  if (listed.length) {
-    const assignment = options.scope === "assignment";
-    parts.push(
-      `## Other results of this ${assignment ? "assignment" : "cycle"}\n\n` +
-        (assignment
-          ? "Not carried. They are still stored: select one as evidence by its ref, carry it at a later compaction, or read it again if you need its content.\n\n"
-          : "Not carried. Carry one by its id at a later compaction, or read it again if you need its content.\n\n") +
-        listed
-          .map(
-            (result) =>
-              `- ${result.id}  ${result.tool}  ${result.label}  ~${result.tokens} tokens${result.selected ? "  (selected as evidence)" : ""}`,
-          )
-          .join("\n"),
-    );
-  }
+  const listed = renderListed(options.listed ?? [], options.scope ?? "cycle", "Other results");
+  if (listed) parts.push(listed);
   return parts.join("\n\n");
+}
+/** Results of the work in progress named by ref, so the agent knows they exist without their content in context. */
+export function renderListed(listed, scope, heading, intro) {
+  if (!listed.length) return "";
+  const assignment = scope === "assignment";
+  return (
+    `## ${heading} of this ${assignment ? "assignment" : "cycle"}\n\n` +
+    (intro ??
+      (assignment
+        ? "Not carried. They are still stored: select one as evidence by its ref, carry it at a later compaction, or read it again if you need its content."
+        : "Not carried. Carry one by its id at a later compaction, or read it again if you need its content.")) +
+    "\n\n" +
+    listed
+      .map(
+        (result) =>
+          `- ${result.id}  ${result.tool}  ${result.label}  ~${result.tokens} tokens${result.selected ? "  (selected as evidence)" : ""}`,
+      )
+      .join("\n")
+  );
 }

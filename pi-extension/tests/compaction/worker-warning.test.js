@@ -4,7 +4,7 @@ import { fixture, response } from "../fixtures/routing-native.js";
 
 // The warning reaching a worker in the middle of its own assignment, under projection: the worker gets the worker's
 // notice, compacts, continues its contract, and returns. The fixture's gpt-4o has a 128,000-token window and Pi's
-// reserve is 1 token, so the warning comes at 89,600 (70%).
+// reserve is 1 token, so the warning comes at 82,999 (20k before compact now).
 const WARNING = "Compaction is due soon:";
 const count = (body, text) => JSON.stringify(body.input).split(text).length - 1;
 

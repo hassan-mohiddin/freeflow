@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import test from "node:test";
 import { fixture, response } from "../fixtures/routing-native.js";
 
@@ -141,3 +143,56 @@ test("after Pi's own compaction, freeflow_compact is refused with where to go ne
     },
   );
 });
+
+test(
+  "under routing, Pi's own compaction lists the worker's assignment results by ref",
+  { timeout: 30000 },
+  async () => {
+    const steps = [
+      [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Read the two parts." } }],
+      [{ name: "read", args: { path: "part1.txt" } }],
+      [{ name: "read", args: { path: "part2.txt" } }],
+      [{ name: "freeflow_return", args: { operation: "submit", report: "Done.", outcome: "completed" } }],
+      [{ name: "freeflow_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } }],
+    ];
+    // The third step reports usage past any model's window, so Pi compacts before the worker's next response (under
+    // routing Pi judges the current model, the worker's). Summarizer requests get a plain summary and do not advance
+    // the steps.
+    const usage = [5_000, 50_000, 2_000_000];
+    let step = 0;
+    await fixture(
+      async () => [],
+      true,
+      async ({ manager }) => {
+        const entry = manager.getBranch().find((each) => each.type === "compaction");
+        assert.ok(entry, "Pi compacted mid-assignment");
+        assert.equal(entry.details.freeflow.fallback, true);
+        assert.match(entry.summary, /### Results of this assignment\n\nPi kept the most recent as they were/);
+        for (const path of ["part1.txt", "part2.txt"])
+          assert.match(entry.summary, new RegExp(`- ctx:\\S+ {2}read {2}${path.replace(".", "\\.")}`));
+      },
+      true,
+      {
+        freeflowConfig: { toolExecution: { enabled: true } },
+        fixtureCompaction: false,
+        piAutoCompaction: true,
+        beforePrompt: async ({ cwd }) => {
+          await writeFile(join(cwd, "part1.txt"), "PART ONE");
+          await writeFile(join(cwd, "part2.txt"), "PART TWO");
+        },
+        response: (n, _calls, body) => {
+          // Pi's summarizer (its history summary and, mid-turn, the turn-prefix summary) is not a scripted step.
+          if (JSON.stringify(body).includes("You are a context summarization assistant"))
+            return response(n, [], "PI SUMMARY");
+          const at = step++;
+          const tokens = usage[at] ?? 1_000;
+          return response(n, steps[at] ?? [], "fixture response", {
+            input_tokens: tokens,
+            output_tokens: 10,
+            total_tokens: tokens + 10,
+          });
+        },
+      },
+    );
+  },
+);
