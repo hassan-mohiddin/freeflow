@@ -27,7 +27,12 @@ import {
   STABLE_FREEFLOW_SURFACE,
   skillPrompt,
 } from "./host/catalog.js";
-import { readCapabilityState, restoreSessionOverrides, writeStagedSessionOverrides } from "./host/config.js";
+import {
+  readCapabilityState,
+  restoreSessionOverrides,
+  setSessionCoreOverride,
+  writeStagedSessionOverrides,
+} from "./host/config.js";
 import {
   getRuntimeContext,
   hasUsableMandatoryPrompts,
@@ -221,6 +226,20 @@ export default function freeflow(pi) {
     await routing.refresh(ctx, next.cognitiveRouting);
     status(ctx);
     refreshState = true;
+  }
+  /**
+   * Turn Cognitive Routing on for this session when it is off: clear a session "off" (such as the one an outside model
+   * change sets), and switch it on for the session if configuration leaves it off. Re-enabling hands control to the
+   * automatic Coordinator. Configuration that still blocks routing (no profiles, invalid presets) is reported by the
+   * control that follows.
+   */
+  async function turnRoutingOn(ctx) {
+    if (capability?.cognitiveRouting?.effective === true || ctx.isIdle?.() === false) return;
+    if (capability?.cognitiveRouting?.enabledSource === "session")
+      await setSessionCoreOverride("cognitiveRouting.enabled", null, ctx, api);
+    if ((await readCapabilityState(ctx.cwd, ctx)).cognitiveRouting?.enabled !== true)
+      await setSessionCoreOverride("cognitiveRouting.enabled", true, ctx, api);
+    await update(ctx);
   }
   registerRoutingTools(api, routing);
   registerApplyPatch(api, {
@@ -462,16 +481,18 @@ export default function freeflow(pi) {
     await routing.settled(ctx);
     await update(ctx);
   });
-  pi.on("model_select", async (_event, ctx) => {
+  // A model or effort picked in Pi itself (/model, Shift+Tab) ends automatic routing. Routing then turns off for this
+  // session through its Session switch, so settings and the footer show it off, and any routing control turns it on.
+  const externalChange = async (ctx) => {
     cacheHealth.noteSwitch();
-    await routing.nativeChange(ctx);
+    if (await routing.nativeChange(ctx)) {
+      await setSessionCoreOverride("cognitiveRouting.enabled", false, ctx, api);
+      await update(ctx);
+    }
     status(ctx);
-  });
-  pi.on("thinking_level_select", async (_event, ctx) => {
-    cacheHealth.noteSwitch();
-    await routing.nativeChange(ctx);
-    status(ctx);
-  });
+  };
+  pi.on("model_select", async (_event, ctx) => externalChange(ctx));
+  pi.on("thinking_level_select", async (_event, ctx) => externalChange(ctx));
   pi.on("context_with_system", async (event, ctx) => {
     writeStagedControl(ctx);
     if (!capability) await loadSurface(ctx);
@@ -539,18 +560,20 @@ export default function freeflow(pi) {
           ctx.ui.notify("Wait for Pi to become idle before changing control.", "warning");
           return;
         }
+        await turnRoutingOn(ctx);
         ctx.ui.notify(JSON.stringify(await routing.cycleManualProfile()), "info");
         await update(ctx);
       },
     });
     pi.registerShortcut("ctrl+shift+a", {
-      description: "Release manual hold to Automatic Coordinator",
+      description: "Turn Cognitive Routing on, or release a manual hold, to the automatic Coordinator",
       handler: async (shortcutCtx) => {
         const ctx = withLiveModel(shortcutCtx);
         if (!ctx.isIdle()) {
           ctx.ui.notify("Wait for Pi to become idle before changing control.", "warning");
           return;
         }
+        await turnRoutingOn(ctx);
         ctx.ui.notify(JSON.stringify(await routing.setAutomaticControl()), "info");
         await update(ctx);
       },
@@ -589,6 +612,8 @@ export default function freeflow(pi) {
         await compactNow(ctx);
         return;
       }
+      // A routing control (a hold or `auto`) turns routing on first when it is off.
+      if (/^profile\s+(?!history\b)\S/i.test((args ?? "").trim())) await turnRoutingOn(ctx);
       if (await routing.command(args ?? "", ctx)) {
         await update(ctx);
         return;

@@ -145,15 +145,19 @@ export class ModelControl {
       ctx?.ui?.notify?.(`Cognitive Routing preset: ${warnings.join(" ")}`, "warning");
     this.presetNotice = notice;
   }
-  async nativeChange(ctx: any): Promise<void> {
+  /**
+   * The user picked a model or effort in Pi itself. Under automatic control that ends routing's ownership of the
+   * model: returns true when it did, so the caller turns routing off for the session where the user can see it.
+   */
+  async nativeChange(ctx: any): Promise<boolean> {
     this.session.ctx = ctx;
-    if (!this.session.supported() || !this.session.store) return;
+    if (!this.session.supported() || !this.session.store) return false;
     if (this.applying) {
       if (ctx.model?.provider !== this.applying.provider || ctx.model?.id !== this.applying.modelId) {
         this.externalChange = true;
         this.session.revision++;
       }
-      return; // Never await a queue already held by our setter.
+      return false; // Never await a queue already held by our setter.
     }
     // The user's own pick in Pi wins over a switch still waiting for the next prompt.
     this.setPending(undefined);
@@ -163,7 +167,7 @@ export class ModelControl {
       !state.profile ||
       samePair(this.session.observed(), this.session.profilePair(state.profile))
     )
-      return;
+      return false;
     try {
       this.session.revision++;
       this.session.manualHold = undefined;
@@ -171,11 +175,13 @@ export class ModelControl {
       this.session.append({ type: "control", control: "inactive", reason: "External native model/effort change" });
       const now = this.session.observed();
       ctx.ui?.notify?.(
-        `Cognitive Routing is inactive: the model or effort was changed outside routing${now ? ` (now ${now.modelId}/${now.thinking})` : ""}. Run /freeflow profile auto to resume automatic routing.`,
+        `Cognitive Routing is off for this session: the model or effort was changed outside routing${now ? ` (now ${now.modelId}/${now.thinking})` : ""}. Turn it back on with /freeflow profile auto, Ctrl+Shift+A, or /freeflow settings.`,
         "warning",
       );
+      return true;
     } catch (error) {
       this.session.mark(error);
+      return false;
     }
   }
   async applyPair(target: Pair): Promise<void> {

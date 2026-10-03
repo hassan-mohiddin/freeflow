@@ -128,11 +128,11 @@ test("a manual hold set before the first user message applies to it", { timeout:
   );
 });
 
-test("selecting a virtual model turns routing inactive and says so", { timeout: 30000 }, async () => {
+test("selecting a virtual model turns routing off for the session and says so", { timeout: 30000 }, async () => {
   await fixture(
     async () => [],
     false,
-    async ({ session, requests, notices }) => {
+    async ({ session, manager, requests, notices }) => {
       await session.setModel(session.modelRuntime.getModel("probe", "auto"));
       await session.prompt("Next.");
       await session.waitForIdle();
@@ -140,12 +140,18 @@ test("selecting a virtual model turns routing inactive and says so", { timeout: 
       assert.match(JSON.stringify(requests[1]), /Cognitive Routing: inactive/);
       assert.ok(
         notices.some(([text]) =>
-          /^Cognitive Routing is inactive: the model or effort was changed outside routing \(now auto\/\w+\)\. Run \/freeflow profile auto/.test(
+          /^Cognitive Routing is off for this session: the model or effort was changed outside routing \(now auto\/\w+\)\. Turn it back on with \/freeflow profile auto, Ctrl\+Shift\+A, or \/freeflow settings\./.test(
             text,
           ),
         ),
         JSON.stringify(notices),
       );
+      // Off through the Session switch, so /freeflow settings and the footer show it.
+      const overrides = manager
+        .getBranch()
+        .filter((e) => e.type === "custom" && e.customType === "freeflow-session-overrides")
+        .at(-1)?.data?.overrides;
+      assert.equal(overrides?.["cognitiveRouting.enabled"], false);
     },
     true,
     {
@@ -160,6 +166,31 @@ test("selecting a virtual model turns routing inactive and says so", { timeout: 
           }),
       ],
     },
+  );
+});
+
+test("after an outside model change, /freeflow profile auto turns routing back on", { timeout: 30000 }, async () => {
+  await fixture(
+    async () => [],
+    false,
+    async ({ session, manager, requests }) => {
+      await session.setModel(session.modelRuntime.getModel("openai", EXECUTOR));
+      await session.prompt("Next.");
+      await session.waitForIdle();
+      assert.match(JSON.stringify(requests.at(-1)), /Cognitive Routing: inactive/);
+      await session.prompt("/freeflow profile auto");
+      await session.prompt("Again.");
+      await session.waitForIdle();
+      assert.equal(requests.at(-1).model, COORDINATOR, "the automatic Coordinator runs again");
+      assert.match(JSON.stringify(requests.at(-1)), /Cognitive Routing: active/);
+      const overrides = manager
+        .getBranch()
+        .filter((e) => e.type === "custom" && e.customType === "freeflow-session-overrides")
+        .at(-1)?.data?.overrides;
+      assert.ok(!overrides || overrides["cognitiveRouting.enabled"] !== false, "the session switch is no longer off");
+    },
+    true,
+    toolExecution,
   );
 });
 

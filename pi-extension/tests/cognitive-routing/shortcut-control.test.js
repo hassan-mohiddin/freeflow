@@ -47,7 +47,7 @@ test("rapid manual-hold shortcuts never record a profile whose model was not app
           assert.equal(profileFor[model], data.profile, `manual ${data.profile} recorded while ${model} was active`);
       }
       const release = [...runner.getShortcuts({}).values()].find((s) =>
-        /Release manual hold/.test(s.description ?? ""),
+        /release a manual hold/.test(s.description ?? ""),
       );
       const racing = [cycle.handler(ctx)];
       await sleep(30);
@@ -113,7 +113,7 @@ test(
         for (let i = 0; i < 4; i++) cycled.push(await press(/Cycle enabled/));
         assert.deepEqual(cycled, ["executor", "coordinator", "executor", "coordinator"], "every press switches");
         await press(/Cycle enabled/);
-        assert.equal(await press(/Release manual hold/), "coordinator", "one release returns to the Coordinator");
+        assert.equal(await press(/release a manual hold/), "coordinator", "one release returns to the Coordinator");
         assert.equal(session.model.id, "gpt-4o", "the host model waits for the next prompt");
       },
     });
