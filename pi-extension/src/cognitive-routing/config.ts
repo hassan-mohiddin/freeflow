@@ -84,7 +84,8 @@ export async function resolveCognitiveRoutingState(
     enabledSource: "default",
     delegation: "executor",
     delegationSource: "default",
-    projection: false,
+    // Projection is on by default with routing (user, 2026-10-02): it is where routing's Coordinator saving comes from.
+    projection: true,
     projectionSource: "default",
     profiles: {},
     profileSources: {},

@@ -156,7 +156,8 @@ test("composes the mandatory core fragments, current capabilities, discovery, an
     assert.match(runtimeState.content, /Cognitive Routing: inactive/);
     assert.doesNotMatch(runtimeState.content, /Context Virtualization|Conversation History/);
     assert.match(runtimeState.content, /Control: `unavailable`/);
-    assert.match(runtimeState.content, /Projection: `disabled`/);
+    // Projection is on by default, so with routing off it is unavailable rather than disabled.
+    assert.match(runtimeState.content, /Projection: `unavailable`/);
     assert.doesNotMatch(runtimeState.content, /Default mode|Active mode|Interaction Contract|Skills/);
 
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
