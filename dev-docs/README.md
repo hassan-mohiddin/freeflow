@@ -67,7 +67,7 @@ skills/  capabilities/  runtime/prompts/      model-facing methods and guidance 
 
 Freeflow does not ship a CLI, duplicate manifest command handlers, enforcement hooks, or a new agent runtime in this release. It uses each host's native skill invocation and ships one shared runtime-context renderer with host-specific session adapters plus the Pi extension.
 
-- **Codex and Claude Code:** `hooks/adapters/codex-session-start.mjs` and `claude-session-start.mjs` deliver the core fragments and the Working Method at `SessionStart` (startup, resume, clear, compact). Codex marketplace metadata uses local source `.`, while Claude uses host-valid local source `./`.
+- **Codex and Claude Code:** `hooks/adapters/codex-session-start.mjs` and `claude-session-start.mjs` deliver the core fragments and the Working Method at `SessionStart` (startup, resume, clear, compact, and on Claude Code fork). Claude Code runs one hook per prompt because it caps each hook's context at 10,000 characters; Codex runs one hook with a raised `additionalContextLimit`. Codex marketplace metadata uses local source `.`, while Claude uses host-valid local source `./`.
 - **Gemini CLI:** `gemini-extension.json` and `hooks/hooks.json` with `gemini-session-start.mjs`.
 - **Cursor:** the root `plugin.json` for skills; `.cursor-plugin/plugin.json` adds a `sessionStart` hook.
 - **GitHub Copilot and VS Code:** the root `plugin.json`; `com.github.copilot/hooks/hooks.json` for `SessionStart`.

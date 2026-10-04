@@ -63,7 +63,15 @@ The `enabled` setting is the only Freeflow core switch. Cognitive Routing, Tool 
 
 ### Codex and Claude Code
 
-The Codex and Claude adapters load the mandatory core fragments, followed by the Working Method when its file is present, at `SessionStart` for startup, resume, clear, and compact boundaries. They share `hooks/shared/runtime-context.mjs` but keep host-specific hook manifests and output envelopes. They do not process ordinary submitted prompts, persist session controls, or create clear-transfer state. Codex and Claude do not receive Pi-specific capability delivery.
+The Codex and Claude adapters load the mandatory core fragments, followed by the Working Method when its file is present, at `SessionStart` for startup, resume, clear, and compact boundaries, and on Claude Code also fork.
+
+Both hosts limit hook context, so the delivery is shaped to fit:
+
+- **Claude Code** caps each hook's `additionalContext` at 10,000 characters, measured per hook with no setting to raise it; longer output is saved to a file and the model gets a 2,000-character preview without being told to read it. `hooks/claude/hooks.json` therefore runs one hook per prompt (`claude-session-start.mjs SessionStart core|interactionContract|workingMethod`); the core hook also carries the Runtime State and any configuration error. Live sessions showed the single 16 KB hook reaching the model as that preview (October 2026).
+- **Codex** spills a hook's context to a file above 2,500 tokens (estimated as bytes / 4) unless the handler sets `additionalContextLimit`; `hooks/codex/hooks.json` sets it above the whole context.
+- `hooks/tests/check-host-adapters.test.mjs` runs the manifests' commands and checks both limits, and keeps each prompt file within 9,500 characters.
+
+Codex runs a plugin hook only while its definition is trusted: it stores a hash of the hook (event, matcher, command, timeout, status message, limit) under `<plugin>@<marketplace>:<hooks file>:<event>:<group>:<handler>` when the user approves it in `/hooks`. Any change to the hook definition or the hooks file path makes Codex skip the hook silently until the user approves it again. They share `hooks/shared/runtime-context.mjs` but keep host-specific hook manifests and output envelopes. They do not process ordinary submitted prompts, persist session controls, or create clear-transfer state. Codex and Claude do not receive Pi-specific capability delivery.
 
 The renderer decides config validity with Pi's own validator (`pi-extension/src/host/config-validation.ts`, imported from its built file), so settings written on Pi, such as Tool Execution or Compaction, never switch Freeflow off elsewhere. Until October 2026 the hooks kept their own copy of the check, which rejected those keys and left Freeflow silently missing. That module and its imports must stay free of Pi packages, because hooks run in plain Node; `hooks/tests/check-host-adapters.test.mjs` checks this and that the hooks and Pi agree on a set of configs. An existing invalid config renders a configuration error naming the file; a missing one renders nothing.
 

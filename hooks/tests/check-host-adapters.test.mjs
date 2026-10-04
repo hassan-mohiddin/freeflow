@@ -183,3 +183,65 @@ test("an invalid prompt selection is reported", () => {
   const context = contextOf(runAdapter(adapters.codex[0], workspace, inputFor("codex", workspace)));
   assert.match(context, /\.freeflow\/local\.json is invalid: prompts\.workingMethod must be a boolean/);
 });
+
+// Claude Code caps each hook's additionalContext at 10,000 characters and saves anything longer to a file, giving the
+// model only a 2,000-character preview (code.claude.com/docs/en/hooks). In October 2026 one hook carrying every prompt
+// (16 KB) reached Claude as that preview, so Claude Code runs one hook per prompt. Codex spills above a per-hook
+// token limit (2,500 by default, estimated as bytes / 4), which its manifest raises.
+const CLAUDE_HOOK_CHARACTER_CAP = 10_000;
+// Room under the cap for future edits; a part over it needs trimming or another split.
+const PROMPT_PART_BUDGET = 9_500;
+
+function runManifestHooks(manifestPath, rootVariable, workspace) {
+  const manifest = JSON.parse(readFileSync(join(repoRoot, manifestPath), "utf8"));
+  return manifest.hooks.SessionStart[0].hooks.map((handler) => {
+    const result = spawnSync("/bin/sh", ["-c", handler.command], {
+      cwd: repoRoot,
+      env: { ...process.env, [rootVariable]: repoRoot },
+      input: `${JSON.stringify({ hook_event_name: "SessionStart", source: "startup", cwd: workspace })}\n`,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    return { handler, context: contextOf(result.stdout.trim() ? JSON.parse(result.stdout) : undefined) };
+  });
+}
+
+test("each Claude Code hook stays under Claude Code's context cap and together they deliver every prompt once", () => {
+  const workspace = createWorkspace();
+  const outputs = runManifestHooks("hooks/claude/hooks.json", "CLAUDE_PLUGIN_ROOT", workspace);
+  for (const { handler, context } of outputs)
+    assert.ok(context.length < CLAUDE_HOOK_CHARACTER_CAP, `${handler.command}: ${context.length} characters`);
+  const all = outputs.map(({ context }) => context).join("\n");
+  for (const heading of [
+    "# Freeflow Stable Guidance",
+    "# Freeflow Interaction Contract",
+    "# Freeflow Working Method",
+    "# Freeflow Runtime State",
+  ])
+    assert.equal(all.split(heading).length - 1, 1, heading);
+  // A selected-off prompt's hook delivers nothing; an invalid config is reported once, by the core hook.
+  const selected = runManifestHooks(
+    "hooks/claude/hooks.json",
+    "CLAUDE_PLUGIN_ROOT",
+    createWorkspace('{"prompts":{"workingMethod":false}}\n'),
+  );
+  assert.equal(selected[2].context, undefined);
+  const invalid = runManifestHooks("hooks/claude/hooks.json", "CLAUDE_PLUGIN_ROOT", createWorkspace('{"enabled":1}\n'));
+  assert.deepEqual(
+    invalid.map(({ context }) => /# Freeflow Configuration Error/.test(context ?? "")),
+    [true, false, false],
+  );
+});
+
+test("Codex's hook limit holds the whole context", () => {
+  const [{ handler, context }] = runManifestHooks("hooks/codex/hooks.json", "PLUGIN_ROOT", createWorkspace());
+  assert.match(context, /# Freeflow Working Method/);
+  assert.ok(Buffer.byteLength(context) / 4 < handler.additionalContextLimit, `${Buffer.byteLength(context)} bytes`);
+});
+
+test("every runtime prompt fits one Claude Code hook with room to spare", () => {
+  for (const file of ["core.md", "interaction-contract.md", "working-method.md"]) {
+    const length = readFileSync(join(repoRoot, "runtime/prompts", file), "utf8").trim().length;
+    assert.ok(length <= PROMPT_PART_BUDGET, `${file}: ${length} characters`);
+  }
+});

@@ -8,10 +8,11 @@
 
 ### Changed
 
-- Codex, Claude Code, Gemini CLI, Cursor, and GitHub Copilot now receive Freeflow's Working Method (how to read a request, check evidence, and report a finished change) at session start, as Pi already did. It adds about 1,700 words to the session-start context.
+- Codex, Claude Code, Gemini CLI, Cursor, and GitHub Copilot now receive Freeflow's Working Method (how to read a request, check evidence, and report a finished change) at session start, as Pi already did. It adds about 1,500 words to the session-start context.
 
 ### Fixed
 
+- Claude Code now receives Freeflow's whole session-start context. Claude Code caps each hook's context at 10,000 characters and shows longer output only as a short preview, so Freeflow now delivers each prompt through its own hook, and also at the start of forked sessions. Codex's Freeflow hook now raises Codex's context limit for the same reason. After updating, approve the changed Freeflow hook in Codex's `/hooks`; Codex skips it until you do.
 - Freeflow no longer goes silently inactive on Codex, Claude Code, Gemini CLI, Cursor, and GitHub Copilot in a repository whose `.freeflow/config.json` or `.freeflow/local.json` has `toolExecution` or `compaction` settings, such as those written by `/freeflow settings` on Pi. The session-start hooks now check configuration with the same validator as Pi, and an existing invalid configuration file now produces a short configuration error naming the file instead of no Freeflow context.
 
 ## 0.8.0 - 2026-10-03

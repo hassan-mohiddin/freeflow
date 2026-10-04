@@ -106,12 +106,14 @@ const PROMPT_FILES = {
   workingMethod: "working-method.md",
 };
 
-/** The selected prompts in Pi's order. A selected core or Interaction Contract must exist; the Working Method is
- * optional, as on Pi. */
-function loadRuntimeContext(selection) {
+/**
+ * The selected prompts in Pi's order, or only `part` when a host delivers each prompt through its own hook. A selected
+ * core or Interaction Contract must exist; the Working Method is optional, as on Pi.
+ */
+function loadRuntimeContext(selection, part) {
   const prompts = [];
   for (const [key, file] of Object.entries(PROMPT_FILES)) {
-    if (!selection[key]) continue;
+    if (!selection[key] || (part && key !== part)) continue;
     const text = readText(path.join(PLUGIN_ROOT, "runtime", "prompts", file));
     if (!text && key !== "workingMethod") throw new Error("Freeflow core runtime prompt files are missing.");
     if (text) prompts.push(text);
@@ -123,12 +125,18 @@ function runtimeStateContext() {
   return ["# Freeflow Runtime State", "", "Freeflow: active"].join("\n");
 }
 
-export function renderRuntimeContext(root) {
+/**
+ * The session-start context for the repository at `root`: every selected prompt, or one `part` of it (`core`,
+ * `interactionContract`, `workingMethod`). Claude Code caps each hook's context at 10,000 characters, so it runs one
+ * hook per part. A configuration error and the Runtime State, which the core prompt refers to, travel with the core.
+ */
+export function renderRuntimeContext(root, part = undefined) {
+  if (part !== undefined && !Object.hasOwn(PROMPT_FILES, part)) return "";
   const config = readConfig(root);
   if (!config.valid) {
     // A missing repository config means Freeflow is not set up here: stay silent. An existing invalid file is reported,
     // as Pi's status does, so Freeflow is not silently missing.
-    if (!config.error) return "";
+    if (!config.error || (part && part !== "core")) return "";
     return [
       "# Freeflow Configuration Error",
       "",
@@ -139,8 +147,9 @@ export function renderRuntimeContext(root) {
   if (!config.enabled) return "";
 
   // The user chooses the prompts on hosts other than Pi; with none selected there is nothing to deliver.
-  const prompts = loadRuntimeContext(config.prompts);
-  return prompts.length ? [...prompts, runtimeStateContext()].join("\n\n") : "";
+  const prompts = loadRuntimeContext(config.prompts, part);
+  if (config.prompts.core && (!part || part === "core")) prompts.push(runtimeStateContext());
+  return prompts.join("\n\n");
 }
 
 export function emitHookOutput(output) {
@@ -154,7 +163,8 @@ export function runSessionStartAdapter({ eventNames, getWorkspaceCwd, formatOutp
   if (!eventNames.includes(eventName)) return;
 
   const root = findWorkspaceRoot(getWorkspaceCwd(input));
-  const additionalContext = renderRuntimeContext(root);
+  // An optional third argument names the one prompt this hook delivers.
+  const additionalContext = renderRuntimeContext(root, process.argv[3]);
   if (additionalContext.trim()) {
     emitHookOutput(formatOutput({ eventName, input, additionalContext }));
   }

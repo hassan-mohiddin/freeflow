@@ -51,7 +51,7 @@ node -e '
 const fs = require("fs");
 const hooks = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).hooks || {};
 if (!Array.isArray(hooks.SessionStart) || hooks.SessionStart.length !== 1) process.exit(1);
-if (hooks.SessionStart[0]?.matcher !== "startup|resume|clear|compact") process.exit(1);
+if (hooks.SessionStart[0]?.matcher !== "startup|resume|clear|compact|fork") process.exit(1);
 ' "$CLAUDE_HOOKS_JSON" || fail "Claude hooks manifest does not preserve lifecycle starts"
 node -e '
 const fs = require("fs");
