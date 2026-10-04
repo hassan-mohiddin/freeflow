@@ -91,7 +91,7 @@ require_text "$pi_runtime" '../../../runtime/prompts/interaction-contract.md'
 require_text "$pi_runtime" '../../../runtime/prompts/cognitive-routing.md'
 reject_text "$pi_runtime" '../../../runtime/prompts/context-virtualization.md'
 reject_text "$pi_runtime" '../../../runtime/prompts/conversation-history.md'
-require_text "$shared_renderer" 'path.join(PLUGIN_ROOT, "runtime", "prompts", "interaction-contract.md")'
+require_text "$shared_renderer" 'interactionContract: "interaction-contract.md"'
 require_text "$claude_adapter" 'eventNames: ["SessionStart"]'
 
 for file in \

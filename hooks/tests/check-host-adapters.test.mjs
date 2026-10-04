@@ -116,6 +116,10 @@ test("the hooks and Pi agree on every config's validity", async () => {
     ["{}", '{"compaction":{"carry":"no"}}'],
     ['{"defaultMode":"workflow"}', undefined],
     ["{}", '{"contextVirtualization":false}'],
+    ['{"prompts":{"workingMethod":false}}', '{"prompts":{"core":true}}'],
+    ['{"prompts":{"workingMethod":"no"}}', undefined],
+    ["{}", '{"prompts":{"skills":false}}'],
+    ["{}", '{"prompts":[]}'],
     ["{invalid", undefined],
     ["[]", undefined],
   ];
@@ -142,4 +146,40 @@ test("the shared config validator imports nothing but Node and its own files", (
   };
   visit(join(repoRoot, "pi-extension/dist/host/config-validation.js"));
   assert.ok(seen.size >= 3);
+});
+
+// Hosts other than Pi deliver the runtime prompts the user selects; each is on unless a config turns it off.
+test("the user selects which runtime prompts a hook host delivers", () => {
+  const titles = {
+    core: "# Freeflow Stable Guidance",
+    interactionContract: "# Freeflow Interaction Contract",
+    workingMethod: "# Freeflow Working Method",
+  };
+  const delivered = (config, local) => {
+    const workspace = createWorkspace(`${JSON.stringify(config)}\n`, local && `${JSON.stringify(local)}\n`);
+    const context = contextOf(runAdapter(adapters.claude[0], workspace, inputFor("claude", workspace)));
+    return context === undefined ? [] : Object.keys(titles).filter((key) => context.includes(titles[key]));
+  };
+  assert.deepEqual(delivered({}), ["core", "interactionContract", "workingMethod"]);
+  for (const key of Object.keys(titles))
+    assert.deepEqual(
+      delivered({ prompts: { [key]: false } }),
+      Object.keys(titles).filter((other) => other !== key),
+      `${key} off`,
+    );
+  // The personal layer overrides the repository's, prompt by prompt.
+  assert.deepEqual(
+    delivered({ prompts: { workingMethod: false, core: false } }, { prompts: { workingMethod: true } }),
+    ["interactionContract", "workingMethod"],
+  );
+  // Nothing selected, nothing delivered: no orphaned Runtime State.
+  assert.deepEqual(delivered({ prompts: { core: false, interactionContract: false, workingMethod: false } }), []);
+  const workspace = createWorkspace('{"prompts":{"core":false,"interactionContract":false,"workingMethod":false}}\n');
+  assert.equal(runAdapter(adapters.claude[0], workspace, inputFor("claude", workspace)), undefined);
+});
+
+test("an invalid prompt selection is reported", () => {
+  const workspace = createWorkspace("{}\n", '{"prompts":{"workingMethod":"off"}}\n');
+  const context = contextOf(runAdapter(adapters.codex[0], workspace, inputFor("codex", workspace)));
+  assert.match(context, /\.freeflow\/local\.json is invalid: prompts\.workingMethod must be a boolean/);
 });

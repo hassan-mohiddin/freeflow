@@ -10,6 +10,28 @@ function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** The runtime prompts a hook host delivers, each on unless a config turns it off. Pi always delivers all of them. */
+export const RUNTIME_PROMPTS = ["core", "interactionContract", "workingMethod"] as const;
+export type RuntimePromptSelection = Record<(typeof RUNTIME_PROMPTS)[number], boolean>;
+
+function validatePromptsConfig(value) {
+  if (!isRecord(value)) return "prompts must be an object";
+  const unknown = Object.keys(value).find((key) => !(RUNTIME_PROMPTS as readonly string[]).includes(key));
+  if (unknown) return `prompts has unsupported key: ${unknown}`;
+  for (const key of RUNTIME_PROMPTS)
+    if (value[key] !== undefined && typeof value[key] !== "boolean") return `prompts.${key} must be a boolean`;
+  return null;
+}
+
+/** The prompts a hook host delivers for two valid config layers: the personal layer overrides the repository's. */
+export function selectedRuntimePrompts(repository, local): RuntimePromptSelection {
+  const layer = (config) => (isRecord(config?.prompts) ? config.prompts : {});
+  const [shared, personal] = [layer(repository), layer(local)];
+  const selection = {} as RuntimePromptSelection;
+  for (const key of RUNTIME_PROMPTS) selection[key] = (personal[key] ?? shared[key] ?? true) === true;
+  return selection;
+}
+
 function removedContextConfigError(value, filePath) {
   const removedKeys = ["contextVirtualization", "conversationHistory"].filter((key) =>
     Object.prototype.hasOwnProperty.call(value, key),
@@ -45,6 +67,7 @@ export function validateRepositoryConfig(value) {
     "cognitiveRouting",
     "toolExecution",
     "compaction",
+    "prompts",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -64,6 +87,10 @@ export function validateRepositoryConfig(value) {
     const error = validateToolExecutionConfig(value.toolExecution);
     if (error) return error;
   }
+  if (value.prompts !== undefined) {
+    const error = validatePromptsConfig(value.prompts);
+    if (error) return error;
+  }
   if (value.compaction !== undefined) {
     const error = validateCompactionConfig(value.compaction);
     if (error) return error;
@@ -81,7 +108,7 @@ export function validateLocalConfig(value) {
   if (removedContextError) return removedContextError;
 
   // processing belongs to a retired feature; it is accepted and ignored so existing local configs keep loading.
-  const allowedKeys = new Set(["enabled", "processing", "cognitiveRouting", "toolExecution", "compaction"]);
+  const allowedKeys = new Set(["enabled", "processing", "cognitiveRouting", "toolExecution", "compaction", "prompts"]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       return `unsupported top-level local config key: ${key}`;
@@ -92,6 +119,10 @@ export function validateLocalConfig(value) {
   if (coreError) return coreError;
   if (value.toolExecution !== undefined) {
     const error = validateToolExecutionConfig(value.toolExecution);
+    if (error) return error;
+  }
+  if (value.prompts !== undefined) {
+    const error = validatePromptsConfig(value.prompts);
     if (error) return error;
   }
   if (value.compaction !== undefined) return validateCompactionConfig(value.compaction);

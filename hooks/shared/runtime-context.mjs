@@ -3,7 +3,11 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 // The validator Pi uses, so a config is valid or invalid on every host alike.
-import { validateLocalConfig, validateRepositoryConfig } from "../../pi-extension/dist/host/config-validation.js";
+import {
+  selectedRuntimePrompts,
+  validateLocalConfig,
+  validateRepositoryConfig,
+} from "../../pi-extension/dist/host/config-validation.js";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 export const PLUGIN_ROOT = path.resolve(SCRIPT_DIR, "../..");
@@ -92,20 +96,27 @@ export function readConfig(root) {
     error: repository.valid ? local.error : repository.error,
     errorPath: repository.valid ? ".freeflow/local.json" : ".freeflow/config.json",
     enabled,
+    prompts: selectedRuntimePrompts(repository.parsed, local.parsed),
   };
 }
 
-function loadRuntimeContext() {
-  const corePrompt = readText(path.join(PLUGIN_ROOT, "runtime", "prompts", "core.md"));
-  const interactionContract = readText(path.join(PLUGIN_ROOT, "runtime", "prompts", "interaction-contract.md"));
+const PROMPT_FILES = {
+  core: "core.md",
+  interactionContract: "interaction-contract.md",
+  workingMethod: "working-method.md",
+};
 
-  if (!corePrompt || !interactionContract) {
-    throw new Error("Freeflow core runtime prompt files are missing.");
+/** The selected prompts in Pi's order. A selected core or Interaction Contract must exist; the Working Method is
+ * optional, as on Pi. */
+function loadRuntimeContext(selection) {
+  const prompts = [];
+  for (const [key, file] of Object.entries(PROMPT_FILES)) {
+    if (!selection[key]) continue;
+    const text = readText(path.join(PLUGIN_ROOT, "runtime", "prompts", file));
+    if (!text && key !== "workingMethod") throw new Error("Freeflow core runtime prompt files are missing.");
+    if (text) prompts.push(text);
   }
-  // Optional, as on Pi: without the file the hook still delivers the core.
-  const workingMethod = readText(path.join(PLUGIN_ROOT, "runtime", "prompts", "working-method.md"));
-
-  return { corePrompt, interactionContract, workingMethod };
+  return prompts;
 }
 
 function runtimeStateContext() {
@@ -127,8 +138,9 @@ export function renderRuntimeContext(root) {
   }
   if (!config.enabled) return "";
 
-  const { corePrompt, interactionContract, workingMethod } = loadRuntimeContext();
-  return [corePrompt, interactionContract, workingMethod, runtimeStateContext()].filter(Boolean).join("\n\n");
+  // The user chooses the prompts on hosts other than Pi; with none selected there is nothing to deliver.
+  const prompts = loadRuntimeContext(config.prompts);
+  return prompts.length ? [...prompts, runtimeStateContext()].join("\n\n") : "";
 }
 
 export function emitHookOutput(output) {

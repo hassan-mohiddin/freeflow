@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- On Codex, Claude Code, Gemini CLI, Cursor, and GitHub Copilot, a `prompts` setting in `.freeflow/config.json` or `.freeflow/local.json` turns each of Freeflow's session-start prompts on or off: `core`, `interactionContract`, and `workingMethod`, each on by default. Pi always delivers all of them.
+
 ### Changed
 
 - Codex, Claude Code, Gemini CLI, Cursor, and GitHub Copilot now receive Freeflow's Working Method (how to read a request, check evidence, and report a finished change) at session start, as Pi already did. It adds about 1,700 words to the session-start context.

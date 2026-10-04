@@ -401,6 +401,18 @@ edits shared repository configuration. Treat shared changes as team-facing behav
 
 manages temporary session enablement and optional-context settings. On a qualified native Pi host, it can also override the Cognitive Routing delegation mode (`executor`, `helper`, or `both`) and complete Coordinator, Helper, and Executor presets. Set a missing worker preset before enabling that worker's mode. Session overrides take precedence over personal and repository settings without mutating either file; reset or inherit restores the configured values. The footer shows the active profile, automatic/manual control, and delegation mode.
 
+### Runtime prompts on other hosts
+
+On Codex, Claude Code, Gemini CLI, Cursor, GitHub Copilot and other hook-based hosts, Freeflow delivers three runtime prompts at session start: the core guidance, the Interaction Contract, and the Working Method. Each is on unless you turn it off, in `.freeflow/config.json` for everyone or `.freeflow/local.json` for yourself:
+
+```json
+{
+  "prompts": { "core": true, "interactionContract": true, "workingMethod": false }
+}
+```
+
+The personal file overrides the shared one prompt by prompt. With all three off, Freeflow delivers no session-start prompt; its skills stay available. Pi always delivers all three and ignores this setting.
+
 ### Effective precedence
 
 For core and capability settings:
