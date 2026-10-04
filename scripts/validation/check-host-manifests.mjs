@@ -365,7 +365,7 @@ export function validateHostManifests(root = process.cwd()) {
 
   if (packageJson && !Array.isArray(packageJson.files)) errors.push("package.json.files must be an allowlist array");
   for (const requiredPattern of [
-    "plugin.json",
+    ".codex-plugin/**",
     "gemini-extension.json",
     ".cursor-plugin/**",
     "com.github.copilot/**",
@@ -414,17 +414,14 @@ export function validateHostManifests(root = process.cwd()) {
     { matcher: "startup|resume|clear|compact", contextLimit: 5000 },
     errors,
   );
-  // Codex loads no hooks from a plugin whose root plugin.json is an Agent Plugins manifest, so its marketplace installs
-  // the generated hosts/codex/ folder, which must not have one (scripts/build-codex-plugin.mjs).
-  const codexMarketplace = readJson(root, ".agents/plugins/marketplace.json", errors);
-  if (codexMarketplace?.plugins?.[0]?.source?.path !== "./hosts/codex") {
-    errors.push(".agents/plugins/marketplace.json must install ./hosts/codex");
+  // Codex loads no hooks from a plugin whose root plugin.json is an Agent Plugins manifest, so it installs the npm
+  // package, which omits that manifest (scripts/validation/check-package.mjs).
+  const codexSource = readJson(root, ".agents/plugins/marketplace.json", errors)?.plugins?.[0]?.source;
+  if (codexSource?.source !== "npm" || codexSource?.package !== packageJson?.name) {
+    errors.push(".agents/plugins/marketplace.json must install the npm package");
   }
-  if (existsSync(join(root, "hosts/codex/plugin.json"))) {
-    errors.push("hosts/codex/ must not contain an Agent Plugins plugin.json: Codex would load none of its hooks");
-  }
-  if (!existsSync(join(root, "hosts/codex/.codex-plugin/plugin.json"))) {
-    errors.push("hosts/codex/ must contain .codex-plugin/plugin.json; run npm run build:codex");
+  if (packageJson?.files?.includes("plugin.json")) {
+    errors.push("package.json files must leave out the root Agent Plugins plugin.json, or Codex loads no hooks");
   }
   validateGeminiHook(geminiHooks, "hooks/hooks.json", errors);
   validateCursorHook(cursorHooks, "hooks/cursor/hooks.json", errors);

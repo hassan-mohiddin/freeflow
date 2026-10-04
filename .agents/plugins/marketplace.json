@@ -7,8 +7,8 @@
     {
       "name": "freeflow",
       "source": {
-        "source": "local",
-        "path": "./hosts/codex"
+        "source": "npm",
+        "package": "@hassangameryt/freeflow"
       },
       "policy": {
         "installation": "AVAILABLE",

@@ -72,7 +72,6 @@ gemini_extension_manifest="$plugin_root/gemini-extension.json"
 opencode_config="$plugin_root/opencode.json"
 cursor_manifest="$plugin_root/.cursor-plugin/plugin.json"
 codex_manifest="$plugin_root/.codex-plugin/plugin.json"
-generated_codex_manifest="$plugin_root/hosts/codex/.codex-plugin/plugin.json"
 claude_manifest="$plugin_root/.claude-plugin/plugin.json"
 command_surface="$plugin_root/command-surface.json"
 package_json="$plugin_root/package.json"
@@ -206,19 +205,19 @@ check_json_shape() {
 check_marketplace_locality() {
 	local check="marketplace-locality"
 	local ok=1
-	local codex_path
 	local claude_source
-	codex_path="$(json_get "$codex_marketplace" '.plugins[0].source.path')"
 	claude_source="$(json_get "$claude_marketplace" '.plugins[0].source')"
 
-	# Codex installs its generated folder: it loads no hooks from a plugin with a root Agent Plugins manifest.
-	same_value "$check" "Codex marketplace source path" "./hosts/codex" "$codex_path" || ok=0
+	# Codex installs the npm package: it loads no hooks from a plugin with a root Agent Plugins manifest, which the
+	# repository keeps for the other hosts and the npm package omits.
+	same_value "$check" "Codex marketplace source" "npm" "$(json_get "$codex_marketplace" '.plugins[0].source.source')" || ok=0
+	same_value "$check" "Codex marketplace npm package" "$(json_get "$package_json" '.name')" "$(json_get "$codex_marketplace" '.plugins[0].source.package')" || ok=0
 	same_value "$check" "Claude marketplace source" "./" "$claude_source" || ok=0
 	same_value "$check" "Codex marketplace plugin name" "freeflow" "$(json_get "$codex_marketplace" '.plugins[0].name')" || ok=0
 	same_value "$check" "Claude marketplace plugin name" "freeflow" "$(json_get "$claude_marketplace" '.plugins[0].name')" || ok=0
 
 	if [ "$ok" = "1" ]; then
-		record_check "$check" "pass" "Root marketplace files use host-valid local source paths."
+		record_check "$check" "pass" "Codex installs the npm package and Claude the repository root."
 	fi
 }
 
@@ -408,14 +407,10 @@ check_package_cleanliness() {
 
 	duplicate_codex_manifests="$(
 		find "$repo_root" -path "$repo_root/.git" -prune -o -path '*/.codex-plugin/plugin.json' -print |
-			grep -Fvx -e "$codex_manifest" -e "$generated_codex_manifest" || true
+			grep -Fvx "$codex_manifest" || true
 	)"
 	if [ -n "$duplicate_codex_manifests" ]; then
-		record_check "$check" "fail" "Found another Codex plugin manifest outside the repo root and hosts/codex/."
-		ok=0
-	fi
-	if ! cmp -s "$codex_manifest" "$generated_codex_manifest"; then
-		record_check "$check" "fail" "hosts/codex/.codex-plugin/plugin.json differs from .codex-plugin/plugin.json; run npm run build:codex."
+		record_check "$check" "fail" "Found another Codex plugin manifest outside the repo root."
 		ok=0
 	fi
 
@@ -456,7 +451,8 @@ check_package_cleanliness() {
     | ([$pack.files[].path | select(startswith("plugin-docs/") or startswith(".skill-eval/") or startswith(".deprecated/") or startswith("plans/"))] | length) == 0
       and ([$pack.files[].path | select(. == "skills/workflow/SKILL.md")] | length) == 1
       and ([$pack.files[].path | select(. == "runtime/prompts/interaction-contract.md")] | length) == 1
-      and ([$pack.files[].path | select(. == "plugin.json")] | length) == 1
+      and ([$pack.files[].path | select(. == "plugin.json")] | length) == 0
+      and ([$pack.files[].path | select(. == ".codex-plugin/plugin.json" or . == "hooks/codex/hooks.json")] | length) == 2
       and ([$pack.files[].path | select(. == "gemini-extension.json")] | length) == 1
       and ([$pack.files[].path | select(. == ".cursor-plugin/plugin.json")] | length) == 1
       and ([$pack.files[].path | select(. == "com.github.copilot/hooks/hooks.json")] | length) == 1
@@ -501,8 +497,8 @@ check_docs_drift() {
 		ok=0
 	fi
 
-	contains_fixed "$architecture_doc" 'local source `./hosts/codex`), while Claude' || {
-		record_check "$check" "fail" "Architecture docs do not preserve the Codex local source path."
+	contains_fixed "$architecture_doc" 'installs the npm package, while Claude' || {
+		record_check "$check" "fail" "Architecture docs do not preserve the Codex npm source."
 		ok=0
 	}
 

@@ -28,7 +28,7 @@ codex plugin marketplace upgrade freeflow
 codex plugin add freeflow@freeflow
 ```
 
-Then open `/hooks` in Codex, approve the Freeflow hook, and start a new session. Codex silently skips a plugin hook you have not approved, and an update that changes the hook needs approving again. Freeflow 0.7.1 through 0.8.0 shipped no hook Codex could load, so Codex users of those versions got Freeflow's skills but not its session-start guidance; upgrade with `codex plugin marketplace upgrade freeflow` and approve the hook.
+Codex installs Freeflow from its npm package, so it needs Node.js and `npm`, and it receives released versions. Then open `/hooks` in Codex, approve the Freeflow hook, and start a new session. Codex silently skips a plugin hook you have not approved, and an update that changes the hook needs approving again. Freeflow 0.7.1 through 0.8.0 shipped no hook Codex could load, so Codex users of those versions got Freeflow's skills but not its session-start guidance; upgrade with `codex plugin marketplace upgrade freeflow` and approve the hook.
 
 ### Claude Code
 
