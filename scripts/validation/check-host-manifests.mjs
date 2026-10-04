@@ -414,6 +414,18 @@ export function validateHostManifests(root = process.cwd()) {
     { matcher: "startup|resume|clear|compact", contextLimit: 5000 },
     errors,
   );
+  // Codex loads no hooks from a plugin whose root plugin.json is an Agent Plugins manifest, so its marketplace installs
+  // the generated hosts/codex/ folder, which must not have one (scripts/build-codex-plugin.mjs).
+  const codexMarketplace = readJson(root, ".agents/plugins/marketplace.json", errors);
+  if (codexMarketplace?.plugins?.[0]?.source?.path !== "./hosts/codex") {
+    errors.push(".agents/plugins/marketplace.json must install ./hosts/codex");
+  }
+  if (existsSync(join(root, "hosts/codex/plugin.json"))) {
+    errors.push("hosts/codex/ must not contain an Agent Plugins plugin.json: Codex would load none of its hooks");
+  }
+  if (!existsSync(join(root, "hosts/codex/.codex-plugin/plugin.json"))) {
+    errors.push("hosts/codex/ must contain .codex-plugin/plugin.json; run npm run build:codex");
+  }
   validateGeminiHook(geminiHooks, "hooks/hooks.json", errors);
   validateCursorHook(cursorHooks, "hooks/cursor/hooks.json", errors);
   validateCopilotHook(copilotHooks, "com.github.copilot/hooks/hooks.json", errors);

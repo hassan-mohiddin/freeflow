@@ -245,3 +245,29 @@ test("every runtime prompt fits one Claude Code hook with room to spare", () => 
     assert.ok(length <= PROMPT_PART_BUDGET, `${file}: ${length} characters`);
   }
 });
+
+// Codex installs hosts/codex/, a generated copy (scripts/build-codex-plugin.mjs), because it loads no hooks from a
+// plugin with a root Agent Plugins manifest. Codex copies only that folder into its cache, so it must work on its own.
+test("the generated Codex plugin is current and delivers Freeflow's context on its own", async () => {
+  const { codexPluginDifferences } = await import("../../scripts/build-codex-plugin.mjs");
+  assert.deepEqual(codexPluginDifferences(), [], "run npm run build:codex");
+  const plugin = mkdtempSync(join(tmpdir(), "freeflow-codex-plugin-"));
+  spawnSync("cp", ["-R", `${join(repoRoot, "hosts/codex")}/.`, plugin]);
+  const workspace = createWorkspace("{}\n", '{"toolExecution":{"enabled":true}}\n');
+  const result = spawnSync(process.execPath, [join(plugin, "hooks/adapters/codex-session-start.mjs"), "SessionStart"], {
+    input: `${JSON.stringify({ hook_event_name: "SessionStart", cwd: workspace })}\n`,
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const context = contextOf(JSON.parse(result.stdout));
+  for (const heading of ["# Freeflow Stable Guidance", "# Freeflow Interaction Contract", "# Freeflow Working Method"])
+    assert.match(context, new RegExp(heading));
+  const trackWork = spawnSync(
+    process.execPath,
+    [join(plugin, "skills/track-work/scripts/working-record.mjs"), "--help"],
+    {
+      encoding: "utf8",
+    },
+  );
+  assert.equal(trackWork.status, 0, trackWork.stderr);
+});

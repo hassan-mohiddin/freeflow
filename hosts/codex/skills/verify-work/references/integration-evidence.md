@@ -1,0 +1,49 @@
+# Integration Evidence
+
+Read this before selecting or running evidence when a claim depends on a registered callback or executor, host lifecycle, producer invocation, fallback protocol, installed package, or absence counter.
+
+This reference is judgment; the one binding point is Verify Work's: name the strongest boundary actually observed, never a stronger one.
+
+## Match The Boundary
+
+Evidence proves only the boundary it directly observes.
+
+- Source inspection proves code or registration shape, not execution.
+- A shared-helper call proves helper behavior, not callback registration or host dispatch.
+- Calling the exact registered callback or executor proves that entrypoint's behavior, not native host lifecycle dispatch.
+- A pinned fallback proves only the declared fallback protocol.
+- Native host dispatch requires host-observed lifecycle evidence.
+- Installed-package behavior requires execution from the installed artifact and resolved source paths under that artifact root.
+
+Name the strongest level actually observed. Do not collapse source inspection, helper execution, registered entrypoint invocation, fallback replay, native dispatch, and installed execution into one "integration passed" claim.
+
+Before substantial work depends on an unfamiliar fixture, establish its actual entrypoint, observing stage, and how it captures the required result. A fixture named "integration" is not evidence of native dispatch. Keep a useful lower-boundary check, but do not substitute it for the required observer. Return an unavailable observer as a limitation rather than redesign production to suit the fixture.
+
+## Observe Real Work
+
+A counter, trace, spy, or event proves execution only when it observes inside or wraps the actual invoked boundary. Manually updating evidence beside test setup proves only that the test updated it.
+
+A zero value proves absence only when:
+
+- the observer was attached to the real path;
+- the path had an opportunity to emit the event;
+- the observation window covered the complete operation;
+- failure did not bypass or disable observation.
+
+Identify a relevant adversarial disproof: bypass the producer, replay an event, call the helper directly, or resolve checkout code instead of the installed root. When inspection cannot establish the observer's sensitivity, exercise one such counterexample within covered effects; the intended assertion must detect the missing boundary, not merely fail in setup. No universal fault-injection matrix is required.
+
+## Claim Map
+
+For sensitive or proof-bearing claims, record:
+
+```text
+Claim:
+Required boundary:
+Observing mechanism:
+Adversarial disproof:
+Mutation footprint:
+Proves:
+Does not prove:
+```
+
+Qualify or split the reported claim when one mechanism cannot observe every asserted boundary. Required acceptance remains unresolved; do not silently downgrade it or treat another green lower-boundary run as its resolution.

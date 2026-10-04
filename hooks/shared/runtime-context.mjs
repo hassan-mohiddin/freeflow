@@ -180,5 +180,12 @@ export function runSafely(run) {
 }
 
 export function isMainModule(metaUrl) {
-  return process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === metaUrl;
+  if (!process.argv[1]) return false;
+  // Compare real paths: Node resolves symlinks in import.meta.url but not in argv, and a host may run the plugin from a
+  // symlinked directory (macOS /var is /private/var).
+  try {
+    return fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(metaUrl));
+  } catch {
+    return pathToFileURL(path.resolve(process.argv[1])).href === metaUrl;
+  }
 }

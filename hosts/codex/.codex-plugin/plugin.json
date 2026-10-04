@@ -1,0 +1,43 @@
+{
+  "name": "freeflow",
+  "version": "0.8.0",
+  "description": "Feedback-based control system for coding agents.",
+  "author": {
+    "name": "Hassan Mohiddin"
+  },
+  "homepage": "https://github.com/hassan-mohiddin/freeflow",
+  "repository": "https://github.com/hassan-mohiddin/freeflow",
+  "license": "MIT",
+  "keywords": [
+    "workflow",
+    "skills",
+    "agents",
+    "feedback-loop",
+    "task-memory",
+    "planning",
+    "verification",
+    "review",
+    "codex",
+    "claude"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks/codex/hooks.json",
+  "interface": {
+    "displayName": "Freeflow",
+    "shortDescription": "Feedback-based control for coding agents.",
+    "longDescription": "Freeflow gives coding agents an Interaction Contract, adaptive Workflow, focused methods, and durable task memory.",
+    "developerName": "Hassan Mohiddin",
+    "category": "Coding",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "defaultPrompt": [
+      "Use Freeflow's adaptive Workflow for this task.",
+      "Respect the Interaction Contract and ask before going beyond the requested scope."
+    ],
+    "websiteURL": "https://github.com/hassan-mohiddin/freeflow",
+    "privacyPolicyURL": "https://github.com/hassan-mohiddin/freeflow/blob/main/README.md",
+    "termsOfServiceURL": "https://github.com/hassan-mohiddin/freeflow/blob/main/LICENSE",
+    "brandColor": "#2563EB",
+    "composerIcon": "./assets/freeflow-plugin-icon-transparent.png",
+    "logo": "./assets/freeflow-plugin-icon-transparent.png"
+  }
+}

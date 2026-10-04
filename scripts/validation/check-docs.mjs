@@ -87,7 +87,8 @@ function isExcludedActivePath(relativePath) {
     relativePath.endsWith(".test.mjs") ||
     relativePath.includes("/tests/") ||
     relativePath.includes("/test/") ||
-    relativePath.startsWith("pi-extension/dist/")
+    relativePath.startsWith("pi-extension/dist/") ||
+    relativePath.startsWith("hosts/codex/")
   );
 }
 
