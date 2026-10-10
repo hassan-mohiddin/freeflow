@@ -96,7 +96,8 @@ test("the user attaches by command; the snapshot reaches the next request", { ti
     false,
     async ({ manager, requests }) => {
       assert.equal(snapshots(manager).length, 1);
-      assert.equal(snapshots(manager)[0].display, false);
+      // Shown in the transcript as one collapsed line (render.ts); the model receives the same content either way.
+      assert.equal(snapshots(manager)[0].display, true);
       assert.match(inputText(requests[0]), /Focused task: Retry work[\s\S]*Retries with backoff/);
       assert.match(inputText(requests[0]), /Complete the fixture assignment/);
     },

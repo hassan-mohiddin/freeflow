@@ -6,7 +6,7 @@ The **Rules** below are binding; everything else is judgment.
 
 ## Rules
 
-- Create or link a project, import a record into one, and change a task's directories, only when the user asks.
+- Create or link a project, import a record into one, and change a task's directories, only when the user asks, or when the user confirms your proposal in a harness dialog (Pi task memory).
 - Write a record only from the session that owns it. A parent task's record is written by the parent's session; a child's record by the child's session.
 - A child has no children.
 
@@ -17,9 +17,10 @@ A project groups related tasks, possibly across several repositories. Its record
 ```text
 working-record.mjs project new --name <name> [--worktrees <dir>]     create; link this repository
 working-record.mjs project link --name <name> [--worktrees <dir>]    link another repository
-working-record.mjs project show                                      the linked project's tasks
+working-record.mjs project show [--name <name>]                     a project's tasks (default: this repository's)
+working-record.mjs project list                                      every project
 working-record.mjs task create --title <t> --goal <g> [--parent <id>] a registered task, or a child
-working-record.mjs task fanout --parent <id> --title <t> --goal <g>  a child with its own worktree
+working-record.mjs task fanout --parent <id> --title <t> --goal <g> --agent <cmd>  a child with its own worktree
 working-record.mjs task here                                         the task this directory belongs to
 working-record.mjs task env --id <id>                                where a task's work happens
 working-record.mjs task import --record <record.md> --project <name> move an existing record in
@@ -27,6 +28,10 @@ working-record.mjs task search --query <q> --id <id> --scope task|tree|project
 ```
 
 Run each command with `--help` before preparing its input. A record that is not registered keeps working where it is.
+
+## Other Tasks In The Project
+
+Each task keeps its own record. Read another task's record (`view resume --record <id>`, `task search --scope project`) when it bears on what you are about to decide or build; record what matters to this task in this task's own record, never in the other one.
 
 ## Where A Task's Work Happens
 
@@ -36,7 +41,7 @@ A registered task records its primary directory (the repository or worktree wher
 
 Goal: parallel work on one task, each workstream with its own memory, and one writer per record.
 
-A child is a record for one workstream of a task that runs in parallel in another interactive session the user starts. When the child will change files, create it with `task fanout`, which also creates its Git worktree on a branch named for it and copies the repository's personal Freeflow config; then tell the user where to start the session. A child that only reads or researches needs no worktree: use `task create --parent <id>`. Most tasks never need a child. A subagent is not a child: it works inside its session, on that session's task, and needs no record.
+A child is a record for one workstream of a task that runs in parallel in another interactive session the user starts. When the child will change files, create it with `task fanout`, which also creates its Git worktree on a branch named for it and copies the repository's personal Freeflow config. Pass `--agent` with the command that starts this host's agent (such as `claude` or `codex`); the output ends with a command for a new terminal. Give the user that command exactly. A child that only reads or researches needs no worktree: use `task create --parent <id>`. Most tasks never need a child. A subagent is not a child: it works inside its session, on that session's task, and needs no record.
 
 After creating a child, record the delegation in the parent's record (for example as a Slice whose result is the child's). Read a child's progress with `view resume --record <child-id>` or `task search --scope tree`; when its result matters to the parent, record it in the parent as you would a finished Slice. The child's own session writes the child's record.
 

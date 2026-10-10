@@ -241,3 +241,37 @@ test("fanout creates the child, a worktree on its branch, and copies personal co
   assert.match(again.error, /registered, but its worktree was not created/);
   assert.equal((await registry.task(again.id)).environment, undefined);
 });
+
+test("paths typed with ~ mean the home directory; fan-out ends with a command to paste into a new terminal", async () => {
+  const { homedir } = await import("node:os");
+  const { directory, startCommand } = await import("../../../skills/track-work/scripts/lib/registry.mjs");
+  assert.equal(directory("~/Worktrees"), join(homedir(), "Worktrees"));
+  assert.equal(directory("~"), homedir());
+  assert.equal(directory("/abs/path"), "/abs/path");
+  const { home } = await fresh();
+  const saved = process.env.FREEFLOW_HOME;
+  process.env.FREEFLOW_HOME = home;
+  try {
+    assert.equal(startCommand("/w/it's here", "pi"), `cd '/w/it'\\''s here' && FREEFLOW_HOME='${home}' pi`);
+    process.env.FREEFLOW_HOME = join(homedir(), ".freeflow");
+    assert.equal(startCommand("/w/app-parser", "claude"), "cd '/w/app-parser' && claude");
+    assert.equal(startCommand("/w/app-parser"), "cd '/w/app-parser'");
+  } finally {
+    if (saved === undefined) delete process.env.FREEFLOW_HOME;
+    else process.env.FREEFLOW_HOME = saved;
+  }
+
+  const repo = await gitRepo();
+  const worktrees = await mkdtemp(join(tmpdir(), "freeflow-worktrees-"));
+  cli(home, ["project", "new", "--name", "App", "--cwd", repo, "--worktrees", worktrees]);
+  const [parentId] = cli(home, ["task", "create", "--title", "Core", "--goal", "Core.", "--cwd", repo]).split(/\s/);
+  const out = cli(home, ["task", "fanout", "--parent", parentId, "--title", "Parser", "--goal", "P.", "--agent", "pi"]);
+  assert.match(
+    out,
+    new RegExp(
+      `Next: open a new terminal and run:\\n  cd '${join(worktrees, `${basename(repo)}-parser`)}' && FREEFLOW_HOME='${home}' pi\\n`,
+    ),
+  );
+  assert.match(cli(home, ["project", "list"]), /- App \(app\): 2 task\(s\); repositories /);
+  assert.match(cli(home, ["project", "show", "--name", "App"]), /Project App \(app\)[\s\S]*app\/task-002 — Parser/);
+});

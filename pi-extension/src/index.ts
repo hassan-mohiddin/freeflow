@@ -20,6 +20,7 @@ import { applyCompactionTools, registerCompactionTool } from "./compaction/tool.
 import { strictest } from "./compaction/thresholds.js";
 import { SNAPSHOT_TYPE, TASK_ENTRY, TaskMemory, type TaskResult } from "./task-memory/runtime.js";
 import { applyTaskMemoryTools, registerTaskMemoryTool } from "./task-memory/tool.js";
+import { renderSnapshotMessage } from "./task-memory/render.js";
 import { tagProjectedMessages } from "./host/projection-tags.js";
 import { trustStartedSession } from "./host/read-only-session.js";
 import { takeStage } from "./host/staging.js";
@@ -129,29 +130,47 @@ function freeflowCompletions(prefix: string | undefined, routingAvailable: boole
         ["settings local", "local", "Edit personal overrides for this repository"],
         ["settings repo", "repo", "Edit shared repository settings"],
       ]
-    : query.startsWith("profile ") && routingAvailable
+    : query.startsWith("task ")
       ? [
-          ["profile coordinator", "coordinator", "Hold Coordinator manually"],
-          ["profile helper", "helper", "Hold Helper manually when enabled"],
-          ["profile executor", "executor", "Hold Executor manually when enabled"],
-          ["profile auto", "auto", "Return to automatic Coordinator reconciliation"],
-          ["profile history", "history", "Read routing observations"],
+          ["task list", "list", "This repository's records, or a project's tasks"],
+          ["task new", "new", "Create a task in this repository's project and attach it"],
+          ["task attach", "attach", "Attach a record by task ID or path"],
+          ["task focus", "focus", "Move the focus to an attached record"],
+          ["task detach", "detach", "Detach a record"],
+          ["task confirm", "confirm", "Make held records writable here"],
+          ["task fanout", "fanout", "Create a child of the focused task with its own worktree"],
+          ["task child", "child", "Create a child of a task and attach it here"],
+          ["task import", "import", "Move a repository record into a project"],
         ]
-      : [
-          ["settings", "settings", "Open settings; Tab switches Session, Personal and Repository"],
-          ["status", "status", "Show effective Freeflow state"],
-          ["compact", "compact", "Prepare, compact and recover now"],
-          ["task", "task", "Attach, focus, detach or confirm Working Records (task memory)"],
-          ["project", "project", "Create or link a task-memory project"],
-          ...(routingAvailable
-            ? [
-                ["profile", "profile", "Hold or release Cognitive Routing profile control"],
-                ["resume", "resume", "Resume the current saved routing responsibility"],
-              ]
-            : []),
-          ["enable", "enable", "Enable Freeflow for this repository"],
-          ["disable", "disable", "Disable Freeflow for this repository"],
-        ];
+      : query.startsWith("project ")
+        ? [
+            ["project list", "list", "Every project"],
+            ["project new", "new", "Create a project and link this repository"],
+            ["project link", "link", "Link this repository to a project"],
+          ]
+        : query.startsWith("profile ") && routingAvailable
+          ? [
+              ["profile coordinator", "coordinator", "Hold Coordinator manually"],
+              ["profile helper", "helper", "Hold Helper manually when enabled"],
+              ["profile executor", "executor", "Hold Executor manually when enabled"],
+              ["profile auto", "auto", "Return to automatic Coordinator reconciliation"],
+              ["profile history", "history", "Read routing observations"],
+            ]
+          : [
+              ["settings", "settings", "Open settings; Tab switches Session, Personal and Repository"],
+              ["status", "status", "Show effective Freeflow state"],
+              ["compact", "compact", "Prepare, compact and recover now"],
+              ["task", "task", "Attach, focus, detach or confirm Working Records (task memory)"],
+              ["project", "project", "Create or link a task-memory project"],
+              ...(routingAvailable
+                ? [
+                    ["profile", "profile", "Hold or release Cognitive Routing profile control"],
+                    ["resume", "resume", "Resume the current saved routing responsibility"],
+                  ]
+                : []),
+              ["enable", "enable", "Enable Freeflow for this repository"],
+              ["disable", "disable", "Disable Freeflow for this repository"],
+            ];
   return choices
     .filter(([value]) => value.startsWith(query))
     .map(([value, label, description]) => ({ value, label, description }));
@@ -343,7 +362,7 @@ export default function freeflow(pi: FreeflowAPI) {
   registerCompactionTool(api, compaction);
   const sendSnapshot = (content: string, record: string) =>
     void Promise.resolve(
-      api.sendMessage({ customType: SNAPSHOT_TYPE, content, display: false, details: { record } }),
+      api.sendMessage({ customType: SNAPSHOT_TYPE, content, display: true, details: { record } }),
     ).catch(() => {});
   const taskMemory = new TaskMemory({
     effective: taskMemoryEffective,
@@ -362,6 +381,10 @@ export default function freeflow(pi: FreeflowAPI) {
     cwd: () => liveHost?.cwd ?? process.cwd(),
     packageRoot,
   });
+  // A delivered resume view shows as one line naming the task; expanding shows the view the model received.
+  api.registerMessageRenderer?.(SNAPSHOT_TYPE, (message: any, options: any, theme: any) =>
+    renderSnapshotMessage(message, options, theme),
+  );
   registerTaskMemoryTool(api, {
     memory: taskMemory,
     changed: (ctx) => {
@@ -387,6 +410,9 @@ export default function freeflow(pi: FreeflowAPI) {
       } else if (sub === "link" && name) {
         const slug = await taskMemory.registry.linkProject(name, ctx.cwd, worktrees);
         ctx.ui.notify(`This repository is linked to project ${slug}.`, "info");
+      } else if (sub === "list") {
+        const result = await taskMemory.projects(ctx.cwd);
+        ctx.ui.notify(result.text, result.ok ? "info" : "warning");
       } else {
         const found = await taskMemory.registry.projectFor(ctx.cwd);
         ctx.ui.notify(
@@ -422,8 +448,12 @@ export default function freeflow(pi: FreeflowAPI) {
       action = taskMemory.state().attached.includes(target) ? "focus" : "attach";
     }
     let result: TaskResult;
-    if (action === "list") result = { ok: true, text: await taskMemory.list(ctx.cwd) };
-    else if (action === "attach") result = await taskMemory.attach(target, ctx.cwd);
+    if (action === "list") result = { ok: true, text: await taskMemory.list(ctx.cwd, target) };
+    else if (action === "new") {
+      // The user's own command: create the task in this repository's project and attach it, with no dialog.
+      const created = await taskMemory.create(target, target, ctx.cwd);
+      result = created.ok && created.id ? await taskMemory.attach(created.id, ctx.cwd) : created;
+    } else if (action === "attach") result = await taskMemory.attach(target, ctx.cwd);
     else if (action === "focus") result = await taskMemory.focus(target, ctx.cwd);
     else if (action === "detach") result = await taskMemory.detach(target, ctx.cwd);
     else if (action === "confirm") result = await taskMemory.confirm(target, ctx.cwd);
@@ -447,15 +477,17 @@ export default function freeflow(pi: FreeflowAPI) {
     } else
       result = {
         ok: false,
-        text: "Use /freeflow task [list|attach <id or record>|focus <id or record>|detach <id or record>|confirm [record]|child <parent-id> <title>|fanout <title>|import <record> <project>].",
+        text: "Use /freeflow task [list [project]|new <title>|attach <id or record>|focus <id or record>|detach <id or record>|confirm [record]|child <parent-id> <title>|fanout <title>|import <record> <project>].",
       };
     if (result.snapshot) {
       sendSnapshot(result.text, result.snapshot);
       ctx.ui.notify(
-        `Task memory: ${taskMemory.name(result.snapshot)} is the focus. ${taskMemory.attachedText()}`,
+        `Task memory: ${(await taskMemory.brief(result.snapshot)).label} is the focus. ${taskMemory.attachedText()}`,
         "info",
       );
-    } else ctx.ui.notify(result.text, result.ok ? "info" : "warning");
+    } else if (result.command)
+      ctx.ui.notify(`${result.headline ?? result.text}\nRun in a new terminal:\n  ${result.command}`, "info");
+    else ctx.ui.notify(result.text, result.ok ? "info" : "warning");
     refreshState = true;
     status(ctx);
   }

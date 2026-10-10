@@ -32,6 +32,14 @@ export class Registry {
   projectFor(cwd) {
     return this.call("projectFor", cwd);
   }
+  project(name) {
+    return this.call("project", name);
+  }
+  /** The command a user pastes into a new terminal to start an agent in a directory (see Track Work's library). */
+  async startCommand(path, agent) {
+    const lib = await import(pathToFileURL(join(this.packageRoot, "skills/track-work/scripts/lib/registry.mjs")).href);
+    return lib.startCommand(path, agent);
+  }
   createProject(name, cwd, worktrees) {
     return this.call("createProject", name, cwd, worktrees);
   }

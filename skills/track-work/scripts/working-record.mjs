@@ -16,7 +16,7 @@ import {
   writeInitialAtomically,
 } from "./lib/store.mjs";
 import { renderEntries, renderFull, renderResume } from "./lib/views.mjs";
-import { Registry, TASK_ID } from "./lib/registry.mjs";
+import { Registry, TASK_ID, startCommand } from "./lib/registry.mjs";
 import { searchRecords } from "./lib/search.mjs";
 
 const ROOT_HELP =
@@ -30,7 +30,7 @@ function usage() {
     "  working-record.mjs view entry <ID> [<ID> ...] --record <record.md>",
     "  working-record.mjs validate --record <record.md>",
     "  working-record.mjs <slice|checkpoint|decision|task> <operation> ...",
-    "  working-record.mjs project <new|link|show> ...",
+    "  working-record.mjs project <new|link|show|list> ...",
     "  working-record.mjs task <create|import|search|env|here|fanout> ...",
     "",
     ROOT_HELP,
@@ -85,7 +85,7 @@ const COMMAND_HELP = new Map([
   ["validate", "Usage: validate --record <record.md>"],
   [
     "project",
-    "Usage: working-record.mjs project <operation> ...\nOperations: project new, project link, project show.\nA project groups tasks; its records live in a store under the Freeflow home (FREEFLOW_HOME, default ~/.freeflow), outside any repository. Create or link a project only when the user asks.",
+    "Usage: working-record.mjs project <operation> ...\nOperations: project new, project link, project show, project list.\nA project groups tasks; its records live in a store under the Freeflow home (FREEFLOW_HOME, default ~/.freeflow), outside any repository. Create or link a project only when the user asks.",
   ],
   [
     "project new",
@@ -105,12 +105,13 @@ const COMMAND_HELP = new Map([
   ],
   [
     "task fanout",
-    "Usage: task fanout --parent <task-id> --title <title> --goal <goal> [--path <directory>] [--base <ref>]\nCreates a child of the task, a Git worktree for it on branch <project>/<task-NNN>-<slug> (at <worktrees>/<repo>-<slug> unless --path), copies .freeflow/local.json into it when it has none, and makes the worktree the child's directory. The user then starts a session there.",
+    "Usage: task fanout --parent <task-id> --title <title> --goal <goal> [--path <directory>] [--base <ref>] [--agent <command>]\nCreates a child of the task, a Git worktree for it on branch <project>/<task-NNN>-<slug> (at <worktrees>/<repo>-<slug> unless --path), copies .freeflow/local.json into it when it has none, and makes the worktree the child's directory. The user then starts a session there: --agent is the command that starts this host's agent (such as claude or codex), and the output ends with a command for the user to paste into a new terminal.",
   ],
   [
     "project show",
-    "Usage: project show [--cwd <directory>]\nPrints the linked project and its tasks: ID, title, parent, and whether a session owns it.",
+    "Usage: project show [--cwd <directory>] [--name <project>]\nPrints a project and its tasks: ID, title, parent, and whether a session owns it. Without --name, the project linked to the repository containing --cwd.",
   ],
+  ["project list", "Usage: project list\nPrints every project: name, number of tasks, and linked repositories."],
   [
     "task create",
     "Usage: task create --title <title> --goal <goal> [--parent <task-id>] [--cwd <directory>]\nCreates a registered record in the project linked to --cwd, or with --parent a child of that task in its project, and prints its ID and path. A child has no children.",
@@ -254,10 +255,11 @@ function allowedOptions(command, operation) {
     return new Set(["--id", "--primary", "--add-dir", "--remove-dir", "--help"]);
   if (command === "task" && operation === "here") return new Set(["--cwd", "--help"]);
   if (command === "task" && operation === "fanout")
-    return new Set(["--parent", "--title", "--goal", "--path", "--base", "--cwd", "--help"]);
+    return new Set(["--parent", "--title", "--goal", "--path", "--base", "--cwd", "--agent", "--help"]);
   if (command === "project" && (operation === "new" || operation === "link"))
     return new Set(["--name", "--cwd", "--worktrees", "--help"]);
-  if (command === "project" && operation === "show") return new Set(["--cwd", "--help"]);
+  if (command === "project" && operation === "show") return new Set(["--cwd", "--name", "--help"]);
+  if (command === "project" && operation === "list") return new Set(["--help"]);
   return null;
 }
 
@@ -372,9 +374,19 @@ async function runRegistry(command, operation, options) {
     return `Project ${await registry.createProject(requireOption(options, "--name"), where, options["--worktrees"])} created and linked to ${await registry.repoRoot(where)}.\n`;
   if (command === "project" && operation === "link")
     return `${await registry.repoRoot(where)} linked to project ${await registry.linkProject(requireOption(options, "--name"), where, options["--worktrees"])}.\n`;
+  if (command === "project" && operation === "list") {
+    const data = await registry.read();
+    const projects = Object.entries(data.projects);
+    if (!projects.length) return "No projects.\n";
+    const count = (slug) => Object.values(data.tasks).filter((task) => task.project === slug).length;
+    return `${projects.map(([slug, project]) => `- ${project.name} (${slug}): ${count(slug)} task(s); repositories ${project.repos.join(", ")}`).join("\n")}\n`;
+  }
   if (command === "project" && operation === "show") {
-    const found = await registry.projectFor(where);
-    if (!found) return `No project is linked to ${await registry.repoRoot(where)}.\n`;
+    const found = options["--name"] ? await registry.project(options["--name"]) : await registry.projectFor(where);
+    if (!found)
+      return options["--name"]
+        ? `No project named ${options["--name"]}.\n`
+        : `No project is linked to ${await registry.repoRoot(where)}.\n`;
     const lines = [`Project ${found.project.name} (${found.slug}), store ${found.project.store}`];
     for (const { id, task } of await registry.projectTasks(found.slug))
       lines.push(
@@ -428,7 +440,7 @@ async function runRegistry(command, operation, options) {
       { path: options["--path"], base: options["--base"], cwd: where },
     );
     if (result.error) throw new CliError(result.error);
-    return `${result.id}\n${result.path}\nbranch ${result.branch}${result.copiedConfig ? "; copied .freeflow/local.json" : ""}\nNext: open a terminal in ${result.path} and start a session there.\n`;
+    return `${result.id}\n${result.path}\nbranch ${result.branch}${result.copiedConfig ? "; copied .freeflow/local.json" : ""}\nNext: open a new terminal and run:\n  ${startCommand(result.path, options["--agent"])}${options["--agent"] ? "" : " (then start the agent there)"}\n`;
   }
   if (operation === "search") {
     const query = requireOption(options, "--query");

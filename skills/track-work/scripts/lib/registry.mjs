@@ -34,6 +34,25 @@ export function projectSlug(name) {
   return slugify(name).slice(0, 48) || "project";
 }
 
+/** A directory as the user wrote it, with a leading ~ meaning the home directory (commands typed in an agent are not
+ * expanded by a shell). */
+export function directory(path) {
+  return resolve(path === "~" ? homedir() : path.startsWith("~/") ? join(homedir(), path.slice(2)) : path);
+}
+
+const quote = (value) => `'${String(value).replaceAll("'", "'\\''")}'`;
+
+/**
+ * The command a user pastes into a new terminal to start an agent in a child's worktree: cd there, keep a
+ * non-default Freeflow home, and run the agent's command (pi, claude, codex, ...).
+ */
+export function startCommand(path, agent) {
+  const home = process.env.FREEFLOW_HOME;
+  const keepHome =
+    home && resolve(home) !== join(homedir(), ".freeflow") ? `FREEFLOW_HOME=${quote(resolve(home))} ` : "";
+  return `cd ${quote(path)}${agent ? ` && ${keepHome}${agent}` : ""}`;
+}
+
 const empty = () => ({ version: 1, projects: {}, tasks: {} });
 
 export class Registry {
@@ -99,6 +118,13 @@ export class Registry {
     }
   }
 
+  /** A project by name or slug. */
+  async project(name) {
+    const slug = projectSlug(name);
+    const project = (await this.read()).projects[slug];
+    return project ? { slug, project } : undefined;
+  }
+
   async projectFor(cwd) {
     const root = await this.repoRoot(cwd);
     const data = await this.read();
@@ -123,7 +149,7 @@ export class Registry {
       if (data.projects[slug]) throw new RegistryError(`A project named ${slug} already exists.`);
       for (const project of Object.values(data.projects))
         if (project.repos.includes(root)) throw new RegistryError(`${root} is already linked to ${project.name}.`);
-      data.projects[slug] = { name, store, repos: [root], ...(worktrees ? { worktrees: resolve(worktrees) } : {}) };
+      data.projects[slug] = { name, store, repos: [root], ...(worktrees ? { worktrees: directory(worktrees) } : {}) };
     });
     return slug;
   }
@@ -140,7 +166,7 @@ export class Registry {
       data.projects[slug] = {
         ...project,
         repos: project.repos.includes(root) ? project.repos : [...project.repos, root],
-        ...(worktrees ? { worktrees: resolve(worktrees) } : {}),
+        ...(worktrees ? { worktrees: directory(worktrees) } : {}),
       };
     });
     return slug;
@@ -276,9 +302,9 @@ export class Registry {
         primary: task.environment?.primary,
         directories: [...(task.environment?.directories ?? [])],
       };
-      if (primary) environment.primary = resolve(primary);
-      if (add && !environment.directories.includes(resolve(add))) environment.directories.push(resolve(add));
-      if (remove) environment.directories = environment.directories.filter((dir) => dir !== resolve(remove));
+      if (primary) environment.primary = directory(primary);
+      if (add && !environment.directories.includes(directory(add))) environment.directories.push(directory(add));
+      if (remove) environment.directories = environment.directories.filter((dir) => dir !== directory(remove));
       data.tasks[id] = { ...task, environment };
       return environment;
     });
@@ -325,10 +351,10 @@ export class Registry {
     const project = (await this.read()).projects[parentTask.project];
     const repo = await this.repoRoot(parentTask.environment?.primary ?? cwd ?? process.cwd());
     const created = await this.createTask(parentTask.project, title, goal, parent);
-    const directory = basename(dirname(created.record));
-    const childSlug = directory.replace(/^task-\d+-/, "");
-    const branch = `${parentTask.project}/${directory}`;
-    const target = resolve(path ?? join(project.worktrees ?? dirname(repo), `${basename(repo)}-${childSlug}`));
+    const taskDirectory = basename(dirname(created.record));
+    const childSlug = taskDirectory.replace(/^task-\d+-/, "");
+    const branch = `${parentTask.project}/${taskDirectory}`;
+    const target = path ? directory(path) : join(project.worktrees ?? dirname(repo), `${basename(repo)}-${childSlug}`);
     try {
       await execFile("git", ["-C", repo, "worktree", "add", "-b", branch, target, base ?? "HEAD"]);
     } catch (error) {
