@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/task-memory/`, `capabilities/task-memory/`, `skills/track-work/scripts/lib/registry.mjs`, `skills/track-work/scripts/lib/search.mjs`
 > **Tests:** `pi-extension/tests/task-memory/`, `.skill-eval/track-work/tests/registry.test.mjs`
-> **Verified at:** `b51e51cc` (2026-10-11)
+> **Verified at:** `5fec4720` (2026-10-11)
 
 For contributors changing Freeflow task memory on Pi, a prototype: how a session holds Working Records, how projects, child records and record ownership work, what reaches the model and when, the write gate, and the choices behind them. It is off unless `taskMemory.enabled` is set, and has no user docs yet.
 
@@ -82,7 +82,7 @@ It deliberately does not:
 | One owner session per registered record; takeover only with the user's confirmation. | One writer per record without a merge contract; Pi cannot tell when a session has ended, so the user decides. | Relying only on Track Work's stale-write check. | `b51e51cc` |
 | Children are interactive sessions; the parent's session alone writes the parent and reads children. | The user mediates, so no messaging is needed; subagents stay within their session's task. | Children writing the parent, which needs merging; subagents as children. | `b51e51cc` |
 | Records are read and created through Track Work's own library and script. | One implementation of the record format, so records stay valid for the script skill on other hosts. | A copy of the format code in the extension. | `77815ab0` |
-| The registry, search and import live in Track Work's library; Pi delegates to them. | Portable parts serve every host through the script; Pi adds only harness behavior. | Two Track Work products, one per kind of host. | step-3 move commit |
+| The registry, search and import live in Track Work's library; Pi delegates to them. | Portable parts serve every host through the script; Pi adds only harness behavior. | Two Track Work products, one per kind of host. | `5fec4720` |
 | The gate refuses rather than warns. | A write to the wrong record is silent and hard to undo. | Warning only. | `77815ab0` |
 | A fork's attachments are held. | Two sessions would otherwise write one record by accident. | Inheriting them writable. | `77815ab0` |
 | Only the user creates and links projects. | A project groups work across repositories, which only the user knows. | The model creating one after confirmation. | `b51e51cc` |
