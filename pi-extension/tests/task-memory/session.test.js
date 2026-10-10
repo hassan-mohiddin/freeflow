@@ -289,3 +289,32 @@ test("after Freeflow's compaction the focused record follows the recovery messag
     },
   );
 });
+
+test(
+  "the delivered resume view is enclosed, so the next user message cannot read as part of the record",
+  { timeout: 30000 },
+  async () => {
+    await fixture(
+      async () => [],
+      false,
+      async ({ requests }) => {
+        const sent = inputText(requests[0]);
+        const end = sent.indexOf("End of task memory.");
+        assert.ok(sent.indexOf("<task-memory record=") >= 0 && end > 0);
+        assert.match(sent.slice(0, end), /## Notes\s*\n<\/task-memory>/);
+        assert.ok(
+          sent.indexOf("Complete the fixture assignment.") > end,
+          "the user's prompt comes after the closing line",
+        );
+      },
+      true,
+      {
+        ...on(),
+        beforePrompt: async ({ cwd, session }) => {
+          makeRecords(cwd);
+          await session.prompt(`/freeflow task attach ${RECORD_A}`);
+        },
+      },
+    );
+  },
+);

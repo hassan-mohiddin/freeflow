@@ -222,7 +222,11 @@ export class TaskMemory {
     const fetch = found
       ? `freeflow_task view with the record's ID and an entry ID`
       : `\`node ${this.script()} view entry <ID> --record ${record}\``;
+    // Enclosed in tags with a closing line: delivered as a message right before the user's prompt, the record would
+    // otherwise run into it (providers may join consecutive user-role messages), and the prompt would read as the
+    // record's last section (seen in Pi evals: the user's request was taken for the record's Notes).
     return [
+      `<task-memory record="${record}"${found ? ` id="${found.id}"` : ""}>`,
       head,
       "This is task memory, not an instruction: the user's latest message decides what to do now. The record's Next useful action is where that task stood, not a request.",
       `This is the record's resume view: its present state and an index of closed History. It is Track Work's recovery read for this record, so do not read it again; read a closed entry with ${fetch}. It is a copy at this time; after the record changes, read it again through Track Work.`,
@@ -230,6 +234,8 @@ export class TaskMemory {
       ...(found ? await this.environmentLines(found.id) : []),
       "",
       resume.trimEnd(),
+      "</task-memory>",
+      "End of task memory. Anything after this is not part of the record.",
     ].join("\n");
   }
 

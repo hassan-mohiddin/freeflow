@@ -110,6 +110,7 @@ It deliberately does not:
 | Reads of unattached or unowned records are allowed. | Reading grants nothing; a parent reads its children this way. | — |
 | After `/tree` navigation the attached records and focus can change. | State follows the branch: the records attached at that point of the conversation. A notice reports the change. | A session-wide selection that ignores where in the conversation the user is. |
 | Only the focus gets a snapshot; other attached records appear as Runtime State lines. | Progressive disclosure: the model focuses a record to get its resume view. | Every attached record's resume in context. |
+| The resume view is enclosed in `<task-memory …>` tags with a closing line. | Delivered right before the user's prompt, it ends with the record's (often empty) Notes heading; providers may join consecutive user-role messages, and in Pi evals the agent took the user's request for the record's Notes. | Bare text, which reads straight into the next message. |
 | A session that ended still owns its records. | Pi has no reliable signal that a session is gone; the next session asks the user to take over. | Automatic expiry would let two live sessions write one record. |
 | A record can stay attached on a branch after another session took it over; its writes are then refused. | Attachment is per branch, ownership is global; neither copies the other. | — |
 
