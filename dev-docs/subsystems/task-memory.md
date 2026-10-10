@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/task-memory/`, `capabilities/task-memory/`, `skills/track-work/scripts/lib/registry.mjs`, `skills/track-work/scripts/lib/search.mjs`
 > **Tests:** `pi-extension/tests/task-memory/`, `.skill-eval/track-work/tests/registry.test.mjs`
-> **Verified at:** `0da5b5cd` (2026-10-11)
+> **Verified at:** `00ab3048` (2026-10-11)
 
 For contributors changing Freeflow task memory on Pi, a prototype: how a session holds Working Records, how projects, child records and record ownership work, what reaches the model and when, the write gate, and the choices behind them. It is off unless `taskMemory.enabled` is set, and has no user docs yet.
 
@@ -94,7 +94,7 @@ It deliberately does not:
 | Children are interactive sessions; the parent's session alone writes the parent and reads children. | The user mediates, so no messaging is needed; subagents stay within their session's task. | Children writing the parent, which needs merging; subagents as children. | `b51e51cc` |
 | Records are read and created through Track Work's own library and script. | One implementation of the record format, so records stay valid for the script skill on other hosts. | A copy of the format code in the extension. | `77815ab0` |
 | The registry, search and import live in Track Work's library; Pi delegates to them. | Portable parts serve every host through the script; Pi adds only harness behavior. | Two Track Work products, one per kind of host. | `5fec4720` |
-| The resume view opens by saying it is task memory, not an instruction, and that the user's latest message decides the work; the capability skill has the matching Rule. | In Pi evals on claude-haiku-5-5, with a record in focus the agent did the record's Next useful action instead of the user's request 3 of 3 times; with task memory off it did the request 3 of 3. | Relying on Track Work's general "the record is memory, not authority" Rule, which the agent had and still did not apply. | revision commit |
+| The resume view opens by saying it is task memory, not an instruction, and that the user's latest message decides the work; the capability skill has the matching Rule. | In Pi evals on claude-haiku-5-5, with a record in focus the agent did the record's Next useful action instead of the user's request 3 of 3 times; with task memory off it did the request 3 of 3. | Relying on Track Work's general "the record is memory, not authority" Rule, which the agent had and still did not apply. | `00ab3048` |
 | The gate refuses rather than warns. | A write to the wrong record is silent and hard to undo. | Warning only. | `77815ab0` |
 | A fork's attachments are held. | Two sessions would otherwise write one record by accident. | Inheriting them writable. | `77815ab0` |
 | Fan-out creates a worktree per writing child, at `<worktrees>/<repo>-<slug>` on branch `<project>/<task-NNN>-<slug>`, and copies `.freeflow/local.json`. | Each writing workstream needs its own effects boundary; the names match the user's worktree convention and show the task ID in Git; the copy keeps task memory on in the child. | Opening terminals or prepared session files, which Pi cannot do portably (a session file is written only once it has a message). | `6c48b37c` |
