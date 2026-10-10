@@ -184,7 +184,7 @@ export class Registry {
       if (parentTask.parent) throw new RegistryError(`${parent} is a child; a child has no children.`);
       lines.push("", "### What defines this task", `- Child of ${parent} (${parentTask.record}).`);
     }
-    lines.push("", "### Next useful action", "- Start the work.", "");
+    lines.push("", "### Next useful action", "- Agree the first step with the user.", "");
     const child = execFileCallback(process.execPath, [
       SCRIPT,
       "init",

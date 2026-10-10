@@ -97,7 +97,7 @@ export function renderTaskResult(
   const text = textOf(result);
   const failed = context.isError === true || result?.isError === true;
   const headline = failed
-    ? text.split("\n")[0] || "Refused"
+    ? (details.headline ?? (text.split("\n")[0] || "Refused"))
     : (details.headline ?? fallbackHeadline(context.args?.action ?? details.action, text));
   const lines = [failed ? paint(theme, "error", headline) : paint(theme, "success", headline)];
   if (details.next) lines.push(paint(theme, "muted", `next: ${details.next}`));

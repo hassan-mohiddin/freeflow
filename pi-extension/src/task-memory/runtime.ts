@@ -260,7 +260,7 @@ export class TaskMemory {
       return `${head}\nThe record cannot be read as a Schema 4 resume view (${failure?.message ?? failure}). Read it with \`node ${this.script()} view full --record ${record}\` and do not edit it.`;
     }
     const fetch = found
-      ? `freeflow_task view with the record's ID and an entry ID`
+      ? `a call to the freeflow_task tool (action view, with the record's ID and an entry ID)`
       : `\`node ${this.script()} view entry <ID> --record ${record}\``;
     // Enclosed in tags with a closing line: delivered as a message right before the user's prompt, the record would
     // otherwise run into it (providers may join consecutive user-role messages), and the prompt would read as the
@@ -294,7 +294,10 @@ export class TaskMemory {
     }
     const children = await this.registry.children(id);
     if (!children.length) return [];
-    const lines = ["", "Children (each written by its own session; read one with freeflow_task view):"];
+    const lines = [
+      "",
+      "Children (each written by its own session; read one by calling the freeflow_task tool with action view):",
+    ];
     for (const child of children) {
       const { text } = await this.read(child.task.record);
       if (!text) {
@@ -334,7 +337,7 @@ export class TaskMemory {
       changed.sort((a, b) => b.at - a.at);
       const lines = [
         "",
-        `Project ${project?.name ?? task.project}, other tasks (most recently changed first; read one with freeflow_task view, search them with scope project):`,
+        `Project ${project?.name ?? task.project}, other tasks (most recently changed first; read one by calling the freeflow_task tool with action view, or search them with action search and scope project):`,
       ];
       for (const item of changed.slice(0, PROJECT_INDEX_LIMIT)) {
         const { text } = await this.read(item.entry.record);
@@ -345,7 +348,7 @@ export class TaskMemory {
       }
       if (changed.length > PROJECT_INDEX_LIMIT)
         lines.push(
-          `- … ${changed.length - PROJECT_INDEX_LIMIT} more: list them with freeflow_task list, or search the project.`,
+          `- … ${changed.length - PROJECT_INDEX_LIMIT} more: list them with the freeflow_task tool's list action, or search the project.`,
         );
       return lines;
     } catch {
@@ -523,7 +526,9 @@ export class TaskMemory {
    * (the user confirmed it), so it is a retroactive Slice. Adjust its wording, not its shape.
    */
   private delegation(parent: string, child: string, title: string, result: string): string {
-    const today = new Date().toISOString().slice(0, 10);
+    // The user's calendar day, as Track Work's own Recorded date uses.
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     return [
       `Record the split in ${parent}'s record now, with this Track Work command (edit the wording if needed; then update ${parent}'s Next useful action if this session should not do that work):`,
       "",
@@ -533,7 +538,7 @@ export class TaskMemory {
       `- Authority source: The user confirmed the split in Freeflow's dialog.`,
       `- Result: ${result}`,
       `- Evidence and limits: The split's tool result; ${child}'s session has not started.`,
-      `- Task effect: ${title} is done in ${child}'s session; this session reads it with freeflow_task view.`,
+      `- Task effect: ${title} is done in ${child}'s session; this session reads its record when the result matters.`,
       "EOF",
     ].join("\n");
   }

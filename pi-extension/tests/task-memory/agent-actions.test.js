@@ -238,6 +238,13 @@ test("calls render as one line; results collapse to their outcome and expand to 
     details: {},
   };
   assert.match(render(refused, false, { isError: true }), /^\s*p\/task-001 is owned by session s1\./);
+  // A decline shows its headline, not the instruction the model reads.
+  const declined = {
+    content: [{ type: "text", text: "The user declined. Do not retry or work around it." }],
+    isError: true,
+    details: { headline: "Declined by the user" },
+  };
+  assert.match(render(declined, false, { isError: true }), /^\s*Declined by the user\s*$/);
   const snapshot = {
     content:
       '<task-memory record="/x/record.md" id="p/task-001">\n[Freeflow task memory] Focused task: Retry logic [p/task-001] (/x/record.md), read now.\n\nState: active\n\n### Next useful action\n\n- Add jitter.\n</task-memory>',

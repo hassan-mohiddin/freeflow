@@ -44,7 +44,7 @@ test(
         assert.match(text(child), /Created child rust-rewrite\/task-002 of rust-rewrite\/task-001/);
         assert.match(
           text(focused),
-          /Children \(each written by its own session[\s\S]*- rust-rewrite\/task-002 — Parser: active; Current Slice: None; next: Start the work\./,
+          /Children \(each written by its own session[\s\S]*- rust-rewrite\/task-002 — Parser: active; Current Slice: None; next: Agree the first step with the user\./,
         );
         assert.match(text(search), /rust-rewrite\/task-002 \| Goal \| - Port the parser with NEEDLE_PARSER\./);
         assert.match(text(view), /# Working Record: Parser[\s\S]*Child of rust-rewrite\/task-001/);
