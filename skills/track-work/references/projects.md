@@ -12,7 +12,7 @@ The **Rules** below are binding; everything else is judgment.
 
 ## What A Project Is
 
-A project groups related tasks, possibly across several repositories. Its records live in a store under the Freeflow home (`FREEFLOW_HOME`, default `~/.freeflow`), outside any repository, so removing a worktree does not delete them. Each registered task has an ID, `<project>/task-NNN`, and every command that takes `--record` also takes the ID. The registry also records which session owns each record and which task is a child of which.
+A project groups related tasks, possibly across several repositories. Its records live in a store under the Freeflow home (`FREEFLOW_HOME`, default `~/.freeflow`), at `projects/<project>/tasks/task-NNN-<short-name>/record.md`, outside any repository, so removing a worktree does not delete them. A registered record is not in the repository's `.freeflow/tasks/`, and that is expected. Each registered task has an ID, `<project>/task-NNN`, and every command that takes `--record` also takes the ID. The registry also records which session owns each record and which task is a child of which.
 
 ```text
 working-record.mjs project new --name <name> [--worktrees <dir>]     create; link this repository

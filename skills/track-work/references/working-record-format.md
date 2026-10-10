@@ -17,6 +17,8 @@ Each task has one directory:
 
 `NNN` is three or more digits. A new task takes the next number after the highest existing one; numbers are never reused. `specs/`, `plans/`, and `sources/` are created only when needed; `init` creates `scratch/`. Nothing in `scratch/` is part of the record unless the record points to it, and it may be deleted when the task ends. The directory must be ignored by Git and untracked.
 
+A registered task's directory lives in its project's store instead (`<Freeflow home>/projects/<project>/tasks/task-NNN-<short-name>/`, outside any repository; the store is marked by its `store.json`), with the same contents; see [Projects And Child Records](projects.md).
+
 A Spec or Plan may instead live in the repository's own documentation; the record points to it either way.
 
 ## Skeleton

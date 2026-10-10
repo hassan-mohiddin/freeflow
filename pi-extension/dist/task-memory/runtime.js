@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -28,9 +29,14 @@ export function briefOf(text) {
   };
 }
 const RECORD_PATH = /(^|[\\/])\.freeflow[\\/]tasks[\\/][^\\/]+[\\/]record\.md$/;
+// A project store's record: <store>/tasks/<task>/record.md, where <store>/store.json marks the store.
+const STORE_RECORD = /[\\/]tasks[\\/]task-\d+-[^\\/]+[\\/]record\.md$/;
 const MUTATING = /working-record\.mjs["']?\s+(slice|checkpoint|decision|task)\s+[a-z-]+/;
 export function isRecordPath(path) {
-  return RECORD_PATH.test(path);
+  return (
+    RECORD_PATH.test(path) ||
+    (STORE_RECORD.test(path) && existsSync(join(dirname(dirname(dirname(path))), "store.json")))
+  );
 }
 /** The session's task state on a branch: the attach, detach, focus, hold and confirm entries in order. */
 export function foldState(branch) {

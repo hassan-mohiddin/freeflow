@@ -129,7 +129,7 @@ test("with an unreadable registry, writes to records in the store are refused", 
     confirm: async () => false,
     packageRoot: process.cwd(),
   });
-  const stored = join(home, "projects", "p", ".freeflow", "tasks", "task-001-t", "record.md");
+  const stored = join(home, "projects", "p", "tasks", "task-001-t", "record.md");
   const local = "/repo/.freeflow/tasks/task-001-a/record.md";
   memory.rebuild([entry("attach", stored), entry("attach", local)]);
   assert.match(
@@ -138,4 +138,16 @@ test("with an unreadable registry, writes to records in the store are refused", 
   );
   // An unregistered record outside the store keeps step-2 behavior.
   assert.equal(await memory.gate("write", { path: local }, "/repo"), undefined);
+});
+
+test("a project store's record is a record to the gate; a lookalike path without a store is not", async () => {
+  const { mkdir, writeFile } = await import("node:fs/promises");
+  const { isRecordPath } = await import("../../dist/task-memory/runtime.js");
+  const store = await mkdtemp(join(tmpdir(), "freeflow-store-"));
+  const record = join(store, "tasks", "task-001-t", "record.md");
+  assert.equal(isRecordPath(record), false, "no store.json yet");
+  await mkdir(join(store, "tasks", "task-001-t"), { recursive: true });
+  await writeFile(join(store, "store.json"), "{}");
+  assert.equal(isRecordPath(record), true);
+  assert.equal(isRecordPath(join(store, "tasks", "notes.md")), false);
 });

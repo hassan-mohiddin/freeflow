@@ -12,6 +12,7 @@ import {
   readInput,
   readRecord,
   resolveRecordPath,
+  storeOf,
   writeInitialAtomically,
 } from "./lib/store.mjs";
 import { renderEntries, renderFull, renderResume } from "./lib/views.mjs";
@@ -282,6 +283,8 @@ function rootOption(options) {
     const marker = `${sep}.freeflow${sep}tasks${sep}`;
     const index = record.lastIndexOf(marker);
     if (index > 0) return record.slice(0, index);
+    const store = storeOf(record);
+    if (store) return store;
   }
   return cwd();
 }

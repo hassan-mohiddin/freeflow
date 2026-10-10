@@ -20,12 +20,17 @@ test("projects, tasks and children are created through Track Work's init in the 
   assert.equal((await registry.projectFor(join(repo))).slug, "rust-rewrite");
   const parent = await registry.createTask(slug, "Compiler A", "Port compiler A to Rust.");
   assert.equal(parent.id, "rust-rewrite/task-001");
-  assert.equal(
-    parent.record,
-    join(home, "projects", "rust-rewrite", ".freeflow", "tasks", "task-001-compiler-a", "record.md"),
-  );
+  assert.equal(parent.record, join(home, "projects", "rust-rewrite", "tasks", "task-001-compiler-a", "record.md"));
+  assert.deepEqual(JSON.parse(await readFile(join(home, "projects", "rust-rewrite", "store.json"), "utf8")), {
+    version: 1,
+    project: "rust-rewrite",
+  });
   const script = resolve("skills/track-work/scripts/working-record.mjs");
-  assert.match(execFileSync(process.execPath, [script, "validate", "--record", parent.record]).toString(), /^valid/);
+  // An absolute store path finds its own root: no --root, and the run is from an unrelated directory.
+  assert.match(
+    execFileSync(process.execPath, [script, "validate", "--record", parent.record], { cwd: tmpdir() }).toString(),
+    /^valid/,
+  );
   const child = await registry.createTask(slug, "Parser", "Port the parser.", parent.id);
   assert.equal(child.id, "rust-rewrite/task-002");
   assert.match(await readFile(child.record, "utf8"), /Child of rust-rewrite\/task-001/);

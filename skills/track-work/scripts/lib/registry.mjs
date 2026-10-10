@@ -5,6 +5,7 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { slugify } from "./format.mjs";
+import { STORE_MARKER, taskRoot } from "./store.mjs";
 
 /**
  * The task registry: projects, registered tasks, their parents, and which session owns each record. One JSON file
@@ -112,6 +113,12 @@ export class Registry {
     const root = await this.repoRoot(cwd);
     const store = join(this.home, "projects", slug);
     await mkdir(store, { recursive: true });
+    // Marks the directory as a project store, so Track Work keeps its records in tasks/ rather than .freeflow/tasks/.
+    await writeFile(join(store, STORE_MARKER), `${JSON.stringify({ version: 1, project: slug })}\n`, {
+      flag: "wx",
+    }).catch((error) => {
+      if (error?.code !== "EEXIST") throw error;
+    });
     await this.update((data) => {
       if (data.projects[slug]) throw new RegistryError(`A project named ${slug} already exists.`);
       for (const project of Object.values(data.projects))
@@ -192,7 +199,7 @@ export class Registry {
     if (!project) throw new RegistryError(`No project ${projectName}.`);
     if (Object.values(data.tasks).some((task) => task.record === record))
       throw new RegistryError(`${record} is already registered.`);
-    const tasks = join(project.store, ".freeflow", "tasks");
+    const tasks = taskRoot(project.store);
     await mkdir(tasks, { recursive: true });
     const numbers = (await readdir(tasks)).map((name) => Number(/^task-(\d+)/.exec(name)?.[1] ?? 0));
     const number = String(Math.max(0, ...numbers) + 1).padStart(3, "0");

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { execFile as execFileCallback } from "node:child_process";
 import { lstat, mkdir, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 
@@ -67,8 +67,20 @@ async function assertNoSymlinkPath(target, stopAt) {
   }
 }
 
+/** The marker a project store keeps at its root; see registry.mjs. */
+export const STORE_MARKER = "store.json";
+
+/** A repository keeps its records in .freeflow/tasks; a project store, marked by store.json, in tasks. */
 export function taskRoot(root) {
-  return resolve(root, ".freeflow", "tasks");
+  return existsSync(join(root, STORE_MARKER)) ? resolve(root, "tasks") : resolve(root, ".freeflow", "tasks");
+}
+
+/** The project store holding an absolute record path (<store>/tasks/<task>/record.md), or undefined. */
+export function storeOf(recordPath) {
+  const store = dirname(dirname(dirname(resolve(recordPath))));
+  return basename(dirname(dirname(resolve(recordPath)))) === "tasks" && existsSync(join(store, STORE_MARKER))
+    ? store
+    : undefined;
 }
 
 function canonicalPath(path) {
