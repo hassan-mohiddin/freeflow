@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import test from "node:test";
 import { Registry, RegistryError } from "../../../skills/track-work/scripts/lib/registry.mjs";
 
@@ -163,4 +163,76 @@ test("the CLI creates projects, tasks and children, accepts a task ID as --recor
     () => cli(home, ["view", "resume", "--record", "rust-rewrite/task-099"]),
     /No task rust-rewrite\/task-099/,
   );
+});
+
+const gitRepo = async () => {
+  const repo = await mkdtemp(join(tmpdir(), "freeflow-repo-"));
+  execFileSync("git", ["-C", repo, "init", "-q"]);
+  execFileSync("git", [
+    "-C",
+    repo,
+    "-c",
+    "user.email=t@example.com",
+    "-c",
+    "user.name=T",
+    "commit",
+    "-q",
+    "--allow-empty",
+    "-m",
+    "init",
+  ]);
+  return repo;
+};
+
+test("a task records where its work happens; here maps a directory back to its task, deepest first", async () => {
+  const { home } = await fresh();
+  const repo = await gitRepo();
+  const registry = new Registry(home);
+  const slug = await registry.createProject("P", repo);
+  const outer = await registry.createTask(slug, "Outer", "Goal.", undefined, repo);
+  const inner = await registry.createTask(slug, "Inner", "Goal.", undefined, join(repo, "pkg"));
+  assert.deepEqual(
+    (await registry.here(join(repo, "pkg", "src"))).map((entry) => entry.id),
+    [inner.id, outer.id],
+  );
+  assert.deepEqual(await registry.here(tmpdir()), []);
+  const env = await registry.environment(outer.id);
+  assert.equal(env.primary, resolve(repo));
+  assert.equal(env.worktree, false);
+  assert.ok(env.branch, "branch read live from Git");
+  await registry.setEnvironment(outer.id, { add: "/data", remove: "/none" });
+  assert.deepEqual((await registry.environment(outer.id)).directories, ["/data"]);
+  await registry.setEnvironment(outer.id, { remove: "/data" });
+  assert.deepEqual((await registry.environment(outer.id)).directories, []);
+});
+
+test("fanout creates the child, a worktree on its branch, and copies personal config; a failed worktree leaves the child registered", async () => {
+  const { home } = await fresh();
+  const repo = await gitRepo();
+  const worktrees = await mkdtemp(join(tmpdir(), "freeflow-worktrees-"));
+  const { mkdir } = await import("node:fs/promises");
+  await mkdir(join(repo, ".freeflow"), { recursive: true });
+  await writeFile(join(repo, ".freeflow", "local.json"), '{"taskMemory":{"enabled":true}}');
+  const registry = new Registry(home);
+  const slug = await registry.createProject("Rust Rewrite", repo, worktrees);
+  const parent = await registry.createTask(slug, "Compiler A", "Port A.", undefined, repo);
+  const child = await registry.fanout(parent.id, "Parser", "Port the parser.");
+  assert.equal(child.error, undefined);
+  assert.equal(child.id, "rust-rewrite/task-002");
+  const expected = join(worktrees, `${basename(repo)}-parser`);
+  assert.equal(child.path, resolve(expected));
+  assert.equal(child.branch, "rust-rewrite/task-002-parser");
+  const env = await registry.environment(child.id);
+  assert.equal(env.worktree, true);
+  assert.equal(env.branch, "rust-rewrite/task-002-parser");
+  assert.equal(await readFile(join(expected, ".freeflow", "local.json"), "utf8"), '{"taskMemory":{"enabled":true}}');
+  assert.equal((await registry.task(child.id)).parent, parent.id);
+  assert.deepEqual(
+    (await registry.here(expected)).map((entry) => entry.id),
+    [child.id],
+  );
+
+  const again = await registry.fanout(parent.id, "Parser", "Again.", { path: expected });
+  assert.match(again.error, /registered, but its worktree was not created/);
+  assert.equal((await registry.task(again.id)).environment, undefined);
 });

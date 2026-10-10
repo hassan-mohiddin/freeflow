@@ -51,14 +51,20 @@ export class Registry {
   projectFor(cwd: string): Promise<{ slug: string; project: Project } | undefined> {
     return this.call("projectFor", cwd);
   }
-  createProject(name: string, cwd: string): Promise<string> {
-    return this.call("createProject", name, cwd);
+  createProject(name: string, cwd: string, worktrees?: string): Promise<string> {
+    return this.call("createProject", name, cwd, worktrees);
   }
-  linkProject(name: string, cwd: string): Promise<string> {
-    return this.call("linkProject", name, cwd);
+  linkProject(name: string, cwd: string, worktrees?: string): Promise<string> {
+    return this.call("linkProject", name, cwd, worktrees);
   }
-  createTask(slug: string, title: string, goal: string, parent?: string): Promise<{ id: string; record: string }> {
-    return this.call("createTask", slug, title, goal, parent);
+  createTask(
+    slug: string,
+    title: string,
+    goal: string,
+    parent?: string,
+    primary?: string,
+  ): Promise<{ id: string; record: string }> {
+    return this.call("createTask", slug, title, goal, parent, primary);
   }
   importRecord(projectName: string, record: string): Promise<{ id: string; record: string }> {
     return this.call("importRecord", projectName, record);
@@ -80,6 +86,29 @@ export class Registry {
   }
   release(id: string, session: string): Promise<void> {
     return this.call("release", id, session);
+  }
+  setEnvironment(id: string, change: { primary?: string; add?: string; remove?: string }): Promise<unknown> {
+    return this.call("setEnvironment", id, change);
+  }
+  environment(id: string): Promise<{
+    primary?: string;
+    directories: string[];
+    exists?: boolean;
+    branch?: string;
+    worktree?: boolean;
+  }> {
+    return this.call("environment", id);
+  }
+  here(cwd: string): Promise<Entry[]> {
+    return this.call("here", cwd);
+  }
+  fanout(
+    parent: string,
+    title: string,
+    goal: string,
+    options: { path?: string; base?: string; cwd?: string },
+  ): Promise<{ id: string; record: string; path?: string; branch: string; copiedConfig?: boolean; error?: string }> {
+    return this.call("fanout", parent, title, goal, options);
   }
   scope(id: string, scope: string): Promise<[string, string][]> {
     return this.call("scope", id, scope);

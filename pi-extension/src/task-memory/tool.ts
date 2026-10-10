@@ -3,7 +3,7 @@ import type { TaskMemory, TaskResult } from "./runtime.js";
 export const FREEFLOW_TASK = "freeflow_task";
 
 const DESCRIPTION =
-  "Work with the Working Records (Track Work task memory) attached to this session. list: records for this repository and which are attached. attach: propose attaching a record by task ID or path; the user confirms, and its resume view is returned. focus: switch attention to an attached record and get its resume view. detach: stop working on an attached record. create: create a task in this repository's project. child: create a child record of the focused task for a parallel session. view: read a record's resume view, or one entry, by task ID. search: find lines across the focused record (task), its parent and children (tree), or its project. Propose attaching only when Track Work calls for a record; a session needs none.";
+  "Work with the Working Records (Track Work task memory) attached to this session. list: records for this repository and which are attached. attach: propose attaching a record by task ID or path; the user confirms, and its resume view is returned. focus: switch attention to an attached record and get its resume view. detach: stop working on an attached record. create: create a task in this repository's project. child: create a child record of the focused task for a parallel session. fanout: create a child with its own Git worktree and branch, for a parallel session the user starts there. view: read a record's resume view, or one entry, by task ID. search: find lines across the focused record (task), its parent and children (tree), or its project. Propose attaching only when Track Work calls for a record; a session needs none.";
 
 export interface TaskToolHost {
   memory: TaskMemory;
@@ -21,10 +21,13 @@ export function registerTaskMemoryTool(pi: any, host: TaskToolHost): void {
       type: "object",
       additionalProperties: false,
       properties: {
-        action: { type: "string", enum: ["list", "attach", "focus", "detach", "create", "child", "view", "search"] },
+        action: {
+          type: "string",
+          enum: ["list", "attach", "focus", "detach", "create", "child", "fanout", "view", "search"],
+        },
         record: { type: "string", description: "A task ID such as my-project/task-003, or a record.md path" },
-        title: { type: "string", description: "create, child: the new record's title" },
-        goal: { type: "string", description: "create, child: its goal, one line" },
+        title: { type: "string", description: "create, child, fanout: the new record's title" },
+        goal: { type: "string", description: "create, child, fanout: its goal, one line" },
         entry: { type: "string", description: "view: one entry ID such as S-004" },
         query: { type: "string", description: "search: text to find" },
         scope: { type: "string", enum: ["task", "tree", "project"], description: "search: where to look" },
@@ -70,12 +73,14 @@ async function run(host: TaskToolHost, params: any, ctx: any): Promise<TaskResul
       return memory.create(params.title, params.goal, cwd);
     case "child":
       return memory.child(params.title, params.goal);
+    case "fanout":
+      return memory.fanout(params.title, params.goal);
     case "view":
       return memory.view(params.record, params.entry, cwd);
     case "search":
       return memory.search(params.query, params.scope, cwd);
     default:
-      return { ok: false, text: "action must be list, attach, focus, detach, create, child, view or search." };
+      return { ok: false, text: "action must be list, attach, focus, detach, create, child, fanout, view or search." };
   }
 }
 

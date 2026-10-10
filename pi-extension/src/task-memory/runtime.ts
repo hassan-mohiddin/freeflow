@@ -14,7 +14,8 @@ import { freeflowHome, Registry, type Owner, type RegisteredTask } from "./regis
 export const TASK_ENTRY = "freeflow-task-memory-v1";
 export const SNAPSHOT_TYPE = "freeflow-task-memory-snapshot";
 
-type Op = "attach" | "detach" | "focus" | "hold" | "confirm";
+// "decline" records that the user declined attaching a directory's task; it does not change the attached set.
+type Op = "attach" | "detach" | "focus" | "hold" | "confirm" | "decline";
 export type TaskState = Readonly<{ attached: readonly string[]; held: readonly string[]; focus?: string }>;
 export type TaskResult = { ok: boolean; text: string; snapshot?: string };
 
@@ -28,6 +29,8 @@ export interface TaskMemoryHost {
   owner(): Owner;
   /** Ask the user; false without UI. */
   confirm(title: string, message: string): Promise<boolean>;
+  /** The session's working directory. */
+  cwd(): string;
   packageRoot: string;
   registry?: Registry;
 }
@@ -217,6 +220,7 @@ export class TaskMemory {
       head,
       `This is the record's resume view: its present state and an index of closed History. It is Track Work's recovery read for this record, so do not read it again; read a closed entry with ${fetch}. It is a copy at this time; after the record changes, read it again through Track Work.`,
       ...(found ? await this.family(found.id, found.task) : []),
+      ...(found ? await this.environmentLines(found.id) : []),
       "",
       resume.trimEnd(),
     ].join("\n");
@@ -373,7 +377,13 @@ export class TaskMemory {
           ok: false,
           text: "This repository is not linked to a project. The user creates one with /freeflow project new <name>.",
         };
-      const created = await this.registry.createTask(project.slug, title.trim(), String(goal || title).trim());
+      const created = await this.registry.createTask(
+        project.slug,
+        title.trim(),
+        String(goal || title).trim(),
+        undefined,
+        await this.registry.repoRoot(cwd),
+      );
       return {
         ok: true,
         text: `Created ${created.id} (${created.record}). It is not attached; propose attaching it with freeflow_task.`,
@@ -381,6 +391,83 @@ export class TaskMemory {
     } catch (error: any) {
       return { ok: false, text: error?.message ?? String(error) };
     }
+  }
+
+  /** Where a registered task's work happens, and a warning when this session runs elsewhere. */
+  private async environmentLines(id: string): Promise<string[]> {
+    try {
+      const env = await this.registry.environment(id);
+      if (!env.primary) return [];
+      const facts =
+        env.exists === false
+          ? ["missing"]
+          : [env.worktree ? "Git worktree" : "", env.branch ? `branch ${env.branch}` : ""];
+      const state = facts.filter(Boolean).join(", ");
+      const lines = [
+        "",
+        `Environment: ${env.primary}${state ? ` (${state})` : ""}${env.directories.length ? `; also ${env.directories.join(", ")}` : ""}.`,
+      ];
+      const here = resolve(this.host.cwd());
+      if (here !== env.primary && !here.startsWith(env.primary + sep))
+        lines.push(
+          `This session runs in ${here}, outside this task's directory; the task's effects belong in ${env.primary}.`,
+        );
+      return lines;
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Fan the focused task out into a child with its own worktree, for a parallel session the user starts there. Only the
+   * focused task's owner may.
+   */
+  async fanout(title: unknown, goal: unknown, parent?: string): Promise<TaskResult> {
+    if (typeof title !== "string" || !title.trim()) return { ok: false, text: "Give the child a title." };
+    try {
+      let parentId = parent;
+      if (!parentId) {
+        const focus = this.current.focus;
+        const found = focus ? await this.registered(focus) : undefined;
+        if (!found) return { ok: false, text: "The focus is not a registered task, so it cannot fan out." };
+        if (found.task.owner?.session !== this.host.owner().session)
+          return { ok: false, text: `Only the owner of ${found.id} fans it out.` };
+        parentId = found.id;
+      }
+      const result = await this.registry.fanout(parentId, title.trim(), String(goal || title).trim(), {
+        cwd: this.host.cwd(),
+      });
+      if (result.error) return { ok: false, text: result.error };
+      return {
+        ok: true,
+        text: `Created child ${result.id} of ${parentId} with a worktree at ${result.path} on branch ${result.branch}${result.copiedConfig ? " (personal Freeflow config copied)" : ""}. The user opens a terminal there and starts a session; Freeflow there offers to attach ${result.id}. Record the delegation in ${parentId}'s own record through Track Work.`,
+      };
+    } catch (error: any) {
+      return { ok: false, text: error?.message ?? String(error) };
+    }
+  }
+
+  /** The task this session's directory belongs to, when nothing is attached and the user has not declined it here. */
+  async suggestion(branch: readonly any[]): Promise<{ id: string; title: string; record: string } | undefined> {
+    if (!this.host.effective() || this.current.attached.length) return undefined;
+    try {
+      const [found] = await this.registry.here(this.host.cwd());
+      if (!found) return undefined;
+      const declined = branch.some(
+        (entry) =>
+          entry?.type === "custom" &&
+          entry.customType === TASK_ENTRY &&
+          entry.data?.op === "decline" &&
+          entry.data?.record === found.task.record,
+      );
+      return declined ? undefined : { id: found.id, title: found.task.title, record: found.task.record };
+    } catch {
+      return undefined;
+    }
+  }
+
+  decline(record: string): void {
+    this.write("decline", record);
   }
 
   /** Create a child of a registered task. From the model, the parent is the focus and this session must own it. */

@@ -32,14 +32,14 @@ export class Registry {
   projectFor(cwd) {
     return this.call("projectFor", cwd);
   }
-  createProject(name, cwd) {
-    return this.call("createProject", name, cwd);
+  createProject(name, cwd, worktrees) {
+    return this.call("createProject", name, cwd, worktrees);
   }
-  linkProject(name, cwd) {
-    return this.call("linkProject", name, cwd);
+  linkProject(name, cwd, worktrees) {
+    return this.call("linkProject", name, cwd, worktrees);
   }
-  createTask(slug, title, goal, parent) {
-    return this.call("createTask", slug, title, goal, parent);
+  createTask(slug, title, goal, parent, primary) {
+    return this.call("createTask", slug, title, goal, parent, primary);
   }
   importRecord(projectName, record) {
     return this.call("importRecord", projectName, record);
@@ -61,6 +61,18 @@ export class Registry {
   }
   release(id, session) {
     return this.call("release", id, session);
+  }
+  setEnvironment(id, change) {
+    return this.call("setEnvironment", id, change);
+  }
+  environment(id) {
+    return this.call("environment", id);
+  }
+  here(cwd) {
+    return this.call("here", cwd);
+  }
+  fanout(parent, title, goal, options) {
+    return this.call("fanout", parent, title, goal, options);
   }
   scope(id, scope) {
     return this.call("scope", id, scope);

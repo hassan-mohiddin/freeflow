@@ -35,7 +35,11 @@ When the conversation turns to another attached record, switch with `freeflow_ta
 
 ## Child Records On Pi
 
-Read Track Work's [Projects And Child Records](../../skills/track-work/references/projects.md) when the work involves a registered task, a child record or a project: it says when a task gets a child and how the parent records it. On Pi, create a child of the focused task with `freeflow_task` (`child`); the user attaches it in its own session. A subagent is not a child. The parent's resume view lists children in a `Children` block; read one with `freeflow_task` (`view`).
+Read Track Work's [Projects And Child Records](../../skills/track-work/references/projects.md) when the work involves a registered task, a child record or a project: it says when a task gets a child and how the parent records it. On Pi, fan the focused task out with `freeflow_task` (`fanout`) when the child will change files: it creates the child's worktree, and when the user starts a session there, Freeflow offers to attach the child. Use `child` for a child that needs no worktree; the user attaches it in its own session. A subagent is not a child. The parent's resume view lists children in a `Children` block; read one with `freeflow_task` (`view`).
+
+## Where The Work Happens
+
+A registered task's resume view names its directory in an `Environment:` line. When it says this session runs outside that directory, the task's changes belong there: tell the user before changing files here for that task.
 
 ## Find Before Reading Files
 

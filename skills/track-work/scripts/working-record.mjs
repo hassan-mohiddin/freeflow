@@ -30,7 +30,7 @@ function usage() {
     "  working-record.mjs validate --record <record.md>",
     "  working-record.mjs <slice|checkpoint|decision|task> <operation> ...",
     "  working-record.mjs project <new|link|show> ...",
-    "  working-record.mjs task <create|import|search> ...",
+    "  working-record.mjs task <create|import|search|env|here|fanout> ...",
     "",
     ROOT_HELP,
     "A registered task's ID (such as my-project/task-003) may be given as --record.",
@@ -69,7 +69,7 @@ const COMMAND_HELP = new Map([
     "task",
     [
       "Usage: working-record.mjs task <operation> ...",
-      "Operations: task set-state; and for projects: task create, task import, task search.",
+      "Operations: task set-state; and for projects: task create, task import, task search, task env, task here, task fanout.",
       "Run working-record.mjs <group> <operation> --help for options and input fields.",
     ].join("\n"),
   ],
@@ -88,11 +88,23 @@ const COMMAND_HELP = new Map([
   ],
   [
     "project new",
-    "Usage: project new --name <name> [--cwd <directory>]\nCreates the project and links the repository containing --cwd (default: the current directory) to it.",
+    "Usage: project new --name <name> [--cwd <directory>] [--worktrees <directory>]\nCreates the project and links the repository containing --cwd (default: the current directory) to it. --worktrees is where fan-out puts children's worktrees (default: the repository's parent directory).",
   ],
   [
     "project link",
-    "Usage: project link --name <name> [--cwd <directory>]\nLinks another repository to an existing project.",
+    "Usage: project link --name <name> [--cwd <directory>] [--worktrees <directory>]\nLinks another repository to an existing project; --worktrees changes where fan-out puts worktrees.",
+  ],
+  [
+    "task env",
+    "Usage: task env --id <task-id> [--primary <directory>] [--add-dir <directory>] [--remove-dir <directory>]\nPrints where the task's work happens: its primary directory with its current Git branch, and additional directories. The options change it; change it only when the user asks.",
+  ],
+  [
+    "task here",
+    "Usage: task here [--cwd <directory>]\nPrints the registered tasks whose primary directory contains the directory, deepest first.",
+  ],
+  [
+    "task fanout",
+    "Usage: task fanout --parent <task-id> --title <title> --goal <goal> [--path <directory>] [--base <ref>]\nCreates a child of the task, a Git worktree for it on branch <project>/<task-NNN>-<slug> (at <worktrees>/<repo>-<slug> unless --path), copies .freeflow/local.json into it when it has none, and makes the worktree the child's directory. The user then starts a session there.",
   ],
   [
     "project show",
@@ -237,8 +249,13 @@ function allowedOptions(command, operation) {
   if (command === "task" && operation === "import") return new Set(["--record", "--project", "--help"]);
   if (command === "task" && operation === "search")
     return new Set(["--query", "--id", "--scope", "--project", "--help"]);
+  if (command === "task" && operation === "env")
+    return new Set(["--id", "--primary", "--add-dir", "--remove-dir", "--help"]);
+  if (command === "task" && operation === "here") return new Set(["--cwd", "--help"]);
+  if (command === "task" && operation === "fanout")
+    return new Set(["--parent", "--title", "--goal", "--path", "--base", "--cwd", "--help"]);
   if (command === "project" && (operation === "new" || operation === "link"))
-    return new Set(["--name", "--cwd", "--help"]);
+    return new Set(["--name", "--cwd", "--worktrees", "--help"]);
   if (command === "project" && operation === "show") return new Set(["--cwd", "--help"]);
   return null;
 }
@@ -349,9 +366,9 @@ async function runRegistry(command, operation, options) {
   const registry = new Registry();
   const where = options["--cwd"] ?? cwd();
   if (command === "project" && operation === "new")
-    return `Project ${await registry.createProject(requireOption(options, "--name"), where)} created and linked to ${await registry.repoRoot(where)}.\n`;
+    return `Project ${await registry.createProject(requireOption(options, "--name"), where, options["--worktrees"])} created and linked to ${await registry.repoRoot(where)}.\n`;
   if (command === "project" && operation === "link")
-    return `${await registry.repoRoot(where)} linked to project ${await registry.linkProject(requireOption(options, "--name"), where)}.\n`;
+    return `${await registry.repoRoot(where)} linked to project ${await registry.linkProject(requireOption(options, "--name"), where, options["--worktrees"])}.\n`;
   if (command === "project" && operation === "show") {
     const found = await registry.projectFor(where);
     if (!found) return `No project is linked to ${await registry.repoRoot(where)}.\n`;
@@ -369,13 +386,46 @@ async function runRegistry(command, operation, options) {
     const slug = parent ? (await registry.task(parent))?.project : (await registry.projectFor(where))?.slug;
     if (!slug)
       throw new CliError(parent ? `No task ${parent}.` : `No project is linked to ${await registry.repoRoot(where)}.`);
-    const created = await registry.createTask(slug, title, goal, parent);
+    const primary = parent ? undefined : await registry.repoRoot(where);
+    const created = await registry.createTask(slug, title, goal, parent, primary);
     return `${created.id}\n${created.record}\n`;
   }
   if (operation === "import") {
     const record = resolve(requireOption(options, "--record"));
     const moved = await registry.importRecord(requireOption(options, "--project"), record);
     return `${moved.id}\n${moved.record}\n`;
+  }
+  if (operation === "env") {
+    const id = requireOption(options, "--id");
+    if (options["--primary"] || options["--add-dir"] || options["--remove-dir"])
+      await registry.setEnvironment(id, {
+        primary: options["--primary"],
+        add: options["--add-dir"],
+        remove: options["--remove-dir"],
+      });
+    const env = await registry.environment(id);
+    if (!env.primary) return `${id} has no recorded directory.\n`;
+    const facts =
+      env.exists === false
+        ? ["missing"]
+        : [env.worktree ? "Git worktree" : "", env.branch ? `branch ${env.branch}` : ""];
+    const state = facts.filter(Boolean).join(", ");
+    return `${[`primary: ${env.primary}${state ? ` (${state})` : ""}`, ...env.directories.map((dir) => `also: ${dir}`)].join("\n")}\n`;
+  }
+  if (operation === "here") {
+    const found = await registry.here(where);
+    if (!found.length) return `No registered task works in ${resolve(where)}.\n`;
+    return `${found.map(({ id, task }) => `${id} — ${task.title} (${task.environment.primary})`).join("\n")}\n`;
+  }
+  if (operation === "fanout") {
+    const result = await registry.fanout(
+      requireOption(options, "--parent"),
+      requireOption(options, "--title"),
+      requireOption(options, "--goal"),
+      { path: options["--path"], base: options["--base"], cwd: where },
+    );
+    if (result.error) throw new CliError(result.error);
+    return `${result.id}\n${result.path}\nbranch ${result.branch}${result.copiedConfig ? "; copied .freeflow/local.json" : ""}\nNext: open a terminal in ${result.path} and start a session there.\n`;
   }
   if (operation === "search") {
     const query = requireOption(options, "--query");
@@ -396,7 +446,10 @@ async function runCore(command, rest) {
   const operation = positionals[0];
   if (options["--help"]) return commandHelp(command, operation);
   validateCommandOptions(command, operation, options);
-  if (command === "project" || (command === "task" && ["create", "import", "search"].includes(operation)))
+  if (
+    command === "project" ||
+    (command === "task" && ["create", "import", "search", "env", "here", "fanout"].includes(operation))
+  )
     return runRegistry(command, operation, options);
   // A registered task's ID stands for its record's path.
   if (typeof options["--record"] === "string" && TASK_ID.test(options["--record"])) {

@@ -359,6 +359,7 @@ export default function freeflow(pi: FreeflowAPI) {
       since: new Date().toISOString(),
     }),
     confirm: async (title, message) => (liveHost?.hasUI ? Boolean(await liveHost.ui.confirm(title, message)) : false),
+    cwd: () => liveHost?.cwd ?? process.cwd(),
     packageRoot,
   });
   registerTaskMemoryTool(api, {
@@ -375,13 +376,16 @@ export default function freeflow(pi: FreeflowAPI) {
       return;
     }
     const [sub, ...words] = rest.trim().split(/\s+/).filter(Boolean);
+    // --worktrees <dir>: where fan-out puts this project's child worktrees.
+    const at = words.indexOf("--worktrees");
+    const worktrees = at >= 0 ? words.splice(at, 2)[1] : undefined;
     const name = words.join(" ");
     try {
       if (sub === "new" && name) {
-        const slug = await taskMemory.registry.createProject(name, ctx.cwd);
+        const slug = await taskMemory.registry.createProject(name, ctx.cwd, worktrees);
         ctx.ui.notify(`Project ${slug} created and linked to this repository.`, "info");
       } else if (sub === "link" && name) {
-        const slug = await taskMemory.registry.linkProject(name, ctx.cwd);
+        const slug = await taskMemory.registry.linkProject(name, ctx.cwd, worktrees);
         ctx.ui.notify(`This repository is linked to project ${slug}.`, "info");
       } else {
         const found = await taskMemory.registry.projectFor(ctx.cwd);
@@ -429,6 +433,9 @@ export default function freeflow(pi: FreeflowAPI) {
       const created = await taskMemory.child(title.join(" "), title.join(" "), parent);
       const id = /Created child (\S+)/.exec(created.text)?.[1];
       result = created.ok && id ? await taskMemory.attach(id, ctx.cwd) : created;
+    } else if (action === "fanout") {
+      const title = words.join(" ");
+      result = await taskMemory.fanout(title, title);
     } else if (action === "import") {
       const [path, ...project] = words;
       const yes = ctx.hasUI
@@ -440,7 +447,7 @@ export default function freeflow(pi: FreeflowAPI) {
     } else
       result = {
         ok: false,
-        text: "Use /freeflow task [list|attach <id or record>|focus <id or record>|detach <id or record>|confirm [record]|child <parent-id> <title>|import <record> <project>].",
+        text: "Use /freeflow task [list|attach <id or record>|focus <id or record>|detach <id or record>|confirm [record]|child <parent-id> <title>|fanout <title>|import <record> <project>].",
       };
     if (result.snapshot) {
       sendSnapshot(result.text, result.snapshot);
@@ -504,6 +511,29 @@ export default function freeflow(pi: FreeflowAPI) {
           );
       }
       await taskMemory.deliver(ctx.sessionManager.getBranch());
+      // A session started in a task's directory with nothing attached offers that task (D-017). Not awaited, so
+      // startup finishes first and the user answers when the dialog appears; a decline is kept on the branch.
+      const suggested = ctx.hasUI ? await taskMemory.suggestion(ctx.sessionManager.getBranch()) : undefined;
+      if (suggested)
+        void (async () => {
+          const yes = await ctx.ui.confirm(
+            `Attach ${suggested.id}?`,
+            `This directory belongs to ${suggested.title} (${suggested.id}). Attach it to this session?`,
+          );
+          if (generation !== surfaceGeneration) return;
+          if (!yes) {
+            taskMemory.decline(suggested.record);
+            return;
+          }
+          const result = await taskMemory.attach(suggested.id, ctx.cwd);
+          if (result.snapshot) sendSnapshot(result.text, result.snapshot);
+          ctx.ui.notify(
+            result.ok ? `Task memory: ${suggested.id} attached.` : result.text,
+            result.ok ? "info" : "warning",
+          );
+          refreshState = true;
+          status(ctx);
+        })().catch(() => {});
     }
     status(ctx);
   });

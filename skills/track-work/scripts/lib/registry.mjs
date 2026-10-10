@@ -1,5 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { cp, mkdir, readdir, readFile, rename, rm, unlink, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -106,7 +106,8 @@ export class Registry {
     return undefined;
   }
 
-  async createProject(name, cwd) {
+  /** Create a project and link the repository containing cwd; worktrees is where its children's worktrees go. */
+  async createProject(name, cwd, worktrees) {
     const slug = projectSlug(name);
     const root = await this.repoRoot(cwd);
     const store = join(this.home, "projects", slug);
@@ -115,12 +116,12 @@ export class Registry {
       if (data.projects[slug]) throw new RegistryError(`A project named ${slug} already exists.`);
       for (const project of Object.values(data.projects))
         if (project.repos.includes(root)) throw new RegistryError(`${root} is already linked to ${project.name}.`);
-      data.projects[slug] = { name, store, repos: [root] };
+      data.projects[slug] = { name, store, repos: [root], ...(worktrees ? { worktrees: resolve(worktrees) } : {}) };
     });
     return slug;
   }
 
-  async linkProject(name, cwd) {
+  async linkProject(name, cwd, worktrees) {
     const slug = projectSlug(name);
     const root = await this.repoRoot(cwd);
     await this.update((data) => {
@@ -129,13 +130,17 @@ export class Registry {
       for (const [other, entry] of Object.entries(data.projects))
         if (other !== slug && entry.repos.includes(root))
           throw new RegistryError(`${root} is already linked to ${entry.name}.`);
-      if (!project.repos.includes(root)) data.projects[slug] = { ...project, repos: [...project.repos, root] };
+      data.projects[slug] = {
+        ...project,
+        repos: project.repos.includes(root) ? project.repos : [...project.repos, root],
+        ...(worktrees ? { worktrees: resolve(worktrees) } : {}),
+      };
     });
     return slug;
   }
 
-  /** Create a record in the project's store with this script's init, then register it. */
-  async createTask(slug, title, goal, parent) {
+  /** Create a record in the project's store with this script's init, then register it; primary is its directory. */
+  async createTask(slug, title, goal, parent, primary) {
     const data = await this.read();
     const project = data.projects[slug];
     if (!project) throw new RegistryError(`No project ${slug}.`);
@@ -168,7 +173,13 @@ export class Registry {
     const record = resolve(await output);
     const id = `${slug}/${basename(dirname(record)).match(/^task-\d+/)?.[0]}`;
     await this.update((next) => {
-      next.tasks[id] = { record, project: slug, title, ...(parent ? { parent } : {}) };
+      next.tasks[id] = {
+        record,
+        project: slug,
+        title,
+        ...(parent ? { parent } : {}),
+        ...(primary ? { environment: { primary: resolve(primary), directories: [] } } : {}),
+      };
     });
     return { id, record };
   }
@@ -247,6 +258,94 @@ export class Registry {
       const { owner: _owner, ...rest } = current;
       data.tasks[id] = rest;
     });
+  }
+
+  /** Change where a task's work happens: its primary directory, and additional directories. */
+  async setEnvironment(id, { primary, add, remove } = {}) {
+    return this.update((data) => {
+      const task = data.tasks[id];
+      if (!task) throw new RegistryError(`No task ${id}.`);
+      const environment = {
+        primary: task.environment?.primary,
+        directories: [...(task.environment?.directories ?? [])],
+      };
+      if (primary) environment.primary = resolve(primary);
+      if (add && !environment.directories.includes(resolve(add))) environment.directories.push(resolve(add));
+      if (remove) environment.directories = environment.directories.filter((dir) => dir !== resolve(remove));
+      data.tasks[id] = { ...task, environment };
+      return environment;
+    });
+  }
+
+  /** A task's environment with what Git says about its primary directory now; branches are read, never stored. */
+  async environment(id) {
+    const task = await this.task(id);
+    if (!task) throw new RegistryError(`No task ${id}.`);
+    const primary = task.environment?.primary;
+    const directories = task.environment?.directories ?? [];
+    if (!primary) return { primary: undefined, directories };
+    const exists = await stat(primary)
+      .then((info) => info.isDirectory())
+      .catch(() => false);
+    if (!exists) return { primary, directories, exists: false };
+    const git = async (...args) =>
+      (await execFile("git", ["-C", primary, ...args]).catch(() => ({ stdout: "" }))).stdout.trim();
+    const branch = (await git("branch", "--show-current")) || undefined;
+    const worktree = (await git("rev-parse", "--git-dir")) !== (await git("rev-parse", "--git-common-dir"));
+    return { primary, directories, exists: true, branch, worktree };
+  }
+
+  /** Registered tasks whose primary directory contains cwd, deepest first. */
+  async here(cwd) {
+    const where = resolve(cwd);
+    return Object.entries((await this.read()).tasks)
+      .filter(([, task]) => {
+        const primary = task.environment?.primary;
+        return primary && (where === primary || where.startsWith(primary + sep));
+      })
+      .sort(([, a], [, b]) => b.environment.primary.length - a.environment.primary.length)
+      .map(([id, task]) => ({ id, task }));
+  }
+
+  /**
+   * Fan a task out into a child: create the child record, a Git worktree on a new branch for it, copy the parent
+   * repository's personal Freeflow config when the worktree has none, and make the worktree the child's directory.
+   * If the worktree cannot be created, the child stays registered with no environment and the error says so.
+   */
+  async fanout(parent, title, goal, { path, base, cwd } = {}) {
+    const parentTask = await this.task(parent);
+    if (!parentTask) throw new RegistryError(`No task ${parent}.`);
+    const project = (await this.read()).projects[parentTask.project];
+    const repo = await this.repoRoot(parentTask.environment?.primary ?? cwd ?? process.cwd());
+    const created = await this.createTask(parentTask.project, title, goal, parent);
+    const directory = basename(dirname(created.record));
+    const childSlug = directory.replace(/^task-\d+-/, "");
+    const branch = `${parentTask.project}/${directory}`;
+    const target = resolve(path ?? join(project.worktrees ?? dirname(repo), `${basename(repo)}-${childSlug}`));
+    try {
+      await execFile("git", ["-C", repo, "worktree", "add", "-b", branch, target, base ?? "HEAD"]);
+    } catch (error) {
+      const reason = String(error?.stderr || error?.message || error).trim();
+      return {
+        ...created,
+        branch,
+        error: `The child ${created.id} is registered, but its worktree was not created: ${reason}`,
+      };
+    }
+    const local = join(repo, ".freeflow", "local.json");
+    const copied = join(target, ".freeflow", "local.json");
+    const hasLocal = await stat(local)
+      .then(() => true)
+      .catch(() => false);
+    const hasCopy = await stat(copied)
+      .then(() => true)
+      .catch(() => false);
+    if (hasLocal && !hasCopy) {
+      await mkdir(dirname(copied), { recursive: true });
+      await copyFile(local, copied);
+    }
+    await this.setEnvironment(created.id, { primary: target });
+    return { ...created, path: target, branch, copiedConfig: hasLocal && !hasCopy };
   }
 
   /** The records a search covers: one task, a task's tree (its root and the root's children), or a project. */
