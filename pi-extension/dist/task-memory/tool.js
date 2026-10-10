@@ -47,7 +47,9 @@ export function registerTaskMemoryTool(pi, host) {
       },
       required: ["action"],
     },
-    exposure: "direct",
+    // It asks the user, so scripts must not call it (Pi's guidance for such tools); called directly, its own
+    // transcript views apply, which a codemode script's nested call would bypass.
+    exposure: "model-only",
     defaultActive: false,
     executionMode: "sequential",
     renderCall: (args, theme) => renderTaskCall(args, theme),

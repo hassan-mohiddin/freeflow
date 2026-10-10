@@ -84,40 +84,66 @@ test("reads and attention changes need no dialog", { timeout: 30000 }, async () 
   );
 });
 
-test("fan-out from the agent returns a command to paste into a new terminal", { timeout: 30000 }, async () => {
-  const dir = await home();
-  const worktrees = await mkdtemp(join(tmpdir(), "freeflow-worktrees-"));
-  await fixture(
-    async (n) =>
-      [
-        [call({ action: "create", title: "Compiler", goal: "Port it." })],
-        [call({ action: "fanout", title: "Parser", goal: "Port the parser." })],
-      ][n - 1] ?? [],
-    false,
-    async ({ manager }) => {
-      const [, fanout] = results(manager);
-      assert.notEqual(fanout.isError, true, text(fanout));
-      const child = (await registry(dir)).tasks["p/task-002"];
-      const command = `cd '${child.environment.primary}' && FREEFLOW_HOME='${dir}' pi`;
-      assert.equal(fanout.details.command, command);
-      assert.match(
-        text(fanout),
-        new RegExp(
-          `runs:\\n\\n    ${command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n\\nShow the user that command exactly`,
-        ),
-      );
-    },
-    true,
-    {
-      ...on(),
-      ui: { confirm: async () => true },
-      beforePrompt: async ({ session, cwd }) => {
-        gitInit(cwd);
-        await session.prompt(`/freeflow project new P --worktrees ${worktrees}`);
+test(
+  "fan-out returns a command to paste into a new terminal and one that records the split in the parent",
+  { timeout: 30000 },
+  async () => {
+    const dir = await home();
+    const worktrees = await mkdtemp(join(tmpdir(), "freeflow-worktrees-"));
+    await fixture(
+      async (n, _body, manager) => {
+        if (n === 1) return [call({ action: "create", title: "Compiler", goal: "Port it." })];
+        if (n === 2) return [call({ action: "fanout", title: "Parser", goal: "Port the parser." })];
+        // The agent runs the recording command from the result as given.
+        if (n === 3) {
+          const command = /\n(node [^\n]+ slice record [\s\S]*?\nEOF)/.exec(text(results(manager)[1]))[1];
+          return [{ name: "bash", args: { command } }];
+        }
+        if (n === 4) return [call({ action: "view", record: "p/task-001" })];
+        return [];
       },
-    },
-  );
-});
+      false,
+      async ({ manager }) => {
+        const bash = manager
+          .getBranch()
+          .filter((entry) => entry.message?.role === "toolResult" && entry.message.toolName === "bash")
+          .map((entry) => entry.message);
+        assert.notEqual(bash[0].isError, true, text(bash[0]));
+        const parent = (await registry(dir)).tasks["p/task-001"];
+        assert.match(
+          await readFile(parent.record, "utf8"),
+          /#### S-001 — Split off: Parser[\s\S]*Recorded: retroactively/,
+        );
+        // Read by ID, a project task shows its children like its delivered view.
+        const [, , view] = results(manager);
+        assert.match(
+          text(view),
+          /^Children \(each written by its own session[\s\S]*- p\/task-002 — Parser[\s\S]*# Working Record: Compiler/,
+        );
+        const [, fanout] = results(manager);
+        assert.notEqual(fanout.isError, true, text(fanout));
+        const child = (await registry(dir)).tasks["p/task-002"];
+        const command = `cd '${child.environment.primary}' && FREEFLOW_HOME='${dir}' pi`;
+        assert.equal(fanout.details.command, command);
+        assert.match(
+          text(fanout),
+          new RegExp(
+            `runs:\\n\\n    ${command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n\\nShow the user that command exactly`,
+          ),
+        );
+      },
+      true,
+      {
+        ...on(),
+        ui: { confirm: async () => true },
+        beforePrompt: async ({ session, cwd }) => {
+          gitInit(cwd);
+          await session.prompt(`/freeflow project new P --worktrees ${worktrees}`);
+        },
+      },
+    );
+  },
+);
 
 test("a registered task's resume view indexes the project's other tasks", { timeout: 30000 }, async () => {
   await home();
@@ -176,6 +202,13 @@ test(
     );
   },
 );
+
+test("freeflow_task is model-only: it asks the user, so scripts cannot call it", async () => {
+  const { registerTaskMemoryTool } = await import("../../dist/task-memory/tool.js");
+  let registered;
+  registerTaskMemoryTool({ registerTool: (tool) => (registered = tool) }, { memory: {}, changed() {} });
+  assert.equal(registered.exposure, "model-only");
+});
 
 test("calls render as one line; results collapse to their outcome and expand to the full text", () => {
   assert.equal(callTitle({ action: "create", title: "Retry logic" }), 'Create task "Retry logic"');

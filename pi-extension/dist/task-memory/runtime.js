@@ -451,6 +451,25 @@ export class TaskMemory {
     }
   }
   /**
+   * The Track Work command that records a delegation in the parent's record, ready to run: the split already happened
+   * (the user confirmed it), so it is a retroactive Slice. Adjust its wording, not its shape.
+   */
+  delegation(parent, child, title, result) {
+    const today = new Date().toISOString().slice(0, 10);
+    return [
+      `Record the split in ${parent}'s record now, with this Track Work command (edit the wording if needed; then update ${parent}'s Next useful action if this session should not do that work):`,
+      "",
+      `node ${this.script()} slice record --record ${parent} --title "Split off: ${title.replaceAll('"', "'")}" --state completed --input - <<'EOF'`,
+      `- Occurred: ${today}`,
+      `- Intended result: ${title} continues in its own session as ${child}.`,
+      `- Authority source: The user confirmed the split in Freeflow's dialog.`,
+      `- Result: ${result}`,
+      `- Evidence and limits: The split's tool result; ${child}'s session has not started.`,
+      `- Task effect: ${title} is done in ${child}'s session; this session reads it with freeflow_task view.`,
+      "EOF",
+    ].join("\n");
+  }
+  /**
    * Fan the focused task out into a child with its own worktree, for a parallel session the user starts there. Only the
    * focused task's owner may.
    */
@@ -476,7 +495,7 @@ export class TaskMemory {
         id: result.id,
         command,
         headline: `Child ${result.id} ready in ${result.path}`,
-        text: `Created child ${result.id} of ${parentId} with a worktree at ${result.path} on branch ${result.branch}${result.copiedConfig ? " (personal Freeflow config copied)" : ""}. To start it, the user opens a new terminal and runs:\n\n    ${command}\n\nShow the user that command exactly. Freeflow in that session offers to attach ${result.id}. Record the delegation in ${parentId}'s own record through Track Work.`,
+        text: `Created child ${result.id} of ${parentId} with a worktree at ${result.path} on branch ${result.branch}${result.copiedConfig ? " (personal Freeflow config copied)" : ""}. To start it, the user opens a new terminal and runs:\n\n    ${command}\n\nShow the user that command exactly. Freeflow in that session offers to attach ${result.id}.\n\n${this.delegation(parentId, result.id, title.trim(), `Created ${result.id} with a worktree at ${result.path} on branch ${result.branch}.`)}`,
       };
     } catch (error) {
       return { ok: false, text: error?.message ?? String(error) };
@@ -528,7 +547,7 @@ export class TaskMemory {
         ok: true,
         id: created.id,
         headline: `Created child ${created.id} of ${parentId}`,
-        text: `Created child ${created.id} of ${parentId} (${created.record}). The user works it in a new session with /freeflow task attach ${created.id}. Record the delegation in ${parentId}'s own record through Track Work.`,
+        text: `Created child ${created.id} of ${parentId} (${created.record}). The user works it in a new session with /freeflow task attach ${created.id}.\n\n${this.delegation(parentId, created.id, title.trim(), `Created ${created.id} (${created.record}).`)}`,
       };
     } catch (error) {
       return { ok: false, text: error?.message ?? String(error) };
@@ -542,13 +561,20 @@ export class TaskMemory {
     if (!text) return { ok: false, text: `${path} is unavailable: ${readError}.` };
     try {
       const views = await this.views();
-      return {
-        ok: true,
-        text:
-          typeof entry === "string" && entry.trim()
-            ? views.renderEntries(text, [entry.trim()])
-            : views.renderResume(text),
-      };
+      if (typeof entry === "string" && entry.trim())
+        return { ok: true, text: views.renderEntries(text, [entry.trim()]) };
+      // A registered task reads as its delivered view does: parent or children, the project's other tasks, and where
+      // its work happens, before the resume view.
+      const found = await this.registered(path);
+      const blocks = found
+        ? [
+            ...(await this.family(found.id, found.task)),
+            ...(await this.projectLines(found.id, found.task)),
+            ...(await this.environmentLines(found.id)),
+          ]
+        : [];
+      const resume = views.renderResume(text);
+      return { ok: true, text: blocks.length ? `${blocks.join("\n").trimStart()}\n\n${resume}` : resume };
     } catch (failure) {
       return { ok: false, text: String(failure?.message ?? failure) };
     }

@@ -11,7 +11,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 ## Rules
 
-- The user's latest request decides the work. The focused record's Next useful action is where that task stood, not a request: when the user asks for something else, including work on another record, do that (proposing to attach the other record when a write needs it) and do not switch to the focused record's work.
+- The user's latest request decides the work. The focused record's Next useful action is where that task stood, not a request: when the user asks for something else, including work on another record, do that (proposing to attach the other record when a write needs it) and do not switch to the focused record's work. When the request is unclear or incomplete, ask what the user means; never fall back to the record's Next useful action.
 - Act on the user's authority only through a `freeflow_task` proposal the user confirms: `attach`, `create`, `child`, `fanout`, `project_new`, `project_link`, `import`, `confirm`, and `env` with a change each open a dialog. A declined proposal is the user's answer: do not retry it, rephrase it, or reach the same result another way unless the user asks again.
 - Write a record only when it is attached to this session, not held, and, if registered, owned by this session. Write each update to the record it concerns, whichever record is the focus. Never write another task's record because you read it.
 - When Freeflow refuses a record write, tell the user which record and why. Never write that record another way, such as a shell command.
@@ -36,7 +36,7 @@ Goal: the user works in plain language; you pick the action and show its outcome
 
 When a request names a task loosely ("the retry one"), `list` first and pick the match; ask only if two fit. After an action, say what happened in a line; the transcript already shows the details.
 
-A fan-out result contains a command for a new terminal. Give it to the user exactly as returned, in a code block, and say that Freeflow there offers to attach the child.
+A fan-out result contains a command for a new terminal. Give it to the user exactly as returned, in a code block, and say that Freeflow there offers to attach the child. A fan-out or child result also contains the Track Work command that records the split in the parent's record: run it (adjusting its wording only), then update the parent's Next useful action if this session should not do that work. On Pi the tool supplies everything; Track Work's `--agent` option is only for its script on other hosts.
 
 ## Propose When Track Work Calls For A Record
 
