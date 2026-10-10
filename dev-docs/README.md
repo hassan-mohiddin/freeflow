@@ -1,7 +1,7 @@
 # Freeflow Developer Docs
 
 > **Covers:** `pi-extension/src/README.md`, `hooks/`, `runtime/prompts/`, `plugin.json`, `package.json`, `command-surface.json`
-> **Verified at:** `37b52b87` (2026-10-04)
+> **Verified at:** `a2589993` (2026-10-11)
 
 For anyone working on Freeflow itself, people or agents: what the parts are, how they relate, the rules that hold across them, and where each part's detailed document is. Using Freeflow is covered by the [user docs](../plugin-docs/README.md).
 
