@@ -126,7 +126,8 @@ export function recordTargets(toolName: string, input: any, cwd: string, attache
     // Each command segment that writes a record, after expanding variables assigned earlier in the same command, so
     // `S=<script>; R=<record>; node $S decision add --record "$R"` is seen like the literal form.
     for (const segment of expandAssignments(input.command).split(/;|&&|\|\||\||\n/)) {
-      if (!RECORD_WRITE.test(segment)) continue;
+      // A help request writes nothing; Track Work tells agents to read it before preparing input.
+      if (!RECORD_WRITE.test(segment) || /(^|\s)--help(\s|$)/.test(segment)) continue;
       const record = option(segment, "--record");
       if (!record || /[$`*?]/.test(record)) targets.push(`${UNRESOLVED_TARGET}${record ?? "(no --record)"}`);
       else if (/^[a-z0-9-]+\/task-\d+$/.test(record)) targets.push(`${ID_TARGET}${record}`);

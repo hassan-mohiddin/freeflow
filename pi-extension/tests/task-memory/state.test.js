@@ -196,6 +196,12 @@ test("record writes are found through shell variables, task IDs and chained comm
   assert.deepEqual(targets("bash", { command: `R=${record}; node ${S} view full --record $R` }, "/repo", []), []);
   assert.deepEqual(targets("bash", { command: `node ${S} task create --title T --goal G` }, "/repo", []), []);
   assert.deepEqual(targets("bash", { command: `node ${S} task search --query x --id p/task-001` }, "/repo", []), []);
+  // Help requests write nothing, with or without a --record (seen refused in Pi evals before this rule).
+  assert.deepEqual(targets("bash", { command: `node ${S} slice start --help` }, "/repo", []), []);
+  assert.deepEqual(
+    targets("bash", { command: `R=${record}; node ${S} slice start --help --record $R` }, "/repo", []),
+    [],
+  );
 });
 
 test("the gate refuses a record write whose target cannot be read from the command", async () => {
