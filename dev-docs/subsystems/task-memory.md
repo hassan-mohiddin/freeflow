@@ -1,7 +1,7 @@
 # Task Memory
 
-> **Covers:** `pi-extension/src/task-memory/`, `capabilities/task-memory/`
-> **Tests:** `pi-extension/tests/task-memory/`
+> **Covers:** `pi-extension/src/task-memory/`, `capabilities/task-memory/`, `skills/track-work/scripts/lib/registry.mjs`, `skills/track-work/scripts/lib/search.mjs`
+> **Tests:** `pi-extension/tests/task-memory/`, `.skill-eval/track-work/tests/registry.test.mjs`
 > **Verified at:** `b51e51cc` (2026-10-11)
 
 For contributors changing Freeflow task memory on Pi, a prototype: how a session holds Working Records, how projects, child records and record ownership work, what reaches the model and when, the write gate, and the choices behind them. It is off unless `taskMemory.enabled` is set, and has no user docs yet.
@@ -32,7 +32,7 @@ It deliberately does not:
 | Task entry | One `freeflow-task-memory-v1` custom entry: `{ op, record, at }`, `op` one of attach, detach, focus, hold, confirm. | `TASK_ENTRY` |
 | Snapshot | The focused record's `view resume` output, labelled with its ID or path and read time. | `snapshot()`, `SNAPSHOT_TYPE` |
 | Freeflow home | `FREEFLOW_HOME`, default `~/.freeflow`: the registry file and project stores. | `freeflowHome()` |
-| Registry | `<home>/registry.json`: projects, registered tasks, parents, owners. | `Registry` in `registry.ts` |
+| Registry | `<home>/registry.json`: projects, registered tasks, parents, owners. Owned by Track Work's library; Pi uses it through a facade. | `Registry` in `skills/track-work/scripts/lib/registry.mjs`; facade `pi-extension/src/task-memory/registry.ts` |
 | Project | A named group of tasks with a store, `<home>/projects/<slug>/`, and linked repositories. | `Project` |
 | Registered record | A record listed in the registry, with ID `<slug>/task-NNN`, the number Track Work's `init` gave it in the store. | `RegisteredTask` |
 | Unregistered record | A record attached by path where Track Work keeps it (a repository's `.freeflow/tasks/`). No ID, owner or children. | — |
@@ -43,7 +43,9 @@ It deliberately does not:
 
 **Session state.** Every change appends a task entry with `pi.appendEntry`. Pi places it on the current branch and never sends it to the model. The state is a fold over the branch's task entries (`foldState()`), computed at `session_start` and `session_tree` and otherwise kept in memory; a write adds its entry to the in-memory list and folds again. `load()` then reads the attached records' names and IDs for the Runtime State.
 
-**Registry.** `registry.ts` owns the file and hides its layout behind outcome operations (`createProject`, `linkProject`, `createTask`, `importRecord`, `own`, `release`, `children`, `projectFor`). Every change goes through `update()`: read the file, change a copy, write a temporary file, and rename it over the registry only if the file did not change since the read. A change by another session is re-read and the operation applied once more; a second conflict is reported and nothing is written. The check and the rename are two steps, not one atomic operation: a write by another session landing between them is lost. That window is accepted for the prototype. A registry that cannot be parsed is reported and never rewritten; registered features then fail with that message, writes to records inside the Freeflow home are refused because their owner cannot be checked, and unregistered records elsewhere work as before.
+**Track Work and the capability.** Everything portable is Track Work's: the record format and lifecycle, and also the registry, project stores, task IDs, children, owners, search and import, in `skills/track-work/scripts/lib/registry.mjs` and `search.mjs`, with `working-record.mjs` commands (`project new|link|show`, `task create|import|search`, and a task ID accepted as `--record`) that every host can run. The Pi capability adds what needs a harness: attaching, delivery, the write gate and takeover prompts, the Runtime State, and compaction integration. `pi-extension/src/task-memory/registry.ts` is a typed facade that loads the library on first use, so the extension never touches it while task memory is unused.
+
+**Registry.** The library owns the file and hides its layout behind outcome operations (`createProject`, `linkProject`, `createTask`, `importRecord`, `own`, `release`, `children`, `projectFor`). Every change goes through `update()`: read the file, change a copy, write a temporary file, and rename it over the registry only if the file did not change since the read. A change by another session is re-read and the operation applied once more; a second conflict is reported and nothing is written. The check and the rename are two steps, not one atomic operation: a write by another session landing between them is lost. That window is accepted for the prototype. A registry that cannot be parsed is reported and never rewritten; registered features then fail with that message, writes to records inside the Freeflow home are refused because their owner cannot be checked, and unregistered records elsewhere work as before.
 
 **Projects and tasks.** `/freeflow project new <name>` creates a project and links the current repository (its Git top level, or the directory outside Git); `link <name>` links another. A repository links to at most one project. `freeflow_task` `create` runs Track Work's `init` with the store as `--root` (outside a Git repository `init` skips its ignore check) and registers the result. `/freeflow task import <record> <project>` moves an unregistered record's task directory into a store, with the next free number, after the user confirms. It does not check whether another session has the old path attached; that session's attachment then points at a missing file and its snapshot says so.
 
@@ -80,6 +82,7 @@ It deliberately does not:
 | One owner session per registered record; takeover only with the user's confirmation. | One writer per record without a merge contract; Pi cannot tell when a session has ended, so the user decides. | Relying only on Track Work's stale-write check. | `b51e51cc` |
 | Children are interactive sessions; the parent's session alone writes the parent and reads children. | The user mediates, so no messaging is needed; subagents stay within their session's task. | Children writing the parent, which needs merging; subagents as children. | `b51e51cc` |
 | Records are read and created through Track Work's own library and script. | One implementation of the record format, so records stay valid for the script skill on other hosts. | A copy of the format code in the extension. | `77815ab0` |
+| The registry, search and import live in Track Work's library; Pi delegates to them. | Portable parts serve every host through the script; Pi adds only harness behavior. | Two Track Work products, one per kind of host. | step-3 move commit |
 | The gate refuses rather than warns. | A write to the wrong record is silent and hard to undo. | Warning only. | `77815ab0` |
 | A fork's attachments are held. | Two sessions would otherwise write one record by accident. | Inheriting them writable. | `77815ab0` |
 | Only the user creates and links projects. | A project groups work across repositories, which only the user knows. | The model creating one after confirmation. | `b51e51cc` |
@@ -109,7 +112,7 @@ It deliberately does not:
 ## Tests
 
 - `state.test.js`: the state fold, which tool calls write a record, the fork hold and confirm, and the refusal under automatic routing. The fork path is tested here because the SDK session the native fixture uses cannot fork.
-- `registry.test.js`: projects, tasks and children through Track Work's `init`; one owner with takeover and owner-only release; a concurrent change re-applied and a second conflict writing nothing; an unreadable registry left untouched; import.
+- `.skill-eval/track-work/tests/registry.test.mjs` (Track Work's suite): projects, tasks and children through `init`; one owner with takeover and owner-only release; a concurrent change re-applied and a second conflict writing nothing; an unreadable registry left untouched; import; the CLI commands, including a task ID as `--record`.
 - `session.test.js`: native, unregistered records: attach confirmed and declined, attach by command, the gate, off by default, reload, navigation, and delivery after Pi's and Freeflow's compaction.
 - `tree.test.js`: native, registered records: a parent with a child (the `Children` block, tree search, view by ID), a child created from its own session (the `Parent` line), a write refused after another session took the record over, and a declined takeover.
 

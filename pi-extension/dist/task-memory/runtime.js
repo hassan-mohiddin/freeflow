@@ -1,7 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import { freeflowHome, Registry, RegistryError } from "./registry.js";
+import { freeflowHome, Registry } from "./registry.js";
 /**
  * Task memory: which Working Records a session works on. The user attaches records (the model may propose one); one
  * attached record is the focus. State is a fold over branch entries, so it follows /tree navigation and is copied on
@@ -13,7 +13,6 @@ import { freeflowHome, Registry, RegistryError } from "./registry.js";
 export const TASK_ENTRY = "freeflow-task-memory-v1";
 export const SNAPSHOT_TYPE = "freeflow-task-memory-snapshot";
 const TASK_ID = /^[a-z0-9-]+\/task-\d+$/;
-const MAX_HITS = 40;
 function section(text, heading) {
   const match = new RegExp(`^### ${heading}\\n\\n([\\s\\S]*?)(?=\\n#{2,3} |$)`, "m").exec(text);
   return match?.[1].trim();
@@ -254,7 +253,7 @@ export class TaskMemory {
       await this.registry.own(id, this.host.owner(), true);
       return undefined;
     } catch (error) {
-      return error instanceof RegistryError ? error.message : String(error?.message ?? error);
+      return String(error?.message ?? error);
     }
   }
   async attach(record, cwd) {
@@ -382,63 +381,29 @@ export class TaskMemory {
       return { ok: false, text: String(failure?.message ?? failure) };
     }
   }
-  /** Records in a search scope: the focus, its task tree, or its project. */
-  async scope(scope, cwd) {
-    const focus = this.current.focus;
-    const found = focus ? await this.registered(focus) : undefined;
-    if (scope === "task" || scope === undefined) {
-      if (!focus) return { error: "Nothing is in focus." };
-      return { records: [[found?.id ?? this.name(focus), focus]] };
-    }
-    if (scope === "tree") {
-      if (!found) return { error: "The focus is not a registered task, so it has no tree." };
-      const root = found.task.parent ?? found.id;
-      const rootTask = await this.registry.task(root);
-      const records = rootTask ? [[root, rootTask.record]] : [];
-      for (const child of await this.registry.children(root)) records.push([child.id, child.task.record]);
-      return { records };
-    }
-    if (scope === "project") {
-      const slug = found?.task.project ?? (await this.registry.projectFor(cwd))?.slug;
-      if (!slug) return { error: "No project: the focus is unregistered and this repository is not linked to one." };
-      return { records: (await this.registry.projectTasks(slug)).map(({ id, task }) => [id, task.record]) };
-    }
-    return { error: "scope must be task, tree or project." };
-  }
-  /** Lines matching the query in the records of a scope, with the entry each belongs to. Read-only. */
+  /** Lines matching the query in the focused record, its task tree, or its project, through Track Work's search. */
   async search(query, scope, cwd) {
     if (typeof query !== "string" || !query.trim()) return { ok: false, text: "Give a query." };
-    let records;
+    const focus = this.current.focus;
     try {
-      const resolved = await this.scope(scope, cwd);
-      if (!resolved.records) return { ok: false, text: resolved.error };
-      records = resolved.records;
+      const found = focus ? await this.registered(focus) : undefined;
+      let records;
+      if (found) records = await this.registry.scope(found.id, typeof scope === "string" ? scope : "task");
+      else if (scope === "project") {
+        const project = await this.registry.projectFor(cwd);
+        if (!project)
+          return { ok: false, text: "No project: the focus is unregistered and this repository is not linked to one." };
+        records = (await this.registry.projectTasks(project.slug)).map(({ id, task }) => [id, task.record]);
+      } else if (scope === "tree") return { ok: false, text: "The focus is not a registered task, so it has no tree." };
+      else if (focus) records = [[this.name(focus), focus]];
+      else return { ok: false, text: "Nothing is in focus." };
+      const { searchRecords } = await import(
+        pathToFileURL(join(this.host.packageRoot, "skills/track-work/scripts/lib/search.mjs")).href
+      );
+      return { ok: true, text: await searchRecords(records, query) };
     } catch (error) {
       return { ok: false, text: error?.message ?? String(error) };
     }
-    const needle = query.trim().toLowerCase();
-    const hits = [];
-    for (const [id, record] of records) {
-      const { text } = await this.read(record);
-      if (!text) continue;
-      let heading = "(header)";
-      let state = "";
-      for (const line of text.split(/\r?\n/)) {
-        const entry = /^#{2,4} (.+)$/.exec(line);
-        if (entry) {
-          heading = entry[1];
-          state = "";
-          continue;
-        }
-        const field = /^- State: (\S+)/.exec(line);
-        if (field) state = field[1];
-        if (line.toLowerCase().includes(needle) && hits.length <= MAX_HITS)
-          hits.push(`- ${id} | ${heading}${state ? ` (${state})` : ""} | ${line.trim()}`);
-      }
-    }
-    if (!hits.length) return { ok: true, text: `No match for "${query}" in ${records.length} record(s).` };
-    const more = hits.length > MAX_HITS ? `\n(more than ${MAX_HITS} matches; narrow the query or scope)` : "";
-    return { ok: true, text: `${hits.slice(0, MAX_HITS).join("\n")}${more}` };
   }
   /** Move an unregistered record into a project's store and register it; the user confirmed before this. */
   async importRecord(record, projectName, cwd) {
@@ -447,8 +412,7 @@ export class TaskMemory {
     if (id) return { ok: false, text: `${path} is already registered as ${id}.` };
     if (typeof projectName !== "string" || !projectName.trim()) return { ok: false, text: "Name the project." };
     try {
-      const { slugify } = await import("./registry.js");
-      const moved = await this.registry.importRecord(slugify(projectName), path);
+      const moved = await this.registry.importRecord(projectName.trim(), path);
       if (this.current.attached.includes(path)) {
         this.write("detach", path);
         this.ids.set(moved.record, moved.id);

@@ -156,6 +156,10 @@ Do not rush a Slice to completion, claim an unfinished check passed, or guess th
 
 A context boundary is not a Slice transition or a Checkpoint. Pause the Slice only when safe continuation is actually suspended, and use a `continuity` Checkpoint only for a planned pause or handoff, not for every compaction.
 
+## Projects And Child Records
+
+Read [Projects And Child Records](references/projects.md) when the work involves a registered task: a task ID such as `my-project/task-003`, a child record, a project, or the user asking to group tasks, split a task across parallel sessions, or move a record out of a repository.
+
 ## Maintain The Record
 
 Read [Working Record Format](references/working-record-format.md) before editing structure or preparing input for a command. It owns the exact shape, fields, states, and command contract.

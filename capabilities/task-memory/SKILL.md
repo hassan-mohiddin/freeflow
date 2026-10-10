@@ -33,13 +33,9 @@ Goal: the focus follows the conversation, so the resume view in context is the o
 
 When the conversation turns to another attached record, switch with `freeflow_task` (`focus`) and continue from the resume view it returns. A single update to another attached record in the middle of your work needs no switch: write it to that record and stay where you are.
 
-## Split Work Into Child Records
+## Child Records On Pi
 
-Goal: parallel work on one task, each workstream with its own memory, and the parent's record written only by the parent's session.
-
-Create a child with `freeflow_task` (`child`) when part of the focused task will run in parallel in another interactive session the user starts; the user attaches it there. A subagent is not a child: it works inside this session on this task and needs no record. Most tasks never need a child.
-
-After creating one, record the delegation in the parent's own record through Track Work. Learn a child's progress from the `Children` lines in the parent's resume view, or read it with `freeflow_task` (`view`); the child's own session writes the child's record. When a child's result matters to the parent, record it in the parent as you would a finished Slice.
+Read Track Work's [Projects And Child Records](../../skills/track-work/references/projects.md) when the work involves a registered task, a child record or a project: it says when a task gets a child and how the parent records it. On Pi, create a child of the focused task with `freeflow_task` (`child`); the user attaches it in its own session. A subagent is not a child. The parent's resume view lists children in a `Children` block; read one with `freeflow_task` (`view`).
 
 ## Find Before Reading Files
 

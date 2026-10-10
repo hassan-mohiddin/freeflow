@@ -4,13 +4,12 @@ import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
-import { Registry, RegistryError } from "../../dist/task-memory/registry.js";
+import { Registry, RegistryError } from "../../../skills/track-work/scripts/lib/registry.mjs";
 
-const packageRoot = process.cwd();
 const fresh = async () => {
   const home = await mkdtemp(join(tmpdir(), "freeflow-home-"));
   const repo = await mkdtemp(join(tmpdir(), "freeflow-repo-"));
-  return { home, repo, registry: new Registry(packageRoot, home) };
+  return { home, repo, registry: new Registry(home) };
 };
 const owner = (session) => ({ session, since: "2026-10-11T00:00:00.000Z" });
 
@@ -109,10 +108,59 @@ test("import moves an unregistered record's task directory into the store", asyn
   )
     .toString()
     .trim();
-  const moved = await registry.importRecord(slug, record);
+  const moved = await registry.importRecord("P", record);
   assert.equal(moved.id, "p/task-002");
   assert.match(moved.record, /task-002-old-task\/record\.md$/);
   await assert.rejects(stat(record), /ENOENT/);
   assert.match(await readFile(moved.record, "utf8"), /# Working Record: Old task/);
   assert.equal((await registry.task(moved.id)).title, "Old task");
+});
+
+const script = resolve("skills/track-work/scripts/working-record.mjs");
+const cli = (home, args, input = "") =>
+  execFileSync(process.execPath, [script, ...args], { env: { ...process.env, FREEFLOW_HOME: home }, input }).toString();
+
+test("the CLI creates projects, tasks and children, accepts a task ID as --record, and searches a tree", async () => {
+  const { home, repo } = await fresh();
+  assert.match(cli(home, ["project", "new", "--name", "Rust Rewrite", "--cwd", repo]), /Project rust-rewrite created/);
+  const [parentId] = cli(home, ["task", "create", "--title", "Compiler A", "--goal", "Port A.", "--cwd", repo]).split(
+    "\n",
+  );
+  assert.equal(parentId, "rust-rewrite/task-001");
+  const [childId] = cli(home, [
+    "task",
+    "create",
+    "--title",
+    "Parser",
+    "--goal",
+    "Port the parser NEEDLE.",
+    "--parent",
+    parentId,
+  ]).split("\n");
+  assert.equal(childId, "rust-rewrite/task-002");
+  assert.match(
+    cli(home, ["project", "show", "--cwd", repo]),
+    /rust-rewrite\/task-002 — Parser .*child of rust-rewrite\/task-001/,
+  );
+  assert.match(cli(home, ["view", "resume", "--record", childId]), /^# Working Record: Parser/);
+  assert.match(
+    cli(
+      home,
+      ["decision", "add", "--record", parentId, "--title", "Use LLVM", "--input", "-"],
+      "Decision:\n- LLVM.\nEstablished by:\n- User.\nRationale:\n- R.\nConsequences:\n- C.\nRevisit when:\n- Later.\n",
+    ),
+    /Added Decision: D-001/,
+  );
+  assert.match(
+    cli(home, ["task", "search", "--query", "needle", "--id", parentId, "--scope", "tree"]),
+    /rust-rewrite\/task-002 \| Goal \| - Port the parser NEEDLE\./,
+  );
+  assert.match(
+    cli(home, ["task", "search", "--query", "llvm", "--project", "rust-rewrite"]),
+    /rust-rewrite\/task-001 \| D-001 — Use LLVM \(active\)/,
+  );
+  assert.throws(
+    () => cli(home, ["view", "resume", "--record", "rust-rewrite/task-099"]),
+    /No task rust-rewrite\/task-099/,
+  );
 });
