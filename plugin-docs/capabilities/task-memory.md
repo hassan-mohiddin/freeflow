@@ -20,6 +20,12 @@ Task memory does not decide when a task needs a record or what goes in it: Track
 - Off inside subagents: a subagent works on its session's task.
 - Attaching is refused while Cognitive Routing runs automatically. It works with routing off (its switch in `/freeflow settings`) or under a manual hold (`/freeflow profile <name>`).
 
+## Ask in plain language
+
+Everything below can be done by asking the agent: "list my projects", "show this project's tasks", "open the retry task", "start a task for the parser port", "split the parser off into its own worktree", "what did we decide about the cache key?". The agent picks the action. Anything that creates something or lets the session write (creating a project or task, linking a repository, attaching, splitting off a child, importing, releasing a held record, changing a task's directories) opens a dialog first, and nothing happens unless you confirm. A decline stands: the agent does not retry or work around it. Reading, listing, searching and moving the focus need no dialog. The `/freeflow` commands in [Commands](#commands) do the same things directly.
+
+In the transcript each task-memory step is one line, such as `Task memory · Attach my-app/task-003` with `Attached Retry logic [my-app/task-003] · active` and the task's next action under it; expand it to see what the agent read. When the agent receives a task's resume view, a `Task memory` line names the task, its state and next action; expand it to read the view.
+
 ## Attach and focus
 
 A session holds a set of attached records, and at most one focus.
@@ -40,21 +46,24 @@ The check guards against the agent writing to the wrong record. It is not a sand
 
 ## Projects
 
-A project groups related tasks, possibly across several repositories. Only you create and link projects:
+A project groups related tasks, possibly across several repositories. Ask the agent to create one (you confirm), or run:
 
 ```text
 /freeflow project new <name> [--worktrees <dir>]
 /freeflow project link <name> [--worktrees <dir>]
 /freeflow project
+/freeflow project list
 ```
 
-`new` creates the project and links the current repository; `link` links another repository to an existing project; `/freeflow project` shows the repository's project and its tasks. `--worktrees` sets where child worktrees go (default: the repository's parent directory).
+`new` creates the project and links the current repository; `link` links another repository to an existing project; `/freeflow project` shows the repository's project and its tasks; `list` shows every project. `--worktrees` sets where child worktrees go (default: the repository's parent directory; `~` means your home directory).
 
 A project's records live in a store under the Freeflow home, `~/.freeflow/projects/<project>/tasks/task-NNN-<name>/record.md`, not in the repository, so removing a worktree does not remove its task memory. A record outside a project stays in its checkout's `.freeflow/tasks/` and goes with the checkout. Each task has an ID such as `my-app/task-003`, which works wherever a record path does. Set `FREEFLOW_HOME` to keep the registry and stores elsewhere.
 
-Once the repository is linked, ask the agent to create a task in the project. A record in the repository's `.freeflow/tasks/` keeps working there, without an ID or owner; `/freeflow task import <record> <project>` moves it into the project's store after you confirm.
+Once the repository is linked, ask the agent for a new task, or run `/freeflow task new <title>`; either creates it in the project and attaches it to the session. A record in the repository's `.freeflow/tasks/` keeps working there, without an ID or owner; `/freeflow task import <record> <project>` moves it into the project's store after you confirm.
 
 **One session writes each project record.** Attaching a project record makes this session its owner. If another session owns it, Freeflow asks before taking it over; that session's writes are then refused. A session that has ended keeps ownership until another takes it over, because Pi cannot tell that a session is gone.
+
+**Tasks see the rest of their project.** Each task keeps its own record; nothing from another task is in it. A project task's resume view also lists the project's other tasks, the 15 most recently changed with their state and title, so the agent can tell which ones bear on the work. It reads or searches them on its own when one does, without attaching them, and records what matters in its own task. You can also point it at one: "check what task-002 decided about retries".
 
 **A task records where its work happens**: its primary directory (a repository or worktree) and any additional directories. When a session starts in a task's directory with nothing attached, Freeflow offers to attach that task; if you decline, it does not ask again on that session's branch. The resume view warns the agent when the session runs outside the task's directory. Pi's tools can reach any path, so the directory guides the agent rather than restricting it.
 
@@ -68,7 +77,13 @@ For a child that will change files, ask the agent to fan out, or run:
 /freeflow task fanout <title>
 ```
 
-from the session that owns the parent. Freeflow creates the child record, a Git worktree for it on branch `<project>/<task-NNN>-<name>`, and copies your `.freeflow/local.json` into the worktree so task memory stays on there. It prints the worktree path. Open a terminal there and start Pi: Freeflow offers to attach the child.
+from the session that owns the parent. Freeflow creates the child record, a Git worktree for it on branch `<project>/<task-NNN>-<name>`, and copies your `.freeflow/local.json` into the worktree so task memory stays on there. It then gives you a command to paste into a new terminal, for example:
+
+```bash
+cd '/Users/you/Developer/Worktrees/app-parser' && pi
+```
+
+(with `FREEFLOW_HOME=…` before `pi` when you use a non-default Freeflow home). Run it, and Freeflow in the new session offers to attach the child.
 
 For a child that only reads or researches, no worktree is needed. Start a new session and run `/freeflow task child <parent ID> <title>`, which creates the child and attaches it there.
 
@@ -83,7 +98,8 @@ Ask the agent to search task memory. It searches the focused task, the task with
 | Command | Does |
 | --- | --- |
 | `/freeflow task` | Pick from this repository's records: attach one, or focus one already attached. |
-| `/freeflow task list` | List this repository's records and what is attached. |
+| `/freeflow task list [project]` | List this repository's records and what is attached, or a project's tasks. |
+| `/freeflow task new <title>` | Create a task in this repository's project and attach it. |
 | `/freeflow task attach <ID or path>` | Attach a record and make it the focus. |
 | `/freeflow task focus <ID or path>` | Move the focus to an attached record. |
 | `/freeflow task detach <ID or path>` | Detach a record. |
@@ -92,6 +108,7 @@ Ask the agent to search task memory. It searches the focused task, the task with
 | `/freeflow task child <parent ID> <title>` | From a new session: create a child of that task and attach it here. |
 | `/freeflow task import <record> <project>` | Move a repository record into a project's store. |
 | `/freeflow project [new\|link <name> [--worktrees <dir>]]` | Show, create, or link the repository's project. |
+| `/freeflow project list` | List every project. |
 
 `/freeflow status` reports whether task memory is on, and the Runtime State the agent sees lists the attached records and marks the focus.
 

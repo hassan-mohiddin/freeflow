@@ -365,8 +365,9 @@ On native Pi, task memory (a preview, off by default) lets the session hold its 
 - **Attach the records a session works on.** The agent proposes attaching a record when the work needs one, and you confirm; or run `/freeflow task` to pick one. A session that needs no memory attaches nothing.
 - **The focused record comes back on its own.** After a compaction, `/reload`, a resume or `/tree` navigation, the agent receives the focused record's resume view, so recovery does not depend on the agent remembering which record it was using.
 - **Wrong-record writes are refused.** With two records attached, each update goes to the record it concerns; writes to a record you have not attached are refused and reported.
-- **Group tasks in a project.** `/freeflow project new <name>` keeps the project's records in `~/.freeflow` with IDs such as `my-app/task-003`, so they outlive the worktree they were made in.
-- **Split a task across sessions.** `/freeflow task fanout <title>` creates a child record with its own worktree and branch; start Pi in that worktree and it offers to attach the child. You run both sessions; the parent's session reads the child's record.
+- **Group tasks in a project.** A project keeps its records in `~/.freeflow` with IDs such as `my-app/task-003`, so they outlive the worktree they were made in. Each task's resume view lists the project's other tasks, and the agent reads the ones that bear on its work.
+- **Split a task across sessions.** Fan-out creates a child record with its own worktree and branch, and gives you a command to paste into a new terminal; Pi there offers to attach the child. You run both sessions; the parent's session reads the child's record.
+- **Ask in plain language.** "List my projects", "open the retry task", "start a task for the parser port", "split the parser off": the agent proposes the action, and anything that creates something or lets the session write opens a dialog for you to confirm. Every action also has a `/freeflow task` or `/freeflow project` command.
 
 Useful requests:
 
@@ -376,6 +377,10 @@ Attach the retry task and continue from its next action.
 
 ```text
 Fan the parser port out into a child task so I can run it in another session.
+```
+
+```text
+Check whether another task in this project already decided the retry limits.
 ```
 
 ```text
