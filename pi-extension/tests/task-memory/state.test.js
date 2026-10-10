@@ -151,3 +151,78 @@ test("a project store's record is a record to the gate; a lookalike path without
   assert.equal(isRecordPath(record), true);
   assert.equal(isRecordPath(join(store, "tasks", "notes.md")), false);
 });
+
+test("record writes are found through shell variables, task IDs and chained commands; unreadable targets are marked", async () => {
+  const { recordTargets: targets } = await import("../../dist/task-memory/runtime.js");
+  const S = "/pkg/skills/track-work/scripts/working-record.mjs";
+  const record = "/repo/.freeflow/tasks/task-002-docs-cleanup/record.md";
+  // The pattern seen in Pi evals: script and record paths held in variables assigned in the same command.
+  assert.deepEqual(
+    targets(
+      "bash",
+      { command: `S=${S}; R=${record}; node $S decision add --record "$R" --title T --input -` },
+      "/repo",
+      [],
+    ),
+    [record],
+  );
+  assert.deepEqual(
+    targets("bash", { command: `S="${S}" && node "\${S}" slice close --record ${record}` }, "/repo", []),
+    [record],
+  );
+  assert.deepEqual(targets("bash", { command: `node $S slice close --record "$OUTSIDE"` }, "/repo", []), []);
+  assert.deepEqual(targets("bash", { command: `S=${S}; node $S slice close --record "$OUTSIDE"` }, "/repo", []), [
+    "unresolved:$OUTSIDE",
+  ]);
+  assert.deepEqual(targets("bash", { command: `node ${S} checkpoint close --id C-001` }, "/repo", []), [
+    "unresolved:(no --record)",
+  ]);
+  assert.deepEqual(
+    targets("bash", { command: `node ${S} decision add --record proj/task-003 --title T` }, "/repo", []),
+    ["id:proj/task-003"],
+  );
+  // Two writes chained in one command are both found; reads and record creation are not writes.
+  assert.deepEqual(
+    targets(
+      "bash",
+      {
+        command: `node ${S} slice close --record ${record} && node ${S} task set-state --record /r/.freeflow/tasks/t/record.md`,
+      },
+      "/repo",
+      [],
+    ),
+    [record, "/r/.freeflow/tasks/t/record.md"],
+  );
+  assert.deepEqual(targets("bash", { command: `R=${record}; node ${S} view full --record $R` }, "/repo", []), []);
+  assert.deepEqual(targets("bash", { command: `node ${S} task create --title T --goal G` }, "/repo", []), []);
+  assert.deepEqual(targets("bash", { command: `node ${S} task search --query x --id p/task-001` }, "/repo", []), []);
+});
+
+test("the gate refuses a record write whose target cannot be read from the command", async () => {
+  const { TaskMemory } = await import("../../dist/task-memory/runtime.js");
+  const memory = new TaskMemory({
+    effective: () => true,
+    routingAutomatic: () => false,
+    append: () => {},
+    send: () => {},
+    owner: () => ({ session: "this-session", since: "2026-10-11T00:00:00.000Z" }),
+    confirm: async () => false,
+    cwd: () => "/repo",
+    packageRoot: process.cwd(),
+  });
+  const refusal = await memory.gate(
+    "bash",
+    { command: 'S=/p/working-record.mjs; node $S slice close --record "$R"' },
+    "/repo",
+  );
+  assert.match(refusal.reason, /cannot be read from the command \(\$R\).*literal --record path or task ID/);
+  const unattached = await memory.gate(
+    "bash",
+    {
+      command:
+        "S=/p/working-record.mjs; R=/repo/.freeflow/tasks/task-002-x/record.md; node $S decision add --record $R",
+    },
+    "/repo",
+  );
+  assert.match(unattached.reason, /is not attached to this session/);
+});

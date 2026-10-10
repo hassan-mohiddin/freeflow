@@ -57,7 +57,12 @@ export function briefOf(text: string): { state: string; goal: string; slice: str
 const RECORD_PATH = /(^|[\\/])\.freeflow[\\/]tasks[\\/][^\\/]+[\\/]record\.md$/;
 // A project store's record: <store>/tasks/<task>/record.md, where <store>/store.json marks the store.
 const STORE_RECORD = /[\\/]tasks[\\/]task-\d+-[^\\/]+[\\/]record\.md$/;
-const MUTATING = /working-record\.mjs["']?\s+(slice|checkpoint|decision|task)\s+[a-z-]+/;
+// A Track Work command that writes a record: lifecycle groups, task set-state, and task import.
+const RECORD_WRITE =
+  /working-record\.mjs["']?\s+(?:(?:slice|checkpoint|decision)\s+[a-z-]+|task\s+(?:set-state|import))(?![a-z-])/;
+// Markers recordTargets returns for a write whose record is named by task ID, or cannot be read from the command.
+export const ID_TARGET = "id:";
+export const UNRESOLVED_TARGET = "unresolved:";
 
 export function isRecordPath(path: string): boolean {
   return (
@@ -116,13 +121,33 @@ export function recordTargets(toolName: string, input: any, cwd: string, attache
     );
     return paths.filter(isTarget);
   }
-  if (toolName === "bash" && typeof input?.command === "string" && MUTATING.test(input.command)) {
-    const record = option(input.command, "--record");
-    if (!record) return [];
-    const root = option(input.command, "--root");
-    return [absolute(record, root ? absolute(root) : cwd)];
+  if (toolName === "bash" && typeof input?.command === "string") {
+    const targets: string[] = [];
+    // Each command segment that writes a record, after expanding variables assigned earlier in the same command, so
+    // `S=<script>; R=<record>; node $S decision add --record "$R"` is seen like the literal form.
+    for (const segment of expandAssignments(input.command).split(/;|&&|\|\||\||\n/)) {
+      if (!RECORD_WRITE.test(segment)) continue;
+      const record = option(segment, "--record");
+      if (!record || /[$`*?]/.test(record)) targets.push(`${UNRESOLVED_TARGET}${record ?? "(no --record)"}`);
+      else if (/^[a-z0-9-]+\/task-\d+$/.test(record)) targets.push(`${ID_TARGET}${record}`);
+      else {
+        const root = option(segment, "--root");
+        targets.push(absolute(record, root && !/[$`]/.test(root) ? absolute(root) : cwd));
+      }
+    }
+    return targets;
   }
   return [];
+}
+
+/** Replace $NAME and ${NAME} with values assigned as NAME=value earlier in the same command; others stay as they are. */
+function expandAssignments(command: string): string {
+  const values = new Map<string, string>();
+  for (const match of command.matchAll(/(?:^|[\s;&|(])([A-Za-z_][A-Za-z0-9_]*)=(?:"([^"]*)"|'([^']*)'|([^\s;&|]*))/g))
+    values.set(match[1], match[2] ?? match[3] ?? match[4] ?? "");
+  return command.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (whole, braced, bare) =>
+    values.has(braced ?? bare) ? values.get(braced ?? bare)! : whole,
+  );
 }
 
 export class TaskMemory {
@@ -657,7 +682,18 @@ export class TaskMemory {
   /** A refusal for a tool call that would write a record this session has not attached, or does not own. */
   async gate(toolName: string, input: any, cwd: string): Promise<{ block: true; reason: string } | undefined> {
     if (!this.host.effective()) return undefined;
-    for (const target of recordTargets(toolName, input, cwd, this.current.attached)) {
+    for (const named of recordTargets(toolName, input, cwd, this.current.attached)) {
+      if (named.startsWith(UNRESOLVED_TARGET))
+        return {
+          block: true,
+          reason: `Task memory: this Track Work command writes a record whose path cannot be read from the command (${named.slice(UNRESOLVED_TARGET.length)}), so it cannot be checked against the records attached to this session. Run it with a literal --record path or task ID.`,
+        };
+      let target = named;
+      if (named.startsWith(ID_TARGET)) {
+        const task = await this.registry.task(named.slice(ID_TARGET.length)).catch(() => undefined);
+        if (!task) continue;
+        target = task.record;
+      }
       if (!this.current.attached.includes(target))
         return {
           block: true,
