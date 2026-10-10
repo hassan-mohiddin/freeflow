@@ -32,6 +32,7 @@ import type {
 import { workersForDelegation } from "../../cognitive-routing/types.js";
 import { DEFAULT_TOOL_EXECUTION_CONFIG, type ToolExecutionState } from "../../tool-execution/config.js";
 import { DEFAULT_COMPACTION_CARRY, DEFAULT_COMPACTION_ENABLED, type CompactionState } from "../../compaction/config.js";
+import { DEFAULT_TASK_MEMORY_ENABLED, type TaskMemoryState } from "../../task-memory/config.js";
 
 /*
  * The /freeflow command and the settings model it edits: every Freeflow setting with its repository, personal, and
@@ -639,6 +640,14 @@ function sessionFreeflowItems(
     state.compaction?.carry ?? DEFAULT_COMPACTION_CARRY,
     DEFAULT_COMPACTION_CARRY,
   );
+  const taskMemoryItem = sessionSwitch(
+    "freeflow.taskMemory.enabled",
+    "Enabled",
+    "Use task memory in this session.",
+    "taskMemory.enabled",
+    state.taskMemory?.enabled ?? DEFAULT_TASK_MEMORY_ENABLED,
+    DEFAULT_TASK_MEMORY_ENABLED,
+  );
 
   const items: SettingsItem[] = [
     freeflowItem,
@@ -670,6 +679,13 @@ function sessionFreeflowItems(
       "Compaction for this session.",
       capabilityStatus(state.compaction),
       [compactionItem, carryItem],
+    ),
+    sectionItem(
+      "freeflow.taskMemory",
+      "Task Memory",
+      "Task memory for this session.",
+      capabilityStatus(state.taskMemory),
+      [taskMemoryItem],
     ),
     sectionItem("freeflow.session", "Session", "Session overrides.", "", [
       {
@@ -1011,6 +1027,7 @@ function freeflowItems(
     cognitiveRouting?: CognitiveRoutingCapabilityState;
     toolExecution?: ToolExecutionState;
     compaction?: CompactionState;
+    taskMemory?: TaskMemoryState;
     ctx?: any;
     runtimeAvailable?: boolean;
   } = {},
@@ -1195,7 +1212,39 @@ function freeflowItems(
     children: compactionItems,
   };
 
-  return [freeflowItem, ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []), toolExecutionGroup, compactionGroup];
+  const taskMemoryState = options.taskMemory;
+  const taskMemoryEnabledItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.taskMemory.enabled",
+    label: "Enabled",
+    description:
+      "A preview: attach Working Records to the session, deliver the focused record after compaction, and refuse record writes to records not attached.",
+    path: ["taskMemory", "enabled"],
+    effectiveValue: taskMemoryState?.enabled ?? DEFAULT_TASK_MEMORY_ENABLED,
+    effectiveSource: toolSource(["taskMemory", "enabled"]),
+    defaultValue: DEFAULT_TASK_MEMORY_ENABLED,
+  });
+  taskMemoryEnabledItem.inactive = freeflowInactive;
+  const taskMemoryGroup: SettingsItem = {
+    id: "freeflow.taskMemory",
+    label: "Task Memory",
+    description: "Configure task memory: Working Records the session knows, delivers and guards.",
+    kind: "group",
+    value: taskMemoryState?.enabled ?? DEFAULT_TASK_MEMORY_ENABLED,
+    inactive: freeflowInactive,
+    displaySuffix: taskMemoryState?.effective ? "active" : taskMemoryState?.enabled ? "inactive" : "disabled",
+    children: [taskMemoryEnabledItem],
+  };
+
+  return [
+    freeflowItem,
+    ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []),
+    toolExecutionGroup,
+    compactionGroup,
+    taskMemoryGroup,
+  ];
 }
 
 function pruneKnownDefaults(config: Record<string, unknown>) {
@@ -1205,6 +1254,7 @@ function pruneKnownDefaults(config: Record<string, unknown>) {
     { path: ["toolExecution", "enabled"], value: DEFAULT_TOOL_EXECUTION_CONFIG.enabled },
     { path: ["compaction", "enabled"], value: DEFAULT_COMPACTION_ENABLED },
     { path: ["compaction", "carry"], value: DEFAULT_COMPACTION_CARRY },
+    { path: ["taskMemory", "enabled"], value: DEFAULT_TASK_MEMORY_ENABLED },
   ];
 
   for (const item of defaultPaths) {
@@ -1395,6 +1445,14 @@ function refreshSettingsDerivedState(items: SettingsItem[]) {
     const on = effectiveItemValue(compactionEnabled) === true;
     compactionGroup.value = on;
     compactionGroup.displaySuffix = on && !freeflowInactive ? "active" : on ? "inactive" : "disabled";
+  }
+
+  const taskMemoryGroup = findSettingsItem(items, "freeflow.taskMemory");
+  const taskMemoryEnabled = findSettingsItem(items, "freeflow.taskMemory.enabled");
+  if (taskMemoryGroup && taskMemoryEnabled) {
+    const on = effectiveItemValue(taskMemoryEnabled) === true;
+    taskMemoryGroup.value = on;
+    taskMemoryGroup.displaySuffix = on && !freeflowInactive ? "active" : on ? "inactive" : "disabled";
   }
 
   walkSettingsItems(items, (candidate) => {
@@ -1648,6 +1706,7 @@ export async function handleFreeflowCommand(
       cognitiveRouting: state.cognitiveRouting as CognitiveRoutingCapabilityState,
       toolExecution: state.toolExecution,
       compaction: state.compaction,
+      taskMemory: state.taskMemory,
       ctx,
       runtimeAvailable: isCognitiveRoutingRuntimeAvailable(pi),
     }).find((candidate) => candidate.id === "freeflow.enabled")!;
@@ -1703,6 +1762,7 @@ export async function handleFreeflowCommand(
       cognitiveRouting: stateNow.cognitiveRouting as CognitiveRoutingCapabilityState,
       toolExecution: stateNow.toolExecution,
       compaction: stateNow.compaction,
+      taskMemory: stateNow.taskMemory,
       ctx,
       runtimeAvailable: isCognitiveRoutingRuntimeAvailable(pi),
     });

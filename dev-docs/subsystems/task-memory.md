@@ -1,10 +1,10 @@
 # Task Memory
 
 > **Covers:** `pi-extension/src/task-memory/`, `capabilities/task-memory/`, `skills/track-work/scripts/lib/registry.mjs`, `skills/track-work/scripts/lib/search.mjs`
-> **Tests:** `pi-extension/tests/task-memory/`, `.skill-eval/track-work/tests/registry.test.mjs`
+> **Tests:** `pi-extension/tests/task-memory/`, `pi-extension/tests/cache-reuse/task-memory.test.js`, `.skill-eval/track-work/tests/registry.test.mjs`
 > **Verified at:** `8d80ddf9` (2026-10-11)
 
-For contributors changing Freeflow task memory on Pi, a prototype: how a session holds Working Records, how projects, child records and record ownership work, what reaches the model and when, the write gate, and the choices behind them. It is off unless `taskMemory.enabled` is set, and has no user docs yet.
+For contributors changing Freeflow task memory on Pi, a preview: how a session holds Working Records, how projects, child records and record ownership work, what reaches the model and when, the write gate, and the choices behind them. It is off unless `taskMemory.enabled` is set. User docs: [Task Memory](../../plugin-docs/capabilities/task-memory.md).
 
 ## Purpose
 
@@ -97,6 +97,7 @@ It deliberately does not:
 | The resume view opens by saying it is task memory, not an instruction, and that the user's latest message decides the work; the capability skill has the matching Rule. | In Pi evals on claude-haiku-5-5, with a record in focus the agent did the record's Next useful action instead of the user's request 3 of 3 times; with task memory off it did the request 3 of 3. | Relying on Track Work's general "the record is memory, not authority" Rule, which the agent had and still did not apply. | `00ab3048` |
 | The gate refuses rather than warns. | A write to the wrong record is silent and hard to undo. | Warning only. | `77815ab0` |
 | A fork's attachments are held. | Two sessions would otherwise write one record by accident. | Inheriting them writable. | `77815ab0` |
+| Ships as an opt-in preview, off by default. | With it on, Track Work record writes on Pi are refused until the record is attached, so on by default would change every Pi user's Track Work; evals have 3 trials per case. | On by default; renaming the capability to Track Work on Pi (Track Work stays and pairs with it). | User, 2026-10-11 |
 | Fan-out creates a worktree per writing child, at `<worktrees>/<repo>-<slug>` on branch `<project>/<task-NNN>-<slug>`, and copies `.freeflow/local.json`. | Each writing workstream needs its own effects boundary; the names match the user's worktree convention and show the task ID in Git; the copy keeps task memory on in the child. | Opening terminals or prepared session files, which Pi cannot do portably (a session file is written only once it has a message). | `6c48b37c` |
 | A session in a task's directory offers that task, without blocking startup. | Makes fan-out a two-step handoff while the user still confirms. | Attaching silently; never offering. | `6c48b37c` |
 | Only the user creates and links projects. | A project groups work across repositories, which only the user knows. | The model creating one after confirmation. | `b51e51cc` |
@@ -118,7 +119,7 @@ It deliberately does not:
 
 - **Tool:** `freeflow_task` with `action` `list`, `attach`, `focus`, `detach`, `create`, `child`, `fanout`, `view` or `search`, and `record` (a task ID or a `record.md` path), `title`, `goal`, `entry`, `query`, `scope`. Registered once; declared only while task memory is effective (`applyTaskMemoryTools()`).
 - **Commands:** `/freeflow task` with no argument (picker), `list`, `attach <id or record>`, `focus <id or record>`, `detach <id or record>`, `confirm [record]`, `child <parent-id> <title>`, `fanout <title>`, `import <record> <project>`; `/freeflow project` (show the repository's project), `project new <name> [--worktrees <dir>]`, `project link <name> [--worktrees <dir>]`.
-- **Config:** `taskMemory.enabled` in `.freeflow/config.json` or `.freeflow/local.json`, default `false`; disabled inside subagents. `FREEFLOW_HOME` moves the registry and stores.
+- **Config:** `taskMemory.enabled` in `.freeflow/config.json` or `.freeflow/local.json`, or as a session override (`SESSION_OVERRIDE_KEYS`); default `false`; disabled inside subagents. `/freeflow settings` shows it as the Task Memory section on every scope. Changing it reloads the session like every capability switch, and `session_start` then rebuilds the state and delivers the focus. `FREEFLOW_HOME` moves the registry and stores.
 - **Files:** `<home>/registry.json` (`version`, `projects` with `name`, `store`, `repos`, `worktrees`; `tasks` with `record`, `project`, `title`, `parent`, `owner`, `environment`); `<home>/projects/<slug>/store.json` (`version`, `project`) and `<home>/projects/<slug>/tasks/task-NNN-<slug>/record.md`.
 - **Session entries:** `freeflow-task-memory-v1` custom entries (state), `freeflow-task-memory-snapshot` custom messages (`display: false`, `details.record`).
 - **Runtime State:** a `Task Memory:` block while effective, with IDs for registered records; `/freeflow status` adds a `task memory` line.
@@ -126,6 +127,9 @@ It deliberately does not:
 
 ## Tests
 
+- `pi-extension/tests/cache-reuse/task-memory.test.js`: on an OpenAI and a Claude model, each request is a prefix of the next, with the same tools and system prompt, through attach, focus, detach, a command attach, and after a Freeflow compaction.
+- `pi-extension/tests/integration/request-path-budget.test.js`: a scenario with a focused record keeps Pi branch walks per prompt bounded and independent of session length; `npm run perf:request` has a matching `task memory, one record in focus` scenario.
+- `pi-extension/tests/integration/pi-extension.test.js` and `unaffected-regressions.test.js`: the Task Memory settings section, off by default, its status line, and the session switch.
 - `state.test.js`: the state fold, which tool calls write a record, the fork hold and confirm, and the refusal under automatic routing. The fork path is tested here because the SDK session the native fixture uses cannot fork.
 - `.skill-eval/track-work/tests/registry.test.mjs` (Track Work's suite): projects, tasks and children through `init`; one owner with takeover and owner-only release; a concurrent change re-applied and a second conflict writing nothing; an unreadable registry left untouched; import; the CLI commands, including a task ID as `--record`; environment and `here` with nested directories; fan-out creating worktree, branch and config, and its failure leaving the child registered.
 - `session.test.js`: native, unregistered records: attach confirmed and declined, attach by command, the gate, off by default, reload, navigation, and delivery after Pi's and Freeflow's compaction.

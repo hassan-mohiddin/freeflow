@@ -497,6 +497,43 @@ test("Pi settings show Compaction as one switch, on by default, and status repor
   }
 });
 
+test("Pi settings show Task Memory off by default, and status reports it when on", async () => {
+  const cwd = await configuredRepo({});
+  try {
+    const { commands } = loadExtension(freeflowExtension);
+    const command = commands.find((candidate) => candidate.name === "freeflow");
+    const settingsCtx = context(cwd);
+    settingsCtx.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+      assert.match(renderText(component, 180), /Task Memory\s+disabled\n\s+(› )?Enabled\s+disabled · default/);
+      return undefined;
+    };
+    await command.definition.handler("settings repo", settingsCtx);
+    const statusCtx = context(cwd);
+    await command.definition.handler("status", statusCtx);
+    assert.doesNotMatch(statusCtx.notifications.at(-1).message, /task memory/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+  const on = await configuredRepo({ taskMemory: { enabled: true } });
+  try {
+    const { commands } = loadExtension(freeflowExtension);
+    const command = commands.find((candidate) => candidate.name === "freeflow");
+    const settingsCtx = context(on);
+    settingsCtx.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+      assert.match(renderText(component, 180), /Task Memory\s+active\n\s+(› )?Enabled\s+enabled\n/);
+      return undefined;
+    };
+    await command.definition.handler("settings repo", settingsCtx);
+    const statusCtx = context(on);
+    await command.definition.handler("status", statusCtx);
+    assert.match(statusCtx.notifications.at(-1).message, /task memory: enabled/);
+  } finally {
+    await rm(on, { recursive: true, force: true });
+  }
+});
+
 test("Pi settings persist delegation mode without rewriting complete presets", async () => {
   const initial = {
     cognitiveRouting: {

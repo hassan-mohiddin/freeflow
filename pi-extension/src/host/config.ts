@@ -23,6 +23,7 @@ export const SESSION_OVERRIDE_KEYS = [
   "toolExecution.enabled",
   "compaction.enabled",
   "compaction.carry",
+  "taskMemory.enabled",
 ] as const;
 export type SessionCoreKey = (typeof SESSION_OVERRIDE_KEYS)[number];
 

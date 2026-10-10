@@ -363,7 +363,7 @@ export default function freeflow(pi) {
   // /freeflow project: the user creates projects and links repositories to them; the model never does (D-015).
   async function projectCommand(rest, ctx) {
     if (!taskMemoryEffective()) {
-      ctx.ui.notify("Task memory is off. Turn it on with taskMemory.enabled in .freeflow/local.json.", "warning");
+      ctx.ui.notify("Task memory is off. Turn it on in /freeflow settings (Task Memory).", "warning");
       return;
     }
     const [sub, ...words] = rest.trim().split(/\s+/).filter(Boolean);
@@ -394,7 +394,7 @@ export default function freeflow(pi) {
   // /freeflow task: the user's own attach, focus, detach and confirm, and a picker over this repository's records.
   async function taskCommand(rest, ctx) {
     if (!taskMemoryEffective()) {
-      ctx.ui.notify("Task memory is off. Turn it on with taskMemory.enabled in .freeflow/local.json.", "warning");
+      ctx.ui.notify("Task memory is off. Turn it on in /freeflow settings (Task Memory).", "warning");
       return;
     }
     const [sub, ...words] = rest.trim().split(/\s+/).filter(Boolean);
@@ -489,7 +489,7 @@ export default function freeflow(pi) {
     files.reset();
     compaction.reset();
     await routing.bind(ctx, capability.cognitiveRouting, event?.reason !== "reload");
-    taskMemory.rebuild(ctx.sessionManager.getBranch());
+    taskMemory.rebuild(cachedBranch(ctx.sessionManager));
     if (taskMemoryEffective()) {
       await taskMemory.load();
       // A fork or clone copies the branch's attachments; they stay held until the user confirms them here.
@@ -501,10 +501,10 @@ export default function freeflow(pi) {
             "info",
           );
       }
-      await taskMemory.deliver(ctx.sessionManager.getBranch());
+      await taskMemory.deliver(cachedBranch(ctx.sessionManager));
       // A session started in a task's directory with nothing attached offers that task (D-017). Not awaited, so
       // startup finishes first and the user answers when the dialog appears; a decline is kept on the branch.
-      const suggested = ctx.hasUI ? await taskMemory.suggestion(ctx.sessionManager.getBranch()) : undefined;
+      const suggested = ctx.hasUI ? await taskMemory.suggestion(cachedBranch(ctx.sessionManager)) : undefined;
       if (suggested)
         void (async () => {
           const yes = await ctx.ui.confirm(
@@ -707,7 +707,7 @@ export default function freeflow(pi) {
   pi.on("session_tree", async (_event, ctx) => {
     // Task memory follows the branch: the records attached at this point of the conversation.
     const before = taskMemory.state();
-    const changed = taskMemory.rebuild(ctx.sessionManager.getBranch());
+    const changed = taskMemory.rebuild(cachedBranch(ctx.sessionManager));
     if (taskMemoryEffective()) await taskMemory.load();
     await restore(ctx);
     if (!taskMemoryEffective()) return;
@@ -718,14 +718,14 @@ export default function freeflow(pi) {
         "info",
       );
     }
-    await taskMemory.deliver(ctx.sessionManager.getBranch());
+    await taskMemory.deliver(cachedBranch(ctx.sessionManager));
   });
   // Pi compacting on its own (threshold, overflow, /compact) keeps its summarizer and kept tail, with Freeflow's additions.
   pi.on("session_before_compact", async (event, ctx) => compaction.fallback(event, ctx));
   pi.on("session_compact", async (_event, ctx) => {
     await restore(ctx, false);
     background.restate();
-    await taskMemory.deliver(ctx.sessionManager.getBranch());
+    await taskMemory.deliver(cachedBranch(ctx.sessionManager));
   });
   pi.on("session_compact_failed", async (_event, ctx) => {
     refreshState = true;

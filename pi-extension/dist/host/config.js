@@ -22,6 +22,7 @@ export const SESSION_OVERRIDE_KEYS = [
   "toolExecution.enabled",
   "compaction.enabled",
   "compaction.carry",
+  "taskMemory.enabled",
 ];
 const SESSION_OVERRIDES_ENTRY = "freeflow-session-overrides";
 const SESSION_CORE_KEYS = new Set(SESSION_OVERRIDE_KEYS);
