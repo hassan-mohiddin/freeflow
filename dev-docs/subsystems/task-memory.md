@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/task-memory/`, `capabilities/task-memory/`, `skills/track-work/scripts/lib/registry.mjs`, `skills/track-work/scripts/lib/search.mjs`
 > **Tests:** `pi-extension/tests/task-memory/`, `.skill-eval/track-work/tests/registry.test.mjs`
-> **Verified at:** `6c48b37c` (2026-10-11)
+> **Verified at:** `0da5b5cd` (2026-10-11)
 
 For contributors changing Freeflow task memory on Pi, a prototype: how a session holds Working Records, how projects, child records and record ownership work, what reaches the model and when, the write gate, and the choices behind them. It is off unless `taskMemory.enabled` is set, and has no user docs yet.
 
@@ -88,7 +88,7 @@ It deliberately does not:
 | Session state lives in branch custom entries and follows navigation. | Matches the conversation at that branch point and needs no store; Pi copies the branch on fork. | A per-session sidecar, where going back could write one task's discussion into another record. | `77815ab0` |
 | Attaching grants writes and needs the user; focus grants nothing and is the model's call. | Authority stays with the user without confirming every change of attention. | One writable task per session. | `77815ab0` |
 | Registered records live in a project store under the Freeflow home. | Removing a worktree no longer deletes task memory, and task numbers are stable per project. | Registry pointing at records left in worktrees. | `b51e51cc` |
-| A store keeps records in `tasks/`, marked by `store.json`, not a repository's `.freeflow/tasks/`. | The store is not a repository; the marker makes the layout self-describing, so it does not depend on `FREEFLOW_HOME` agreeing across processes. | Nesting `.freeflow/tasks/` inside the store; detecting stores by their location under the home. | layout commit |
+| A store keeps records in `tasks/`, marked by `store.json`, not a repository's `.freeflow/tasks/`. | The store is not a repository; the marker makes the layout self-describing, so it does not depend on `FREEFLOW_HOME` agreeing across processes. | Nesting `.freeflow/tasks/` inside the store; detecting stores by their location under the home. | `0da5b5cd` |
 | Task IDs reuse Track Work's `init` numbering in the store. | No format change and no second numbering scheme. | Global random IDs. | `b51e51cc` |
 | One owner session per registered record; takeover only with the user's confirmation. | One writer per record without a merge contract; Pi cannot tell when a session has ended, so the user decides. | Relying only on Track Work's stale-write check. | `b51e51cc` |
 | Children are interactive sessions; the parent's session alone writes the parent and reads children. | The user mediates, so no messaging is needed; subagents stay within their session's task. | Children writing the parent, which needs merging; subagents as children. | `b51e51cc` |
