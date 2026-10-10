@@ -1,23 +1,38 @@
 ---
 name: "task-memory"
-description: "Use when Freeflow task memory is on and work involves a Working Record: attaching one to this session, switching focus between attached records, or reading what Freeflow delivered."
+description: "Use when a Pi session has Freeflow task memory on and the work creates, recovers, or updates a Working Record: attaching it to the session, moving between attached records, or a refused record write."
 ---
 
 # Task Memory
 
-With task memory on, this session knows which Working Records it works on. The user attaches records; one attached record is the focus. Freeflow lists them in the Runtime State, delivers the focused record's resume view when it becomes the focus (and after compaction, navigation or a resumed session), and refuses writes to records this session has not attached. [Track Work](../../skills/track-work/SKILL.md) still owns what a record holds and when one is needed; this skill covers only how the session holds records.
+With task memory on, a Pi session holds the Working Records it works on. The user attaches records; one attached record is the focus, the one the conversation is about. Freeflow lists attached records in the Runtime State under `Task Memory:`, delivers the focused record's resume view when it becomes the focus or context is rebuilt, and refuses writes to records the session has not attached. [Track Work](../../skills/track-work/SKILL.md) still decides whether a task needs a record and what a record says; this skill covers how the session holds records.
+
+The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 
 ## Rules
 
-- A session needs no record. Propose attaching one only when Track Work calls for a record: an existing record belongs to the work, or the task now needs one. Never propose one just because nothing is attached.
-- Attaching is the user's choice. `freeflow_task` with `attach` asks them; a decline stands.
-- Every record write names a record attached to this session. A refused write means the record is not attached or is held after a fork; say so instead of writing around the gate.
-- A delivered snapshot is Track Work's resume read for that record: do not read it again. Fetch closed History entries with `view entry` when the next action depends on them, then continue Track Work's recovery order (defining artifacts, Recovery sources).
+- Attaching is the user's choice. Propose it with `freeflow_task` (`attach`); a decline stands until the user says otherwise.
+- Write a record only when it is attached to this session and not held, and write each update to the record it concerns, whichever record is the focus.
+- When Freeflow refuses a record write, tell the user which record and why. Never write that record another way, such as a shell command.
 
-## Focus
+## Attach When Track Work Calls For A Record
 
-Focus is where attention is, not a permission. When the conversation moves to another attached record, switch with `freeflow_task` `focus` and continue from the resume view it returns. Write each record update to the record it concerns, whichever is in focus.
+Goal: task memory where Track Work would keep a record, and none where it would not.
+
+Propose attaching when a record already belongs to the work in front of you, or when Track Work says the task now needs one and you have created it. A session with nothing attached is normal: a question, a short self-contained change, or a session the user keeps memory-free needs no record, so never propose one only because the Runtime State says nothing is attached.
+
+## Use The Delivered Resume View
+
+Goal: recover a record once, at the cost of its present state, not its whole history.
+
+The resume view Freeflow delivers (as `freeflow_task`'s result, or as a message starting `[Freeflow task memory]`) is Track Work's resume read for that record: do not read the record again to recover it. Fetch closed History entries the next action depends on with `view entry`, then continue Track Work's recovery order with the defining artifacts and Recovery sources. Read the record again when it has changed since the delivery, for example after another session wrote it.
+
+## Move Between Attached Records
+
+Goal: the focus follows the conversation, so the resume view in context is the one the work needs.
+
+When the conversation turns to another attached record, switch with `freeflow_task` (`focus`) and continue from the resume view it returns. A single update to another attached record in the middle of your work needs no switch: write it to that record and stay where you are.
 
 ## Held Records
 
-A forked or cloned session inherits the attachments of the branch it came from, held: readable but not writable, so two sessions do not write one record by accident. The user releases them with `/freeflow task confirm`.
+A forked or cloned session inherits the records attached on the branch it came from, held: listed and readable but not writable, so two sessions do not write one record by accident. Only the user releases them, with `/freeflow task confirm`.

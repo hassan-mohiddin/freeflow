@@ -282,12 +282,12 @@ export class TaskMemory {
       if (!this.current.attached.includes(target))
         return {
           block: true,
-          reason: `Task memory: ${target} is not attached to this session, so it cannot be written. ${this.attachedText()} Propose attaching it with freeflow_task, or ask the user.`,
+          reason: `Task memory: ${target} is not attached to this session, so it cannot be written. ${this.attachedText()} Propose attaching it with freeflow_task, or ask the user; do not write it another way.`,
         };
       if (this.current.held.includes(target))
         return {
           block: true,
-          reason: `Task memory: ${target} was inherited by a fork or clone and is held. The user releases it with /freeflow task confirm.`,
+          reason: `Task memory: ${target} was inherited by a fork or clone and is held. Only the user releases it, with /freeflow task confirm; do not write it another way.`,
         };
     }
     return undefined;
