@@ -4,6 +4,7 @@ import { resolveCognitiveRoutingState, supportsCognitiveRoutingModelRegistry } f
 import { sessionStage, stagedFor } from "./staging.js";
 import { resolveToolExecutionConfig } from "../tool-execution/config.js";
 import { resolveCompactionConfig } from "../compaction/config.js";
+import { resolveTaskMemoryConfig } from "../task-memory/config.js";
 import { validateLocalConfig, validateRepositoryConfig } from "./config-validation.js";
 import { cachedBranch } from "./branch.js";
 /**
@@ -204,6 +205,7 @@ export async function readCapabilityState(cwd, host = undefined) {
   const sessionLocalConfig = withSessionLayer(localConfig, sessionLayer);
   const toolExecution = resolveToolExecutionConfig(repositoryConfig, sessionLocalConfig, enabled);
   const compaction = resolveCompactionConfig(repositoryConfig, sessionLocalConfig, enabled);
+  const taskMemory = resolveTaskMemoryConfig(repositoryConfig, sessionLocalConfig, enabled);
   const capabilityState = {
     configured: layers.configured,
     repositoryConfigured: layers.repositoryConfigured,
@@ -224,6 +226,7 @@ export async function readCapabilityState(cwd, host = undefined) {
     cognitiveRouting,
     toolExecution,
     compaction,
+    taskMemory,
   };
   if (!subagentContext) return capabilityState;
   return {
@@ -231,6 +234,7 @@ export async function readCapabilityState(cwd, host = undefined) {
     cognitiveRouting: disableSubagentCapability(capabilityState.cognitiveRouting),
     toolExecution: disableSubagentCapability(capabilityState.toolExecution),
     compaction: disableSubagentCapability(capabilityState.compaction),
+    taskMemory: disableSubagentCapability(capabilityState.taskMemory),
   };
 }
 function recordedSessionOverrides(sessionManager) {

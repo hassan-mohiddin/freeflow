@@ -1,4 +1,5 @@
 import { validateCompactionConfig } from "../compaction/config.js";
+import { validateTaskMemoryConfig } from "../task-memory/config.js";
 import { validateToolExecutionConfig } from "../tool-execution/config.js";
 /**
  * Whether a Freeflow config file is valid: one answer for Pi and for the session-start hooks of the other hosts, which
@@ -55,6 +56,7 @@ export function validateRepositoryConfig(value) {
     "cognitiveRouting",
     "toolExecution",
     "compaction",
+    "taskMemory",
     "prompts",
   ]);
   for (const key of Object.keys(value)) {
@@ -81,6 +83,10 @@ export function validateRepositoryConfig(value) {
     const error = validateCompactionConfig(value.compaction);
     if (error) return error;
   }
+  if (value.taskMemory !== undefined) {
+    const error = validateTaskMemoryConfig(value.taskMemory);
+    if (error) return error;
+  }
   return null;
 }
 export function validateLocalConfig(value) {
@@ -90,7 +96,15 @@ export function validateLocalConfig(value) {
   const removedContextError = removedContextConfigError(value, ".freeflow/local.json");
   if (removedContextError) return removedContextError;
   // processing belongs to a retired feature; it is accepted and ignored so existing local configs keep loading.
-  const allowedKeys = new Set(["enabled", "processing", "cognitiveRouting", "toolExecution", "compaction", "prompts"]);
+  const allowedKeys = new Set([
+    "enabled",
+    "processing",
+    "cognitiveRouting",
+    "toolExecution",
+    "compaction",
+    "taskMemory",
+    "prompts",
+  ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       return `unsupported top-level local config key: ${key}`;
@@ -106,6 +120,10 @@ export function validateLocalConfig(value) {
     const error = validatePromptsConfig(value.prompts);
     if (error) return error;
   }
-  if (value.compaction !== undefined) return validateCompactionConfig(value.compaction);
+  if (value.compaction !== undefined) {
+    const error = validateCompactionConfig(value.compaction);
+    if (error) return error;
+  }
+  if (value.taskMemory !== undefined) return validateTaskMemoryConfig(value.taskMemory);
   return null;
 }

@@ -9,6 +9,7 @@
 | [`tool-execution/`](tool-execution/README.md) | Tool Execution: guidance sections, file tracking and notices, `apply_patch`, background commands. |
 | [`provider-support/`](provider-support/README.md) | Provider-specific prompt-cache support: breakpoints, keep-alive, effort history, cache health. |
 | [`compaction/`](compaction/README.md) | Freeflow compaction: the agent compacts itself at a planned cycle boundary and recovers in the same run. |
+| [`task-memory/`](task-memory/README.md) | Task memory (prototype): Working Records attached to the session, snapshots of the focused record, and the record write gate. |
 
 ## How a request flows through `index.ts`
 

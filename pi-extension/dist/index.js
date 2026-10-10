@@ -17,6 +17,8 @@ import { backgroundRefusal } from "./tool-execution/bash-guard.js";
 import { CompactionController, USER_REQUEST } from "./compaction/controller.js";
 import { applyCompactionTools, registerCompactionTool } from "./compaction/tool.js";
 import { strictest } from "./compaction/thresholds.js";
+import { SNAPSHOT_TYPE, TASK_ENTRY, TaskMemory } from "./task-memory/runtime.js";
+import { applyTaskMemoryTools, registerTaskMemoryTool } from "./task-memory/tool.js";
 import { tagProjectedMessages } from "./host/projection-tags.js";
 import { trustStartedSession } from "./host/read-only-session.js";
 import { takeStage } from "./host/staging.js";
@@ -133,6 +135,7 @@ function freeflowCompletions(prefix, routingAvailable) {
           ["settings", "settings", "Open settings; Tab switches Session, Personal and Repository"],
           ["status", "status", "Show effective Freeflow state"],
           ["compact", "compact", "Prepare, compact and recover now"],
+          ["task", "task", "Attach, focus, detach or confirm Working Records (task memory)"],
           ...(routingAvailable
             ? [
                 ["profile", "profile", "Hold or release Cognitive Routing profile control"],
@@ -174,6 +177,7 @@ export default function freeflow(pi) {
   const files = new FileTracking();
   const toolExecutionEffective = () => capability?.toolExecution?.effective === true;
   const compactionEffective = () => capability?.compaction?.effective === true;
+  const taskMemoryEffective = () => capability?.taskMemory?.effective === true;
   const cacheHealth = new CacheHealth();
   let prompts;
   let refreshState = true;
@@ -213,6 +217,7 @@ export default function freeflow(pi) {
     applyRoutingToolVisibility(api, routing, capability?.cognitiveRouting?.effective === true);
     applyToolExecutionTools(api, toolExecutionEffective());
     applyCompactionTools(api, compactionEffective());
+    applyTaskMemoryTools(api, taskMemoryEffective());
     setFreeflowStatus(ctx, capability, routing.state(), prompts);
   }
   // Control and setting changes made between prompts are staged; their net effect is written as a prompt starts.
@@ -326,6 +331,69 @@ export default function freeflow(pi) {
     },
   });
   registerCompactionTool(api, compaction);
+  const sendSnapshot = (content, record) =>
+    void Promise.resolve(
+      api.sendMessage({ customType: SNAPSHOT_TYPE, content, display: false, details: { record } }),
+    ).catch(() => {});
+  const taskMemory = new TaskMemory({
+    effective: taskMemoryEffective,
+    routingAutomatic: () =>
+      capability?.cognitiveRouting?.effective === true &&
+      routing.state()?.effective === true &&
+      routing.state()?.controlMode === "automatic",
+    append: (data) => api.appendEntry(TASK_ENTRY, data),
+    send: sendSnapshot,
+    packageRoot,
+  });
+  registerTaskMemoryTool(api, {
+    memory: taskMemory,
+    changed: (ctx) => {
+      refreshState = true;
+      status(ctx);
+    },
+  });
+  // /freeflow task: the user's own attach, focus, detach and confirm, and a picker over this repository's records.
+  async function taskCommand(rest, ctx) {
+    if (!taskMemoryEffective()) {
+      ctx.ui.notify("Task memory is off. Turn it on with taskMemory.enabled in .freeflow/local.json.", "warning");
+      return;
+    }
+    const [sub, ...words] = rest.trim().split(/\s+/).filter(Boolean);
+    let action = sub?.toLowerCase();
+    let target = words.join(" ");
+    if (!action || action === "pick") {
+      const records = await taskMemory.records(ctx.cwd);
+      if (!records.length || !ctx.hasUI) {
+        ctx.ui.notify(await taskMemory.list(ctx.cwd), "info");
+        return;
+      }
+      const labels = records.map((record) => `${taskMemory.name(record)} — ${record}`);
+      const chosen = await ctx.ui.select("Task records", labels);
+      if (!chosen) return;
+      target = records[labels.indexOf(chosen)];
+      action = taskMemory.state().attached.includes(target) ? "focus" : "attach";
+    }
+    let result;
+    if (action === "list") result = { ok: true, text: await taskMemory.list(ctx.cwd) };
+    else if (action === "attach") result = await taskMemory.attach(target, ctx.cwd);
+    else if (action === "focus") result = await taskMemory.focus(target, ctx.cwd);
+    else if (action === "detach") result = taskMemory.detach(target, ctx.cwd);
+    else if (action === "confirm") result = taskMemory.confirm(target, ctx.cwd);
+    else
+      result = {
+        ok: false,
+        text: "Use /freeflow task [list|attach <record>|focus <record>|detach <record>|confirm [record]].",
+      };
+    if (result.snapshot) {
+      sendSnapshot(result.text, result.snapshot);
+      ctx.ui.notify(
+        `Task memory: ${taskMemory.name(result.snapshot)} is the focus. ${taskMemory.attachedText()}`,
+        "info",
+      );
+    } else ctx.ui.notify(result.text, result.ok ? "info" : "warning");
+    refreshState = true;
+    status(ctx);
+  }
   // The user's /freeflow compact makes compaction due now: the agent prepares, compacts and recovers.
   async function compactNow(ctx) {
     if (!compactionEffective()) {
@@ -365,6 +433,19 @@ export default function freeflow(pi) {
     files.reset();
     compaction.reset();
     await routing.bind(ctx, capability.cognitiveRouting, event?.reason !== "reload");
+    taskMemory.rebuild(ctx.sessionManager.getBranch());
+    if (taskMemoryEffective()) {
+      // A fork or clone copies the branch's attachments; they stay held until the user confirms them here.
+      if (event?.reason === "fork") {
+        const held = taskMemory.holdInherited();
+        if (held.length)
+          ctx.ui?.notify?.(
+            `Task memory: ${held.length} inherited record(s) are held, not writable. Release with /freeflow task confirm.`,
+            "info",
+          );
+      }
+      await taskMemory.deliver(ctx.sessionManager.getBranch());
+    }
     status(ctx);
   });
   pi.on("session_shutdown", async () => {
@@ -443,6 +524,8 @@ export default function freeflow(pi) {
     }
   });
   pi.on("tool_call", async (event, ctx) => {
+    const recordGate = taskMemory.gate(event.toolName, event.input, ctx.cwd);
+    if (recordGate) return recordGate;
     const gate = routing.preflight(event, ctx);
     if (gate?.block || !toolExecutionEffective()) return gate;
     const refusal = event.toolName === "bash" ? backgroundRefusal(event.input?.command) : undefined;
@@ -455,7 +538,12 @@ export default function freeflow(pi) {
     files.clearPending();
     status(ctx);
     const compacting = await compaction.turnEnd(event, ctx);
-    if (compacting) return compacting;
+    if (compacting) {
+      // The focused record arrives after the summary, so recovery starts from it rather than a path to look up.
+      const snapshot = await taskMemory.snapshotEntry();
+      if (snapshot) compacting.entries.push(snapshot);
+      return compacting;
+    }
     const notice = compaction.observe(ctx, event);
     if (notice) {
       // Mid-run the notice joins the next request; when the run is ending it waits for the next prompt rather than
@@ -507,6 +595,7 @@ export default function freeflow(pi) {
       force: refreshState,
       anchor: runtimeStateAnchor,
       projectionFailure: routing.state().projectionFailure,
+      taskMemory: taskMemory.runtimeLines(),
     });
     refreshState = false;
     // Disabled Freeflow pays no per-request provenance work; re-enabling rebuilds it from session history.
@@ -535,12 +624,27 @@ export default function freeflow(pi) {
     await routing.ancestryChanged(ctx, navigation);
     await update(ctx);
   };
-  pi.on("session_tree", async (_event, ctx) => restore(ctx));
+  pi.on("session_tree", async (_event, ctx) => {
+    // Task memory follows the branch: the records attached at this point of the conversation.
+    const before = taskMemory.state();
+    const changed = taskMemory.rebuild(ctx.sessionManager.getBranch());
+    await restore(ctx);
+    if (!taskMemoryEffective()) return;
+    if (changed) {
+      const focus = taskMemory.state().focus;
+      ctx.ui?.notify?.(
+        `Task memory follows this branch: focus ${before.focus ? taskMemory.name(before.focus) : "none"} -> ${focus ? taskMemory.name(focus) : "none"}. ${taskMemory.attachedText()} Change it with /freeflow task.`,
+        "info",
+      );
+    }
+    await taskMemory.deliver(ctx.sessionManager.getBranch());
+  });
   // Pi compacting on its own (threshold, overflow, /compact) keeps its summarizer and kept tail, with Freeflow's additions.
   pi.on("session_before_compact", async (event, ctx) => compaction.fallback(event, ctx));
   pi.on("session_compact", async (_event, ctx) => {
     await restore(ctx, false);
     background.restate();
+    await taskMemory.deliver(ctx.sessionManager.getBranch());
   });
   pi.on("session_compact_failed", async (_event, ctx) => {
     refreshState = true;
@@ -608,6 +712,11 @@ export default function freeflow(pi) {
           typeof api.setThinkingLevel === "function",
       ),
     handler: async (args, ctx) => {
+      const task = /^task(?:\s+(.*))?$/i.exec((args ?? "").trim());
+      if (task) {
+        await taskCommand(task[1] ?? "", ctx);
+        return;
+      }
       if ((args ?? "").trim().toLowerCase() === "compact") {
         await compactNow(ctx);
         return;
@@ -623,6 +732,7 @@ export default function freeflow(pi) {
           cacheHealth: [...cacheHealth.status(), ...cacheMonitor.lines()],
           backgroundRunning: background.running().length,
           compaction: compaction.statusText(ctx),
+          taskMemory: taskMemory.attachedText(),
         }),
       });
     },

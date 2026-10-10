@@ -373,7 +373,7 @@ test("Pi registers the remaining Freeflow commands without mode controls or reti
   assert.ok(!toolNames.includes("freeflow_context"));
   assert.deepEqual(
     toolNames.filter((name) => name.startsWith("freeflow_")),
-    ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project", "freeflow_compact"],
+    ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project", "freeflow_compact", "freeflow_task"],
   );
   assert.ok(!toolNames.includes("freeflow_switch_profile"));
   assert.ok(!toolNames.includes("freeflow_cognitive_routing_history"));
@@ -797,6 +797,11 @@ test("Pi describes the mode-free Freeflow argument surface and manual profile co
     },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
     { value: "compact", label: "compact", description: "Prepare, compact and recover now" },
+    {
+      value: "task",
+      label: "task",
+      description: "Attach, focus, detach or confirm Working Records (task memory)",
+    },
     { value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" },
     { value: "resume", label: "resume", description: "Resume the current saved routing responsibility" },
     { value: "enable", label: "enable", description: "Enable Freeflow for this repository" },
@@ -871,7 +876,7 @@ test("Pi keeps Freeflow inactive until repository activation exists", async () =
   try {
     const { handlers } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 27);
+    assert.equal(resources.skillPaths.length, 28);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
     const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, context(cwd));
     assert.equal(result.systemPrompt, "base prompt");
@@ -930,7 +935,7 @@ test("Pi treats invalid configuration as inactive", async () => {
   try {
     const { handlers, commands } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 27);
+    assert.equal(resources.skillPaths.length, 28);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
     const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, context(cwd));
     assert.equal(result.systemPrompt, "base prompt");
@@ -1052,7 +1057,7 @@ test("Pi fails closed when an existing local override is invalid", async () => {
     assert.equal(state.enabled, false);
     const { handlers } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 27);
+    assert.equal(resources.skillPaths.length, 28);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -1078,7 +1083,7 @@ test("Pi master Freeflow toggle makes features inactive while preserving remaini
     const { handlers, activeToolNames } = loadExtension();
     const ctx = context(cwd);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 27);
+    assert.equal(resources.skillPaths.length, 28);
     const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
     assert.equal(result.systemPrompt, "base prompt");
     assert.match(result.renderedGuidance, /guidance is dormant/);
@@ -1537,7 +1542,7 @@ test("Pi preserves the host prompt prefix and dormant contract when a mandatory 
     assert.equal(before.systemPrompt, "base prompt");
     assert.match(before.renderedGuidance, /guidance is dormant/);
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 27);
+    assert.equal(resources.skillPaths.length, 28);
   } finally {
     await rm(cwd, { recursive: true, force: true });
     await rm(root, { recursive: true, force: true });

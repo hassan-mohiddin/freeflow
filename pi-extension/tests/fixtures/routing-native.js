@@ -340,7 +340,8 @@ export async function fixture(script, projection = true, after, withUI = true, o
     await session.bindExtensions({
       mode: "print",
       onError: (e) => errors.push(e),
-      ...(withUI ? { uiContext: { notify: (...args) => notices.push(args), setStatus: () => {} } } : {}),
+      // options.ui adds dialog stubs (confirm, select) a test answers.
+      ...(withUI ? { uiContext: { notify: (...args) => notices.push(args), setStatus: () => {}, ...options.ui } } : {}),
     });
     await options.onSession?.(session);
     await options.beforePrompt?.({ session, manager, requests, contexts, cwd, notices });

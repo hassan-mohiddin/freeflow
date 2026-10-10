@@ -28,7 +28,8 @@ The extension supplies one compact volatile Runtime State record at session star
 
 - whether Freeflow is active, inactive, unavailable, or awaiting setup;
 - optional capability availability;
-- Cognitive Routing `Control`, `Profile`, `Delegation`, and `Projection`.
+- Cognitive Routing `Control`, `Profile`, `Delegation`, and `Projection`;
+- with task memory on (a prototype, see [Task memory](task-memory.md)), the attached Working Records and the focus.
 
 Runtime State is current-state data, not stable policy. It does not replace the prompt fragments, contain hidden reasoning, authorize a tool call, or reconstruct state from earlier transition history.
 

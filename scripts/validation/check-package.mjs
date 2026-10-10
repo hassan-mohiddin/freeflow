@@ -40,6 +40,9 @@ const requiredFiles = [
   "capabilities/compaction/SKILL.md",
   "capabilities/compaction/references/summary-format.md",
   "pi-extension/dist/compaction/controller.js",
+  "capabilities/task-memory/SKILL.md",
+  "pi-extension/dist/task-memory/runtime.js",
+  "skills/track-work/scripts/lib/views.mjs",
 ];
 const excludedPrefixes = [
   "plugin-docs/",
