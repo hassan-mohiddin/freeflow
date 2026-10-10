@@ -11,6 +11,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 ## Rules
 
+- The user's latest request decides the work. The focused record's Next useful action is where that task stood, not a request: when the user asks for something else, including work on another record, do that (proposing to attach the other record when a write needs it) and do not switch to the focused record's work.
 - Attaching is the user's choice. Propose it with `freeflow_task` (`attach`); a decline stands until the user says otherwise.
 - Write a record only when it is attached to this session, not held, and, if registered, owned by this session. Write each update to the record it concerns, whichever record is the focus.
 - When Freeflow refuses a record write, tell the user which record and why. Never write that record another way, such as a shell command.

@@ -25,7 +25,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Record a Slice before causing effects outside the record: edits, commands, generated files, sent messages, or changes to external systems.
 - Use [working-record.mjs](scripts/working-record.mjs) for every lifecycle change: IDs, states, and moves between sections. Edit only meaning directly.
 - Only the user changes task state.
-- After context loss, recover in this order before any task action: the record through `view resume`, then every artifact listed under `What defines this task`, then `Recovery sources`, then the History entries the next action depends on through `view entry`. If any of them cannot be read completely, report that and stop affected work.
+- After context loss, recover in this order before any task action: the record through `view resume` (not by opening `record.md`, which loads all of History), then every artifact listed under `What defines this task`, then `Recovery sources`, then the History entries the next action depends on through `view entry`. If any of them cannot be read completely, report that and stop affected work.
 - Recover only a record that the context you still have ties to the current work, such as the user's direction, or a summary or handoff that names it. A recent change does not show that a record belongs to the current work. When a record's task and the current work disagree, report it instead of recovering the record.
 - Never record a requested, reported, or expected result as observed. Keep unverified work, failures, and contradictions visible.
 - Never claim that state will survive context loss unless it is written in the record or in a source the record points to.
@@ -129,7 +129,7 @@ On long tasks, a `preserve` Checkpoint every few Slices keeps a recoverable poin
 
 Context loss includes compaction, summarization that replaces context, clear, session resume or navigation, transfer to another context, or uncertain continuity. Recover before task work (Rules), in order:
 
-1. `view resume`: the record's present state and a one-line index of closed History. If output is truncated, keep reading until complete. A summary is not recovery.
+1. `view resume`: the record's present state and a one-line index of closed History. If output is truncated, keep reading until complete. Do not open `record.md` itself for this: it loads the whole History, which the index lets you read only where needed. A summary is not recovery.
 2. Every artifact listed under `What defines this task`, such as the task's Spec and Plan.
 3. Every entry under `Recovery sources`, except one whose stated trigger ("read when …") does not apply yet; read that one when it does.
 4. The History entries the next action depends on, through `view entry <ID>`: closed work on the same result or area, a blocked or abandoned attempt at what you are about to do, a superseded Decision behind a current one, and any entry the record or a source names by ID. Do not read entries just because they exist.
