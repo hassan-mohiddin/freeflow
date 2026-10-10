@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/task-memory/`, `capabilities/task-memory/`
 > **Tests:** `pi-extension/tests/task-memory/`
-> **Verified at:** `d9497ae6` (2026-10-11)
+> **Verified at:** `77815ab0` (2026-10-11)
 
 For contributors changing Freeflow task memory on Pi, a prototype: how a session holds Working Records, what reaches the model and when, the write gate, and the choices behind them. It is off unless `taskMemory.enabled` is set, and has no user docs yet.
 
