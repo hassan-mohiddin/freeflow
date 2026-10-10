@@ -14,7 +14,7 @@ import {
   resolveRecordPath,
   writeInitialAtomically,
 } from "./lib/store.mjs";
-import { renderFull, renderResume } from "./lib/views.mjs";
+import { renderEntries, renderFull, renderResume } from "./lib/views.mjs";
 
 const ROOT_HELP =
   "--record is resolved against --root, which defaults to the current directory; an absolute --record path finds its own root.";
@@ -24,6 +24,7 @@ function usage() {
     "Usage:",
     "  working-record.mjs init --root <path> --name <task name> [--input <file|->]",
     "  working-record.mjs view resume|full --record <record.md>",
+    "  working-record.mjs view entry <ID> [<ID> ...] --record <record.md>",
     "  working-record.mjs validate --record <record.md>",
     "  working-record.mjs <slice|checkpoint|decision|task> <operation> ...",
     "",
@@ -71,7 +72,10 @@ const COMMAND_HELP = new Map([
     "init",
     "Usage: init --root <path> --name <task name> [--input <file|->]\nInput: Goal and Next useful action required; the seven Current Context headings and Recovery sources are accepted, and every line must sit under one of them. The record starts active. Use --input - to read Markdown fragments from stdin.",
   ],
-  ["view", "Usage: view resume|full --record <record.md>"],
+  [
+    "view",
+    "Usage: view resume|full --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\nresume: the header, Current Context, active Decisions, Current Work, Future Work, a one-line index of closed History, and Notes. entry: the named S-NNN, C-NNN, or D-NNN entries exactly as stored. full: the file exactly as stored, valid or not.",
+  ],
   ["validate", "Usage: validate --record <record.md>"],
   [
     "slice propose",
@@ -306,11 +310,17 @@ async function runCore(command, rest) {
   validateCommandOptions(command, operation, options);
   if (command === "init") return initialize(options);
   if (command === "view") {
-    if (positionals.length > 1) throw new CliError("View accepts only resume or full");
     const view = positionals[0] ?? options["--view"];
-    if (!view || !["resume", "full"].includes(view)) throw new CliError("View must be resume or full");
+    if (!view || !["resume", "full", "entry"].includes(view)) throw new CliError("View must be resume, full, or entry");
+    const ids = positionals.slice(1);
+    if (view === "entry") {
+      if (!ids.length) throw new CliError("View entry needs at least one S-NNN, C-NNN, or D-NNN ID");
+      const invalid = ids.find((id) => !/^[SCD]-\d{3,}$/.test(id));
+      if (invalid) throw new CliError(`Not an entry ID: ${invalid}`);
+    } else if (ids.length) throw new CliError(`View ${view} accepts no further arguments`);
     const loaded = await readExisting(options);
     if (view === "full") return renderFull(loaded.text);
+    if (view === "entry") return renderEntries(loaded.text, ids);
     return renderResume(loaded.text);
   }
   if (command === "validate") {

@@ -1407,7 +1407,8 @@ test("Decision commands preserve active history and atomic supersession", async 
 
     const resume = await runScript(workspace, ["view", "resume", "--record", recordPath]);
     assert.equal(resume.exitCode, 0, resume.stderr);
-    assert.doesNotMatch(resume.stdout, /Keep Markdown/);
+    assert.doesNotMatch(resume.stdout, /Keep Markdown canonical/);
+    assert.match(resume.stdout, /- D-001 superseded by D-002 — Keep Markdown/);
     assert.match(resume.stdout, /Use source-preserving edits/);
 
     const retired = await runScript(workspace, [
@@ -1679,7 +1680,7 @@ test("invalid proposals and malformed lifecycle input leave the record unchanged
   }
 });
 
-test("init accepts compact context headings and resume omits long terminal History", async () => {
+test("init accepts compact context headings and resume indexes long terminal History without bodies", async () => {
   const workspace = await makeWorkspace();
   try {
     const initialized = await runScript(
@@ -1718,7 +1719,8 @@ test("init accepts compact context headings and resume omits long terminal Histo
     const resume = await runScript(workspace, ["view", "resume", "--record", recordPath]);
     assert.equal(resume.exitCode, 0, resume.stderr);
     assert.match(resume.stdout, /Preserve the task across a reset/);
-    assert.doesNotMatch(resume.stdout, /Historical 120/);
+    assert.match(resume.stdout, /- S-120 completed — Historical 120/);
+    assert.doesNotMatch(resume.stdout, /Completed 120/);
 
     const full = await runScript(workspace, ["view", "full", "--record", recordPath]);
     assert.equal(full.exitCode, 0, full.stderr);
@@ -1775,6 +1777,213 @@ test("init creates the complete Schema 4 skeleton and two bounded views", async 
     assert.match(resume.stdout, /## Future Work/);
     assert.match(resume.stdout, /## Notes/);
     assert.doesNotMatch(resume.stdout, /## History/);
+  } finally {
+    await cleanup(workspace);
+  }
+});
+
+async function buildClosedHistory(workspace) {
+  const initialized = await initRecord(workspace, "history-index");
+  assert.equal(initialized.exitCode, 0, initialized.stderr);
+  const recordPath = initialized.stdout.trim();
+  const decision =
+    "Decision:\n- Choice.\nEstablished by:\n- User.\nRationale:\n- Reason.\nConsequences:\n- Effect.\nRevisit when:\n- Later.\n";
+  const steps = [
+    [["decision", "add", "--record", recordPath, "--title", "First choice", "--input", "-"], decision],
+    [
+      ["decision", "supersede", "--record", recordPath, "--id", "D-001", "--title", "Second choice", "--input", "-"],
+      decision,
+    ],
+    [
+      [
+        "slice",
+        "start-direct",
+        "--record",
+        recordPath,
+        "--title",
+        "Retry through the library",
+        "--next-action",
+        "Try it.",
+        "--input",
+        "-",
+      ],
+      "Intended result:\n- Retries.\nAuthority source:\n- User.\nScope:\n- Client.\nExpected evidence:\n- Test.\nStop condition:\n- Done.\nStarting state:\n- None.\n",
+    ],
+    [
+      [
+        "slice",
+        "close",
+        "--record",
+        recordPath,
+        "--state",
+        "abandoned",
+        "--next-action",
+        "Pick another way.",
+        "--input",
+        "-",
+      ],
+      "Result:\n- Not built.\nEvidence and limits:\n- The library ignores Retry-After.\nTask effect:\n- Use our own loop.\nReason:\n- User stopped it.\n",
+    ],
+    [
+      ["slice", "record", "--record", recordPath, "--title", "Baseline run", "--state", "completed", "--input", "-"],
+      "Occurred: 2026-09-26\nIntended result:\n- Baseline.\nAuthority source:\n- User.\nResult:\n- Measured.\nEvidence and limits:\n- Log.\nTask effect:\n- Known baseline.\n",
+    ],
+    [
+      [
+        "slice",
+        "start-direct",
+        "--record",
+        recordPath,
+        "--title",
+        "Own retry loop",
+        "--next-action",
+        "Build it.",
+        "--input",
+        "-",
+      ],
+      "Intended result:\n- Retries.\nAuthority source:\n- User.\nScope:\n- Client.\nExpected evidence:\n- Test.\nStop condition:\n- Done.\nStarting state:\n- None.\n",
+    ],
+    [
+      ["checkpoint", "propose", "--record", recordPath, "--title", "Commit the loop", "--input", "-"],
+      "Type: preserve\nCondition:\n- Tests pass.\nApplies to: S-003\n",
+    ],
+    [["checkpoint", "activate", "--record", recordPath, "--title", "Commit the loop"], ""],
+    [
+      ["checkpoint", "close", "--record", recordPath, "--id", "C-001", "--state", "completed", "--input", "-"],
+      "Result:\n- Committed.\nTask effect:\n- Recoverable point.\n",
+    ],
+  ];
+  for (const [args, input] of steps) {
+    const result = await runScript(workspace, args, input);
+    assert.equal(result.exitCode, 0, `${args.slice(0, 2).join(" ")}: ${result.stderr}`);
+  }
+  const record = await readFile(recordPath, "utf8");
+  const corrected = record.replace(
+    "- Reason: User stopped it.",
+    "- Reason: User stopped it.\n\n##### Corrections\n\n- Field: Result; before: Not built.; after: Not built, prototype only.; reason: clarification; source: chat",
+  );
+  assert.notEqual(corrected, record);
+  await writeFile(recordPath, corrected, "utf8");
+  const valid = await runScript(workspace, ["validate", "--record", recordPath]);
+  assert.equal(valid.exitCode, 0, valid.stderr);
+  return recordPath;
+}
+
+test("resume lists closed History as a one-line index in record order", async () => {
+  const workspace = await makeWorkspace();
+  try {
+    const recordPath = await buildClosedHistory(workspace);
+    const resume = await runScript(workspace, ["view", "resume", "--record", recordPath]);
+    assert.equal(resume.exitCode, 0, resume.stderr);
+    const index = resume.stdout.slice(resume.stdout.indexOf("## History index"), resume.stdout.indexOf("## Notes"));
+    assert.deepEqual(
+      index.split("\n").filter((line) => line.startsWith("- ")),
+      [
+        "- D-001 superseded by D-002 — First choice",
+        "- C-001 completed — Commit the loop",
+        "- S-001 abandoned — Retry through the library (corrected)",
+        "- S-002 completed, recorded retroactively — Baseline run",
+      ],
+    );
+    assert.match(resume.stdout, /## Active Decisions[\s\S]*D-002 — Second choice/);
+    assert.doesNotMatch(index, /^- D-002/m);
+    assert.ok(resume.stdout.indexOf("## Future Work") < resume.stdout.indexOf("## History index"));
+    assert.doesNotMatch(resume.stdout, /The library ignores Retry-After/);
+  } finally {
+    await cleanup(workspace);
+  }
+});
+
+test("resume omits the History index when nothing is closed", async () => {
+  const workspace = await makeWorkspace();
+  try {
+    const initialized = await initRecord(workspace, "no-history");
+    assert.equal(initialized.exitCode, 0, initialized.stderr);
+    const resume = await runScript(workspace, ["view", "resume", "--record", initialized.stdout.trim()]);
+    assert.equal(resume.exitCode, 0, resume.stderr);
+    assert.doesNotMatch(resume.stdout, /History index/);
+  } finally {
+    await cleanup(workspace);
+  }
+});
+
+test("view entry returns stored entries in request order and changes nothing", async () => {
+  const workspace = await makeWorkspace();
+  try {
+    const recordPath = await buildClosedHistory(workspace);
+    const before = await readFile(recordPath, "utf8");
+    const entries = await runScript(workspace, ["view", "entry", "S-001", "D-002", "--record", recordPath]);
+    assert.equal(entries.exitCode, 0, entries.stderr);
+    const sliceStart = before.indexOf("#### S-001");
+    const sliceBlock = before.slice(sliceStart, before.indexOf("#### S-002")).trimEnd();
+    assert.ok(entries.stdout.startsWith(`${sliceBlock}\n\n#### D-002 — Second choice`));
+    assert.match(entries.stdout, /##### Corrections/);
+    assert.equal(await readFile(recordPath, "utf8"), before);
+
+    const active = await runScript(workspace, ["view", "entry", "S-003", "--record", recordPath]);
+    assert.equal(active.exitCode, 0, active.stderr);
+    assert.match(active.stdout, /^#### S-003 — Own retry loop/);
+  } finally {
+    await cleanup(workspace);
+  }
+});
+
+test("view entry fails closed on unknown or malformed IDs and invalid records", async () => {
+  const workspace = await makeWorkspace();
+  try {
+    const recordPath = await buildClosedHistory(workspace);
+    for (const args of [
+      ["view", "entry", "S-001", "S-999", "--record", recordPath],
+      ["view", "entry", "slice-1", "--record", recordPath],
+      ["view", "entry", "--record", recordPath],
+      ["view", "resume", "S-001", "--record", recordPath],
+    ]) {
+      const result = await runScript(workspace, args);
+      assert.equal(result.exitCode, 1, args.join(" "));
+      assert.equal(result.stdout, "", args.join(" "));
+    }
+    await writeFile(recordPath, (await readFile(recordPath, "utf8")).replace("## Notes", "## Remarks"), "utf8");
+    const invalid = await runScript(workspace, ["view", "entry", "S-001", "--record", recordPath]);
+    assert.equal(invalid.exitCode, 1);
+    assert.equal(invalid.stdout, "");
+    const full = await runScript(workspace, ["view", "full", "--record", recordPath]);
+    assert.equal(full.exitCode, 0, full.stderr);
+  } finally {
+    await cleanup(workspace);
+  }
+});
+
+test("resume stays bounded while full grows with History", async () => {
+  const workspace = await makeWorkspace();
+  try {
+    const initialized = await initRecord(workspace, "long-history");
+    assert.equal(initialized.exitCode, 0, initialized.stderr);
+    const recordPath = initialized.stdout.trim();
+    const detail = "Evidence line that only matters when this entry is read. ".repeat(20);
+    for (let index = 1; index <= 30; index += 1) {
+      const recorded = await runScript(
+        workspace,
+        [
+          "slice",
+          "record",
+          "--record",
+          recordPath,
+          "--title",
+          `Earlier step ${index}`,
+          "--state",
+          "completed",
+          "--input",
+          "-",
+        ],
+        `Occurred: 2026-09-01\nIntended result:\n- Step ${index}.\nAuthority source:\n- User.\nResult:\n- ${detail}\nEvidence and limits:\n- ${detail}\nTask effect:\n- Done.\n`,
+      );
+      assert.equal(recorded.exitCode, 0, recorded.stderr);
+    }
+    const full = await runScript(workspace, ["view", "full", "--record", recordPath]);
+    const resume = await runScript(workspace, ["view", "resume", "--record", recordPath]);
+    assert.equal(resume.exitCode, 0, resume.stderr);
+    assert.match(resume.stdout, /- S-030 completed, recorded retroactively — Earlier step 30/);
+    assert.ok(resume.stdout.length * 10 < full.stdout.length, `${resume.stdout.length} vs ${full.stdout.length}`);
   } finally {
     await cleanup(workspace);
   }

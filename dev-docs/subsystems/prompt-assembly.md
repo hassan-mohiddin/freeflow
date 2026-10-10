@@ -140,7 +140,7 @@ Manual control runs the ordinary unsplit Workflow for the held profile. Automati
 - Runtime State unavailable: do not infer it from model identity, response style, or old transition history.
 - Native Pi request replay preserves Freeflow-generated snapshots only when the permitted ancestry and rendered prefix remain compatible; model/provider, tool/schema, instruction, earlier-content, compaction, navigation, or unsupported effort changes may shorten reuse. Provider cache hits remain outside the local assembly contract.
 - Configuration establishes activation but does not prove host delivery.
-- After context loss, the core cue requires complete `full` Working Record recovery when a record exists, current capability/owner methods, and reconciliation with current direction and live evidence. An intact session uses bounded readback instead of repeating full recovery.
+- After context loss, the core cue requires Working Record recovery in Track Work's order when a record exists (the `resume` view with its History index, defining artifacts, Recovery sources, then the History entries the next action depends on), current capability/owner methods, and reconciliation with current direction and live evidence. An intact session uses bounded readback instead of repeating recovery.
 - Attached recovery is not general task access: the recorded worker receives only selected existing evidence, exact admitted task-file reads, packaged Freeflow methods, and recovery return controls. Fresh attention does not finish that recovery; supplement or cancellation precedes assessment resumption.
 - A Runtime State refresh alone is not a user interruption or a replacement execution contract.
 

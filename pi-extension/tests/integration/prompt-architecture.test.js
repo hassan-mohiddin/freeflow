@@ -77,7 +77,8 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   assert.match(core, /latest Freeflow Runtime State/);
   assert.match(core, /recovery is not a bypass/);
   assert.match(core, /evidence of prior approval; check that the approval still applies/);
-  assert.match(core, /read the complete `full` record/);
+  assert.match(core, /recover it in Track Work's order: its `resume` view/);
+  assert.match(core, /then the History entries the next action depends on/);
   assert.match(core, /Then continue the covered work toward the agreed end/);
   assert.match(core, /Context loss is not a reason to stop or to ask for permission again/);
   assert.match(core, /## Terms/);

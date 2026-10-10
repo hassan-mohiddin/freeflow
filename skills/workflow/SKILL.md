@@ -19,7 +19,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Before adopting a remedy that changes behavior, compatibility, host ownership, scope, or another user-owned boundary, explain its concrete consequence and realistic alternatives, and let the user decide.
 - Never silently narrow acceptance to make a result pass.
 - A review finding authorizes neither a correction nor another review. Commit, push, integration, release, launch, and other separately controlled effects stay excluded unless explicitly covered.
-- After context loss, recover through Track Work's order before task work: the complete Working Record, its defining artifacts, then its Recovery sources. If recovery is incomplete, report the limit before task work.
+- After context loss, recover through Track Work's order before task work: the Working Record's `resume` view, its defining artifacts, its Recovery sources, then the History entries the next action depends on. If recovery is incomplete, report the limit before task work.
 - When a Working Record exists, start each Slice through Track Work's lifecycle command; ending one Slice does not select the next.
 - Claim completion only when the agreed outcome is supported by fresh evidence, required self-review is done, selected reviews are adjudicated, selected checkpoints are resolved, and task memory and artifacts describe the result accurately. Never hide a material contradiction, source conflict, blocker, or user-owned decision.
 
