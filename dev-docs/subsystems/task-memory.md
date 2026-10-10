@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/task-memory/`, `capabilities/task-memory/`, `skills/track-work/scripts/lib/registry.mjs`, `skills/track-work/scripts/lib/search.mjs`
 > **Tests:** `pi-extension/tests/task-memory/`, `.skill-eval/track-work/tests/registry.test.mjs`
-> **Verified at:** `5fec4720` (2026-10-11)
+> **Verified at:** `6c48b37c` (2026-10-11)
 
 For contributors changing Freeflow task memory on Pi, a prototype: how a session holds Working Records, how projects, child records and record ownership work, what reaches the model and when, the write gate, and the choices behind them. It is off unless `taskMemory.enabled` is set, and has no user docs yet.
 
@@ -95,8 +95,8 @@ It deliberately does not:
 | The registry, search and import live in Track Work's library; Pi delegates to them. | Portable parts serve every host through the script; Pi adds only harness behavior. | Two Track Work products, one per kind of host. | `5fec4720` |
 | The gate refuses rather than warns. | A write to the wrong record is silent and hard to undo. | Warning only. | `77815ab0` |
 | A fork's attachments are held. | Two sessions would otherwise write one record by accident. | Inheriting them writable. | `77815ab0` |
-| Fan-out creates a worktree per writing child, at `<worktrees>/<repo>-<slug>` on branch `<project>/<task-NNN>-<slug>`, and copies `.freeflow/local.json`. | Each writing workstream needs its own effects boundary; the names match the user's worktree convention and show the task ID in Git; the copy keeps task memory on in the child. | Opening terminals or prepared session files, which Pi cannot do portably (a session file is written only once it has a message). | step-4/5 commit |
-| A session in a task's directory offers that task, without blocking startup. | Makes fan-out a two-step handoff while the user still confirms. | Attaching silently; never offering. | step-4/5 commit |
+| Fan-out creates a worktree per writing child, at `<worktrees>/<repo>-<slug>` on branch `<project>/<task-NNN>-<slug>`, and copies `.freeflow/local.json`. | Each writing workstream needs its own effects boundary; the names match the user's worktree convention and show the task ID in Git; the copy keeps task memory on in the child. | Opening terminals or prepared session files, which Pi cannot do portably (a session file is written only once it has a message). | `6c48b37c` |
+| A session in a task's directory offers that task, without blocking startup. | Makes fan-out a two-step handoff while the user still confirms. | Attaching silently; never offering. | `6c48b37c` |
 | Only the user creates and links projects. | A project groups work across repositories, which only the user knows. | The model creating one after confirmation. | `b51e51cc` |
 
 ## Intended Behavior That Looks Wrong
