@@ -42,6 +42,7 @@ const requiredFiles = [
   "pi-extension/dist/compaction/controller.js",
   "capabilities/task-memory/SKILL.md",
   "pi-extension/dist/task-memory/runtime.js",
+  "pi-extension/dist/task-memory/registry.js",
   "skills/track-work/scripts/lib/views.mjs",
 ];
 const excludedPrefixes = [

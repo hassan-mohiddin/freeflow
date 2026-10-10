@@ -802,6 +802,7 @@ test("Pi describes the mode-free Freeflow argument surface and manual profile co
       label: "task",
       description: "Attach, focus, detach or confirm Working Records (task memory)",
     },
+    { value: "project", label: "project", description: "Create or link a task-memory project" },
     { value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" },
     { value: "resume", label: "resume", description: "Resume the current saved routing responsibility" },
     { value: "enable", label: "enable", description: "Enable Freeflow for this repository" },

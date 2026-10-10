@@ -142,6 +142,7 @@ function freeflowCompletions(prefix: string | undefined, routingAvailable: boole
           ["status", "status", "Show effective Freeflow state"],
           ["compact", "compact", "Prepare, compact and recover now"],
           ["task", "task", "Attach, focus, detach or confirm Working Records (task memory)"],
+          ["project", "project", "Create or link a task-memory project"],
           ...(routingAvailable
             ? [
                 ["profile", "profile", "Hold or release Cognitive Routing profile control"],
@@ -352,6 +353,12 @@ export default function freeflow(pi: FreeflowAPI) {
       routing.state()?.controlMode === "automatic",
     append: (data) => api.appendEntry(TASK_ENTRY, data),
     send: sendSnapshot,
+    owner: () => ({
+      session: liveHost?.sessionManager?.getSessionId?.() ?? "unknown",
+      ...(liveHost?.sessionManager?.getSessionFile?.() ? { file: liveHost.sessionManager.getSessionFile() } : {}),
+      since: new Date().toISOString(),
+    }),
+    confirm: async (title, message) => (liveHost?.hasUI ? Boolean(await liveHost.ui.confirm(title, message)) : false),
     packageRoot,
   });
   registerTaskMemoryTool(api, {
@@ -361,6 +368,34 @@ export default function freeflow(pi: FreeflowAPI) {
       status(ctx);
     },
   });
+  // /freeflow project: the user creates projects and links repositories to them; the model never does (D-015).
+  async function projectCommand(rest: string, ctx: any) {
+    if (!taskMemoryEffective()) {
+      ctx.ui.notify("Task memory is off. Turn it on with taskMemory.enabled in .freeflow/local.json.", "warning");
+      return;
+    }
+    const [sub, ...words] = rest.trim().split(/\s+/).filter(Boolean);
+    const name = words.join(" ");
+    try {
+      if (sub === "new" && name) {
+        const slug = await taskMemory.registry.createProject(name, ctx.cwd);
+        ctx.ui.notify(`Project ${slug} created and linked to this repository.`, "info");
+      } else if (sub === "link" && name) {
+        const slug = await taskMemory.registry.linkProject(name, ctx.cwd);
+        ctx.ui.notify(`This repository is linked to project ${slug}.`, "info");
+      } else {
+        const found = await taskMemory.registry.projectFor(ctx.cwd);
+        ctx.ui.notify(
+          found
+            ? `Project ${found.project.name} (${found.slug}), store ${found.project.store}.\n${await taskMemory.list(ctx.cwd)}`
+            : "This repository is not linked to a project. Use /freeflow project new <name> or link <name>.",
+          "info",
+        );
+      }
+    } catch (error: any) {
+      ctx.ui.notify(error?.message ?? String(error), "warning");
+    }
+  }
   // /freeflow task: the user's own attach, focus, detach and confirm, and a picker over this repository's records.
   async function taskCommand(rest: string, ctx: any) {
     if (!taskMemoryEffective()) {
@@ -386,12 +421,26 @@ export default function freeflow(pi: FreeflowAPI) {
     if (action === "list") result = { ok: true, text: await taskMemory.list(ctx.cwd) };
     else if (action === "attach") result = await taskMemory.attach(target, ctx.cwd);
     else if (action === "focus") result = await taskMemory.focus(target, ctx.cwd);
-    else if (action === "detach") result = taskMemory.detach(target, ctx.cwd);
-    else if (action === "confirm") result = taskMemory.confirm(target, ctx.cwd);
-    else
+    else if (action === "detach") result = await taskMemory.detach(target, ctx.cwd);
+    else if (action === "confirm") result = await taskMemory.confirm(target, ctx.cwd);
+    else if (action === "child") {
+      // From the new session: create a child of the named parent and attach it here.
+      const [parent, ...title] = words;
+      const created = await taskMemory.child(title.join(" "), title.join(" "), parent);
+      const id = /Created child (\S+)/.exec(created.text)?.[1];
+      result = created.ok && id ? await taskMemory.attach(id, ctx.cwd) : created;
+    } else if (action === "import") {
+      const [path, ...project] = words;
+      const yes = ctx.hasUI
+        ? await ctx.ui.confirm("Import record?", `Move ${path} into the ${project.join(" ")} project's store?`)
+        : false;
+      result = yes
+        ? await taskMemory.importRecord(path, project.join(" "), ctx.cwd)
+        : { ok: false, text: "Not imported." };
+    } else
       result = {
         ok: false,
-        text: "Use /freeflow task [list|attach <record>|focus <record>|detach <record>|confirm [record]].",
+        text: "Use /freeflow task [list|attach <id or record>|focus <id or record>|detach <id or record>|confirm [record]|child <parent-id> <title>|import <record> <project>].",
       };
     if (result.snapshot) {
       sendSnapshot(result.text, result.snapshot);
@@ -444,6 +493,7 @@ export default function freeflow(pi: FreeflowAPI) {
     await routing.bind(ctx, capability.cognitiveRouting, (event as any)?.reason !== "reload");
     taskMemory.rebuild(ctx.sessionManager.getBranch());
     if (taskMemoryEffective()) {
+      await taskMemory.load();
       // A fork or clone copies the branch's attachments; they stay held until the user confirms them here.
       if ((event as any)?.reason === "fork") {
         const held = taskMemory.holdInherited();
@@ -533,7 +583,7 @@ export default function freeflow(pi: FreeflowAPI) {
     }
   });
   pi.on("tool_call", async (event, ctx) => {
-    const recordGate = taskMemory.gate(event.toolName, event.input, ctx.cwd);
+    const recordGate = await taskMemory.gate(event.toolName, event.input, ctx.cwd);
     if (recordGate) return recordGate;
     const gate = routing.preflight(event, ctx);
     if ((gate as any)?.block || !toolExecutionEffective()) return gate;
@@ -637,6 +687,7 @@ export default function freeflow(pi: FreeflowAPI) {
     // Task memory follows the branch: the records attached at this point of the conversation.
     const before = taskMemory.state();
     const changed = taskMemory.rebuild(ctx.sessionManager.getBranch());
+    if (taskMemoryEffective()) await taskMemory.load();
     await restore(ctx);
     if (!taskMemoryEffective()) return;
     if (changed) {
@@ -725,6 +776,11 @@ export default function freeflow(pi: FreeflowAPI) {
       const task = /^task(?:\s+(.*))?$/i.exec((args ?? "").trim());
       if (task) {
         await taskCommand(task[1] ?? "", ctx);
+        return;
+      }
+      const project = /^project(?:\s+(.*))?$/i.exec((args ?? "").trim());
+      if (project) {
+        await projectCommand(project[1] ?? "", ctx);
         return;
       }
       if ((args ?? "").trim().toLowerCase() === "compact") {

@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import { fixture } from "../fixtures/routing-native.js";
+
+// Never the user's real registry.
+process.env.FREEFLOW_HOME = await mkdtemp(join(tmpdir(), "freeflow-home-"));
 
 // Task memory on a real Pi session with scripted model responses: attaching records, the snapshot of the focused
 // record, the write gate, and the state following reload, navigation and compaction.

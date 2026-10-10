@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+
+// Never the user's real registry.
+process.env.FREEFLOW_HOME = await mkdtemp(join(tmpdir(), "freeflow-home-"));
 import { foldState, isRecordPath, recordTargets, TASK_ENTRY } from "../../dist/task-memory/runtime.js";
 
 const entry = (op, record) => ({ type: "custom", customType: TASK_ENTRY, data: { op, record } });
@@ -72,6 +78,8 @@ test("a fork's inherited records are held: readable, not writable, until confirm
     routingAutomatic: () => false,
     append: (data) => appended.push(data),
     send: () => {},
+    owner: () => ({ session: "this-session", since: "2026-10-11T00:00:00.000Z" }),
+    confirm: async () => false,
     packageRoot: process.cwd(),
   });
   const record = "/repo/.freeflow/tasks/task-001-a/record.md";
@@ -81,10 +89,10 @@ test("a fork's inherited records are held: readable, not writable, until confirm
     appended.map((data) => data.op),
     ["hold"],
   );
-  assert.match(memory.gate("write", { path: record }, "/repo").reason, /held/);
+  assert.match((await memory.gate("write", { path: record }, "/repo")).reason, /held/);
   assert.match(memory.runtimeLines().join("\n"), /held: not writable until the user confirms/);
-  assert.equal(memory.confirm("", "/repo").ok, true);
-  assert.equal(memory.gate("write", { path: record }, "/repo"), undefined);
+  assert.equal((await memory.confirm("", "/repo")).ok, true);
+  assert.equal(await memory.gate("write", { path: record }, "/repo"), undefined);
   // A second hold pass finds nothing new to hold once everything is held.
   memory.holdInherited();
   assert.deepEqual(memory.holdInherited(), []);
@@ -97,9 +105,37 @@ test("attaching is refused under automatic Cognitive Routing", async () => {
     routingAutomatic: () => true,
     append: () => assert.fail("nothing is written"),
     send: () => {},
+    owner: () => ({ session: "this-session", since: "2026-10-11T00:00:00.000Z" }),
+    confirm: async () => false,
     packageRoot: process.cwd(),
   });
   const result = await memory.attach("/repo/.freeflow/tasks/task-001-a/record.md", "/repo");
   assert.equal(result.ok, false);
   assert.match(result.text, /automatic Cognitive Routing/);
+});
+
+test("with an unreadable registry, writes to records in the store are refused", async () => {
+  const { writeFile, mkdir } = await import("node:fs/promises");
+  const { TaskMemory } = await import("../../dist/task-memory/runtime.js");
+  const home = process.env.FREEFLOW_HOME;
+  await mkdir(home, { recursive: true });
+  await writeFile(join(home, "registry.json"), "{broken");
+  const memory = new TaskMemory({
+    effective: () => true,
+    routingAutomatic: () => false,
+    append: () => {},
+    send: () => {},
+    owner: () => ({ session: "this-session", since: "2026-10-11T00:00:00.000Z" }),
+    confirm: async () => false,
+    packageRoot: process.cwd(),
+  });
+  const stored = join(home, "projects", "p", ".freeflow", "tasks", "task-001-t", "record.md");
+  const local = "/repo/.freeflow/tasks/task-001-a/record.md";
+  memory.rebuild([entry("attach", stored), entry("attach", local)]);
+  assert.match(
+    (await memory.gate("write", { path: stored }, "/repo")).reason,
+    /cannot be written until the registry is repaired/,
+  );
+  // An unregistered record outside the store keeps step-2 behavior.
+  assert.equal(await memory.gate("write", { path: local }, "/repo"), undefined);
 });
