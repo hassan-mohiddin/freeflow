@@ -257,7 +257,7 @@
       "case_concept": "Capture failed verification and partial review without claiming completion or continuing execution.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/handoff/SKILL.md",
-      "source_sha256": "c5fd3113cbb995850b934be40e6a311112b0efc52d6a3dde1c42ebbbaa451e0f",
+      "source_sha256": "eb8accc7951bb2e7a0e2d7c31f8cdce8eb9313d2c1d1146029206895ddbaedca",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -441,7 +441,7 @@
       "case_concept": "Resume after context loss, preserve the current slice through feedback, and record only route- or state-changing evidence.",
       "current_result": "Current Schema 4 Track Work skill has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/track-work/SKILL.md",
-      "source_sha256": "62787743085f0448e52a1c5317e1a12921ea4c554e5f9dff825d7922ba49ab6e",
+      "source_sha256": "5ab9d865a7362f661ba409e4358715274c7d48a833727a3c4170a14d48f8d309",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -495,7 +495,7 @@
       "case_concept": "Implementation evidence invalidates one assumption; change route without restarting unaffected work.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/workflow/SKILL.md",
-      "source_sha256": "71d35bf27c67c343af92f1f97f5210bd54cf4dbae7dd65c866ac9c5c9d001488",
+      "source_sha256": "5bbcccfaa79a57747d7b0c66e3abe1478f4c2015b46cbc9f9313370795f2b336",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
