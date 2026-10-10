@@ -158,9 +158,9 @@ Corrections leave review and return to Execute Work or the artifact owner. They 
 
 ## Task Continuity
 
-After context loss—such as compaction, context-replacing summarization, clear, session resume/navigation, or transfer into another context—read the complete Working Record through `full` when one exists. Page truncated output until complete; stop affected work if full recovery is unavailable. With intact context, use `resume` or targeted reads only when useful.
+After context loss—such as compaction, context-replacing summarization, clear, session resume/navigation, or transfer into another context—recover the Working Record when one exists, in Track Work's order: its `resume` view (present state and a one-line index of closed History), the artifacts that define the task, its Recovery sources, then the closed History entries the next action depends on, by ID. Page truncated output until complete; stop affected work if recovery is incomplete. With intact context, re-read only what the next step needs.
 
-Reconcile the current agreement, assignment, superseded directions, dependencies, partial effects, and evidence with current user direction, defining artifacts, and relevant live state. A full record restores recorded memory, not every linked source or proof of live correctness. Keep separate that an observation occurred and whether it applies now. Another conversation branch may preserve memory but cannot create authority. Continue already-covered work after coherent recovery rather than require another "continue."
+Reconcile the current agreement, assignment, superseded directions, dependencies, partial effects, and evidence with current user direction, defining artifacts, and relevant live state. A recovered record restores recorded memory, not every linked source or proof of live correctness. Keep separate that an observation occurred and whether it applies now. Another conversation branch may preserve memory but cannot create authority. Continue already-covered work after coherent recovery rather than require another "continue."
 
 Routine in-slice feedback is not checkpoint history. Record state changes, accepted boundary extensions, decisions, blockers, evidence, and selected checkpoint results—not every edit or comment.
 

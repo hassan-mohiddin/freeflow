@@ -45,7 +45,7 @@ Coding agents commonly fail at control boundaries:
 | New evidence invalidates the chosen approach. | Workflow re-enters only the affected owner and preserves valid work. |
 | Every task receives the same heavy process. | Workflow scales pressure to consequence, uncertainty, interaction, and reversibility. |
 | A passing command becomes an unsupported completion claim. | Verify Work ties the claim to the actual observer and evidence boundary. |
-| Context loss erases decisions and partial work. | Track Work restores a complete Working Record and reconciles it with live state. |
+| Context loss erases decisions and partial work. | Track Work recovers the Working Record's current state, and the history the next step needs, and reconciles it with live state. |
 | Expensive models perform routine supporting work. | Cognitive Routing can place bounded support and substantive execution on configured profiles. |
 | Models flood their context with whole files and long command output, or lose edits to files that changed behind them. | Tool Execution teaches narrow reads and capped output, tracks what the model has read, and adds `apply_patch` and background commands. |
 | Pi's automatic compaction summarizes work the agent was in the middle of, and the next step drifts. | Compaction warns the agent first, so it compacts at a safe point from its own summary, Working Record and carried context. |
