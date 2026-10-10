@@ -83,17 +83,22 @@ export function storeOf(recordPath) {
     : undefined;
 }
 
+/**
+ * The path with every symlink resolved, including for a path that does not exist yet: the nearest existing ancestor is
+ * resolved and the rest appended. Git reports canonical paths, so comparisons with it need the same form.
+ */
 function canonicalPath(path) {
   const candidate = resolve(path);
-  try {
-    return realpathSync(candidate);
-  } catch {
-    const parent = dirname(candidate);
-    if (parent === candidate) return candidate;
+  const missing = [];
+  let current = candidate;
+  for (;;) {
     try {
-      return join(realpathSync(parent), basename(candidate));
+      return join(realpathSync(current), ...missing);
     } catch {
-      return candidate;
+      const parent = dirname(current);
+      if (parent === current) return candidate;
+      missing.unshift(basename(current));
+      current = parent;
     }
   }
 }

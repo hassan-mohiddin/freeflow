@@ -1988,3 +1988,36 @@ test("resume stays bounded while full grows with History", async () => {
     await cleanup(workspace);
   }
 });
+
+test("a repository reached through a symlinked directory works like any other", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { mkdir, realpath, symlink } = await import("node:fs/promises");
+  const real = await realpath(await makeWorkspace());
+  const linkParent = await makeWorkspace();
+  const linked = join(linkParent, "linked");
+  try {
+    await mkdir(join(real, "repo"));
+    execFileSync("git", ["-C", join(real, "repo"), "init", "-q"]);
+    await writeFile(join(real, "repo", ".gitignore"), ".freeflow/tasks\n");
+    await symlink(real, linked);
+    const repo = join(linked, "repo");
+    const initialized = await runScript(
+      repo,
+      ["init", "--root", repo, "--name", "via-link", "--input", "-"],
+      "### Goal\n- Work through a symlink.\n\n### Next useful action\n- Continue.\n",
+    );
+    assert.equal(initialized.exitCode, 0, initialized.stderr);
+    const relativeRecord = ".freeflow/tasks/task-001-via-link/record.md";
+    const decided = await runScript(
+      repo,
+      ["decision", "add", "--record", relativeRecord, "--title", "Keep it", "--input", "-"],
+      "Decision:\n- Keep it.\nEstablished by:\n- User.\nRationale:\n- R.\nConsequences:\n- C.\nRevisit when:\n- Later.\n",
+    );
+    assert.equal(decided.exitCode, 0, decided.stderr);
+    const valid = await runScript(repo, ["validate", "--record", relativeRecord]);
+    assert.equal(valid.exitCode, 0, valid.stderr);
+  } finally {
+    await cleanup(linkParent);
+    await cleanup(real);
+  }
+});
