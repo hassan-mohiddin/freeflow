@@ -1,0 +1,118 @@
+# Task Memory
+
+Track Work keeps a Working Record for a task that has to survive context loss: its goal, decisions, current work and history. On its own, the agent decides which record belongs to the work, finds it by path, and recovers it by running a script after a compaction. Nothing stops it from writing to the wrong record or recovering one that belongs to other work.
+
+Task memory, a preview on native Pi, makes the session know its records. You attach the records a session works on; one of them is the focus. Freeflow gives the agent the focused record's current state whenever its context is rebuilt, shows the attached records in its Runtime State, and refuses record writes to records you have not attached. Records can also belong to a project, with stable IDs and storage outside any repository, and a task can be split into child records worked in parallel sessions.
+
+Task memory does not decide when a task needs a record or what goes in it: Track Work still does. A session never has to attach anything.
+
+## Availability
+
+- Native Pi only. Other hosts keep Track Work as a skill; see [Other hosts](#other-hosts).
+- Off by default. Turn it on with the Task Memory switch in `/freeflow settings`: the Session scope for this session only (kept in the session, no file changes), Personal for you in this checkout, Repository for everyone. Or set it in `.freeflow/config.json` or `.freeflow/local.json`:
+
+```json
+{
+  "taskMemory": { "enabled": true }
+}
+```
+
+- Off inside subagents: a subagent works on its session's task.
+- Attaching is refused while Cognitive Routing runs automatically. It works with routing off (its switch in `/freeflow settings`) or under a manual hold (`/freeflow profile <name>`).
+
+## Attach and focus
+
+A session holds a set of attached records, and at most one focus.
+
+- **Attach.** When work needs a record, the agent proposes attaching it and Freeflow asks you to confirm. You can also attach one yourself with `/freeflow task attach <task ID or record path>`, or pick from this repository's records with `/freeflow task`. Attaching makes the record the focus and lets the session write it.
+- **Focus.** The agent moves the focus between attached records as the work moves, and says so. Focus grants nothing: it decides which record's state the agent is given.
+- **Detach.** You or the agent can detach a record. The session can then no longer write it.
+
+When a record becomes the focus, and again after a compaction, `/reload`, a resume, a fork or `/tree` navigation, the agent receives the record's resume view: its current state and a one-line index of its closed history, marked as task memory rather than as an instruction. Your latest message still decides what the agent does; the record's next action is where that task stood, not a request.
+
+Attachments belong to the point in the conversation where they were made. After `/tree` takes you to an earlier point, the records attached there apply again, and Freeflow tells you if the focus changed. A forked session starts with the records it inherited held: readable, not writable, until you run `/freeflow task confirm`, so two sessions do not write one record by accident.
+
+## What is refused
+
+A write to a Working Record (editing `record.md`, or a Track Work command that changes a record) is refused unless the record is attached to this session, is not held, and, for a project record, is owned by this session. The refusal says which of these failed, and the agent is told not to write around it. Reading any record is always allowed.
+
+The check guards against the agent writing to the wrong record. It is not a sandbox: a shell command that rewrites the file by other means is not stopped.
+
+## Projects
+
+A project groups related tasks, possibly across several repositories. Only you create and link projects:
+
+```text
+/freeflow project new <name> [--worktrees <dir>]
+/freeflow project link <name> [--worktrees <dir>]
+/freeflow project
+```
+
+`new` creates the project and links the current repository; `link` links another repository to an existing project; `/freeflow project` shows the repository's project and its tasks. `--worktrees` sets where child worktrees go (default: the repository's parent directory).
+
+A project's records live in a store under the Freeflow home, `~/.freeflow/projects/<project>/tasks/task-NNN-<name>/record.md`, not in the repository, so removing a worktree does not remove its task memory. A record outside a project stays in its checkout's `.freeflow/tasks/` and goes with the checkout. Each task has an ID such as `my-app/task-003`, which works wherever a record path does. Set `FREEFLOW_HOME` to keep the registry and stores elsewhere.
+
+Once the repository is linked, ask the agent to create a task in the project. A record in the repository's `.freeflow/tasks/` keeps working there, without an ID or owner; `/freeflow task import <record> <project>` moves it into the project's store after you confirm.
+
+**One session writes each project record.** Attaching a project record makes this session its owner. If another session owns it, Freeflow asks before taking it over; that session's writes are then refused. A session that has ended keeps ownership until another takes it over, because Pi cannot tell that a session is gone.
+
+**A task records where its work happens**: its primary directory (a repository or worktree) and any additional directories. When a session starts in a task's directory with nothing attached, Freeflow offers to attach that task; if you decline, it does not ask again on that session's branch. The resume view warns the agent when the session runs outside the task's directory. Pi's tools can reach any path, so the directory guides the agent rather than restricting it.
+
+## Parallel work: child records
+
+A project task can be split into child records, one per workstream that runs in parallel in its own session; a record outside a project has no children. Each child has its own record and its own writer; the parent's session writes the parent and reads its children. A child has no children of its own, and most tasks need none. A subagent is not a child: it works inside its session.
+
+For a child that will change files, ask the agent to fan out, or run:
+
+```text
+/freeflow task fanout <title>
+```
+
+from the session that owns the parent. Freeflow creates the child record, a Git worktree for it on branch `<project>/<task-NNN>-<name>`, and copies your `.freeflow/local.json` into the worktree so task memory stays on there. It prints the worktree path. Open a terminal there and start Pi: Freeflow offers to attach the child.
+
+For a child that only reads or researches, no worktree is needed. Start a new session and run `/freeflow task child <parent ID> <title>`, which creates the child and attaches it there.
+
+The parent's resume view lists its children with each child's state and next action, and the agent can read a child's record or search across the task and its children. A child's result reaches the parent's record when the parent's session records it.
+
+## Search
+
+Ask the agent to search task memory. It searches the focused task, the task with its parent and children, or every task in the project, and returns matching lines with the record and entry each comes from.
+
+## Commands
+
+| Command | Does |
+| --- | --- |
+| `/freeflow task` | Pick from this repository's records: attach one, or focus one already attached. |
+| `/freeflow task list` | List this repository's records and what is attached. |
+| `/freeflow task attach <ID or path>` | Attach a record and make it the focus. |
+| `/freeflow task focus <ID or path>` | Move the focus to an attached record. |
+| `/freeflow task detach <ID or path>` | Detach a record. |
+| `/freeflow task confirm [record]` | Make a held record writable in this session (and take ownership of a project record). |
+| `/freeflow task fanout <title>` | Create a child of the focused task with its own worktree and branch. |
+| `/freeflow task child <parent ID> <title>` | From a new session: create a child of that task and attach it here. |
+| `/freeflow task import <record> <project>` | Move a repository record into a project's store. |
+| `/freeflow project [new\|link <name> [--worktrees <dir>]]` | Show, create, or link the repository's project. |
+
+`/freeflow status` reports whether task memory is on, and the Runtime State the agent sees lists the attached records and marks the focus.
+
+## Other hosts
+
+On Claude Code, Codex and other hosts, Track Work works as before: the agent recovers a record through its resume view, and opens closed entries by ID when it needs them. Projects, child records, task IDs, worktree fan-out and search are Track Work commands there too: ask the agent to create a project, fan a task out or search a project. Owners are recorded on every host, but only Pi refuses writes; elsewhere the agent checks the project before writing a record another session owns and asks you.
+
+## Prompt cache
+
+Resume views and task-memory notices are appended to the conversation; nothing already sent is edited, so each request still starts with the previous one. While task memory is on, its tool is part of every request. Turning task memory on or off changes the tools and reloads the session, so the next request is written to the provider's cache once. See [Prompt caching](../prompt-caching.md).
+
+## Evidence limits
+
+Native Pi tests cover attaching, focus, the write check, ownership and takeover, held records after a fork, delivery after reload, navigation and both kinds of compaction, projects, children, fan-out, the directory offer, and that each request stays a prefix of the next.
+
+Model behavior was checked in scripted Pi sessions on Claude Haiku 5.5 (xhigh), three runs per case (October 2026): recovering a task from the resume view without reading the whole record, 3 of 3; attaching before writing the record or code, 3 of 3; with two records attached, writing a finding to the right one, 3 of 3; keeping to your request when another record is in focus, and leaving a declined record unchanged, 3 of 3. Three runs show the effect, not a rate. Other models, long real use, and parallel sessions beyond one manual trial have not been measured.
+
+## Related documentation
+
+- [Using Freeflow Effectively: Track Work](../using-freeflow.md#preserve-memory-with-track-work)
+- [Compaction](compaction.md)
+- [Capabilities](README.md)
+- [Pi integration](../integrations/pi.md)
+- [How task memory works](../../dev-docs/subsystems/task-memory.md) (developer docs)

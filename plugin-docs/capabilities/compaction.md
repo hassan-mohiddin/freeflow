@@ -48,7 +48,7 @@ A safe point is a finished step whose result the agent knows: a check it ran and
 2. **The carried context**: the user's latest messages word for word, then what the agent carries. The agent picks files (read fresh at compaction, optionally by line range) and earlier tool results; Freeflow fills the rest of the carry budget with the newest results of the work in progress and lists the others by reference, so the agent can carry them later, select them as evidence, or read them again. Files and read results are numbered by file line, so the agent can cite them without reading them again.
 3. **A recovery message**: recover the Working Record the summary names (or re-read the summary's recovery sources), check the live state the next step depends on, and continue; do not re-read what was carried, and do not compact again in this cycle.
 
-The carry budget is 15% of the window, at most 40k tokens, and at most a quarter of the warning point. Freeflow never names a Working Record itself: it cannot tell which record belongs to the work, so the agent's summary names it.
+The carry budget is 15% of the window, at most 40k tokens, and at most a quarter of the warning point. Freeflow never names a Working Record itself: it cannot tell which record belongs to the work, so the agent's summary names it. With [Task Memory](task-memory.md) on, the session knows its focused record, and Freeflow delivers that record's resume view after the recovery message.
 
 ## When Pi compacts first
 
@@ -79,6 +79,7 @@ Known limits:
 - [Capabilities](README.md)
 - [Cognitive Routing](cognitive-routing.md)
 - [Tool Execution](tool-execution.md)
+- [Task Memory](task-memory.md)
 - [Pi integration](../integrations/pi.md)
 - [Prompt caching](../prompt-caching.md)
 - [How compaction works](../../dev-docs/subsystems/compaction.md) (developer docs)

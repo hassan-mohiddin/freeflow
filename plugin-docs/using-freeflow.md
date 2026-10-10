@@ -335,9 +335,9 @@ Only the user changes task state. Closing a Slice does not complete the task.
 
 ### Recovery after context loss
 
-After compaction, clear, resume/navigation, transfer, or uncertain continuity, the agent reads the complete `full` record, including History and Notes, then reconciles it with current user direction, accepted artifacts, live files, and actual effects.
+After compaction, clear, resume/navigation, transfer, or uncertain continuity, the agent recovers the record through its `resume` view: the record's present state and a one-line index of closed History. It then reads what defines the task and the record's Recovery sources, opens the closed History entries the next action depends on by ID, and reconciles all of it with current user direction, live files, and actual effects. It does not open the whole record to recover it; that loads every History entry, most of which the next step does not need.
 
-With intact context, a bounded `resume` view or targeted read is normally enough. Re-reading the complete record after every ordinary turn wastes context and does not make it more authoritative.
+With intact context, re-reading the record after every ordinary turn wastes context and does not make it more authoritative.
 
 ### Ask for task memory directly
 
@@ -349,14 +349,40 @@ and next useful action.
 ```
 
 ```text
-Before continuing, recover the complete Working Record and reconcile it with
-the current branch and my latest direction.
+Before continuing, recover the Working Record and reconcile it with the
+current branch and my latest direction.
 ```
 
 ```text
 Pause safely and prepare a handoff. Preserve partial effects and the exact
 condition for resuming.
 ```
+
+### Task memory on Pi
+
+On native Pi, task memory (a preview, off by default) lets the session hold its Working Records instead of leaving the agent to find them. Turn it on with the Task Memory switch in `/freeflow settings`. Then:
+
+- **Attach the records a session works on.** The agent proposes attaching a record when the work needs one, and you confirm; or run `/freeflow task` to pick one. A session that needs no memory attaches nothing.
+- **The focused record comes back on its own.** After a compaction, `/reload`, a resume or `/tree` navigation, the agent receives the focused record's resume view, so recovery does not depend on the agent remembering which record it was using.
+- **Wrong-record writes are refused.** With two records attached, each update goes to the record it concerns; writes to a record you have not attached are refused and reported.
+- **Group tasks in a project.** `/freeflow project new <name>` keeps the project's records in `~/.freeflow` with IDs such as `my-app/task-003`, so they outlive the worktree they were made in.
+- **Split a task across sessions.** `/freeflow task fanout <title>` creates a child record with its own worktree and branch; start Pi in that worktree and it offers to attach the child. You run both sessions; the parent's session reads the child's record.
+
+Useful requests:
+
+```text
+Attach the retry task and continue from its next action.
+```
+
+```text
+Fan the parser port out into a child task so I can run it in another session.
+```
+
+```text
+Search this project's tasks for where we decided the cache key format.
+```
+
+See [Task Memory](capabilities/task-memory.md) for commands, projects, child records, and limits.
 
 ## Configure Freeflow
 
@@ -452,7 +478,7 @@ It keeps Pi's `read`, `bash`, `edit`, `write`, `grep`, `find` and codemode, and 
 
 ## Long sessions and compaction
 
-On native Pi, Freeflow compaction is on by default. As the context nears the model's window, Freeflow warns the agent; at a safe point it updates its Working Record, writes a summary, picks what to carry, and compacts itself, then continues the same run. Pi's own compaction stays on as the fallback. Run `/freeflow compact` to ask for a compaction now, and `/freeflow status` to see the cycle and how close the context is to each point. If a task matters across compactions, keep a Working Record (Track Work): the summary names it, and recovery starts from it. See [Compaction](capabilities/compaction.md).
+On native Pi, Freeflow compaction is on by default. As the context nears the model's window, Freeflow warns the agent; at a safe point it updates its Working Record, writes a summary, picks what to carry, and compacts itself, then continues the same run. Pi's own compaction stays on as the fallback. Run `/freeflow compact` to ask for a compaction now, and `/freeflow status` to see the cycle and how close the context is to each point. If a task matters across compactions, keep a Working Record (Track Work): the summary names it, and recovery starts from it. With task memory on, Freeflow also gives the agent the focused record's current state right after the compaction. See [Compaction](capabilities/compaction.md).
 
 ## Choose a Cognitive Routing mode
 
@@ -608,7 +634,11 @@ Under automatic Cognitive Routing, worker return ends the worker assignment but 
 
 ### A long task loses direction
 
-Ask the agent to recover the complete Working Record, current assignment, and applicable live sources. If no record exists, reconstruct only what can be supported rather than treating a summary as exact history.
+Ask the agent to recover the Working Record, current assignment, and applicable live sources. If no record exists, reconstruct only what can be supported rather than treating a summary as exact history.
+
+### A Working Record write is refused (Pi task memory)
+
+With task memory on, the agent may write only records attached to the session, not held, and, for a project record, owned by the session. The refusal names which. Attach the record with `/freeflow task attach <record>` if the work belongs to it; after a fork, run `/freeflow task confirm` to make an inherited record writable; if another session owns a project record, attaching it here asks before taking it over.
 
 ### A verification passed but completion remains open
 
@@ -643,6 +673,7 @@ Keep claims at the boundary actually observed.
 - [Skill routing and dependencies](../dev-docs/subsystems/skill-routing.md)
 - [Cognitive Routing](capabilities/cognitive-routing.md)
 - [Tool Execution](capabilities/tool-execution.md)
+- [Task Memory](capabilities/task-memory.md)
 - [Pi integration](integrations/pi.md)
 - [Capabilities](capabilities/README.md)
 - [Release process](../dev-docs/guides/release.md)
