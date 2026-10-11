@@ -9,7 +9,8 @@ export const STOP_BACKGROUND = "stop_background";
 export const NOTICE_TYPE = "freeflow-background";
 export const MAX_RUNNING = 16;
 /** Marks harness messages, which arrive on their own schedule, as not written by the user. */
-export const NOTICE_PREFIX = "[Freeflow notice, not from the user]";
+import { NOTICE_PREFIX } from "../host/inbound.js";
+export { NOTICE_PREFIX };
 const newId = () => `bg${randomBytes(6).readUIntBE(0, 6).toString(36).slice(-6).padStart(6, "0")}`;
 function labelFor(command, description) {
   const text = description?.trim() || command.trim().split("\n")[0];

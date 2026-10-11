@@ -1,4 +1,5 @@
 import { renderTaskCall, renderTaskResult } from "./render.js";
+import { confirmWithUser } from "../ask-user/ask.js";
 export const TASK_MEMORY_TOOL = "task_memory";
 const DESCRIPTION =
   "Task memory: the Working Records (Track Work) this session works on, and their projects. Reading needs no permission: projects lists every project; list lists this repository's records, or a project's tasks; view reads a record's resume view or one entry by task ID; search finds lines in the focused task, its tree, or its project. Attention: focus switches to an attached record; detach stops working on one. Proposals, each confirmed by the user in a dialog before anything happens: attach a record; create a task in this repository's project and attach it; child or fanout (a child with its own Git worktree) of the focused task for a parallel session; project_new or project_link for this repository; import a repository record into a project; confirm a held record; env to change a task's directories. A decline is the user's answer: do not retry it or work around it.";
@@ -81,7 +82,7 @@ export function registerTaskMemoryTool(pi, host) {
 /** Ask the user before an action taken on their authority; without a UI the proposal cannot be confirmed. */
 async function ask(ctx, title, message) {
   if (!ctx.hasUI) return { ok: false, text: `${title} needs the user's confirmation, and no UI is available.` };
-  if (await ctx.ui.confirm(title, message)) return undefined;
+  if (await confirmWithUser(ctx, title, message)) return undefined;
   return { ok: false, headline: "Declined by the user", text: "The user declined. Do not retry or work around it." };
 }
 const show = (value) => (typeof value === "string" ? value.trim() : "");

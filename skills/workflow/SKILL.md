@@ -31,7 +31,7 @@ Interpret the whole turn through the Interaction Contract.
 
 - For discussion or a question, collaborate and inspect relevant existing evidence as needed.
 - For execution, establish the intended outcome, permitted scope, and user-facing return condition. The agreement may cover a plan, one correction, one Slice, or a whole task.
-- If the request already establishes those boundaries, acknowledge them briefly and proceed. Otherwise ask only the missing material question and wait before the unsettled execution.
+- If the request already establishes those boundaries, acknowledge them briefly and proceed. Otherwise ask only the missing material question and wait before the unsettled execution. Read [Asking The User](references/asking-the-user.md) before asking the user for a choice that is theirs to make.
 
 For example, after discussing several possible Slices, an ambiguous "proceed" may need: "Implement the next Slice and return, or finish the described task?" Do not ask this when the user already requested the whole task with a clear endpoint.
 

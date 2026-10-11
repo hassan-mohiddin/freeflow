@@ -85,6 +85,7 @@ How each part works and why:
 - [Cognitive Routing](subsystems/cognitive-routing.md): profiles and control, one routed run step by step, units and assignments, routing tools, evidence selection and projection, recovery, persistence, and the behavior that looks wrong but is intended.
 - [Compaction](subsystems/compaction.md): when compaction is due, the agent path and carried context, Cognitive Routing and Pi's own compaction, and the behavior that looks wrong but is intended.
 - [Task memory](subsystems/task-memory.md) (prototype): Working Records attached to a Pi session, snapshot delivery, the write gate, and its decisions.
+- [Ask user and the inbound channel](subsystems/ask-user.md): the `ask_user` dialog, its guidance layers, and how content from outside the turn reaches the model.
 - [Tool Execution](subsystems/tool-execution.md): the layer over Pi's tools: prompt sections, file tracking, edit error rewrites, `apply_patch`, background commands, and the bash guard.
 - [Request history and prompt cache](subsystems/request-history-and-cache.md): how generated messages keep their positions, cache breakpoints, the Coordinator keep-alive, effort history, and cache health.
 - [Pi extension](subsystems/pi-extension.md): what the extension registers, cache reuse boundaries, persistence and recovery limits, development snapshots.

@@ -256,6 +256,8 @@ export async function readCapabilityState(cwd, host = undefined) {
     toolExecution,
     compaction,
     taskMemory,
+    // ask_user: core, on whenever Freeflow is enabled (Task 002 D-001); off in subagents, which have no user.
+    askUser: { enabled, effective: enabled },
   };
   if (!subagentContext) return capabilityState;
 
@@ -265,6 +267,7 @@ export async function readCapabilityState(cwd, host = undefined) {
     toolExecution: disableSubagentCapability(capabilityState.toolExecution),
     compaction: disableSubagentCapability(capabilityState.compaction),
     taskMemory: disableSubagentCapability(capabilityState.taskMemory),
+    askUser: disableSubagentCapability(capabilityState.askUser),
   };
 }
 

@@ -88,7 +88,7 @@
       "case_concept": "Refuse an unapproved evidence-class downgrade while avoiding questions about local details.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/decision-gate/SKILL.md",
-      "source_sha256": "1a7b9296d8a07728ac82ae692a672c0fb5c174cb73d27f88d68a5a7c4b163a4f",
+      "source_sha256": "5788f0e85a9f569e646d9b473bda00f2459d2b767d5292e6aedbb01740e56e70",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -165,7 +165,7 @@
       "case_concept": "Explore a materially open implementation direction without creating artifacts or treating discussion as execution authority.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/discuss/SKILL.md",
-      "source_sha256": "27285031fac2caa0c015fc70029d2c25f60bcb25efe1d76c75c3d535b91779f2",
+      "source_sha256": "be7ca6bcd6777b155966254e44aa7817977d3efcc9bbc0a56203d4e44c9bc235",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -234,7 +234,7 @@
       "case_concept": "Present safe routes without merging or cleaning a harness worktree until the owner selects one.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/finish-branch/SKILL.md",
-      "source_sha256": "dcd3a95f2cac36e16c6ced155c65a390e4200547123d53700a89aff15f87b3b5",
+      "source_sha256": "52ee4b4463c7225a93eaf713ee09d61889f46a9f1332af3522d6b7cde6f7fda1",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -495,7 +495,7 @@
       "case_concept": "Implementation evidence invalidates one assumption; change route without restarting unaffected work.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/workflow/SKILL.md",
-      "source_sha256": "5bbcccfaa79a57747d7b0c66e3abe1478f4c2015b46cbc9f9313370795f2b336",
+      "source_sha256": "32f54973d1ccfd0a0710e8b312abdadbbb384b1d8fa9c301b6c563f8fd8ea519",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

@@ -15,7 +15,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 - Conversation, convergence, a recommendation, or a recorded proposal never authorizes execution. Begin implementation only under an execution agreement established through [Workflow](../workflow/SKILL.md).
 - Keep supported facts and explicit decisions distinct from hypotheses, proposed mechanisms, and unresolved choices. An assistant recommendation never becomes a requirement because it is repeated or recorded.
-- Leave priorities, behavior, constraints, and tradeoffs the user owns to the user; ask rather than decide them.
+- Leave priorities, behavior, constraints, and tradeoffs the user owns to the user; ask rather than decide them. Read Workflow's [Asking The User](../workflow/references/asking-the-user.md) before asking the user for a choice that is theirs to make.
 - Never weaken required behavior to make an approach look simpler.
 - A successful demonstration is not production acceptance; promotion must be deliberately selected and its effects authorized.
 

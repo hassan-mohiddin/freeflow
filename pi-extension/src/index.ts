@@ -14,6 +14,7 @@ import { FileTracking } from "./tool-execution/file-tracking.js";
 import { registerApplyPatch } from "./tool-execution/apply-patch/tool.js";
 import { applyToolExecutionTools } from "./tool-execution/tools.js";
 import { BackgroundJobs, NOTICE_PREFIX, NOTICE_TYPE, registerBackgroundTools } from "./tool-execution/background.js";
+import { Inbound, renderNotice } from "./host/inbound.js";
 import { backgroundRefusal } from "./tool-execution/bash-guard.js";
 import { CompactionController, USER_REQUEST, type TurnEnd } from "./compaction/controller.js";
 import { applyCompactionTools, registerCompactionTool } from "./compaction/tool.js";
@@ -21,6 +22,8 @@ import { strictest } from "./compaction/thresholds.js";
 import { SNAPSHOT_TYPE, TASK_ENTRY, TaskMemory, type TaskResult } from "./task-memory/runtime.js";
 import { applyTaskMemoryTools, registerTaskMemoryTool } from "./task-memory/tool.js";
 import { renderSnapshotMessage } from "./task-memory/render.js";
+import { applyAskUserTool, registerAskUserTool } from "./ask-user/tool.js";
+import { confirmWithUser } from "./ask-user/ask.js";
 import { tagProjectedMessages } from "./host/projection-tags.js";
 import { trustStartedSession } from "./host/read-only-session.js";
 import { takeStage } from "./host/staging.js";
@@ -205,6 +208,7 @@ export default function freeflow(pi: FreeflowAPI) {
   const toolExecutionEffective = () => capability?.toolExecution?.effective === true;
   const compactionEffective = () => capability?.compaction?.effective === true;
   const taskMemoryEffective = () => capability?.taskMemory?.effective === true;
+  const askUserEffective = () => capability?.askUser?.effective === true;
   const cacheHealth = new CacheHealth();
   let prompts: any;
   let refreshState = true;
@@ -246,6 +250,7 @@ export default function freeflow(pi: FreeflowAPI) {
     applyToolExecutionTools(api, toolExecutionEffective());
     applyCompactionTools(api, compactionEffective());
     applyTaskMemoryTools(api, taskMemoryEffective());
+    applyAskUserTool(api, askUserEffective());
     setFreeflowStatus(ctx, capability, routing.state(), prompts);
   }
   // Control and setting changes made between prompts are staged; their net effect is written as a prompt starts.
@@ -276,32 +281,33 @@ export default function freeflow(pi: FreeflowAPI) {
   }
 
   registerRoutingTools(api, routing);
+  registerAskUserTool(api, {
+    // Under automatic routing only the Coordinator talks to the user; a worker returns the choice in its report.
+    refusal: () => {
+      const scope = routing.observationScope();
+      return scope.control === "automatic" && (scope.profile === "helper" || scope.profile === "executor")
+        ? "A Cognitive Routing worker does not ask the user. Put the choice, its options and your recommendation in your report (freeflow_return); the Coordinator asks."
+        : undefined;
+    },
+  });
   registerApplyPatch(api, {
     effective: toolExecutionEffective,
     files: (ctx) => files.forPatch(ctx),
     written: (paths, ctx) => files.written(paths, ctx),
   });
+  // Content arriving from outside the turn (host/inbound.ts): background exits now, later monitors and messages.
+  const inbound = new Inbound({
+    sendMessage: (message, options) => api.sendMessage(message, options),
+    sendUserMessage: (content) => api.sendUserMessage(content),
+    isIdle: () => liveHost?.isIdle?.(),
+  });
+  api.registerMessageRenderer?.(NOTICE_TYPE, renderNotice("Background"));
   const backgroundHost = {
     effective: toolExecutionEffective,
     shellPath: () => api.getSettings?.()?.shellPath,
     // An exit notice starts a turn when idle; mid-run it is steered in after the current turn's tool results.
-    send: (content: string, details: Record<string, unknown>, triggerTurn: boolean) => {
-      const notice = () =>
-        Promise.resolve(
-          api.sendMessage(
-            { customType: NOTICE_TYPE, content, display: true, details },
-            triggerTurn ? { triggerTurn: true, deliverAs: "steer" } : { triggerTurn: false },
-          ),
-        ).catch(() => {});
-      // When idle, the notice starts the run as a user message: a run an extension message starts loses Freeflow's
-      // system sections from its second request (Pi #10267). If a run started meanwhile, it is steered in instead.
-      if (!triggerTurn || liveHost?.isIdle?.() !== true) return notice();
-      try {
-        return Promise.resolve(api.sendUserMessage(content)).catch(notice);
-      } catch {
-        return notice();
-      }
-    },
+    send: (content: string, details: Record<string, unknown>, triggerTurn: boolean) =>
+      inbound.deliver({ customType: NOTICE_TYPE, content, details, wake: triggerTurn }),
   };
   const background = new BackgroundJobs(backgroundHost);
   registerBackgroundTools(api, background, backgroundHost);
@@ -377,7 +383,7 @@ export default function freeflow(pi: FreeflowAPI) {
       ...(liveHost?.sessionManager?.getSessionFile?.() ? { file: liveHost.sessionManager.getSessionFile() } : {}),
       since: new Date().toISOString(),
     }),
-    confirm: async (title, message) => (liveHost?.hasUI ? Boolean(await liveHost.ui.confirm(title, message)) : false),
+    confirm: async (title, message) => (liveHost?.hasUI ? confirmWithUser(liveHost, title, message) : false),
     cwd: () => liveHost?.cwd ?? process.cwd(),
     packageRoot,
   });
@@ -469,7 +475,7 @@ export default function freeflow(pi: FreeflowAPI) {
     } else if (action === "import") {
       const [path, ...project] = words;
       const yes = ctx.hasUI
-        ? await ctx.ui.confirm("Import record?", `Move ${path} into the ${project.join(" ")} project's store?`)
+        ? await confirmWithUser(ctx, "Import record?", `Move ${path} into the ${project.join(" ")} project's store?`)
         : false;
       result = yes
         ? await taskMemory.importRecord(path, project.join(" "), ctx.cwd)
@@ -548,7 +554,8 @@ export default function freeflow(pi: FreeflowAPI) {
       const suggested = ctx.hasUI ? await taskMemory.suggestion(cachedBranch(ctx.sessionManager)) : undefined;
       if (suggested)
         void (async () => {
-          const yes = await ctx.ui.confirm(
+          const yes = await confirmWithUser(
+            ctx,
             `Attach ${suggested.id}?`,
             `This directory belongs to ${suggested.title} (${suggested.id}). Attach it to this session?`,
           );
@@ -573,6 +580,7 @@ export default function freeflow(pi: FreeflowAPI) {
     surfaceGeneration++;
     // Background processes belong to this extension instance; none may report into the next session.
     await background.stopAll();
+    inbound.reset();
     files.reset();
     compaction.reset();
     resetHistory();

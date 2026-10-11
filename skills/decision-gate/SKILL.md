@@ -15,7 +15,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 ## Rules
 
-- After asking, stop. Do not perform the blocked action in the same response, and never settle a user-owned choice by proceeding.
+- After asking, stop: do not perform the blocked action until the user answers, whether you asked in your reply or in a dialog, and never settle a user-owned choice by proceeding.
 - Never ask the user to choose between factual claims that available evidence can settle.
 - Urgency, prior effort, reviewer confidence, common practice, or general approval to continue does not resolve an unnamed decision or source conflict.
 - An explicit choice resolves only the decision that was asked. A question, criticism, hypothesis, preference, conditional answer, or request for more information is not a decision, and no answer authorizes unrelated effects, another outcome, or a separately controlled boundary.
@@ -56,7 +56,7 @@ If established precedence resolves the conflict, return the supported result to 
 
 ## Ask One Direct Question
 
-Goal: the user can decide from one message, and knows what you recommend.
+Goal: the user can decide from one message or dialog, and knows what you recommend.
 
 State proportionately:
 
@@ -70,6 +70,8 @@ State proportionately:
 Frame the choice around the outcome the user owns, not implementation mechanics: do not ask which file to change when the real decision is which behavior or contract should govern. Do not manufacture a menu; omit dominated, unsafe, unavailable, or hypothetical options. A yes-or-no question fits when one supported deviation needs a decision. Include preserving current behavior, waiting, or stopping only when each is real.
 
 Recommend plainly when one path is better supported, with its principal tradeoff and what would change the recommendation. A recommendation is not the user's decision.
+
+Read Workflow's [Asking The User](../workflow/references/asking-the-user.md) before asking the user for a choice that is theirs to make. When it goes in a dialog, say points 1–3 in your reply and put 4–6 in the dialog.
 
 ## Interpret And Return The Decision
 

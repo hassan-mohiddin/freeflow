@@ -87,8 +87,9 @@ test(
     const delegate = { name: "freeflow_delegate", args: { operation: "assign", contract: "Read the part files." } };
     const submit = { name: "freeflow_return", args: { operation: "submit", report: "Done.", outcome: "completed" } };
     const close = { name: "freeflow_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } };
-    // Pi's read returns at most about 50 KB per call, so the history grows through ten reads of ~8,000 tokens. The
-    // worker measures about 81k (under the 82,999 warning); the full history with the system prompt is over it.
+    // Pi's read returns at most about 50 KB per call, so the history grows through ten reads of ~7,500 tokens. The
+    // worker stays under the 82,999 warning; the full history with the system prompt is over it (about 98k) and under
+    // compact now (102,999), with room on both sides for the system prompt to grow.
     const parts = Array.from({ length: 10 }, (_, i) => `part${i}.txt`);
     await fixture(
       async (n) =>
@@ -115,7 +116,7 @@ test(
       {
         freeflowConfig: { toolExecution: { enabled: true } },
         beforePrompt: async ({ cwd }) => {
-          for (const path of parts) await writeFile(join(cwd, path), "y".repeat(32_000));
+          for (const path of parts) await writeFile(join(cwd, path), "y".repeat(30_000));
         },
       },
     );

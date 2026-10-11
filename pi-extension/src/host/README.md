@@ -15,6 +15,7 @@ Everything Freeflow needs on Pi that is not one capability: reading configuratio
 | [`staging.ts`](staging.ts) | Control changes made between prompts are staged and only their net effect is written when the next prompt starts. |
 | [`status.ts`](status.ts) | The two status surfaces: the footer (current settings only) and the `/freeflow status` report (diagnostics, including prompt-cache health). |
 | [`branch.ts`](branch.ts) | The active session branch, walked once per leaf: every reader gets the same frozen array until the leaf moves (see `dev-docs/guides/performance.md`, rule R-3). |
+| [`inbound.ts`](inbound.ts) | The inbound channel: content reaching the model from outside the turn (background exits now). Steered in while the agent works, a user message while it is idle; batching and limits per source; the notice prefix and its one-line transcript row. |
 | [`canonical.ts`](canonical.ts) | Deterministic JSON, so equal values serialize, compare, and hash equally. |
 | [`settings/`](settings/README.md) | The `/freeflow` command and its settings screens. |
 

@@ -95,7 +95,7 @@ Planning refuses an Add over an existing file the model has not read, a Move ont
 
 `BackgroundJobs` (`background.ts`) runs a command through Pi's own shell backend (`createLocalBashOperations()`), so it gets the same shell, environment and process-tree kill as `bash`. Output streams to `<tmpdir>/freeflow/<session>/background/<id>.output`; the folder has mode 0700, the file 0600, and it ends with an exit trailer. At most 16 run at once (`MAX_RUNNING`).
 
-On exit, `notify()` sends a `freeflow-background` message:
+On exit, `notify()` sends a `freeflow-background` notice through the inbound channel (`host/inbound.ts`, see [Ask user and the inbound channel](ask-user.md)), drawn in the transcript as one line:
 
 - mid-run, it is steered in after the current turn's tool results;
 - when idle, it starts a turn as a user message (see Decisions).

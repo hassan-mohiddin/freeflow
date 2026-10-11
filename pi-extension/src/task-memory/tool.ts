@@ -1,5 +1,6 @@
 import type { TaskMemory, TaskResult } from "./runtime.js";
 import { renderTaskCall, renderTaskResult } from "./render.js";
+import { confirmWithUser } from "../ask-user/ask.js";
 
 export const TASK_MEMORY_TOOL = "task_memory";
 
@@ -94,7 +95,7 @@ export function registerTaskMemoryTool(pi: any, host: TaskToolHost): void {
 /** Ask the user before an action taken on their authority; without a UI the proposal cannot be confirmed. */
 async function ask(ctx: any, title: string, message: string): Promise<TaskResult | undefined> {
   if (!ctx.hasUI) return { ok: false, text: `${title} needs the user's confirmation, and no UI is available.` };
-  if (await ctx.ui.confirm(title, message)) return undefined;
+  if (await confirmWithUser(ctx, title, message)) return undefined;
   return { ok: false, headline: "Declined by the user", text: "The user declined. Do not retry or work around it." };
 }
 
