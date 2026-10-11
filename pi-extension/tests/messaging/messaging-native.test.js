@@ -49,6 +49,20 @@ test(
   },
 );
 
+test("without Pi's tool_search, messaging declares its two tools directly", { timeout: 30000 }, async () => {
+  await fixture(
+    async () => [],
+    false,
+    async ({ requests }) => {
+      assert.ok(!toolNames(requests[0]).includes("tool_search"));
+      assert.ok(toolNames(requests[0]).includes("list_sessions"));
+      assert.ok(toolNames(requests[0]).includes("send_message"));
+    },
+    true,
+    { ...on, beforeExtensions: [] },
+  );
+});
+
 test("messaging off (the default): no tool_search added, no cue, no registry entry", { timeout: 30000 }, async () => {
   await fixture(
     async () => [],

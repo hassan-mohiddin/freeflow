@@ -81,18 +81,20 @@ export function registerMessagingTools(pi: any, messaging: Messaging, effective:
 const activatedSearch = new WeakSet<object>();
 
 /**
- * While messaging is effective, make sure Pi's tool_search is active so the deferred tools can be loaded; withdraw it
- * again only if Freeflow activated it. When messaging is off, withdraw messaging tools tool_search loaded.
+ * While messaging is effective, keep Pi's tool_search active so the deferred tools can be loaded, and withdraw it again
+ * only if Freeflow activated it. Where Pi has no tool_search (built-in extensions turned off, or an SDK host without
+ * it), declare the two tools directly instead. When messaging is off, withdraw whatever messaging declared.
  */
 export function applyMessagingTools(pi: any, effective: boolean): void {
   if (typeof pi.getActiveTools !== "function" || typeof pi.setActiveTools !== "function") return;
   const current: string[] = pi.getActiveTools();
-  const registered = (pi.getAllTools?.() ?? []).some((tool: any) => tool.name === TOOL_SEARCH);
+  const searchable = (pi.getAllTools?.() ?? []).some((tool: any) => tool.name === TOOL_SEARCH);
   let next = current;
-  if (effective && registered && !current.includes(TOOL_SEARCH)) {
+  if (effective && searchable && !current.includes(TOOL_SEARCH)) {
     next = [...current, TOOL_SEARCH];
     activatedSearch.add(pi);
   }
+  if (effective && !searchable) next = [...current, ...MESSAGING_TOOLS.filter((name) => !current.includes(name))];
   if (!effective) {
     next = current.filter(
       (name) =>
