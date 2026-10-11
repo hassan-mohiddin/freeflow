@@ -397,7 +397,7 @@ export class CompactionController {
     const recovery = this.host.notice(
       `${recoveryText(
         cycle,
-        "The carried context is above: its files were read at compaction, so do not read them or its results again unless something has changed them since. ",
+        "The files and results copied into the carried context above were read at compaction: do not read those again unless something has changed them. Skills, and anything listed there only by name, were not carried: read them when you need them. ",
       )} ${AFTER_REQUESTED}`,
     );
 

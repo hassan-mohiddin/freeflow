@@ -70,7 +70,11 @@ export function registerTaskMemoryTool(pi: any, host: TaskToolHost): void {
         name: { type: "string", description: "project_new, project_link, project_remove: the project's name" },
         worktrees: { type: "string", description: "project_new, project_link: where children's worktrees go" },
         title: { type: "string", description: "create, child, fanout: the new task's title" },
-        goal: { type: "string", description: "create, child, fanout: its goal, one line" },
+        goal: {
+          type: "string",
+          description:
+            "create, child, fanout: its goal, one line; omitted, the title is the goal (the dialog shows it)",
+        },
         entry: { type: "string", description: "view: one entry ID such as S-004" },
         query: { type: "string", description: "search: text to find" },
         scope: { type: "string", enum: ["task", "tree", "project"], description: "search: where to look" },
@@ -158,7 +162,7 @@ async function run(host: TaskToolHost, params: any, ctx: any, approved = false):
       const declined = await ask(
         ctx,
         "Create task?",
-        `Create "${show(params.title)}" in this repository's project and attach it to this session?${show(params.goal) ? ` Goal: ${show(params.goal)}` : ""}`,
+        `Create "${show(params.title)}" in this repository's project and attach it to this session? Goal: ${show(params.goal) || show(params.title)}`,
       );
       if (declined) return declined;
       const created = await memory.create(params.title, params.goal, cwd);
