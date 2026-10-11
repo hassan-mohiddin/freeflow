@@ -175,7 +175,7 @@ Freeflow's and Pi's compaction may remove active user or evidence bodies while t
 | Projection errors block the request rather than falling back to the full history. | The Coordinator must never receive a worker's full history by accident. | Silent cost and context blow-up. |
 | A recovering worker may not run tests or search, even to find the evidence asked for. | Recovery is a bounded lookup, not new work. | Recovery becomes an unreviewed assignment. |
 | Changing the delegation mode does not retarget an accepted assignment or its recovery. | The recorded worker owns its assignment. | Work moves between profiles mid-assignment. |
-| Selected evidence is not re-sent with a return: the Coordinator sees each selected tool result in place in the worker's run, and its Runtime State says so while it assesses. The return receipt's `provisional` line says delivery is checked at turn end and that the evidence stays in place. | Re-sending would duplicate the body. Without the status line, and with the receipt saying "this is not delivery evidence", grok-4.7 Coordinators requested recovery of evidence already in view, twice or more in every routed run (Task 004 S-005). | Recovery rounds for evidence already delivered. |
+| Selected evidence is not re-sent with a return: the Coordinator sees each selected tool result in place in the worker's run. Every other worker result shows a placeholder that says why: `[Not shown: the worker did not select this result as evidence]`, `[Routing receipt, not shown]`, or `[Selected, but not shown: ...]` for a selected result that failed a check. Source provenance names each result's call (`read: <path>`, `bash: <command>`), and the Runtime State says the selection is in view while the Coordinator assesses. | With the old placeholder `[Worker result omitted from this view]`, grok-4.7 Coordinators concluded every worker body was omitted, matched the skill's "evidence omitted: recover it", and requested recovery of results shown in full beside it (4 of 5 routed runs; request logs confirmed every requested ref was selected and in view). After the wording change, 0 of 8 runs recovered (Task 004 S-005). | Recovery rounds for evidence already delivered. |
 
 ## Surface
 
@@ -258,7 +258,7 @@ Deterministic source and fixture checks establish configuration and gating rules
 
 ## Changes
 
-- Task 004 (2026-10-11): the Coordinator is told its selected evidence is already in view; the return receipt no longer reads as undelivered.
+- Task 004 (2026-10-11): placeholders say why a worker result is not shown, provenance names each call, the Coordinator is told its selected evidence is in view, and the return receipt no longer reads as undelivered.
 - Task 003 (2026-10-11): routing tools renamed without the `freeflow_` prefix; old names still read from saved history.
 - Task 013 (2026-10-03): view renderings cached with stable identities (`25ec4b04`); startup verified by the file's tail, no trust point on `/reload`.
 - `1315e57e` (2026-10-03): projection on by default.
