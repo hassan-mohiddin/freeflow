@@ -43,7 +43,8 @@ export function renderSendResult(result, options, theme, context) {
   // The call line shows the address as a name once the result names the session.
   if (context?.state && details.name && context.state.name !== details.name) {
     context.state.name = details.name;
-    context.invalidate?.();
+    // After this render: invalidating inside it makes Pi rebuild the row and then add this result again.
+    queueMicrotask(() => context.invalidate?.());
   }
   const status = String(details.status ?? (result?.isError ? "failed" : "sent"));
   const name = details.name ?? details.to ?? "";

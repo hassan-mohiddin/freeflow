@@ -278,3 +278,38 @@ test(
     );
   },
 );
+
+test(
+  "a resumed session started by a message before any prompt keeps the sections its transcript carries",
+  { timeout: 30000 },
+  async () => {
+    // After a reload nothing is recorded in this process; the transcript still holds what the last prompt set.
+    const system = (body) =>
+      JSON.stringify(body.input.filter((item) => item.role === "system" || item.role === "developer"));
+    await fixture(
+      async (n) => [[], [{ name: "read", args: { path: "evidence.txt" } }], []][n - 1] ?? [],
+      false,
+      async ({ session, requests }) => {
+        await session.waitForIdle();
+        await session.reload();
+        await session.sendCustomMessage(
+          { customType: "freeflow-message", content: "<message>hi</message>", display: true, details: {} },
+          { triggerTurn: true },
+        );
+        await until(() => requests.length >= 3, "the message's run to make two requests");
+        await session.waitForIdle();
+        assert.match(system(requests[2]), /<freeflow_guidance>/);
+        for (const body of requests.slice(1))
+          assert.equal(system(body), system(requests[0]), "the system prompt is unchanged");
+        for (let i = 1; i < requests.length; i++)
+          assert.deepEqual(
+            strip(requests[i].input.slice(0, requests[i - 1].input.length)),
+            strip(requests[i - 1].input),
+            `request ${i + 1} extends request ${i}`,
+          );
+      },
+      true,
+      on,
+    );
+  },
+);

@@ -640,6 +640,10 @@ export default function freeflow(pi) {
   });
   pi.on("session_start", async (event, ctx) => {
     liveHost = ctx;
+    // Sections recorded for another session (after /new or /resume) are not this one's.
+    ownSections = undefined;
+    ownSectionsVersion++;
+    promptRun = false;
     const generation = ++surfaceGeneration;
     resetHistory();
     // Where Pi has just parsed this session file, later checks read only the bytes appended since.
@@ -877,6 +881,23 @@ export default function freeflow(pi) {
         Object.entries(own).some(([name, value]) => ownSections[name] !== value)
       ) {
         ownSections = own;
+        ownSectionsVersion++;
+      }
+    } else if (!ownSections) {
+      // A run Pi started before any prompt of this process (a resumed session messaged while idle): the transcript
+      // still carries what Freeflow's last prompt set, when its guidance is there. Rules and docs are Freeflow's only
+      // with Tool Execution.
+      const current = currentSections(event.messages);
+      if (typeof current.freeflow_guidance === "string") {
+        const names = [
+          "freeflow_guidance",
+          "environment",
+          "tool_execution",
+          ...(toolExecutionEffective() ? ["rules", "docs"] : []),
+        ];
+        ownSections = Object.fromEntries(
+          names.filter((name) => typeof current[name] === "string").map((name) => [name, current[name]]),
+        );
         ownSectionsVersion++;
       }
     }

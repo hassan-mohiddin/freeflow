@@ -217,7 +217,7 @@ Request history runs on every request; the rules are in [Performance](../guides/
 - Provider expiry, eviction, minimum cacheable length, and per-effort caches on Sign in with ChatGPT are outside Freeflow's control.
 - Another extension that changes the final request can break the prefix after Freeflow.
 - Request history still fingerprints messages with no stable identity (generated and host-edited ones) on every request; `request-path-budget.test.js` bounds how many a later request may fingerprint.
-- A resumed session that receives a notice before its first prompt has no recorded sections, so that run loses Freeflow's sections and the next prompt restores them, at one cache write each.
+- A session that has never had a prompt, woken by a notice, gets no system prompt at all on that run's first request, and Pi's base prompt without Freeflow's sections from the second: Pi builds the sections only for prompts (`sendCustomMessage` with `triggerTurn` skips `_preparePromptAndToolLoadout`; pinned Pi `abe508e1`). A resumed session is not affected: its transcript carries what Freeflow's last prompt set, and the host records that.
 - Keep-alive covers only the suspended Coordinator, not other requesters that will resume.
 
 ## Changes
