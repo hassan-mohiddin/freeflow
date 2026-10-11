@@ -342,8 +342,9 @@ export class ToolHandlers {
       stage: "completed-input preparation",
       finalExchangePending: true,
       // The Coordinator reads this receipt too, after delivery; it must not read as "the evidence was not delivered".
-      provisional:
-        "Saved. When this turn ends, Freeflow checks the handoff and delivers the report to Coordinator; selected evidence stays in place in the worker's run, where Coordinator sees it.",
+      provisional: prepared.ready
+        ? "Saved. When this turn ends, Freeflow checks the handoff and delivers the report to Coordinator; selected evidence stays in place in the worker's run, where Coordinator sees it."
+        : "Saved, but blocked: Coordinator receives nothing until the problems below are fixed. Fix the selection with select_evidence, then call return_work with operation retry.",
       // The text is already in the call arguments; the hash identifies it without a second copy.
       ...(isSupplement ? { supplementSha256: bodyHash(h.text) } : { reportSha256: bodyHash(h.text) }),
       evidence: this.assembler.evidenceFacts(state),

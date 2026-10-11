@@ -6,7 +6,7 @@ The **Rules** below are binding; everything else is judgment.
 
 ## Rules
 
-- Create or link a project, import a record into one, and change a task's directories, only when the user asks, or when the user confirms your proposal in a harness dialog (Pi task memory).
+- Create or link a project, import a record into one, and change a task's directories, only when the user asks, when the user confirms your proposal in a harness dialog, or when the user's auto-approve setting covers that change (Pi task memory).
 - Write a record only from the session that owns it. A parent task's record is written by the parent's session; a child's record by the child's session.
 - A child has no children.
 - Remove a task or a project only when the user asks for it to be removed, or confirms your proposal in a harness dialog. Removal moves records to the trash under the Freeflow home; never empty the trash or delete records another way: that is the user's.
@@ -34,7 +34,7 @@ Run each command with `--help` before preparing its input. A record that is not 
 
 ## Other Tasks In The Project
 
-Each task keeps its own record. Read another task's record (`view resume --record <id>`, `task search --scope project`) when it bears on what you are about to decide or build; record what matters to this task in this task's own record, never in the other one.
+Each task keeps its own record. Read another task's record (`view resume --record <id>`, `task search --id <id> --scope project --query <words>`) when it bears on what you are about to decide or build; record what matters to this task in this task's own record, never in the other one.
 
 ## Where A Task's Work Happens
 

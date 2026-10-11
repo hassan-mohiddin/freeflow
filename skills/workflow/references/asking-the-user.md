@@ -26,5 +26,5 @@ Ask one decision at a time: the earliest one whose answer decides whether the ot
 
 - An answer decides only the question asked: not related choices, further actions, or anything another boundary controls.
 - Read the user's own words and notes as you would a reply. A question, a condition, criticism or a request for more information is not a decision: respond to it before acting on the choice.
-- If the user closed the dialog, or no one can answer one here, ask in your reply and do not act on the choice meanwhile.
+- If the user closed the dialog, or this session cannot show one, ask in your reply and do not act on the choice meanwhile. When no one will read the reply in time (a routed assignment, an unattended run), follow the Working Method's rule for that case instead.
 - When the answer settles a decision Track Work records, record the question and the user's choice in their words.

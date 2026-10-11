@@ -44,7 +44,7 @@ Closing any dialog dismisses the whole question.
 
 1. The tool description (shape and mechanics) and one `promptGuidelines` line, which Pi adds to the system prompt's rules while the tool is active. Tool Execution's rules rewrite (`tool-execution/prompt.ts`) removes only three of Pi's generic lines, so the guideline survives.
 2. One host-neutral bullet in `runtime/prompts/interaction-contract.md`: a question tool usually fits a bounded choice that is the user's; ask in the reply when the choice needs explaining or is open. It reaches Claude Code and the other hook hosts too.
-3. Workflow's reference `asking-the-user.md` with the full method, read "before asking the user for a choice that is theirs to make". Workflow, Decision Gate, Discuss and Finish Branch link it with that same condition.
+3. Workflow's reference `asking-the-user.md` with the full method, read "before asking the user for a choice that is theirs to make". Where no dialog can be shown it says to ask in the reply; where no one will read the reply in time (a routed assignment, an unattended run) it defers to the Working Method, which owns that case: choose what matches existing behavior and is easiest to reverse, and state the assumption. Workflow, Decision Gate, Discuss and Finish Branch link it with that same condition.
 
 **Task memory's confirmations** use `confirmWithUser()`: in the terminal a one-question `QuestionForm` with the options Yes and No and without an own-answer row or notes, elsewhere Pi's `confirm` as before.
 
