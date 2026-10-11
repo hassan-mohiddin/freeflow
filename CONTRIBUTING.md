@@ -30,10 +30,10 @@ sudo apt-get update && sudo apt-get install --no-install-recommends -y ripgrep j
 
 npm ci --ignore-scripts
 npm run check
-npm run test:docs
-npm run test:changelog
-npm run test:release-workflow
+npm test
 ```
+
+`npm test` runs every test suite, the same list CI runs; a new `test:*` script must be added to it, and `npm run check` fails until it is.
 
 Run focused tests for the area you change. Model-based skill evaluations are
 not required for every pull request; run them deliberately when skill behavior,

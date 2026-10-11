@@ -6,6 +6,16 @@ import { fileURLToPath } from "node:url";
 
 const CI_WORKFLOW_PATH = ".github/workflows/ci.yml";
 const WORKFLOW_PATH = ".github/workflows/release.yml";
+const PACKAGE_PATH = "package.json";
+
+/** Suites the gate requires by name; every other test:* script must be in npm test too. */
+const REQUIRED_SUITES = [
+  "test:pi-extension",
+  "test:host-manifests",
+  "test:release-workflow",
+  "test:changelog",
+  "test:docs",
+];
 
 function position(text, needle) {
   return text.indexOf(needle);
@@ -29,11 +39,7 @@ export function inspectCiWorkflow(workflow) {
   requireText("npm run build", "CI workflow must build generated runtime output.");
   requireText("git diff --exit-code -- pi-extension/dist", "CI workflow must reject dirty generated Pi output.");
   requireText("npm run check", "CI workflow must run the repository check gate.");
-  requireText("npm run test:release-workflow", "CI workflow must run release workflow invariant tests.");
-  requireText("npm run test:host-manifests", "CI workflow must run host manifest and adapter tests.");
-  requireText("npm run test:docs", "CI workflow must run documentation tests.");
-  requireText("npm run test:changelog", "CI workflow must run changelog tests.");
-  requireText("npm run test:pi-extension", "CI workflow must run the complete Pi extension suite.");
+  requireText("run: npm test", "CI workflow must run every test suite through npm test.");
   requireText('test -z "$(git status --porcelain)"', "CI workflow must reject post-test worktree changes.");
   requireOrder(
     "npm run build",
@@ -45,13 +51,9 @@ export function inspectCiWorkflow(workflow) {
     "npm run check",
     "CI must run the check gate after generated-output verification.",
   );
+  requireOrder("npm run check", "run: npm test", "CI must run the tests after the check gate.");
   requireOrder(
-    "npm run test:host-manifests",
-    "npm run test:skill-author",
-    "CI must run host manifest and adapter tests before the remaining deterministic suite.",
-  );
-  requireOrder(
-    "npm run test:docs",
+    "run: npm test",
     'test -z "$(git status --porcelain)"',
     "CI must check worktree cleanliness after tests.",
   );
@@ -80,10 +82,7 @@ export function inspectReleaseWorkflow(workflow) {
     "Release workflow must grant contents write and OIDC id-token permissions.",
   );
   requireText("environment: npm", "Release workflow must use the protected npm environment.");
-  requireText("npm run test:docs", "Release workflow must run the documentation tests.");
-  requireText("npm run test:changelog", "Release workflow must run the changelog tests.");
-  requireText("npm run test:release-workflow", "Release workflow must run its invariant tests.");
-  requireText("npm run test:host-manifests", "Release workflow must run host manifest and adapter tests.");
+  requireText("run: npm test", "Release workflow must run every test suite through npm test.");
   requireText(
     "git diff --exit-code -- pi-extension/dist",
     "Release workflow must reject dirty generated Pi output after build.",
@@ -107,7 +106,7 @@ export function inspectReleaseWorkflow(workflow) {
   requireText("RELEASE_SHASUM", "Release workflow must compare registry and local artifact checksums.");
   requireText(".shasum", "Release workflow must read the registry tarball checksum.");
   requireText(".attestations.provenance.predicateType", "Release workflow must verify npm provenance metadata.");
-  requireText("registry_attempts=18", "Release workflow must bound registry propagation polling.");
+  requireText("registry_attempts=36", "Release workflow must bound registry propagation polling.");
   requireText("registry_delay_seconds=10", "Release workflow must use an explicit registry polling delay.");
   requireText("E404|404 Not Found", "Release workflow must retry only expected not-yet-visible registry responses.");
   requireText('sleep "$registry_delay_seconds"', "Release workflow must wait between bounded registry attempts.");
@@ -126,9 +125,9 @@ export function inspectReleaseWorkflow(workflow) {
   );
   requireOrder("node scripts/release-notes.mjs", "npm publish", "Release notes must be extracted before npm publish.");
   requireOrder(
-    "npm run test:host-manifests",
-    "npm run test:skill-author",
-    "Release workflow must run host manifest and adapter tests before the remaining deterministic suite.",
+    "run: npm test",
+    'test -z "$(git status --porcelain)"',
+    "Release must check worktree cleanliness after tests.",
   );
   requireOrder("npm pack --ignore-scripts", "npm publish", "The exact npm tarball must be created before publication.");
   requireOrder("--pack-destination", "npm publish", "The exact npm tarball must be retained before publication.");
@@ -151,6 +150,23 @@ export function inspectReleaseWorkflow(workflow) {
   return { errors };
 }
 
+/**
+ * npm test is the one list of suites both workflows run: it runs every test:* script, so a new suite cannot be left out
+ * of CI, with host manifests before the skill suites.
+ */
+export function inspectTestScript(scripts) {
+  const errors = [];
+  const test = typeof scripts?.test === "string" ? scripts.test : "";
+  if (!test) return { errors: ["package.json must define a test script that runs every suite."] };
+  const runs = (name) => new RegExp(`(^|&& )npm run ${name}( &&|$)`).test(test);
+  for (const name of Object.keys(scripts).filter((key) => key.startsWith("test:")))
+    if (!runs(name)) errors.push(`npm test must run ${name}.`);
+  for (const name of REQUIRED_SUITES) if (!(name in scripts)) errors.push(`package.json is missing ${name}.`);
+  if (test.indexOf("npm run test:host-manifests") > test.indexOf("npm run test:skill-author"))
+    errors.push("npm test must run host manifest and adapter tests before the skill suites.");
+  return { errors };
+}
+
 const isMain = process.argv[1] && resolve(fileURLToPath(import.meta.url)) === resolve(process.argv[1]);
 if (isMain) {
   const ciWorkflow = readFileSync(resolve(CI_WORKFLOW_PATH), "utf8");
@@ -158,6 +174,9 @@ if (isMain) {
   const errors = [
     ...inspectCiWorkflow(ciWorkflow).errors.map((error) => `CI: ${error}`),
     ...inspectReleaseWorkflow(releaseWorkflow).errors.map((error) => `Release: ${error}`),
+    ...inspectTestScript(JSON.parse(readFileSync(resolve(PACKAGE_PATH), "utf8")).scripts).errors.map(
+      (error) => `package.json: ${error}`,
+    ),
   ];
   if (errors.length > 0) {
     for (const error of errors) console.error(`FAIL: ${error}`);

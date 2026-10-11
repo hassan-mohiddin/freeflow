@@ -78,17 +78,7 @@ jobs:
         run: npm run check:changelog
 
       - name: Run release-focused tests
-        run: |
-          npm run test:pi-extension
-          npm run test:host-manifests
-          npm run test:skill-author
-          npm run test:skill-eval
-          npm run test:track-work
-          npm run test:freeflow-snapshot
-          npm run test:release-utils
-          npm run test:release-workflow
-          npm run test:changelog
-          npm run test:docs
+        run: npm test
 
       - name: Verify worktree is clean
         run: test -z "$(git status --porcelain)"
@@ -160,7 +150,7 @@ jobs:
           release_dir="$RUNNER_TEMP/freeflow-release"
           registry_dist="$release_dir/published-dist.json"
           registry_error="$release_dir/published-error.log"
-          registry_attempts=18
+          registry_attempts=36
           registry_delay_seconds=10
           for attempt in $(seq 1 "$registry_attempts"); do
             if npm view "$PACKAGE_NAME@$version" dist --json \
