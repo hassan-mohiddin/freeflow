@@ -29,8 +29,16 @@ export class Inbound {
       pending.notices.push(notice);
       return;
     }
-    const timer = setTimeout(() => this.flush(batch), batch.windowMs ?? 200);
-    this.pending.set(batch.key, { notices: [notice], timer });
+    const timer = setTimeout(() => this.flush(batch.key), batch.windowMs ?? 200);
+    this.pending.set(batch.key, { notices: [notice], timer, batch });
+  }
+  /** Deliver what a key has pending now, before its window ends: its source finished and has more to say after it. */
+  flush(key) {
+    const pending = this.pending.get(key);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    this.pending.delete(key);
+    this.sendBatch(pending);
   }
   /** Forget a source: drop what it has pending and its limit state. */
   close(key) {
@@ -47,10 +55,7 @@ export class Inbound {
     this.sent.clear();
     this.limited.clear();
   }
-  flush(batch) {
-    const pending = this.pending.get(batch.key);
-    this.pending.delete(batch.key);
-    if (!pending) return;
+  sendBatch({ notices, batch }) {
     const now = Date.now();
     const recent = (this.sent.get(batch.key) ?? []).filter((at) => now - at < 60_000);
     if (batch.perMinute !== undefined && recent.length >= batch.perMinute) {
@@ -59,12 +64,12 @@ export class Inbound {
       return;
     }
     this.sent.set(batch.key, [...recent, now]);
-    const [first] = pending.notices;
+    const [first] = notices;
     this.send({
       customType: first.customType,
-      content: pending.notices.map((notice) => notice.content).join("\n"),
-      details: { ...first.details, batched: pending.notices.length },
-      wake: pending.notices.some((notice) => notice.wake),
+      content: batch.join ? batch.join(notices) : notices.map((notice) => notice.content).join("\n"),
+      details: { ...first.details, batched: notices.length },
+      wake: notices.some((notice) => notice.wake),
     });
   }
   send(notice) {

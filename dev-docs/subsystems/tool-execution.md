@@ -17,7 +17,7 @@ With one switch it adds:
 - **file tracking** around Pi's `read`, `edit` and `write`: a refused blind overwrite, a note when an edited file changed since it was read, and a notice when files the model read change behind it;
 - **edit error rewrites** that show the closest lines and one next step;
 - **`apply_patch`**, the patch tool OpenAI's Codex trains GPT models on;
-- **background commands** (`bash_background`, `stop_background`) that notify the model when they exit;
+- **background commands** (`bash_background`, `stop_background`) that notify the model when they exit, and **monitors** (`monitor`) that deliver each line a command prints as it happens;
 - a **bash guard** that refuses a trailing `&` and long foreground `sleep`.
 
 It deliberately does not:
@@ -102,6 +102,14 @@ On exit, `notify()` sends a `freeflow-background` notice through the inbound cha
 
 A command stopped through `stop_background` or at session end sends no notice. `stopAll()` runs at `session_shutdown`. After Pi's own compaction, `restate()` lists the running commands once; a Freeflow compaction names them in its summary instead.
 
+### Monitors
+
+`monitor()` is Claude Code's Monitor on the same `BackgroundJobs`: same shell, output file, ID space (`mon…` beside `bg…`), the 16-job limit, `stop_background`, restatement and shutdown. It differs in three ways:
+
+- **Events.** Each non-empty stdout line goes to the host's `event()`, which delivers it through the inbound channel under the key `monitor:<id>`: lines within 200 ms join one `freeflow-monitor` notice (`eventText()`: a header naming the monitor, at most 40 lines, then a pointer to the output file for the rest; a line over 1,000 characters is cut). A notice wakes an idle agent (spec O-6). A partial last line is delivered at exit, and `endEvents()` flushes pending lines before the end notice, so the end notice always comes last.
+- **Stderr** goes to the output file only: the command runs as `{ command } 2>> <output>`, and both writers append.
+- **Its own end.** `timeout_ms` (default 5 minutes, at most 30) and the rate limit (more than 20 notices in a minute, `MONITOR_PER_MINUTE`) stop it through `halt()`, with one `freeflow-background` notice saying why and how to continue. An exit sends one notice with the code and the event count; a stop through `stop_background` or at session end sends none.
+
 ### Bash guard
 
 In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of which tools the current profile may call), `backgroundRefusal()` blocks a command ending in a single `&`, or a `sleep` of 10 seconds or more wherever a command starts: at the beginning or after `;`, `&`, `|`, `&&`, `||`, `(`, `{`, `then` or `do`. So `foo && sleep 30` is refused, and a long foreground `npm test` is not. The refusal points to `bash_background` and the until-loop.
@@ -122,6 +130,8 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 | Freeflow does not set `TMPDIR`; background output goes to a per-session folder under the OS temp directory. | Pi's `bash` inherits the whole Pi process environment, so changing `TMPDIR` would change it for every tool, extension and MCP server. | Pointing `TMPDIR` at a session folder. | `fc32691` |
 | Messages state the fact and one next step, with no reassurance. | The wording was reviewed against Freeflow's Beyond the Weights research on model behavior. | — | `48a9387`, `3894a01` |
 | Settings of the retired v2 runtime still load and do nothing. | Existing configuration files stay valid. | Rejecting them. | `ca1cc90` |
+| A monitor's guidance (when to use it instead of `bash_background`, flushing each pipe stage, matching failures as well as success) lives in its tool description, not in the prompt section or Verify Work. | It is needed only when choosing or writing a watch, where the description is read; Working Method already states the general rule that a check proves only what it could have caught (Write Skill's Guidance Placement). | A line in the always-sent prompt section; a Verify Work rule. | Task 002 |
+| Monitor notices wake an idle agent, bounded by 20 notices a minute and 40 lines a notice. | A watch that cannot wake the agent cannot report a failure while it waits (spec O-6); each wake is a model request, so the limit bounds the cost. | Holding idle events until the next turn. | Task 002 |
 
 ## Intended Behavior That Looks Wrong
 
@@ -134,6 +144,7 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 | Unrecognized edit errors pass through unchanged. | The rewrite depends on Pi's exact wording, and a wrong rewrite is worse than Pi's text. | — |
 | With Tool Execution off, Pi's prompt and every tool result are exactly Pi's. | The layer is opt-in. | `prompt-native.test.js` fails. |
 | A trailing `&&` is not refused; a trailing `&` is. | Only a single `&` detaches a process. | — |
+| A monitor's stderr lines are not events. | Error output is usually noise for a watch; a watch that needs it redirects it (`2>&1`) into the filter. | — |
 
 ## Surface
 
@@ -147,15 +158,16 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 | --- | --- | --- |
 | `apply_patch` | `input` (patch text) | Grammar form for GPT-5+ on OpenAI endpoints; `executionMode: "sequential"`; structured result with per-file outcomes. |
 | `bash_background` | `command`, `description?` | Returns `{ id, outputPath }` at once. |
-| `stop_background` | `id` | Returns after the process exits. |
+| `monitor` | `command`, `description`, `timeout_ms?` | Returns `{ id, outputPath, timeoutMs }` at once; its description carries the guidance (see Decisions). |
+| `stop_background` | `id` | Stops a background command or monitor; returns after the process exits. |
 
-All three have `exposure: "direct"` (callable from codemode) and refuse to run when Tool Execution is not effective.
+All four have `exposure: "direct"` (callable from codemode) and refuse to run when Tool Execution is not effective.
 
 **Prompt sections:** `rules`, `docs` (replaced), `environment`, `tool_execution` (added after `freeflow_guidance`).
 
-**Messages:** `freeflow-files` (changed files at prompt start) and `freeflow-background` (exit notices and restatements), both starting with the notice prefix; and lines appended to tool results, without the prefix.
+**Messages:** `freeflow-files` (changed files at prompt start), `freeflow-background` (exit, expiry and limit notices and restatements) and `freeflow-monitor` (monitor events), both starting with the notice prefix; and lines appended to tool results, without the prefix.
 
-**Status:** `/freeflow status` shows the number of running background commands.
+**Status:** `/freeflow status` shows the number of running background commands and monitors.
 
 ## State
 
@@ -184,7 +196,9 @@ All three have `exposure: "direct"` (callable from codemode) and refuse to run w
 | `apply_patch` parse or plan error | `not_applied`, nothing written, `isError: true`, one next step. |
 | `apply_patch` write error | `partial`; files before it written, the failing file named, later files not attempted. |
 | A background command cannot start (for example, the directory is gone) | The output file records the error and a notice says it failed to run. |
-| A 17th background command | Refused with "stop one with stop_background". |
+| A 17th background command or monitor | Refused with "stop one with stop_background". |
+| A monitor prints more than 20 notices' worth in a minute | Stopped; one notice says to filter its output and start it again. |
+| A monitor reaches `timeout_ms` | Stopped; one notice gives the event count and says to start it again to keep watching. |
 | The shell config cannot be resolved | The environment section says the shell is `unavailable`. |
 
 ## Cost
@@ -203,16 +217,16 @@ All three have `exposure: "direct"` (callable from codemode) and refuse to run w
   - `file-state.ts`: `FileState`, `resolveToolPath()`, `touchedPaths()`, `HASH_LIMIT_BYTES`.
   - `file-tracking.ts`: `FileTracking` (`toolCall`, `toolResult`, `changedNotice`, `compacted`, `forPatch`, `written`).
   - `edit-messages.ts`: `rewriteEditError()`, `closestMatch()`, `matchingLines()`, `normalizeForMatch()`, and every message text (`writeRefusal()`, `changedAfterEdit()`, `noNeedToReread()`, `changedFilesNotice()`).
-  - `background.ts`: `BackgroundJobs`, `registerBackgroundTools()`, `NOTICE_PREFIX`, `MAX_RUNNING`.
+  - `background.ts`: `BackgroundJobs` (`start()`, `monitor()`, `stop()`, `restate()`), `registerBackgroundTools()`, `NOTICE_PREFIX`, `MAX_RUNNING`, the `MONITOR_*` limits.
   - `bash-guard.ts`: `backgroundRefusal()`, `LONGEST_FOREGROUND_SLEEP_S`.
   - `apply-patch/`: `grammar.ts`, `parser.ts`, `match.ts` (Codex ports), `plan.ts` (`applyPatch()`), `tool.ts` (`registerApplyPatch()`). Its [README](../../pi-extension/src/tool-execution/apply-patch/README.md) records the upstream commit and license.
-- `pi-extension/src/index.ts`: wiring. `before_agent_start` (prompt sections, prompt-time notice), `tool_call` (routing gate, bash guard, `FileTracking.toolCall()`), `tool_result`, `turn_end`, `session_tree`, `session_compact` (restatement), `session_shutdown`, and the background host's `send`.
+- `pi-extension/src/index.ts`: wiring. `before_agent_start` (prompt sections, prompt-time notice), `tool_call` (routing gate, bash guard, `FileTracking.toolCall()`), `tool_result`, `turn_end`, `session_tree`, `session_compact` (restatement), `session_shutdown`, and the background host's `send`, `event` and `endEvents`.
 - `runtime/prompts/tool-execution.md`: the guidance text.
 - `pi-extension/src/compaction/`: shares `resolveToolPath()` and `touchedPaths()` for carried files and file lists.
 
 ## Tests
 
-See [the tests README](../../pi-extension/tests/tool-execution/README.md). In short: `prompt-native.test.js` (sections on and off), `file-state.test.js` and `file-tracking-native.test.js` (observations, write refusal, changed-since-read, edit error rewrites against Pi's real `edit`), `changed-files-native.test.js` (notices after other tools), `apply-patch.test.js` and `apply-patch-native.test.js` (parser, matcher, declaration, grammar form), `background.test.js` and `background-native.test.js` (limits, exit codes, stop, shutdown, notices in a real session), `bash-guard.test.js`.
+See [the tests README](../../pi-extension/tests/tool-execution/README.md). In short: `prompt-native.test.js` (sections on and off), `file-state.test.js` and `file-tracking-native.test.js` (observations, write refusal, changed-since-read, edit error rewrites against Pi's real `edit`), `changed-files-native.test.js` (notices after other tools), `apply-patch.test.js` and `apply-patch-native.test.js` (parser, matcher, declaration, grammar form), `background.test.js`, `monitor.test.js` and `background-native.test.js` (limits, exit codes, stop, shutdown, monitor events, batching, expiry and rate limit, notices in a real session), `bash-guard.test.js`.
 
 ## Limits
 
@@ -224,6 +238,7 @@ See [the tests README](../../pi-extension/tests/tool-execution/README.md). In sh
 
 ## Changes
 
+- Task 002 (2026-10-11): monitors.
 - `f51aff6` (2026-09-30): "Working In The Environment" as its own system section; the Tool Execution skill retired.
 - `3894a01` (2026-09-30): notices for files changed behind the model; bash guard; notice prefix.
 - `fc32691` (2026-09-30): background commands.

@@ -34,6 +34,7 @@ test("background tools are declared only while Tool Execution is on", async () =
     false,
     async ({ requests }) => {
       assert.ok(toolNames(requests[0]).includes("bash_background"));
+      assert.ok(toolNames(requests[0]).includes("monitor"));
       assert.ok(toolNames(requests[0]).includes("stop_background"));
     },
     true,
@@ -44,6 +45,7 @@ test("background tools are declared only while Tool Execution is on", async () =
     false,
     async ({ requests }) => {
       assert.ok(!toolNames(requests[0]).includes("bash_background"));
+      assert.ok(!toolNames(requests[0]).includes("monitor"));
       assert.ok(!toolNames(requests[0]).includes("stop_background"));
     },
     true,
@@ -82,6 +84,41 @@ test(
         assert.equal(await readFile(outputPath, "utf8"), "partial\n[exited with code 3]\n");
         assert.deepEqual(requests[2].tools, requests[0].tools, "job activity leaves the tools unchanged");
         assert.deepEqual(requests[2].system, requests[0].system);
+      },
+      true,
+      { ...on, model: ["anthropic", "claude-opus-5-5"] },
+    );
+  },
+);
+
+test(
+  "a monitor's line wakes the idle agent, then its exit does; each request extends the previous one",
+  { timeout: 30000 },
+  async () => {
+    await fixture(
+      async (n) =>
+        n === 1
+          ? [
+              {
+                name: "monitor",
+                args: { command: "sleep 0.5; echo ready; sleep 0.5; exit 2", description: "watch server" },
+              },
+            ]
+          : [],
+      false,
+      async ({ session, requests }) => {
+        assert.equal(requests.length, 2, "the start returned at once and the run ended");
+        const id = JSON.stringify(requests[1]).match(/Monitor (mon[0-9a-z]{6}) started/)?.[1];
+        assert.ok(id);
+        await until(() => requests.length === 4, "the event's turn and the exit's turn");
+        await session.waitForIdle();
+        const after = (i) => JSON.stringify(requests[i].messages.slice(requests[i - 1].messages.length + 1));
+        assert.match(after(2), new RegExp(`Monitor ${id} \\(watch server\\):\\\\nready`));
+        assert.match(after(3), new RegExp(`Monitor ${id} \\(watch server\\) exited with code 2 after 1 event\\.`));
+        extends_(requests[2], requests[1]);
+        extends_(requests[3], requests[2]);
+        assert.deepEqual(requests[3].tools, requests[0].tools, "monitor activity leaves the tools unchanged");
+        assert.deepEqual(requests[3].system, requests[0].system);
       },
       true,
       { ...on, model: ["anthropic", "claude-opus-5-5"] },

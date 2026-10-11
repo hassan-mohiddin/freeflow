@@ -10,7 +10,7 @@ For contributors changing how Freeflow on Pi asks the user a question, or how co
 
 **`ask_user`** lets the agent put a choice that is the user's to a dialog mid-turn and continue on the answer, instead of asking in its reply and ending the turn. Any activity that needs the user's choice uses it: scope beyond what was authorized, a blocking decision (Decision Gate), a direction once discussion narrows (Discuss), a route for finishing a branch. Each activity keeps its own judgment about what to ask; the tool changes how.
 
-**The inbound channel** is one delivery rule for content arriving from outside the turn. Background command exits are its first source; monitor events and messages from other sessions are planned sources (Task 002, steps 2 and 3).
+**The inbound channel** is one delivery rule for content arriving from outside the turn. Background command exits and monitor events are its sources; messages from other sessions are planned (Task 002, step 3).
 
 It deliberately does not:
 
@@ -44,7 +44,7 @@ Closing any dialog dismisses the whole question.
 
 **Task memory's confirmations** use `confirmWithUser()`: in the terminal a one-question `QuestionForm` with the options Yes and No and without an own-answer row or notes, elsewhere Pi's `confirm` as before.
 
-**Inbound channel** (`Inbound` in `host/inbound.ts`). `deliver(notice)` sends a notice at once; with a batch key, notices for that key within the window (default 200 ms) join one notice, and a key past its per-minute limit is stopped once (`onLimit`) and sends nothing more until `close()`. The source chooses its key (one per monitor, say), window and limit, and calls `close()` when it ends; background exits use no key, since each command exits once. `reset()` at `session_shutdown` drops everything pending. Delivery: while the agent works, `sendMessage` with `triggerTurn` and `deliverAs: "steer"` (after the current tool batch); while idle, `sendUserMessage`, because a run an extension message starts loses Freeflow's system sections from its second request (Pi #10267); a notice that should not wake the agent is sent with `triggerTurn: false`. `renderNotice()` draws a notice as one line naming its source.
+**Inbound channel** (`Inbound` in `host/inbound.ts`). `deliver(notice)` sends a notice at once; with a batch key, notices for that key within the window (default 200 ms) join one notice, and a key past its per-minute limit is stopped once (`onLimit`) and sends nothing more until `close()`. The source chooses its key (one per monitor), window, limit and the text of a joined batch (`join`), calls `flush()` to deliver what is pending before it reports its own end, and calls `close()` when it ends; background exits use no key, since each command exits once. `reset()` at `session_shutdown` drops everything pending. Delivery: while the agent works, `sendMessage` with `triggerTurn` and `deliverAs: "steer"` (after the current tool batch); while idle, `sendUserMessage`, because a run an extension message starts loses Freeflow's system sections from its second request (Pi #10267); a notice that should not wake the agent is sent with `triggerTurn: false`. `renderNotice()` draws a notice as one line naming its source.
 
 ## Decisions
 

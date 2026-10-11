@@ -13,7 +13,14 @@ import { toolExecutionSections, toolExecutionTail } from "./tool-execution/promp
 import { FileTracking } from "./tool-execution/file-tracking.js";
 import { registerApplyPatch } from "./tool-execution/apply-patch/tool.js";
 import { applyToolExecutionTools } from "./tool-execution/tools.js";
-import { BackgroundJobs, NOTICE_PREFIX, NOTICE_TYPE, registerBackgroundTools } from "./tool-execution/background.js";
+import {
+  BackgroundJobs,
+  MONITOR_PER_MINUTE,
+  MONITOR_TYPE,
+  NOTICE_PREFIX,
+  NOTICE_TYPE,
+  registerBackgroundTools,
+} from "./tool-execution/background.js";
 import { Inbound, renderNotice } from "./host/inbound.js";
 import { backgroundRefusal } from "./tool-execution/bash-guard.js";
 import { CompactionController, USER_REQUEST, type TurnEnd } from "./compaction/controller.js";
@@ -303,12 +310,28 @@ export default function freeflow(pi: FreeflowAPI) {
     isIdle: () => liveHost?.isIdle?.(),
   });
   api.registerMessageRenderer?.(NOTICE_TYPE, renderNotice("Background"));
+  api.registerMessageRenderer?.(MONITOR_TYPE, renderNotice("Monitor"));
   const backgroundHost = {
     effective: toolExecutionEffective,
     shellPath: () => api.getSettings?.()?.shellPath,
     // An exit notice starts a turn when idle; mid-run it is steered in after the current turn's tool results.
     send: (content: string, details: Record<string, unknown>, triggerTurn: boolean) =>
       inbound.deliver({ customType: NOTICE_TYPE, content, details, wake: triggerTurn }),
+    // A monitor's lines wake an idle agent (spec O-6); the rate limit bounds what that costs.
+    event: (id: string, line: string, join: (lines: string[]) => string, onLimit: () => void) =>
+      inbound.deliver(
+        { customType: MONITOR_TYPE, content: line, details: { id }, wake: true },
+        {
+          key: `monitor:${id}`,
+          perMinute: MONITOR_PER_MINUTE,
+          onLimit,
+          join: (notices) => join(notices.map((notice) => notice.content)),
+        },
+      ),
+    endEvents: (id: string) => {
+      inbound.flush(`monitor:${id}`);
+      inbound.close(`monitor:${id}`);
+    },
   };
   const background = new BackgroundJobs(backgroundHost);
   registerBackgroundTools(api, background, backgroundHost);
