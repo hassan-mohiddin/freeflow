@@ -76,4 +76,15 @@ test("a notice renders as one line naming its source", async () => {
     .join("\n")
     .trimEnd();
   assert.equal(line, "Background command bg1 (npm test) completed. Output: /tmp/x.");
+  // A monitor's batch: the collapsed row shows the first event line, not only the heading.
+  const row = (content, expanded) =>
+    renderNotice("Monitor")({ content }, { expanded }, undefined)
+      .render(200)
+      .map((each) => each.trimEnd())
+      .join("\n")
+      .trimEnd();
+  const batch = `${NOTICE_PREFIX} Monitor mon1 (server):\nERROR db lost\nretrying\nok`;
+  assert.equal(row(batch, false), "Monitor mon1 (server): ERROR db lost (+2 more)");
+  assert.match(row(batch, true), /\n\nMonitor mon1 \(server\):\nERROR db lost\nretrying\nok$/);
+  assert.equal(row(`${NOTICE_PREFIX} Monitor mon1 (server):\nready`, false), "Monitor mon1 (server): ready");
 });
