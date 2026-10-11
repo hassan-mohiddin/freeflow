@@ -14,13 +14,13 @@ for (const projection of [false, true])
       if (n === 1) {
         assert.equal(body.model, "gpt-4o");
         assert.equal(
-          body.tools.find((t) => t.name === "freeflow_delegate")?.parameters?.type,
+          body.tools.find((t) => t.name === "delegate_work")?.parameters?.type,
           "object",
           "provider function schema has an object root",
         );
         return [
           {
-            name: "freeflow_delegate",
+            name: "delegate_work",
             args: { operation: "assign", contract: "Read evidence.txt and return the exact observed body." },
           },
         ];
@@ -36,9 +36,9 @@ for (const projection of [false, true])
         ref = `ctx:${e.id}`;
         if (projection) assert.match(JSON.stringify(body), new RegExp(ref));
         return [
-          ...(projection ? [{ name: "freeflow_project", args: { operation: "add", refs: [ref] } }] : []),
+          ...(projection ? [{ name: "select_evidence", args: { operation: "add", refs: [ref] } }] : []),
           {
-            name: "freeflow_return",
+            name: "return_work",
             args: { operation: "submit", report: "Read observed EXACT_EVIDENCE_BODY_81.", outcome: "completed" },
           },
         ];
@@ -48,7 +48,7 @@ for (const projection of [false, true])
         assert.match(JSON.stringify(body), /EXACT_EVIDENCE_BODY_81/);
         return [
           {
-            name: "freeflow_unit",
+            name: "routing_unit",
             args: {
               operation: "close",
               outcome: "accepted",
@@ -79,7 +79,7 @@ test(
       if (n === 1)
         return [
           {
-            name: "freeflow_delegate",
+            name: "delegate_work",
             args: { operation: "assign", contract: "Read evidence and return it; no unrelated writes." },
           },
         ];
@@ -87,9 +87,9 @@ test(
       if (n === 3) {
         ref = "ctx:" + manager.getBranch().find((e) => e.message?.toolName === "read").id;
         return [
-          { name: "freeflow_project", args: { operation: "add", refs: [ref, "ctx:missing"] } },
+          { name: "select_evidence", args: { operation: "add", refs: [ref, "ctx:missing"] } },
           {
-            name: "freeflow_return",
+            name: "return_work",
             args: { operation: "submit", report, outcome: "partial", limitations: ["Bad reference unresolved"] },
           },
         ];
@@ -107,14 +107,14 @@ test(
         assert.ok(write?.message.isError, "post-return task call rejected");
         return [
           {
-            name: "freeflow_project",
+            name: "select_evidence",
             args: {
               operation: "remove",
               refs: ["ctx:missing"],
               reason: "Reference was invalid; no missing unique evidence.",
             },
           },
-          { name: "freeflow_return", args: { operation: "retry" } },
+          { name: "return_work", args: { operation: "retry" } },
         ];
       }
       if (n === 6) {
@@ -126,7 +126,7 @@ test(
         assert.equal(s.handoffs.get(reportId).reportRevision, 1);
         return [
           {
-            name: "freeflow_unit",
+            name: "routing_unit",
             args: {
               operation: "close",
               outcome: "accepted",
@@ -148,7 +148,7 @@ test("native projection omits an unselected sibling body but preserves its excha
       if (n === 1)
         return [
           {
-            name: "freeflow_delegate",
+            name: "delegate_work",
             args: { operation: "assign", contract: "Read both files; select only evidence.txt." },
           },
         ];
@@ -166,9 +166,9 @@ test("native projection omits an unselected sibling body but preserves its excha
               e.message?.role === "toolResult" && JSON.stringify(e.message.content).includes("EXACT_EVIDENCE_BODY_81"),
           );
         return [
-          { name: "freeflow_project", args: { operation: "add", refs: ["ctx:" + e.id] } },
+          { name: "select_evidence", args: { operation: "add", refs: ["ctx:" + e.id] } },
           {
-            name: "freeflow_return",
+            name: "return_work",
             args: { operation: "submit", report: "Selected the requested evidence.", outcome: "completed" },
           },
         ];
@@ -281,7 +281,7 @@ test("bundled CLI loads the package entrypoint and completes the real routing lo
     const extension = join(root, "transport.mjs");
     await writeFile(
       extension,
-      `import {writeFileSync} from 'node:fs';\n${response.toString()}\nexport default function(){const models=[];globalThis.fetch=async(url,init)=>{if(!String(url).startsWith('https://fixture.invalid/'))throw new Error('Unexpected network '+url);const body=JSON.parse(String(init.body));models.push(body.model);writeFileSync(${JSON.stringify(capture)},JSON.stringify(models));const n=models.length;if(n>4)throw new Error('Unexpected extra request');const steps=[[{name:'freeflow_delegate',args:{operation:'assign',contract:'Return the observed fixture result.'}}],[{name:'freeflow_return',args:{operation:'submit',report:'Fixture result ready.',outcome:'completed'}}],[{name:'freeflow_unit',args:{operation:'close',outcome:'accepted',assessment:'Received the saved report.'}}],[]];return response(n,steps[n-1]);};}`,
+      `import {writeFileSync} from 'node:fs';\n${response.toString()}\nexport default function(){const models=[];globalThis.fetch=async(url,init)=>{if(!String(url).startsWith('https://fixture.invalid/'))throw new Error('Unexpected network '+url);const body=JSON.parse(String(init.body));models.push(body.model);writeFileSync(${JSON.stringify(capture)},JSON.stringify(models));const n=models.length;if(n>4)throw new Error('Unexpected extra request');const steps=[[{name:'delegate_work',args:{operation:'assign',contract:'Return the observed fixture result.'}}],[{name:'return_work',args:{operation:'submit',report:'Fixture result ready.',outcome:'completed'}}],[{name:'routing_unit',args:{operation:'close',outcome:'accepted',assessment:'Received the saved report.'}}],[]];return response(n,steps[n-1]);};}`,
     );
     const cli = fileURLToPath(new URL("./bundle/cli.js", import.meta.resolve("@earendil-works/pi-coding-agent")));
     const packageEntry = fileURLToPath(new URL("../../freeflow/index.js", import.meta.url));
@@ -341,7 +341,7 @@ for (const withUI of [false, true])
           if (n === 1)
             return [
               {
-                name: "freeflow_delegate",
+                name: "delegate_work",
                 args: { operation: "assign", contract: "Initial assignment; wait for amended direction." },
               },
             ];
@@ -355,7 +355,7 @@ for (const withUI of [false, true])
             assert.equal(body.model, "gpt-4o");
             return [
               {
-                name: "freeflow_delegate",
+                name: "delegate_work",
                 args: {
                   operation: "replace",
                   contract: "Return the revised result.",
@@ -372,7 +372,7 @@ for (const withUI of [false, true])
             assert.equal(s.assignments.get(originalAssignment).state, "superseded");
             return [
               {
-                name: "freeflow_return",
+                name: "return_work",
                 args: { operation: "submit", report: "Revised result.", outcome: "completed" },
               },
             ];
@@ -380,7 +380,7 @@ for (const withUI of [false, true])
           if (n === 5)
             return [
               {
-                name: "freeflow_unit",
+                name: "routing_unit",
                 args: { operation: "close", outcome: "accepted", assessment: "Revised result received." },
               },
             ];
@@ -415,7 +415,7 @@ test(
         if (n === 1)
           return [
             {
-              name: "freeflow_delegate",
+              name: "delegate_work",
               args: { operation: "assign", contract: "Read the evidence, select it and return." },
             },
           ];
@@ -423,9 +423,9 @@ test(
         if (n === 3) {
           ref = "ctx:" + manager.getBranch().find((e) => e.message?.toolName === "read").id;
           return [
-            { name: "freeflow_project", args: { operation: "add", refs: [ref] } },
+            { name: "select_evidence", args: { operation: "add", refs: [ref] } },
             {
-              name: "freeflow_return",
+              name: "return_work",
               args: { operation: "submit", report: "Review the selected source.", outcome: "completed" },
             },
           ];
@@ -437,14 +437,14 @@ test(
         }
         if (n === 5) {
           assert.doesNotMatch(JSON.stringify(body), /EXACT_EVIDENCE_BODY_81/);
-          return [{ name: "freeflow_unit", args: { operation: "assess" } }];
+          return [{ name: "routing_unit", args: { operation: "assess" } }];
         }
         if (n === 6) {
           assert.match(JSON.stringify(body), /EXACT_EVIDENCE_BODY_81/);
           assert.equal(routingState(manager).assessment.handoffId, handoff);
           return [
             {
-              name: "freeflow_unit",
+              name: "routing_unit",
               args: {
                 operation: "close",
                 outcome: "accepted",

@@ -27,11 +27,11 @@ test("the coordinator's cache is kept warm while its delegated worker runs", { t
       if (body.model === "gpt-4o") {
         coordinatorTurns++;
         if (coordinatorTurns === 1)
-          return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Return a short result." } }];
+          return [{ name: "delegate_work", args: { operation: "assign", contract: "Return a short result." } }];
         if (coordinatorTurns === 2)
           return [
             {
-              name: "freeflow_unit",
+              name: "routing_unit",
               args: { operation: "close", outcome: "accepted", assessment: "The saved report is sufficient." },
             },
           ];
@@ -41,7 +41,7 @@ test("the coordinator's cache is kept warm while its delegated worker runs", { t
       if (workerTurns > 1) return [];
       // The worker runs past the Coordinator's refresh point (90% of 12s is capped to 2s by the 10s margin).
       await new Promise((resolve) => setTimeout(resolve, 3500));
-      return [{ name: "freeflow_return", args: { operation: "submit", report: "Done.", outcome: "completed" } }];
+      return [{ name: "return_work", args: { operation: "submit", report: "Done.", outcome: "completed" } }];
     },
     true,
     undefined,
@@ -93,17 +93,15 @@ test(
         if (body.model === "claude-opus-5-5") {
           coordinatorTurns++;
           if (coordinatorTurns === 1)
-            return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Return a short result." } }];
+            return [{ name: "delegate_work", args: { operation: "assign", contract: "Return a short result." } }];
           if (coordinatorTurns === 2)
-            return [
-              { name: "freeflow_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } },
-            ];
+            return [{ name: "routing_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } }];
           return [];
         }
         workerTurns++;
         if (workerTurns > 1) return [];
         await new Promise((resolve) => setTimeout(resolve, 3500));
-        return [{ name: "freeflow_return", args: { operation: "submit", report: "Done.", outcome: "completed" } }];
+        return [{ name: "return_work", args: { operation: "submit", report: "Done.", outcome: "completed" } }];
       },
       true,
       undefined,

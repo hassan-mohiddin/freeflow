@@ -28,16 +28,16 @@ for (const recoveryWorker of ["executor", "helper"]) {
       const replayed = new Set();
       RoutingRuntime.prototype.invoke = async function (name, id, input, signal, ctx) {
         const intercepted =
-          name === "freeflow_unit" && input.operation === "recover"
+          name === "routing_unit" && input.operation === "recover"
             ? { ...input, request: `${input.request} [accepted]` }
-            : name === "freeflow_return" && input.operation === "supplement"
+            : name === "return_work" && input.operation === "supplement"
               ? { ...input, report: `${input.report} [accepted]` }
               : input;
         const first = await originalInvoke.call(this, name, id, intercepted, signal, ctx);
         const key = `${name}:${input.operation}`;
         if (
-          ((name === "freeflow_unit" && input.operation === "recover") ||
-            (name === "freeflow_return" && input.operation === "supplement")) &&
+          ((name === "routing_unit" && input.operation === "recover") ||
+            (name === "return_work" && input.operation === "supplement")) &&
           !replayed.has(key)
         ) {
           replayed.add(key);
@@ -61,9 +61,7 @@ for (const recoveryWorker of ["executor", "helper"]) {
         await fixture(
           async (n, body, manager) => {
             if (n === 1)
-              return [
-                { name: "freeflow_delegate", args: { operation: "assign", contract: "Read two files and report." } },
-              ];
+              return [{ name: "delegate_work", args: { operation: "assign", contract: "Read two files and report." } }];
             if (n === 2) {
               assert.equal(routingState(manager).profile, recoveryWorker);
               return [
@@ -75,9 +73,9 @@ for (const recoveryWorker of ["executor", "helper"]) {
               const reads = manager.getBranch().filter((e) => e.message?.toolName === "read" && !e.message.isError);
               omittedRef = `ctx:${reads[1].id}`;
               return [
-                { name: "freeflow_project", args: { operation: "add", refs: [`ctx:${reads[0].id}`] } },
+                { name: "select_evidence", args: { operation: "add", refs: [`ctx:${reads[0].id}`] } },
                 {
-                  name: "freeflow_return",
+                  name: "return_work",
                   args: { operation: "submit", report: "BASE_REPORT_UNCHANGED_41", outcome: "completed" },
                 },
               ];
@@ -93,7 +91,7 @@ for (const recoveryWorker of ["executor", "helper"]) {
               assert.doesNotMatch(wire, /UNSELECTED_PRIVATE_BODY_93/);
               return [
                 {
-                  name: "freeflow_unit",
+                  name: "routing_unit",
                   args: {
                     operation: "recover",
                     request: "Select the omitted result and read the approved third file only.",
@@ -143,11 +141,11 @@ for (const recoveryWorker of ["executor", "helper"]) {
               );
               return [
                 {
-                  name: "freeflow_project",
+                  name: "select_evidence",
                   args: { operation: "add", refs: [omittedRef, `ctx:${allowed.id}`, "ctx:missing"] },
                 },
                 {
-                  name: "freeflow_return",
+                  name: "return_work",
                   args: { operation: "supplement", report: "RECOVERY_SUPPLEMENT_73", outcome: "completed" },
                 },
               ];
@@ -162,14 +160,14 @@ for (const recoveryWorker of ["executor", "helper"]) {
               assert.equal(postSupplement.message.content[0].text, "worker_task_phase_ended");
               return [
                 {
-                  name: "freeflow_project",
+                  name: "select_evidence",
                   args: {
                     operation: "remove",
                     refs: ["ctx:missing"],
                     reason: "Fixture removes the unresolved request.",
                   },
                 },
-                { name: "freeflow_return", args: { operation: "retry" } },
+                { name: "return_work", args: { operation: "retry" } },
               ];
             }
             assert.equal(body.model, "gpt-4o");
@@ -180,7 +178,7 @@ for (const recoveryWorker of ["executor", "helper"]) {
               assert.equal(state.assessment.suspensionReason, "user-attention");
               assert.doesNotMatch(wire, /EXACT_EVIDENCE_BODY_81/);
               assert.match(wire, /NEW_USER_ATTENTION_29/);
-              return [{ name: "freeflow_unit", args: { operation: "assess" } }];
+              return [{ name: "routing_unit", args: { operation: "assess" } }];
             }
             for (const value of [
               "BASE_REPORT_UNCHANGED_41",
@@ -227,20 +225,20 @@ for (const recoveryWorker of ["executor", "helper"]) {
                 `${marker} was not replayed`,
               );
             if (n === 9)
-              return [{ name: "freeflow_unit", args: { operation: "inspect", view: "detail", ref: supplementRef } }];
+              return [{ name: "routing_unit", args: { operation: "inspect", view: "detail", ref: supplementRef } }];
             if (n === 10) {
               const detail = manager
                 .getBranch()
-                .filter((e) => e.message?.toolName === "freeflow_unit")
+                .filter((e) => e.message?.toolName === "routing_unit")
                 .at(-1).message.details;
               assert.equal(detail.supplement, "RECOVERY_SUPPLEMENT_73 [accepted]");
               assert.equal(detail.report, "BASE_REPORT_UNCHANGED_41");
               assert.equal(detail.reportRef, `report:${baseReportId}:${baseReportRevision}`);
-              return [{ name: "freeflow_unit", args: { operation: "inspect", view: "detail", ref: recoveryRef } }];
+              return [{ name: "routing_unit", args: { operation: "inspect", view: "detail", ref: recoveryRef } }];
             }
             const detail = manager
               .getBranch()
-              .filter((e) => e.message?.toolName === "freeflow_unit")
+              .filter((e) => e.message?.toolName === "routing_unit")
               .at(-1).message.details;
             assert.equal(detail.recovery.state, "completed");
             assert.equal(detail.supplementRef, supplementRef);
@@ -291,17 +289,15 @@ for (const returnedWorker of ["executor", "helper"]) {
     const result = await fixture(
       (n, body, manager) => {
         if (n === 1)
-          return [
-            { name: "freeflow_delegate", args: { operation: "assign", contract: "Return with a delivery gap." } },
-          ];
+          return [{ name: "delegate_work", args: { operation: "assign", contract: "Return with a delivery gap." } }];
         if (n === 2) {
           const state = routingState(manager);
           assignmentId = state.assignmentId;
           assert.equal(state.profile, returnedWorker);
           return [
-            { name: "freeflow_project", args: { operation: "add", refs: ["ctx:missing"] } },
+            { name: "select_evidence", args: { operation: "add", refs: ["ctx:missing"] } },
             {
-              name: "freeflow_return",
+              name: "return_work",
               args: { operation: "submit", report: "RETURNED_WORKER_REPORT_67", outcome: "completed" },
             },
           ];
@@ -322,10 +318,10 @@ for (const returnedWorker of ["executor", "helper"]) {
           assert.equal(denied.message.content[0].text, "worker_task_phase_ended");
           return [
             {
-              name: "freeflow_project",
+              name: "select_evidence",
               args: { operation: "remove", refs: ["ctx:missing"], reason: "Resolve the fixture delivery gap." },
             },
-            { name: "freeflow_return", args: { operation: "retry" } },
+            { name: "return_work", args: { operation: "retry" } },
           ];
         }
         assert.equal(body.model, "gpt-4o");
@@ -351,12 +347,11 @@ test(
   async () => {
     let baseReportId;
     await fixture((n, body, manager) => {
-      if (n === 1)
-        return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Return a base report." } }];
+      if (n === 1) return [{ name: "delegate_work", args: { operation: "assign", contract: "Return a base report." } }];
       if (n === 2)
         return [
           {
-            name: "freeflow_return",
+            name: "return_work",
             args: { operation: "submit", report: "FALLBACK_BASE_REPORT_19", outcome: "completed" },
           },
         ];
@@ -365,16 +360,16 @@ test(
         baseReportId = state.assignments.get(state.assignmentId).returnHandoffId;
         return [
           {
-            name: "freeflow_unit",
+            name: "routing_unit",
             args: { operation: "recover", request: "Report unavailable evidence honestly." },
           },
         ];
       }
       if (n === 4)
         return [
-          { name: "freeflow_project", args: { operation: "add", refs: ["ctx:missing"] } },
+          { name: "select_evidence", args: { operation: "add", refs: ["ctx:missing"] } },
           {
-            name: "freeflow_return",
+            name: "return_work",
             args: { operation: "supplement", report: "FALLBACK_SUPPLEMENT_23", outcome: "partial" },
           },
         ];
@@ -402,19 +397,19 @@ test(
     await fixture(
       (n, _body, manager) => {
         if (n === 1)
-          return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Return a base report." } }];
+          return [{ name: "delegate_work", args: { operation: "assign", contract: "Return a base report." } }];
         if (n === 2)
           return [
-            { name: "freeflow_return", args: { operation: "submit", report: "CANCEL_BASE_31", outcome: "completed" } },
+            { name: "return_work", args: { operation: "submit", report: "CANCEL_BASE_31", outcome: "completed" } },
           ];
         if (n === 3) {
           const state = routingState(manager);
           baseReportId = state.assignments.get(state.assignmentId).returnHandoffId;
-          return [{ name: "freeflow_unit", args: { operation: "recover", request: "Wait for cancellation." } }];
+          return [{ name: "routing_unit", args: { operation: "recover", request: "Wait for cancellation." } }];
         }
         if (n === 4) return [];
         if (n === 5)
-          return [{ name: "freeflow_unit", args: { operation: "cancel-recovery", reason: "No longer needed." } }];
+          return [{ name: "routing_unit", args: { operation: "cancel-recovery", reason: "No longer needed." } }];
         if (n === 6) {
           const state = routingState(manager);
           assert.equal(state.recoveryId, undefined);
@@ -422,7 +417,7 @@ test(
           assert.equal(state.handoffs.get(baseReportId).text, "CANCEL_BASE_31");
           assert.equal(state.assessment.handoffId, baseReportId);
           assert.equal(state.assessment.view, "suspended");
-          return [{ name: "freeflow_unit", args: { operation: "assess" } }];
+          return [{ name: "routing_unit", args: { operation: "assess" } }];
         }
         assert.equal(routingState(manager).assessment.view, "active");
         return [];
@@ -442,14 +437,14 @@ test(
   async () => {
     await fixture(
       (n, body) => {
-        if (n === 1) return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Return once." } }];
+        if (n === 1) return [{ name: "delegate_work", args: { operation: "assign", contract: "Return once." } }];
         if (n === 2)
-          return [{ name: "freeflow_return", args: { operation: "submit", report: "base", outcome: "completed" } }];
+          return [{ name: "return_work", args: { operation: "submit", report: "base", outcome: "completed" } }];
         if (n === 3) return [];
         if (n === 4)
           return [
             {
-              name: "freeflow_unit",
+              name: "routing_unit",
               args: { operation: "recover", request: "Recover evidence for this assessment." },
             },
           ];
@@ -460,7 +455,7 @@ test(
           assert.doesNotMatch(wire, /Current input differs from the active Executor responsibility/);
           return [
             {
-              name: "freeflow_return",
+              name: "return_work",
               args: { operation: "supplement", report: "fresh-basis supplement", outcome: "completed" },
             },
           ];
@@ -480,10 +475,10 @@ test("assessment waits for recovery cancellation before resuming", { timeout: 30
   let selection;
   await fixture(
     (n, body, manager) => {
-      if (n === 1) return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Return once." } }];
+      if (n === 1) return [{ name: "delegate_work", args: { operation: "assign", contract: "Return once." } }];
       if (n === 2)
-        return [{ name: "freeflow_return", args: { operation: "submit", report: "base", outcome: "completed" } }];
-      if (n === 3) return [{ name: "freeflow_unit", args: { operation: "recover", request: "Recover later." } }];
+        return [{ name: "return_work", args: { operation: "submit", report: "base", outcome: "completed" } }];
+      if (n === 3) return [{ name: "routing_unit", args: { operation: "recover", request: "Recover later." } }];
       if (n === 4) {
         const state = routingState(manager);
         selection = structuredClone(state.selections.get(state.assignmentId));
@@ -493,37 +488,37 @@ test("assessment waits for recovery cancellation before resuming", { timeout: 30
         const wire = JSON.stringify(body);
         assert.match(
           wire,
-          /Finish and deliver the recovery supplement or cancel recovery before using freeflow_unit assess/,
+          /Finish and deliver the recovery supplement or cancel recovery before using routing_unit assess/,
         );
-        assert.doesNotMatch(wire, /Use freeflow_unit assess to restore the assessment/);
-        return [{ name: "freeflow_unit", args: { operation: "assess" } }];
+        assert.doesNotMatch(wire, /Use routing_unit assess to restore the assessment/);
+        return [{ name: "routing_unit", args: { operation: "assess" } }];
       }
       if (n === 6) {
         const state = routingState(manager);
         const result = manager
           .getBranch()
-          .filter((entry) => entry.message?.toolName === "freeflow_unit")
+          .filter((entry) => entry.message?.toolName === "routing_unit")
           .at(-1).message;
         assert.equal(result.details.code, "recovery_outstanding");
         assert.equal(state.assessment.view, "suspended");
         assert.equal(state.assessment.suspensionReason, "user-attention");
         assert.equal(state.recoveries.get(state.recoveryId).state, "reading");
         assert.deepEqual(state.selections.get(state.assignmentId), selection);
-        return [{ name: "freeflow_unit", args: { operation: "cancel-recovery", reason: "No longer needed." } }];
+        return [{ name: "routing_unit", args: { operation: "cancel-recovery", reason: "No longer needed." } }];
       }
       if (n === 7) {
         const state = routingState(manager);
         const wire = JSON.stringify(body);
         assert.equal(state.recoveryId, undefined);
         assert.equal(state.assessment.view, "suspended");
-        assert.match(wire, /Use freeflow_unit assess to restore the assessment/);
+        assert.match(wire, /Use routing_unit assess to restore the assessment/);
         assert.doesNotMatch(
           JSON.stringify(
             body.input.filter((item) => JSON.stringify(item).includes("# Cognitive Routing Runtime State")).at(-1),
           ),
           /Finish and deliver the recovery supplement or cancel recovery/,
         );
-        return [{ name: "freeflow_unit", args: { operation: "assess" } }];
+        return [{ name: "routing_unit", args: { operation: "assess" } }];
       }
       const state = routingState(manager);
       assert.equal(state.assessment.view, "active");
@@ -542,20 +537,20 @@ test("cancelled unit closure atomically abandons attached recovery", { timeout: 
   let baseReportId, selectionSnapshot;
   await fixture(
     (n, _body, manager) => {
-      if (n === 1) return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Return once." } }];
+      if (n === 1) return [{ name: "delegate_work", args: { operation: "assign", contract: "Return once." } }];
       if (n === 2)
-        return [{ name: "freeflow_return", args: { operation: "submit", report: "close-base", outcome: "completed" } }];
+        return [{ name: "return_work", args: { operation: "submit", report: "close-base", outcome: "completed" } }];
       if (n === 3) {
         const state = routingState(manager);
         baseReportId = state.assignments.get(state.assignmentId).returnHandoffId;
-        return [{ name: "freeflow_unit", args: { operation: "recover", request: "Recover later." } }];
+        return [{ name: "routing_unit", args: { operation: "recover", request: "Recover later." } }];
       }
       if (n === 4) return [];
       if (n === 5) {
         selectionSnapshot = structuredClone([...routingState(manager).selections]);
         return [
           {
-            name: "freeflow_unit",
+            name: "routing_unit",
             args: { operation: "close", outcome: "cancelled", assessment: "Stop unit and recovery." },
           },
         ];
@@ -584,18 +579,17 @@ test("projection-off recovery can read packaged instructions and resume assessme
   const packageRoot = process.cwd();
   await fixture(
     (n, body, manager) => {
-      if (n === 1)
-        return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Return a base report." } }];
+      if (n === 1) return [{ name: "delegate_work", args: { operation: "assign", contract: "Return a base report." } }];
       if (n === 2)
         return [
           {
-            name: "freeflow_return",
+            name: "return_work",
             args: { operation: "submit", report: "NO_PROJECTION_BASE_43", outcome: "completed" },
           },
         ];
       if (n === 3)
         return [
-          { name: "freeflow_unit", args: { operation: "recover", request: "Read the packaged Workflow method." } },
+          { name: "routing_unit", args: { operation: "recover", request: "Read the packaged Workflow method." } },
         ];
       if (n === 4)
         return [{ name: "read", args: { path: join(packageRoot, "skills/workflow/SKILL.md"), offset: 1, limit: 8 } }];
@@ -608,7 +602,7 @@ test("projection-off recovery can read packaged instructions and resume assessme
         assert.match(JSON.stringify(read.message), /name: workflow|# Workflow/);
         return [
           {
-            name: "freeflow_return",
+            name: "return_work",
             args: { operation: "supplement", report: "PACKAGED_METHOD_READ_47", outcome: "completed" },
           },
         ];
@@ -635,11 +629,11 @@ test(
     await fixture(
       async (n, body, manager) => {
         if (n === 1)
-          return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Return a base report." } }];
+          return [{ name: "delegate_work", args: { operation: "assign", contract: "Return a base report." } }];
         if (n === 2)
           return [
             {
-              name: "freeflow_return",
+              name: "return_work",
               args: { operation: "submit", report: "INTERRUPTED_RECOVERY_BASE_59", outcome: "completed" },
             },
           ];
@@ -649,7 +643,7 @@ test(
           baseReportId = state.assignments.get(assignmentId).returnHandoffId;
           return [
             {
-              name: "freeflow_unit",
+              name: "routing_unit",
               args: { operation: "recover", request: "Read only recovery.txt.", paths: ["recovery.txt"] },
             },
           ];
@@ -674,7 +668,7 @@ test(
           assert.equal(lastRead.message.isError, true, "new input revokes recovery-read permission");
           return [
             {
-              name: "freeflow_return",
+              name: "return_work",
               args: { operation: "supplement", report: "INTERRUPTED_RECOVERY_SUPPLEMENT_67", outcome: "partial" },
             },
           ];
@@ -706,12 +700,11 @@ test("manual hold and navigation preserve an unchanged recovery for explicit res
   let assignmentId, baseReportId, recoveryId, requestHandoffId;
   await fixture(
     (n, body, manager) => {
-      if (n === 1)
-        return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Return a base report." } }];
+      if (n === 1) return [{ name: "delegate_work", args: { operation: "assign", contract: "Return a base report." } }];
       if (n === 2)
         return [
           {
-            name: "freeflow_return",
+            name: "return_work",
             args: { operation: "submit", report: "MANUAL_RECOVERY_BASE_71", outcome: "completed" },
           },
         ];
@@ -719,7 +712,7 @@ test("manual hold and navigation preserve an unchanged recovery for explicit res
         const state = routingState(manager);
         assignmentId = state.assignmentId;
         baseReportId = state.assignments.get(assignmentId).returnHandoffId;
-        return [{ name: "freeflow_unit", args: { operation: "recover", request: "Resume this lookup unchanged." } }];
+        return [{ name: "routing_unit", args: { operation: "recover", request: "Resume this lookup unchanged." } }];
       }
       if (n === 4) {
         const state = routingState(manager);
@@ -737,7 +730,7 @@ test("manual hold and navigation preserve an unchanged recovery for explicit res
         assert.equal(state.assignments.get(assignmentId).state, "returned");
         return [
           {
-            name: "freeflow_return",
+            name: "return_work",
             args: { operation: "supplement", report: "MANUAL_RECOVERY_SUPPLEMENT_73", outcome: "completed" },
           },
         ];
@@ -799,14 +792,13 @@ test(
     let reportId;
     await fixture(
       (n, body, manager) => {
-        if (n === 1)
-          return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Read and report." } }];
+        if (n === 1) return [{ name: "delegate_work", args: { operation: "assign", contract: "Read and report." } }];
         if (n === 2) return [{ name: "read", args: { path: "evidence.txt" } }];
         if (n === 3)
           return [
-            { name: "freeflow_project", args: { operation: "add", refs: ["ctx:missing"] } },
+            { name: "select_evidence", args: { operation: "add", refs: ["ctx:missing"] } },
             {
-              name: "freeflow_return",
+              name: "return_work",
               args: { operation: "submit", report: "ORIGINAL_SAVED_REPORT", outcome: "partial" },
             },
           ];
@@ -832,14 +824,14 @@ test(
           );
           return [
             {
-              name: "freeflow_project",
+              name: "select_evidence",
               args: {
                 operation: "remove",
                 refs: ["ctx:missing"],
                 reason: "Invalid reference; evidence gap remains disclosed.",
               },
             },
-            { name: "freeflow_return", args: { operation: "retry" } },
+            { name: "return_work", args: { operation: "retry" } },
           ];
         }
         assert.equal(body.model, "gpt-4o");
@@ -865,11 +857,11 @@ test(
 
 const normal = (n) =>
   n === 1
-    ? [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence.txt and report." } }]
+    ? [{ name: "delegate_work", args: { operation: "assign", contract: "Read evidence.txt and report." } }]
     : n === 2
       ? [{ name: "read", args: { path: "evidence.txt" } }]
       : n === 3
-        ? [{ name: "freeflow_return", args: { operation: "submit", report: "Read completed.", outcome: "completed" } }]
+        ? [{ name: "return_work", args: { operation: "submit", report: "Read completed.", outcome: "completed" } }]
         : [];
 
 for (const cut of ["delegate-accepted", "executor-configured", "executor-call", "read-result", "return-accepted"]) {
@@ -935,7 +927,7 @@ test(
           assert.equal(read.message.isError, false);
           return [
             {
-              name: "freeflow_return",
+              name: "return_work",
               args: { operation: "submit", report: "Resumed read completed; no edits.", outcome: "completed" },
             },
           ];
@@ -987,10 +979,10 @@ test(
           assert.equal(body.model, "gpt-4.1-mini");
           assert.match(JSON.stringify(body), /New delivered user input requires Coordinator attention/);
           assert.ok(
-            body.tools.some((t) => t.name === "freeflow_delegate"),
+            body.tools.some((t) => t.name === "delegate_work"),
             "stable catalog retains definitions; runtime gates still deny wrong-role effects",
           );
-          assert.deepEqual(body.tools.find((t) => t.name === "freeflow_unit").parameters.properties.operation.enum, [
+          assert.deepEqual(body.tools.find((t) => t.name === "routing_unit").parameters.properties.operation.enum, [
             "inspect",
             "assess",
             "recover",
@@ -1009,14 +1001,14 @@ test(
           );
           return [
             {
-              name: "freeflow_return",
+              name: "return_work",
               args: { operation: "submit", report: "Stopped for the newer instruction.", outcome: "partial" },
             },
           ];
         }
         assert.equal(body.model, "gpt-4o");
         assert.ok(
-          body.tools.some((t) => t.name === "freeflow_return") && body.tools.some((t) => t.name === "freeflow_project"),
+          body.tools.some((t) => t.name === "return_work") && body.tools.some((t) => t.name === "select_evidence"),
         );
         assert.match(JSON.stringify(body), /Stop further reads/);
         return [];

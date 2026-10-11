@@ -61,24 +61,24 @@ function script(projection) {
     if (n === 1)
       return [
         {
-          name: "freeflow_delegate",
+          name: "delegate_work",
           args: { operation: "assign", worker: "helper", contract: "Read evidence.txt and select its result." },
         },
       ];
     if (n === 2 || n === 6) return [{ name: "read", args: { path: "evidence.txt" } }];
     if (n === 3 || n === 7)
       return [
-        ...(projection ? [{ name: "freeflow_project", args: { operation: "add", refs: [readRef()] } }] : []),
-        { name: "freeflow_return", args: { operation: "submit", report: "Evidence read.", outcome: "completed" } },
+        ...(projection ? [{ name: "select_evidence", args: { operation: "add", refs: [readRef()] } }] : []),
+        { name: "return_work", args: { operation: "submit", report: "Evidence read.", outcome: "completed" } },
       ];
     if (n === 4 || n === 8)
       return [
-        { name: "freeflow_unit", args: { operation: "close", outcome: "accepted", assessment: "Evidence checked." } },
+        { name: "routing_unit", args: { operation: "close", outcome: "accepted", assessment: "Evidence checked." } },
       ];
     if (n === 5)
       return [
         {
-          name: "freeflow_delegate",
+          name: "delegate_work",
           args: { operation: "assign", worker: "executor", contract: "Read evidence.txt and return." },
         },
       ];
@@ -215,7 +215,7 @@ for (const [name, profiles] of [
       },
     );
 
-// Freeflow changes the active tools mid-session (Tool Execution, freeflow_compact), as other extensions may. On Claude
+// Freeflow changes the active tools mid-session (Tool Execution, compact_context), as other extensions may. On Claude
 // models with native tool changes, Pi 1.0.1 and later define a later tool inside the conversation and keep the
 // request's tool list fixed (Pi 1.0.0 appended it to the list, which changed every later request's prefix and left
 // Freeflow's cache anchor nothing to find).

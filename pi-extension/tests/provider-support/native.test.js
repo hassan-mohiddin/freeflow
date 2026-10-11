@@ -187,7 +187,11 @@ for (const id of ["gpt-6-astra", "gpt-6-luna", "gpt-6-sol"]) {
           assert.ok(updates(p).some((x) => x.effort === "high"));
           assert.ok(manager.getBranch().some((e) => e.customType === ENTRY_TYPE && e.data.key.endsWith(`/${id}`)));
           assert.ok(!manager.getBranch().some((e) => e.customType === "freeflow-routing-v2"));
-          assert.ok(!(p.tools ?? []).some((t) => t.name.startsWith("freeflow_")));
+          assert.ok(
+            !(p.tools ?? []).some((t) =>
+              ["delegate_work", "return_work", "routing_unit", "select_evidence", "compact_context"].includes(t.name),
+            ),
+          );
         },
         id,
       );

@@ -113,23 +113,21 @@ test("source locators retain native occurrence identity and accept optional adap
 
 test("registered projection accepts a known eligible ref without inspection first", async () => {
   await fixture((n, _body, manager) => {
-    if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Read evidence and return." });
+    if (n === 1) return call("delegate_work", { operation: "assign", contract: "Read evidence and return." });
     if (n === 2) return call("read", { path: "evidence.txt" });
     if (n === 3) {
       const ref = `ctx:${manager.getBranch().find((e) => e.message?.toolName === "read").id}`;
-      return call("freeflow_project", { operation: "add", refs: [ref] });
+      return call("select_evidence", { operation: "add", refs: [ref] });
     }
     if (n === 4) {
-      const projects = manager.getBranch().filter((e) => e.message?.toolName === "freeflow_project");
+      const projects = manager.getBranch().filter((e) => e.message?.toolName === "select_evidence");
       assert.equal(projects.length, 1);
       assert.deepEqual(
         projects[0].message.details.items.map((item) => item.status),
         ["added"],
       );
       assert.equal(projects[0].message.details.selected.length, 1);
-      return [
-        { name: "freeflow_return", args: { operation: "submit", report: "Evidence ready.", outcome: "completed" } },
-      ];
+      return [{ name: "return_work", args: { operation: "submit", report: "Evidence ready.", outcome: "completed" } }];
     }
     return [];
   });
@@ -193,13 +191,13 @@ test("assistant messages and routing receipts are not selectable, while old rece
       "control",
       null,
       assistant("Substantive executor finding", [
-        { type: "toolCall", id: "c", name: "freeflow_project", arguments: { operation: "inspect" } },
+        { type: "toolCall", id: "c", name: "select_evidence", arguments: { operation: "inspect" } },
       ]),
     ),
     entry("receipt", "control", {
       role: "toolResult",
       toolCallId: "c",
-      toolName: "freeflow_project",
+      toolName: "select_evidence",
       content: [{ type: "text", text: '{"status":"unchanged"}' }],
     }),
   ];
@@ -228,7 +226,7 @@ test("assistant messages and routing receipts are not selectable, while old rece
       entries,
       entries.map((e) => e.message),
       "coordinator",
-    ).messages.some((m) => m.toolName === "freeflow_project"),
+    ).messages.some((m) => m.toolName === "select_evidence"),
   );
   state.selections.set("a", { ...empty, revision: 2, selected: ["ctx:control", "ctx:control#text"] });
   const old = prepare(
@@ -269,7 +267,7 @@ test("restoration preserves full report metadata and deduplicates by accepted oc
     assert.ok(restored.includes(value));
   const old = {
     role: "toolResult",
-    toolName: "freeflow_return",
+    toolName: "return_work",
     toolCallId: "other",
     content: [{ type: "text", text: JSON.stringify({ report: h.text, outcome: "completed", limitations: [] }) }],
   };
@@ -289,23 +287,23 @@ test("restoration preserves full report metadata and deduplicates by accepted oc
 for (const projection of [false, true])
   test(`native report arrives complete without inspection and survives close, projection ${projection}`, async () => {
     await fixture((n, body, m) => {
-      if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Return a partial report." });
+      if (n === 1) return call("delegate_work", { operation: "assign", contract: "Return a partial report." });
       if (n === 2)
-        return call("freeflow_return", {
+        return call("return_work", {
           operation: "submit",
           report: "REPORT_DIRECT_91",
           outcome: "partial",
           limitations: ["LIMIT_DIRECT_92"],
         });
       if (n === 3) {
-        const r = receipt(m, "freeflow_return");
+        const r = receipt(m, "return_work");
         assert.equal(r.outcome, "partial");
         assert.deepEqual(r.limitations, ["LIMIT_DIRECT_92"]);
         assert.match(r.assignmentRef, /^assignment:/);
         assert.match(r.reportRef, /^report:.*:1$/);
         for (const text of ["REPORT_DIRECT_91", "LIMIT_DIRECT_92", r.reportRef])
           assert.ok(JSON.stringify(body).includes(text));
-        return call("freeflow_unit", {
+        return call("routing_unit", {
           operation: "close",
           outcome: "deferred",
           assessment: "Partial result acknowledged.",
@@ -320,43 +318,49 @@ for (const projection of [false, true])
 test("native inspection snapshots distinguish page/scope totals, exclude controls and explain invalid work refs", async () => {
   let first;
   await fixture((n, body, m) => {
-    if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Read observations." });
+    if (n === 1) return call("delegate_work", { operation: "assign", contract: "Read observations." });
     if (n === 2) return Array.from({ length: 35 }, () => ({ name: "read", args: { path: "evidence.txt" } }));
-    if (n === 3) return call("freeflow_project", { operation: "inspect", scope: "history" });
+    if (n === 3) return call("select_evidence", { operation: "inspect", scope: "history" });
     if (n === 4) {
-      first = receipt(m, "freeflow_project");
+      first = receipt(m, "select_evidence");
       assert.equal(first.pageCounts.candidates, 30);
       assert.ok(first.scopeCounts.candidates > 30);
       assert.equal(first.scopeCounts.eligible, first.scopeCounts.candidates);
-      assert.ok(first.candidates.every((c) => c.producer === "executor" && !c.toolName?.startsWith("freeflow_")));
-      return call("freeflow_project", { operation: "inspect", scope: "history", cursor: first.nextCursor });
+      assert.ok(
+        first.candidates.every(
+          (c) =>
+            c.producer === "executor" &&
+            !["delegate_work", "return_work", "routing_unit", "select_evidence"].includes(c.toolName),
+        ),
+      );
+      return call("select_evidence", { operation: "inspect", scope: "history", cursor: first.nextCursor });
     }
     if (n === 5) {
-      const second = receipt(m, "freeflow_project");
+      const second = receipt(m, "select_evidence");
       assert.deepEqual(second.scopeCounts, first.scopeCounts);
       assert.equal(
         new Set([...first.candidates, ...second.candidates].map((c) => c.ref)).size,
         first.scopeCounts.candidates,
       );
-      return call("freeflow_return", { operation: "submit", report: "Done", outcome: "completed" });
+      return call("return_work", { operation: "submit", report: "Done", outcome: "completed" });
     }
     if (n === 6)
-      return call("freeflow_unit", {
+      return call("routing_unit", {
         operation: "inspect",
         view: "detail",
-        ref: receipt(m, "freeflow_return").handoff,
+        ref: receipt(m, "return_work").handoff,
       });
     if (n === 7) {
-      assert.equal(receipt(m, "freeflow_unit").code, "invalid_work_ref");
-      return call("freeflow_unit", {
+      assert.equal(receipt(m, "routing_unit").code, "invalid_work_ref");
+      return call("routing_unit", {
         operation: "inspect",
         view: "detail",
-        ref: receipt(m, "freeflow_return").assignmentRef,
+        ref: receipt(m, "return_work").assignmentRef,
       });
     }
     if (n === 8) {
-      assert.equal(receipt(m, "freeflow_unit").report, "Done");
-      return call("freeflow_unit", { operation: "close", outcome: "accepted", assessment: "Read work assessed." });
+      assert.equal(receipt(m, "routing_unit").report, "Done");
+      return call("routing_unit", { operation: "close", outcome: "accepted", assessment: "Read work assessed." });
     }
     return [];
   });
@@ -366,20 +370,19 @@ test("native compaction restores report limitations and revision into the same a
   let saved;
   await fixture(
     (n, body, m) => {
-      if (n === 1)
-        return call("freeflow_delegate", { operation: "assign", contract: "Return a report for assessment." });
+      if (n === 1) return call("delegate_work", { operation: "assign", contract: "Return a report for assessment." });
       if (n === 2)
-        return call("freeflow_return", {
+        return call("return_work", {
           operation: "submit",
           report: "COMPACT_REPORT_61",
           outcome: "partial",
           limitations: ["COMPACT_LIMIT_62"],
         });
       if (n === 3) {
-        saved = receipt(m, "freeflow_return");
+        saved = receipt(m, "return_work");
         return [];
       }
-      if (n === 4) return call("freeflow_unit", { operation: "assess" });
+      if (n === 4) return call("routing_unit", { operation: "assess" });
       if (n === 5) {
         const wire = JSON.stringify(body);
         for (const value of ["COMPACT_REPORT_61", "COMPACT_LIMIT_62", "partial", saved.assignmentRef, saved.reportRef])
@@ -399,33 +402,33 @@ test("native compaction restores report limitations and revision into the same a
 test("native retry delivers the unchanged complete report without a follow-up inspect", async () => {
   let saved;
   await fixture((n, body, m) => {
-    if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Return available findings." });
-    if (n === 2) return call("freeflow_project", { operation: "add", refs: ["ctx:unavailable"] });
+    if (n === 1) return call("delegate_work", { operation: "assign", contract: "Return available findings." });
+    if (n === 2) return call("select_evidence", { operation: "add", refs: ["ctx:unavailable"] });
     if (n === 3)
-      return call("freeflow_return", {
+      return call("return_work", {
         operation: "submit",
         report: "RETRY_REPORT_11",
         outcome: "partial",
         limitations: ["RETRY_LIMIT_12"],
       });
     if (n === 4) {
-      saved = receipt(m, "freeflow_return");
+      saved = receipt(m, "return_work");
       assert.equal(saved.ready, false);
-      return call("freeflow_project", {
+      return call("select_evidence", {
         operation: "remove",
         refs: ["ctx:unavailable"],
         reason: "Original capture unavailable; retain limitation.",
       });
     }
-    if (n === 5) return call("freeflow_return", { operation: "retry" });
+    if (n === 5) return call("return_work", { operation: "retry" });
     if (n === 6) {
-      const retried = receipt(m, "freeflow_return");
+      const retried = receipt(m, "return_work");
       for (const key of ["report", "reportRef", "reportRevision", "assignmentRef", "outcome", "limitations"])
         assert.deepEqual(retried[key], saved[key]);
       assert.equal(retried.reportUnchanged, true);
       for (const value of ["RETRY_REPORT_11", "RETRY_LIMIT_12", saved.reportRef])
         assert.ok(JSON.stringify(body).includes(value));
-      return call("freeflow_unit", { operation: "close", outcome: "deferred", assessment: "Partial report assessed." });
+      return call("routing_unit", { operation: "close", outcome: "deferred", assessment: "Partial report assessed." });
     }
     return [];
   });
@@ -435,37 +438,37 @@ test("empty new assignment advertises earlier evidence and selected receipts ret
   let ref, oldAssignment;
   await fixture((n, body, m) => {
     if (n === 1 || n === 5)
-      return call("freeflow_delegate", {
+      return call("delegate_work", {
         operation: "assign",
         contract: n === 1 ? "Read an observation." : "Reuse the earlier observation.",
       });
     if (n === 2) return call("read", { path: "evidence.txt" });
     if (n === 3) {
       ref = `ctx:${m.getBranch().find((e) => e.message?.toolName === "read").id}`;
-      return call("freeflow_return", { operation: "submit", report: "Observation captured.", outcome: "completed" });
+      return call("return_work", { operation: "submit", report: "Observation captured.", outcome: "completed" });
     }
     if (n === 4)
-      return call("freeflow_unit", { operation: "close", outcome: "accepted", assessment: "Supported result." });
-    if (n === 6) return call("freeflow_project", { operation: "inspect" });
+      return call("routing_unit", { operation: "close", outcome: "accepted", assessment: "Supported result." });
+    if (n === 6) return call("select_evidence", { operation: "inspect" });
     if (n === 7) {
-      const r = receipt(m, "freeflow_project");
+      const r = receipt(m, "select_evidence");
       assert.equal(r.count, 0);
       assert.ok(r.otherAssignments > 0);
       assert.match(r.historyHint, /scope history/);
-      return call("freeflow_project", { operation: "inspect", scope: "history" });
+      return call("select_evidence", { operation: "inspect", scope: "history" });
     }
     if (n === 8) {
-      const candidate = receipt(m, "freeflow_project").candidates.find((c) => c.ref === ref);
+      const candidate = receipt(m, "select_evidence").candidates.find((c) => c.ref === ref);
       assert.equal(candidate.producer, "executor");
       assert.equal(candidate.eligible, true);
       oldAssignment = candidate.assignment;
-      return call("freeflow_project", { operation: "add", refs: [ref] });
+      return call("select_evidence", { operation: "add", refs: [ref] });
     }
     if (n === 9) {
-      const selected = receipt(m, "freeflow_project").evidence.selected[0];
+      const selected = receipt(m, "select_evidence").evidence.selected[0];
       assert.equal(selected.producer, "executor");
       assert.equal(selected.assignment, oldAssignment);
-      return call("freeflow_return", {
+      return call("return_work", {
         operation: "submit",
         report: "Earlier evidence selected.",
         outcome: "completed",
@@ -475,11 +478,11 @@ test("empty new assignment advertises earlier evidence and selected receipts ret
       const wire = JSON.stringify(body);
       assert.ok(wire.includes(`${ref} | producer: executor`));
       assert.ok(wire.includes("EXACT_EVIDENCE_BODY_81"));
-      return call("freeflow_unit", { operation: "inspect", view: "detail", ref: "assignment:absent" });
+      return call("routing_unit", { operation: "inspect", view: "detail", ref: "assignment:absent" });
     }
     if (n === 11) {
-      assert.equal(receipt(m, "freeflow_unit").code, "work_unavailable");
-      return call("freeflow_unit", { operation: "close", outcome: "accepted", assessment: "Supported result." });
+      assert.equal(receipt(m, "routing_unit").code, "work_unavailable");
+      return call("routing_unit", { operation: "close", outcome: "accepted", assessment: "Supported result." });
     }
     return [];
   });
@@ -494,14 +497,14 @@ test("normal inspection hides delivery gaps while selected inspection preserves 
   );
   await fixture(
     (n, body, m) => {
-      if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Read the image and return it." });
+      if (n === 1) return call("delegate_work", { operation: "assign", contract: "Read the image and return it." });
       if (n === 2) return call("read", { path: "image.png" });
       if (n === 3) {
         ref = `ctx:${m.getBranch().find((e) => e.message?.role === "toolResult" && e.message.toolName === "read").id}`;
-        return call("freeflow_project", { operation: "inspect", scope: "assignment" });
+        return call("select_evidence", { operation: "inspect", scope: "assignment" });
       }
       if ([4, 5, 6].includes(n)) {
-        const r = receipt(m, "freeflow_project");
+        const r = receipt(m, "select_evidence");
         assert.ok(r.candidates.every((c) => c.eligible && c.targetReady));
         assert.ok(
           r.candidates.every((c) => c.kind === "toolResult"),
@@ -514,18 +517,18 @@ test("normal inspection hides delivery gaps while selected inspection preserves 
         );
         assert.equal(r.scopeCounts.candidates, r.scopeCounts.targetReady);
         assert.equal(r.pageCounts.candidates, r.pageCounts.targetReady);
-        if (n === 4) return call("freeflow_project", { operation: "inspect", scope: "active" });
-        if (n === 5) return call("freeflow_project", { operation: "inspect", scope: "history" });
-        return call("freeflow_project", { operation: "add", refs: [ref] });
+        if (n === 4) return call("select_evidence", { operation: "inspect", scope: "active" });
+        if (n === 5) return call("select_evidence", { operation: "inspect", scope: "history" });
+        return call("select_evidence", { operation: "add", refs: [ref] });
       }
       if (n === 7) {
-        const r = receipt(m, "freeflow_project");
+        const r = receipt(m, "select_evidence");
         assert.equal(r.ready, false);
         assert.ok(r.problems.some((p) => p.code === "target_representation"));
-        return call("freeflow_project", { operation: "inspect", scope: "selected" });
+        return call("select_evidence", { operation: "inspect", scope: "selected" });
       }
       if (n === 8) {
-        const r = receipt(m, "freeflow_project");
+        const r = receipt(m, "select_evidence");
         assert.deepEqual(r.selected, [ref]);
         const selected = r.candidates.find((c) => c.ref === ref);
         assert.equal(Object.hasOwn(selected, "preview"), false);
@@ -559,12 +562,12 @@ test("disabled Freeflow omits routing provenance and re-enabling restores it fro
   const attributed = (body) => JSON.stringify(body).includes("| producer: executor");
   await fixture(
     (n) => {
-      if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Read an observation." });
+      if (n === 1) return call("delegate_work", { operation: "assign", contract: "Read an observation." });
       if (n === 2) return call("read", { path: "evidence.txt" });
       if (n === 3)
-        return call("freeflow_return", { operation: "submit", report: "Observation captured.", outcome: "completed" });
+        return call("return_work", { operation: "submit", report: "Observation captured.", outcome: "completed" });
       if (n === 4)
-        return call("freeflow_unit", { operation: "close", outcome: "accepted", assessment: "Supported result." });
+        return call("routing_unit", { operation: "close", outcome: "accepted", assessment: "Supported result." });
       return [];
     },
     true,
@@ -587,12 +590,12 @@ test("a manual hold keeps routing provenance on ordinary requests", async () => 
   const attributed = (body) => JSON.stringify(body).includes("| producer: executor");
   await fixture(
     (n) => {
-      if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Read an observation." });
+      if (n === 1) return call("delegate_work", { operation: "assign", contract: "Read an observation." });
       if (n === 2) return call("read", { path: "evidence.txt" });
       if (n === 3)
-        return call("freeflow_return", { operation: "submit", report: "Observation captured.", outcome: "completed" });
+        return call("return_work", { operation: "submit", report: "Observation captured.", outcome: "completed" });
       if (n === 4)
-        return call("freeflow_unit", { operation: "close", outcome: "accepted", assessment: "Supported result." });
+        return call("routing_unit", { operation: "close", outcome: "accepted", assessment: "Supported result." });
       return [];
     },
     true,
@@ -610,27 +613,26 @@ test("reusing earlier-assignment evidence extends the Coordinator's cached reque
   let ref;
   const result = await fixture(
     (n, body, m) => {
-      if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Read an observation." });
+      if (n === 1) return call("delegate_work", { operation: "assign", contract: "Read an observation." });
       if (n === 2) return call("read", { path: "evidence.txt" });
       if (n === 3) {
         ref = `ctx:${m.getBranch().find((e) => e.message?.toolName === "read").id}`;
-        return call("freeflow_return", { operation: "submit", report: "Observation captured.", outcome: "completed" });
+        return call("return_work", { operation: "submit", report: "Observation captured.", outcome: "completed" });
       }
       if (n === 4)
-        return call("freeflow_unit", { operation: "close", outcome: "accepted", assessment: "Supported result." });
-      if (n === 5)
-        return call("freeflow_delegate", { operation: "assign", contract: "Reuse the earlier observation." });
-      if (n === 6) return call("freeflow_project", { operation: "inspect", scope: "history" });
-      if (n === 7) return call("freeflow_project", { operation: "add", refs: [ref] });
+        return call("routing_unit", { operation: "close", outcome: "accepted", assessment: "Supported result." });
+      if (n === 5) return call("delegate_work", { operation: "assign", contract: "Reuse the earlier observation." });
+      if (n === 6) return call("select_evidence", { operation: "inspect", scope: "history" });
+      if (n === 7) return call("select_evidence", { operation: "add", refs: [ref] });
       if (n === 8)
-        return call("freeflow_return", {
+        return call("return_work", {
           operation: "submit",
           report: "Earlier evidence selected.",
           outcome: "completed",
         });
       if (n === 9) {
         assert.ok(JSON.stringify(body).includes("EXACT_EVIDENCE_BODY_81"), "selected evidence is delivered");
-        return call("freeflow_unit", { operation: "close", outcome: "accepted", assessment: "Supported result." });
+        return call("routing_unit", { operation: "close", outcome: "accepted", assessment: "Supported result." });
       }
       return [];
     },

@@ -9,9 +9,9 @@ When its host gate is effective, the native entrypoint is designed to provide:
 - the 25-skill model/contributor surface and mandatory core/Interaction Contract prompts;
 - refresh-aware Runtime State with v2 routing `Control`, `Profile`, and `Delegation`;
 - Coordinator/Helper/Executor routing state recorded as native `freeflow-routing-v2` session entries;
-- the four v2 routing tools: `freeflow_delegate`, `freeflow_return`, `freeflow_unit`, and `freeflow_project`;
+- the four v2 routing tools: `delegate_work`, `return_work`, `routing_unit`, and `select_evidence`;
 - with Tool Execution, its prompt section, `apply_patch`, `bash_background` and `stop_background`, and the file-tracking layer around Pi's tools;
-- with Compaction, the `freeflow_compact` tool, its notices, and the compaction skill.
+- with Compaction, the `compact_context` tool, its notices, and the compaction skill.
 
 ## Cache reuse boundaries
 
@@ -33,7 +33,7 @@ Routing events are appended through Pi's native session-entry path and read back
 
 New user attention retains ordinary admitted history and pauses only the saved assessment obligation to restore compacted evidence. Closing, replacing and returning preserve admitted communication; current versus historical contracts remain distinct. When material evidence is missing from a returned assessment, Coordinator can attach a recovery request without replacing the assignment or report. The worker recorded on that assignment may select exposed evidence and read only exact admitted task paths or packaged Freeflow methods before returning a separate supplement; ordinary task work remains closed. Fresh attention does not settle recovery, and `assess` remains unavailable until the supplement arrives or Coordinator cancels recovery.
 
-Use `freeflow_unit` with `{"operation":"assess"}` only when that saved assessment is again intended and no recovery remains unsettled; failed readiness keeps it suspended. Recover Runtime State, the current assignment, saved report, selected evidence, and partial effects after context loss or native model/thinking changes. Current code accepts earlier supported v2 history, while older binaries may reject sessions containing the newer recovery events; there is no downgrade migration.
+Use `routing_unit` with `{"operation":"assess"}` only when that saved assessment is again intended and no recovery remains unsettled; failed readiness keeps it suspended. Recover Runtime State, the current assignment, saved report, selected evidence, and partial effects after context loss or native model/thinking changes. Current code accepts earlier supported v2 history, while older binaries may reject sessions containing the newer recovery events; there is no downgrade migration.
 
 ## Development boundary
 

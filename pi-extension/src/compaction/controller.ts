@@ -31,7 +31,7 @@ import { cachedBranch } from "../host/branch.js";
 /**
  * Freeflow compaction's agent path. After each turn Freeflow measures the context and, once per cycle each, says
  * compaction is due (the warning, with the result index) and then to compact now. The agent asks to compact with
- * freeflow_compact once compaction is due. At the end of that turn Freeflow writes Pi's compaction entry, keeping
+ * compact_context once compaction is due. At the end of that turn Freeflow writes Pi's compaction entry, keeping
  * nothing raw, followed by the carried context and a recovery message, and asks Pi to continue the same run. Pi fires
  * no compaction events for this, so the caller runs Freeflow's post-compaction resets before the next request
  * (takeCompacted).
@@ -40,8 +40,7 @@ import { cachedBranch } from "../host/branch.js";
 export const CARRIED_TYPE = "freeflow-carried-context";
 export const RECOVERY_TYPE = "freeflow-compaction-recovery";
 /** What /freeflow compact sends as the user's message; a list of results may follow it. */
-export const USER_REQUEST =
-  "Compact now: read the compaction skill, prepare the next cycle, and call freeflow_compact.";
+export const USER_REQUEST = "Compact now: read the compaction skill, prepare the next cycle, and call compact_context.";
 
 export interface CompactionHost {
   effective(): boolean;
@@ -208,24 +207,24 @@ export class CompactionController {
     const prefix = this.host.noticePrefix;
     const { window, trigger } = thresholds;
     if (this.host.coordinatorUnderProjection())
-      return `${prefix} ${level === "compactNow" ? "Compact now" : "Compaction is due soon"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger}. Your view leaves out what workers did, so do not compact yourself: ${level === "compactNow" ? "now" : "at a safe point (after the current assessment, or before the next assignment)"}, delegate an assignment asking the worker to read the compaction skill, compact with freeflow_compact, and then return with freeflow_return; then continue.`;
+      return `${prefix} ${level === "compactNow" ? "Compact now" : "Compaction is due soon"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger}. Your view leaves out what workers did, so do not compact yourself: ${level === "compactNow" ? "now" : "at a safe point (after the current assessment, or before the next assignment)"}, delegate an assignment asking the worker to read the compaction skill, compact with compact_context, and then return with return_work; then continue.`;
     const index = withList ? this.indexText(ctx) : "";
     const list = index ? `\n\n${index}` : "";
     // A worker's return hands the same history to the Coordinator and the next assignment, so it ends no growth.
     const worker = this.host.routingAssignment() !== undefined;
     if (level === "compactNow")
-      return `${prefix} Compact now: context is at about ${tokens} of ${window} tokens. Pi compacts on its own past about ${trigger}, or when a request overflows the model's window. The end of your current step is the safe point: write down any partial state, then prepare and call freeflow_compact; ${worker ? "compact before you return, since the Coordinator and the next assignment continue this history; " : ""}if Pi compacts first, its own summary replaces yours.${list}`;
+      return `${prefix} Compact now: context is at about ${tokens} of ${window} tokens. Pi compacts on its own past about ${trigger}, or when a request overflows the model's window. The end of your current step is the safe point: write down any partial state, then prepare and call compact_context; ${worker ? "compact before you return, since the Coordinator and the next assignment continue this history; " : ""}if Pi compacts first, its own summary replaces yours.${list}`;
     // Before compact now there is room for the Coordinator's next turn, so a worker may finish a return first.
     const end = `If you are at one now, compact now; if your work ends within a step or two with ${worker ? "a return" : "a final answer"}, finish it instead.`;
-    return `${prefix} Compaction is due soon: context is at about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger}. Keep working until a safe point: a finished step whose result you know (a check read, an edit set complete, a report written), not mid-edit or with a command running. ${end} At the safe point, read the compaction skill, update the Working Record, ${this.carryText(ctx)}, write the summary, and call freeflow_compact. A "compact now" notice follows near Pi's limit.${list}`;
+    return `${prefix} Compaction is due soon: context is at about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger}. Keep working until a safe point: a finished step whose result you know (a check read, an edit set complete, a report written), not mid-edit or with a command running. ${end} At the safe point, read the compaction skill, update the Working Record, ${this.carryText(ctx)}, write the summary, and call compact_context. A "compact now" notice follows near Pi's limit.${list}`;
   }
 
-  /** Check a freeflow_compact call and schedule it for the end of this turn; throws with the reason it is refused. */
+  /** Check a compact_context call and schedule it for the end of this turn; throws with the reason it is refused. */
   async request(params: any, ctx: any): Promise<string> {
     if (!this.host.effective()) throw new Error("Freeflow compaction is turned off.");
     if (this.host.coordinatorUnderProjection())
       throw new Error(
-        "Your view leaves out what workers did, so do not compact yourself: delegate an assignment asking the worker to read the compaction skill, compact with freeflow_compact, and then return with freeflow_return.",
+        "Your view leaves out what workers did, so do not compact yourself: delegate an assignment asking the worker to read the compaction skill, compact with compact_context, and then return with return_work.",
       );
     if (!this.isDue(ctx)) throw new Error(notDueText(branchOf(ctx)));
     const summary = typeof params?.summary === "string" ? params.summary.trim() : "";
@@ -233,13 +232,13 @@ export class CompactionController {
     const summaryTokens = estimateTokens(summary);
     if (summaryTokens > SUMMARY_LIMIT_TOKENS)
       throw new Error(
-        `The summary is about ${summaryTokens} tokens; the limit is ${SUMMARY_LIMIT_TOKENS}. Shorten it by about ${summaryTokens - SUMMARY_LIMIT_TOKENS} tokens and call freeflow_compact again.`,
+        `The summary is about ${summaryTokens} tokens; the limit is ${SUMMARY_LIMIT_TOKENS}. Shorten it by about ${summaryTokens - SUMMARY_LIMIT_TOKENS} tokens and call compact_context again.`,
       );
     const carry: CarryItem[] = params?.carry === undefined ? [] : params.carry;
     if (!Array.isArray(carry)) throw new Error("carry must be a list of { file, lines? } or { result } items.");
     if (carry.length && !this.host.carryEnabled())
       throw new Error(
-        "Context reuse is off: call freeflow_compact without carry. The user's latest messages are carried for you.",
+        "Context reuse is off: call compact_context without carry. The user's latest messages are carried for you.",
       );
     const problems = carry.map(carryProblem).filter(Boolean);
     if (problems.length) throw new Error(`Fix the carry list: ${problems.join("; ")}.`);
@@ -506,15 +505,15 @@ function recoveryText(cycle: number, carried = ""): string {
 
 /** The agent path: the compaction was the request, and it is done. */
 const AFTER_REQUESTED =
-  "This compaction completes the request for it: do not call freeflow_compact again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment with freeflow_return).";
+  "This compaction completes the request for it: do not call compact_context again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment with return_work).";
 /** Pi compacted on its own, so a Freeflow compaction being prepared is no longer needed. */
-const AFTER_PI = "Compaction is no longer due: do not call freeflow_compact.";
+const AFTER_PI = "Compaction is no longer due: do not call compact_context.";
 
-/** Why freeflow_compact is refused when compaction is not due, and where to go next if a compaction began this cycle. */
+/** Why compact_context is refused when compaction is not due, and where to go next if a compaction began this cycle. */
 function notDueText(branch: readonly any[]): string {
   const latest = [...branch].reverse().find((entry) => entry?.type === "compaction");
   const next =
-    "Continue the work; if this is a routing assignment that only asked for compaction, return it with freeflow_return.";
+    "Continue the work; if this is a routing assignment that only asked for compaction, return it with return_work.";
   if (!latest)
     return "Compaction is not due. Freeflow says when it is; the user can also ask for it with /freeflow compact.";
   if (latest.details?.freeflow && !latest.details.freeflow.fallback)

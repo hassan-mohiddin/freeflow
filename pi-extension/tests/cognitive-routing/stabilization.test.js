@@ -18,25 +18,25 @@ for (const projection of [false, true])
     let ref;
     const result = await fixture((n, body, manager) => {
       if (n === 1)
-        return call("freeflow_delegate", { operation: "assign", contract: "Explain the requested definitions." });
-      if (n === 2) return call("freeflow_return", { operation: "submit", report, outcome: "completed" });
+        return call("delegate_work", { operation: "assign", contract: "Explain the requested definitions." });
+      if (n === 2) return call("return_work", { operation: "submit", report, outcome: "completed" });
       if (n === 3) {
         assert.ok(JSON.stringify(body).includes(report));
-        return call("freeflow_unit", { operation: "close", outcome: "accepted", assessment: "Received the answer." });
+        return call("routing_unit", { operation: "close", outcome: "accepted", assessment: "Received the answer." });
       }
       if (n === 4) {
         assert.ok(JSON.stringify(body).includes(report), "closure must not erase the answer before it is relayed");
-        return call("freeflow_unit", { operation: "inspect", view: "history", limit: 5 });
+        return call("routing_unit", { operation: "inspect", view: "history", limit: 5 });
       }
       if (n === 5) {
-        const r = latest(manager, "freeflow_unit");
+        const r = latest(manager, "routing_unit");
         assert.equal(r.history.length, 1);
         assert.equal(r.history[0].reportAvailable, true);
         ref = r.history[0].ref;
-        return call("freeflow_unit", { operation: "inspect", view: "detail", ref });
+        return call("routing_unit", { operation: "inspect", view: "detail", ref });
       }
       if (n === 6) {
-        const r = latest(manager, "freeflow_unit");
+        const r = latest(manager, "routing_unit");
         assert.equal(r.report, report);
         assert.equal(
           JSON.stringify(r).split("Explain the requested definitions.").length - 1,
@@ -61,31 +61,31 @@ test("historical discovery recovers exposed evidence after compaction and a new 
   const result = await fixture(
     (n, body, m) => {
       if (n === 1 || n === 6)
-        return call("freeflow_delegate", {
+        return call("delegate_work", {
           operation: "assign",
           contract: n === 1 ? "Read evidence." : "Reuse the previous captured evidence.",
         });
       if (n === 2) return call("read", { path: "evidence.txt" });
       if (n === 3) {
         ref = "ctx:" + m.getBranch().find((e) => e.message?.toolName === "read").id;
-        return call("freeflow_return", { operation: "submit", report: "Read completed.", outcome: "completed" });
+        return call("return_work", { operation: "submit", report: "Read completed.", outcome: "completed" });
       }
       if (n === 4 || n === 11)
-        return call("freeflow_unit", { operation: "close", outcome: "accepted", assessment: "Received evidence." });
-      if (n === 7) return call("freeflow_project", { operation: "inspect", scope: "assignment" });
+        return call("routing_unit", { operation: "close", outcome: "accepted", assessment: "Received evidence." });
+      if (n === 7) return call("select_evidence", { operation: "inspect", scope: "assignment" });
       if (n === 8) {
-        assert.equal(latest(m, "freeflow_project").count, 0);
-        return call("freeflow_project", { operation: "inspect", scope: "history" });
+        assert.equal(latest(m, "select_evidence").count, 0);
+        return call("select_evidence", { operation: "inspect", scope: "history" });
       }
       if (n === 9) {
-        const candidate = latest(m, "freeflow_project").candidates.find((r) => r.ref === ref);
+        const candidate = latest(m, "select_evidence").candidates.find((r) => r.ref === ref);
         assert.equal(candidate.active, false);
         assert.equal(candidate.eligible, true);
-        return call("freeflow_project", { operation: "add", refs: [ref] });
+        return call("select_evidence", { operation: "add", refs: [ref] });
       }
       if (n === 10) {
-        assert.equal(latest(m, "freeflow_project").ready, true);
-        return call("freeflow_return", {
+        assert.equal(latest(m, "select_evidence").ready, true);
+        return call("return_work", {
           operation: "submit",
           report: "Recovered existing evidence.",
           outcome: "completed",
@@ -108,7 +108,7 @@ test("no-op selections preserve revisions and same-call reentry preserves the ac
   const original = RoutingRuntime.prototype.invoke;
   RoutingRuntime.prototype.invoke = async function (name, id, input, signal, ctx) {
     const first = await original.call(this, name, id, input, signal, ctx);
-    if (name === "freeflow_project" && input.operation === "add" && input.refs.length && !repeated) {
+    if (name === "select_evidence" && input.operation === "add" && input.refs.length && !repeated) {
       repeated = await original.call(this, name, id, input, signal, ctx);
       assert.deepEqual(repeated, first);
       const conflict = await original.call(this, name, id, { ...input, refs: ["ctx:other"] }, signal, ctx);
@@ -118,25 +118,25 @@ test("no-op selections preserve revisions and same-call reentry preserves the ac
   };
   try {
     const result = await fixture((n, body, m) => {
-      if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Read and select evidence." });
+      if (n === 1) return call("delegate_work", { operation: "assign", contract: "Read and select evidence." });
       if (n === 2) return call("read", { path: "evidence.txt" });
       if (n === 3) {
         ref = "ctx:" + m.getBranch().find((e) => e.message?.toolName === "read").id;
-        return call("freeflow_project", { operation: "add", refs: [ref] });
+        return call("select_evidence", { operation: "add", refs: [ref] });
       }
-      if (n === 4) return call("freeflow_project", { operation: "add", refs: [ref] });
+      if (n === 4) return call("select_evidence", { operation: "add", refs: [ref] });
       if (n === 5) {
-        assert.equal(latest(m, "freeflow_project").revision, 1);
-        return call("freeflow_project", { operation: "add", refs: [] });
+        assert.equal(latest(m, "select_evidence").revision, 1);
+        return call("select_evidence", { operation: "add", refs: [] });
       }
       if (n === 6)
-        return call("freeflow_project", {
+        return call("select_evidence", {
           operation: "remove",
           refs: ["ctx:never-selected"],
           reason: "No such selection",
         });
       if (n === 7) {
-        const r = latest(m, "freeflow_project");
+        const r = latest(m, "select_evidence");
         assert.equal(r.revision, 1);
         assert.equal(r.status, "unchanged");
         assert.deepEqual(r.evidence.withdrawals, []);
@@ -152,24 +152,23 @@ test("no-op selections preserve revisions and same-call reentry preserves the ac
 test("candidate pagination is stable while inspection appends native entries", async () => {
   let first, cursor;
   await fixture((n, body, m) => {
-    if (n === 1)
-      return call("freeflow_delegate", { operation: "assign", contract: "Read observations and inspect them." });
+    if (n === 1) return call("delegate_work", { operation: "assign", contract: "Read observations and inspect them." });
     if (n === 2) return Array.from({ length: 35 }, () => ({ name: "read", args: { path: "evidence.txt" } }));
-    if (n === 3) return call("freeflow_project", { operation: "inspect", scope: "history" });
+    if (n === 3) return call("select_evidence", { operation: "inspect", scope: "history" });
     if (n === 4) {
-      first = latest(m, "freeflow_project");
+      first = latest(m, "select_evidence");
       cursor = first.nextCursor;
       assert.equal(first.returned, 30);
       assert.ok(cursor);
-      return call("freeflow_project", { operation: "inspect", scope: "history", cursor });
+      return call("select_evidence", { operation: "inspect", scope: "history", cursor });
     }
     if (n === 5) {
-      const second = latest(m, "freeflow_project");
+      const second = latest(m, "select_evidence");
       assert.equal(second.count, first.count);
       assert.equal(new Set([...first.candidates, ...second.candidates].map((r) => r.ref)).size, first.count);
-      return call("freeflow_project", { operation: "inspect", scope: "active", cursor });
+      return call("select_evidence", { operation: "inspect", scope: "active", cursor });
     }
-    if (n === 6) assert.equal(latest(m, "freeflow_project").code, "cursor_expired");
+    if (n === 6) assert.equal(latest(m, "select_evidence").code, "cursor_expired");
     return [];
   });
 });
@@ -220,48 +219,48 @@ test("planning budgets do not count base64 as text or reserve an unrequested mod
 test("report revisions remain ordinary communication and are recoverable individually", async () => {
   let workRef, previous;
   await fixture((n, body, m) => {
-    if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Report the actual result." });
+    if (n === 1) return call("delegate_work", { operation: "assign", contract: "Report the actual result." });
     if (n === 2)
       return [
-        { name: "freeflow_project", args: { operation: "add", refs: ["ctx:missing"] } },
+        { name: "select_evidence", args: { operation: "add", refs: ["ctx:missing"] } },
         {
-          name: "freeflow_return",
+          name: "return_work",
           args: { operation: "submit", report: "FIRST_SAVED_REVISION_271", outcome: "partial" },
         },
       ];
     if (n === 3)
-      return call("freeflow_return", { operation: "submit", report: "SECOND_SAVED_REVISION_811", outcome: "partial" });
+      return call("return_work", { operation: "submit", report: "SECOND_SAVED_REVISION_811", outcome: "partial" });
     if (n === 4)
       return [
         {
-          name: "freeflow_project",
+          name: "select_evidence",
           args: { operation: "remove", refs: ["ctx:missing"], reason: "Unavailable evidence remains a gap" },
         },
-        { name: "freeflow_return", args: { operation: "retry" } },
+        { name: "return_work", args: { operation: "retry" } },
       ];
     if (n === 5) {
       assert.match(JSON.stringify(body), /FIRST_SAVED_REVISION_271/);
       assert.match(JSON.stringify(body), /SECOND_SAVED_REVISION_811/);
-      return call("freeflow_unit", {
+      return call("routing_unit", {
         operation: "close",
         outcome: "deferred",
         assessment: "Saved both report revisions and the gap.",
       });
     }
-    if (n === 6) return call("freeflow_unit", { operation: "inspect", view: "history" });
+    if (n === 6) return call("routing_unit", { operation: "inspect", view: "history" });
     if (n === 7) {
-      workRef = latest(m, "freeflow_unit").history[0].ref;
-      return call("freeflow_unit", { operation: "inspect", view: "detail", ref: workRef });
+      workRef = latest(m, "routing_unit").history[0].ref;
+      return call("routing_unit", { operation: "inspect", view: "detail", ref: workRef });
     }
     if (n === 8) {
-      const r = latest(m, "freeflow_unit");
+      const r = latest(m, "routing_unit");
       assert.equal(r.report, "SECOND_SAVED_REVISION_811");
       assert.equal(r.reportRevision, 2);
       previous = r.previousReportRef;
-      return call("freeflow_unit", { operation: "inspect", view: "detail", ref: previous });
+      return call("routing_unit", { operation: "inspect", view: "detail", ref: previous });
     }
     if (n === 9) {
-      const r = latest(m, "freeflow_unit");
+      const r = latest(m, "routing_unit");
       assert.equal(r.report, "FIRST_SAVED_REVISION_271");
       assert.equal(r.reportRevision, 1);
       assert.equal(r.latestReportRevision, 2);
@@ -275,9 +274,9 @@ test("report revisions remain ordinary communication and are recoverable individ
 test("a prior profile's usage does not starve the receiving response after projection", async () => {
   const result = await fixture(
     (n, body) => {
-      if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Return a short result." });
+      if (n === 1) return call("delegate_work", { operation: "assign", contract: "Return a short result." });
       if (n === 2)
-        return call("freeflow_return", { operation: "submit", report: "Short saved result.", outcome: "completed" });
+        return call("return_work", { operation: "submit", report: "Short saved result.", outcome: "completed" });
       if (n === 3) {
         assert.equal(body.model, "gpt-4o");
         assert.ok(
@@ -320,12 +319,12 @@ test("a prior profile's usage does not starve the receiving response after proje
 
 test("removed context management cannot be smuggled into a handoff batch", async () => {
   const result = await fixture((n, body, m) => {
-    if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Return a supported report." });
+    if (n === 1) return call("delegate_work", { operation: "assign", contract: "Return a supported report." });
     if (n === 2)
       return [
         { name: "freeflow_context", args: { operation: "archive" } },
         {
-          name: "freeflow_return",
+          name: "return_work",
           args: { operation: "submit", report: "Must not be accepted from this batch.", outcome: "completed" },
         },
       ];
@@ -334,7 +333,7 @@ test("removed context management cannot be smuggled into a handoff batch", async
       assert.equal(
         m
           .getBranch()
-          .filter((e) => e.message?.toolName === "freeflow_return")
+          .filter((e) => e.message?.toolName === "return_work")
           .at(-1).message.isError,
         true,
       );
@@ -346,10 +345,10 @@ test("removed context management cannot be smuggled into a handoff batch", async
 
 test("Executor inspection failures do not falsely require Coordinator control", async () => {
   await fixture((n, body, m) => {
-    if (n === 1) return call("freeflow_delegate", { operation: "assign", contract: "Inspect existing routing state." });
-    if (n === 2) return call("freeflow_unit", { operation: "inspect", view: "detail", ref: "assignment:missing" });
+    if (n === 1) return call("delegate_work", { operation: "assign", contract: "Inspect existing routing state." });
+    if (n === 2) return call("routing_unit", { operation: "inspect", view: "detail", ref: "assignment:missing" });
     if (n === 3) {
-      const r = latest(m, "freeflow_unit");
+      const r = latest(m, "routing_unit");
       assert.equal(r.code, "work_unavailable");
       assert.equal(r.expectedProfile, undefined);
       assert.match(r.recoveryAction, /does not require a new assignment/);

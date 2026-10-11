@@ -6,13 +6,13 @@ import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { fixture } from "../fixtures/routing-native.js";
 
 // Freeflow compaction's agent path on a real Pi session: /freeflow compact makes compaction due and sends the request
-// as the user's message, freeflow_compact schedules it, and the turn end writes the compaction, carried context and
+// as the user's message, compact_context schedules it, and the turn end writes the compaction, carried context and
 // recovery message and continues the run.
 const noRouting = (extra = {}) => ({
   cognitiveRouting: { enabled: false },
   freeflowConfig: { toolExecution: { enabled: true }, ...extra },
 });
-const compact = (args) => ({ name: "freeflow_compact", args });
+const compact = (args) => ({ name: "compact_context", args });
 const text = (item) =>
   typeof item.content === "string"
     ? item.content
@@ -31,12 +31,12 @@ const compactNow = async ({ session, requests }) => {
   await session.waitForIdle();
 };
 
-test("freeflow_compact is refused until compaction is due", { timeout: 30000 }, async () => {
+test("compact_context is refused until compaction is due", { timeout: 30000 }, async () => {
   await fixture(
     async (n) => [[compact({ summary: "EARLY" })]][n - 1] ?? [],
     false,
     async ({ manager }) => {
-      const [result] = toolResults(manager, "freeflow_compact");
+      const [result] = toolResults(manager, "compact_context");
       assert.equal(result.isError, true);
       assert.match(text(result), /Compaction is not due/);
       assert.ok(!manager.getBranch().some((entry) => entry.type === "compaction"));
@@ -78,8 +78,8 @@ test("/freeflow compact leads to one compaction and the same run continues from 
       assert.match(after[1], /### evidence\.txt\n\n`+\n1\tFRESH_AT_COMPACTION\n`+/);
       assert.match(after[2], /^\[Freeflow notice, not from the user\] Compaction finished; cycle 2 starts here\./);
       assert.match(after[2], /if the summary names a Working Record for this work/);
-      assert.match(after[2], /do not call freeflow_compact again in this cycle/);
-      assert.match(after[2], /a worker returns its assignment with freeflow_return/);
+      assert.match(after[2], /do not call compact_context again in this cycle/);
+      assert.match(after[2], /a worker returns its assignment with return_work/);
       assert.match(after[2], /verify work the summary calls done instead of redoing it/);
       // The carry is fresh: reading it again, or the compaction skill, only refills the new cycle.
       assert.match(after[2], /its files were read at compaction, so do not read them or its results again/);
@@ -143,7 +143,7 @@ test("a compaction request over its limits is refused with what to change", { ti
       ][n - 1] ?? [],
     false,
     async ({ manager }) => {
-      const results = toolResults(manager, "freeflow_compact").map(text);
+      const results = toolResults(manager, "compact_context").map(text);
       assert.match(results[0], /missing\.txt \(file not found\)/);
       assert.match(results[1], /about 10000 tokens; the limit is 8000/);
       assert.match(results[2], /the budget is 19200/);
@@ -186,7 +186,7 @@ test("after compaction the model holds only the files it carried", { timeout: 30
   );
 });
 
-test("freeflow_compact is declared while compaction is on, and not when it is off", { timeout: 30000 }, async () => {
+test("compact_context is declared while compaction is on, and not when it is off", { timeout: 30000 }, async () => {
   const declared = async (options) => {
     let tools;
     await fixture(
@@ -198,16 +198,16 @@ test("freeflow_compact is declared while compaction is on, and not when it is of
       true,
       options,
     );
-    return tools.includes("freeflow_compact");
+    return tools.includes("compact_context");
   };
   assert.equal(await declared(noRouting()), true);
   assert.equal(await declared(noRouting({ compaction: { enabled: false } })), false);
 });
 
 test("a worker compacts mid-assignment, recovers, and the unit completes", { timeout: 30000 }, async () => {
-  const delegate = { name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence.txt." } };
-  const submit = { name: "freeflow_return", args: { operation: "submit", report: "Done.", outcome: "completed" } };
-  const close = { name: "freeflow_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } };
+  const delegate = { name: "delegate_work", args: { operation: "assign", contract: "Read evidence.txt." } };
+  const submit = { name: "return_work", args: { operation: "submit", report: "Done.", outcome: "completed" } };
+  const close = { name: "routing_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } };
   await fixture(
     async (n) =>
       [
@@ -240,17 +240,17 @@ test("a worker compacts mid-assignment, recovers, and the unit completes", { tim
         contract > texts.findIndex((each) => /Compaction finished; cycle 2 starts here/.test(each)),
         "after the recovery message",
       );
-      assert.match(texts[contract], /or return it with freeflow_return if compacting was all it asked\./);
+      assert.match(texts[contract], /or return it with return_work if compacting was all it asked\./);
       assert.equal(
         manager.getBranch().find((entry) => entry.type === "compaction").details.freeflow.assignment !== undefined,
         true,
       );
       // A second call is refused with where to go next, not with /freeflow compact.
-      const [, again] = toolResults(manager, "freeflow_compact");
+      const [, again] = toolResults(manager, "compact_context");
       assert.equal(again.isError, true);
       assert.match(
         text(again),
-        /this cycle began with a compaction, and that compaction completed any compaction your request or assignment asked for\. Continue the work; if this is a routing assignment that only asked for compaction, return it with freeflow_return\./,
+        /this cycle began with a compaction, and that compaction completed any compaction your request or assignment asked for\. Continue the work; if this is a routing assignment that only asked for compaction, return it with return_work\./,
       );
       assert.doesNotMatch(text(again), /\/freeflow compact/);
       assert.equal(manager.getBranch().filter((entry) => entry.type === "compaction").length, 1);
@@ -278,7 +278,7 @@ test("a Coordinator under projection is told to delegate compaction, not to comp
     async (n) => [[compact({ summary: "COORDINATOR_SUMMARY" })]][n - 1] ?? [],
     true,
     async ({ manager }) => {
-      const [result] = toolResults(manager, "freeflow_compact");
+      const [result] = toolResults(manager, "compact_context");
       assert.equal(result.isError, true);
       assert.match(text(result), /Your view leaves out what workers did, so do not compact yourself/);
       assert.ok(!manager.getBranch().some((entry) => entry.type === "compaction"));

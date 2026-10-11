@@ -1,6 +1,6 @@
 # Compaction Summary Format
 
-Read this before writing a compaction summary. The [compaction skill](../SKILL.md) owns what is worth keeping; this reference owns the exact shape of the summary passed to `freeflow_compact`, and is binding as written.
+Read this before writing a compaction summary. The [compaction skill](../SKILL.md) owns what is worth keeping; this reference owns the exact shape of the summary passed to `compact_context`, and is binding as written.
 
 ## Two shapes
 
@@ -24,7 +24,7 @@ Compaction never creates a record. Whether a task needs one is decided at its st
 - No narrative: write what is true now, not the order things happened in.
 - About 8,000 tokens at most. Most summaries need far less.
 
-Before calling `freeflow_compact`, check the summary as a whole: would a fresh context reading only it (and, when there is one, the record) choose the same next step you would? If not, add what it would need.
+Before calling `compact_context`, check the summary as a whole: would a fresh context reading only it (and, when there is one, the record) choose the same next step you would? If not, add what it would need.
 
 ## Record-backed shape
 
@@ -188,7 +188,7 @@ Numbered by file line, as are read results below.
 …  1 failed  …
 ```
 
-[Freeflow notice, not from the user] Compaction finished; cycle 3 starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on, and verify work the summary calls done instead of redoing it. The carried context is above: its files were read at compaction, so do not read them or its results again unless something has changed them since. This compaction is done, so do not re-read the compaction skill or its summary format. Then continue the work the compaction interrupted. This compaction completes the request for it: do not call freeflow_compact again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment with freeflow_return).
+[Freeflow notice, not from the user] Compaction finished; cycle 3 starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on, and verify work the summary calls done instead of redoing it. The carried context is above: its files were read at compaction, so do not read them or its results again unless something has changed them since. This compaction is done, so do not re-read the compaction skill or its summary format. Then continue the work the compaction interrupted. This compaction completes the request for it: do not call compact_context again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment with return_work).
 ````
 
 ## Example: record-shaped

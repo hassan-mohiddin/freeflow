@@ -7,9 +7,7 @@ import { replay } from "../../dist/cognitive-routing/state.js";
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // Coordinator delegates; the Executor answers once without returning, leaving the assignment outstanding.
 const script = (n) =>
-  n === 1
-    ? [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence.txt and report." } }]
-    : [];
+  n === 1 ? [{ name: "delegate_work", args: { operation: "assign", contract: "Read evidence.txt and report." } }] : [];
 
 // A process that dies mid-run leaves the worker's execution opened but never bound.
 function simulateCrash(manager) {

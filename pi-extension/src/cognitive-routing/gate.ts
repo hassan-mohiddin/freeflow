@@ -131,9 +131,9 @@ export class ToolGate {
     }
   }
   private handoffOperation(name: string, input: any): boolean {
-    if (name === "freeflow_delegate") return true;
-    if (name === "freeflow_return") return ["submit", "supplement", "retry"].includes(input?.operation);
-    return name === "freeflow_unit" && input?.operation === "recover";
+    if (name === "delegate_work") return true;
+    if (name === "return_work") return ["submit", "supplement", "retry"].includes(input?.operation);
+    return name === "routing_unit" && input?.operation === "recover";
   }
   private stableRecoveryPath(path: string): boolean {
     return (
@@ -208,7 +208,7 @@ export class ToolGate {
       !handoffs.length ||
         (handoffs.length === 1 &&
           this.handoffOperation(calls.at(-1)?.name, calls.at(-1)?.arguments) &&
-          calls.every((b: any) => this.handoffOperation(b.name, b.arguments) || b.name === "freeflow_project")),
+          calls.every((b: any) => this.handoffOperation(b.name, b.arguments) || b.name === "select_evidence")),
       "invalid_handoff_batch",
       "A handoff must be last and cannot accompany ordinary task tools.",
     );
@@ -227,7 +227,7 @@ export class ToolGate {
     try {
       const state = this.session.stateData();
       if (state.control === "manual")
-        return isRouting && name !== "freeflow_unit" ? { block: true, reason: "Manual control is active." } : undefined;
+        return isRouting && name !== "routing_unit" ? { block: true, reason: "Manual control is active." } : undefined;
       if (state.control !== "automatic")
         return isRouting ? { block: true, reason: "Automatic routing is inactive." } : undefined;
       this.batch(event.toolCallId, name, nested);

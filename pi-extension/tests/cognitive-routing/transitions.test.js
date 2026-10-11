@@ -6,9 +6,7 @@ import { RoutingRuntime } from "../../dist/cognitive-routing/runtime.js";
 
 // Delegate, then let the worker stop without returning so the assignment stays outstanding.
 const unfinished = (n) =>
-  n === 1
-    ? [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence.txt and report." } }]
-    : [];
+  n === 1 ? [{ name: "delegate_work", args: { operation: "assign", contract: "Read evidence.txt and report." } }] : [];
 const routingEvents = (manager) =>
   manager
     .getBranch()

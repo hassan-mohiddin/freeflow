@@ -6,10 +6,10 @@ How it works and why, including behavior that looks wrong but is intended: [`dev
 
 ## Concepts
 
-- **Unit**: one piece of user-facing work the Coordinator owns. The Coordinator inspects, assesses, recovers, and closes it with `freeflow_unit`.
-- **Assignment**: delegated work inside a unit, created or replaced with `freeflow_delegate` and finished by the worker with `freeflow_return` (submit, supplement, or retry).
+- **Unit**: one piece of user-facing work the Coordinator owns. The Coordinator inspects, assesses, recovers, and closes it with `routing_unit`.
+- **Assignment**: delegated work inside a unit, created or replaced with `delegate_work` and finished by the worker with `return_work` (submit, supplement, or retry).
 - **Handoff**: the switch from one profile to another when a delegation or return is accepted.
-- **Source / ref**: an attributed piece of session history (a tool result, a message) with a stable reference and content hash. Evidence selection works on refs (`freeflow_project`).
+- **Source / ref**: an attributed piece of session history (a tool result, a message) with a stable reference and content hash. Evidence selection works on refs (`select_evidence`).
 - **Event journal**: every routing decision is an event stored in the Pi session. Routing state is rebuilt by replaying the events, so it survives reloads, resume, and compaction.
 
 ## Files

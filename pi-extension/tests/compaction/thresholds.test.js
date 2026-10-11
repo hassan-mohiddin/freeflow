@@ -62,7 +62,7 @@ test("the index lists this cycle's larger results newest first, without Freeflow
     result("c3", "tiny"),
     call("c4", "read", { path: "new.txt" }),
     result("c4", big),
-    call("c5", "freeflow_project", { operation: "inspect" }),
+    call("c5", "select_evidence", { operation: "inspect" }),
     result("c5", big),
     call("c6", "codemode", { code: "\n  const r = await tools.read({ path: 'x' });\n  return r;" }),
     result("c6", big),

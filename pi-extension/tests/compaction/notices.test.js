@@ -29,7 +29,7 @@ test(
           [{ name: "read", args: { path: "evidence.txt" } }],
           [{ name: "read", args: { path: "evidence.txt" } }],
           [{ name: "read", args: { path: "evidence.txt" } }],
-          [{ name: "freeflow_compact", args: { summary: "S", carry: [{ result: "r1" }] } }],
+          [{ name: "compact_context", args: { summary: "S", carry: [{ result: "r1" }] } }],
         ][n - 1] ?? [],
       false,
       async ({ requests }) => {
@@ -84,9 +84,9 @@ test(
   "under projection the Coordinator is warned by the full history, not its own small view",
   { timeout: 30000 },
   async () => {
-    const delegate = { name: "freeflow_delegate", args: { operation: "assign", contract: "Read the part files." } };
-    const submit = { name: "freeflow_return", args: { operation: "submit", report: "Done.", outcome: "completed" } };
-    const close = { name: "freeflow_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } };
+    const delegate = { name: "delegate_work", args: { operation: "assign", contract: "Read the part files." } };
+    const submit = { name: "return_work", args: { operation: "submit", report: "Done.", outcome: "completed" } };
+    const close = { name: "routing_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } };
     // Pi's read returns at most about 50 KB per call, so the history grows through ten reads of ~7,500 tokens. The
     // worker stays under the 82,999 warning; the full history with the system prompt is over it (about 98k) and under
     // compact now (102,999), with room on both sides for the system prompt to grow.
@@ -108,7 +108,7 @@ test(
         // The contract the Coordinator writes then says what the worker does after compacting.
         assert.match(
           JSON.stringify(requests[3].input),
-          /so do not compact yourself: at a safe point \(after the current assessment, or before the next assignment\), delegate an assignment asking the worker to read the compaction skill, compact with freeflow_compact, and then return with freeflow_return/,
+          /so do not compact yourself: at a safe point \(after the current assessment, or before the next assignment\), delegate an assignment asking the worker to read the compaction skill, compact with compact_context, and then return with return_work/,
         );
         assert.equal(count(requests[4], WARNING), 1, "sent once");
       },

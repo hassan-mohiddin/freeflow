@@ -287,7 +287,7 @@ export default function freeflow(pi: FreeflowAPI) {
     refusal: () => {
       const scope = routing.observationScope();
       return scope.control === "automatic" && (scope.profile === "helper" || scope.profile === "executor")
-        ? "A Cognitive Routing worker does not ask the user. Put the choice, its options and your recommendation in your report (freeflow_return); the Coordinator asks."
+        ? "A Cognitive Routing worker does not ask the user. Put the choice, its options and your recommendation in your report (return_work); the Coordinator asks."
         : undefined;
     },
   });

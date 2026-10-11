@@ -5,6 +5,8 @@ import {
   idFor,
   isWorkerProfile,
   refFor,
+  ROUTING_TOOLS,
+  routingToolName,
   type NativeEntry,
   type State,
   type View,
@@ -51,11 +53,11 @@ function lazyHash<T extends object>(target: T, compute: () => string): T & { has
     get: () => (value ??= compute()),
   }) as T & { hash: string };
 }
-const routingTools = new Set(["freeflow_delegate", "freeflow_return", "freeflow_project", "freeflow_unit"]);
+const routingTools = new Set<string>(ROUTING_TOOLS);
 // Discovery, new selections, and delivery share this policy: evidence is what tools produced. What a worker
 // says belongs in its report, so its assistant messages are never evidence.
 export function isTaskEvidence(source: Source): boolean {
-  return source.message.role === "toolResult" && !routingTools.has(source.message.toolName);
+  return source.message.role === "toolResult" && !routingTools.has(routingToolName(source.message.toolName));
 }
 /** Saved selections keep their delivery, except assistant messages (whole or `#text`), which are never evidence. */
 export function deliveredSelection(sources: Sources, ref: string): boolean {
@@ -143,7 +145,7 @@ export class Sources {
         >,
         () => bodyHash(message),
       );
-      if (message.role === "toolResult" && message.toolName === "freeflow_return") {
+      if (message.role === "toolResult" && routingToolName(message.toolName) === "return_work") {
         for (const block of message.content ?? [])
           if (block.type === "text") {
             try {

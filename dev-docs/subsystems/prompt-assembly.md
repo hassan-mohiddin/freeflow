@@ -125,7 +125,7 @@ Interaction Lifecycle
       │  └─ Executor: substantive or consequential results
       ├─ Coordinator compares acceptance with actual evidence
       │  ├─ continue, change worker, or explicitly replace an assignment within an open unit
-      │  └─ close the supported unit through freeflow_unit
+      │  └─ close the supported unit through routing_unit
       └─ Action Selection bounds environment interactions
 ```
 

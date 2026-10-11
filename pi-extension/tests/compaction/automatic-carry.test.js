@@ -7,9 +7,9 @@ import { fixture } from "../fixtures/routing-native.js";
 // What a Freeflow compaction copies besides the agent's own picks: the newest results of the work in progress fill
 // the rest of the carry budget, and the others are listed by ref. Four cases: routing off or on, context reuse on or
 // off. The fixture's gpt-4o has a 128,000-token window, so the carry budget is 15% of it: 19,200 tokens.
-const compact = (args = { summary: "S" }) => ({ name: "freeflow_compact", args });
+const compact = (args = { summary: "S" }) => ({ name: "compact_context", args });
 const read = (path) => ({ name: "read", args: { path } });
-const delegate = { name: "freeflow_delegate", args: { operation: "assign", contract: "Read the three parts." } };
+const delegate = { name: "delegate_work", args: { operation: "assign", contract: "Read the three parts." } };
 // Three parts of about 8,000 tokens each: the two newest fit the budget, the oldest does not.
 const parts = ["part1.txt", "part2.txt", "part3.txt"];
 const writeParts = async (cwd) => {

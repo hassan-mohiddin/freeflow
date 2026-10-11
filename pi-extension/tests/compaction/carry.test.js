@@ -25,9 +25,9 @@ test(
   "under routing no list is inserted and a worker carries a result by its routing ref",
   { timeout: 30000 },
   async () => {
-    const delegate = { name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence.txt." } };
-    const submit = { name: "freeflow_return", args: { operation: "submit", report: "Done.", outcome: "completed" } };
-    const close = { name: "freeflow_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } };
+    const delegate = { name: "delegate_work", args: { operation: "assign", contract: "Read evidence.txt." } };
+    const submit = { name: "return_work", args: { operation: "submit", report: "Done.", outcome: "completed" } };
+    const close = { name: "routing_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } };
     let ref;
     await fixture(
       async (n, body) => {
@@ -36,7 +36,7 @@ test(
         if (n === 3) {
           // Routing names the read in the worker's own context.
           ref = JSON.stringify(body.input).match(/(ctx:[0-9a-f]+) \| producer: executor \| toolResult \| read/)?.[1];
-          return [{ name: "freeflow_compact", args: { summary: "S", carry: [{ result: ref }] } }];
+          return [{ name: "compact_context", args: { summary: "S", carry: [{ result: ref }] } }];
         }
         return [[submit], [close]][n - 4] ?? [];
       },
@@ -64,14 +64,14 @@ test("with context reuse off there is no list and carry items are refused", { ti
   await fixture(
     async (n) =>
       [
-        [{ name: "freeflow_compact", args: { summary: "S", carry: [{ file: "evidence.txt" }] } }],
-        [{ name: "freeflow_compact", args: { summary: "S" } }],
+        [{ name: "compact_context", args: { summary: "S", carry: [{ file: "evidence.txt" }] } }],
+        [{ name: "compact_context", args: { summary: "S" } }],
       ][n - 1] ?? [],
     false,
     async ({ requests, manager }) => {
       assert.ok(!JSON.stringify(requests[0].input).includes(LIST));
-      const [refused, accepted] = results(manager, "freeflow_compact");
-      assert.match(refused, /Context reuse is off: call freeflow_compact without carry/);
+      const [refused, accepted] = results(manager, "compact_context");
+      assert.match(refused, /Context reuse is off: call compact_context without carry/);
       assert.match(accepted, /Compaction will happen at the end of this turn/);
       assert.equal(manager.getBranch().filter((entry) => entry.type === "compaction").length, 1);
     },
@@ -134,7 +134,7 @@ test("a carried read result is numbered from the offset it was read at", { timeo
     async (n) =>
       [
         [{ name: "read", args: { path: "lines.txt", offset: 3 } }],
-        [{ name: "freeflow_compact", args: { summary: "S", carry: [{ result: "r1" }] } }],
+        [{ name: "compact_context", args: { summary: "S", carry: [{ result: "r1" }] } }],
       ][n - 1] ?? [],
     false,
     async ({ manager }) => {

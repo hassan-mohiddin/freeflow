@@ -94,8 +94,8 @@ export class ContextAssembler {
       this.session.projectionError ? `Evidence limitation: ${this.session.projectionError}` : "",
       attention
         ? recovery
-          ? `Assessment paused for attention; ordinary admitted history remains. ${selection.selected.length} sources remain selected. Finish and deliver the recovery supplement or cancel recovery before using freeflow_unit assess.`
-          : `Assessment paused for attention; ordinary admitted history remains. ${selection.selected.length} sources remain selected. Use freeflow_unit assess to restore the assessment.`
+          ? `Assessment paused for attention; ordinary admitted history remains. ${selection.selected.length} sources remain selected. Finish and deliver the recovery supplement or cancel recovery before using routing_unit assess.`
+          : `Assessment paused for attention; ordinary admitted history remains. ${selection.selected.length} sources remain selected. Use routing_unit assess to restore the assessment.`
         : "",
       a?.state === "returned" && recovery?.state !== "reading"
         ? "Worker ordinary task work has ended. Only supported handoff correction is permitted."

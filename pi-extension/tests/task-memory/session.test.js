@@ -260,7 +260,7 @@ test("after Pi's compaction the focused record is delivered again", { timeout: 3
 
 test("after Freeflow's compaction the focused record follows the recovery message", { timeout: 30000 }, async () => {
   await fixture(
-    async (n) => (n === 2 ? [{ name: "freeflow_compact", args: { summary: "AGENT_SUMMARY" } }] : []),
+    async (n) => (n === 2 ? [{ name: "compact_context", args: { summary: "AGENT_SUMMARY" } }] : []),
     false,
     async ({ manager, requests, session }) => {
       // /freeflow compact makes compaction due and starts its run after the command returns.

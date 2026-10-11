@@ -103,7 +103,7 @@ test(
   { timeout: 30000 },
   async () => {
     await fixture(
-      async (n) => (n === 2 ? [{ name: "freeflow_compact", args: { summary: "AGENT_SUMMARY" } }] : []),
+      async (n) => (n === 2 ? [{ name: "compact_context", args: { summary: "AGENT_SUMMARY" } }] : []),
       false,
       async ({ session, requests }) => {
         const count = requests.length;

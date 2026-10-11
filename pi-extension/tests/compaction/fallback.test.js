@@ -35,7 +35,7 @@ test("Pi's own compaction gets Freeflow's instructions, state and recovery steps
       assert.match(entry.summary, /^fixture response/, "Pi's summary comes first");
       assert.match(entry.summary, /## Freeflow state at compaction\n\nThis compaction starts cycle 2\./);
       assert.match(entry.summary, /if the summary names a Working Record for this work/);
-      assert.match(entry.summary, /Compaction is no longer due: do not call freeflow_compact\./);
+      assert.match(entry.summary, /Compaction is no longer due: do not call compact_context\./);
       assert.match(entry.summary, /do not re-read the compaction skill or its summary format/);
       assert.doesNotMatch(entry.summary, /carried context is above/, "Pi's own compaction carries nothing");
       assert.doesNotMatch(entry.summary, /Files read this cycle/, "Pi's summary already lists files");
@@ -79,7 +79,7 @@ test("file lists cover the whole session across a Freeflow compaction and then P
     async (n) =>
       [
         [{ name: "read", args: { path: "evidence.txt" } }],
-        [{ name: "freeflow_compact", args: { summary: "S" } }],
+        [{ name: "compact_context", args: { summary: "S" } }],
         [],
         [{ name: "read", args: { path: "recovery.txt" } }],
       ][n - 1] ?? [],
@@ -108,7 +108,7 @@ test("file lists cover the whole session across a Freeflow compaction and then P
   );
 });
 
-test("after Pi's own compaction, freeflow_compact is refused with where to go next", { timeout: 30000 }, async () => {
+test("after Pi's own compaction, compact_context is refused with where to go next", { timeout: 30000 }, async () => {
   let compacted = false;
   let called = false;
   await fixture(
@@ -117,7 +117,7 @@ test("after Pi's own compaction, freeflow_compact is refused with where to go ne
       // The fixture's own prompt, after Pi compacted: the agent tries to finish a compaction it was preparing.
       if (compacted && !called) {
         called = true;
-        return [{ name: "freeflow_compact", args: { summary: "S" } }];
+        return [{ name: "compact_context", args: { summary: "S" } }];
       }
       return [];
     },
@@ -125,7 +125,7 @@ test("after Pi's own compaction, freeflow_compact is refused with where to go ne
     async ({ manager }) => {
       const refusal = manager
         .getBranch()
-        .find((entry) => entry.message?.role === "toolResult" && entry.message.toolName === "freeflow_compact");
+        .find((entry) => entry.message?.role === "toolResult" && entry.message.toolName === "compact_context");
       assert.equal(refusal.message.isError, true);
       const text = refusal.message.content.map((part) => part.text).join("");
       assert.match(
@@ -151,11 +151,11 @@ test(
   { timeout: 30000 },
   async () => {
     const steps = [
-      [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Read the two parts." } }],
+      [{ name: "delegate_work", args: { operation: "assign", contract: "Read the two parts." } }],
       [{ name: "read", args: { path: "part1.txt" } }],
       [{ name: "read", args: { path: "part2.txt" } }],
-      [{ name: "freeflow_return", args: { operation: "submit", report: "Done.", outcome: "completed" } }],
-      [{ name: "freeflow_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } }],
+      [{ name: "return_work", args: { operation: "submit", report: "Done.", outcome: "completed" } }],
+      [{ name: "routing_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } }],
     ];
     // The third step reports usage past any model's window, so Pi compacts before the worker's next response (under
     // routing Pi judges the current model, the worker's). Summarizer requests get a plain summary and do not advance

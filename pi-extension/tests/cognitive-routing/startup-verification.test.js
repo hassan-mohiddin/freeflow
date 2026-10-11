@@ -14,7 +14,7 @@ import { readOnlySessionCounters, trustLoadedSession } from "../../dist/host/rea
 
 // Coordinator delegates; the worker answers once without returning, so the session holds routing events.
 const script = (n) =>
-  n === 1 ? [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence.txt." } }] : [];
+  n === 1 ? [{ name: "delegate_work", args: { operation: "assign", contract: "Read evidence.txt." } }] : [];
 
 /** Runs a routed fixture and hands its persisted session file to `check` before the fixture removes it. */
 const withRoutedSession = (check) =>

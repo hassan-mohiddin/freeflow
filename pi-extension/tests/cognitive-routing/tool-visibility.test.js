@@ -5,7 +5,7 @@ import { fixture } from "../fixtures/routing-native.js";
 
 // Routing's tools and cue reach the model only while routing is effective (Task 003 D-002); a toggle changes the
 // tool list once, which costs one cache write (D-001).
-const ROUTING = ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project"];
+const ROUTING = ["delegate_work", "return_work", "routing_unit", "select_evidence"];
 
 test("routing tools are added while routing is effective and removed when it is not, other tools in place", () => {
   let active = ["read", "bash", "tool_search"];

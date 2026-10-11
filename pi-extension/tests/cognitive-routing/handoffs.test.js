@@ -9,7 +9,7 @@ import { initialState } from "../../dist/cognitive-routing/state.js";
 const pair = { provider: "fixture", modelId: "coordinator", thinking: "off" };
 const delegateCall = {
   role: "assistant",
-  content: [{ type: "toolCall", id: "call-1", name: "freeflow_delegate", arguments: {} }],
+  content: [{ type: "toolCall", id: "call-1", name: "delegate_work", arguments: {} }],
   stopReason: "toolUse",
 };
 const entry = (id, message) => ({ id, type: "message", message });
@@ -19,7 +19,7 @@ function delegatedTurn({ control = "automatic", assistants = ["assistant-1"] } =
   const branch = [
     entry("user-1", { role: "user", content: "Start.", timestamp: 1 }),
     ...assistants.map((id) => entry(id, delegateCall)),
-    entry("result-1", { role: "toolResult", toolCallId: "call-1", toolName: "freeflow_delegate", content: [] }),
+    entry("result-1", { role: "toolResult", toolCallId: "call-1", toolName: "delegate_work", content: [] }),
   ];
   const state = { ...initialState(), control, profile: "coordinator", pendingId: "handoff-1" };
   state.handoffs.set("handoff-1", { id: "handoff-1", state: "accepted", executionId: "execution-1" });
@@ -104,9 +104,7 @@ test(
     await fixture(
       async (n) => {
         if (n === 1)
-          return [
-            { name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence.txt and return." } },
-          ];
+          return [{ name: "delegate_work", args: { operation: "assign", contract: "Read evidence.txt and return." } }];
         if (n === 2) await active.steer("Change of plan.");
         return [];
       },
@@ -140,9 +138,7 @@ test("a handoff whose model switch fails is recorded as blocked and the user is 
           if (model.id === "gpt-4.1-mini") throw new Error("fixture: model switch failed");
           return setModel(model);
         };
-        return [
-          { name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence.txt and return." } },
-        ];
+        return [{ name: "delegate_work", args: { operation: "assign", contract: "Read evidence.txt and return." } }];
       }
       return [];
     },
@@ -166,19 +162,15 @@ test("with projection off, evidence selection is refused and nothing is saved", 
   await fixture(
     (n, body, manager) => {
       if (n === 1)
-        return [
-          { name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence.txt and return." } },
-        ];
+        return [{ name: "delegate_work", args: { operation: "assign", contract: "Read evidence.txt and return." } }];
       if (n === 2) return [{ name: "read", args: { path: "evidence.txt" } }];
       if (n === 3) {
         const read = manager.getBranch().find((e) => e.message?.role === "toolResult" && e.message.toolName === "read");
-        return [{ name: "freeflow_project", args: { operation: "add", refs: [`ctx:${read.id}`] } }];
+        return [{ name: "select_evidence", args: { operation: "add", refs: [`ctx:${read.id}`] } }];
       }
       if (n === 4) {
         refused = JSON.stringify(body).includes("projection_disabled");
-        return [
-          { name: "freeflow_return", args: { operation: "submit", report: "Read the file.", outcome: "completed" } },
-        ];
+        return [{ name: "return_work", args: { operation: "submit", report: "Read the file.", outcome: "completed" } }];
       }
       return [];
     },

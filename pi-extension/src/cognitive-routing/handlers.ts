@@ -23,7 +23,7 @@ import {
 } from "./types.js";
 import { cachedBranch } from "../host/branch.js";
 /**
- * Runs the routing tools (freeflow_delegate, freeflow_return, freeflow_project, freeflow_unit) one at a time on the
+ * Runs the routing tools (delegate_work, return_work, select_evidence, routing_unit) one at a time on the
  * session's queue. Each accepted call is recorded once under its operation id, so a repeated call returns the saved
  * result instead of acting again; a refused call returns a blocked result that names what to reconcile.
  */
@@ -56,13 +56,13 @@ export class ToolHandlers {
       this.session.ctx = ctx;
       try {
         check(!signal?.aborted, "cancelled");
-        if (name === "freeflow_unit" && input.operation === "inspect") {
+        if (name === "routing_unit" && input.operation === "inspect") {
           check(this.session.supported(), "routing_unavailable");
           return this.result(this.inspectUnit(input));
         }
         const state = this.session.stateData();
         const expected =
-          name === "freeflow_delegate" || name === "freeflow_unit" ? "coordinator" : this.session.assignedWorker(state);
+          name === "delegate_work" || name === "routing_unit" ? "coordinator" : this.session.assignedWorker(state);
         this.session.assertAvailable(expected);
         const op = this.callOperation(callId, name);
         const cached = this.session.receipts.get(op);
@@ -71,13 +71,13 @@ export class ToolHandlers {
           return this.result(structuredClone(cached.value));
         }
         const value =
-          name === "freeflow_delegate"
+          name === "delegate_work"
             ? this.delegate(input, callId, op)
-            : name === "freeflow_return"
+            : name === "return_work"
               ? this.returnReport(input, callId, op)
-              : name === "freeflow_project"
+              : name === "select_evidence"
                 ? this.project(input, op)
-                : name === "freeflow_unit"
+                : name === "routing_unit"
                   ? await this.unit(input, callId, op)
                   : undefined;
         if (value !== undefined) {
@@ -93,9 +93,9 @@ export class ToolHandlers {
           problems: error instanceof RoutingError ? error.problems : [],
           observed: this.session.observed(),
           expectedProfile:
-            name === "freeflow_unit" && input.operation === "inspect"
+            name === "routing_unit" && input.operation === "inspect"
               ? undefined
-              : name === "freeflow_delegate" || name === "freeflow_unit"
+              : name === "delegate_work" || name === "routing_unit"
                 ? "coordinator"
                 : (() => {
                     try {
@@ -115,7 +115,7 @@ export class ToolHandlers {
               "invalid_inspection",
             ].includes(error.code)
               ? "Inspect again without a cursor and use a returned work ref. Lookup recovery does not require a new assignment."
-              : "Preserve saved work. Use freeflow_unit inspect; reconcile current input/control before retrying the named operation.",
+              : "Preserve saved work. Use routing_unit inspect; reconcile current input/control before retrying the named operation.",
         });
       }
     });
@@ -563,7 +563,7 @@ export class ToolHandlers {
         check(
           !idFor(resultId),
           "result_unavailable",
-          `${resultId} is a context ref, not a captured result id: name it in the request instead, and the worker selects it as evidence with freeflow_project.`,
+          `${resultId} is a context ref, not a captured result id: name it in the request instead, and the worker selects it as evidence with select_evidence.`,
         );
         const grant = await this.resultGrants?.resolve(resultId, this.session.ctx);
         check(grant?.id === resultId, "result_unavailable", `Captured result is unavailable: ${resultId}`);

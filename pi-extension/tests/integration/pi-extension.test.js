@@ -180,7 +180,7 @@ test("keeps Runtime State at a fixed prefix position across refreshes and new tu
     const conversation = [
       { role: "user", content: "release 0.6.1" },
       { role: "assistant", content: "delegating" },
-      { role: "toolResult", toolName: "freeflow_delegate", content: [] },
+      { role: "toolResult", toolName: "delegate_work", content: [] },
     ];
     const first = await contextHandler(handlers)({ messages: conversation }, ctx);
     const firstUserIndex = first.messages.findIndex((message) => message.role === "user");
@@ -267,13 +267,11 @@ test("new routing tools and projection state follow the configured contract", as
 
       const toolNames = loaded.tools.map((tool) => tool.name);
       assert.deepEqual(
-        toolNames.filter((name) =>
-          ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project"].includes(name),
-        ),
-        ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project"],
+        toolNames.filter((name) => ["delegate_work", "return_work", "routing_unit", "select_evidence"].includes(name)),
+        ["delegate_work", "return_work", "routing_unit", "select_evidence"],
       );
-      const delegate = loaded.tools.find((tool) => tool.name === "freeflow_delegate");
-      const returning = loaded.tools.find((tool) => tool.name === "freeflow_return");
+      const delegate = loaded.tools.find((tool) => tool.name === "delegate_work");
+      const returning = loaded.tools.find((tool) => tool.name === "return_work");
       assert.deepEqual(
         delegate.parameters.oneOf.map((branch) => branch.properties.operation.enum[0]),
         ["assign", "replace"],
@@ -287,7 +285,7 @@ test("new routing tools and projection state follow the configured contract", as
         returning.parameters.oneOf.map((branch) => branch.properties.operation.enum[0]),
         ["submit", "supplement", "retry"],
       );
-      assert.equal(loaded.activeToolNames().includes("freeflow_project"), true);
+      assert.equal(loaded.activeToolNames().includes("select_evidence"), true);
 
       const providerContext = await contextHandler(loaded.handlers)({ messages: [] }, ctx);
       assert.match(providerContext.messages[0].content, /Delegation: `executor`/);
@@ -299,7 +297,7 @@ test("new routing tools and projection state follow the configured contract", as
         manualContext.messages.findLast((message) => message.customType === "freeflow-runtime-state").content,
         new RegExp("Projection: `" + (scenario.projection ? "manual-bypass" : "disabled") + "`"),
       );
-      assert.equal(loaded.activeToolNames().includes("freeflow_project"), true);
+      assert.equal(loaded.activeToolNames().includes("select_evidence"), true);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -308,7 +306,7 @@ test("new routing tools and projection state follow the configured contract", as
 
 test("Pi describes strict evidence-selection operation shapes", () => {
   const { tools } = loadExtension();
-  const project = tools.find((tool) => tool.name === "freeflow_project");
+  const project = tools.find((tool) => tool.name === "select_evidence");
   assert.ok(project);
   assert.deepEqual(
     project.parameters.oneOf.map((branch) => branch.properties.operation.enum[0]),
@@ -348,7 +346,7 @@ test("Pi describes strict evidence-selection operation shapes", () => {
 
 test("Pi exposes additive captured-result recovery grants without changing path grants", () => {
   const { tools } = loadExtension();
-  const unit = tools.find((tool) => tool.name === "freeflow_unit");
+  const unit = tools.find((tool) => tool.name === "routing_unit");
   const recover = unit.parameters.oneOf.find((candidate) => candidate.properties.operation.enum[0] === "recover");
   assert.deepEqual(Object.keys(recover.properties), ["operation", "request", "paths", "results"]);
   assert.equal(recover.properties.paths.maxItems, 32);
@@ -372,8 +370,15 @@ test("Pi registers the remaining Freeflow commands without mode controls or reti
   assert.deepEqual(shortcuts, []);
   assert.ok(!toolNames.includes("freeflow_context"));
   assert.deepEqual(
+    toolNames.filter((name) =>
+      ["delegate_work", "return_work", "routing_unit", "select_evidence", "compact_context"].includes(name),
+    ),
+    ["delegate_work", "return_work", "routing_unit", "select_evidence", "compact_context"],
+  );
+  // No Freeflow tool keeps the freeflow_ prefix, which models confused with /freeflow commands.
+  assert.deepEqual(
     toolNames.filter((name) => name.startsWith("freeflow_")),
-    ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project", "freeflow_compact"],
+    [],
   );
   // Task memory's tool is named apart from /freeflow task, which models confused it with (grok-4.7 runs).
   assert.ok(toolNames.includes("task_memory"));

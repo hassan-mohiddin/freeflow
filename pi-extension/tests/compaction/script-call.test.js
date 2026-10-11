@@ -2,17 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fixture } from "../fixtures/routing-native.js";
 
-// freeflow_compact called from a script, the way Pi's codemode calls tools (ctx.executeTool): agents that look for
+// compact_context called from a script, the way Pi's codemode calls tools (ctx.executeTool): agents that look for
 // tools in codemode first must find it there, and the compaction still happens at the end of the turn.
 function scriptTool(outcomes) {
   return (pi) => {
     pi.registerTool({
       name: "probe_script",
       label: "probe_script",
-      description: "Calls freeflow_compact through ctx.executeTool.",
+      description: "Calls compact_context through ctx.executeTool.",
       parameters: { type: "object", properties: {} },
       async execute(_id, _params, signal, _update, ctx) {
-        const outcome = await ctx.executeTool("freeflow_compact", { summary: "SCRIPT_SUMMARY" }, { signal });
+        const outcome = await ctx.executeTool("compact_context", { summary: "SCRIPT_SUMMARY" }, { signal });
         outcomes.push({ isError: outcome.isError, text: JSON.stringify(outcome.result?.content ?? outcome) });
         return { content: [{ type: "text", text: "script done" }] };
       },
@@ -20,14 +20,14 @@ function scriptTool(outcomes) {
   };
 }
 
-test("freeflow_compact called from a script compacts at the end of the turn", { timeout: 30000 }, async () => {
+test("compact_context called from a script compacts at the end of the turn", { timeout: 30000 }, async () => {
   const outcomes = [];
   let api;
   await fixture(
     async (n) => (n === 1 ? [{ name: "probe_script", args: {} }] : []),
     false,
     async ({ requests, manager }) => {
-      assert.equal(api.getAllTools().find((tool) => tool.name === "freeflow_compact").exposure, "direct");
+      assert.equal(api.getAllTools().find((tool) => tool.name === "compact_context").exposure, "direct");
       assert.equal(outcomes.length, 1);
       assert.equal(outcomes[0].isError, false, outcomes[0].text);
       const compaction = manager.getBranch().find((entry) => entry.type === "compaction");

@@ -1,6 +1,6 @@
 ---
 name: "compaction"
-description: "Use when Freeflow says compaction is due or the user asks to compact: prepare what the conversation needs to continue, then compact with freeflow_compact."
+description: "Use when Freeflow says compaction is due or the user asks to compact: prepare what the conversation needs to continue, then compact with compact_context."
 ---
 
 # Compaction
@@ -18,7 +18,7 @@ The Rules are binding; if one cannot be met, stop and say why. The rest of this 
 - Never write a requested, reported, or expected result as observed. Name every partial or uncommitted change, unverified result, running command, and obligation still waiting on its trigger.
 - Keep exact: paths, identifiers, commands, error text, numbers, and the user's words wherever wording matters. Never paraphrase a decision or a constraint.
 - Material that exists only in the conversation, such as a pasted file or a long message, leaves with it. With a Working Record, save it under the task's `sources/` and point to it; without one, quote what matters in the summary.
-- Under Cognitive Routing with projection, the Coordinator does not compact: its view leaves out what workers did. Delegate an assignment whose contract says to compact with `freeflow_compact` and then return with `freeflow_return`, plus any other work it covers: after compacting, the worker sees the contract again but not its own `freeflow_compact` call. A worker's summary covers the whole session: the user's requests, the Coordinator's decisions, and the state of other work.
+- Under Cognitive Routing with projection, the Coordinator does not compact: its view leaves out what workers did. Delegate an assignment whose contract says to compact with `compact_context` and then return with `return_work`, plus any other work it covers: after compacting, the worker sees the contract again but not its own `compact_context` call. A worker's summary covers the whole session: the user's requests, the Coordinator's decisions, and the state of other work.
 
 ## When to compact
 
@@ -38,7 +38,7 @@ Read [Summary Format](references/summary-format.md) before writing, and use the 
 
 Compaction never creates a record; whether a task needs one is decided at its start or when facts change its scope.
 
-The limit is about 8,000 tokens. Most summaries need far less. If `freeflow_compact` refuses the call, fix what it names and call it again.
+The limit is about 8,000 tokens. Most summaries need far less. If `compact_context` refuses the call, fix what it names and call it again.
 
 ## What to carry
 

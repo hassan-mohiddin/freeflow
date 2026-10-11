@@ -104,20 +104,20 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   );
   assert.match(cognitiveRouting, /configured profiles in one agent\/session/);
   assert.match(routingSkill, /Automatic role restrictions, delegation, and projection do not apply/);
-  assert.match(routingSkill, /Put the actual contract in `freeflow_delegate/);
+  assert.match(routingSkill, /Put the actual contract in `delegate_work/);
   assert.match(routingSkill, /A worker return ends its ordinary task work/);
   assert.match(cognitiveRouting, /project every completed skill and instructional-reference read/);
   assert.match(
     routingSkill,
-    /For the current returned assessment, Coordinator uses `freeflow_unit\(operation: "recover"\)`/,
+    /For the current returned assessment, Coordinator uses `routing_unit\(operation: "recover"\)`/,
   );
-  assert.match(routingSkill, /freeflow_unit\(operation: "recover"\)/);
+  assert.match(routingSkill, /routing_unit\(operation: "recover"\)/);
   assert.match(
     routingSkill,
     /Preserve the unit, assignment, original report, outcome, revision, selections, and assessment/,
   );
   assert.match(routingSkill, /read only exact admitted task paths/);
-  assert.match(routingSkill, /freeflow_return\(operation: "supplement"\)/);
+  assert.match(routingSkill, /return_work\(operation: "supplement"\)/);
   assert.match(routingSkill, /Deliver the supplement or cancel recovery before `assess`/);
   assert.match(routingSkill, /Do not simulate recovery by replacing an assignment\/report or opening a new unit/);
 });

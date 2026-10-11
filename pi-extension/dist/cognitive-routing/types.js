@@ -39,4 +39,13 @@ export function idFor(ref) {
   return /^ctx:([^\s:#]+)$/.exec(ref)?.[1];
 }
 export { canonical };
-export const ROUTING_TOOLS = ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project"];
+export const ROUTING_TOOLS = ["delegate_work", "return_work", "routing_unit", "select_evidence"];
+/** The routing tools' names before Task 003's rename; sessions saved earlier still hold them in their history. */
+export const LEGACY_ROUTING_TOOLS = {
+  freeflow_delegate: "delegate_work",
+  freeflow_return: "return_work",
+  freeflow_unit: "routing_unit",
+  freeflow_project: "select_evidence",
+};
+/** A routing tool's current name, for a name read from saved history. */
+export const routingToolName = (name) => LEGACY_ROUTING_TOOLS[name] ?? name;

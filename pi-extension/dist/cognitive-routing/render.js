@@ -9,14 +9,14 @@ const locatorText = (locator) => {
   return locator.label ? `${locator.label}${locator.truncated ? " [truncated]" : ""} · ${identity}` : identity;
 };
 function title(name, operation) {
-  if (name === "freeflow_delegate") return operation === "replace" ? "Replace assignment" : "Delegate assignment";
-  if (name === "freeflow_return")
+  if (name === "delegate_work") return operation === "replace" ? "Replace assignment" : "Delegate assignment";
+  if (name === "return_work")
     return operation === "retry"
       ? "Retry return"
       : operation === "supplement"
         ? "Return recovery supplement"
         : "Return to Coordinator";
-  if (name === "freeflow_project")
+  if (name === "select_evidence")
     return (
       {
         add: "Select evidence",
@@ -25,7 +25,7 @@ function title(name, operation) {
         list: "List evidence",
       }[operation ?? ""] ?? "Evidence"
     );
-  if (name === "freeflow_unit")
+  if (name === "routing_unit")
     return (
       {
         inspect: "Inspect routing",
@@ -41,14 +41,14 @@ function title(name, operation) {
 }
 function draft(name, args, expanded) {
   const sections = [];
-  if (name === "freeflow_delegate") sections.push(text(args.contract));
-  if (name === "freeflow_return") sections.push(text(args.report));
-  if (name === "freeflow_unit" && args.operation === "close") sections.push(text(args.assessment));
-  if (name === "freeflow_unit" && args.operation === "recover") sections.push(text(args.request));
+  if (name === "delegate_work") sections.push(text(args.contract));
+  if (name === "return_work") sections.push(text(args.report));
+  if (name === "routing_unit" && args.operation === "close") sections.push(text(args.assessment));
+  if (name === "routing_unit" && args.operation === "recover") sections.push(text(args.request));
   // Metadata can arrive before the main text and otherwise occupy the entire
   // trailing preview forever. Keep the live prose moving; expansion keeps all fields.
   if (!expanded && sections.length) return sections.filter(Boolean).join("\n\n");
-  if (name === "freeflow_project" && Array.isArray(args.refs))
+  if (name === "select_evidence" && Array.isArray(args.refs))
     sections.push(args.refs.filter((r) => typeof r === "string").join("\n"));
   for (const key of ["scope", "view", "ref", "cursor"])
     if (typeof args[key] === "string") sections.push(`${capital(key)}: ${args[key]}`);
@@ -63,13 +63,13 @@ export function renderRoutingCall(name, args = {}, context = {}) {
   if (context.isPartial === false) return new Text(heading, 0, 0);
   const writing = context.argsComplete !== true;
   const noun =
-    name === "freeflow_delegate"
+    name === "delegate_work"
       ? "assignment"
-      : name === "freeflow_return"
+      : name === "return_work"
         ? args.operation === "supplement"
           ? "supplement"
           : "report"
-        : name === "freeflow_unit" && args.operation === "close"
+        : name === "routing_unit" && args.operation === "close"
           ? "assessment"
           : undefined;
   const body = draft(name, args, context.expanded === true);
@@ -108,8 +108,8 @@ function summary(receipt, name, args) {
     return reasons[receipt.code] || text(receipt.message).split("\n")[0] || "Operation needs attention";
   }
   if (receipt.status === "suspended") return "Couldn’t restore evidence · Assessment remains paused";
-  if (name === "freeflow_delegate") return `${operation === "replace" ? "Replacement" : "Assignment"} saved`;
-  if (name === "freeflow_project") {
+  if (name === "delegate_work") return `${operation === "replace" ? "Replacement" : "Assignment"} saved`;
+  if (name === "select_evidence") {
     const selected = (receipt.selected ?? receipt.evidence?.selected ?? []).length;
     if (operation === "list")
       return `${count(receipt.count ?? receipt.items?.length ?? 0, "source")}${Number.isInteger(receipt.selectableCount) ? ` · ${receipt.selectableCount} selectable` : ""}`;
@@ -132,7 +132,7 @@ function summary(receipt, name, args) {
       receipt.items.every((i) => ["already_selected", "unchanged"].includes(i.status));
     return `${unchanged ? "No changes · " : ""}${count(selected, "source")} selected${receipt.ready === false ? ` · ${issue}` : operation === "inspect" ? " · No unresolved references" : ""}`;
   }
-  if (name === "freeflow_unit") {
+  if (name === "routing_unit") {
     if (operation === "close") return capital(receipt.outcome ?? "closed");
     if (operation === "recover") return "Recovery request saved";
     if (operation === "cancel-recovery") return "Evidence recovery cancelled";

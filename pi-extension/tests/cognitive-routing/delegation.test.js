@@ -133,7 +133,7 @@ test("a duplicate delegation operation cannot change its recorded worker", { tim
   let checked = false;
   RoutingRuntime.prototype.invoke = async function (name, id, input, signal, ctx) {
     const result = await originalInvoke.call(this, name, id, input, signal, ctx);
-    if (!checked && name === "freeflow_delegate" && input.worker === "helper") {
+    if (!checked && name === "delegate_work" && input.worker === "helper") {
       checked = true;
       this.session.receipts.clear();
       const conflict = await originalInvoke.call(this, name, id, { ...input, worker: "executor" }, signal, ctx);
@@ -147,21 +147,21 @@ test("a duplicate delegation operation cannot change its recorded worker", { tim
         n === 1
           ? [
               {
-                name: "freeflow_delegate",
+                name: "delegate_work",
                 args: { operation: "assign", worker: "helper", contract: "Keep the accepted Helper identity." },
               },
             ]
           : n === 2
             ? [
                 {
-                  name: "freeflow_return",
+                  name: "return_work",
                   args: { operation: "submit", report: "Helper identity retained.", outcome: "completed" },
                 },
               ]
             : n === 3
               ? [
                   {
-                    name: "freeflow_unit",
+                    name: "routing_unit",
                     args: { operation: "close", outcome: "accepted", assessment: "Worker identity is stable." },
                   },
                 ]
@@ -183,12 +183,12 @@ test("both mode requires an explicit worker and shares Helper history with Execu
   const result = await fixture(
     (n, body, manager) => {
       const wire = JSON.stringify(body);
-      if (n === 1) return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Ambiguous worker." } }];
+      if (n === 1) return [{ name: "delegate_work", args: { operation: "assign", contract: "Ambiguous worker." } }];
       if (n === 2) {
         assert.equal(replay(manager.getBranch()).assignments.size, 0, "ambiguous delegation appends no assignment");
         return [
           {
-            name: "freeflow_delegate",
+            name: "delegate_work",
             args: { operation: "assign", worker: "helper", contract: "Read the marker for later implementation." },
           },
         ];
@@ -208,7 +208,7 @@ test("both mode requires an explicit worker and shares Helper history with Execu
         assert.match(wire, /UNSELECTED_PRIVATE_BODY_93/);
         return [
           {
-            name: "freeflow_return",
+            name: "return_work",
             args: { operation: "submit", report: "Helper context gathered.", outcome: "completed" },
           },
         ];
@@ -223,7 +223,7 @@ test("both mode requires an explicit worker and shares Helper history with Execu
         );
         return [
           {
-            name: "freeflow_delegate",
+            name: "delegate_work",
             args: { operation: "assign", worker: "executor", contract: "Use the gathered marker and report." },
           },
         ];
@@ -239,11 +239,11 @@ test("both mode requires an explicit worker and shares Helper history with Execu
         );
         return [
           {
-            name: "freeflow_project",
+            name: "select_evidence",
             args: { operation: "add", refs: [`ctx:${helperReadId}`] },
           },
           {
-            name: "freeflow_return",
+            name: "return_work",
             args: { operation: "submit", report: "Executor used shared context.", outcome: "completed" },
           },
         ];
@@ -254,7 +254,7 @@ test("both mode requires an explicit worker and shares Helper history with Execu
         assert.match(wire, /producer: helper/);
         return [
           {
-            name: "freeflow_unit",
+            name: "routing_unit",
             args: { operation: "close", outcome: "accepted", assessment: "Shared worker context observed." },
           },
         ];
@@ -285,13 +285,13 @@ test(
         if (n === 1)
           return [
             {
-              name: "freeflow_delegate",
+              name: "delegate_work",
               args: { operation: "assign", worker: "executor", contract: "Disabled target." },
             },
           ];
         if (n === 2) {
           assert.equal(replay(manager.getBranch()).assignments.size, 0);
-          return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Return then recover." } }];
+          return [{ name: "delegate_work", args: { operation: "assign", contract: "Return then recover." } }];
         }
         if (n === 3) {
           const state = replay(manager.getBranch());
@@ -299,7 +299,7 @@ test(
           assert.equal(state.profile, "helper");
           return [
             {
-              name: "freeflow_return",
+              name: "return_work",
               args: { operation: "submit", report: "Helper base report.", outcome: "completed" },
             },
           ];
@@ -309,7 +309,7 @@ test(
           baseReportId = state.assignments.get(assignmentId).returnHandoffId;
           return [
             {
-              name: "freeflow_unit",
+              name: "routing_unit",
               args: { operation: "recover", request: "Read the approved recovery file.", paths: ["recovery.txt"] },
             },
           ];
@@ -321,7 +321,7 @@ test(
         if (n === 6)
           return [
             {
-              name: "freeflow_return",
+              name: "return_work",
               args: { operation: "supplement", report: "Helper recovery supplement.", outcome: "completed" },
             },
           ];
@@ -336,7 +336,7 @@ test(
           assert.equal(state.handoffs.get(completed.supplementHandoffId).from, "helper");
           return [
             {
-              name: "freeflow_unit",
+              name: "routing_unit",
               args: { operation: "close", outcome: "accepted", assessment: "Helper recovery retained lineage." },
             },
           ];
@@ -356,8 +356,7 @@ test("new input routes through Coordinator before the same Helper assignment res
   let assignmentId;
   const result = await fixture(
     (n, body, manager) => {
-      if (n === 1)
-        return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Keep the Helper task." } }];
+      if (n === 1) return [{ name: "delegate_work", args: { operation: "assign", contract: "Keep the Helper task." } }];
       if (n === 2) {
         assignmentId = replay(manager.getBranch()).assignmentId;
         assert.equal(replay(manager.getBranch()).profile, "helper");
@@ -377,7 +376,7 @@ test("new input routes through Coordinator before the same Helper assignment res
         assert.doesNotMatch(JSON.stringify(body), /New delivered user input requires Coordinator attention/);
         return [
           {
-            name: "freeflow_return",
+            name: "return_work",
             args: { operation: "submit", report: "Helper resumed after Coordinator attention.", outcome: "completed" },
           },
         ];
@@ -403,7 +402,7 @@ test("an accepted Helper assignment survives a later executor-only mode change",
   const result = await fixture(
     (n, body, manager) => {
       if (n === 1)
-        return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Keep this Helper assignment." } }];
+        return [{ name: "delegate_work", args: { operation: "assign", contract: "Keep this Helper assignment." } }];
       if (n === 2) {
         assignmentId = replay(manager.getBranch()).assignmentId;
         assert.equal(replay(manager.getBranch()).profile, "helper");
@@ -417,7 +416,7 @@ test("an accepted Helper assignment survives a later executor-only mode change",
         assert.notEqual(body.model, alternateExecutor.model, "resume does not use the newly enabled Executor pair");
         return [
           {
-            name: "freeflow_return",
+            name: "return_work",
             args: { operation: "submit", report: "Original Helper assignment resumed.", outcome: "completed" },
           },
         ];
@@ -425,7 +424,7 @@ test("an accepted Helper assignment survives a later executor-only mode change",
       if (n === 4)
         return [
           {
-            name: "freeflow_unit",
+            name: "routing_unit",
             args: { operation: "close", outcome: "accepted", assessment: "Mode change did not retarget work." },
           },
         ];
@@ -464,7 +463,7 @@ test(
       (n, body, manager) => {
         if (n === 1)
           return [
-            { name: "freeflow_delegate", args: { operation: "assign", contract: "Retain unavailable Helper work." } },
+            { name: "delegate_work", args: { operation: "assign", contract: "Retain unavailable Helper work." } },
           ];
         if (n === 2) {
           const state = replay(manager.getBranch());
@@ -515,8 +514,7 @@ test("compaction and explicit resume preserve a Helper assignment", { timeout: 3
   let assignmentId, basis;
   const result = await fixture(
     (n, body, manager) => {
-      if (n === 1)
-        return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Preserve Helper work." } }];
+      if (n === 1) return [{ name: "delegate_work", args: { operation: "assign", contract: "Preserve Helper work." } }];
       if (n === 2) {
         const state = replay(manager.getBranch());
         assignmentId = state.assignmentId;
@@ -531,7 +529,7 @@ test("compaction and explicit resume preserve a Helper assignment", { timeout: 3
         assert.doesNotMatch(JSON.stringify(body), /New delivered user input requires Coordinator attention/);
         return [
           {
-            name: "freeflow_return",
+            name: "return_work",
             args: { operation: "submit", report: "Helper resumed after compaction.", outcome: "completed" },
           },
         ];
