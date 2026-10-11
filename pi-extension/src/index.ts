@@ -704,7 +704,6 @@ export default function freeflow(pi: FreeflowAPI) {
       if (capability?.enabled === true && hasUsableMandatoryPrompts(prompts))
         sections.freeflow_guidance = stableRuntimeContext(prompts, {
           routing: capability?.cognitiveRouting?.effective === true,
-          messaging: messagingEffective(),
         });
       if (toolExecution)
         Object.assign(sections, toolExecutionTail(api.getSettings?.()?.shellPath, prompts?.toolExecutionPrompt));

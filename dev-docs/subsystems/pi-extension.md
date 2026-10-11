@@ -14,7 +14,7 @@ When its host gate is effective, the native entrypoint is designed to provide:
 - with Tool Execution, its prompt section, `apply_patch`, `bash_background`, `monitor` and `stop_background`, and the file-tracking layer around Pi's tools;
 - with Compaction, the `compact_context` tool, its notices, and the compaction skill;
 - with Task Memory, the `task_memory` tool and its capability skill;
-- with Messaging, `list_sessions` and `send_message` (deferred, loaded through Pi's `tool_search`) and the Messaging cue.
+- with Messaging, `list_sessions` and `send_message` (deferred, loaded through Pi's `tool_search`) and the messaging capability skill.
 
 ## Cache reuse boundaries
 

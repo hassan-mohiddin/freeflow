@@ -79,6 +79,7 @@ export function freeflowModelSkillPaths(capabilityState = undefined) {
     paths.push(freeflowCapabilitySkillPath("cognitive-routing"));
   if (capabilityState?.compaction?.effective === true) paths.push(freeflowCapabilitySkillPath("compaction"));
   if (capabilityState?.taskMemory?.effective === true) paths.push(freeflowCapabilitySkillPath("task-memory"));
+  if (capabilityState?.messaging?.effective === true) paths.push(freeflowCapabilitySkillPath("messaging"));
   return paths;
 }
 

@@ -17,7 +17,7 @@ const on = {
 };
 
 test(
-  "messaging on: tool_search is active, the messaging tools stay deferred until loaded, the cue is sent",
+  "messaging on: tool_search is active, the messaging tools stay deferred until loaded, the skill is listed",
   { timeout: 30000 },
   async () => {
     await fixture(
@@ -27,7 +27,7 @@ test(
         assert.ok(toolNames(requests[0]).includes("tool_search"));
         assert.ok(!toolNames(requests[0]).includes("send_message"));
         assert.ok(!toolNames(requests[0]).includes("list_sessions"));
-        assert.match(system(requests[0]), /## Messaging\\n\\n# Messaging Between Sessions/);
+        assert.match(system(requests[0]), /capabilities\/messaging\/SKILL\.md/);
         // Loaded by tool_search, the tool is declared from the next request on, after what was already sent.
         assert.match(JSON.stringify(requests[1]), /"name":"send_message"/);
         assert.deepEqual(requests[1].system, requests[0].system);
@@ -63,13 +63,13 @@ test("without Pi's tool_search, messaging declares its two tools directly", { ti
   );
 });
 
-test("messaging off (the default): no tool_search added, no cue, no registry entry", { timeout: 30000 }, async () => {
+test("messaging off (the default): no tool_search added, no skill, no registry entry", { timeout: 30000 }, async () => {
   await fixture(
     async () => [],
     false,
     async ({ requests }) => {
       assert.ok(!toolNames(requests[0]).includes("tool_search"));
-      assert.doesNotMatch(system(requests[0]), /Messaging Between Sessions/);
+      assert.doesNotMatch(system(requests[0]), /capabilities\/messaging\/SKILL\.md/);
     },
     true,
     { ...on, freeflowConfig: {} },

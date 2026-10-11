@@ -1,6 +1,6 @@
 # Messaging
 
-> **Covers:** `pi-extension/src/messaging/`, `runtime/prompts/messaging.md`
+> **Covers:** `pi-extension/src/messaging/`, `capabilities/messaging/`
 > **Tests:** `pi-extension/tests/messaging/`
 
 For contributors changing how Freeflow on Pi lets one session message another. Design and decisions: Task 002's spec and its D-005 (`.freeflow/tasks/task-002-*/`, local to the developer's checkout).
@@ -34,7 +34,7 @@ It deliberately does not:
 
 A delivered message goes through the inbound channel as a `freeflow-message` notice ([Ask user and the inbound channel](ask-user.md)): steered in after the current tool batch while the agent works, a new turn when it is idle. The notice names the sender, its folder and task, then the text, then one line saying it is not the user's instruction and how to reply. A held message waits in a queue (at most 100, oldest dropped) and is put to the user one at a time with Pi's `confirm`, which closes after the hold expiry (5 minutes). The sender gets one notice with the outcome: accepted, refused, or not answered in time. Without a UI a held message is refused at once.
 
-**Guidance.** The tools have `deferred` exposure: Pi does not send them until its `tool_search` loads them. While messaging is effective, `applyMessagingTools()` activates `tool_search` (and withdraws it when messaging turns off, only if Freeflow activated it), and the Freeflow system section carries the `Messaging` cue (`runtime/prompts/messaging.md`), which names the two tools. The authority rule is in the cue, in `send_message`'s description and in every delivered notice.
+**Guidance.** The tools have `deferred` exposure: Pi does not send them until its `tool_search` loads them. While messaging is effective, `applyMessagingTools()` activates `tool_search` (and withdraws it when messaging turns off, only if Freeflow activated it); where Pi has no `tool_search`, it declares the two tools directly. The capability skill `capabilities/messaging/SKILL.md` is listed only while messaging is effective; its description is the trigger (the user asks to contact or answer another session, or a message arrives), and its body says how to load the tools, write and answer messages, and report from a child task. The authority rule is in the skill, in `send_message`'s description and in every delivered notice.
 
 **Busy and idle.** `agent_start` marks the session busy and `agent_settled` idle; turning idle notifies sessions waiting for it.
 
@@ -43,7 +43,7 @@ A delivered message goes through the inbound channel as a `freeflow-message` not
 | Decision | Reason | Rejected | Source |
 | --- | --- | --- | --- |
 | Off by default, its own switch, only where Freeflow is active. | A preview that opens a socket and lets other agents' text reach the model; repositories without Freeflow stay plain Pi. | On whenever Freeflow is on, as Claude Code; on wherever the extension loads. | Task 002 D-005 |
-| Tools deferred behind `tool_search`, named by a cue. | Two tool definitions (about 2,000 characters) would be sent on every request; `tool_search` is 615. Loading keeps the prompt cache on Anthropic and OpenAI Responses models; elsewhere (xAI) it costs one cache write per session. | `direct` exposure. | Pi v1.1.0 check, Task 002 |
+| Tools deferred behind `tool_search`; a capability skill, not a system-prompt cue, says how to use them. | Two tool definitions (about 2,000 characters) would be sent on every request; `tool_search` is 615 and the skill's list entry a line. Capabilities are skills under `capabilities/`, like Task Memory and Compaction (user, 2026-10-11). Loading keeps the prompt cache on Anthropic and OpenAI Responses models; elsewhere (xAI) it costs one cache write per session. | `direct` exposure. | Pi v1.1.0 check, Task 002 |
 | Unix socket per session, registry files for discovery. | Push delivery as Claude Code on one machine; a closed session cannot receive, so nothing goes stale. | An inbox directory per session (spec O-1). | Task 002 D-001 |
 | Default policy: same project delivered, the rest held. | Claude Code compares permission modes, which Pi lacks; a project is the user's own grouping of related sessions. | Accept all; hold all. | Task 002 D-005 |
 | Held messages ask at once and expire after 5 minutes; the sender learns the outcome. | As Claude Code; a hold never leaves the sender waiting without an answer. | Asking at the next idle moment; review on demand. | Task 002 D-005 |
@@ -55,7 +55,7 @@ A delivered message goes through the inbound channel as a `freeflow-message` not
 | --- | --- | --- |
 | A message to an idle session starts a model turn there. | That is what lets a session react while its user is away; the burst and per-minute limits bound the cost. | Messages wait unseen. |
 | A sender's project is taken from its own request. | Every session on the socket folder belongs to the same user; the policy separates the user's projects, not users. | — |
-| `list_sessions` and `send_message` are missing from the request until the agent searches. | Deferred exposure; the cue tells the agent to load them. | Every request pays for both definitions. |
+| `list_sessions` and `send_message` are missing from the request until the agent searches. | Deferred exposure; the skill tells the agent to load them. | Every request pays for both definitions. |
 
 ## Limits
 
@@ -74,4 +74,4 @@ A delivered message goes through the inbound channel as a `freeflow-message` not
 ## Tests
 
 - `tests/messaging/messaging.test.js`: sessions in one process through real sockets: delivery and the notice text, held messages accepted, refused, expired and without a UI, address resolution, `notify_when_idle`, limits, stale entries.
-- `tests/messaging/messaging-native.test.js`: in a real Pi session, `tool_search` active and the tools deferred until loaded, the cue sent, the registry entry, a reload; and nothing of messaging while it is off.
+- `tests/messaging/messaging-native.test.js`: in a real Pi session, `tool_search` active and the tools deferred until loaded, the skill listed, the registry entry, a reload; the tools declared directly without `tool_search`; and nothing of messaging while it is off.

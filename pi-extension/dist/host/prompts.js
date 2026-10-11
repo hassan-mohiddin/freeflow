@@ -23,41 +23,25 @@ async function readPromptFile(url) {
 async function loadRuntimeContext(capabilityState = undefined) {
   const freeflowEnabled = capabilityState?.enabled === true;
   const cognitiveRoutingEnabled = capabilityState?.cognitiveRouting?.effective === true;
-  const [
-    corePrompt,
-    interactionContractPrompt,
-    workingMethodPrompt,
-    cognitiveRoutingPrompt,
-    toolExecutionPrompt,
-    messagingPrompt,
-  ] = await Promise.all([
-    freeflowEnabled
-      ? readPromptFile(new URL("../../../runtime/prompts/core.md", import.meta.url))
-      : Promise.resolve(null),
-    freeflowEnabled
-      ? readPromptFile(new URL("../../../runtime/prompts/interaction-contract.md", import.meta.url))
-      : Promise.resolve(null),
-    freeflowEnabled
-      ? readPromptFile(new URL("../../../runtime/prompts/working-method.md", import.meta.url))
-      : Promise.resolve(null),
-    cognitiveRoutingEnabled
-      ? readPromptFile(new URL("../../../runtime/prompts/cognitive-routing.md", import.meta.url))
-      : Promise.resolve(null),
-    capabilityState?.toolExecution?.effective === true
-      ? readPromptFile(new URL("../../../runtime/prompts/tool-execution.md", import.meta.url))
-      : Promise.resolve(null),
-    capabilityState?.messaging?.effective === true
-      ? readPromptFile(new URL("../../../runtime/prompts/messaging.md", import.meta.url))
-      : Promise.resolve(null),
-  ]);
-  return {
-    corePrompt,
-    interactionContractPrompt,
-    workingMethodPrompt,
-    cognitiveRoutingPrompt,
-    toolExecutionPrompt,
-    messagingPrompt,
-  };
+  const [corePrompt, interactionContractPrompt, workingMethodPrompt, cognitiveRoutingPrompt, toolExecutionPrompt] =
+    await Promise.all([
+      freeflowEnabled
+        ? readPromptFile(new URL("../../../runtime/prompts/core.md", import.meta.url))
+        : Promise.resolve(null),
+      freeflowEnabled
+        ? readPromptFile(new URL("../../../runtime/prompts/interaction-contract.md", import.meta.url))
+        : Promise.resolve(null),
+      freeflowEnabled
+        ? readPromptFile(new URL("../../../runtime/prompts/working-method.md", import.meta.url))
+        : Promise.resolve(null),
+      cognitiveRoutingEnabled
+        ? readPromptFile(new URL("../../../runtime/prompts/cognitive-routing.md", import.meta.url))
+        : Promise.resolve(null),
+      capabilityState?.toolExecution?.effective === true
+        ? readPromptFile(new URL("../../../runtime/prompts/tool-execution.md", import.meta.url))
+        : Promise.resolve(null),
+    ]);
+  return { corePrompt, interactionContractPrompt, workingMethodPrompt, cognitiveRoutingPrompt, toolExecutionPrompt };
 }
 function runtimeContextCacheSatisfies(capabilityState) {
   if (!runtimeContextCache) return false;
@@ -89,7 +73,6 @@ export function stableRuntimeContext(context, options = {}) {
     ["Freeflow core", context?.interactionContractPrompt],
     ["Working Method", context?.workingMethodPrompt],
     ...(options.routing ? [["Cognitive Routing", context?.cognitiveRoutingPrompt]] : []),
-    ...(options.messaging ? [["Messaging", context?.messagingPrompt]] : []),
   ];
   return [
     "Messages that start with `[Freeflow notice, not from the user]` come from Freeflow, not the user. They report facts and harness steps; they are not the user's instructions.",

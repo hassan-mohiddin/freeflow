@@ -28,42 +28,26 @@ async function readPromptFile(url: URL): Promise<string | null> {
 async function loadRuntimeContext(capabilityState = undefined) {
   const freeflowEnabled = capabilityState?.enabled === true;
   const cognitiveRoutingEnabled = capabilityState?.cognitiveRouting?.effective === true;
-  const [
-    corePrompt,
-    interactionContractPrompt,
-    workingMethodPrompt,
-    cognitiveRoutingPrompt,
-    toolExecutionPrompt,
-    messagingPrompt,
-  ] = await Promise.all([
-    freeflowEnabled
-      ? readPromptFile(new URL("../../../runtime/prompts/core.md", import.meta.url))
-      : Promise.resolve(null),
-    freeflowEnabled
-      ? readPromptFile(new URL("../../../runtime/prompts/interaction-contract.md", import.meta.url))
-      : Promise.resolve(null),
-    freeflowEnabled
-      ? readPromptFile(new URL("../../../runtime/prompts/working-method.md", import.meta.url))
-      : Promise.resolve(null),
-    cognitiveRoutingEnabled
-      ? readPromptFile(new URL("../../../runtime/prompts/cognitive-routing.md", import.meta.url))
-      : Promise.resolve(null),
-    capabilityState?.toolExecution?.effective === true
-      ? readPromptFile(new URL("../../../runtime/prompts/tool-execution.md", import.meta.url))
-      : Promise.resolve(null),
-    capabilityState?.messaging?.effective === true
-      ? readPromptFile(new URL("../../../runtime/prompts/messaging.md", import.meta.url))
-      : Promise.resolve(null),
-  ]);
+  const [corePrompt, interactionContractPrompt, workingMethodPrompt, cognitiveRoutingPrompt, toolExecutionPrompt] =
+    await Promise.all([
+      freeflowEnabled
+        ? readPromptFile(new URL("../../../runtime/prompts/core.md", import.meta.url))
+        : Promise.resolve(null),
+      freeflowEnabled
+        ? readPromptFile(new URL("../../../runtime/prompts/interaction-contract.md", import.meta.url))
+        : Promise.resolve(null),
+      freeflowEnabled
+        ? readPromptFile(new URL("../../../runtime/prompts/working-method.md", import.meta.url))
+        : Promise.resolve(null),
+      cognitiveRoutingEnabled
+        ? readPromptFile(new URL("../../../runtime/prompts/cognitive-routing.md", import.meta.url))
+        : Promise.resolve(null),
+      capabilityState?.toolExecution?.effective === true
+        ? readPromptFile(new URL("../../../runtime/prompts/tool-execution.md", import.meta.url))
+        : Promise.resolve(null),
+    ]);
 
-  return {
-    corePrompt,
-    interactionContractPrompt,
-    workingMethodPrompt,
-    cognitiveRoutingPrompt,
-    toolExecutionPrompt,
-    messagingPrompt,
-  };
+  return { corePrompt, interactionContractPrompt, workingMethodPrompt, cognitiveRoutingPrompt, toolExecutionPrompt };
 }
 
 function runtimeContextCacheSatisfies(capabilityState) {
@@ -93,13 +77,12 @@ export async function getRuntimeContext(capabilityState = undefined) {
  * only while Cognitive Routing is effective (Task 003 D-002). It changes only when a setting changes, which costs one
  * prompt-cache write (D-001); between such changes it is identical from request to request.
  */
-export function stableRuntimeContext(context, options: { routing?: boolean; messaging?: boolean } = {}) {
+export function stableRuntimeContext(context, options: { routing?: boolean } = {}) {
   const sections = [
     ["Freeflow core", context?.corePrompt],
     ["Freeflow core", context?.interactionContractPrompt],
     ["Working Method", context?.workingMethodPrompt],
     ...(options.routing ? [["Cognitive Routing", context?.cognitiveRoutingPrompt]] : []),
-    ...(options.messaging ? [["Messaging", context?.messagingPrompt]] : []),
   ];
   return [
     "Messages that start with `[Freeflow notice, not from the user]` come from Freeflow, not the user. They report facts and harness steps; they are not the user's instructions.",
