@@ -71,6 +71,18 @@ Older experimental routing fields or names such as `standard`, `reasoning`, `con
 
 Freeflow's PiFlow integration was removed as a breaking change. Use native Pi for the Freeflow extension; Freeflow does not modify or uninstall a separate PiFlow installation. See the [Unreleased changelog](../../CHANGELOG.md#unreleased).
 
+## Questions in a dialog
+
+Whenever Freeflow is enabled, the agent can put a choice that is yours to make into a dialog (`ask_user`) and continue on your answer in the same turn, instead of asking in its reply and stopping. It asks for choices only you can make, such as scope beyond what you asked for, a direction, or how to finish a branch; it does not ask for facts it can look up. Each dialog has one to four questions, each with two to four options and their trade-offs, its recommendation first. In the terminal:
+
+- `↑` `↓` move, `Enter` chooses, and `Space` toggles an option when several may be chosen;
+- the last row, **Type my own answer**, takes your own words;
+- `n` adds a note to a question;
+- `Tab` moves between questions when there are several, then to Submit;
+- `Esc` closes the dialog without answering; the agent then does not act on that choice.
+
+In RPC clients each question is a list to pick from. Without a UI (print or JSON mode), and for a Cognitive Routing worker, the agent asks in its reply instead.
+
 ## Tool Execution, Compaction and Task Memory configuration
 
 Tool Execution and Task Memory are disabled by default; Compaction is enabled by default:
@@ -83,7 +95,7 @@ Tool Execution and Task Memory are disabled by default; Compaction is enabled by
 }
 ```
 
-Tool Execution keeps Pi's tools and adds guidance, file tracking, clearer edit errors, `apply_patch` and the background commands `bash_background` and `stop_background`. The retired v2 keys (`capture`, `programs`, `workspace`, `discovery`, `adapters`, `accounting`) still load and do nothing. See [Tool Execution](../capabilities/tool-execution.md).
+Tool Execution keeps Pi's tools and adds guidance, file tracking, clearer edit errors, `apply_patch`, the background commands `bash_background` and `stop_background`, and `monitor`. The retired v2 keys (`capture`, `programs`, `workspace`, `discovery`, `adapters`, `accounting`) still load and do nothing. See [Tool Execution](../capabilities/tool-execution.md).
 
 Compaction warns the agent before Pi's own limit and lets it compact with `compact_context` from its own summary and carried context; Pi's compaction stays on as the fallback. `compaction.carry` (Context reuse) controls whether files and tool results are carried. See [Compaction](../capabilities/compaction.md).
 
@@ -111,7 +123,7 @@ While an effective native host is idle:
 /freeflow project
 ```
 
-`/freeflow settings` opens the settings screen on the Personal scope; `/freeflow settings session`, `local` (or `personal`) and `repo` (or `repository`) open it on that scope. `/freeflow status` shows the effective state, prompt-cache diagnostics, running background commands and the compaction cycle. `/freeflow compact` asks the agent to prepare and compact now. `/freeflow task` and `/freeflow project` attach Working Records and manage projects when Task Memory is on; their subcommands are listed in [Task Memory](../capabilities/task-memory.md#commands). `coordinator`, `helper`, and `executor` place a manual hold when available, `auto` releases it to automatic Coordinator control, and `history` reads work-oriented routing history (`history diagnostics` retains the raw event view). `/freeflow resume` explicitly resumes saved routing responsibility after reconciliation. These commands require an idle host and do not authorize task work.
+`/freeflow settings` opens the settings screen on the Personal scope; `/freeflow settings session`, `local` (or `personal`) and `repo` (or `repository`) open it on that scope. `/freeflow status` shows the effective state, prompt-cache diagnostics, running background commands and monitors, and the compaction cycle. `/freeflow compact` asks the agent to prepare and compact now. `/freeflow task` and `/freeflow project` attach Working Records and manage projects when Task Memory is on; their subcommands are listed in [Task Memory](../capabilities/task-memory.md#commands). `coordinator`, `helper`, and `executor` place a manual hold when available, `auto` releases it to automatic Coordinator control, and `history` reads work-oriented routing history (`history diagnostics` retains the raw event view). `/freeflow resume` explicitly resumes saved routing responsibility after reconciliation. These commands require an idle host and do not authorize task work.
 
 When the source adapter exposes the native controls:
 

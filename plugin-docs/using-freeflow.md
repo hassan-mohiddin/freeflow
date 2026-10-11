@@ -224,7 +224,7 @@ For concrete work, the agent establishes:
 - evidence needed for the result;
 - the user-facing return condition.
 
-A clear request can establish this without another confirmation. An unresolved user-owned choice or uncovered effect requires a stop.
+A clear request can establish this without another confirmation. An unresolved user-owned choice or uncovered effect requires a stop. On Pi the agent can put that choice to you in a dialog and continue on your answer; see [Questions in a dialog](integrations/pi.md#questions-in-a-dialog).
 
 ### Feedback Loop
 
@@ -479,7 +479,7 @@ Tool Execution is experimental and off by default. Turn it on in `/freeflow sett
 }
 ```
 
-It keeps Pi's `read`, `bash`, `edit`, `write`, `grep`, `find` and codemode, and adds guidance on searching, reading and running commands narrowly; notices when files the model read change behind it; edit errors that show the closest lines; `apply_patch` for GPT models; and `bash_background` / `stop_background` for servers, watchers and long commands, with a notice when they exit. Ask the agent to run a long command in the background when you want to keep working while it runs. See [Tool Execution](capabilities/tool-execution.md).
+It keeps Pi's `read`, `bash`, `edit`, `write`, `grep`, `find` and codemode, and adds guidance on searching, reading and running commands narrowly; notices when files the model read change behind it; edit errors that show the closest lines; `apply_patch` for GPT models; `bash_background` / `stop_background` for servers, watchers and long commands, with a notice when they exit; and `monitor`, which tells the agent each line a command prints, so it can react to a log or watcher while it runs. Ask the agent to run a long command in the background when you want to keep working while it runs, or to watch one when it should react while you are away. See [Tool Execution](capabilities/tool-execution.md).
 
 ## Long sessions and compaction
 
