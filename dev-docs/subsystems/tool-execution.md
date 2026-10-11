@@ -98,7 +98,7 @@ Planning refuses an Add over an existing file the model has not read, a Move ont
 On exit, `notify()` sends a `freeflow-background` notice through the inbound channel (`host/inbound.ts`, see [Ask user and the inbound channel](ask-user.md)), drawn in the transcript as one line:
 
 - mid-run, it is steered in after the current turn's tool results;
-- when idle, it starts a turn as a user message (see Decisions).
+- when idle, it starts a turn as the same custom message (see Decisions).
 
 A command stopped through `stop_background` or at session end sends no notice. `stopAll()` runs at `session_shutdown`. After Pi's own compaction, `restate()` lists the running commands once; a Freeflow compaction names them in its summary instead.
 
@@ -126,7 +126,7 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 | `apply_patch` plans the whole patch before writing. | A failed hunk then changes no file. A write failure after planning is reported as partial rather than hidden. | Applying section by section. | `e4d1a62` |
 | File state: fingerprint per file in memory, rebuilt from the branch; nothing persisted. | The lowest-coordination way to know what the model saw. It is rebuilt after resume and navigation without a store. | A persisted session store (retired with v2). | `48a9387` |
 | Notices for files changed behind the model are appended to the result of the next untracked tool (normally the command that changed them), or sent as a message at prompt start. | The model sees the fact when it next acts, and nothing earlier in the conversation is edited (prompt cache). | — | `3894a01` |
-| Background exit notices start an idle turn as a user message. | A run started by an extension message loses Freeflow's system sections from its second request (Pi issue #10267). | `sendMessage` with `triggerTurn`. | `f41f1e0` |
+| Background exit notices start an idle turn as a Freeflow custom message. | A user message would read as the user's words; `keepSections()` keeps Freeflow's system sections on the run Pi starts (Pi issue #10267). | Starting the turn as a user message (the earlier workaround). | Task 002 D-008 |
 | Freeflow does not set `TMPDIR`; background output goes to a per-session folder under the OS temp directory. | Pi's `bash` inherits the whole Pi process environment, so changing `TMPDIR` would change it for every tool, extension and MCP server. | Pointing `TMPDIR` at a session folder. | `fc32691` |
 | Messages state the fact and one next step, with no reassurance. | The wording was reviewed against Freeflow's Beyond the Weights research on model behavior. | — | `48a9387`, `3894a01` |
 | Settings of the retired v2 runtime still load and do nothing. | Existing configuration files stay valid. | Rejecting them. | `ca1cc90` |

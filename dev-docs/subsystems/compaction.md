@@ -58,7 +58,7 @@ Worked example, 200k window with Pi's default reserve: trigger 200,000 − 16,38
    - a visible `freeflow-compaction-recovery` custom message telling the agent how to recover and not to re-read what was carried.
 5. **Reset.** Pi fires no `session_compact` for entries an extension appends, so `takeCompacted()` hands the compaction to the next `turn_start`, which runs the same resets as Pi's compaction (`restore(ctx, false)`: request history, cache tracking, routing reconcile; `false` because the branch is unchanged, so file state is not invalidated as after navigation) and reduces file tracking to the carried files (`files.compacted()`).
 
-`/freeflow compact` calls `requestByUser()`, which makes compaction due for this cycle, then sends `USER_REQUEST` (plus the result index) as the user's message, steered when a run is active.
+`/freeflow compact` calls `requestByUser()`, which makes compaction due for this cycle, then sends `USER_REQUEST` (plus the result index) as a `freeflow-compaction-request` custom message with the notice prefix, steered when a run is active and starting a turn when idle.
 
 ### Carry
 
@@ -90,7 +90,7 @@ When Pi compacts (its trigger, an overflowing request, or `/compact`), `session_
 | Carry copies content (picks plus a greedy automatic fill of the newest work), lists the rest by ref, within min(15% window, 40k, warning/4). | A kept raw tail would keep the preparation turns themselves. Greedy fill carries the most recent work that fits. The warning cap stops a large Pi reserve from making the carried context refill the next cycle to the warning (seen in a live run). | A Pi-style kept tail. | `dcf82fc`, `7fb0792` |
 | Context reuse off carries nothing, but under routing the ref list stays. | Evidence selection still needs to name results the worker no longer sees. | Dropping the list too. | `942057d`, `7fb0792` |
 | Freeflow never names a Working Record; the summary does. | Freeflow cannot tell which record belongs to this work; a guessed record once sent recovery into another task. | Naming the most recent record. | `f00704a` |
-| `/freeflow compact` is sent as the user's message. | A run started by an extension message loses Freeflow's system sections from its second request (Pi issue #10267). | Sending it as a Freeflow custom message. | `6b56e7d`, `f41f1e0` |
+| `/freeflow compact` is sent as a Freeflow custom message. | The user typed the command, not the request text; `keepSections()` keeps Freeflow's system sections on the run Pi starts (Pi issue #10267). | Sending it as the user's message (the earlier workaround). | Task 002 D-008 |
 | A Coordinator under projection never compacts; it delegates an assignment whose contract says to read the compaction skill, compact with `compact_context`, then return with `return_work`. Its notices and the refusal say so. | Its view leaves out what workers did, so its summary would lose their work. | Letting the Coordinator compact its own view. | `6b56e7d`, `305f20b` |
 | After a worker's compaction the Coordinator sees names, not copies; evidence it received stays in its view until the next compaction; no resume placement after a recovery suspension. | Copies would repeat evidence it receives by selection; dropping received evidence or re-placing it broke the Coordinator's cache prefix in live probes. | Showing the worker's carried context unchanged. | `01505b0`, `9849a16` |
 | `compact_context` is callable from codemode scripts (`exposure: "direct"`). | Agents that look for tools in codemode first concluded they could not compact. Routing tools stay model-only. | Model-only exposure. | `257ee32` |
@@ -133,7 +133,7 @@ Pi settings read, never written: `compaction.reserveTokens` and `compaction.mode
 
 **Events handled** (`index.ts`): `turn_end` (write or notify), `turn_start` (post-compaction resets), `session_before_compact` (fallback), `session_start` and `session_shutdown` (`reset()`).
 
-**Messages:** `freeflow-compaction-notice` (visible, `details.level`), `freeflow-carried-context` (hidden), `freeflow-compaction-recovery` (visible). All start with Freeflow's notice prefix so the agent never reads them as the user's words.
+**Messages:** `freeflow-compaction-request` (visible, `/freeflow compact`), `freeflow-compaction-notice` (visible, `details.level`), `freeflow-carried-context` (hidden), `freeflow-compaction-recovery` (visible). All start with Freeflow's notice prefix so the agent never reads them as the user's words.
 
 **Skill:** `capabilities/compaction/SKILL.md` with `references/summary-format.md`: when to compact, the summary's shape, what to carry.
 

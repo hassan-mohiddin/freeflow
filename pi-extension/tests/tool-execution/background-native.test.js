@@ -225,8 +225,8 @@ test(
   "a run an idle exit notice starts keeps Freeflow's system sections in every request",
   { timeout: 30000 },
   async () => {
-    // A run started by an extension message loses before_agent_start sections from its second request (Pi #10267),
-    // so an idle notice starts its run as a user message.
+    // Pi drops before_agent_start sections on a run an extension message starts (Pi #10267); the notice is still
+    // Freeflow's own message, and keepSections leaves the reversal out, so the prompt stays byte for byte the same.
     const sections = (body) => {
       const system = body.input.find((item) => item.role === "system")?.content ?? "";
       return (system.match(/\n<([a-z_]+)>/g) ?? []).map((tag) => tag.trim());
@@ -240,12 +240,38 @@ test(
           [],
         ][n - 1] ?? [],
       false,
-      async ({ session, requests }) => {
+      async ({ session, requests, manager }) => {
         await until(() => requests.length >= 4, "the notice's run to make two requests");
         await session.waitForIdle();
         assert.match(JSON.stringify(requests[2].input), /Background command bg[0-9a-z]{6} \(.*\) completed/);
         for (const body of requests.slice(2)) assert.ok(sections(body).includes("<freeflow_guidance>"));
         assert.deepEqual(sections(requests[3]), sections(requests[2]));
+        // The notice is Freeflow's message, not the user's, and the whole prompt is unchanged from the prompt's run.
+        const entries = manager.getBranch();
+        assert.ok(
+          entries.some((e) => e.type === "custom_message" && e.customType === "freeflow-background"),
+          "stored as Freeflow's message",
+        );
+        assert.ok(
+          !entries.some(
+            (e) =>
+              e.type === "message" &&
+              e.message.role === "user" &&
+              JSON.stringify(e.message).includes("Background command"),
+          ),
+          "never as the user's",
+        );
+        const system = (body) =>
+          JSON.stringify(body.input.filter((item) => item.role === "system" || item.role === "developer"));
+        for (const body of requests.slice(1))
+          assert.equal(system(body), system(requests[0]), "the system prompt is unchanged");
+        // Each request starts with the one before it (cache markers aside).
+        for (let i = 1; i < requests.length; i++)
+          assert.deepEqual(
+            strip(requests[i].input.slice(0, requests[i - 1].input.length)),
+            strip(requests[i - 1].input),
+            `request ${i + 1} extends request ${i}`,
+          );
       },
       true,
       on,

@@ -21,14 +21,17 @@ const notice = (content, wake = true) => ({
 });
 const pause = (ms) => new Promise((done) => setTimeout(done, ms));
 
-test("while the agent works a notice is steered in; while idle it starts a turn as a user message", async () => {
+test("a notice is always Freeflow's own message: steered in while busy, starting a turn while idle", async () => {
   const busy = host(false);
   new Inbound(busy).deliver(notice("done"));
   assert.deepEqual(busy.sent[0].options, { triggerTurn: true, deliverAs: "steer" });
   assert.equal(busy.sent[0].message.display, true);
   const idle = host(true);
   new Inbound(idle).deliver(notice("done"));
-  assert.deepEqual(idle.sent, [{ kind: "user", content: `${NOTICE_PREFIX} done` }]);
+  // Never the user's message (Task 002 D-008); keepSections holds Freeflow's sections on the run it starts.
+  assert.equal(idle.sent.length, 1);
+  assert.equal(idle.sent[0].kind, "message");
+  assert.deepEqual(idle.sent[0].options, { triggerTurn: true, deliverAs: "steer" });
   // A notice that should not wake the agent waits for the next turn, idle or not.
   const quiet = host(true);
   new Inbound(quiet).deliver(notice("still running", false));

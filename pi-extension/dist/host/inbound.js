@@ -2,13 +2,12 @@
  * The inbound channel: content that reaches the model from outside the turn (a background command's exit, and later
  * monitor events and messages from other sessions). One delivery rule for all of them:
  * - while the agent works, a notice is steered in after the current tool batch;
- * - while it is idle, a notice that should wake it starts a turn as a user message, so Freeflow's system sections
- *   survive (a run an extension message starts loses them from its second request, Pi #10267); if a run started
- *   meanwhile, it is steered in instead;
+ * - while it is idle, a notice that should wake it starts a turn as Freeflow's own message (Pi drops Freeflow's
+ *   system sections on such a run, Pi #10267; host/section-keeper.ts keeps them in the request);
  * - a notice that should not wake the agent waits for the next turn.
  * Notices from one source within a batching window join one notice, and a source that sends faster than its limit is
- * stopped with one notice saying so. Every notice starts with NOTICE_PREFIX, so the model never reads it as the
- * user's words. Notices are appended to the conversation; nothing earlier changes.
+ * stopped with one notice saying so. Pi sends every custom message to the model in the user role, so a notice marks
+ * its source itself: NOTICE_PREFIX for Freeflow's own notices, a tag for a message from another session. Notices are appended to the conversation; nothing earlier changes.
  */
 import { Text } from "@earendil-works/pi-tui";
 export const NOTICE_PREFIX = "[Freeflow notice, not from the user]";
@@ -81,12 +80,9 @@ export class Inbound {
           notice.wake ? { triggerTurn: true, deliverAs: "steer" } : { triggerTurn: false },
         ),
       ).catch(() => {});
-    if (!notice.wake || this.host.isIdle() !== true) return asMessage();
-    try {
-      return Promise.resolve(this.host.sendUserMessage(notice.content)).catch(asMessage);
-    } catch {
-      return asMessage();
-    }
+    // Always Freeflow's own message, never the user's: keepSections holds Freeflow's system sections on the run it
+    // starts (Pi #10267), which once made idle notices go out as user messages.
+    return asMessage();
   }
 }
 /**

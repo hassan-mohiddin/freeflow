@@ -1,7 +1,7 @@
 # Request History And Prompt Cache
 
-> **Covers:** `pi-extension/src/host/request-history.ts`, `pi-extension/src/host/runtime-state.ts`, `pi-extension/src/host/projection-tags.ts`, `pi-extension/src/host/read-only-session.ts`, `pi-extension/src/provider-support/`
-> **Tests:** `pi-extension/tests/cache-reuse/`, `pi-extension/tests/provider-support/`, `pi-extension/tests/host/persisted-branch.test.js`
+> **Covers:** `pi-extension/src/host/request-history.ts`, `pi-extension/src/host/section-keeper.ts`, `pi-extension/src/host/runtime-state.ts`, `pi-extension/src/host/projection-tags.ts`, `pi-extension/src/host/read-only-session.ts`, `pi-extension/src/provider-support/`
+> **Tests:** `pi-extension/tests/cache-reuse/`, `pi-extension/tests/provider-support/`, `pi-extension/tests/host/persisted-branch.test.js`, `pi-extension/tests/host/section-keeper.test.js`
 > **Verified at:** `9180dd61` (2026-10-11)
 > **User docs:** `plugin-docs/prompt-caching.md`
 
@@ -70,6 +70,10 @@ To add a new generated message kind: give it its own `customType`, add the type 
 ### Runtime State placement
 
 `withFreeflowRuntimeState()` places the Runtime State before the first user message the first time. Unchanged, it keeps its position (`runtimeStateAnchor`); changed, it moves to just before the latest user message. Request history normally overrides this placement: it strips transient messages and re-inserts them from frames. The anchor matters on the paths that bypass request history, when it is unavailable or fails. `freeflow-cognitive-routing-runtime-state` is an older type no longer produced; it is still recognized so sessions that contain it assemble correctly.
+
+### Freeflow's sections on runs Pi starts
+
+Pi removes Freeflow's system sections with a patch on a run it starts for an extension message, and restores them with another at the next prompt (Pi issue #10267); both patches would change the cached prompt. `keepSections()` drops those entries from the request and keeps the head's sections as recorded during prompt-started runs. The stored transcript keeps Pi's patches. See [System prompt architecture](prompt-assembly.md#pi) for what is kept and what passes through.
 
 ### Cache breakpoints (anchor)
 
@@ -189,6 +193,7 @@ Request history runs on every request; the rules are in [Performance](../guides/
   - `runtime-state.ts`: `freeflowRuntimeStateMessage()`, `withFreeflowRuntimeState()`, `RuntimeStateAnchor`, `filterBootstrapMessage()`.
   - `projection-tags.ts`: `tagProjectedMessages()`, `projectedEntryId()`, `tagDerived()`, `occurrenceIdentity()`, `isProjected()`, `isHostEdited()`.
   - `read-only-session.ts`: `persistedBranchMatches()`, `trustLoadedSession()`.
+  - `section-keeper.ts`: `currentSections()`, `keepSections()`.
 - `pi-extension/src/provider-support/`: see its [README](../../pi-extension/src/provider-support/README.md).
   - `index.ts`: `registerProviderSupport()` and its hooks.
   - `routes.ts`: `isChatGPTSignIn()`.
@@ -202,6 +207,7 @@ Request history runs on every request; the rules are in [Performance](../guides/
 - `tests/cache-reuse/`: end-to-end prefix extension across request history, routing views and providers. A failure here usually means something rewrote earlier request content; find which message changed between two consecutive request bodies before changing the test.
 - `tests/provider-support/`: anchor planning (`cache-anchor*.test.js`), keep-alive (`cache-keepalive*.test.js`), health, monitor, Sign in with ChatGPT, and effort history. See its [README](../../pi-extension/tests/provider-support/README.md).
 - `tests/host/persisted-branch.test.js`: tail readback and mismatch detection.
+- `tests/host/section-keeper.test.js`: reverting and restating patches dropped, other changes kept, the head refilled; `tests/tool-execution/background-native.test.js` (an idle notice keeps the system prompt byte-identical and each request extends the last).
 - `tests/integration/pi-extension.test.js`: Runtime State keeps a fixed prefix position across refreshes and turns.
 - `tests/integration/request-path-budget.test.js`: per-request work bounds.
 
@@ -211,6 +217,7 @@ Request history runs on every request; the rules are in [Performance](../guides/
 - Provider expiry, eviction, minimum cacheable length, and per-effort caches on Sign in with ChatGPT are outside Freeflow's control.
 - Another extension that changes the final request can break the prefix after Freeflow.
 - Request history still fingerprints messages with no stable identity (generated and host-edited ones) on every request; `request-path-budget.test.js` bounds how many a later request may fingerprint.
+- A resumed session that receives a notice before its first prompt has no recorded sections, so that run loses Freeflow's sections and the next prompt restores them, at one cache write each.
 - Keep-alive covers only the suspended Coordinator, not other requesters that will resume.
 
 ## Changes

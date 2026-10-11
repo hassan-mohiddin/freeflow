@@ -21,6 +21,7 @@ import {
   registerBackgroundTools,
 } from "./tool-execution/background.js";
 import { Inbound, renderNotice } from "./host/inbound.js";
+import { currentSections, keepSections } from "./host/section-keeper.js";
 import { backgroundRefusal } from "./tool-execution/bash-guard.js";
 import { CompactionController, USER_REQUEST } from "./compaction/controller.js";
 import { applyCompactionTools, registerCompactionTool } from "./compaction/tool.js";
@@ -62,6 +63,8 @@ import { filterBootstrapMessage, withFreeflowRuntimeState } from "./host/runtime
 import { setFreeflowStatus } from "./host/status.js";
 import { cachedBranch } from "./host/branch.js";
 const COMPACTION_NOTICE_TYPE = "freeflow-compaction-notice";
+// The user's /freeflow compact, delivered as Freeflow's message.
+const COMPACT_REQUEST_TYPE = "freeflow-compaction-request";
 /** Estimated size of the full native history plus the system prompt: what a request without projection carries. */
 /**
  * The context a turn ended with, as Pi estimates it: the turn's own usage plus the tool results after it. Pi's
@@ -209,6 +212,12 @@ export default function freeflow(pi) {
     delete runtimeStateAnchor.index;
   };
   let capability;
+  // The system sections Freeflow set at the last prompt; see keepSections.
+  let ownSections;
+  let ownSectionsVersion = 0;
+  // The sections Freeflow sets, and whether the current run is one a prompt started (so its requests carry them).
+  let ownNames = [];
+  let promptRun = false;
   const files = new FileTracking();
   const toolExecutionEffective = () => capability?.toolExecution?.effective === true;
   const compactionEffective = () => capability?.compaction?.effective === true;
@@ -309,6 +318,7 @@ export default function freeflow(pi) {
   });
   api.registerMessageRenderer?.(NOTICE_TYPE, renderNotice("Background"));
   api.registerMessageRenderer?.(MONITOR_TYPE, renderNotice("Monitor"));
+  api.registerMessageRenderer?.(COMPACT_REQUEST_TYPE, renderNotice("Compaction"));
   const backgroundHost = {
     effective: toolExecutionEffective,
     shellPath: () => api.getSettings?.()?.shellPath,
@@ -588,12 +598,15 @@ export default function freeflow(pi) {
       return;
     }
     compaction.requestByUser(ctx);
-    // The user asked, so this is their message. A user message also starts an ordinary run, which keeps Freeflow's
-    // system sections; a run started by an extension message loses them from its second request (Pi #10267).
+    // Freeflow's message saying the user asked, not text in the user's name (Task 002 D-008); keepSections holds
+    // Freeflow's system sections on the run it starts (Pi #10267).
     const index = compaction.indexText(ctx);
-    const text = `${USER_REQUEST}${index ? `\n\n${index}` : ""}`;
+    const text = `${NOTICE_PREFIX} The user ran /freeflow compact. ${USER_REQUEST}${index ? `\n\n${index}` : ""}`;
     await Promise.resolve(
-      api.sendUserMessage(text, ctx.isIdle?.() === false ? { deliverAs: "steer" } : undefined),
+      api.sendMessage(
+        { customType: COMPACT_REQUEST_TYPE, content: text, display: true, details: {} },
+        { triggerTurn: true, deliverAs: "steer" },
+      ),
     ).catch(() => {});
   }
   pi.on("resources_discover", async (event, ctx) => {
@@ -708,6 +721,14 @@ export default function freeflow(pi) {
         });
       if (toolExecution)
         Object.assign(sections, toolExecutionTail(api.getSettings?.()?.shellPath, prompts?.toolExecutionPrompt));
+      // What Freeflow set, so requests of runs Pi starts itself keep it (host/section-keeper.ts, Pi #10267).
+      ownNames = [
+        "freeflow_guidance",
+        "environment",
+        "tool_execution",
+        ...(toolExecution ? ["rules", "docs"] : []),
+      ].filter((name) => typeof sections[name] === "string");
+      promptRun = true;
     }
     // Like Claude Code's next-turn reminder: files the model read that changed while it was not running a tool.
     const changed = toolExecutionEffective() ? await files.changedNotice(ctx, false) : undefined;
@@ -797,6 +818,7 @@ export default function freeflow(pi) {
     await files.compacted(compacted.carriedFiles, ctx);
   });
   pi.on("agent_settled", async (_event, ctx) => {
+    promptRun = false;
     agentRunning = false;
     if (messaging.running()) await messaging.setBusy(false).catch(() => {});
     await routing.settled(ctx);
@@ -823,7 +845,24 @@ export default function freeflow(pi) {
       ctx.sessionManager?.buildSessionProjection?.(),
       cachedBranch(ctx.sessionManager) ?? [],
     );
-    let messages = event.messages.map(filterBootstrapMessage).filter(Boolean);
+    // A prompt's run carries Freeflow's sections as Pi renders them: remember them for runs Pi starts itself.
+    if (promptRun) {
+      const current = currentSections(event.messages);
+      const own = Object.fromEntries(
+        ownNames.filter((name) => typeof current[name] === "string").map((name) => [name, current[name]]),
+      );
+      if (
+        !ownSections ||
+        Object.keys(own).length !== Object.keys(ownSections).length ||
+        Object.entries(own).some(([name, value]) => ownSections[name] !== value)
+      ) {
+        ownSections = own;
+        ownSectionsVersion++;
+      }
+    }
+    let messages = keepSections(event.messages, ownSections, ownSectionsVersion)
+      .map(filterBootstrapMessage)
+      .filter(Boolean);
     messages = withFreeflowRuntimeState(messages, capability, routing.state(), prompts, {
       force: refreshState,
       anchor: runtimeStateAnchor,
