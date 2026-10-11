@@ -1447,6 +1447,58 @@ test("Pi personal settings refuse to write a tracked local override", async () =
   }
 });
 
+test("a preset's effort choices are the levels Pi's model data allows, as for grok-4.7", async () => {
+  // grok-4.7's thinkingLevelMap rules out off, minimal and max: the picker offers low, medium, high and xhigh only.
+  const cwd = await configuredRepo({ cognitiveRouting: { enabled: true } });
+  try {
+    const { commands } = loadExtension(freeflowExtension, {
+      appendEntry() {},
+      async setModel() {
+        return true;
+      },
+      setThinkingLevel() {},
+    });
+    const settingsCtx = context(cwd);
+    settingsCtx.isIdle = () => true;
+    const registry = cognitiveRoutingModelRegistry();
+    registry.getAvailable().push({
+      provider: "xai",
+      id: "grok-4.7",
+      name: "Grok 4.7",
+      reasoning: true,
+      contextWindow: 500000,
+      thinkingLevelMap: {
+        off: null,
+        minimal: null,
+        low: "low",
+        medium: "medium",
+        high: "high",
+        xhigh: "xhigh",
+        max: null,
+      },
+    });
+    settingsCtx.modelRegistry = registry;
+    settingsCtx.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+      choose(component, "Coordinator preset", "Cognitive Routing");
+      component.handleInput(KEY.enter);
+      const models = renderText(component, 200);
+      assert.match(models, /xai\/grok-4\.7\s+Grok 4\.7 · low, medium, high, xhigh\n/);
+      assert.match(models, /test\/model-a\s+Model A · off, low, medium, high\n/);
+      while (!/› xai\/grok-4\.7|→ xai\/grok-4\.7/.test(renderText(component, 200))) component.handleInput(KEY.down);
+      component.handleInput(KEY.enter);
+      const efforts = renderText(component, 200);
+      assert.match(efforts, /Choose effort · xai\/grok-4\.7/);
+      assert.doesNotMatch(efforts, /\b(minimal|max)\b|\n\s*(→ )?off\s/);
+      assert.match(efforts, /low[\s\S]*medium[\s\S]*high[\s\S]*xhigh/);
+      return undefined;
+    };
+    await commands.find((command) => command.name === "freeflow").definition.handler("settings repo", settingsCtx);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("Pi Cognitive Routing settings preserve complete presets", async () => {
   const cwd = await configuredRepo({
     cognitiveRouting: {
@@ -1797,14 +1849,25 @@ test("Pi preserves the host prompt and sends no Freeflow guidance when a mandato
 });
 
 function cognitiveRoutingModelRegistry() {
+  // Levels as Pi's model data states them: null rules a level out, and xhigh and max need a mapping.
   const models = [
-    { provider: "test", id: "model-a", name: "Model A", reasoning: true, contextWindow: 128000 },
-    { provider: "test", id: "model-b", name: "Model B", reasoning: true, contextWindow: 128000 },
+    {
+      provider: "test",
+      id: "model-a",
+      name: "Model A",
+      reasoning: true,
+      contextWindow: 128000,
+      thinkingLevelMap: { minimal: null },
+    },
+    {
+      provider: "test",
+      id: "model-b",
+      name: "Model B",
+      reasoning: true,
+      contextWindow: 128000,
+      thinkingLevelMap: { minimal: null, max: "max" },
+    },
   ];
-  const supported = new Map([
-    ["model-a", new Set(["off", "low", "medium", "high"])],
-    ["model-b", new Set(["off", "low", "medium", "high", "max"])],
-  ]);
   return {
     getAvailable() {
       return models;
@@ -1814,9 +1877,6 @@ function cognitiveRoutingModelRegistry() {
     },
     async getApiKeyAndHeaders() {
       return { ok: true };
-    },
-    clampThinkingLevel(model, level) {
-      return supported.get(model.id)?.has(level) ? level : "off";
     },
   };
 }

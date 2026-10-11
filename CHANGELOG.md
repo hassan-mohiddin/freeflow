@@ -32,6 +32,7 @@
 - Codex now runs Freeflow's session-start hook. Since 0.7.1, Codex loaded Freeflow's skills but none of its hooks, because it ignores hooks in a plugin that carries the Agent Plugins manifest the other hosts need. Codex now installs Freeflow from its npm package, which leaves that manifest out, and the hook raises Codex's context limit so the whole context fits. After upgrading the `freeflow` marketplace, approve the Freeflow hook in Codex's `/hooks`; Codex skips it until you do.
 - Freeflow no longer goes silently inactive on Codex, Claude Code, Gemini CLI, Cursor, and GitHub Copilot in a repository whose `.freeflow/config.json` or `.freeflow/local.json` has `toolExecution` or `compaction` settings, such as those written by `/freeflow settings` on Pi. The session-start hooks now check configuration with the same validator as Pi, and an existing invalid configuration file now produces a short configuration error naming the file instead of no Freeflow context.
 - `/freeflow settings` showed Cognitive Routing's Context projection as `off (default)`; routing turns projection on by default, and the screen now says so.
+- `/freeflow settings` offered every thinking level for a Cognitive Routing preset (`off` to `max`) on any reasoning model; it now offers only the levels Pi's model data gives that model, such as `low` to `xhigh` for grok-4.7.
 
 ## 0.8.0 - 2026-10-03
 

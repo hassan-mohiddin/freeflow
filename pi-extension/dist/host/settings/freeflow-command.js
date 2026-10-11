@@ -652,16 +652,17 @@ function isCognitiveRoutingProfile(value) {
     COGNITIVE_ROUTING_THINKING_LEVELS.includes(value.thinking)
   );
 }
-function cognitiveRoutingThinkingLevels(model, registry) {
-  if (typeof registry?.clampThinkingLevel !== "function") {
-    return model?.reasoning === true ? [...COGNITIVE_ROUTING_THINKING_LEVELS] : ["off"];
-  }
+/**
+ * The thinking levels a model supports, by Pi's own rule (pi-ai's getSupportedThinkingLevels): a model without
+ * reasoning has only off; a level its thinkingLevelMap maps to null is unsupported; xhigh and max need a mapping.
+ * Pi's model registry has no such method, so the rule reads the model's data directly.
+ */
+function cognitiveRoutingThinkingLevels(model) {
+  if (model?.reasoning !== true) return ["off"];
   return COGNITIVE_ROUTING_THINKING_LEVELS.filter((level) => {
-    try {
-      return registry.clampThinkingLevel(model, level) === level;
-    } catch {
-      return false;
-    }
+    const mapped = model.thinkingLevelMap?.[level];
+    if (mapped === null) return false;
+    return level === "xhigh" || level === "max" ? mapped !== undefined : true;
   });
 }
 function cognitiveRoutingModelOptions(ctx) {
@@ -677,7 +678,7 @@ function cognitiveRoutingModelOptions(ctx) {
   return models
     .filter((model) => typeof model?.provider === "string" && typeof model?.id === "string")
     .map((model) => {
-      const thinkingLevels = cognitiveRoutingThinkingLevels(model, registry);
+      const thinkingLevels = cognitiveRoutingThinkingLevels(model);
       const provider = model.provider;
       const modelId = model.id;
       const key = cognitiveRoutingModelKey(provider, modelId);

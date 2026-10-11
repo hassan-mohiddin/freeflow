@@ -65,7 +65,7 @@ On a supported native Pi host, configure the v2 shape through `/freeflow setting
 }
 ```
 
-`delegation` accepts `executor`, `helper`, or `both` and defaults to `executor` when omitted. `projection` defaults to `true`. Profile names are `coordinator`, `helper`, and `executor`. Each configured profile requires `provider`, `model`, and one supported thinking value: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Coordinator must resolve to a distinct authenticated pair from every worker enabled by the selected mode; Helper and Executor may share a pair. Well-formed unavailable unused worker presets do not block the selected mode, while malformed configuration fails closed.
+`delegation` accepts `executor`, `helper`, or `both` and defaults to `executor` when omitted. `projection` defaults to `true`. Profile names are `coordinator`, `helper`, and `executor`. Each configured profile requires `provider`, `model`, and a thinking value the model supports by Pi's model data, from `off`, `minimal`, `low`, `medium`, `high`, `xhigh` and `max`. Coordinator must resolve to a distinct authenticated pair from every worker enabled by the selected mode; Helper and Executor may share a pair. Well-formed unavailable unused worker presets do not block the selected mode, while malformed configuration fails closed.
 
 Older experimental routing fields or names such as `standard`, `reasoning`, `contextProjection`, and `sessionStart` are unsupported. There is no migration; rewrite them manually. Invalid configuration fails closed rather than partially enabling routing.
 
