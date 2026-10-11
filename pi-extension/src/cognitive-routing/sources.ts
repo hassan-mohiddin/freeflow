@@ -356,8 +356,11 @@ export class Sources {
     );
     const args = call?.arguments;
     if (!args || typeof args !== "object") return undefined;
+    // A path keeps its end, where the file name is; anything else keeps its start.
+    const path = typeof (args as any).path === "string" ? (args as any).path.trim() : "";
+    if (path) return path.length > 100 ? `...${path.slice(-97)}` : path;
     const chosen =
-      ["path", "command", "pattern", "query", "url"]
+      ["command", "pattern", "query", "url"]
         .map((key) => (args as any)[key])
         .find((value) => typeof value === "string" && value.trim()) ??
       Object.values(args).find((value) => typeof value === "string" && value.trim() && value.length <= 200);
