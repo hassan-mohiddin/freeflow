@@ -480,3 +480,21 @@ test("registry changes through Track Work's command are refused; reads, help and
   assert.equal(refused.ok, false);
   assert.match((await memory.gate("write", { path: record }, "/repo")).reason, /held/, "the held record stays held");
 });
+
+test("the split command quotes the child's title, so the shell runs nothing in it", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { TaskMemory } = await import("../../dist/task-memory/runtime.js");
+  const memory = new TaskMemory({
+    effective: () => true,
+    append: () => {},
+    send: () => {},
+    owner: () => ({ session: "s", since: "2026-10-12T00:00:00.000Z" }),
+    confirm: async () => false,
+    packageRoot: process.cwd(),
+  });
+  const title = "It's $(echo ran) `echo ran`";
+  const text = memory.delegation("p/task-001", "p/task-002", title, "Created.");
+  const argument = /--title ('(?:[^']|'\\'')*') --state/.exec(text)?.[1];
+  assert.ok(argument, text);
+  assert.equal(execFileSync("bash", ["-c", `printf '%s' ${argument}`]).toString(), `Split off: ${title}`);
+});

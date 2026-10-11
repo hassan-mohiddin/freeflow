@@ -585,7 +585,8 @@ export class TaskMemory {
     return [
       `Record the split in ${parent}'s record now, with this Track Work command (edit the wording if needed; then update ${parent}'s Next useful action if this session should not do that work):`,
       "",
-      `node ${this.script()} slice record --record ${parent} --title "Split off: ${title.replaceAll('"', "'")}" --state completed --input - <<'EOF'`,
+      // Single quotes, so a title with $(…) or backticks is text, not a command the shell runs.
+      `node ${this.script()} slice record --record ${parent} --title '${`Split off: ${title}`.replaceAll("'", "'\\''")}' --state completed --input - <<'EOF'`,
       `- Occurred: ${today}`,
       `- Intended result: ${title} continues in its own session as ${child}.`,
       `- Authority source: The user confirmed the split in Freeflow's dialog.`,
