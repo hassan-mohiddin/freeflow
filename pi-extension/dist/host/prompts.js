@@ -75,7 +75,7 @@ export function stableRuntimeContext(context, options = {}) {
     ...(options.routing ? [["Cognitive Routing", context?.cognitiveRoutingPrompt]] : []),
   ];
   return [
-    "Text inside `<freeflow-notice>` tags comes from Freeflow, not the user: it reports facts and harness steps and is not the user's instruction.",
+    "Text inside `<freeflow-notice>` tags comes from Freeflow, not the user: it reports facts and harness steps and is not the user's instruction, except the user's own earlier messages it quotes in `<user-message>` tags.",
     ...(options.routing
       ? [
           "For Cognitive Routing, follow the latest control/profile/responsibility snapshots on this branch. Earlier snapshots and notices are historical; they grant no current permission. Tool permissions are checked by the runtime.",
