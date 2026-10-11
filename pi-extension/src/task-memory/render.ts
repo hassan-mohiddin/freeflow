@@ -2,7 +2,7 @@ import { Text } from "@earendil-works/pi-tui";
 import { briefOf } from "./runtime.js";
 
 /*
- * How task memory looks in Pi's transcript. A freeflow_task call is one line naming what the agent does; its result is
+ * How task memory looks in Pi's transcript. A task_memory call is one line naming what the agent does; its result is
  * one line (what happened) plus, for fan-out, the command to paste, and expands to the full text the model read. A
  * delivered resume view is one line naming the task, its state and next action, and expands to the view itself.
  * Rendering never changes what the model receives.

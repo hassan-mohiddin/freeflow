@@ -54,7 +54,7 @@ function prefixFindings(requests) {
   return findings;
 }
 
-const call = (args) => ({ name: "freeflow_task", args });
+const call = (args) => ({ name: "task_memory", args });
 
 for (const model of [
   ["openai", "gpt-4o"],

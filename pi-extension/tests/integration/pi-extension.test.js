@@ -373,8 +373,10 @@ test("Pi registers the remaining Freeflow commands without mode controls or reti
   assert.ok(!toolNames.includes("freeflow_context"));
   assert.deepEqual(
     toolNames.filter((name) => name.startsWith("freeflow_")),
-    ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project", "freeflow_compact", "freeflow_task"],
+    ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project", "freeflow_compact"],
   );
+  // Task memory's tool is named apart from /freeflow task, which models confused it with (grok-4.7 runs).
+  assert.ok(toolNames.includes("task_memory"));
   assert.ok(!toolNames.includes("freeflow_switch_profile"));
   assert.ok(!toolNames.includes("freeflow_cognitive_routing_history"));
   assert.ok(freeflowCommand);

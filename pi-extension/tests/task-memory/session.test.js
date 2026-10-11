@@ -48,11 +48,11 @@ function makeRecords(cwd) {
 test("the model proposes attaching; the user confirms and the resume view comes back", { timeout: 30000 }, async () => {
   const confirms = [];
   await fixture(
-    async (n) => (n === 1 ? [{ name: "freeflow_task", args: { action: "attach", record: RECORD_A } }] : []),
+    async (n) => (n === 1 ? [{ name: "task_memory", args: { action: "attach", record: RECORD_A } }] : []),
     false,
     async ({ manager, requests, cwd }) => {
       assert.equal(confirms.length, 1);
-      const [result] = toolResults(manager, "freeflow_task");
+      const [result] = toolResults(manager, "task_memory");
       assert.notEqual(result.isError, true, text(result));
       assert.match(text(result), /Focused task: Retry work/);
       assert.match(text(result), /## Current Context[\s\S]*Retries with backoff/);
@@ -76,10 +76,10 @@ test("the model proposes attaching; the user confirms and the resume view comes 
 
 test("a declined attach changes nothing", { timeout: 30000 }, async () => {
   await fixture(
-    async (n) => (n === 1 ? [{ name: "freeflow_task", args: { action: "attach", record: RECORD_A } }] : []),
+    async (n) => (n === 1 ? [{ name: "task_memory", args: { action: "attach", record: RECORD_A } }] : []),
     false,
     async ({ manager, requests }) => {
-      const [result] = toolResults(manager, "freeflow_task");
+      const [result] = toolResults(manager, "task_memory");
       assert.equal(result.isError, true);
       assert.match(text(result), /declined/);
       assert.equal(taskEntries(manager).length, 0);
@@ -169,7 +169,7 @@ test("off by default: no tool, no gate, no Runtime State lines", { timeout: 3000
     async (n) => (n === 1 ? [{ name: "write", args: { path: RECORD_B, content: "written" } }] : []),
     false,
     async ({ requests }) => {
-      assert.ok(!(requests[0].tools ?? []).some((tool) => tool.name === "freeflow_task"));
+      assert.ok(!(requests[0].tools ?? []).some((tool) => tool.name === "task_memory"));
       assert.doesNotMatch(inputText(requests[0]), /Task Memory:/);
       assert.equal(await readFile(join(cwd, RECORD_B), "utf8"), "written");
     },

@@ -1,7 +1,7 @@
 import type { TaskMemory, TaskResult } from "./runtime.js";
 import { renderTaskCall, renderTaskResult } from "./render.js";
 
-export const FREEFLOW_TASK = "freeflow_task";
+export const TASK_MEMORY_TOOL = "task_memory";
 
 const DESCRIPTION =
   "Task memory: the Working Records (Track Work) this session works on, and their projects. Reading needs no permission: projects lists every project; list lists this repository's records, or a project's tasks; view reads a record's resume view or one entry by task ID; search finds lines in the focused task, its tree, or its project. Attention: focus switches to an attached record; detach stops working on one. Proposals, each confirmed by the user in a dialog before anything happens: attach a record; create a task in this repository's project and attach it; child or fanout (a child with its own Git worktree) of the focused task for a parallel session; project_new or project_link for this repository; import a repository record into a project; confirm a held record; env to change a task's directories. A decline is the user's answer: do not retry it or work around it.";
@@ -35,7 +35,7 @@ const CHANGES_STATE = new Set(["attach", "focus", "detach", "create", "import", 
 /** Registered once, declared only while task memory is effective (see applyTaskMemoryTools). */
 export function registerTaskMemoryTool(pi: any, host: TaskToolHost): void {
   pi.registerTool({
-    name: FREEFLOW_TASK,
+    name: TASK_MEMORY_TOOL,
     label: "Task memory",
     description: DESCRIPTION,
     parameters: {
@@ -203,11 +203,11 @@ async function run(host: TaskToolHost, params: any, ctx: any): Promise<TaskResul
   }
 }
 
-/** Declare or withdraw freeflow_task when task memory's effective state changes, keeping other tools in place. */
+/** Declare or withdraw task_memory when task memory's effective state changes, keeping other tools in place. */
 export function applyTaskMemoryTools(pi: any, effective: boolean): void {
   if (typeof pi.getActiveTools !== "function" || typeof pi.setActiveTools !== "function") return;
   const current: string[] = pi.getActiveTools();
-  const present = current.includes(FREEFLOW_TASK);
-  if (effective && !present) pi.setActiveTools([...current, FREEFLOW_TASK]);
-  if (!effective && present) pi.setActiveTools(current.filter((name) => name !== FREEFLOW_TASK));
+  const present = current.includes(TASK_MEMORY_TOOL);
+  if (effective && !present) pi.setActiveTools([...current, TASK_MEMORY_TOOL]);
+  if (!effective && present) pi.setActiveTools(current.filter((name) => name !== TASK_MEMORY_TOOL));
 }

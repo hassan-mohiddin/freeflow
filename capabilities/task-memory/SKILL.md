@@ -5,14 +5,14 @@ description: "Use when a Pi session has Freeflow task memory on and the work inv
 
 # Task Memory
 
-With task memory on, a Pi session holds the Working Records it works on. Attached records are the ones this session may write; one attached record is the focus, the one the conversation is about. A record may be registered in a project, with an ID such as `my-project/task-003` and one owning session; registered tasks can have child records, each worked in its own session. Freeflow lists attached records in the Runtime State under `Task Memory:`, delivers the focused record's resume view when it becomes the focus or context is rebuilt, and refuses writes to records the session has not attached. [Track Work](../../skills/track-work/SKILL.md) still decides whether a task needs a record and what a record says; this skill covers how the session holds records and how the user's requests about tasks and projects become `freeflow_task` actions.
+With task memory on, a Pi session holds the Working Records it works on. Attached records are the ones this session may write; one attached record is the focus, the one the conversation is about. A record may be registered in a project, with an ID such as `my-project/task-003` and one owning session; registered tasks can have child records, each worked in its own session. Freeflow lists attached records in the Runtime State under `Task Memory:`, delivers the focused record's resume view when it becomes the focus or context is rebuilt, and refuses writes to records the session has not attached. [Track Work](../../skills/track-work/SKILL.md) still decides whether a task needs a record and what a record says; this skill covers how the session holds records and how the user's requests about tasks and projects become `task_memory` actions.
 
 The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 
 ## Rules
 
 - The user's latest request decides the work. The focused record's Next useful action is where that task stood, not a request: when the user asks for something else, including work on another record, do that (proposing to attach the other record when a write needs it) and do not switch to the focused record's work. When the request is unclear or incomplete, ask what the user means; never fall back to the record's Next useful action.
-- Act on the user's authority only through a `freeflow_task` proposal the user confirms: `attach`, `create`, `child`, `fanout`, `project_new`, `project_link`, `import`, `confirm`, and `env` with a change each open a dialog. A declined proposal is the user's answer: do not retry it, rephrase it, or reach the same result another way unless the user asks again.
+- Act on the user's authority only through a `task_memory` proposal the user confirms: `attach`, `create`, `child`, `fanout`, `project_new`, `project_link`, `import`, `confirm`, and `env` with a change each open a dialog. A declined proposal is the user's answer: do not retry it, rephrase it, or reach the same result another way unless the user asks again.
 - Write a record only when it is attached to this session, not held, and, if registered, owned by this session. Write each update to the record it concerns, whichever record is the focus. Never write another task's record because you read it.
 - When Freeflow refuses a record write, tell the user which record and why. Never write that record another way, such as a shell command.
 
@@ -48,7 +48,7 @@ Propose attaching when a record already belongs to the work in front of you; pro
 
 Goal: recover a record once, at the cost of its present state, not its whole history.
 
-The resume view Freeflow delivers (as `freeflow_task`'s result, or as a message starting `<task-memory`) is Track Work's resume read for that record: do not read the record again to recover it. Fetch closed History entries the next action depends on with `view` and an entry ID, then continue Track Work's recovery order with the defining artifacts and Recovery sources. Read the record again when it has changed since the delivery, for example after another session wrote it.
+The resume view Freeflow delivers (as `task_memory`'s result, or as a message starting `<task-memory`) is Track Work's resume read for that record: do not read the record again to recover it. Fetch closed History entries the next action depends on with `view` and an entry ID, then continue Track Work's recovery order with the defining artifacts and Recovery sources. Read the record again when it has changed since the delivery, for example after another session wrote it.
 
 ## Use The Rest Of The Project
 

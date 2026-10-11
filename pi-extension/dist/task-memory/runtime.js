@@ -205,7 +205,7 @@ export class TaskMemory {
       return `${head}\nThe record cannot be read as a Schema 4 resume view (${failure?.message ?? failure}). Read it with \`node ${this.script()} view full --record ${record}\` and do not edit it.`;
     }
     const fetch = found
-      ? `a call to the freeflow_task tool (action view, with the record's ID and an entry ID)`
+      ? `a call to the task_memory tool (action view, with the record's ID and an entry ID)`
       : `\`node ${this.script()} view entry <ID> --record ${record}\``;
     // Enclosed in tags with a closing line: delivered as a message right before the user's prompt, the record would
     // otherwise run into it (providers may join consecutive user-role messages), and the prompt would read as the
@@ -240,7 +240,7 @@ export class TaskMemory {
     if (!children.length) return [];
     const lines = [
       "",
-      "Children (each written by its own session; read one by calling the freeflow_task tool with action view):",
+      "Children (each written by its own session; read one by calling the task_memory tool with action view):",
     ];
     for (const child of children) {
       const { text } = await this.read(child.task.record);
@@ -280,7 +280,7 @@ export class TaskMemory {
       changed.sort((a, b) => b.at - a.at);
       const lines = [
         "",
-        `Project ${project?.name ?? task.project}, other tasks (most recently changed first; read one by calling the freeflow_task tool with action view, or search them with action search and scope project):`,
+        `Project ${project?.name ?? task.project}, other tasks (most recently changed first; read one by calling the task_memory tool with action view, or search them with action search and scope project):`,
       ];
       for (const item of changed.slice(0, PROJECT_INDEX_LIMIT)) {
         const { text } = await this.read(item.entry.record);
@@ -291,7 +291,7 @@ export class TaskMemory {
       }
       if (changed.length > PROJECT_INDEX_LIMIT)
         lines.push(
-          `- … ${changed.length - PROJECT_INDEX_LIMIT} more: list them with the freeflow_task tool's list action, or search the project.`,
+          `- … ${changed.length - PROJECT_INDEX_LIMIT} more: list them with the task_memory tool's list action, or search the project.`,
         );
       return lines;
     } catch {
@@ -423,7 +423,7 @@ export class TaskMemory {
         ok: true,
         id: created.id,
         headline: `Created ${created.id} — ${title.trim()}`,
-        text: `Created ${created.id} (${created.record}). It is not attached; propose attaching it with freeflow_task.`,
+        text: `Created ${created.id} (${created.record}). It is not attached; propose attaching it with task_memory.`,
       };
     } catch (error) {
       return { ok: false, text: error?.message ?? String(error) };
@@ -768,7 +768,7 @@ export class TaskMemory {
     if (!attached.length)
       return [
         "Task Memory:",
-        "- Attached: none. Propose attaching a record with freeflow_task only when Track Work calls for one.",
+        "- Attached: none. Propose attaching a record with task_memory only when Track Work calls for one.",
       ];
     return [
       "Task Memory:",
@@ -797,7 +797,7 @@ export class TaskMemory {
       if (!this.current.attached.includes(target))
         return {
           block: true,
-          reason: `Task memory: ${target} is not attached to this session, so it cannot be written. ${this.attachedText()} Propose attaching it with freeflow_task, or ask the user; do not write it another way.`,
+          reason: `Task memory: ${target} is not attached to this session, so it cannot be written. ${this.attachedText()} Propose attaching it with task_memory, or ask the user; do not write it another way.`,
         };
       if (this.current.held.includes(target))
         return {
@@ -840,7 +840,7 @@ export class TaskMemory {
             entry.details?.record === record) ||
           (entry?.type === "message" &&
             entry.message?.role === "toolResult" &&
-            entry.message.toolName === "freeflow_task" &&
+            entry.message.toolName === "task_memory" &&
             entry.message.details?.snapshot === record),
       );
   }

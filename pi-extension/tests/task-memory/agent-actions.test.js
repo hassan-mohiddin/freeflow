@@ -7,7 +7,7 @@ import test from "node:test";
 import { fixture } from "../fixtures/routing-native.js";
 import { callTitle, renderSnapshotMessage, renderTaskResult } from "../../dist/task-memory/render.js";
 
-// Everything the user can do with /freeflow task and /freeflow project, done by the agent through freeflow_task:
+// Everything the user can do with /freeflow task and /freeflow project, done by the agent through task_memory:
 // actions on the user's authority wait for a dialog, reads do not. Also the project index in a resume view, the
 // fan-out command, and how calls, results and delivered views render.
 const on = () => ({ cognitiveRouting: { enabled: false }, freeflowConfig: { taskMemory: { enabled: true } } });
@@ -18,9 +18,9 @@ const text = (item) =>
 const results = (manager) =>
   manager
     .getBranch()
-    .filter((entry) => entry.message?.role === "toolResult" && entry.message.toolName === "freeflow_task")
+    .filter((entry) => entry.message?.role === "toolResult" && entry.message.toolName === "task_memory")
     .map((entry) => entry.message);
-const call = (args) => ({ name: "freeflow_task", args });
+const call = (args) => ({ name: "task_memory", args });
 const home = async () => (process.env.FREEFLOW_HOME = await mkdtemp(join(tmpdir(), "freeflow-home-")));
 const registry = async (dir) => JSON.parse(await readFile(join(dir, "registry.json"), "utf8"));
 const gitInit = (cwd) => {
@@ -203,7 +203,7 @@ test(
   },
 );
 
-test("freeflow_task is model-only: it asks the user, so scripts cannot call it", async () => {
+test("task_memory is model-only: it asks the user, so scripts cannot call it", async () => {
   const { registerTaskMemoryTool } = await import("../../dist/task-memory/tool.js");
   let registered;
   registerTaskMemoryTool({ registerTool: (tool) => (registered = tool) }, { memory: {}, changed() {} });

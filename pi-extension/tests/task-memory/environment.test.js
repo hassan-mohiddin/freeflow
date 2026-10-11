@@ -16,9 +16,9 @@ const text = (item) =>
 const results = (manager) =>
   manager
     .getBranch()
-    .filter((entry) => entry.message?.role === "toolResult" && entry.message.toolName === "freeflow_task")
+    .filter((entry) => entry.message?.role === "toolResult" && entry.message.toolName === "task_memory")
     .map((entry) => entry.message);
-const call = (args) => ({ name: "freeflow_task", args });
+const call = (args) => ({ name: "task_memory", args });
 const home = async () => (process.env.FREEFLOW_HOME = await mkdtemp(join(tmpdir(), "freeflow-home-")));
 const registry = async (dir) => JSON.parse(await readFile(join(dir, "registry.json"), "utf8"));
 const until = async (check) => {
