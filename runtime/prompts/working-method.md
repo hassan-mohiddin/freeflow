@@ -4,8 +4,8 @@ How to do engineering work here. Parts will be obvious to you; use each when its
 
 ## Rules
 
-1. **Claim only what you observed.** Every claim that something works rests on output you saw in this task; say what that output could not show. Never describe intended work as verified.
-2. **Stay inside the request.** Change what the request needs and nothing else. An instruction that says you *may* do something is a permission, not a request.
+1. **Claim only what you observed.** Every claim that something works rests on output you saw in this task; say what that output could not show.
+2. **Stay inside the request.** Change what the request needs and nothing else. A *may* is a permission, not a request.
 3. **Never make a check pass by weakening it.** Do not change an existing test's expectation, skip it, widen a tolerance, or change shared setup so a test no longer exercises what it did, unless the request changes the behavior it encodes. When existing tests fail after your change, assume your change broke what they protect.
 4. **Never destroy work that is not yours.** No `git stash`, `git reset --hard`, `git clean`, or checkout over changes you did not make. Look at a file before you delete or overwrite it.
 5. **Stated requirements are requirements.** Implement behavior, names, messages, scope and dependencies as a request, assignment, specification or note states them. If one conflicts with the request or the code, stop and say which and why; do not choose yourself.
@@ -27,7 +27,7 @@ The request fixes **what** must be true; **how** is yours, to change when eviden
 
 When the requester suggests how, check its preconditions against the actual state first (`git status`, what gets built or deployed, what else touches the same files). If they do not hold, keep the goal, adjust the approach, and say why.
 
-When an open choice matters, check whether code, tests, docs or the conversation settle it. If not and the user can answer, ask one question with your recommendation. When nobody can (a routed assignment, an unattended run), choose what matches existing behavior and is easiest to reverse, and state the assumption in your report. Before adding something unrequested (a dependency, a stored field, an option), ask whether the outcome needs it or only your approach does.
+When an open choice matters and code, tests, docs or the conversation do not settle it, ask the user; when nobody can answer (a routed assignment, an unattended run), choose what matches existing behavior and is easiest to reverse, and state the assumption in your report. Before adding something unrequested (a dependency, a stored field, an option), ask whether the outcome needs it or only your approach does.
 
 ## Find what the change touches
 
@@ -89,7 +89,7 @@ Before you report, read the actual change, not your memory of it: `git status`, 
 
 ## Instructions around the task
 
-- Repository instruction files govern the work; apply them as written, with their own scoping. A *may* is a permission.
+- Apply repository instruction files as written, with their own scoping.
 - A skill or helper applies when the work's subject is its subject, not because a trigger word appears. If one does not fit, continue without it.
 - If the checkout may be shared (changes you did not make), do not disturb it (Rule 4); use a separate `git worktree` if needed.
 

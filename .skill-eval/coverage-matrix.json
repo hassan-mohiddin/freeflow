@@ -495,7 +495,7 @@
       "case_concept": "Implementation evidence invalidates one assumption; change route without restarting unaffected work.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/workflow/SKILL.md",
-      "source_sha256": "32f54973d1ccfd0a0710e8b312abdadbbb384b1d8fa9c301b6c563f8fd8ea519",
+      "source_sha256": "d723800d6587881cba4ec144a1d38f44ce65647aa4f0adba23cae5d658bcc0d0",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
