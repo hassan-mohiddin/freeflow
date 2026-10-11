@@ -35,24 +35,20 @@ A setting you leave unset in a scope follows the next scope down: Session follow
 Freeflow settings    Session  [Personal]  Repository
   .freeflow/local.json: only you, in this checkout. Overrides the repository.
 
-  › Freeflow                    on (inherited)
-    Compaction                  on (inherited)
-      Context reuse             on (inherited)
-    Tool Execution              on (inherited)
-    Task Memory                 off (inherited)
-      Auto-approve attach       off (inherited)
-      Auto-approve create       off (inherited)
-      Auto-approve directories  off (inherited)
-      Auto-approve fan-out      off (inherited)
-      Auto-approve projects     off (inherited)
-    Messaging                   off (inherited)
-      Ask before delivering     never (inherited)
-    Cognitive Routing           off (inherited)
-      Delegation                Executor only (inherited)
-      Coordinator preset        not configured
-      Helper preset             not configured
-      Executor preset           not configured
-      Context projection        on (inherited)
+  › Freeflow                 on (inherited)
+    Compaction               on (inherited)
+      Context reuse          on (inherited)
+    Tool Execution           on (inherited)
+    Task Memory              off (inherited)
+      Auto-approve           none
+    Messaging                off (inherited)
+      Ask before delivering  never (inherited)
+    Cognitive Routing        off (inherited)
+      Delegation             Executor only (inherited)
+      Coordinator preset     not configured
+      Helper preset          not configured
+      Executor preset        not configured
+      Context projection     on (inherited)
 
   Master switch for Freeflow's core guidance, skills, and optional capabilities in this checkout.
   Inherited: not set in any file, so Freeflow's default applies.
@@ -67,7 +63,7 @@ How to read it:
 - **The value comes first**, `on` in green and `off` in red. `(inherited)` means the tab you are looking at does not set it: the value comes from the tab below it, or is Freeflow's default. The line under the list says which ("Inherited from the repository's .freeflow/config.json."). No bracket means the value is set in this tab. In the Repository tab, `(personal: on)` means your personal file overrides it.
 - **Grey means it has no effect right now**, because a switch above it is off; the line under the list says which one ("Takes effect when Messaging is on."). You can still change it, so you can set up, say, routing presets before you turn routing on. Grey settings that the host cannot apply at all (Cognitive Routing on a Pi without model control) do not change.
 - **The bracket on a section's row** can also say `not active` (the switch is on but the capability is not running, for example while Freeflow is off) or `unavailable` (this host cannot run it).
-- **Changing a value**: `Enter` or `Space` moves to the next value in place; a preset opens a picker for the model and then the thinking level. In the Session and Personal tabs the last value, `inherit`, removes the setting from that tab so it follows the scope below.
+- **Changing a value**: `Enter` or `Space` moves to the next value in place; a preset opens a picker for the model and then the thinking level, and Auto-approve opens its five switches on a screen of their own (`Esc` returns). In the Session and Personal tabs the last value, `inherit`, removes the setting from that tab so it follows the scope below.
 - **When it is saved**: each change is written at once, one at a time ("Saving…" while it writes). Closing the screen after changing a file setting reloads the session so the change applies; a session-only change applies from the next prompt.
 
 ## The footer
@@ -96,11 +92,12 @@ Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes 
 | Context reuse | `compaction.carry` | `true`, `false` | `true` | Session, Personal, Repository |
 | Tool Execution | `toolExecution.enabled` | `true`, `false` | `true` | Session, Personal, Repository |
 | Task Memory | `taskMemory.enabled` | `true`, `false` | `false` | Session, Personal, Repository |
-| Auto-approve attach | `taskMemory.autoApprove.attach` | `true`, `false` | `false` | Personal, Repository |
-| Auto-approve create | `taskMemory.autoApprove.create` | `true`, `false` | `false` | Personal, Repository |
-| Auto-approve directories | `taskMemory.autoApprove.env` | `true`, `false` | `false` | Personal, Repository |
-| Auto-approve fan-out | `taskMemory.autoApprove.fanout` | `true`, `false` | `false` | Personal, Repository |
-| Auto-approve projects | `taskMemory.autoApprove.projects` | `true`, `false` | `false` | Personal, Repository |
+| Auto-approve | — | opens the five switches below on their own screen, and names the ones that are on | none | Personal, Repository |
+| Auto-approve › Attach | `taskMemory.autoApprove.attach` | `true`, `false` | `false` | Personal, Repository |
+| Auto-approve › Create | `taskMemory.autoApprove.create` | `true`, `false` | `false` | Personal, Repository |
+| Auto-approve › Directories | `taskMemory.autoApprove.env` | `true`, `false` | `false` | Personal, Repository |
+| Auto-approve › Fan-out | `taskMemory.autoApprove.fanout` | `true`, `false` | `false` | Personal, Repository |
+| Auto-approve › Projects | `taskMemory.autoApprove.projects` | `true`, `false` | `false` | Personal, Repository |
 | Messaging | `messaging.enabled` | `true`, `false` | `false` | Session, Personal, Repository |
 | Ask before delivering | `messaging.inbound` | `accept` (never), `project` (outside the project), `hold` (every message), `refuse` (refuse all) | `accept` | Personal, Repository |
 | Cognitive Routing | `cognitiveRouting.enabled` | `true`, `false` | `false` | Session, Personal, Repository |

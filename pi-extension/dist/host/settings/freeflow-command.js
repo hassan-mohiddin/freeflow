@@ -522,7 +522,7 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
     "Enabled",
     "Use Tool Execution in this session.",
     "toolExecution.enabled",
-    state.toolExecution?.enabled ?? false,
+    state.toolExecution?.enabled ?? DEFAULT_TOOL_EXECUTION_CONFIG.enabled,
     DEFAULT_TOOL_EXECUTION_CONFIG.enabled,
   );
   const compactionItem = sessionSwitch(
@@ -1004,9 +1004,9 @@ function freeflowItems(rawConfig, options = {}) {
     label: "Enabled",
     description: "Enable the Tool Execution capability.",
     path: ["toolExecution", "enabled"],
-    effectiveValue: toolExecutionState?.enabled ?? false,
+    effectiveValue: toolExecutionState?.enabled ?? DEFAULT_TOOL_EXECUTION_CONFIG.enabled,
     effectiveSource: toolSource(["toolExecution", "enabled"]),
-    defaultValue: false,
+    defaultValue: DEFAULT_TOOL_EXECUTION_CONFIG.enabled,
   });
   const toolExecutionItems = [toolExecutionEnabledItem];
   walkSettingsItems(toolExecutionItems, (item) => {
@@ -1017,7 +1017,7 @@ function freeflowItems(rawConfig, options = {}) {
     label: "Tool Execution",
     description: "Configure Freeflow's execution layer around Pi's tools.",
     kind: "group",
-    value: toolExecutionState?.enabled ?? false,
+    value: toolExecutionState?.enabled ?? DEFAULT_TOOL_EXECUTION_CONFIG.enabled,
     inactive: freeflowInactive,
     displaySuffix: toolExecutionState?.effective ? "active" : toolExecutionState?.enabled ? "inactive" : "disabled",
     children: toolExecutionItems,
@@ -1078,11 +1078,11 @@ function freeflowItems(rawConfig, options = {}) {
   taskMemoryEnabledItem.inactive = freeflowInactive;
   // Which proposals skip the confirmation dialog (Task 004 D-002); a standing preference, so no Session scope.
   const approveLabels = {
-    attach: ["Auto-approve attach", "attaching a record, and making a held record writable"],
-    create: ["Auto-approve create", "creating a task or a child task"],
-    env: ["Auto-approve directories", "changing a task's directories"],
-    fanout: ["Auto-approve fan-out", "a child task with its own Git worktree and branch"],
-    projects: ["Auto-approve projects", "creating or linking a project, and importing a record into one"],
+    attach: ["Attach", "attaching a record, and making a held record writable"],
+    create: ["Create", "creating a task or a child task"],
+    env: ["Directories", "changing a task's directories"],
+    fanout: ["Fan-out", "a child task with its own Git worktree and branch"],
+    projects: ["Projects", "creating or linking a project, and importing a record into one"],
   };
   const approveItems = Object.keys(AUTO_APPROVE_GROUPS).map((group) => {
     const item = createScopedBooleanItem({
@@ -1108,7 +1108,19 @@ function freeflowItems(rawConfig, options = {}) {
     value: taskMemoryState?.enabled ?? DEFAULT_TASK_MEMORY_ENABLED,
     inactive: freeflowInactive,
     displaySuffix: taskMemoryState?.effective ? "active" : taskMemoryState?.enabled ? "inactive" : "disabled",
-    children: [taskMemoryEnabledItem, ...approveItems],
+    children: [
+      taskMemoryEnabledItem,
+      {
+        id: "freeflow.taskMemory.autoApprove",
+        label: "Auto-approve",
+        description:
+          "Task memory actions the agent may take without asking you first. Enter opens the five switches; Esc returns.",
+        kind: "group",
+        nested: true,
+        value: true,
+        children: approveItems,
+      },
+    ],
   };
   const messagingState = options.messaging;
   const messagingEnabledItem = createScopedBooleanItem({
@@ -1438,6 +1450,33 @@ function settingsEntries(items, rootItems, onChange, depth = 0, lockedBy) {
     );
   }
   return items.flatMap((item) => {
+    if (item.kind === "group" && item.children && item.nested) {
+      // One row; Enter opens its settings on a screen of their own. Its value names the ones that are on.
+      const children = item.children;
+      const parts = () => {
+        const on = children
+          .filter((child) => displayParts(child).tone === "on")
+          .map((child) => child.label.toLowerCase());
+        return on.length === 0
+          ? { value: "none", tone: "off" }
+          : on.length === children.length
+            ? { value: "all", tone: "on" }
+            : { value: on.join(", ") };
+      };
+      return [
+        {
+          id: item.id,
+          label: item.label,
+          description: item.description,
+          depth,
+          parts,
+          currentValue: () => parts().value,
+          inactive: () => false,
+          ...(lockedBy ? { dormant: lockedBy } : {}),
+          children: () => settingsEntries(children, rootItems, onChange, 0, lockedBy),
+        },
+      ];
+    }
     if (item.kind === "group" && item.children) {
       // A capability's own switch is its section's row; while it is off, the section's other settings are locked.
       const toggle = item.children.find((child) => child.id === `${item.id}.enabled`);

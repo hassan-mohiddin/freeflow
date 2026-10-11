@@ -524,7 +524,7 @@ test("settings: a section's switch is its own row, sections run everyday to expe
       assert.doesNotMatch(text, /\bEnabled\b/);
       assert.match(
         text,
-        /Freeflow\s+on \(inherited\)\n[\s\S]*Compaction\s+on \(inherited\)\n\s+Context reuse[\s\S]*Tool Execution[\s\S]*Task Memory[\s\S]*Messaging\s+off \(inherited\)/,
+        /Freeflow\s+on \(inherited\)\n[\s\S]*Compaction\s+on \(inherited\)\n\s+Context reuse[\s\S]*Tool Execution\s+on \(inherited\)\n[\s\S]*Task Memory\s+off \(inherited\)[\s\S]*Messaging\s+off \(inherited\)/,
       );
       // Where an inherited value comes from is on the help line, not in the list (Task 005 D-002).
       assert.match(text, /Inherited: not set in \.freeflow\/config\.json, so Freeflow's default applies\./);
@@ -538,6 +538,27 @@ test("settings: a section's switch is its own row, sections run everyday to expe
     await command.definition.handler("settings repo", settingsCtx);
     assert.deepEqual(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")).messaging, {
       inbound: "project",
+    });
+    // Auto-approve is one row that opens its five switches, as the routing presets open their picker.
+    const nestedCtx = context(cwd);
+    nestedCtx.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+      assert.match(renderText(component, 180), /Auto-approve\s+none\n/);
+      assert.doesNotMatch(renderText(component, 180), /\bAttach\b/);
+      choose(component, "Auto-approve", "Task Memory");
+      component.handleInput(KEY.enter);
+      const opened = renderText(component, 180);
+      assert.match(opened, /Freeflow settings › Repository › Auto-approve/);
+      assert.match(opened, /› Attach\s+off \(inherited\)\n\s+Create/);
+      component.handleInput(KEY.enter);
+      await component.waitForWrites();
+      component.handleInput(KEY.escape);
+      assert.match(renderText(component, 180), /Auto-approve\s+attach\n/);
+      return undefined;
+    };
+    await command.definition.handler("settings repo", nestedCtx);
+    assert.deepEqual(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")).taskMemory, {
+      autoApprove: { attach: true },
     });
     const colorCtx = context(cwd);
     colorCtx.ui.custom = async (factory) => {
