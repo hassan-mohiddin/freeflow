@@ -30,7 +30,7 @@ test("evidence inspection renders metadata and gaps without source previews", ()
       },
     ],
   };
-  const rendered = renderRoutingResult({ details: receipt }, { expanded: true }, "freeflow_project", {
+  const rendered = renderRoutingResult({ details: receipt }, { expanded: true }, "select_evidence", {
     args: { operation: "inspect" },
   })
     .render(100)
@@ -73,18 +73,18 @@ test("expanded receipts retain complete captured reports at narrow and wide widt
 test("streaming arguments follow the latest six wrapped lines; expansion retains the whole draft", () => {
   const report = Array.from({ length: 12 }, (_, i) => `Report line ${i + 1}`).join("\n");
   const live = { argsComplete: false, isPartial: true, expanded: false };
-  const lines = renderRoutingCall("freeflow_return", { operation: "submit", report }, live).render(40);
+  const lines = renderRoutingCall("return_work", { operation: "submit", report }, live).render(40);
   assert.match(lines.join("\n"), /Writing report/);
   assert.match(lines.join("\n"), /Report line 12/);
   assert.doesNotMatch(lines.join("\n"), /Report line 1\s/);
   assert.equal(lines.filter((line) => line.includes("Report line")).length, 6);
-  const full = renderRoutingCall("freeflow_return", { operation: "submit", report }, { ...live, expanded: true })
+  const full = renderRoutingCall("return_work", { operation: "submit", report }, { ...live, expanded: true })
     .render(40)
     .join("\n");
   assert.match(full, /Report line 1\s/);
   assert.match(full, /Report line 12/);
   const done = renderRoutingCall(
-    "freeflow_return",
+    "return_work",
     { operation: "submit", report },
     { ...live, argsComplete: true, isPartial: false },
   )
@@ -102,10 +102,10 @@ test("report streaming is not obscured by limitations sent before or after the r
       const args = reportFirst
         ? { operation: "submit", report, limitations }
         : { operation: "submit", limitations, report };
-      const collapsed = renderRoutingCall("freeflow_return", args, live).render(60).join("\n");
+      const collapsed = renderRoutingCall("return_work", args, live).render(60).join("\n");
       assert.match(collapsed, new RegExp(`Report progress ${length}`));
       assert.doesNotMatch(collapsed, /Limitation:/);
-      const expanded = renderRoutingCall("freeflow_return", args, { ...live, expanded: true })
+      const expanded = renderRoutingCall("return_work", args, { ...live, expanded: true })
         .render(60)
         .join("\n");
       for (const limit of limitations) assert.ok(expanded.includes(limit));
@@ -113,7 +113,7 @@ test("report streaming is not obscured by limitations sent before or after the r
     }
   }
   assert.doesNotMatch(
-    renderRoutingCall("freeflow_return", { operation: "submit", limitations }, live).render(60).join("\n"),
+    renderRoutingCall("return_work", { operation: "submit", limitations }, live).render(60).join("\n"),
     /Limitation:/,
   );
 });
@@ -127,10 +127,10 @@ test("replacement streaming follows the contract without a sticky reason", () =>
       { operation: "replace", reason, contract },
       { operation: "replace", contract, reason },
     ]) {
-      const compact = renderRoutingCall("freeflow_delegate", args, live).render(60).join("\n");
+      const compact = renderRoutingCall("delegate_work", args, live).render(60).join("\n");
       assert.match(compact, new RegExp(`Replacement progress ${length}`));
       assert.doesNotMatch(compact, /Reason:|Replacement reason/);
-      const expanded = renderRoutingCall("freeflow_delegate", args, { ...live, expanded: true })
+      const expanded = renderRoutingCall("delegate_work", args, { ...live, expanded: true })
         .render(60)
         .join("\n");
       assert.match(expanded, /Reason: Replacement reason/);
@@ -141,48 +141,48 @@ test("replacement streaming follows the contract without a sticky reason", () =>
 
 test("completed receipts describe outcomes without protocol state disclaimers", () => {
   for (const [name, operation, receipt, expected] of [
-    ["freeflow_delegate", "assign", { status: "accepted", transition: "pending" }, "Assignment saved"],
-    ["freeflow_delegate", "replace", { status: "accepted", transition: "pending" }, "Replacement saved"],
+    ["delegate_work", "assign", { status: "accepted", transition: "pending" }, "Assignment saved"],
+    ["delegate_work", "replace", { status: "accepted", transition: "pending" }, "Replacement saved"],
     [
-      "freeflow_return",
+      "return_work",
       "submit",
       { status: "accepted", reportSaved: true, ready: true, transition: "pending" },
       "Report saved",
     ],
     [
-      "freeflow_return",
+      "return_work",
       "retry",
       { status: "accepted", reportSaved: true, reportUnchanged: true, ready: true },
       "Saved report retained",
     ],
-    ["freeflow_project", "add", { status: "saved", selected: ["ctx:a", "ctx:b"], ready: true }, "2 sources selected"],
-    ["freeflow_project", "list", { status: "listed", count: 12, selectableCount: 8 }, "12 sources · 8 selectable"],
-    ["freeflow_unit", "close", { status: "closed", outcome: "deferred" }, "Deferred"],
-    ["freeflow_unit", "history", { history: [{}, {}] }, "2 events"],
-    ["freeflow_project", "remove", { selected: ["ctx:b"], items: [{ status: "removed" }] }, "1 removed · 1 remaining"],
+    ["select_evidence", "add", { status: "saved", selected: ["ctx:a", "ctx:b"], ready: true }, "2 sources selected"],
+    ["select_evidence", "list", { status: "listed", count: 12, selectableCount: 8 }, "12 sources · 8 selectable"],
+    ["routing_unit", "close", { status: "closed", outcome: "deferred" }, "Deferred"],
+    ["routing_unit", "history", { history: [{}, {}] }, "2 events"],
+    ["select_evidence", "remove", { selected: ["ctx:b"], items: [{ status: "removed" }] }, "1 removed · 1 remaining"],
     // Older receipts used withdrawn for selected and unresolved references alike.
     [
-      "freeflow_project",
+      "select_evidence",
       "remove",
       { selected: [], items: [{ status: "withdrawn" }] },
       "1 reference withdrawn · 0 remaining",
     ],
     [
-      "freeflow_project",
+      "select_evidence",
       "inspect",
       { selected: ["ctx:a"], ready: true },
       "1 source selected · No unresolved references",
     ],
     [
-      "freeflow_project",
+      "select_evidence",
       "add",
       { selected: ["ctx:a"], items: [{ status: "already_selected" }], ready: true },
       "No changes · 1 source selected",
     ],
-    ["freeflow_unit", "assess", { status: "resumed", ready: true }, "Evidence prepared"],
-    ["freeflow_unit", "assess", { status: "suspended", ready: false }, "Assessment remains paused"],
+    ["routing_unit", "assess", { status: "resumed", ready: true }, "Evidence prepared"],
+    ["routing_unit", "assess", { status: "suspended", ready: false }, "Assessment remains paused"],
     [
-      "freeflow_unit",
+      "routing_unit",
       "status",
       { effective: true, activeProfile: "executor", controlMode: "automatic", assignment: { state: "outstanding" } },
       "Executor · Assignment in progress",
@@ -199,7 +199,7 @@ test("preview limits apply after wrapping long text, and interrupted drafts rema
     operation: "assign",
     contract: "Unicode 界 and \u001b[32mcoloured\u001b[0m text ".repeat(40) + " FINAL_WORD",
   };
-  const component = renderRoutingCall("freeflow_delegate", args, { isPartial: true, argsComplete: false });
+  const component = renderRoutingCall("delegate_work", args, { isPartial: true, argsComplete: false });
   for (const width of [24, 50, 100]) {
     const lines = component.render(width);
     assert.ok(lines.every((line) => visibleWidth(line) <= width));
@@ -209,7 +209,7 @@ test("preview limits apply after wrapping long text, and interrupted drafts rema
   const failed = renderRoutingResult(
     { content: [{ type: "text", text: "Operation aborted" }] },
     { expanded: true },
-    "freeflow_delegate",
+    "delegate_work",
     { args },
   )
     .render(50)
@@ -218,10 +218,10 @@ test("preview limits apply after wrapping long text, and interrupted drafts rema
   assert.match(failed, /FINAL_WORD/);
 });
 test("partial and absent arguments/results render without requiring live runtime state", () => {
-  assert.ok(renderRoutingCall("freeflow_delegate", undefined).render(30).length);
+  assert.ok(renderRoutingCall("delegate_work", undefined).render(30).length);
   assert.match(renderRoutingResult({}, { isPartial: true }).render(30).join(""), /Working/);
   const inspection = renderRoutingCall(
-    "freeflow_unit",
+    "routing_unit",
     { operation: "inspect", view: "detail", ref: "assignment:existing" },
     { isPartial: true, argsComplete: false },
   )
@@ -233,7 +233,7 @@ test("partial and absent arguments/results render without requiring live runtime
 
 test("native error results with empty details never look like successful saved assignments", () => {
   const result = { content: [{ type: "text", text: "Operation aborted" }], details: {} };
-  const rendered = renderRoutingResult(result, {}, "freeflow_delegate", {
+  const rendered = renderRoutingResult(result, {}, "delegate_work", {
     args: { operation: "assign" },
     isError: true,
   })

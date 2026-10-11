@@ -31,7 +31,7 @@ test("reload and explicit resume after compaction keep the outstanding assignmen
       if (n === 1)
         return [
           {
-            name: "freeflow_delegate",
+            name: "delegate_work",
             args: { operation: "assign", contract: "Read and preserve this assignment through a technical pause." },
           },
         ];
@@ -86,7 +86,7 @@ for (const projection of [false, true]) {
           async (n, body, manager) => {
             const call = (name, args) => [{ name, args }];
             if (n === 1)
-              return call("freeflow_delegate", {
+              return call("delegate_work", {
                 operation: "assign",
                 contract: "Read evidence, then continue the same assignment after recovery.",
               });
@@ -127,7 +127,7 @@ for (const projection of [false, true]) {
                 assert.notEqual([...replay(manager.getBranch()).executions.values()].at(-1).basisUserEntryId, basis);
                 return call("read", { path: "evidence.txt" });
               }
-              return call("freeflow_return", {
+              return call("return_work", {
                 operation: "submit",
                 report: "Same assignment completed after compaction.",
                 outcome: "completed",
@@ -141,7 +141,7 @@ for (const projection of [false, true]) {
                   .at(-1).message.isError,
                 true,
               );
-              return call("freeflow_return", {
+              return call("return_work", {
                 operation: "submit",
                 report: "Stopped for genuine new input.",
                 outcome: "partial",

@@ -1,6 +1,6 @@
 ---
 name: review-work
-description: "Use when judging implementation or integrated work through self-review or independent review, or when adjudicating a returned independent review report."
+description: "Use when reviewing code or other finished work, your own before reporting it or another's, or when weighing a review report of it. Running checks to see whether it works is Verify Work."
 ---
 
 # Review Work

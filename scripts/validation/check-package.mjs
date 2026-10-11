@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 const requiredFiles = [
-  "plugin.json",
+  ".codex-plugin/plugin.json",
   "gemini-extension.json",
   ".cursor-plugin/plugin.json",
   "com.github.copilot/hooks/hooks.json",
@@ -40,6 +40,14 @@ const requiredFiles = [
   "capabilities/compaction/SKILL.md",
   "capabilities/compaction/references/summary-format.md",
   "pi-extension/dist/compaction/controller.js",
+  "capabilities/task-memory/SKILL.md",
+  "pi-extension/dist/task-memory/runtime.js",
+  "pi-extension/dist/task-memory/registry.js",
+  "pi-extension/dist/messaging/messaging.js",
+  "capabilities/messaging/SKILL.md",
+  "skills/track-work/scripts/lib/registry.mjs",
+  "skills/track-work/scripts/lib/search.mjs",
+  "skills/track-work/scripts/lib/views.mjs",
 ];
 const excludedPrefixes = [
   "plugin-docs/",
@@ -132,6 +140,9 @@ try {
   if (duplicateSkillTrees.length > 0)
     throw new Error(`npm package includes duplicate maintained skill trees: ${duplicateSkillTrees.join(", ")}`);
   if (files.has("opencode.json")) throw new Error("npm package must exclude the repository-only opencode.json");
+  // Codex installs this package and loads no hooks from a plugin whose root plugin.json is an Agent Plugins manifest;
+  // the Agent Plugins hosts install the repository, which keeps it (dev-docs/subsystems/prompt-assembly.md).
+  if (files.has("plugin.json")) throw new Error("npm package must exclude the root Agent Plugins plugin.json");
   if (packageJson.files?.some((path) => excludedPrefixes.some((prefix) => path.startsWith(prefix)))) {
     throw new Error("package.json files list includes GitHub-only or deprecated content");
   }

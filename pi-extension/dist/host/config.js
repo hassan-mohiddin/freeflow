@@ -2,8 +2,11 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveCognitiveRoutingState, supportsCognitiveRoutingModelRegistry } from "../cognitive-routing/config.js";
 import { sessionStage, stagedFor } from "./staging.js";
-import { resolveToolExecutionConfig, validateToolExecutionConfig } from "../tool-execution/config.js";
-import { resolveCompactionConfig, validateCompactionConfig } from "../compaction/config.js";
+import { resolveToolExecutionConfig } from "../tool-execution/config.js";
+import { resolveCompactionConfig } from "../compaction/config.js";
+import { resolveTaskMemoryConfig } from "../task-memory/config.js";
+import { resolveMessagingConfig } from "../messaging/config.js";
+import { validateLocalConfig, validateRepositoryConfig } from "./config-validation.js";
 import { cachedBranch } from "./branch.js";
 /**
  * Freeflow configuration: the repository and personal config files, their layering, per-session core overrides, and
@@ -20,6 +23,8 @@ export const SESSION_OVERRIDE_KEYS = [
   "toolExecution.enabled",
   "compaction.enabled",
   "compaction.carry",
+  "taskMemory.enabled",
+  "messaging.enabled",
 ];
 const SESSION_OVERRIDES_ENTRY = "freeflow-session-overrides";
 const SESSION_CORE_KEYS = new Set(SESSION_OVERRIDE_KEYS);
@@ -50,81 +55,6 @@ function disableSubagentCapability(capability) {
 }
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function removedContextConfigError(value, filePath) {
-  const removedKeys = ["contextVirtualization", "conversationHistory"].filter((key) =>
-    Object.prototype.hasOwnProperty.call(value, key),
-  );
-  return removedKeys.length > 0
-    ? `Removed Freeflow context setting(s) in ${filePath}: ${removedKeys.join(", ")}. Delete those keys before using Freeflow.`
-    : null;
-}
-function validateCoreConfigFields(value) {
-  if (value.enabled !== undefined && typeof value.enabled !== "boolean") {
-    return "enabled must be a boolean";
-  }
-  return null;
-}
-function validateFreeflowConfigShape(value) {
-  if (!isRecord(value)) {
-    return "config must be a JSON object";
-  }
-  const removedContextError = removedContextConfigError(value, ".freeflow/config.json");
-  if (removedContextError) return removedContextError;
-  // outputRouter, observedRouting, and scriptTransform belong to retired features; they are accepted and ignored so
-  // existing configs keep loading.
-  const allowedKeys = new Set([
-    "enabled",
-    "outputRouter",
-    "observedRouting",
-    "scriptTransform",
-    "cognitiveRouting",
-    "toolExecution",
-    "compaction",
-  ]);
-  for (const key of Object.keys(value)) {
-    if (!allowedKeys.has(key)) {
-      return `unsupported top-level config key: ${key}`;
-    }
-  }
-  const coreError = validateCoreConfigFields(value);
-  if (coreError) return coreError;
-  for (const key of ["outputRouter", "observedRouting", "scriptTransform"]) {
-    if (value[key] !== undefined && !isRecord(value[key])) {
-      return `${key} must be an object`;
-    }
-  }
-  if (value.toolExecution !== undefined) {
-    const error = validateToolExecutionConfig(value.toolExecution);
-    if (error) return error;
-  }
-  if (value.compaction !== undefined) {
-    const error = validateCompactionConfig(value.compaction);
-    if (error) return error;
-  }
-  return null;
-}
-function validateFreeflowLocalConfigShape(value) {
-  if (!isRecord(value)) {
-    return "local config must be a JSON object";
-  }
-  const removedContextError = removedContextConfigError(value, ".freeflow/local.json");
-  if (removedContextError) return removedContextError;
-  // processing belongs to a retired feature; it is accepted and ignored so existing local configs keep loading.
-  const allowedKeys = new Set(["enabled", "processing", "cognitiveRouting", "toolExecution", "compaction"]);
-  for (const key of Object.keys(value)) {
-    if (!allowedKeys.has(key)) {
-      return `unsupported top-level local config key: ${key}`;
-    }
-  }
-  const coreError = validateCoreConfigFields(value);
-  if (coreError) return coreError;
-  if (value.toolExecution !== undefined) {
-    const error = validateToolExecutionConfig(value.toolExecution);
-    if (error) return error;
-  }
-  if (value.compaction !== undefined) return validateCompactionConfig(value.compaction);
-  return null;
 }
 async function readConfigFileState(path, validate) {
   try {
@@ -163,10 +93,10 @@ async function readConfigFileState(path, validate) {
   }
 }
 function readFreeflowConfigState(cwd) {
-  return readConfigFileState(join(cwd, ".freeflow/config.json"), validateFreeflowConfigShape);
+  return readConfigFileState(join(cwd, ".freeflow/config.json"), validateRepositoryConfig);
 }
 function readFreeflowLocalConfigState(cwd) {
-  return readConfigFileState(join(cwd, ".freeflow/local.json"), validateFreeflowLocalConfigShape);
+  return readConfigFileState(join(cwd, ".freeflow/local.json"), validateLocalConfig);
 }
 export async function readFreeflowConfig(cwd) {
   const state = await readFreeflowConfigState(cwd);
@@ -278,6 +208,8 @@ export async function readCapabilityState(cwd, host = undefined) {
   const sessionLocalConfig = withSessionLayer(localConfig, sessionLayer);
   const toolExecution = resolveToolExecutionConfig(repositoryConfig, sessionLocalConfig, enabled);
   const compaction = resolveCompactionConfig(repositoryConfig, sessionLocalConfig, enabled);
+  const taskMemory = resolveTaskMemoryConfig(repositoryConfig, sessionLocalConfig, enabled);
+  const messaging = resolveMessagingConfig(repositoryConfig, sessionLocalConfig, enabled);
   const capabilityState = {
     configured: layers.configured,
     repositoryConfigured: layers.repositoryConfigured,
@@ -298,6 +230,10 @@ export async function readCapabilityState(cwd, host = undefined) {
     cognitiveRouting,
     toolExecution,
     compaction,
+    taskMemory,
+    messaging,
+    // ask_user: core, on whenever Freeflow is enabled (Task 002 D-001); off in subagents, which have no user.
+    askUser: { enabled, effective: enabled },
   };
   if (!subagentContext) return capabilityState;
   return {
@@ -305,6 +241,9 @@ export async function readCapabilityState(cwd, host = undefined) {
     cognitiveRouting: disableSubagentCapability(capabilityState.cognitiveRouting),
     toolExecution: disableSubagentCapability(capabilityState.toolExecution),
     compaction: disableSubagentCapability(capabilityState.compaction),
+    taskMemory: disableSubagentCapability(capabilityState.taskMemory),
+    messaging: disableSubagentCapability(capabilityState.messaging),
+    askUser: disableSubagentCapability(capabilityState.askUser),
   };
 }
 function recordedSessionOverrides(sessionManager) {

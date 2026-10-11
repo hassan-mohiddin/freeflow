@@ -2,7 +2,7 @@
 
 Pi compacts a long session on its own when the context nears the model's window: a separate summarizer call reads the conversation and writes a summary, and the session continues from that summary and a recent tail. The agent doing the work has no say in it, so the summary can miss what the next step needed.
 
-Freeflow compaction lets the agent compact itself, at a point it chooses, from what it knows. Freeflow warns the agent ahead of Pi's limit; at a safe point the agent updates its Working Record, writes the summary, chooses what to carry, and calls `freeflow_compact`. At the end of that turn Freeflow replaces the conversation with the summary, the carried context and a recovery message, and the same run continues. Pi's own compaction stays on as the fallback when the context fills before the agent compacts.
+Freeflow compaction lets the agent compact itself, at a point it chooses, from what it knows. Freeflow warns the agent ahead of Pi's limit; at a safe point the agent updates its Working Record, writes the summary, chooses what to carry, and calls `compact_context`. At the end of that turn Freeflow replaces the conversation with the summary, the carried context and a recovery message, and the same run continues. Pi's own compaction stays on as the fallback when the context fills before the agent compacts.
 
 ## Availability
 
@@ -48,11 +48,11 @@ A safe point is a finished step whose result the agent knows: a check it ran and
 2. **The carried context**: the user's latest messages word for word, then what the agent carries. The agent picks files (read fresh at compaction, optionally by line range) and earlier tool results; Freeflow fills the rest of the carry budget with the newest results of the work in progress and lists the others by reference, so the agent can carry them later, select them as evidence, or read them again. Files and read results are numbered by file line, so the agent can cite them without reading them again.
 3. **A recovery message**: recover the Working Record the summary names (or re-read the summary's recovery sources), check the live state the next step depends on, and continue; do not re-read what was carried, and do not compact again in this cycle.
 
-The carry budget is 15% of the window, at most 40k tokens, and at most a quarter of the warning point. Freeflow never names a Working Record itself: it cannot tell which record belongs to the work, so the agent's summary names it.
+The carry budget is 15% of the window, at most 40k tokens, and at most a quarter of the warning point. Freeflow never names a Working Record itself: it cannot tell which record belongs to the work, so the agent's summary names it. With [Task Memory](task-memory.md) on, the session knows its focused record, and Freeflow delivers that record's resume view after the recovery message.
 
 ## When Pi compacts first
 
-Pi's own compaction keeps Pi's summarizer and recent tail. Freeflow adds its summary instructions to Pi's summarizer and appends its own state and recovery steps; under Cognitive Routing it also lists the current assignment's results by reference. A `freeflow_compact` call after Pi has compacted is refused with the reason, so the agent does not compact twice. If anything in Freeflow's part fails, Pi compacts as it would alone.
+Pi's own compaction keeps Pi's summarizer and recent tail. Freeflow adds its summary instructions to Pi's summarizer and appends its own state and recovery steps; under Cognitive Routing it also lists the current assignment's results by reference. A `compact_context` call after Pi has compacted is refused with the reason, so the agent does not compact twice. If anything in Freeflow's part fails, Pi compacts as it would alone.
 
 ## With Cognitive Routing
 
@@ -79,6 +79,7 @@ Known limits:
 - [Capabilities](README.md)
 - [Cognitive Routing](cognitive-routing.md)
 - [Tool Execution](tool-execution.md)
+- [Task Memory](task-memory.md)
 - [Pi integration](../integrations/pi.md)
 - [Prompt caching](../prompt-caching.md)
 - [How compaction works](../../dev-docs/subsystems/compaction.md) (developer docs)

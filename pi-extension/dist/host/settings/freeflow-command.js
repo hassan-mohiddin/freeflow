@@ -15,6 +15,8 @@ import { PiSettingsComponent } from "./settings-view.js";
 import { workersForDelegation } from "../../cognitive-routing/types.js";
 import { DEFAULT_TOOL_EXECUTION_CONFIG } from "../../tool-execution/config.js";
 import { DEFAULT_COMPACTION_CARRY, DEFAULT_COMPACTION_ENABLED } from "../../compaction/config.js";
+import { AUTO_APPROVE_GROUPS, DEFAULT_TASK_MEMORY_ENABLED } from "../../task-memory/config.js";
+import { DEFAULT_INBOUND_POLICY, DEFAULT_MESSAGING_ENABLED, INBOUND_POLICIES } from "../../messaging/config.js";
 /*
  * The /freeflow command and the settings model it edits: every Freeflow setting with its repository, personal, and
  * session scopes, the routing profile wizard, config file writes, and reload after saving. settings-view.ts draws the
@@ -98,8 +100,12 @@ function setConfigValue(config, item, value) {
   }
   setPath(config, item.path, value);
 }
+/** What choosing inherit means, for the help line: "Follow the default (on)." */
+function inheritText(value, source) {
+  return source === "default" ? `Inherit Freeflow's default (${value}).` : `Inherit the ${source} setting (${value}).`;
+}
 function booleanValue(value) {
-  return value === true ? "enabled" : "disabled";
+  return value === true ? "on" : "off";
 }
 function configValueForChoice(item, value) {
   const key = String(value);
@@ -157,14 +163,14 @@ function createScopedBooleanItem(options) {
     item = {
       id: options.id,
       label: options.label,
-      description: `${options.description} Inherit uses the repository value.`,
+      description: options.description,
       path: options.path,
       kind: "enum",
       value: selectedValue,
       values: [LOCAL_INHERIT, "true", "false"],
-      valueLabels: { inherit: "inherit", true: "enabled", false: "disabled" },
+      valueLabels: { inherit: "inherit", true: "on", false: "off" },
       valueDescriptions: {
-        inherit: `Use ${formatCoreValue(inheritedValue)} from ${SOURCE_LABELS[inheritedSource]}.`,
+        inherit: inheritText(formatCoreValue(inheritedValue), SOURCE_LABELS[inheritedSource]),
         true: "Enabled for you in this checkout.",
         false: "Disabled for you in this checkout.",
       },
@@ -193,6 +199,7 @@ function createScopedBooleanItem(options) {
       value: inheritedValue,
       defaultValue: options.defaultValue,
       configScope: "repository",
+      repositoryUnset: typeof repositoryValue !== "boolean",
       effectiveValue: options.effectiveValue,
       effectiveSource: options.effectiveSource,
       localOverrideValue: typeof localValue === "boolean" ? localValue : undefined,
@@ -200,6 +207,49 @@ function createScopedBooleanItem(options) {
   }
   item.displaySuffix = coreDisplaySuffix(item);
   return item;
+}
+/** A choice among fixed values, in the Personal or Repository scope; Personal can inherit the repository's value. */
+function createScopedChoiceItem(options) {
+  const repositoryValue = getPath(options.rawConfig, options.path);
+  const inheritedValue = options.values.includes(repositoryValue) ? repositoryValue : options.defaultValue;
+  const inheritedSource = repositoryValue === undefined ? "builtin" : "repository";
+  const localValue = getPath(options.localConfig, options.path);
+  const common = {
+    id: options.id,
+    label: options.label,
+    path: options.path,
+    kind: "enum",
+    effectiveValue: options.effectiveValue,
+    effectiveSource: options.effectiveSource,
+  };
+  return options.scope === "local"
+    ? {
+        ...common,
+        description: options.description,
+        value: options.values.includes(localValue) ? localValue : LOCAL_INHERIT,
+        values: [LOCAL_INHERIT, ...options.values],
+        valueLabels: { inherit: "inherit", ...options.valueLabels },
+        valueDescriptions: {
+          inherit: inheritText(options.valueLabels[inheritedValue] ?? inheritedValue, SOURCE_LABELS[inheritedSource]),
+          ...options.valueDescriptions,
+        },
+        configScope: "local",
+        configValues: Object.fromEntries([["inherit", undefined], ...options.values.map((value) => [value, value])]),
+        inheritedValue,
+        inheritedSource,
+      }
+    : {
+        ...common,
+        description: `${options.description} This edits shared .freeflow/config.json.`,
+        value: inheritedValue,
+        values: [...options.values],
+        valueLabels: options.valueLabels,
+        valueDescriptions: options.valueDescriptions,
+        defaultValue: options.defaultValue,
+        configScope: "repository",
+        repositoryUnset: repositoryValue === undefined,
+        localOverrideValue: options.values.includes(localValue) ? localValue : undefined,
+      };
 }
 function createScopedDelegationItem(options) {
   const path = ["cognitiveRouting", "delegation"];
@@ -217,8 +267,7 @@ function createScopedDelegationItem(options) {
       ? {
           id: "freeflow.cognitiveRouting.delegation",
           label: "Delegation",
-          description:
-            "Choose enabled workers for automatic routing. Inherit uses the repository value; this setting does not rank model presets.",
+          description: "Choose enabled workers for automatic routing; this setting does not rank model presets.",
           path,
           kind: "enum",
           value: ["executor", "helper", "both"].includes(localValue) ? localValue : LOCAL_INHERIT,
@@ -230,7 +279,7 @@ function createScopedDelegationItem(options) {
             both: "Helper and Executor",
           },
           valueDescriptions: {
-            inherit: `Use ${inheritedValue} from ${SOURCE_LABELS[inheritedSource]}.`,
+            inherit: inheritText(inheritedValue, SOURCE_LABELS[inheritedSource]),
             ...descriptions,
           },
           configScope: "local",
@@ -256,6 +305,7 @@ function createScopedDelegationItem(options) {
           valueDescriptions: descriptions,
           defaultValue: "executor",
           configScope: "repository",
+          repositoryUnset: repositoryValue === undefined,
           effectiveValue: options.effectiveValue,
           effectiveSource: options.effectiveSource,
           localOverrideValue: ["executor", "helper", "both"].includes(localValue) ? localValue : undefined,
@@ -280,14 +330,14 @@ function createSessionBooleanItem(options) {
   return {
     id: options.id,
     label: options.label,
-    description: `${options.description} Inherit uses the personal or repository value.`,
+    description: options.description,
     path: options.key.split("."),
     kind: "enum",
     value: typeof override === "boolean" ? String(override) : LOCAL_INHERIT,
     values: [LOCAL_INHERIT, "true", "false"],
-    valueLabels: { inherit: "inherit", true: "enabled", false: "disabled" },
+    valueLabels: { inherit: "inherit", true: "on", false: "off" },
     valueDescriptions: {
-      inherit: `Use ${formatCoreValue(options.inheritedValue)} from ${SOURCE_LABELS[options.inheritedSource]}.`,
+      inherit: inheritText(formatCoreValue(options.inheritedValue), SOURCE_LABELS[options.inheritedSource]),
       true: "Enabled for this Pi session only.",
       false: "Disabled for this Pi session only.",
     },
@@ -306,6 +356,23 @@ function configuredSetting(rawConfig, localConfig, path, defaultValue) {
   const repository = getPath(rawConfig, path);
   if (typeof repository === "boolean") return { value: repository, source: "repository" };
   return { value: defaultValue, source: "builtin" };
+}
+/** Sections from everyday to experimental (Task 005): Freeflow, then the capabilities, then session tools. */
+const SECTION_ORDER = [
+  "freeflow.enabled",
+  "freeflow.compaction",
+  "freeflow.toolExecution",
+  "freeflow.taskMemory",
+  "freeflow.messaging",
+  "freeflow.cognitiveRouting",
+  "freeflow.session",
+];
+function inSectionOrder(items) {
+  const rank = (item) => {
+    const at = SECTION_ORDER.indexOf(item.id);
+    return at < 0 ? SECTION_ORDER.length : at;
+  };
+  return [...items].sort((a, b) => rank(a) - rank(b));
 }
 function sectionItem(id, label, description, status, children) {
   return { id, label, description, kind: "group", value: true, displaySuffix: status, children };
@@ -363,15 +430,19 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
       false,
     );
     enabledItem.inactive = freeflowInactive || routingUnavailable;
+    enabledItem.runtimeInactive = routingUnavailable;
     const projectionItem = sessionSwitch(
       "freeflow.cognitiveRouting.projection",
       "Context projection",
       "Show Coordinator the worker evidence selected for it instead of the whole history.",
       "cognitiveRouting.projection",
       routing.projection,
-      false,
+      true,
     );
-    projectionItem.inactive = routingInactive;
+    // Delegation, projection and the presets can be set while routing is not running: setting a missing preset is how
+    // it starts. Only Control needs routing running, since holding a profile switches the model at once.
+    projectionItem.inactive = freeflowInactive || routingUnavailable;
+    projectionItem.runtimeInactive = routingUnavailable;
     const delegationOverride = cognitiveRoutingController?.sessionDelegationOverride() ?? LOCAL_INHERIT;
     const delegation = cognitiveRoutingState?.delegation ?? routing.delegation;
     routingItems.push(
@@ -395,7 +466,8 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
           ]),
         ]),
         inactive: routingInactive,
-        runtimeInactive: routing.blockingReason?.code === "runtime_disabled",
+        // Holding a profile switches the model at once, so it needs routing running, not only configured.
+        runtimeInactive: routingInactive,
       },
       {
         id: "freeflow.cognitiveRouting.delegation",
@@ -411,7 +483,10 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
           both: "Helper and Executor",
         },
         valueDescriptions: {
-          inherit: `Use ${routing.delegation} from ${SOURCE_LABELS[cognitiveRoutingSettingsSource(routing.delegationSource)]}.`,
+          inherit: inheritText(
+            routing.delegation,
+            SOURCE_LABELS[cognitiveRoutingSettingsSource(routing.delegationSource)],
+          ),
           executor: "Coordinator delegates assignments to Executor.",
           helper: "Coordinator delegates supporting assignments to Helper and keeps production implementation.",
           both: "Coordinator chooses Helper or Executor for each assignment.",
@@ -422,7 +497,8 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
           delegationOverride === LOCAL_INHERIT ? cognitiveRoutingSettingsSource(routing.delegationSource) : "session",
         inheritedValue: routing.delegation,
         inheritedSource: cognitiveRoutingSettingsSource(routing.delegationSource),
-        inactive: routingInactive,
+        inactive: freeflowInactive || routingUnavailable,
+        runtimeInactive: routingUnavailable,
       },
       projectionItem,
     );
@@ -438,7 +514,8 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
           ctx,
           sessionProfiles,
         });
-        item.inactive ||= routingInactive;
+        item.inactive ||= freeflowInactive || routingUnavailable;
+        item.runtimeInactive ||= routingUnavailable;
         routingItems.push(item);
       }
     }
@@ -448,7 +525,7 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
     "Enabled",
     "Use Tool Execution in this session.",
     "toolExecution.enabled",
-    state.toolExecution?.enabled ?? false,
+    state.toolExecution?.enabled ?? DEFAULT_TOOL_EXECUTION_CONFIG.enabled,
     DEFAULT_TOOL_EXECUTION_CONFIG.enabled,
   );
   const compactionItem = sessionSwitch(
@@ -466,6 +543,22 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
     "compaction.carry",
     state.compaction?.carry ?? DEFAULT_COMPACTION_CARRY,
     DEFAULT_COMPACTION_CARRY,
+  );
+  const taskMemoryItem = sessionSwitch(
+    "freeflow.taskMemory.enabled",
+    "Enabled",
+    "Use task memory in this session.",
+    "taskMemory.enabled",
+    state.taskMemory?.enabled ?? DEFAULT_TASK_MEMORY_ENABLED,
+    DEFAULT_TASK_MEMORY_ENABLED,
+  );
+  const messagingItem = sessionSwitch(
+    "freeflow.messaging.enabled",
+    "Enabled",
+    "Exchange messages with other Pi sessions on this machine.",
+    "messaging.enabled",
+    state.messaging?.enabled ?? DEFAULT_MESSAGING_ENABLED,
+    DEFAULT_MESSAGING_ENABLED,
   );
   const items = [
     freeflowItem,
@@ -498,6 +591,16 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
       capabilityStatus(state.compaction),
       [compactionItem, carryItem],
     ),
+    sectionItem(
+      "freeflow.taskMemory",
+      "Task Memory",
+      "Task memory for this session.",
+      capabilityStatus(state.taskMemory),
+      [taskMemoryItem],
+    ),
+    sectionItem("freeflow.messaging", "Messaging", "Messaging for this session.", capabilityStatus(state.messaging), [
+      messagingItem,
+    ]),
     sectionItem("freeflow.session", "Session", "Session overrides.", "", [
       {
         id: "freeflow.session.reset",
@@ -528,7 +631,7 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
       },
     ]),
   ];
-  return items;
+  return inSectionOrder(items);
 }
 const COGNITIVE_ROUTING_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 const COGNITIVE_ROUTING_EFFORT_DESCRIPTIONS = {
@@ -552,16 +655,17 @@ function isCognitiveRoutingProfile(value) {
     COGNITIVE_ROUTING_THINKING_LEVELS.includes(value.thinking)
   );
 }
-function cognitiveRoutingThinkingLevels(model, registry) {
-  if (typeof registry?.clampThinkingLevel !== "function") {
-    return model?.reasoning === true ? [...COGNITIVE_ROUTING_THINKING_LEVELS] : ["off"];
-  }
+/**
+ * The thinking levels a model supports, by Pi's own rule (pi-ai's getSupportedThinkingLevels): a model without
+ * reasoning has only off; a level its thinkingLevelMap maps to null is unsupported; xhigh and max need a mapping.
+ * Pi's model registry has no such method, so the rule reads the model's data directly.
+ */
+function cognitiveRoutingThinkingLevels(model) {
+  if (model?.reasoning !== true) return ["off"];
   return COGNITIVE_ROUTING_THINKING_LEVELS.filter((level) => {
-    try {
-      return registry.clampThinkingLevel(model, level) === level;
-    } catch {
-      return false;
-    }
+    const mapped = model.thinkingLevelMap?.[level];
+    if (mapped === null) return false;
+    return level === "xhigh" || level === "max" ? mapped !== undefined : true;
   });
 }
 function cognitiveRoutingModelOptions(ctx) {
@@ -577,7 +681,7 @@ function cognitiveRoutingModelOptions(ctx) {
   return models
     .filter((model) => typeof model?.provider === "string" && typeof model?.id === "string")
     .map((model) => {
-      const thinkingLevels = cognitiveRoutingThinkingLevels(model, registry);
+      const thinkingLevels = cognitiveRoutingThinkingLevels(model);
       const provider = model.provider;
       const modelId = model.id;
       const key = cognitiveRoutingModelKey(provider, modelId);
@@ -842,9 +946,10 @@ function freeflowItems(rawConfig, options = {}) {
       description:
         "Select worker evidence for Coordinator; disable projection to keep ordinary Pi context in all enabled profiles.",
       path: ["cognitiveRouting", "projection"],
-      effectiveValue: cognitiveRoutingState?.projection ?? false,
+      // On by default with routing, as cognitive-routing/config.ts resolves it.
+      effectiveValue: cognitiveRoutingState?.projection ?? true,
       effectiveSource: cognitiveRoutingSettingsSource(cognitiveRoutingState?.projectionSource),
-      defaultValue: false,
+      defaultValue: true,
     });
     cognitiveRoutingProjectionItem.inactive = freeflowInactive || cognitiveRoutingRuntimeDisabled;
     cognitiveRoutingProjectionItem.runtimeInactive = cognitiveRoutingRuntimeDisabled;
@@ -903,9 +1008,9 @@ function freeflowItems(rawConfig, options = {}) {
     label: "Enabled",
     description: "Enable the Tool Execution capability.",
     path: ["toolExecution", "enabled"],
-    effectiveValue: toolExecutionState?.enabled ?? false,
+    effectiveValue: toolExecutionState?.enabled ?? DEFAULT_TOOL_EXECUTION_CONFIG.enabled,
     effectiveSource: toolSource(["toolExecution", "enabled"]),
-    defaultValue: false,
+    defaultValue: DEFAULT_TOOL_EXECUTION_CONFIG.enabled,
   });
   const toolExecutionItems = [toolExecutionEnabledItem];
   walkSettingsItems(toolExecutionItems, (item) => {
@@ -916,7 +1021,7 @@ function freeflowItems(rawConfig, options = {}) {
     label: "Tool Execution",
     description: "Configure Freeflow's execution layer around Pi's tools.",
     kind: "group",
-    value: toolExecutionState?.enabled ?? false,
+    value: toolExecutionState?.enabled ?? DEFAULT_TOOL_EXECUTION_CONFIG.enabled,
     inactive: freeflowInactive,
     displaySuffix: toolExecutionState?.effective ? "active" : toolExecutionState?.enabled ? "inactive" : "disabled",
     children: toolExecutionItems,
@@ -960,7 +1065,122 @@ function freeflowItems(rawConfig, options = {}) {
     displaySuffix: compactionState?.effective ? "active" : compactionState?.enabled ? "inactive" : "disabled",
     children: compactionItems,
   };
-  return [freeflowItem, ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []), toolExecutionGroup, compactionGroup];
+  const taskMemoryState = options.taskMemory;
+  const taskMemoryEnabledItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.taskMemory.enabled",
+    label: "Enabled",
+    description:
+      "A preview: attach Working Records to the session, deliver the focused record after compaction, and refuse record writes to records not attached.",
+    path: ["taskMemory", "enabled"],
+    effectiveValue: taskMemoryState?.enabled ?? DEFAULT_TASK_MEMORY_ENABLED,
+    effectiveSource: toolSource(["taskMemory", "enabled"]),
+    defaultValue: DEFAULT_TASK_MEMORY_ENABLED,
+  });
+  taskMemoryEnabledItem.inactive = freeflowInactive;
+  // Which proposals skip the confirmation dialog (Task 004 D-002); a standing preference, so no Session scope.
+  const approveLabels = {
+    attach: ["Attach", "attaching a record, and making a held record writable"],
+    create: ["Create", "creating a task or a child task"],
+    env: ["Directories", "changing a task's directories"],
+    fanout: ["Fan-out", "a child task with its own Git worktree and branch"],
+    projects: ["Projects", "creating or linking a project, and importing a record into one"],
+  };
+  const approveItems = Object.keys(AUTO_APPROVE_GROUPS).map((group) => {
+    const item = createScopedBooleanItem({
+      scope,
+      rawConfig,
+      localConfig,
+      id: `freeflow.taskMemory.autoApprove.${group}`,
+      label: approveLabels[group][0],
+      description: `Let the agent do this without asking you first: ${approveLabels[group][1]}. Off asks every time.`,
+      path: ["taskMemory", "autoApprove", group],
+      effectiveValue: taskMemoryState?.autoApprove?.[group] ?? false,
+      effectiveSource: toolSource(["taskMemory", "autoApprove", group]),
+      defaultValue: false,
+    });
+    item.inactive = freeflowInactive;
+    return item;
+  });
+  const taskMemoryGroup = {
+    id: "freeflow.taskMemory",
+    label: "Task Memory",
+    description: "Configure task memory: Working Records the session knows, delivers and guards.",
+    kind: "group",
+    value: taskMemoryState?.enabled ?? DEFAULT_TASK_MEMORY_ENABLED,
+    inactive: freeflowInactive,
+    displaySuffix: taskMemoryState?.effective ? "active" : taskMemoryState?.enabled ? "inactive" : "disabled",
+    children: [
+      taskMemoryEnabledItem,
+      {
+        id: "freeflow.taskMemory.autoApprove",
+        label: "Auto-approve",
+        description:
+          "Task memory actions the agent may take without asking you first. Enter opens the five switches; Esc returns.",
+        kind: "group",
+        nested: true,
+        value: true,
+        children: approveItems,
+      },
+    ],
+  };
+  const messagingState = options.messaging;
+  const messagingEnabledItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.messaging.enabled",
+    label: "Enabled",
+    description:
+      "A preview: list this session for other Pi sessions on this machine and let the agent exchange messages with them.",
+    path: ["messaging", "enabled"],
+    effectiveValue: messagingState?.enabled ?? DEFAULT_MESSAGING_ENABLED,
+    effectiveSource: toolSource(["messaging", "enabled"]),
+    defaultValue: DEFAULT_MESSAGING_ENABLED,
+  });
+  messagingEnabledItem.inactive = freeflowInactive;
+  // Messages are delivered unless the user asks to approve them (Task 002 D-008).
+  const messagingInboundItem = createScopedChoiceItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.messaging.inbound",
+    label: "Ask before delivering",
+    description: "Whether a message from another session waits for you to accept it.",
+    path: ["messaging", "inbound"],
+    values: INBOUND_POLICIES,
+    valueLabels: { accept: "never", project: "outside the project", hold: "every message", refuse: "refuse all" },
+    valueDescriptions: {
+      accept: "Deliver every message to the agent.",
+      project: "Deliver messages from sessions in this repository's Task Memory project; ask you about the rest.",
+      hold: "Ask you before delivering any message.",
+      refuse: "Refuse every message.",
+    },
+    defaultValue: DEFAULT_INBOUND_POLICY,
+    effectiveValue: messagingState?.inbound ?? DEFAULT_INBOUND_POLICY,
+    effectiveSource: toolSource(["messaging", "inbound"]),
+  });
+  messagingInboundItem.inactive = freeflowInactive;
+  const messagingGroup = {
+    id: "freeflow.messaging",
+    label: "Messaging",
+    description: "Configure messaging between Pi sessions on this machine.",
+    kind: "group",
+    value: messagingState?.enabled ?? DEFAULT_MESSAGING_ENABLED,
+    inactive: freeflowInactive,
+    displaySuffix: messagingState?.effective ? "active" : messagingState?.enabled ? "inactive" : "disabled",
+    children: [messagingEnabledItem, messagingInboundItem],
+  };
+  return inSectionOrder([
+    freeflowItem,
+    ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []),
+    toolExecutionGroup,
+    compactionGroup,
+    taskMemoryGroup,
+    messagingGroup,
+  ]);
 }
 function pruneKnownDefaults(config) {
   const defaultPaths = [
@@ -969,6 +1189,13 @@ function pruneKnownDefaults(config) {
     { path: ["toolExecution", "enabled"], value: DEFAULT_TOOL_EXECUTION_CONFIG.enabled },
     { path: ["compaction", "enabled"], value: DEFAULT_COMPACTION_ENABLED },
     { path: ["compaction", "carry"], value: DEFAULT_COMPACTION_CARRY },
+    { path: ["taskMemory", "enabled"], value: DEFAULT_TASK_MEMORY_ENABLED },
+    ...Object.keys(AUTO_APPROVE_GROUPS).map((group) => ({
+      path: ["taskMemory", "autoApprove", group],
+      value: false,
+    })),
+    { path: ["messaging", "enabled"], value: DEFAULT_MESSAGING_ENABLED },
+    { path: ["messaging", "inbound"], value: DEFAULT_INBOUND_POLICY },
   ];
   for (const item of defaultPaths) {
     if (valuesEqual(getPath(config, item.path), item.value)) {
@@ -1051,24 +1278,54 @@ function formatSettingValue(item, value) {
   const key = String(value ?? "");
   return item.valueLabels?.[key] && key !== LOCAL_INHERIT ? item.valueLabels[key] : formatCoreValue(value);
 }
-function displayValue(item) {
-  if (item.kind === "group") return item.displaySuffix ?? "";
-  if (item.transient && item.format) return item.format(item.value);
+const ORIGINS = {
+  builtin: "Inherited: not set in any file, so Freeflow's default applies.",
+  repository: "Inherited from the repository's .freeflow/config.json.",
+  local: "Inherited from your .freeflow/local.json.",
+  session: "Inherited from this session.",
+};
+function displayParts(item) {
+  const tone = (value) => (value === true ? { tone: "on" } : value === false ? { tone: "off" } : {});
+  if (item.kind === "group") return { value: item.displaySuffix ?? "" };
+  if (item.transient && item.format) return { value: item.format(item.value) };
   if (item.id === "freeflow.cognitiveRouting.profile")
-    return item.valueLabels?.[String(item.value)] ?? String(item.value);
+    return { value: item.valueLabels?.[String(item.value)] ?? String(item.value) };
   if (item.configScope === "local" || item.configScope === "session") {
     const inherits = item.value === LOCAL_INHERIT || item.value === undefined;
     if (inherits) {
-      if (item.inheritedValue === undefined) return "not configured";
-      return `inherit → ${formatSettingValue(item, item.inheritedValue)} (${SOURCE_LABELS[item.inheritedSource ?? "builtin"]})`;
+      if (item.inheritedValue === undefined) return { value: "not configured" };
+      return {
+        value: formatSettingValue(item, item.inheritedValue),
+        note: "inherited",
+        origin: ORIGINS[item.inheritedSource ?? "builtin"],
+        ...tone(item.inheritedValue),
+      };
     }
-    return `${formatSettingValue(item, effectiveItemValue(item))} · ${SOURCE_LABELS[item.configScope]}`;
+    // The value this tab sets, not the effective one: a session override or a switch above it does not change it.
+    const value =
+      item.configValues && String(item.value) in item.configValues ? item.configValues[String(item.value)] : item.value;
+    return { value: formatSettingValue(item, value), ...tone(value) };
   }
   const value = item.value === undefined && isCognitiveRoutingProfileItem(item) ? undefined : item.value;
-  const shown = formatSettingValue(item, value);
-  if (item.localOverrideValue !== undefined && !valuesEqual(item.localOverrideValue, item.value))
-    return `${shown} · personal override: ${formatSettingValue(item, item.localOverrideValue)}`;
-  return item.effectiveSource === "builtin" && item.defaultValue !== undefined ? `${shown} · default` : shown;
+  const shown = { value: formatSettingValue(item, value), ...tone(value) };
+  const unset = item.repositoryUnset ?? (item.effectiveSource === "builtin" && item.defaultValue !== undefined);
+  const notes = [
+    ...(unset ? ["inherited"] : []),
+    ...(item.localOverrideValue !== undefined && !valuesEqual(item.localOverrideValue, item.value)
+      ? [`personal: ${formatSettingValue(item, item.localOverrideValue)}`]
+      : []),
+  ];
+  return {
+    ...shown,
+    ...(notes.length ? { note: notes.join(" · ") } : {}),
+    ...(unset ? { origin: "Inherited: not set in .freeflow/config.json, so Freeflow's default applies." } : {}),
+  };
+}
+function joinParts(parts) {
+  return parts.note ? `${parts.value} (${parts.note})` : parts.value;
+}
+function displayValue(item) {
+  return joinParts(displayParts(item));
 }
 /** Small choices change in place; holding a profile switches models and a reset clears everything, so those ask. */
 const PICKED_CHOICES = new Set(["freeflow.cognitiveRouting.profile", "freeflow.session.reset"]);
@@ -1102,13 +1359,12 @@ function refreshSettingsDerivedState(items) {
       item ? isCognitiveRoutingProfile(effectiveItemValue(item)) : false,
     );
     cognitiveRoutingGroup.value = enabled;
-    cognitiveRoutingGroup.displaySuffix = enabled
-      ? profilesConfigured
-        ? cognitiveRoutingGroup.displaySuffix === "active"
-          ? "active"
-          : "configured"
-        : "not configured"
-      : "disabled";
+    // A status the runtime reported (active with its control mode, a blocking reason, host unsupported) stays until
+    // the switch goes off; only the configuration statuses are worked out again here.
+    const current = cognitiveRoutingGroup.displaySuffix ?? "";
+    if (!enabled) cognitiveRoutingGroup.displaySuffix = "disabled";
+    else if (["", "disabled", "configured", "not configured"].includes(current))
+      cognitiveRoutingGroup.displaySuffix = profilesConfigured ? "configured" : "not configured";
     cognitiveRoutingGroup.inactive = freeflowInactive;
   }
   const contextGroup = findSettingsItem(items, "freeflow.context");
@@ -1135,6 +1391,20 @@ function refreshSettingsDerivedState(items) {
     compactionGroup.value = on;
     compactionGroup.displaySuffix = on && !freeflowInactive ? "active" : on ? "inactive" : "disabled";
   }
+  const taskMemoryGroup = findSettingsItem(items, "freeflow.taskMemory");
+  const taskMemoryEnabled = findSettingsItem(items, "freeflow.taskMemory.enabled");
+  if (taskMemoryGroup && taskMemoryEnabled) {
+    const on = effectiveItemValue(taskMemoryEnabled) === true;
+    taskMemoryGroup.value = on;
+    taskMemoryGroup.displaySuffix = on && !freeflowInactive ? "active" : on ? "inactive" : "disabled";
+  }
+  const messagingGroup = findSettingsItem(items, "freeflow.messaging");
+  const messagingEnabled = findSettingsItem(items, "freeflow.messaging.enabled");
+  if (messagingGroup && messagingEnabled) {
+    const on = effectiveItemValue(messagingEnabled) === true;
+    messagingGroup.value = on;
+    messagingGroup.displaySuffix = on && !freeflowInactive ? "active" : on ? "inactive" : "disabled";
+  }
   walkSettingsItems(items, (candidate) => {
     if (candidate.id === "freeflow.session.reset") {
       candidate.inactive = false;
@@ -1151,8 +1421,8 @@ function refreshSettingsDerivedState(items) {
 function settingsChoices(item) {
   if (item.kind === "boolean") {
     return [
-      { key: "true", value: true, label: "enabled" },
-      { key: "false", value: false, label: "disabled" },
+      { key: "true", value: true, label: "on" },
+      { key: "false", value: false, label: "off" },
     ];
   }
   if (item.kind !== "enum") return undefined;
@@ -1174,52 +1444,132 @@ function resetSessionItemState(items) {
     }
   });
 }
-function settingsEntries(items, rootItems, onChange) {
+function settingsEntries(items, rootItems, onChange, depth = 0, lockedBy) {
+  // Freeflow's own switch locks everything else on the screen while it is off.
+  if (depth === 0 && !lockedBy) {
+    const master = rootItems.find((candidate) => candidate.id === "freeflow.enabled");
+    const off = () =>
+      master && effectiveItemValue(master) === false ? "Takes effect when Freeflow is on." : undefined;
+    return items.flatMap((item) =>
+      settingsEntries([item], rootItems, onChange, 0, item === master ? () => undefined : off),
+    );
+  }
   return items.flatMap((item) => {
+    if (item.kind === "group" && item.children && item.nested) {
+      // One row; Enter opens its settings on a screen of their own. Its value names the ones that are on.
+      const children = item.children;
+      const parts = () => {
+        const on = children
+          .filter((child) => displayParts(child).tone === "on")
+          .map((child) => child.label.toLowerCase());
+        return on.length === 0
+          ? { value: "none", tone: "off" }
+          : on.length === children.length
+            ? { value: "all", tone: "on" }
+            : { value: on.join(", ") };
+      };
+      return [
+        {
+          id: item.id,
+          label: item.label,
+          description: item.description,
+          depth,
+          parts,
+          currentValue: () => parts().value,
+          inactive: () => false,
+          ...(lockedBy ? { dormant: lockedBy } : {}),
+          children: () => settingsEntries(children, rootItems, onChange, 0, lockedBy),
+        },
+      ];
+    }
     if (item.kind === "group" && item.children) {
+      // A capability's own switch is its section's row; while it is off, the section's other settings are locked.
+      const toggle = item.children.find((child) => child.id === `${item.id}.enabled`);
+      if (toggle) {
+        const header = settingEntry(toggle, rootItems, onChange, depth, lockedBy);
+        // The section's status adds what the switch alone does not say: not active, unavailable, the routing control.
+        const parts = () => {
+          const shown = displayParts(toggle);
+          const status = item.displaySuffix ?? "";
+          const extra =
+            status === "inactive"
+              ? shown.tone === "on"
+                ? "not active"
+                : ""
+              : ["", "active", "disabled", "configured"].includes(status)
+                ? ""
+                : status.replace(/^active · /, "");
+          return extra ? { ...shown, note: shown.note ? `${shown.note} · ${extra}` : extra } : shown;
+        };
+        const off = () =>
+          lockedBy?.() ?? (effectiveItemValue(toggle) === false ? `Takes effect when ${item.label} is on.` : undefined);
+        return [
+          { ...header, label: item.label, heading: true, parts, currentValue: () => joinParts(parts()) },
+          ...settingsEntries(
+            item.children.filter((child) => child !== toggle),
+            rootItems,
+            onChange,
+            depth + 1,
+            off,
+          ),
+        ];
+      }
       const section = {
         id: item.id,
         label: item.label,
         description: item.description,
         section: true,
+        depth,
         currentValue: () => displayValue(item),
         inactive: () => item.inactive === true,
       };
-      return [section, ...settingsEntries(item.children, rootItems, onChange)];
+      return [section, ...settingsEntries(item.children, rootItems, onChange, depth + 1, lockedBy)];
     }
-    const choices = settingsChoices(item);
-    return [
-      {
-        id: item.id,
-        label: item.label,
-        description: item.description,
-        currentValue: () => displayValue(item),
-        inactive: () => item.inactive === true,
-        currentChoiceKey: () => String(item.value),
-        choices,
-        cycle: Boolean(choices?.length) && !PICKED_CHOICES.has(item.id),
-        wizard: item.wizard ? () => item.wizard() : undefined,
-        edit:
-          !["boolean", "enum", "group"].includes(item.kind) && !item.wizard
-            ? {
-                initialValue: () => item.editInitialValue?.() ?? displayValue(item),
-                parse: (text) => (item.parse ? item.parse(text) : text),
-              }
-            : undefined,
-        commit: async (value) => {
-          if (valuesEqual(item.value, value)) return { changed: false, reloadRequired: false };
-          const outcome = await onChange(item, value);
-          if (outcome.changed) {
-            updateScopedItemState(item, value);
-            if (item.id === "freeflow.session.reset") resetSessionItemState(rootItems);
-            else if (!item.transient) item.value = value;
-            refreshSettingsDerivedState(rootItems);
-          }
-          return outcome;
-        },
-      },
-    ];
+    return [settingEntry(item, rootItems, onChange, depth, lockedBy)];
   });
+}
+function settingEntry(item, rootItems, onChange, depth, lockedBy) {
+  const choices = settingsChoices(item);
+  return {
+    id: item.id,
+    label: item.label,
+    description: item.description,
+    depth,
+    parts: () => displayParts(item),
+    currentValue: () => displayValue(item),
+    // A setting under an off switch stays changeable, so it can be set up before the switch is turned on; only what
+    // the host cannot do (runtimeInactive), or what acts at once, blocks it.
+    inactive: () => item.runtimeInactive === true || (item.inactive === true && lockedBy?.() === undefined),
+    ...(lockedBy ? { dormant: lockedBy } : {}),
+    currentChoiceKey: () => String(item.value),
+    choices,
+    cycle: Boolean(choices?.length) && !PICKED_CHOICES.has(item.id),
+    wizard: item.wizard ? () => item.wizard() : undefined,
+    edit:
+      !["boolean", "enum", "group"].includes(item.kind) && !item.wizard
+        ? {
+            initialValue: () => item.editInitialValue?.() ?? displayValue(item),
+            parse: (text) => (item.parse ? item.parse(text) : text),
+          }
+        : undefined,
+    commit: async (value) => {
+      if (valuesEqual(item.value, value)) return { changed: false, reloadRequired: false };
+      const outcome = await onChange(item, value);
+      if (outcome.changed) {
+        updateScopedItemState(item, value);
+        // The repository file now sets it, unless the value was its default, which setConfigValue leaves out of the file.
+        if (item.configScope === "repository")
+          item.repositoryUnset =
+            value === undefined ||
+            isEmptyValue(value) ||
+            (item.defaultValue !== undefined && valuesEqual(value, item.defaultValue));
+        if (item.id === "freeflow.session.reset") resetSessionItemState(rootItems);
+        else if (!item.transient) item.value = value;
+        refreshSettingsDerivedState(rootItems);
+      }
+      return outcome;
+    },
+  };
 }
 async function openSettings(options) {
   if (typeof options.ctx?.ui?.custom !== "function") {
@@ -1348,11 +1698,23 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiv
       cognitiveRouting: state.cognitiveRouting,
       toolExecution: state.toolExecution,
       compaction: state.compaction,
+      taskMemory: state.taskMemory,
+      messaging: state.messaging,
       ctx,
       runtimeAvailable: isCognitiveRoutingRuntimeAvailable(pi),
     }).find((candidate) => candidate.id === "freeflow.enabled");
     await updateConfig(ctx.cwd, item, enabled, "repository");
     await afterChange(true);
+    // The command writes the repository file; a personal file or a session override still wins over it.
+    const after = await readCapabilityState(ctx.cwd, ctx);
+    const winner = after?.configSources?.enabled;
+    if (after?.enabled !== enabled && (winner === "local" || winner === "session")) {
+      ctx.ui.notify(
+        `The repository now ${enabled ? "enables" : "disables"} Freeflow, but ${winner === "session" ? "this session's override" : "your .freeflow/local.json"} still turns it ${enabled ? "off" : "on"}. Change it in /freeflow settings.`,
+        "warning",
+      );
+      return { changed: true, reloaded: false };
+    }
     ctx.ui.notify(`Freeflow ${enabled ? "enabled" : "disabled"}. Reloading Freeflow runtime...`, "info");
     if (typeof ctx.reload === "function") {
       await ctx.reload();
@@ -1399,6 +1761,8 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiv
       cognitiveRouting: stateNow.cognitiveRouting,
       toolExecution: stateNow.toolExecution,
       compaction: stateNow.compaction,
+      taskMemory: stateNow.taskMemory,
+      messaging: stateNow.messaging,
       ctx,
       runtimeAvailable: isCognitiveRoutingRuntimeAvailable(pi),
     });

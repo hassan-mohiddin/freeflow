@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
+import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { cwd } from "node:process";
-import { dirname, isAbsolute, sep } from "node:path";
+import { dirname, isAbsolute, resolve, sep } from "node:path";
 import { canonicalLines, joinLines, slugify } from "./lib/format.mjs";
 import { parseDocument, validateDocument } from "./lib/document.mjs";
 import { runTransition } from "./lib/transitions.mjs";
@@ -12,9 +13,12 @@ import {
   readInput,
   readRecord,
   resolveRecordPath,
+  storeOf,
   writeInitialAtomically,
 } from "./lib/store.mjs";
-import { renderFull, renderResume } from "./lib/views.mjs";
+import { renderEntries, renderFull, renderResume } from "./lib/views.mjs";
+import { PROJECT_LINK, Registry, TASK_ID, removalText, startCommand } from "./lib/registry.mjs";
+import { searchRecords } from "./lib/search.mjs";
 
 const ROOT_HELP =
   "--record is resolved against --root, which defaults to the current directory; an absolute --record path finds its own root.";
@@ -24,10 +28,14 @@ function usage() {
     "Usage:",
     "  working-record.mjs init --root <path> --name <task name> [--input <file|->]",
     "  working-record.mjs view resume|full --record <record.md>",
+    "  working-record.mjs view entry <ID> [<ID> ...] --record <record.md>",
     "  working-record.mjs validate --record <record.md>",
     "  working-record.mjs <slice|checkpoint|decision|task> <operation> ...",
+    "  working-record.mjs project <new|link|show|list|remove> ...",
+    "  working-record.mjs task <create|import|search|env|here|fanout|remove> ...",
     "",
     ROOT_HELP,
+    "A registered task's ID (such as my-project/task-003) may be given as --record.",
   ].join("\n");
 }
 
@@ -63,7 +71,7 @@ const COMMAND_HELP = new Map([
     "task",
     [
       "Usage: working-record.mjs task <operation> ...",
-      "Operations: task set-state.",
+      "Operations: task set-state; and for projects: task create, task import, task search, task env, task here, task fanout, task remove.",
       "Run working-record.mjs <group> <operation> --help for options and input fields.",
     ].join("\n"),
   ],
@@ -71,8 +79,60 @@ const COMMAND_HELP = new Map([
     "init",
     "Usage: init --root <path> --name <task name> [--input <file|->]\nInput: Goal and Next useful action required; the seven Current Context headings and Recovery sources are accepted, and every line must sit under one of them. The record starts active. Use --input - to read Markdown fragments from stdin.",
   ],
-  ["view", "Usage: view resume|full --record <record.md>"],
+  [
+    "view",
+    "Usage: view resume|full --record <record.md>\n       view entry <ID> [<ID> ...] --record <record.md>\nresume: the header, Current Context, active Decisions, Current Work, Future Work, a one-line index of closed History, and Notes. entry: the named S-NNN, C-NNN, or D-NNN entries exactly as stored. full: the file exactly as stored, valid or not.",
+  ],
   ["validate", "Usage: validate --record <record.md>"],
+  [
+    "project",
+    "Usage: working-record.mjs project <operation> ...\nOperations: project new, project link, project show, project list, project remove.\nA project groups tasks; its records live in a store under the Freeflow home (FREEFLOW_HOME, default ~/.freeflow), outside any repository. Create or link a project only when the user asks.",
+  ],
+  [
+    "project new",
+    "Usage: project new --name <name> [--cwd <directory>] [--worktrees <directory>]\nCreates the project and links the repository containing --cwd (default: the current directory) to it. --worktrees is where fan-out puts children's worktrees (default: the repository's parent directory).",
+  ],
+  [
+    "project link",
+    "Usage: project link --name <name> [--cwd <directory>] [--worktrees <directory>]\nLinks another repository to an existing project; --worktrees changes where fan-out puts worktrees.",
+  ],
+  [
+    "task env",
+    "Usage: task env --id <task-id> [--primary <directory>] [--add-dir <directory>] [--remove-dir <directory>]\nPrints where the task's work happens: its primary directory with its current Git branch, and additional directories. The options change it; change it only when the user asks.",
+  ],
+  [
+    "task here",
+    "Usage: task here [--cwd <directory>]\nPrints the registered tasks whose primary directory contains the directory, deepest first.",
+  ],
+  [
+    "task fanout",
+    "Usage: task fanout --parent <task-id> --title <title> --goal <goal> [--path <directory>] [--base <ref>] [--agent <command>]\nCreates a child of the task, a Git worktree for it on branch <project>/<task-NNN>-<slug> (at <worktrees>/<repo>-<slug> unless --path), copies .freeflow/local.json into it when it has none, and makes the worktree the child's directory. The user then starts a session there: --agent is the command that starts this host's agent (such as claude or codex), and the output ends with a command for the user to paste into a new terminal.",
+  ],
+  [
+    "project show",
+    "Usage: project show [--cwd <directory>] [--name <project>]\nPrints a project and its tasks: ID, title, parent, and whether a session owns it. Without --name, the project linked to the repository containing --cwd.",
+  ],
+  ["project list", "Usage: project list\nPrints every project: name, number of tasks, and linked repositories."],
+  [
+    "project remove",
+    "Usage: project remove --name <project>\nMoves the project's store (every task's record) to the trash under the Freeflow home, removes the project and its tasks from the registry, and removes its .freeflow/project links. Git worktrees and branches stay; the output gives the commands to remove them. Run it only when the user asked to remove that project. Never empty the trash: the user does.",
+  ],
+  [
+    "task remove",
+    "Usage: task remove --id <task ID>\nMoves the task's record, and its children's, to the trash under the Freeflow home and removes them from the registry. Task numbers are never reused. Git worktrees and branches stay; the output gives the commands to remove them. Run it only when the user asked to remove that task. Never empty the trash: the user does.",
+  ],
+  [
+    "task create",
+    "Usage: task create --title <title> --goal <goal> [--parent <task-id>] [--cwd <directory>]\nCreates a registered record in the project linked to --cwd, or with --parent a child of that task in its project, and prints its ID and path. A child has no children.",
+  ],
+  [
+    "task import",
+    "Usage: task import --record <record.md> --project <name>\nMoves an unregistered record's task directory into the project's store, with the next free number, and registers it. Ask the user first.",
+  ],
+  [
+    "task search",
+    "Usage: task search --query <text> (--id <task-id> --scope task|tree|project | --project <name>)\nPrints matching lines with the record, entry heading and state. tree is the task's root (its parent, or itself) and the root's children. Read-only.",
+  ],
   [
     "slice propose",
     "Usage: slice propose --record <record.md> --title <title> --input <file|->\nInput: Intended result required; Type, Expected evidence, and Dependencies optional. Commands set State; input never includes it. Use --input - to read the fragment from stdin.",
@@ -195,6 +255,22 @@ function allowedOptions(command, operation) {
   }
   if (command === "task" && operation === "set-state")
     return new Set(["--root", "--record", "--state", "--next-action", "--help"]);
+  if (command === "task" && operation === "create")
+    return new Set(["--title", "--goal", "--parent", "--cwd", "--help"]);
+  if (command === "task" && operation === "import") return new Set(["--record", "--project", "--help"]);
+  if (command === "task" && operation === "search")
+    return new Set(["--query", "--id", "--scope", "--project", "--help"]);
+  if (command === "task" && operation === "env")
+    return new Set(["--id", "--primary", "--add-dir", "--remove-dir", "--help"]);
+  if (command === "task" && operation === "here") return new Set(["--cwd", "--help"]);
+  if (command === "task" && operation === "fanout")
+    return new Set(["--parent", "--title", "--goal", "--path", "--base", "--cwd", "--agent", "--help"]);
+  if (command === "project" && (operation === "new" || operation === "link"))
+    return new Set(["--name", "--cwd", "--worktrees", "--help"]);
+  if (command === "project" && operation === "show") return new Set(["--cwd", "--name", "--help"]);
+  if (command === "project" && operation === "list") return new Set(["--help"]);
+  if (command === "task" && operation === "remove") return new Set(["--id", "--help"]);
+  if (command === "project" && operation === "remove") return new Set(["--name", "--help"]);
   return null;
 }
 
@@ -220,6 +296,8 @@ function rootOption(options) {
     const marker = `${sep}.freeflow${sep}tasks${sep}`;
     const index = record.lastIndexOf(marker);
     if (index > 0) return record.slice(0, index);
+    const store = storeOf(record);
+    if (store) return store;
   }
   return cwd();
 }
@@ -299,18 +377,135 @@ async function readExisting(options) {
   return { root, ...loaded };
 }
 
+/** Projects, registered tasks and search, through the registry under the Freeflow home. */
+async function runRegistry(command, operation, options) {
+  const registry = new Registry();
+  const where = options["--cwd"] ?? cwd();
+  // Where the user can browse the project's records, when the project link was made.
+  const browse = async () => {
+    const link = resolve(await registry.repoRoot(where), PROJECT_LINK);
+    return existsSync(link) ? ` The user can browse its records at ${link}.` : "";
+  };
+  if (command === "project" && operation === "new")
+    return `Project ${await registry.createProject(requireOption(options, "--name"), where, options["--worktrees"])} created and linked to ${await registry.repoRoot(where)}.${await browse()}\n`;
+  if (command === "project" && operation === "link")
+    return `${await registry.repoRoot(where)} linked to project ${await registry.linkProject(requireOption(options, "--name"), where, options["--worktrees"])}.${await browse()}\n`;
+  // Removal moves records to the trash; nothing here empties it, which is the user's to do (Task 006).
+  if (command === "task" && operation === "remove")
+    return `${removalText(await registry.removeTask(requireOption(options, "--id")), registry.trash)}\n`;
+  if (command === "project" && operation === "remove")
+    return `${removalText(await registry.removeProject(requireOption(options, "--name")), registry.trash)}\n`;
+  if (command === "project" && operation === "list") {
+    const data = await registry.read();
+    const projects = Object.entries(data.projects);
+    if (!projects.length) return "No projects.\n";
+    const count = (slug) => Object.values(data.tasks).filter((task) => task.project === slug).length;
+    return `${projects.map(([slug, project]) => `- ${project.name} (${slug}): ${count(slug)} task(s); repositories ${project.repos.join(", ")}`).join("\n")}\n`;
+  }
+  if (command === "project" && operation === "show") {
+    const found = options["--name"] ? await registry.project(options["--name"]) : await registry.projectFor(where);
+    if (!found)
+      return options["--name"]
+        ? `No project named ${options["--name"]}.\n`
+        : `No project is linked to ${await registry.repoRoot(where)}.\n`;
+    const lines = [`Project ${found.project.name} (${found.slug}), store ${found.project.store}`];
+    for (const { id, task } of await registry.projectTasks(found.slug))
+      lines.push(
+        `- ${id} — ${task.title} (${task.record})${task.parent ? `, child of ${task.parent}` : ""}${task.owner ? `, owned by session ${task.owner.session}` : ""}`,
+      );
+    return `${lines.join("\n")}\n`;
+  }
+  if (operation === "create") {
+    const title = requireOption(options, "--title");
+    const goal = requireOption(options, "--goal");
+    const parent = options["--parent"];
+    const slug = parent ? (await registry.task(parent))?.project : (await registry.projectFor(where))?.slug;
+    if (!slug)
+      throw new CliError(parent ? `No task ${parent}.` : `No project is linked to ${await registry.repoRoot(where)}.`);
+    const primary = parent ? undefined : await registry.repoRoot(where);
+    const created = await registry.createTask(slug, title, goal, parent, primary);
+    return `${created.id}\n${created.record}\n`;
+  }
+  if (operation === "import") {
+    const record = resolve(requireOption(options, "--record"));
+    const moved = await registry.importRecord(requireOption(options, "--project"), record);
+    return `${moved.id}\n${moved.record}\n`;
+  }
+  if (operation === "env") {
+    const id = requireOption(options, "--id");
+    if (options["--primary"] || options["--add-dir"] || options["--remove-dir"])
+      await registry.setEnvironment(id, {
+        primary: options["--primary"],
+        add: options["--add-dir"],
+        remove: options["--remove-dir"],
+      });
+    const env = await registry.environment(id);
+    if (!env.primary) return `${id} has no recorded directory.\n`;
+    const facts =
+      env.exists === false
+        ? ["missing"]
+        : [env.worktree ? "Git worktree" : "", env.branch ? `branch ${env.branch}` : ""];
+    const state = facts.filter(Boolean).join(", ");
+    return `${[`primary: ${env.primary}${state ? ` (${state})` : ""}`, ...env.directories.map((dir) => `also: ${dir}`)].join("\n")}\n`;
+  }
+  if (operation === "here") {
+    const found = await registry.here(where);
+    if (!found.length) return `No registered task works in ${resolve(where)}.\n`;
+    return `${found.map(({ id, task }) => `${id} — ${task.title} (${task.environment.primary})`).join("\n")}\n`;
+  }
+  if (operation === "fanout") {
+    const result = await registry.fanout(
+      requireOption(options, "--parent"),
+      requireOption(options, "--title"),
+      requireOption(options, "--goal"),
+      { path: options["--path"], base: options["--base"], cwd: where },
+    );
+    if (result.error) throw new CliError(result.error);
+    return `${result.id}\n${result.path}\nbranch ${result.branch}${result.copiedConfig ? "; copied .freeflow/local.json" : ""}\nNext: open a new terminal and run:\n  ${startCommand(result.path, options["--agent"])}${options["--agent"] ? "" : " (then start the agent there)"}\n`;
+  }
+  if (operation === "search") {
+    const query = requireOption(options, "--query");
+    let records;
+    if (options["--id"]) records = await registry.scope(options["--id"], options["--scope"] ?? "task");
+    else {
+      const slug = (await registry.read()).projects[options["--project"] ?? ""] ? options["--project"] : undefined;
+      if (!slug) throw new CliError("Give --id with --scope, or --project with a project's slug.");
+      records = (await registry.projectTasks(slug)).map(({ id, task }) => [id, task.record]);
+    }
+    return `${await searchRecords(records, query)}\n`;
+  }
+  throw new CliError(`Unknown command: ${command} ${operation}`);
+}
+
 async function runCore(command, rest) {
   const { options, positionals } = parseOptions(rest);
   const operation = positionals[0];
   if (options["--help"]) return commandHelp(command, operation);
   validateCommandOptions(command, operation, options);
+  if (
+    command === "project" ||
+    (command === "task" && ["create", "import", "search", "env", "here", "fanout", "remove"].includes(operation))
+  )
+    return runRegistry(command, operation, options);
+  // A registered task's ID stands for its record's path.
+  if (typeof options["--record"] === "string" && TASK_ID.test(options["--record"])) {
+    const task = await new Registry().task(options["--record"]);
+    if (!task) throw new CliError(`No task ${options["--record"]} in the registry.`);
+    options["--record"] = task.record;
+  }
   if (command === "init") return initialize(options);
   if (command === "view") {
-    if (positionals.length > 1) throw new CliError("View accepts only resume or full");
     const view = positionals[0] ?? options["--view"];
-    if (!view || !["resume", "full"].includes(view)) throw new CliError("View must be resume or full");
+    if (!view || !["resume", "full", "entry"].includes(view)) throw new CliError("View must be resume, full, or entry");
+    const ids = positionals.slice(1);
+    if (view === "entry") {
+      if (!ids.length) throw new CliError("View entry needs at least one S-NNN, C-NNN, or D-NNN ID");
+      const invalid = ids.find((id) => !/^[SCD]-\d{3,}$/.test(id));
+      if (invalid) throw new CliError(`Not an entry ID: ${invalid}`);
+    } else if (ids.length) throw new CliError(`View ${view} accepts no further arguments`);
     const loaded = await readExisting(options);
     if (view === "full") return renderFull(loaded.text);
+    if (view === "entry") return renderEntries(loaded.text, ids);
     return renderResume(loaded.text);
   }
   if (command === "validate") {

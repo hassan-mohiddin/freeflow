@@ -30,7 +30,7 @@ for (const projection of [false, true])
         if (n === 1)
           return [
             {
-              name: "freeflow_delegate",
+              name: "delegate_work",
               args: { operation: "assign", worker: "helper", contract: "Read evidence.txt and select its result." },
             },
           ];
@@ -38,21 +38,21 @@ for (const projection of [false, true])
         if (n === 3) {
           ref = "ctx:" + manager.getBranch().find((e) => e.message?.toolName === "read").id;
           return [
-            ...(projection ? [{ name: "freeflow_project", args: { operation: "add", refs: [ref] } }] : []),
-            { name: "freeflow_return", args: { operation: "submit", report: "Evidence read.", outcome: "completed" } },
+            ...(projection ? [{ name: "select_evidence", args: { operation: "add", refs: [ref] } }] : []),
+            { name: "return_work", args: { operation: "submit", report: "Evidence read.", outcome: "completed" } },
           ];
         }
         if (n === 4)
           return [
             {
-              name: "freeflow_unit",
+              name: "routing_unit",
               args: { operation: "close", outcome: "accepted", assessment: "Exact evidence observed." },
             },
           ];
         if (n === 5)
           return [
             {
-              name: "freeflow_delegate",
+              name: "delegate_work",
               args: { operation: "assign", worker: "executor", contract: "Read evidence.txt and return." },
             },
           ];
@@ -64,10 +64,10 @@ for (const projection of [false, true])
             .at(-1);
           return [
             ...(projection
-              ? [{ name: "freeflow_project", args: { operation: "add", refs: ["ctx:" + latest.id] } }]
+              ? [{ name: "select_evidence", args: { operation: "add", refs: ["ctx:" + latest.id] } }]
               : []),
             {
-              name: "freeflow_return",
+              name: "return_work",
               args: { operation: "submit", report: "Executor evidence read.", outcome: "completed" },
             },
           ];
@@ -75,7 +75,7 @@ for (const projection of [false, true])
         if (n === 8)
           return [
             {
-              name: "freeflow_unit",
+              name: "routing_unit",
               args: { operation: "close", outcome: "accepted", assessment: "Second exact result checked." },
             },
           ];
@@ -139,27 +139,27 @@ for (const projection of [false, true])
           if (n === 1)
             return [
               {
-                name: "freeflow_delegate",
+                name: "delegate_work",
                 args: { operation: "assign", worker: "helper", contract: "Read evidence.txt and select its result." },
               },
             ];
           if (n === 2 || n === 6) return [{ name: "read", args: { path: "evidence.txt" } }];
           if (n === 3 || n === 7)
             return [
-              ...(projection ? [{ name: "freeflow_project", args: { operation: "add", refs: [readRef()] } }] : []),
+              ...(projection ? [{ name: "select_evidence", args: { operation: "add", refs: [readRef()] } }] : []),
               {
-                name: "freeflow_return",
+                name: "return_work",
                 args: { operation: "submit", report: "Evidence read.", outcome: "completed" },
               },
             ];
           if (n === 4 || n === 8)
             return [
-              { name: "freeflow_unit", args: { operation: "close", outcome: "accepted", assessment: "Checked." } },
+              { name: "routing_unit", args: { operation: "close", outcome: "accepted", assessment: "Checked." } },
             ];
           if (n === 5)
             return [
               {
-                name: "freeflow_delegate",
+                name: "delegate_work",
                 args: { operation: "assign", worker: "executor", contract: "Read evidence.txt and return." },
               },
             ];

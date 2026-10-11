@@ -16,6 +16,12 @@ const MAX_ROWS = 40;
 export const INDEX_TOKEN_BOUND = 2_000;
 /** Freeflow's own control calls: no evidence to carry, as routing's evidence selection also excludes them. */
 const CONTROL_TOOLS = new Set([
+  "delegate_work",
+  "return_work",
+  "select_evidence",
+  "routing_unit",
+  "compact_context",
+  // The same tools' names before Task 003's rename, still in sessions saved earlier.
   "freeflow_delegate",
   "freeflow_return",
   "freeflow_project",

@@ -3,14 +3,27 @@ import { createWriteStream } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import { createLocalBashOperations } from "@earendil-works/pi-coding-agent";
 export const BASH_BACKGROUND = "bash_background";
+export const MONITOR = "monitor";
 export const STOP_BACKGROUND = "stop_background";
 export const NOTICE_TYPE = "freeflow-background";
+export const MONITOR_TYPE = "freeflow-monitor";
+/** Background commands and monitors together. */
 export const MAX_RUNNING = 16;
+export const MONITOR_DEFAULT_MS = 5 * 60_000;
+export const MONITOR_MAX_MS = 30 * 60_000;
+/** Event notices a monitor may send per minute before it is stopped; each one can start a model turn. */
+export const MONITOR_PER_MINUTE = 20;
+/** Lines one event notice shows; the rest stay in the output file. */
+export const MONITOR_MAX_LINES = 40;
+const MAX_LINE_CHARS = 1_000;
 /** Marks harness messages, which arrive on their own schedule, as not written by the user. */
-export const NOTICE_PREFIX = "[Freeflow notice, not from the user]";
-const newId = () => `bg${randomBytes(6).readUIntBE(0, 6).toString(36).slice(-6).padStart(6, "0")}`;
+import { freeflowNotice } from "../host/inbound.js";
+export { freeflowNotice };
+const newId = (prefix) => `${prefix}${randomBytes(6).readUIntBE(0, 6).toString(36).slice(-6).padStart(6, "0")}`;
+const shellQuote = (text) => `'${text.replace(/'/g, `'\\''`)}'`;
 function labelFor(command, description) {
   const text = description?.trim() || command.trim().split("\n")[0];
   return text.length > 80 ? `${text.slice(0, 77)}...` : text;
@@ -28,6 +41,10 @@ function close(stream, trailer) {
 export class BackgroundJobs {
   host;
   jobs = new Map();
+  /** Launches between their check of MAX_RUNNING and their job's registration. */
+  starting = 0;
+  /** Changes when the session ends, so a launch that was still starting then does not run. */
+  generation = 0;
   constructor(host) {
     this.host = host;
   }
@@ -35,39 +52,101 @@ export class BackgroundJobs {
     return [...this.jobs.values()].filter((job) => job.status === "running");
   }
   async start(command, description, cwd, sessionId) {
-    const running = this.running();
-    if (running.length >= MAX_RUNNING)
+    return this.launch("command", command, description, cwd, sessionId);
+  }
+  /**
+   * Claude Code's Monitor: each line the command prints to stdout is an event for the model, batched by the host;
+   * stderr goes to the output file only. One notice when the command exits, expires, or is stopped for sending too
+   * much.
+   */
+  async monitor(command, description, timeoutMs, cwd, sessionId) {
+    const ms = Math.min(Math.max(Math.round(timeoutMs) || MONITOR_DEFAULT_MS, 1_000), MONITOR_MAX_MS);
+    return this.launch("monitor", command, description, cwd, sessionId, ms);
+  }
+  async launch(kind, command, description, cwd, sessionId, timeoutMs) {
+    if (this.running().length + this.starting >= MAX_RUNNING)
       throw new Error(`${MAX_RUNNING} background commands are running. Stop one with stop_background, then retry.`);
-    let id = newId();
-    while (this.jobs.has(id)) id = newId();
+    const prefix = kind === "monitor" ? "mon" : "bg";
+    let id = newId(prefix);
+    while (this.jobs.has(id)) id = newId(prefix);
+    const generation = this.generation;
     const folder = join(tmpdir(), "freeflow", sessionId.replace(/[^A-Za-z0-9._-]/g, "_"), "background");
-    await mkdir(folder, { recursive: true, mode: 0o700 });
     const outputPath = join(folder, `${id}.output`);
-    const stream = createWriteStream(outputPath, { flags: "w", mode: 0o600 });
-    await new Promise((resolve, reject) => {
-      stream.once("open", () => resolve());
-      stream.once("error", reject);
-    });
+    // A monitor's stderr is appended to the same file by the shell, so both writers append.
+    let stream;
+    this.starting++;
+    try {
+      await mkdir(folder, { recursive: true, mode: 0o700 });
+      stream = createWriteStream(outputPath, { flags: kind === "monitor" ? "a" : "w", mode: 0o600 });
+      await new Promise((resolve, reject) => {
+        stream.once("open", () => resolve());
+        stream.once("error", reject);
+      });
+    } finally {
+      this.starting--;
+    }
+    if (generation !== this.generation) {
+      await close(stream, "[not started: the session ended]\n");
+      throw new Error("The session ended before the command started.");
+    }
     const controller = new AbortController();
     let endsWithNewline = true;
     const job = {
       id,
+      kind,
       label: labelFor(command, description),
       outputPath,
       controller,
       status: "running",
+      events: 0,
       done: Promise.resolve(),
     };
-    const run = createLocalBashOperations({ shellPath: this.host.shellPath() }).exec(command, cwd, {
+    let partial = "";
+    // One decoder per job, so a character split across two reads is decoded whole.
+    const decoder = new StringDecoder("utf8");
+    const event = (line) => {
+      job.events++;
+      const text = line.length > MAX_LINE_CHARS ? `${line.slice(0, MAX_LINE_CHARS)}... (line cut)` : line;
+      this.host.event(
+        id,
+        text,
+        (lines) => this.eventText(job, lines),
+        () => this.halt(job, "limit"),
+      );
+    };
+    const script = kind === "monitor" ? `{\n${command}\n} 2>>${shellQuote(outputPath)}` : command;
+    const run = createLocalBashOperations({ shellPath: this.host.shellPath() }).exec(script, cwd, {
       onData: (data) => {
         if (data.length === 0) return;
         endsWithNewline = data[data.length - 1] === 10;
         stream.write(data);
+        if (kind !== "monitor" || job.stopping) return;
+        const lines = (partial + decoder.write(data)).split("\n");
+        // An unfinished line keeps only what a terminal would show (the text after its last carriage return), so a
+        // progress bar redrawn with \r does not grow it without bound; the output file has everything.
+        partial = (lines.pop() ?? "")
+          .split("\r")
+          .at(-1)
+          .slice(-4 * MAX_LINE_CHARS);
+        for (const line of lines) if (line.trim() !== "") event(line.replace(/\r$/, ""));
       },
       signal: controller.signal,
     });
+    const timer =
+      timeoutMs === undefined ? undefined : setTimeout(() => this.halt(job, "expired"), timeoutMs).unref?.();
+    const finish = () => {
+      if (timer) clearTimeout(timer);
+      job.ended = true;
+      if (kind !== "monitor") return;
+      partial += decoder.end();
+      if (partial.trim() !== "" && !job.stopping) event(partial);
+      partial = "";
+      if (job.stopping === "shutdown" && this.host.discardEvents) this.host.discardEvents(id);
+      else this.host.endEvents(id);
+    };
     job.done = run.then(
       async ({ exitCode }) => {
+        finish();
         const code = exitCode ?? 1;
         job.exitCode = code;
         job.status = code === 0 ? "completed" : "failed";
@@ -75,10 +154,20 @@ export class BackgroundJobs {
         this.notify(job);
       },
       async (error) => {
+        finish();
         const lead = endsWithNewline ? "" : "\n";
         if (job.stopping) {
           job.status = "stopped";
-          await close(stream, `${lead}${job.stopping === "tool" ? "[stopped]" : "[stopped at session end]"}\n`);
+          const trailer =
+            job.stopping === "tool"
+              ? "[stopped]"
+              : job.stopping === "shutdown"
+                ? "[stopped at session end]"
+                : job.stopping === "expired"
+                  ? "[stopped: timeout]"
+                  : "[stopped: too many events]";
+          await close(stream, `${lead}${trailer}\n`);
+          if (job.stopping === "expired" || job.stopping === "limit") this.notify(job);
           return;
         }
         // The command could not run (for example, the working directory is gone).
@@ -89,7 +178,25 @@ export class BackgroundJobs {
       },
     );
     this.jobs.set(id, job);
-    return { id, outputPath };
+    return { id, outputPath, ...(timeoutMs === undefined ? {} : { timeoutMs }) };
+  }
+  /** Stop a monitor on its own account: its timeout passed, or it sent more than its rate limit allows. */
+  halt(job, reason) {
+    if (job.status !== "running" || job.stopping || job.ended) return;
+    job.stopping = reason;
+    job.controller.abort();
+  }
+  eventText(job, lines) {
+    const shown = lines.slice(0, MONITOR_MAX_LINES);
+    const more = lines.length - shown.length;
+    return freeflowNotice(
+      "monitor",
+      [
+        `Monitor ${job.id} (${job.label}):`,
+        ...shown,
+        ...(more > 0 ? [`... ${more} more lines in ${job.outputPath}`] : []),
+      ].join("\n"),
+    );
   }
   async stop(id) {
     const job = this.jobs.get(id);
@@ -117,6 +224,7 @@ export class BackgroundJobs {
   }
   /** Session end: stop every running job, wait for the processes to exit, forget them. No notice is sent. */
   async stopAll() {
+    this.generation++;
     const running = this.running();
     for (const job of running) {
       job.stopping = "shutdown";
@@ -129,15 +237,45 @@ export class BackgroundJobs {
   restate() {
     const running = this.running();
     if (running.length === 0) return;
-    const list = running.map((job) => `${job.id} (${job.label}), output ${job.outputPath}`).join("; ");
+    const list = running
+      .map((job) => `${job.kind === "monitor" ? "monitor " : ""}${job.id} (${job.label}), output ${job.outputPath}`)
+      .join("; ");
     this.host.send(
-      `${NOTICE_PREFIX} Still running: ${list}. Do not start them again; stop one with stop_background before restarting it.`,
+      freeflowNotice(
+        "background",
+        `Still running: ${list}. Do not start them again; stop one with stop_background before restarting it.`,
+      ),
       { running: running.map((job) => ({ id: job.id, outputPath: job.outputPath })) },
       false,
     );
   }
   notify(job, runError) {
-    if (job.stopping) return;
+    if (job.stopping === "tool" || job.stopping === "shutdown") return;
+    const details = {
+      id: job.id,
+      ...(job.kind === "monitor" ? { kind: job.kind } : {}),
+      status: job.status,
+      ...(job.exitCode === undefined ? {} : { exitCode: job.exitCode }),
+      ...(job.kind === "monitor" ? { events: job.events } : {}),
+      outputPath: job.outputPath,
+    };
+    if (job.kind === "monitor") {
+      const events = `${job.events} ${job.events === 1 ? "event" : "events"}`;
+      const outcome =
+        job.stopping === "expired"
+          ? `reached its timeout after ${events} and was stopped. Start it again to keep watching.`
+          : job.stopping === "limit"
+            ? `was stopped after ${events}: it sent more than ${MONITOR_PER_MINUTE} notices in a minute. Filter its output to the lines you would act on, then start it again.`
+            : runError !== undefined
+              ? `failed to run: ${runError}.`
+              : `exited with code ${job.exitCode} after ${events}.`;
+      this.host.send(
+        freeflowNotice("monitor", `Monitor ${job.id} (${job.label}) ${outcome} Output: ${job.outputPath}.`),
+        details,
+        true,
+      );
+      return;
+    }
     const outcome =
       runError !== undefined
         ? `failed to run: ${runError}`
@@ -145,13 +283,11 @@ export class BackgroundJobs {
           ? "completed"
           : `failed with exit code ${job.exitCode}`;
     this.host.send(
-      `${NOTICE_PREFIX} Background command ${job.id} (${job.label}) ${outcome}. Output: ${job.outputPath}.`,
-      {
-        id: job.id,
-        status: job.status,
-        ...(job.exitCode === undefined ? {} : { exitCode: job.exitCode }),
-        outputPath: job.outputPath,
-      },
+      freeflowNotice(
+        "background",
+        `Background command ${job.id} (${job.label}) ${outcome}. Output: ${job.outputPath}.`,
+      ),
+      details,
       true,
     );
   }
@@ -160,8 +296,14 @@ const START_DESCRIPTION = [
   "Run a shell command in the background. Use it for servers, watchers and commands expected to run longer than two minutes. Returns an ID and an output file at once; you are notified once, when the command exits. Read the output file for output so far.",
   "To be notified when something becomes ready, run a command that exits when it is: until grep -qE 'Listening|Error|Traceback' server.log; do sleep 1; done. Match the failure lines too: a check that waits only for success stays silent when the process crashes.",
 ].join("\n\n");
+const MONITOR_DESCRIPTION = [
+  "Watch a command's output as it happens: each line it prints to stdout reaches you as a notice (lines within 200 ms join one notice); stderr goes only to the output file. You also get one notice when the command exits or when timeout_ms passes (default 5 minutes, at most 30); start it again to keep watching. A notice that arrives while you are idle starts a model turn, so make the command print only lines you would act on; one that prints too much is stopped.",
+  "For a single notification (a server is ready, a build finished), use bash_background with a command that exits when the condition holds.",
+  "Every stage of a pipe must flush each line (grep --line-buffered, awk with fflush()), or lines wait in a buffer; head cannot.",
+  "Silence is not success: match every outcome you would act on, failures as well as success, for example tail -f app.log | grep -E --line-buffered 'ready|ERROR|Traceback|FAILED'. Stop it with stop_background.",
+].join("\n\n");
 const STOP_DESCRIPTION =
-  "Stop a background command started with bash_background. Returns after the command has exited.";
+  "Stop a background command or monitor started with bash_background or monitor. Returns after the command has exited.";
 /** Registered once, inactive until Tool Execution is effective (see tool-execution/tools.ts). */
 export function registerBackgroundTools(pi, jobs, host) {
   const guard = () => {
@@ -209,13 +351,61 @@ export function registerBackgroundTools(pi, jobs, host) {
     },
   });
   pi.registerTool({
+    name: MONITOR,
+    label: MONITOR,
+    description: MONITOR_DESCRIPTION,
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        command: { type: "string", description: "Shell command whose stdout lines are the events" },
+        description: { type: "string", description: "A few words saying what is watched; shown with every event" },
+        timeout_ms: {
+          type: "number",
+          minimum: 1_000,
+          maximum: MONITOR_MAX_MS,
+          description: `Stop watching after this long (default ${MONITOR_DEFAULT_MS}, at most ${MONITOR_MAX_MS})`,
+        },
+      },
+      required: ["command", "description"],
+    },
+    outputSchema: {
+      type: "object",
+      properties: { id: { type: "string" }, outputPath: { type: "string" }, timeoutMs: { type: "number" } },
+      required: ["id", "outputPath", "timeoutMs"],
+    },
+    exposure: "direct",
+    defaultActive: false,
+    async execute(_id, params, _signal, _u, ctx) {
+      guard();
+      const started = await jobs.monitor(
+        String(params?.command ?? ""),
+        String(params?.description ?? ""),
+        Number(params?.timeout_ms ?? MONITOR_DEFAULT_MS),
+        ctx.cwd,
+        ctx.sessionManager?.getSessionId?.() ?? "session",
+      );
+      const minutes = Math.round(((started.timeoutMs ?? MONITOR_DEFAULT_MS) / 60_000) * 10) / 10;
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Monitor ${started.id} started. Each line it prints reaches you as a notice; it stops when the command exits, after ${minutes} min, or with stop_background. When you tell the user you are watching, say it stops after ${minutes} min unless restarted. Output: ${started.outputPath}.`,
+          },
+        ],
+        details: started,
+        structuredContent: started,
+      };
+    },
+  });
+  pi.registerTool({
     name: STOP_BACKGROUND,
     label: STOP_BACKGROUND,
     description: STOP_DESCRIPTION,
     parameters: {
       type: "object",
       additionalProperties: false,
-      properties: { id: { type: "string", description: "The ID bash_background returned" } },
+      properties: { id: { type: "string", description: "The ID bash_background or monitor returned" } },
       required: ["id"],
     },
     outputSchema: {

@@ -1,6 +1,6 @@
 import { annotateSources } from "./provenance.js";
 import { randomUUID } from "node:crypto";
-import { bodyHash, deliveredSelection } from "./sources.js";
+import { bodyHash, deliveredSelection, isTaskEvidence } from "./sources.js";
 import { canonical, emptySelection, isWorkerProfile, PROFILES, requireCondition as check } from "./types.js";
 import { estimateRequest } from "./budget.js";
 import { occurrenceIdentity, tagDerived } from "../host/projection-tags.js";
@@ -217,9 +217,18 @@ export function prepareView(options) {
     // A structural worker envelope keeps only its calls for the selected results; worker narration is never evidence.
     const structuralWorker =
       role === "assistant" && selective && isWorkerProfile(source.producer) && !full.has(source.ref);
-    const omitted = role === "toolResult" && !full.has(source.ref);
+    // Why a result is not shown, said plainly: "omitted" read as lost evidence, and grok-4.7 Coordinators recovered
+    // results that were shown in full beside it (Task 004 S-005).
+    const omitted =
+      role === "toolResult" && !full.has(source.ref)
+        ? required.has(source.ref)
+          ? "[Selected, but not shown: see the evidence problems in the Cognitive Routing Runtime State]"
+          : isTaskEvidence(source)
+            ? "[Not shown: the worker did not select this result as evidence]"
+            : "[Routing receipt, not shown]"
+        : undefined;
     const renamed = role === "toolResult" ? unpaired.get(source.message.toolCallId) : undefined;
-    const variant = `${withheld ? 1 : 0}${structuralWorker ? 1 : 0}${omitted ? 1 : 0}${renamed === undefined ? "" : `:${renamed}`}`;
+    const variant = `${withheld ? 1 : 0}${structuralWorker ? 1 : 0}${omitted ?? 0}${renamed === undefined ? "" : `:${renamed}`}`;
     let variants = cache.renderings.get(source.entry);
     if (!variants) cache.renderings.set(source.entry, (variants = new Map()));
     let rendering = variants.get(variant);
@@ -231,7 +240,7 @@ export function prepareView(options) {
       if (omitted)
         message = {
           ...message,
-          content: [{ type: "text", text: "[Worker result omitted from this view]" }],
+          content: [{ type: "text", text: omitted }],
           details: undefined,
         };
       if (renamed !== undefined) message = { ...message, toolCallId: renamed };
@@ -408,7 +417,7 @@ export function prepareView(options) {
         a.id,
         options.compactedInAssignment === undefined
           ? a.contract
-          : `${a.contract}\n\nCompaction: you compacted during this assignment, and cycle ${options.compactedInAssignment} began then. A compaction this contract asks for is done: continue with the rest of the contract, or return it with freeflow_return if compacting was all it asked.`,
+          : `${a.contract}\n\nCompaction: you compacted during this assignment, and cycle ${options.compactedInAssignment} began then. A compaction this contract asks for is done: continue with the rest of the contract, or return it with return_work if compacting was all it asked.`,
       );
   }
   if (baseReport) {

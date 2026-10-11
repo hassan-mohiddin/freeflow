@@ -11,7 +11,7 @@ The host agent still owns tools, permissions, and execution. Freeflow helps it u
 - **New to Freeflow?** Read [Using Freeflow Effectively](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/using-freeflow.md).
 - **Installing it?** Start with [Getting Started](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/getting-started.md).
 - **Using Cognitive Routing?** Read the detailed [Cognitive Routing reference](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/cognitive-routing.md).
-- **Using Freeflow on Pi?** Read [Tool Execution](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/tool-execution.md) and [Compaction](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/compaction.md).
+- **Using Freeflow on Pi?** Read [Tool Execution](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/tool-execution.md), [Compaction](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/compaction.md) and [Task Memory](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/capabilities/task-memory.md).
 
 ## Memory · Context · Compute
 
@@ -45,7 +45,7 @@ Coding agents commonly fail at control boundaries:
 | New evidence invalidates the chosen approach. | Workflow re-enters only the affected owner and preserves valid work. |
 | Every task receives the same heavy process. | Workflow scales pressure to consequence, uncertainty, interaction, and reversibility. |
 | A passing command becomes an unsupported completion claim. | Verify Work ties the claim to the actual observer and evidence boundary. |
-| Context loss erases decisions and partial work. | Track Work restores a complete Working Record and reconciles it with live state. |
+| Context loss erases decisions and partial work. | Track Work recovers the Working Record's current state, and the history the next step needs, and reconciles it with live state. |
 | Expensive models perform routine supporting work. | Cognitive Routing can place bounded support and substantive execution on configured profiles. |
 | Models flood their context with whole files and long command output, or lose edits to files that changed behind them. | Tool Execution teaches narrow reads and capped output, tracks what the model has read, and adds `apply_patch` and background commands. |
 | Pi's automatic compaction summarizes work the agent was in the middle of, and the next step drifts. | Compaction warns the agent first, so it compacts at a safe point from its own summary, Working Record and carried context. |
@@ -103,6 +103,7 @@ A comparatively economical but capable Helper can contribute much of Both mode's
 | Selected GPT-6 effort history | Narrow source/fixture-qualified native Pi route for Astra, Luna, and Sol; provider savings unverified |
 | Tool Execution | Experimental native Pi; off by default; native fixtures and live sessions exercise it, its effect on task results is unmeasured |
 | Compaction | Experimental native Pi; on by default; native fixtures and live sessions exercise it, summary quality against Pi's summarizer is unmeasured |
+| Task Memory | Preview native Pi; off by default; native fixtures and scripted Haiku 5.5 sessions (3 per case) exercise it, long real use is unmeasured |
 
 Configuration or installation alone does not establish runtime delivery.
 

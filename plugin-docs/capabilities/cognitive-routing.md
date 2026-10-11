@@ -191,7 +191,7 @@ Configure Cognitive Routing in shared `.freeflow/config.json` or personal `.free
 | `projection` | Enables explicit worker-evidence selection for Coordinator. | `true` |
 | `profiles.<name>.provider` | Provider identifier known to Pi. | Required for configured profile |
 | `profiles.<name>.model` | Model identifier known to that provider. | Required for configured profile |
-| `profiles.<name>.thinking` | Exact thinking level: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. | Required for configured profile |
+| `profiles.<name>.thinking` | Exact thinking level, one the model supports by Pi's model data: from `off`, `minimal`, `low`, `medium`, `high`, `xhigh` and `max` (grok-4.7, for one, supports only `low` to `xhigh`). The settings screen offers only the model's levels. | Required for configured profile |
 
 ### Configuration precedence
 
@@ -294,7 +294,7 @@ With `projection: false`:
 
 - enabled profiles receive Pi's ordinary active context;
 - routing still records responsibility and saved communication;
-- `freeflow_project` is unavailable;
+- `select_evidence` is unavailable;
 - a report can return without an evidence-selection ceremony.
 
 ### Projection on

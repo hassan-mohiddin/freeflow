@@ -1,6 +1,6 @@
 ---
 name: review-artifact
-description: "Use when judging whether a durable artifact is aligned, sufficient, and fit to guide its intended use through self-review, independent review, or adjudication of a returned artifact review."
+description: "Use when reviewing a document that will guide later work, such as a spec, plan, design, or skill, for whether it is correct and complete enough to use, or when weighing a review of one. Code and other finished work use Review Work."
 ---
 
 # Review Artifact

@@ -12,9 +12,7 @@ test("an interrupted worker sees one attention notice, not a copy per request", 
     async (n, body) => {
       if (n > 2) notices.push(count(body, NOTICE));
       if (n === 1)
-        return [
-          { name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence.txt and return." } },
-        ];
+        return [{ name: "delegate_work", args: { operation: "assign", contract: "Read evidence.txt and return." } }];
       if (n === 2) {
         await active.steer("STOP_AND_REPORT_31");
         return [{ name: "read", args: { path: "evidence.txt" } }];
@@ -23,7 +21,7 @@ test("an interrupted worker sees one attention notice, not a copy per request", 
       if (n === 5)
         return [
           {
-            name: "freeflow_return",
+            name: "return_work",
             args: { operation: "submit", report: "Partial result after new input.", outcome: "partial" },
           },
         ];
@@ -49,26 +47,26 @@ test("routing argument errors name the operation and the fields to fix", async (
     }
     return "";
   };
-  const extra = await message("freeflow_project", { operation: "add", refs: ["ctx:a"], reason: "why" });
+  const extra = await message("select_evidence", { operation: "add", refs: ["ctx:a"], reason: "why" });
   assert.match(extra, /add/);
   assert.match(extra, /reason/);
   assert.match(extra, /allowed fields: operation, refs/i);
-  const missing = await message("freeflow_delegate", { operation: "replace", contract: "c" });
+  const missing = await message("delegate_work", { operation: "replace", contract: "c" });
   assert.match(missing, /replace/);
   assert.match(missing, /missing required field.*reason/i);
-  const unknown = await message("freeflow_unit", { operation: "finish" });
+  const unknown = await message("routing_unit", { operation: "finish" });
   assert.match(unknown, /inspect, assess, recover, cancel-recovery, close/);
-  const invalid = await message("freeflow_unit", { operation: "close", outcome: "done", assessment: "a" });
+  const invalid = await message("routing_unit", { operation: "close", outcome: "done", assessment: "a" });
   assert.match(invalid, /outcome/);
 });
 
 test("flattened routing fields say which operations accept them", async () => {
   const { ROUTING_SCHEMAS } = await import("../../dist/cognitive-routing/schemas.js");
-  assert.match(ROUTING_SCHEMAS.freeflow_project.properties.reason.description, /Only for operation: remove\./);
-  assert.match(ROUTING_SCHEMAS.freeflow_delegate.properties.reason.description, /Only for operation: replace\./);
-  assert.match(ROUTING_SCHEMAS.freeflow_unit.properties.limit.description, /Only for operation: inspect\./);
-  assert.match(ROUTING_SCHEMAS.freeflow_unit.properties.assessment.description, /Only for operation: close\./);
-  assert.doesNotMatch(ROUTING_SCHEMAS.freeflow_delegate.properties.contract.description ?? "", /Only for/);
+  assert.match(ROUTING_SCHEMAS.select_evidence.properties.reason.description, /Only for operation: remove\./);
+  assert.match(ROUTING_SCHEMAS.delegate_work.properties.reason.description, /Only for operation: replace\./);
+  assert.match(ROUTING_SCHEMAS.routing_unit.properties.limit.description, /Only for operation: inspect\./);
+  assert.match(ROUTING_SCHEMAS.routing_unit.properties.assessment.description, /Only for operation: close\./);
+  assert.doesNotMatch(ROUTING_SCHEMAS.delegate_work.properties.contract.description ?? "", /Only for/);
 });
 
 test("assessment resumption reports its actual cause", async () => {
@@ -177,15 +175,13 @@ test("routing Runtime State carries responsibility without ids, boilerplate, or 
         .at(-1);
       states.push(JSON.stringify(state));
       if (n === 1)
-        return [
-          { name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence.txt and return." } },
-        ];
+        return [{ name: "delegate_work", args: { operation: "assign", contract: "Read evidence.txt and return." } }];
       if (n === 2) return [{ name: "read", args: { path: "evidence.txt" } }];
       if (n === 3) {
         const ref = "ctx:" + manager.getBranch().find((e) => e.message?.toolName === "read").id;
         return [
-          { name: "freeflow_project", args: { operation: "add", refs: [ref] } },
-          { name: "freeflow_return", args: { operation: "submit", report: "Read.", outcome: "completed" } },
+          { name: "select_evidence", args: { operation: "add", refs: [ref] } },
+          { name: "return_work", args: { operation: "submit", report: "Read.", outcome: "completed" } },
         ];
       }
       return [];
@@ -313,13 +309,13 @@ test("receipts identify contracts and reports without repeating their text", asy
   let coordinatorBody;
   const result = await fixture(
     async (n, body, manager) => {
-      if (n === 1) return [{ name: "freeflow_delegate", args: { operation: "assign", contract: CONTRACT } }];
+      if (n === 1) return [{ name: "delegate_work", args: { operation: "assign", contract: CONTRACT } }];
       if (n === 2) return [{ name: "read", args: { path: "evidence.txt" } }];
       if (n === 3) {
         const ref = "ctx:" + manager.getBranch().find((e) => e.message?.toolName === "read").id;
         return [
-          { name: "freeflow_project", args: { operation: "add", refs: [ref] } },
-          { name: "freeflow_return", args: { operation: "submit", report: REPORT, outcome: "completed" } },
+          { name: "select_evidence", args: { operation: "add", refs: [ref] } },
+          { name: "return_work", args: { operation: "submit", report: REPORT, outcome: "completed" } },
         ];
       }
       coordinatorBody = JSON.stringify(body);
@@ -331,9 +327,9 @@ test("receipts identify contracts and reports without repeating their text", asy
   );
   const receipt = (tool) =>
     result.entries.find((e) => e.message?.role === "toolResult" && e.message.toolName === tool).message;
-  const delegate = JSON.stringify(receipt("freeflow_delegate"));
+  const delegate = JSON.stringify(receipt("delegate_work"));
   assert.doesNotMatch(delegate, /CONTRACT_BODY_73/, "the delegate receipt does not repeat the contract");
-  const returned = receipt("freeflow_return");
+  const returned = receipt("return_work");
   const details = JSON.parse(returned.content[0].text);
   assert.equal(details.report, undefined, "the return receipt does not repeat the report");
   assert.match(details.reportSha256, /^[a-f0-9]{64}$/);
@@ -344,14 +340,13 @@ test("the Coordinator view keeps a worker's selected-result call but not its uns
   let coordinatorBody;
   await fixture(
     async (n, body, manager) => {
-      if (n === 1)
-        return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence.txt." } }];
+      if (n === 1) return [{ name: "delegate_work", args: { operation: "assign", contract: "Read evidence.txt." } }];
       if (n === 2) return [{ name: "read", args: { path: "evidence.txt" } }];
       if (n === 3) {
         const ref = "ctx:" + manager.getBranch().find((e) => e.message?.toolName === "read").id;
         return [
-          { name: "freeflow_project", args: { operation: "add", refs: [ref] } },
-          { name: "freeflow_return", args: { operation: "submit", report: "Read.", outcome: "completed" } },
+          { name: "select_evidence", args: { operation: "add", refs: [ref] } },
+          { name: "return_work", args: { operation: "submit", report: "Read.", outcome: "completed" } },
         ];
       }
       coordinatorBody = JSON.stringify(body);

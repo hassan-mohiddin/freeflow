@@ -1,6 +1,6 @@
 ---
 name: execute-work
-description: "Use when preparing and carrying out requested or approved concrete work, including implementation, fixes, prototypes, documentation, configuration, and repository maintenance."
+description: "Use when carrying out work the user asked for or approved that changes files or settings: implementing, fixing, prototyping, configuring, or maintaining code. When a failure's cause is unknown, Diagnose Failure comes first."
 ---
 
 # Execute Work

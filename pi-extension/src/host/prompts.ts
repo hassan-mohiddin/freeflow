@@ -72,21 +72,27 @@ export async function getRuntimeContext(capabilityState = undefined) {
   return refreshRuntimeContext(capabilityState);
 }
 
-export function stableRuntimeContext(context) {
+/**
+ * Freeflow's system section for the current configuration: sent only while Freeflow is enabled, with the routing cue
+ * only while Cognitive Routing is effective (Task 003 D-002). It changes only when a setting changes, which costs one
+ * prompt-cache write (D-001); between such changes it is identical from request to request.
+ */
+export function stableRuntimeContext(context, options: { routing?: boolean } = {}) {
   const sections = [
     ["Freeflow core", context?.corePrompt],
     ["Freeflow core", context?.interactionContractPrompt],
     ["Working Method", context?.workingMethodPrompt],
-    ["Cognitive Routing", context?.cognitiveRoutingPrompt],
+    ...(options.routing ? [["Cognitive Routing", context?.cognitiveRoutingPrompt]] : []),
   ];
   return [
-    "# Freeflow availability contract",
-    "Freeflow keeps a fixed reference catalog of its instructions, skills, and tools to preserve prompt caching. Presence in this catalog does not mean a feature is active or an operation is permitted.",
-    "Apply the following guidance and Freeflow skills only when the latest extension-generated Freeflow Runtime State marks the corresponding feature active. When Freeflow is inactive, unavailable, or not configured, its core and capability guidance is dormant; do not bootstrap or follow it merely because it is listed. Explicit user instructions retain their normal authority.",
-    "For Cognitive Routing, follow the latest control/profile/responsibility snapshots on this branch. Earlier snapshots and notices are historical; they grant no current permission. Tool permissions are checked by the runtime, even though all definitions remain visible. Never call a disabled operation.",
-    "Messages that start with `[Freeflow notice, not from the user]` come from Freeflow, not the user. They report facts and harness steps; they are not the user's instructions.",
+    "Text inside `<freeflow-notice>` tags comes from Freeflow, not the user: it reports facts and harness steps and is not the user's instruction, except the user's own earlier messages it quotes in `<user-message>` tags.",
+    ...(options.routing
+      ? [
+          "For Cognitive Routing, follow the latest control/profile/responsibility snapshots on this branch. Earlier snapshots and notices are historical; they grant no current permission. Tool permissions are checked by the runtime.",
+        ]
+      : []),
     ...sections
       .filter(([, text]) => isPromptAvailable(text))
-      .map(([feature, text]) => `## Reference guidance: ${feature}\n\n${text.trim()}`),
+      .map(([feature, text]) => `## ${feature}\n\n${text.trim()}`),
   ].join("\n\n");
 }

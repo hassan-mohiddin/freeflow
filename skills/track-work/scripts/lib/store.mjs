@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { execFile as execFileCallback } from "node:child_process";
 import { lstat, mkdir, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 
@@ -67,21 +67,49 @@ async function assertNoSymlinkPath(target, stopAt) {
   }
 }
 
-export function taskRoot(root) {
-  return resolve(root, ".freeflow", "tasks");
+/** The marker a project store keeps at its root; see registry.mjs. */
+export const STORE_MARKER = "store.json";
+
+/** In a tasks directory: the highest task number a removal took away, so numbering never goes back. */
+export const LAST_TASK_NUMBER = ".last-task-number";
+
+/** Whether root is a project store: its store.json is the registry's marker, not some other file of that name. */
+function isStore(root) {
+  try {
+    const marker = JSON.parse(readFileSync(join(root, STORE_MARKER), "utf8"));
+    return marker?.version === 1 && typeof marker.project === "string";
+  } catch {
+    return false;
+  }
 }
 
+/** A repository keeps its records in .freeflow/tasks; a project store, marked by store.json, in tasks. */
+export function taskRoot(root) {
+  return isStore(root) ? resolve(root, "tasks") : resolve(root, ".freeflow", "tasks");
+}
+
+/** The project store holding an absolute record path (<store>/tasks/<task>/record.md), or undefined. */
+export function storeOf(recordPath) {
+  const store = dirname(dirname(dirname(resolve(recordPath))));
+  return basename(dirname(dirname(resolve(recordPath)))) === "tasks" && isStore(store) ? store : undefined;
+}
+
+/**
+ * The path with every symlink resolved, including for a path that does not exist yet: the nearest existing ancestor is
+ * resolved and the rest appended. Git reports canonical paths, so comparisons with it need the same form.
+ */
 function canonicalPath(path) {
   const candidate = resolve(path);
-  try {
-    return realpathSync(candidate);
-  } catch {
-    const parent = dirname(candidate);
-    if (parent === candidate) return candidate;
+  const missing = [];
+  let current = candidate;
+  for (;;) {
     try {
-      return join(realpathSync(parent), basename(candidate));
+      return join(realpathSync(current), ...missing);
     } catch {
-      return candidate;
+      const parent = dirname(current);
+      if (parent === current) return candidate;
+      missing.unshift(basename(current));
+      current = parent;
     }
   }
 }
@@ -137,15 +165,16 @@ export async function readInput(inputPath, cwd = process.cwd()) {
   }
 }
 
-async function nextTaskNumber(tasks) {
+export async function nextTaskNumber(tasks) {
   let entries = [];
   try {
     entries = await readdir(tasks, { withFileTypes: true });
   } catch (error) {
     if (error?.code !== "ENOENT") throw error;
   }
-  // Numbers are never reused, so an old reference to a deleted task cannot point at a new one.
-  let highest = 0;
+  // Numbers are never reused, so an old reference to a deleted task cannot point at a new one; a removal records the
+  // highest number it took away (LAST_TASK_NUMBER), since its directory is gone.
+  let highest = Number((await readFile(join(tasks, LAST_TASK_NUMBER), "utf8").catch(() => "0")).trim()) || 0;
   for (const entry of entries) {
     const match = /^task-(\d{3,})-/.exec(entry.name);
     if (entry.isDirectory() && match) highest = Math.max(highest, Number(match[1]));

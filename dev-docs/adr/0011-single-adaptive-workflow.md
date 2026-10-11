@@ -28,3 +28,10 @@ Keeping the Interaction Contract as a separate mandatory fragment preserves a cl
 - Existing mode configuration is a breaking invalidation rather than a compatibility path.
 - Current docs and release notes describe the change; released evidence and historical archives remain immutable.
 - Host permission and model-compute controls remain separate from Freeflow Workflow policy.
+
+## Amendment (2026-10-05): selectable runtime prompts on other hosts
+
+On hosts other than Pi, a `prompts` setting in `.freeflow/config.json` or `.freeflow/local.json` turns each runtime prompt on or off: `core`, `interactionContract` and `workingMethod`, each on by default, the personal file overriding the shared one prompt by prompt. The Interaction Contract is therefore mandatory only on Pi, which always delivers every runtime prompt and ignores the setting. The former top-level `interactionContract` key stays unsupported and still invalidates configuration.
+
+Hosts and the models they run differ in how much of this guidance they need, so the user chooses, with one default for every host.
+

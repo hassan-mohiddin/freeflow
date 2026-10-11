@@ -15,9 +15,9 @@ const results = (manager) =>
     .getBranch()
     .filter((entry) => entry.message?.role === "toolResult")
     .map((entry) => entry.message);
-const delegate = { name: "freeflow_delegate", args: { operation: "assign", contract: "Do the fixture work." } };
-const submit = { name: "freeflow_return", args: { operation: "submit", report: "Done.", outcome: "completed" } };
-const close = { name: "freeflow_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } };
+const delegate = { name: "delegate_work", args: { operation: "assign", contract: "Do the fixture work." } };
+const submit = { name: "return_work", args: { operation: "submit", report: "Done.", outcome: "completed" } };
+const close = { name: "routing_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } };
 
 test("an exit notice after the unit closed starts a Coordinator turn", { timeout: 30000 }, async () => {
   await fixture(
@@ -205,7 +205,7 @@ test(
         [
           [delegate],
           [{ name: "codemode", args: { code: script } }],
-          [{ name: "codemode", args: { code: "return 'freeflow_return' in tools;" } }],
+          [{ name: "codemode", args: { code: "return 'return_work' in tools;" } }],
           [submit],
           [close],
         ][n - 1] ?? [],

@@ -83,7 +83,7 @@ require_text "$workflow_skill" 'When the owner needs an environment interaction 
 require_text "$action_selection_skill" 'Choose environment interactions that advance the current question or result'
 require_text "$action_selection_skill" 'return the changed evidence to the current owner.'
 require_text "$runtime_doc" 'runtime/prompts/'
-require_text "$runtime_doc" 'Workflow, Action Selection, and Supported Exit cues'
+require_text "$runtime_doc" 'skills are cued by their own descriptions'
 require_text "$workflow_doc" 'Interaction Lifecycle'
 
 require_text "$pi_runtime" '../../../runtime/prompts/core.md'
@@ -91,7 +91,7 @@ require_text "$pi_runtime" '../../../runtime/prompts/interaction-contract.md'
 require_text "$pi_runtime" '../../../runtime/prompts/cognitive-routing.md'
 reject_text "$pi_runtime" '../../../runtime/prompts/context-virtualization.md'
 reject_text "$pi_runtime" '../../../runtime/prompts/conversation-history.md'
-require_text "$shared_renderer" 'path.join(PLUGIN_ROOT, "runtime", "prompts", "interaction-contract.md")'
+require_text "$shared_renderer" 'interactionContract: "interaction-contract.md"'
 require_text "$claude_adapter" 'eventNames: ["SessionStart"]'
 
 for file in \

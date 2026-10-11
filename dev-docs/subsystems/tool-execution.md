@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/tool-execution/`, `runtime/prompts/tool-execution.md`
 > **Tests:** `pi-extension/tests/tool-execution/`
-> **Verified at:** `5bc17417` (2026-10-03)
+> **Verified at:** `cadeaf8d` (2026-10-12)
 > **User docs:** `plugin-docs/capabilities/tool-execution.md`
 
 For contributors changing Tool Execution on Pi: what Freeflow adds around Pi's own tools, how each part hooks into Pi, and which of its behaviors are deliberate.
@@ -17,7 +17,7 @@ With one switch it adds:
 - **file tracking** around Pi's `read`, `edit` and `write`: a refused blind overwrite, a note when an edited file changed since it was read, and a notice when files the model read change behind it;
 - **edit error rewrites** that show the closest lines and one next step;
 - **`apply_patch`**, the patch tool OpenAI's Codex trains GPT models on;
-- **background commands** (`bash_background`, `stop_background`) that notify the model when they exit;
+- **background commands** (`bash_background`, `stop_background`) that notify the model when they exit, and **monitors** (`monitor`) that deliver each line a command prints as it happens;
 - a **bash guard** that refuses a trailing `&` and long foreground `sleep`.
 
 It deliberately does not:
@@ -37,7 +37,7 @@ It deliberately does not:
 | File key | A path resolved as Pi's tools resolve it, then through `realpath`, so `./a`, `a`, `@a` and a symlink are one file. | `resolveToolPath()`, `fileKey()` |
 | Changed behind the model | An observed file whose content differs from the last observation and from the last notice. | `changedSinceNoticed()` |
 | Nested call | A tool call a codemode script made; Pi reports it with a `parentToolCallId`. | `FileTracking.toolResult()` |
-| Notice prefix | `[Freeflow notice, not from the user]`, marking harness messages so the model never reads them as the user's words. | `NOTICE_PREFIX` in `background.ts` |
+| Notice tag | `<freeflow-notice type="…">…</freeflow-notice>`, marking Freeflow's notices so the model never reads them as the user's words: Pi gives the model every custom message in the user role. Freeflow's guidance says what the tag means. Notices in saved sessions may still start with the earlier `[Freeflow notice, not from the user]`, which rows still read. | `freeflowNotice()`, `LEGACY_NOTICE_PREFIX` in `host/inbound.ts` |
 | Steer | Pi's delivery mode that adds a message to a running agent loop after the current turn's tool results. | `deliverAs: "steer"` |
 | Request path | Work done for every model request, in Pi's `context_with_system` hook. Tool Execution does none. | `index.ts` |
 | Until-loop | The waiting pattern the guidance teaches: `until <check>; do sleep 1; done`, run with `bash_background`, so the model is notified once when the condition holds. | `bash-guard.ts`, `background.ts` descriptions |
@@ -46,7 +46,7 @@ It deliberately does not:
 
 ### Configuration and declaration
 
-`resolveToolExecutionConfig()` layers `toolExecution.enabled` from `.freeflow/config.json`, then `.freeflow/local.json`, then session scope. The default is off. On every `status()` call `applyToolExecutionTools()` declares `apply_patch`, `bash_background` and `stop_background` when effective and withdraws them when not. All three are registered once at load with `defaultActive: false`, so their definitions never change; only whether they are declared does.
+`resolveToolExecutionConfig()` layers `toolExecution.enabled` from `.freeflow/config.json`, then `.freeflow/local.json`, then session scope. The default is on (`DEFAULT_TOOL_EXECUTION_CONFIG`). On every `status()` call `applyToolExecutionTools()` declares `apply_patch`, `bash_background` and `stop_background` when effective and withdraws them when not. All three are registered once at load with `defaultActive: false`, so their definitions never change; only whether they are declared does.
 
 ### Prompt
 
@@ -65,7 +65,7 @@ Every value comes from the configuration and the machine, so the system prompt i
 - **`tool_result`**:
   - for `read`, `edit` and `write` (direct or nested): records an observation of the path. After an `edit` it appends "No need to re-read …", and after an `edit` or `write` whose target had changed it appends a note that the change applied to the current text.
   - for a failed `edit`: rewrites Pi's not-found or not-unique error (`rewriteEditError()`).
-  - for any other tool (not nested): appends `changedFilesNotice()` to that tool's own result when observed files changed behind the model, so a `bash` command that changed a file the model read reports it on its own result. Nested non-tracked calls are skipped; the script's own result carries the notice. Appended lines carry no notice prefix: they are part of the tool's result.
+  - for any other tool (not nested): appends `changedFilesNotice()` to that tool's own result when observed files changed behind the model, so a `bash` command that changed a file the model read reports it on its own result. Nested non-tracked calls are skipped; the script's own result carries the notice. Appended lines carry no notice tag: they are part of the tool's result.
 - **`before_agent_start`**: `changedNotice(ctx, false)` returns a `freeflow-files` message for files that changed between prompts. The `false` means it never builds state here, because a branch not yet built has no baseline to compare against.
 - **`turn_end`**: clears remembered changed targets.
 
@@ -93,14 +93,22 @@ Planning refuses an Add over an existing file the model has not read, a Move ont
 
 ### Background commands
 
-`BackgroundJobs` (`background.ts`) runs a command through Pi's own shell backend (`createLocalBashOperations()`), so it gets the same shell, environment and process-tree kill as `bash`. Output streams to `<tmpdir>/freeflow/<session>/background/<id>.output`; the folder has mode 0700, the file 0600, and it ends with an exit trailer. At most 16 run at once (`MAX_RUNNING`).
+`BackgroundJobs` (`background.ts`) runs a command through Pi's own shell backend (`createLocalBashOperations()`), so it gets the same shell, environment and process-tree kill as `bash`. Output streams to `<tmpdir>/freeflow/<session>/background/<id>.output`; the folder has mode 0700, the file 0600, and it ends with an exit trailer. At most 16 run at once (`MAX_RUNNING`), counting starts still opening their output file, so starts racing for the last slot cannot pass the limit. A start still opening its file when the session ends does not run.
 
-On exit, `notify()` sends a `freeflow-background` message:
+On exit, `notify()` sends a `freeflow-background` notice through the inbound channel (`host/inbound.ts`, see [Ask user and the inbound channel](ask-user.md)), drawn in the transcript as one line:
 
 - mid-run, it is steered in after the current turn's tool results;
-- when idle, it starts a turn as a user message (see Decisions).
+- when idle, it starts a turn as the same custom message (see Decisions).
 
 A command stopped through `stop_background` or at session end sends no notice. `stopAll()` runs at `session_shutdown`. After Pi's own compaction, `restate()` lists the running commands once; a Freeflow compaction names them in its summary instead.
+
+### Monitors
+
+`monitor()` is Claude Code's Monitor on the same `BackgroundJobs`: same shell, output file, ID space (`mon…` beside `bg…`), the 16-job limit, `stop_background`, restatement and shutdown. It differs in three ways:
+
+- **Events.** Each non-empty stdout line goes to the host's `event()`, which delivers it through the inbound channel under the key `monitor:<id>`: lines within 200 ms join one `freeflow-monitor` notice (`eventText()`: a header naming the monitor, at most 40 lines, then a pointer to the output file for the rest; a line over 1,000 characters is cut). A notice wakes an idle agent (spec O-6). Output is decoded per monitor, so a character split across two reads arrives whole. An unfinished line keeps only the text after its last carriage return, as a terminal shows it, capped at 4,000 characters: a progress bar redrawn with `\r` sends no events and holds no growing buffer, and the output file keeps everything. A partial last line is delivered at exit, and `endEvents()` flushes pending lines before the end notice, so the end notice always comes last; a monitor that has exited is not stopped for its rate limit while those last lines go out. At session end its pending lines are dropped (`discardEvents()`) instead. Output lines cannot open or close a `<freeflow-notice>` tag (`withoutNoticeTags()`), so a watched log cannot fake one of Freeflow's notices.
+- **Stderr** goes to the output file only: the command runs as `{ command } 2>> <output>`, and both writers append.
+- **Its own end.** `timeout_ms` (default 5 minutes, at most 30) and the rate limit (more than 20 notices in a minute, `MONITOR_PER_MINUTE`) stop it through `halt()`, with one `freeflow-background` notice saying why and how to continue. An exit sends one notice with the code and the event count; a stop through `stop_background` or at session end sends none.
 
 ### Bash guard
 
@@ -110,6 +118,7 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 
 | Decision | Reason | Rejected | Source |
 | --- | --- | --- | --- |
+| On by default whenever Freeflow is enabled. | The user's choice after using it in their own sessions (2026-10-12); its guidance and tools are fixed per configuration, so they are cached after the first request. Messaging and Task Memory stay off. | Off by default (0.8.0). | Task 005 D-003 |
 | Keep Pi's tools and add a layer through hooks; build only what Pi lacks (`apply_patch`, background commands). | Pi's tools match Claude Code's where it matters. The advantage of a strong harness is the file-state layer and guidance around the tools. Replacing tools Pi maintains would break codemode and other extensions that rely on them. | Claude Code-style replacement tools; the earlier Execution Runtime v2 (its own read, search, patch and script tools, output capture, a session store), which Pi 0.99's codemode, tool exposure and saved truncated output overlapped. | `ca1cc90`, `48a9387`; v2 kept in `.deprecated/tool-execution-v2/` |
 | One switch for the whole layer. | Users get complete workflows without internal seams as settings. | Sub-switches per part. | `ca1cc90` |
 | Replace Pi's `rules` and `docs` sections in place, add `environment` and `tool_execution` after Freeflow's guidance; never touch Pi's preamble. | Three of Pi's generic lines contradict the taught working style (bash-first reading, full reports). The Claude subscription plugin shapes prompts only when Pi's preamble is present. Replacing the whole prompt would drop project context, skills and other extensions' guidelines. | Replacing Pi's whole prompt; removing the preamble. | `ccfe0be`, `f51aff6` |
@@ -118,10 +127,12 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 | `apply_patch` plans the whole patch before writing. | A failed hunk then changes no file. A write failure after planning is reported as partial rather than hidden. | Applying section by section. | `e4d1a62` |
 | File state: fingerprint per file in memory, rebuilt from the branch; nothing persisted. | The lowest-coordination way to know what the model saw. It is rebuilt after resume and navigation without a store. | A persisted session store (retired with v2). | `48a9387` |
 | Notices for files changed behind the model are appended to the result of the next untracked tool (normally the command that changed them), or sent as a message at prompt start. | The model sees the fact when it next acts, and nothing earlier in the conversation is edited (prompt cache). | — | `3894a01` |
-| Background exit notices start an idle turn as a user message. | A run started by an extension message loses Freeflow's system sections from its second request (Pi issue #10267). | `sendMessage` with `triggerTurn`. | `f41f1e0` |
+| Background exit notices start an idle turn as a Freeflow custom message. | A user message would read as the user's words; `keepSections()` keeps Freeflow's system sections on the run Pi starts (Pi issue #10267). | Starting the turn as a user message (the earlier workaround). | Task 002 D-008 |
 | Freeflow does not set `TMPDIR`; background output goes to a per-session folder under the OS temp directory. | Pi's `bash` inherits the whole Pi process environment, so changing `TMPDIR` would change it for every tool, extension and MCP server. | Pointing `TMPDIR` at a session folder. | `fc32691` |
 | Messages state the fact and one next step, with no reassurance. | The wording was reviewed against Freeflow's Beyond the Weights research on model behavior. | — | `48a9387`, `3894a01` |
 | Settings of the retired v2 runtime still load and do nothing. | Existing configuration files stay valid. | Rejecting them. | `ca1cc90` |
+| A monitor's guidance (when to use it instead of `bash_background`, flushing each pipe stage, matching failures as well as success) lives in its tool description, not in the prompt section or Verify Work. | It is needed only when choosing or writing a watch, where the description is read; Working Method already states the general rule that a check proves only what it could have caught (Write Skill's Guidance Placement). | A line in the always-sent prompt section; a Verify Work rule. | Task 002 |
+| Monitor notices wake an idle agent, bounded by 20 notices a minute and 40 lines a notice. | A watch that cannot wake the agent cannot report a failure while it waits (spec O-6); each wake is a model request, so the limit bounds the cost. | Holding idle events until the next turn. | Task 002 |
 
 ## Intended Behavior That Looks Wrong
 
@@ -134,10 +145,11 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 | Unrecognized edit errors pass through unchanged. | The rewrite depends on Pi's exact wording, and a wrong rewrite is worse than Pi's text. | — |
 | With Tool Execution off, Pi's prompt and every tool result are exactly Pi's. | The layer is opt-in. | `prompt-native.test.js` fails. |
 | A trailing `&&` is not refused; a trailing `&` is. | Only a single `&` detaches a process. | — |
+| A monitor's stderr lines are not events. | Error output is usually noise for a watch; a watch that needs it redirects it (`2>&1`) into the filter. | — |
 
 ## Surface
 
-**Configuration:** `toolExecution.enabled` (default `false`) in `.freeflow/config.json`, `.freeflow/local.json`, or session scope through `/freeflow settings`. Retired keys accepted and ignored without a warning: `capture`, `programs`, `workspace`, `discovery`, `adapters`, `accounting`. Any other key fails validation.
+**Configuration:** `toolExecution.enabled` (default `true`) in `.freeflow/config.json`, `.freeflow/local.json`, or session scope through `/freeflow settings`. Retired keys accepted and ignored without a warning: `capture`, `programs`, `workspace`, `discovery`, `adapters`, `accounting`. Any other key fails validation.
 
 **Pi settings read:** `shellPath` (environment facts and background shell).
 
@@ -147,15 +159,16 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 | --- | --- | --- |
 | `apply_patch` | `input` (patch text) | Grammar form for GPT-5+ on OpenAI endpoints; `executionMode: "sequential"`; structured result with per-file outcomes. |
 | `bash_background` | `command`, `description?` | Returns `{ id, outputPath }` at once. |
-| `stop_background` | `id` | Returns after the process exits. |
+| `monitor` | `command`, `description`, `timeout_ms?` | Returns `{ id, outputPath, timeoutMs }` at once; its description carries the guidance (see Decisions). |
+| `stop_background` | `id` | Stops a background command or monitor; returns after the process exits. |
 
-All three have `exposure: "direct"` (callable from codemode) and refuse to run when Tool Execution is not effective.
+All four have `exposure: "direct"` (callable from codemode) and refuse to run when Tool Execution is not effective.
 
 **Prompt sections:** `rules`, `docs` (replaced), `environment`, `tool_execution` (added after `freeflow_guidance`).
 
-**Messages:** `freeflow-files` (changed files at prompt start) and `freeflow-background` (exit notices and restatements), both starting with the notice prefix; and lines appended to tool results, without the prefix.
+**Messages:** `freeflow-files` (changed files at prompt start), `freeflow-background` (exit, expiry and limit notices and restatements) and `freeflow-monitor` (monitor events), each wrapped in the notice tag; and lines appended to tool results, without it.
 
-**Status:** `/freeflow status` shows the number of running background commands.
+**Status:** `/freeflow status` shows the number of running background commands and monitors.
 
 ## State
 
@@ -184,7 +197,9 @@ All three have `exposure: "direct"` (callable from codemode) and refuse to run w
 | `apply_patch` parse or plan error | `not_applied`, nothing written, `isError: true`, one next step. |
 | `apply_patch` write error | `partial`; files before it written, the failing file named, later files not attempted. |
 | A background command cannot start (for example, the directory is gone) | The output file records the error and a notice says it failed to run. |
-| A 17th background command | Refused with "stop one with stop_background". |
+| A 17th background command or monitor | Refused with "stop one with stop_background". |
+| A monitor prints more than 20 notices' worth in a minute | Stopped; one notice says to filter its output and start it again. |
+| A monitor reaches `timeout_ms` | Stopped; one notice gives the event count and says to start it again to keep watching. |
 | The shell config cannot be resolved | The environment section says the shell is `unavailable`. |
 
 ## Cost
@@ -203,16 +218,16 @@ All three have `exposure: "direct"` (callable from codemode) and refuse to run w
   - `file-state.ts`: `FileState`, `resolveToolPath()`, `touchedPaths()`, `HASH_LIMIT_BYTES`.
   - `file-tracking.ts`: `FileTracking` (`toolCall`, `toolResult`, `changedNotice`, `compacted`, `forPatch`, `written`).
   - `edit-messages.ts`: `rewriteEditError()`, `closestMatch()`, `matchingLines()`, `normalizeForMatch()`, and every message text (`writeRefusal()`, `changedAfterEdit()`, `noNeedToReread()`, `changedFilesNotice()`).
-  - `background.ts`: `BackgroundJobs`, `registerBackgroundTools()`, `NOTICE_PREFIX`, `MAX_RUNNING`.
+  - `background.ts`: `BackgroundJobs` (`start()`, `monitor()`, `stop()`, `restate()`), `registerBackgroundTools()`, `freeflowNotice` (re-exported), `MAX_RUNNING`, the `MONITOR_*` limits.
   - `bash-guard.ts`: `backgroundRefusal()`, `LONGEST_FOREGROUND_SLEEP_S`.
   - `apply-patch/`: `grammar.ts`, `parser.ts`, `match.ts` (Codex ports), `plan.ts` (`applyPatch()`), `tool.ts` (`registerApplyPatch()`). Its [README](../../pi-extension/src/tool-execution/apply-patch/README.md) records the upstream commit and license.
-- `pi-extension/src/index.ts`: wiring. `before_agent_start` (prompt sections, prompt-time notice), `tool_call` (routing gate, bash guard, `FileTracking.toolCall()`), `tool_result`, `turn_end`, `session_tree`, `session_compact` (restatement), `session_shutdown`, and the background host's `send`.
+- `pi-extension/src/index.ts`: wiring. `before_agent_start` (prompt sections, prompt-time notice), `tool_call` (routing gate, bash guard, `FileTracking.toolCall()`), `tool_result`, `turn_end`, `session_tree`, `session_compact` (restatement), `session_shutdown`, and the background host's `send`, `event` and `endEvents`.
 - `runtime/prompts/tool-execution.md`: the guidance text.
 - `pi-extension/src/compaction/`: shares `resolveToolPath()` and `touchedPaths()` for carried files and file lists.
 
 ## Tests
 
-See [the tests README](../../pi-extension/tests/tool-execution/README.md). In short: `prompt-native.test.js` (sections on and off), `file-state.test.js` and `file-tracking-native.test.js` (observations, write refusal, changed-since-read, edit error rewrites against Pi's real `edit`), `changed-files-native.test.js` (notices after other tools), `apply-patch.test.js` and `apply-patch-native.test.js` (parser, matcher, declaration, grammar form), `background.test.js` and `background-native.test.js` (limits, exit codes, stop, shutdown, notices in a real session), `bash-guard.test.js`.
+See [the tests README](../../pi-extension/tests/tool-execution/README.md). In short: `prompt-native.test.js` (sections on and off), `file-state.test.js` and `file-tracking-native.test.js` (observations, write refusal, changed-since-read, edit error rewrites against Pi's real `edit`), `changed-files-native.test.js` (notices after other tools), `apply-patch.test.js` and `apply-patch-native.test.js` (parser, matcher, declaration, grammar form), `background.test.js`, `monitor.test.js` and `background-native.test.js` (limits, exit codes, stop, shutdown, monitor events, batching, expiry and rate limit, notices in a real session), `bash-guard.test.js`.
 
 ## Limits
 
@@ -224,6 +239,7 @@ See [the tests README](../../pi-extension/tests/tool-execution/README.md). In sh
 
 ## Changes
 
+- Task 002 (2026-10-11): monitors.
 - `f51aff6` (2026-09-30): "Working In The Environment" as its own system section; the Tool Execution skill retired.
 - `3894a01` (2026-09-30): notices for files changed behind the model; bash guard; notice prefix.
 - `fc32691` (2026-09-30): background commands.

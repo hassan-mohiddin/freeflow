@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
@@ -141,12 +141,20 @@ function choose(component, label, section) {
   for (let i = 0; i < 60; i++) {
     const lines = renderText(component).split("\n");
     const at = lines.findIndex((line) => line.startsWith("  › "));
-    const header = lines
-      .slice(0, at)
-      .reverse()
-      .find((line) => /^ {2}\S/.test(line));
-    const inSection = section ? header?.trim().startsWith(section) : true;
-    if (at >= 0 && lines[at].startsWith(`  › ${label} `) && inSection) return;
+    if (at >= 0) {
+      // A section's switch is the section's own row (Task 005); "Enabled" in a section names that row.
+      const wanted = label === "Enabled" && section ? section : label;
+      const row = lines[at].slice(4);
+      const nested = row.startsWith("  ");
+      const headerLine = nested
+        ? lines
+            .slice(0, at)
+            .reverse()
+            .find((line) => /^ {2}(› |  )?\S/.test(line))
+        : lines[at];
+      const header = headerLine?.replace(/^ {2}(› |  )?/, "");
+      if (row.trim().startsWith(`${wanted} `) && (!section || header?.startsWith(section))) return;
+    }
     component.handleInput(KEY.down);
   }
   throw new Error(`No settings row ${section ? `${section} › ` : ""}${label}`);
@@ -180,7 +188,7 @@ test("keeps Runtime State at a fixed prefix position across refreshes and new tu
     const conversation = [
       { role: "user", content: "release 0.6.1" },
       { role: "assistant", content: "delegating" },
-      { role: "toolResult", toolName: "freeflow_delegate", content: [] },
+      { role: "toolResult", toolName: "delegate_work", content: [] },
     ];
     const first = await contextHandler(handlers)({ messages: conversation }, ctx);
     const firstUserIndex = first.messages.findIndex((message) => message.role === "user");
@@ -267,13 +275,11 @@ test("new routing tools and projection state follow the configured contract", as
 
       const toolNames = loaded.tools.map((tool) => tool.name);
       assert.deepEqual(
-        toolNames.filter((name) =>
-          ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project"].includes(name),
-        ),
-        ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project"],
+        toolNames.filter((name) => ["delegate_work", "return_work", "routing_unit", "select_evidence"].includes(name)),
+        ["delegate_work", "return_work", "routing_unit", "select_evidence"],
       );
-      const delegate = loaded.tools.find((tool) => tool.name === "freeflow_delegate");
-      const returning = loaded.tools.find((tool) => tool.name === "freeflow_return");
+      const delegate = loaded.tools.find((tool) => tool.name === "delegate_work");
+      const returning = loaded.tools.find((tool) => tool.name === "return_work");
       assert.deepEqual(
         delegate.parameters.oneOf.map((branch) => branch.properties.operation.enum[0]),
         ["assign", "replace"],
@@ -287,7 +293,7 @@ test("new routing tools and projection state follow the configured contract", as
         returning.parameters.oneOf.map((branch) => branch.properties.operation.enum[0]),
         ["submit", "supplement", "retry"],
       );
-      assert.equal(loaded.activeToolNames().includes("freeflow_project"), true);
+      assert.equal(loaded.activeToolNames().includes("select_evidence"), true);
 
       const providerContext = await contextHandler(loaded.handlers)({ messages: [] }, ctx);
       assert.match(providerContext.messages[0].content, /Delegation: `executor`/);
@@ -299,7 +305,7 @@ test("new routing tools and projection state follow the configured contract", as
         manualContext.messages.findLast((message) => message.customType === "freeflow-runtime-state").content,
         new RegExp("Projection: `" + (scenario.projection ? "manual-bypass" : "disabled") + "`"),
       );
-      assert.equal(loaded.activeToolNames().includes("freeflow_project"), true);
+      assert.equal(loaded.activeToolNames().includes("select_evidence"), true);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -308,7 +314,7 @@ test("new routing tools and projection state follow the configured contract", as
 
 test("Pi describes strict evidence-selection operation shapes", () => {
   const { tools } = loadExtension();
-  const project = tools.find((tool) => tool.name === "freeflow_project");
+  const project = tools.find((tool) => tool.name === "select_evidence");
   assert.ok(project);
   assert.deepEqual(
     project.parameters.oneOf.map((branch) => branch.properties.operation.enum[0]),
@@ -348,7 +354,7 @@ test("Pi describes strict evidence-selection operation shapes", () => {
 
 test("Pi exposes additive captured-result recovery grants without changing path grants", () => {
   const { tools } = loadExtension();
-  const unit = tools.find((tool) => tool.name === "freeflow_unit");
+  const unit = tools.find((tool) => tool.name === "routing_unit");
   const recover = unit.parameters.oneOf.find((candidate) => candidate.properties.operation.enum[0] === "recover");
   assert.deepEqual(Object.keys(recover.properties), ["operation", "request", "paths", "results"]);
   assert.equal(recover.properties.paths.maxItems, 32);
@@ -372,9 +378,18 @@ test("Pi registers the remaining Freeflow commands without mode controls or reti
   assert.deepEqual(shortcuts, []);
   assert.ok(!toolNames.includes("freeflow_context"));
   assert.deepEqual(
-    toolNames.filter((name) => name.startsWith("freeflow_")),
-    ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project", "freeflow_compact"],
+    toolNames.filter((name) =>
+      ["delegate_work", "return_work", "routing_unit", "select_evidence", "compact_context"].includes(name),
+    ),
+    ["delegate_work", "return_work", "routing_unit", "select_evidence", "compact_context"],
   );
+  // No Freeflow tool keeps the freeflow_ prefix, which models confused with /freeflow commands.
+  assert.deepEqual(
+    toolNames.filter((name) => name.startsWith("freeflow_")),
+    [],
+  );
+  // Task memory's tool is named apart from /freeflow task, which models confused it with (grok-4.7 runs).
+  assert.ok(toolNames.includes("task_memory"));
   assert.ok(!toolNames.includes("freeflow_switch_profile"));
   assert.ok(!toolNames.includes("freeflow_cognitive_routing_history"));
   assert.ok(freeflowCommand);
@@ -412,8 +427,8 @@ test("normal Pi settings expose active Cognitive Routing configuration", async (
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
       const rootText = renderText(component);
-      assert.match(rootText, /Cognitive Routing\s+active/);
-      assert.match(rootText, /Coordinator preset\s+inherit → test\/model-a · low \(repository\)/);
+      assert.match(rootText, /Cognitive Routing\s+on \(inherited\)\n/);
+      assert.match(rootText, /Coordinator preset\s+test\/model-a · low \(inherited\)/);
       return undefined;
     };
 
@@ -441,7 +456,7 @@ test("Pi settings show Tool Execution as one switch and status reports it", asyn
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
       const text = renderText(component, 180);
-      assert.match(text, /Tool Execution\s+active\n\s+Enabled\s+enabled\n/);
+      assert.match(text, /Tool Execution\s+on\n/);
       assert.doesNotMatch(text, /capture|programs|workspace|accounting/i);
       return undefined;
     };
@@ -470,10 +485,7 @@ test("Pi settings show Compaction as one switch, on by default, and status repor
     const settingsCtx = context(cwd);
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
-      assert.match(
-        renderText(component, 180),
-        /Compaction\s+active\n\s+Enabled\s+enabled · default\n\s+Context reuse\s+enabled · default/,
-      );
+      assert.match(renderText(component, 180), /Compaction\s+on \(inherited\)\n\s+Context reuse\s+on \(inherited\)/);
       return undefined;
     };
     await command.definition.handler("settings repo", settingsCtx);
@@ -494,6 +506,199 @@ test("Pi settings show Compaction as one switch, on by default, and status repor
     assert.match(statusCtx.notifications.at(-1).message, /compaction: disabled/);
   } finally {
     await rm(off, { recursive: true, force: true });
+  }
+});
+
+test("settings: a section's switch is its own row, sections run everyday to experimental, an off section's settings still change", async () => {
+  // Task 005: no "Enabled" rows; values first with their source in brackets; on green, off red; a setting under an
+  // off switch is grey, says it takes effect once the switch is on, and can still be set up beforehand.
+  const cwd = await configuredRepo({});
+  try {
+    const { commands } = loadExtension(freeflowExtension);
+    const command = commands.find((candidate) => candidate.name === "freeflow");
+    const settingsCtx = context(cwd);
+    const colored = { ...testTheme, fg: (color, text) => `<${color}>${text}</${color}>` };
+    settingsCtx.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+      const text = renderText(component, 180);
+      assert.doesNotMatch(text, /\bEnabled\b/);
+      assert.match(
+        text,
+        /Freeflow\s+on \(inherited\)\n[\s\S]*Compaction\s+on \(inherited\)\n\s+Context reuse[\s\S]*Tool Execution\s+on \(inherited\)\n[\s\S]*Task Memory\s+off \(inherited\)[\s\S]*Messaging\s+off \(inherited\)/,
+      );
+      // Where an inherited value comes from is on the help line, not in the list (Task 005 D-002).
+      assert.match(text, /Inherited: not set in \.freeflow\/config\.json, so Freeflow's default applies\./);
+      choose(component, "Ask before delivering", "Messaging");
+      assert.match(renderText(component, 180), /Takes effect when Messaging is on\./);
+      component.handleInput(KEY.enter);
+      await component.waitForWrites();
+      assert.match(renderText(component, 180), /Ask before delivering\s+outside the project\n/);
+      return undefined;
+    };
+    await command.definition.handler("settings repo", settingsCtx);
+    assert.deepEqual(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")).messaging, {
+      inbound: "project",
+    });
+    // Auto-approve is one row that opens its five switches, as the routing presets open their picker.
+    const nestedCtx = context(cwd);
+    nestedCtx.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+      assert.match(renderText(component, 180), /Auto-approve\s+none\n/);
+      assert.doesNotMatch(renderText(component, 180), /\bAttach\b/);
+      choose(component, "Auto-approve", "Task Memory");
+      component.handleInput(KEY.enter);
+      const opened = renderText(component, 180);
+      assert.match(opened, /Freeflow settings › Repository › Auto-approve/);
+      assert.match(opened, /› Attach\s+off \(inherited\)\n\s+Create/);
+      component.handleInput(KEY.enter);
+      await component.waitForWrites();
+      component.handleInput(KEY.escape);
+      assert.match(renderText(component, 180), /Auto-approve\s+attach\n/);
+      return undefined;
+    };
+    await command.definition.handler("settings repo", nestedCtx);
+    assert.deepEqual(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")).taskMemory, {
+      autoApprove: { attach: true },
+    });
+    const colorCtx = context(cwd);
+    colorCtx.ui.custom = async (factory) => {
+      const text = renderText(
+        factory({ requestRender() {} }, colored, {}, () => {}),
+        180,
+      );
+      assert.match(text, /Compaction.*<success>on<\/success><dim> \(inherited\)<\/dim>/);
+      assert.match(text, /Messaging.*<error>off<\/error>/);
+      return undefined;
+    };
+    await command.definition.handler("settings repo", colorCtx);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("plugin-docs/settings.md documents every row the settings screen shows and every config key", async () => {
+  // Task 005: the reference page cannot fall behind the screen or the configuration code.
+  const doc = await readFile(new URL("../../../plugin-docs/settings.md", import.meta.url), "utf8");
+  const { SESSION_OVERRIDE_KEYS } = await import("../../dist/host/config.js");
+  const { RUNTIME_PROMPTS, validateRepositoryConfig } = await import("../../dist/host/config-validation.js");
+  const { AUTO_APPROVE_GROUPS } = await import("../../dist/task-memory/config.js");
+  const { INBOUND_POLICIES } = await import("../../dist/messaging/config.js");
+  const { DELEGATION_MODES } = await import("../../dist/cognitive-routing/types.js");
+  const keys = [
+    ...SESSION_OVERRIDE_KEYS,
+    ...Object.keys(AUTO_APPROVE_GROUPS).map((group) => `taskMemory.autoApprove.${group}`),
+    "messaging.inbound",
+    "cognitiveRouting.delegation",
+    ...["coordinator", "helper", "executor"].map((profile) => `cognitiveRouting.profiles.${profile}`),
+    ...RUNTIME_PROMPTS.map((prompt) => `prompts.${prompt}`),
+  ];
+  for (const key of keys) assert.ok(doc.includes(`| \`${key}\` |`), `settings.md lists ${key}`);
+  for (const value of [...INBOUND_POLICIES, ...DELEGATION_MODES])
+    assert.ok(doc.includes(`\`${value}\``), `settings.md names the value ${value}`);
+  // Every key the page lists is one Freeflow accepts.
+  for (const [, key] of doc.matchAll(/^\| [^|]+ \| `([a-zA-Z.]+)` \|/gm)) {
+    const config = {};
+    let at = config;
+    const parts = key.split(".");
+    for (const part of parts.slice(0, -1)) at = at[part] = {};
+    at[parts.at(-1)] =
+      key === "messaging.inbound" ? "accept" : key === "cognitiveRouting.delegation" ? "executor" : true;
+    if (!key.startsWith("cognitiveRouting.profiles")) assert.equal(validateRepositoryConfig(config), null, key);
+  }
+  // Every row the screen shows, in every tab, is in the page's table.
+  const cwd = await configuredRepo({});
+  try {
+    const { commands } = loadExtension(freeflowExtension, {
+      appendEntry() {},
+      async setModel() {
+        return true;
+      },
+      setThinkingLevel() {},
+    });
+    const command = commands.find((candidate) => candidate.name === "freeflow");
+    for (const scope of ["session", "local", "repo"]) {
+      const settingsCtx = context(cwd);
+      settingsCtx.ui.custom = async (factory) => {
+        const text = renderText(
+          factory({ requestRender() {} }, testTheme, {}, () => {}),
+          200,
+        );
+        const rows = [...text.matchAll(/^ {2}(?:› | {2})\s*(\S.*?)\s{2,}\S/gm)].map((match) => match[1]);
+        assert.ok(rows.length > 5, `${scope} rows`);
+        for (const row of rows) assert.ok(doc.includes(`| ${row} |`), `settings.md lists the ${scope} row ${row}`);
+        return undefined;
+      };
+      await command.definition.handler(`settings ${scope}`, settingsCtx);
+    }
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("/freeflow trash lists removed items, and only /freeflow trash empty deletes them, after asking", async () => {
+  // Task 006: the trash is emptied only by the user's command.
+  const before = process.env.FREEFLOW_HOME;
+  const home = await mkdtemp(join(tmpdir(), "freeflow-home-"));
+  process.env.FREEFLOW_HOME = home;
+  const cwd = await configuredRepo({});
+  try {
+    await mkdir(join(home, "trash", "2026-10-12T00-00-00-000Z-trial-task-001-try-it"), { recursive: true });
+    const { commands } = loadExtension(freeflowExtension);
+    const command = commands.find((candidate) => candidate.name === "freeflow");
+    const run = async (args, answer) => {
+      const ctx = context(cwd);
+      ctx.hasUI = true;
+      ctx.mode = "rpc";
+      ctx.ui.confirm = async () => answer;
+      await command.definition.handler(args, ctx);
+      return ctx.notifications.at(-1).message;
+    };
+    assert.match(await run("trash", false), /^Trash \(.+\):\n- 2026-10-12T00-00-00-000Z-trial-task-001-try-it\n/);
+    assert.equal(await run("trash empty", false), "The trash was not emptied.");
+    assert.equal((await readdir(join(home, "trash"))).length, 1);
+    assert.equal(await run("trash empty", true), "Deleted 1 item(s) from the trash.");
+    assert.equal(await run("trash", false), "The trash is empty.");
+  } finally {
+    process.env.FREEFLOW_HOME = before;
+    await rm(cwd, { recursive: true, force: true });
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("Pi settings show Task Memory off by default, and status reports it when on", async () => {
+  const cwd = await configuredRepo({});
+  try {
+    const { commands } = loadExtension(freeflowExtension);
+    const command = commands.find((candidate) => candidate.name === "freeflow");
+    const settingsCtx = context(cwd);
+    settingsCtx.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+      assert.match(renderText(component, 180), /Task Memory\s+off \(inherited\)\n/);
+      return undefined;
+    };
+    await command.definition.handler("settings repo", settingsCtx);
+    const statusCtx = context(cwd);
+    await command.definition.handler("status", statusCtx);
+    assert.doesNotMatch(statusCtx.notifications.at(-1).message, /task memory/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+  const on = await configuredRepo({ taskMemory: { enabled: true } });
+  try {
+    const { commands } = loadExtension(freeflowExtension);
+    const command = commands.find((candidate) => candidate.name === "freeflow");
+    const settingsCtx = context(on);
+    settingsCtx.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+      assert.match(renderText(component, 180), /Task Memory\s+on\n/);
+      return undefined;
+    };
+    await command.definition.handler("settings repo", settingsCtx);
+    const statusCtx = context(on);
+    await command.definition.handler("status", statusCtx);
+    assert.match(statusCtx.notifications.at(-1).message, /task memory: enabled/);
+  } finally {
+    await rm(on, { recursive: true, force: true });
   }
 });
 
@@ -529,7 +734,7 @@ test("Pi settings persist delegation mode without rewriting complete presets", a
       // Delegation cycles in place: executor → helper → both.
       await press(component, "Delegation", "Cognitive Routing");
       await press(component, "Delegation", "Cognitive Routing");
-      assert.match(renderText(component), /› Delegation\s+Helper and Executor/);
+      assert.match(renderText(component), /›\s+Delegation\s+Helper and Executor/);
       component.handleInput(KEY.escape);
       return result;
     };
@@ -704,7 +909,7 @@ test("session delegation setting enables Helper in the same panel without writin
       // Session delegation cycles inherit → executor → helper → both, in place.
       for (let i = 0; i < 3; i++) await press(component, "Delegation", "Cognitive Routing");
       assert.equal(mode, "both");
-      assert.match(component.render(180).join("\n"), /› Delegation\s+Helper and Executor · session/);
+      assert.match(component.render(180).join("\n"), /›\s+Delegation\s+Helper and Executor\n/);
       assert.match(component.render(180).join("\n"), /Helper preset/);
       return { changed: false };
     };
@@ -714,6 +919,84 @@ test("session delegation setting enables Helper in the same panel without writin
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
+});
+
+test("session routing settings can be set while routing is not running, and the running status survives an edit", async () => {
+  const cwd = await configuredRepo({ cognitiveRouting: { enabled: true, delegation: "executor" } });
+  try {
+    let effective = false;
+    let override;
+    const controller = {
+      state: () => ({
+        effective,
+        controlMode: "automatic",
+        activeProfile: "coordinator",
+        delegation: override ?? "executor",
+      }),
+      sessionProfileOverrides: () => ({}),
+      sessionDelegationOverride: () => override,
+      setSessionDelegationOverride: async (choice) => {
+        override = choice ?? undefined;
+        return { status: "stored" };
+      },
+    };
+    const ctx = context(cwd);
+    ctx.isIdle = () => true;
+    ctx.modelRegistry = cognitiveRoutingModelRegistry();
+    const pi = {
+      host: {},
+      appendEntry() {},
+      async setModel() {
+        return true;
+      },
+      setThinkingLevel() {},
+    };
+    ctx.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+      // No Coordinator preset, so routing is on but not running: delegation still changes.
+      await press(component, "Delegation", "Cognitive Routing");
+      assert.equal(override, "executor");
+      return { changed: false };
+    };
+    await handleFreeflowCommand("settings session", ctx, async () => {}, pi, controller);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("the footer shows routing's state, or that Freeflow is on and whether every capability is off", () => {
+  // Task 005: only routing's state changes while you work, so it alone is in the footer.
+  const statuses = [];
+  const ctx = { ui: { setStatus: (name, value) => statuses.push(value) } };
+  const base = { configured: true, enabled: true, configSources: { enabled: "builtin" } };
+  setFreeflowStatus(ctx, base, undefined, readyFreeflowContext);
+  setFreeflowStatus(
+    ctx,
+    {
+      ...base,
+      messaging: { effective: true },
+      compaction: { effective: true },
+      taskMemory: { effective: false },
+      toolExecution: { effective: true },
+    },
+    undefined,
+    readyFreeflowContext,
+  );
+  setFreeflowStatus(
+    ctx,
+    {
+      ...base,
+      compaction: { effective: true },
+      cognitiveRouting: { enabled: true, effective: true, blockingReason: null },
+    },
+    { effective: true, activeProfile: "coordinator", controlMode: "automatic", delegation: "executor" },
+    readyFreeflowContext,
+  );
+  assert.deepEqual(statuses, [
+    "freeflow: on (all capabilities off)",
+    "freeflow: on",
+    "freeflow: coordinator · automatic · executor mode",
+  ]);
 });
 
 test("Pi statusline reports Cognitive Routing without legacy context status", () => {
@@ -768,7 +1051,7 @@ test("Pi statusline keeps an inactive Cognitive Routing runtime blocked", () => 
     readyFreeflowContext,
     { cognitiveRoutingStartupPending: true },
   );
-  assert.equal(ctx.statuses.at(-1).value, "freeflow: cognitive blocked · runtime_inactive");
+  assert.equal(ctx.statuses.at(-1).value, "freeflow: routing blocked · runtime_inactive");
 });
 
 test("Pi exposes bypass scope argument completions", () => {
@@ -797,6 +1080,13 @@ test("Pi describes the mode-free Freeflow argument surface and manual profile co
     },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
     { value: "compact", label: "compact", description: "Prepare, compact and recover now" },
+    {
+      value: "task",
+      label: "task",
+      description: "Attach, focus, detach or confirm Working Records (task memory)",
+    },
+    { value: "project", label: "project", description: "Create or link a task-memory project" },
+    { value: "trash", label: "trash", description: "Removed tasks and projects; trash empty deletes them for good" },
     { value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" },
     { value: "resume", label: "resume", description: "Resume the current saved routing responsibility" },
     { value: "enable", label: "enable", description: "Enable Freeflow for this repository" },
@@ -871,11 +1161,12 @@ test("Pi keeps Freeflow inactive until repository activation exists", async () =
   try {
     const { handlers } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 27);
+    // Inactive Freeflow lists only Setup Freeflow (Task 003 D-002).
+    assert.equal(resources.skillPaths.length, 1);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
     const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, context(cwd));
     assert.equal(result.systemPrompt, "base prompt");
-    assert.match(result.renderedGuidance, /guidance is dormant/);
+    assert.equal(result.renderedGuidance ?? "", "", "no Freeflow guidance while inactive");
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -930,11 +1221,12 @@ test("Pi treats invalid configuration as inactive", async () => {
   try {
     const { handlers, commands } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 27);
+    // Inactive Freeflow lists only Setup Freeflow (Task 003 D-002).
+    assert.equal(resources.skillPaths.length, 1);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
     const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, context(cwd));
     assert.equal(result.systemPrompt, "base prompt");
-    assert.match(result.renderedGuidance, /guidance is dormant/);
+    assert.equal(result.renderedGuidance ?? "", "", "no Freeflow guidance while inactive");
     const freeflowCommand = commands.find((command) => command.name === "freeflow");
     const statusCtx = context(cwd);
     await freeflowCommand.definition.handler("status", statusCtx);
@@ -1052,8 +1344,58 @@ test("Pi fails closed when an existing local override is invalid", async () => {
     assert.equal(state.enabled, false);
     const { handlers } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 27);
+    // Inactive Freeflow lists only Setup Freeflow (Task 003 D-002).
+    assert.equal(resources.skillPaths.length, 1);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("each tab shows the value it sets; a default written to the repository reads inherited; enable says what still wins", async () => {
+  const cwd = await configuredRepo({ enabled: false });
+  try {
+    await writeFile(
+      join(cwd, ".freeflow/local.json"),
+      JSON.stringify({ cognitiveRouting: { enabled: true, delegation: "helper" } }, null, 2),
+      "utf8",
+    );
+    const { commands } = loadExtension(freeflowExtension);
+    const command = commands.find((candidate) => candidate.name === "freeflow");
+    const personal = context(cwd);
+    personal.ui.custom = async (factory) => {
+      // Freeflow is off, but the personal file turns routing on: the Personal tab shows what it sets.
+      assert.match(
+        renderText(
+          factory({ requestRender() {} }, testTheme, {}, () => {}),
+          180,
+        ),
+        /Cognitive Routing\s+on/,
+      );
+      return undefined;
+    };
+    await command.definition.handler("settings local", personal);
+    const repository = context(cwd);
+    repository.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+      assert.match(renderText(component, 180), /Delegation\s+Executor only \(inherited · personal: Helper only\)/);
+      choose(component, "Tool Execution");
+      component.handleInput(KEY.enter);
+      await component.waitForWrites();
+      assert.match(renderText(component, 180), /Tool Execution\s+off\n/);
+      component.handleInput(KEY.enter);
+      await component.waitForWrites();
+      // Back to the default, which the file leaves out: inherited again.
+      assert.match(renderText(component, 180), /Tool Execution\s+on \(inherited · not active\)\n/);
+      return undefined;
+    };
+    await command.definition.handler("settings repo", repository);
+    assert.equal(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")).toolExecution, undefined);
+
+    await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ enabled: false }, null, 2), "utf8");
+    const enable = context(cwd);
+    await command.definition.handler("enable", enable);
+    assert.match(enable.notifications.at(-1).message, /your \.freeflow\/local\.json still turns it off/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -1072,16 +1414,17 @@ test("Pi local enablement overrides the repository master switch", async () => {
   }
 });
 
-test("Pi master Freeflow toggle makes features inactive while preserving remaining references", async () => {
+test("Pi master Freeflow toggle makes features inactive and sends only Setup Freeflow", async () => {
   const cwd = await configuredRepo({ enabled: false });
   try {
     const { handlers, activeToolNames } = loadExtension();
     const ctx = context(cwd);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 27);
+    // Inactive Freeflow lists only Setup Freeflow (Task 003 D-002).
+    assert.equal(resources.skillPaths.length, 1);
     const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
     assert.equal(result.systemPrompt, "base prompt");
-    assert.match(result.renderedGuidance, /guidance is dormant/);
+    assert.equal(result.renderedGuidance ?? "", "", "no Freeflow guidance while inactive");
     const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(lastRuntimeState(providerContext.messages).content, /Freeflow: inactive/);
     assert.doesNotMatch(
@@ -1191,6 +1534,58 @@ test("Pi personal settings refuse to write a tracked local override", async () =
       ctx.notifications.map((notification) => notification.message).join("\n"),
       /personal overrides saved/,
     );
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("a preset's effort choices are the levels Pi's model data allows, as for grok-4.7", async () => {
+  // grok-4.7's thinkingLevelMap rules out off, minimal and max: the picker offers low, medium, high and xhigh only.
+  const cwd = await configuredRepo({ cognitiveRouting: { enabled: true } });
+  try {
+    const { commands } = loadExtension(freeflowExtension, {
+      appendEntry() {},
+      async setModel() {
+        return true;
+      },
+      setThinkingLevel() {},
+    });
+    const settingsCtx = context(cwd);
+    settingsCtx.isIdle = () => true;
+    const registry = cognitiveRoutingModelRegistry();
+    registry.getAvailable().push({
+      provider: "xai",
+      id: "grok-4.7",
+      name: "Grok 4.7",
+      reasoning: true,
+      contextWindow: 500000,
+      thinkingLevelMap: {
+        off: null,
+        minimal: null,
+        low: "low",
+        medium: "medium",
+        high: "high",
+        xhigh: "xhigh",
+        max: null,
+      },
+    });
+    settingsCtx.modelRegistry = registry;
+    settingsCtx.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+      choose(component, "Coordinator preset", "Cognitive Routing");
+      component.handleInput(KEY.enter);
+      const models = renderText(component, 200);
+      assert.match(models, /xai\/grok-4\.7\s+Grok 4\.7 · low, medium, high, xhigh\n/);
+      assert.match(models, /test\/model-a\s+Model A · off, low, medium, high\n/);
+      while (!/› xai\/grok-4\.7|→ xai\/grok-4\.7/.test(renderText(component, 200))) component.handleInput(KEY.down);
+      component.handleInput(KEY.enter);
+      const efforts = renderText(component, 200);
+      assert.match(efforts, /Choose effort · xai\/grok-4\.7/);
+      assert.doesNotMatch(efforts, /\b(minimal|max)\b|\n\s*(→ )?off\s/);
+      assert.match(efforts, /low[\s\S]*medium[\s\S]*high[\s\S]*xhigh/);
+      return undefined;
+    };
+    await commands.find((command) => command.name === "freeflow").definition.handler("settings repo", settingsCtx);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -1520,7 +1915,7 @@ test("Pi filters persisted Workflow and Cognitive Routing bootstrap entries with
   }
 });
 
-test("Pi preserves the host prompt prefix and dormant contract when a mandatory file is missing", async () => {
+test("Pi preserves the host prompt and sends no Freeflow guidance when a mandatory file is missing", async () => {
   const root = await mkdtemp(join(tmpdir(), "freeflow-pi-missing-prompt-"));
   const cwd = await configuredRepo();
   try {
@@ -1535,9 +1930,10 @@ test("Pi preserves the host prompt prefix and dormant contract when a mandatory 
     const { handlers } = loadExtension(extension);
     const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, context(cwd));
     assert.equal(before.systemPrompt, "base prompt");
-    assert.match(before.renderedGuidance, /guidance is dormant/);
+    assert.equal(before.renderedGuidance ?? "", "", "no Freeflow guidance while inactive");
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 27);
+    // Inactive Freeflow lists only Setup Freeflow (Task 003 D-002).
+    assert.equal(resources.skillPaths.length, 1);
   } finally {
     await rm(cwd, { recursive: true, force: true });
     await rm(root, { recursive: true, force: true });
@@ -1545,14 +1941,25 @@ test("Pi preserves the host prompt prefix and dormant contract when a mandatory 
 });
 
 function cognitiveRoutingModelRegistry() {
+  // Levels as Pi's model data states them: null rules a level out, and xhigh and max need a mapping.
   const models = [
-    { provider: "test", id: "model-a", name: "Model A", reasoning: true, contextWindow: 128000 },
-    { provider: "test", id: "model-b", name: "Model B", reasoning: true, contextWindow: 128000 },
+    {
+      provider: "test",
+      id: "model-a",
+      name: "Model A",
+      reasoning: true,
+      contextWindow: 128000,
+      thinkingLevelMap: { minimal: null },
+    },
+    {
+      provider: "test",
+      id: "model-b",
+      name: "Model B",
+      reasoning: true,
+      contextWindow: 128000,
+      thinkingLevelMap: { minimal: null, max: "max" },
+    },
   ];
-  const supported = new Map([
-    ["model-a", new Set(["off", "low", "medium", "high"])],
-    ["model-b", new Set(["off", "low", "medium", "high", "max"])],
-  ]);
   return {
     getAvailable() {
       return models;
@@ -1562,9 +1969,6 @@ function cognitiveRoutingModelRegistry() {
     },
     async getApiKeyAndHeaders() {
       return { ok: true };
-    },
-    clampThinkingLevel(model, level) {
-      return supported.get(model.id)?.has(level) ? level : "off";
     },
   };
 }

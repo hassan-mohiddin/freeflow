@@ -1,6 +1,6 @@
 ---
 name: "workflow"
-description: "Use when authority, current ownership, readiness to act, route changes, continuity, selected checkpoints, or Supported Exit must be coordinated across Freeflow activities."
+description: "Use for any task that changes something or takes several steps: agreeing what the user asked for and where to stop, choosing which activity comes next, and continuing to the agreed end without going past it."
 ---
 
 # Workflow
@@ -19,7 +19,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Before adopting a remedy that changes behavior, compatibility, host ownership, scope, or another user-owned boundary, explain its concrete consequence and realistic alternatives, and let the user decide.
 - Never silently narrow acceptance to make a result pass.
 - A review finding authorizes neither a correction nor another review. Commit, push, integration, release, launch, and other separately controlled effects stay excluded unless explicitly covered.
-- After context loss, recover through Track Work's order before task work: the complete Working Record, its defining artifacts, then its Recovery sources. If recovery is incomplete, report the limit before task work.
+- After context loss, recover the Working Record in Track Work's order before task work. If recovery is incomplete, report the limit before task work.
 - When a Working Record exists, start each Slice through Track Work's lifecycle command; ending one Slice does not select the next.
 - Claim completion only when the agreed outcome is supported by fresh evidence, required self-review is done, selected reviews are adjudicated, selected checkpoints are resolved, and task memory and artifacts describe the result accurately. Never hide a material contradiction, source conflict, blocker, or user-owned decision.
 
@@ -31,7 +31,7 @@ Interpret the whole turn through the Interaction Contract.
 
 - For discussion or a question, collaborate and inspect relevant existing evidence as needed.
 - For execution, establish the intended outcome, permitted scope, and user-facing return condition. The agreement may cover a plan, one correction, one Slice, or a whole task.
-- If the request already establishes those boundaries, acknowledge them briefly and proceed. Otherwise ask only the missing material question and wait before the unsettled execution.
+- If the request already establishes those boundaries, acknowledge them briefly and proceed. Otherwise ask only the missing material question and wait before the unsettled execution. Read [Asking The User](references/asking-the-user.md) before asking the user for a choice that is theirs to make.
 
 For example, after discussing several possible Slices, an ambiguous "proceed" may need: "Implement the next Slice and return, or finish the described task?" Do not ask this when the user already requested the whole task with a clear endpoint.
 

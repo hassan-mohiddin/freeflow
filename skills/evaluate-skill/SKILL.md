@@ -1,6 +1,6 @@
 ---
 name: evaluate-skill
-description: Use when evaluating or comparing agent-skill behavior.
+description: "Use when testing, evaluating, or comparing how an agent skill behaves, such as whether it triggers or changes outcomes."
 ---
 
 # Evaluate Skill

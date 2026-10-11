@@ -1,7 +1,7 @@
 # Freeflow Developer Docs
 
 > **Covers:** `pi-extension/src/README.md`, `hooks/`, `runtime/prompts/`, `plugin.json`, `package.json`, `command-surface.json`
-> **Verified at:** `76539785` (2026-10-03)
+> **Verified at:** `40b61e2d` (2026-10-11)
 
 For anyone working on Freeflow itself, people or agents: what the parts are, how they relate, the rules that hold across them, and where each part's detailed document is. Using Freeflow is covered by the [user docs](../plugin-docs/README.md).
 
@@ -22,10 +22,10 @@ skills/  capabilities/  runtime/prompts/      model-facing methods and guidance 
               provider-support/                prompt-cache and effort adaptations on qualified provider routes
 ```
 
-- **Model-facing methods.** `runtime/prompts/` holds the always-present guidance: `core.md` (identity, shared terms, the three nested loops of interaction, feedback and environment work, and the Workflow, Action Selection, and Supported Exit cues that point to those skills), `interaction-contract.md`, and on Pi `working-method.md`, `tool-execution.md` and the `cognitive-routing.md` cue. `skills/` holds the 25 discoverable skills every host receives; Workflow owns the interaction and routes to leaf skills (Discuss, Write Spec, Execute Work, Verify Work, Track Work and the rest), which return evidence or route changes without widening authority. `capabilities/` holds two more skills listed only on Pi (`cognitive-routing`, `compaction`), not counted in the 25. How skills route to each other: [Skill routing](subsystems/skill-routing.md). How the prompt is assembled and gated: [Prompt assembly](subsystems/prompt-assembly.md).
-- **Host hooks.** Hook-based hosts receive the core prompt and Interaction Contract at session start through one shared runtime-context renderer and a thin adapter per host (see Host Delivery below). They get no Pi capabilities.
+- **Model-facing methods.** `runtime/prompts/` holds the always-present guidance: `core.md` (identity, shared terms, loading a selected skill's method, and recovery after context loss; skills are cued by their own descriptions), `interaction-contract.md`, and on Pi `working-method.md`, `tool-execution.md` and the `cognitive-routing.md` cue. `skills/` holds the 25 discoverable skills every host receives; Workflow owns the interaction and routes to leaf skills (Discuss, Write Spec, Execute Work, Verify Work, Track Work and the rest), which return evidence or route changes without widening authority. `capabilities/` holds four more skills listed only on Pi (`cognitive-routing`, `compaction`, `task-memory`, `messaging`), not counted in the 25. How skills route to each other: [Skill routing](subsystems/skill-routing.md). How the prompt is assembled and gated: [Prompt assembly](subsystems/prompt-assembly.md).
+- **Host hooks.** Hook-based hosts receive the core prompt, Interaction Contract and Working Method at session start, each unless the user turned it off with `prompts`, through one shared runtime-context renderer and a thin adapter per host (see Host Delivery below). They get no Pi capabilities.
 - **The Pi extension.** `pi-extension/src/index.ts` registers Freeflow with Pi and wires every event to its owner. `host/` keeps what is not one capability: configuration, prompt sections, the Runtime State, request history, status and settings. Each capability is optional and lives in its own directory with a subsystem doc: Cognitive Routing (off by default), Tool Execution (off by default) and Compaction (on by default). `provider-support/` changes provider payloads only on qualified routes. [Pi extension](subsystems/pi-extension.md) covers what the extension registers and its persistence limits.
-- **Task memory.** Track Work's `skills/track-work/scripts/working-record.mjs` owns the Working Record format (`.freeflow/tasks/*/record.md`, Git-ignored) and its lifecycle transitions; the skill teaches when to use them.
+- **Task memory.** Track Work's `skills/track-work/scripts/working-record.mjs` owns the Working Record format (`.freeflow/tasks/*/record.md`, Git-ignored) and its lifecycle transitions, and its library owns the portable registry of projects, registered tasks, child records and owners under the Freeflow home; the skill teaches when to use them. On Pi the [Task memory](subsystems/task-memory.md) capability (a prototype) pairs with it, adding session attachment, delivery and a write gate.
 - **Tooling.** `scripts/validation/` holds the deterministic checks behind `npm run check`; `scripts/perf/` the request-overhead benchmark; `scripts/release*.mjs` release preparation; `scripts/freeflow-snapshot.mjs` the development snapshot; `.skill-eval/` the current skill evaluation definitions.
 
 ## Code Map
@@ -51,7 +51,7 @@ skills/  capabilities/  runtime/prompts/      model-facing methods and guidance 
 - On Pi, Freeflow never makes a request cost more than native Pi would: content a provider cached is never rewritten, the system section and tool definitions stay fixed for a configuration, and generated content is appended. See [Prompt cache rules](guides/prompt-cache.md).
 - Freeflow's work on every request and turn stays small and does not grow with session age. See [Performance](guides/performance.md).
 - Freeflow never patches Pi, rewrites session files, or replaces Pi's tools; it uses Pi's extension API and appends session entries.
-- In the Pi extension, configuration is read only through `pi-extension/src/host/config.ts`; other code receives capability state. Hook adapters read it through the shared renderer.
+- In the Pi extension, configuration is read only through `pi-extension/src/host/config.ts`; other code receives capability state. Hook adapters read it through the shared renderer, which validates both files with the same `host/config-validation.ts` (built to `pi-extension/dist/`), so a config is valid or invalid on every host alike.
 - A failure in an optimization (cache placement, request history replay, compaction additions) falls back to Pi's own behavior; it never fails the user's request.
 
 ## Cross-Cutting Concerns
@@ -67,14 +67,14 @@ skills/  capabilities/  runtime/prompts/      model-facing methods and guidance 
 
 Freeflow does not ship a CLI, duplicate manifest command handlers, enforcement hooks, or a new agent runtime in this release. It uses each host's native skill invocation and ships one shared runtime-context renderer with host-specific session adapters plus the Pi extension.
 
-- **Codex and Claude Code:** `hooks/adapters/codex-session-start.mjs` and `claude-session-start.mjs` deliver the core fragments at `SessionStart` (startup, resume, clear, compact). Codex marketplace metadata uses local source `.`, while Claude uses host-valid local source `./`.
+- **Codex and Claude Code:** `hooks/adapters/codex-session-start.mjs` and `claude-session-start.mjs` deliver the core fragments and the Working Method at `SessionStart` (startup, resume, clear, compact, and on Claude Code fork). Claude Code runs one hook per prompt because it caps each hook's context at 10,000 characters; Codex runs one hook with a raised `additionalContextLimit`. Codex's marketplace entry installs the npm package, while Claude uses host-valid local source `./`.
 - **Gemini CLI:** `gemini-extension.json` and `hooks/hooks.json` with `gemini-session-start.mjs`.
 - **Cursor:** the root `plugin.json` for skills; `.cursor-plugin/plugin.json` adds a `sessionStart` hook.
 - **GitHub Copilot and VS Code:** the root `plugin.json`; `com.github.copilot/hooks/hooks.json` for `SessionStart`.
 - **Kiro, OpenCode, Hermes and other skills-compatible hosts:** the root Agent Plugins 1.0 package or their skill-source configuration pointing at `skills/`; no always-on prompt surface.
 - **Pi:** the root package manifest loads `pi-extension/freeflow/index.js` (Pi 0.99.1 or later).
 
-All hook adapters stay inert without valid repository activation and never expose Pi capabilities. Hook trust and registration remain host concerns; local checks prove package and hook shapes, not host dispatch. Per-host detail: [Prompt assembly](subsystems/prompt-assembly.md#host-delivery).
+All hook adapters stay inert without valid repository activation and never expose Pi capabilities. An existing but invalid `.freeflow/config.json` or `.freeflow/local.json` delivers a short configuration error naming the file instead of the core prompt, as Pi's status does; a missing repository config delivers nothing. Hook trust and registration remain host concerns; local checks prove package and hook shapes, not host dispatch. Per-host detail: [Prompt assembly](subsystems/prompt-assembly.md#host-delivery).
 
 ## Subsystem Docs
 
@@ -84,6 +84,9 @@ How each part works and why:
 - [Skill routing](subsystems/skill-routing.md): shipped skills, ownership, sibling routes, and reference dependencies.
 - [Cognitive Routing](subsystems/cognitive-routing.md): profiles and control, one routed run step by step, units and assignments, routing tools, evidence selection and projection, recovery, persistence, and the behavior that looks wrong but is intended.
 - [Compaction](subsystems/compaction.md): when compaction is due, the agent path and carried context, Cognitive Routing and Pi's own compaction, and the behavior that looks wrong but is intended.
+- [Task memory](subsystems/task-memory.md) (prototype): Working Records attached to a Pi session, snapshot delivery, the write gate, and its decisions.
+- [Ask user and the inbound channel](subsystems/ask-user.md): the `ask_user` dialog, its guidance layers, and how content from outside the turn reaches the model.
+- [Messaging](subsystems/messaging.md) (preview): messages between live Pi sessions: the registry, sockets, the inbound policy and held messages, deferred tools.
 - [Tool Execution](subsystems/tool-execution.md): the layer over Pi's tools: prompt sections, file tracking, edit error rewrites, `apply_patch`, background commands, and the bash guard.
 - [Request history and prompt cache](subsystems/request-history-and-cache.md): how generated messages keep their positions, cache breakpoints, the Coordinator keep-alive, effort history, and cache health.
 - [Pi extension](subsystems/pi-extension.md): what the extension registers, cache reuse boundaries, persistence and recovery limits, development snapshots.

@@ -13,23 +13,23 @@ test(
     let ref;
     await fixture((n, _body, manager) => {
       if (n === 1)
-        return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence and return." } }];
+        return [{ name: "delegate_work", args: { operation: "assign", contract: "Read evidence and return." } }];
       if (n === 2) return [{ name: "read", args: { path: "evidence.txt" } }];
       if (n === 3) {
         ref = "ctx:" + manager.getBranch().find((e) => e.message?.toolName === "read").id;
-        return [{ name: "freeflow_project", args: { operation: "add", refs: [ref] } }];
+        return [{ name: "select_evidence", args: { operation: "add", refs: [ref] } }];
       }
-      if (n === 4) return [{ name: "freeflow_project", args: { operation: "add", refs: [ref, ref] } }];
+      if (n === 4) return [{ name: "select_evidence", args: { operation: "add", refs: [ref, ref] } }];
       if (n === 5) {
         const details = manager
           .getBranch()
-          .filter((e) => e.message?.toolName === "freeflow_project")
+          .filter((e) => e.message?.toolName === "select_evidence")
           .at(-1).message.details;
         assert.deepEqual(details.selected, [ref]);
         assert.deepEqual(details.items, [{ ref, status: "already_selected" }]);
         return [
           {
-            name: "freeflow_project",
+            name: "select_evidence",
             args: { operation: "remove", refs: [ref], reason: "Deliberate fixture withdrawal" },
           },
         ];
@@ -37,13 +37,13 @@ test(
       if (n === 6) {
         const details = manager
           .getBranch()
-          .filter((e) => e.message?.toolName === "freeflow_project")
+          .filter((e) => e.message?.toolName === "select_evidence")
           .at(-1).message.details;
         assert.deepEqual(details.selected, []);
         assert.deepEqual(details.items, [{ ref, status: "removed" }]);
         return [
           {
-            name: "freeflow_return",
+            name: "return_work",
             args: { operation: "submit", report: "Fixture complete; evidence withdrawn.", outcome: "partial" },
           },
         ];
@@ -408,16 +408,16 @@ test(
     let ref;
     await fixture((n, body, manager) => {
       if (n === 1)
-        return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence and return." } }];
+        return [{ name: "delegate_work", args: { operation: "assign", contract: "Read evidence and return." } }];
       if (n === 2) return [{ name: "read", args: { path: "evidence.txt" } }];
       if (n === 3) {
         ref = "ctx:" + manager.getBranch().find((e) => e.message?.toolName === "read").id;
-        return [{ name: "freeflow_project", args: { operation: "add", refs: [ref] } }];
+        return [{ name: "select_evidence", args: { operation: "add", refs: [ref] } }];
       }
       if (n === 4)
         return [
-          { name: "freeflow_project", args: { operation: "remove", refs: [ref], reason: "EVIDENCE_WITHDRAWN_177" } },
-          { name: "freeflow_return", args: { operation: "submit", report: "Completed.", outcome: "completed" } },
+          { name: "select_evidence", args: { operation: "remove", refs: [ref], reason: "EVIDENCE_WITHDRAWN_177" } },
+          { name: "return_work", args: { operation: "submit", report: "Completed.", outcome: "completed" } },
         ];
       assert.equal(body.model, "gpt-4o");
       assert.match(JSON.stringify(body), /EVIDENCE_WITHDRAWN_177/);
@@ -434,18 +434,18 @@ test(
     await fixture(
       (n, body, manager) => {
         if (n === 1)
-          return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Read and select evidence." } }];
+          return [{ name: "delegate_work", args: { operation: "assign", contract: "Read and select evidence." } }];
         if (n === 2) return [{ name: "read", args: { path: "evidence.txt" } }];
         if (n === 3)
           return [
             {
-              name: "freeflow_project",
+              name: "select_evidence",
               args: {
                 operation: "add",
                 refs: ["ctx:" + manager.getBranch().find((e) => e.message?.toolName === "read").id],
               },
             },
-            { name: "freeflow_return", args: { operation: "submit", report: "Evidence ready.", outcome: "completed" } },
+            { name: "return_work", args: { operation: "submit", report: "Evidence ready.", outcome: "completed" } },
           ];
         assert.equal(body.model, "gpt-4o");
         assert.match(JSON.stringify(body), /EXACT_EVIDENCE_BODY_81/);

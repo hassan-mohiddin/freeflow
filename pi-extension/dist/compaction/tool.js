@@ -1,10 +1,10 @@
-export const FREEFLOW_COMPACT = "freeflow_compact";
+export const COMPACT_CONTEXT = "compact_context";
 const DESCRIPTION =
   "Compact the conversation into a new cycle. Use only when Freeflow says compaction is due or the user asks, and read the compaction skill first. Pass your summary and what to carry; compaction happens at the end of this turn, and the run continues from the summary, the carried context and a recovery message.";
 /** Registered once, declared only while Freeflow compaction is effective (see applyCompactionTools). */
 export function registerCompactionTool(pi, controller) {
   pi.registerTool({
-    name: FREEFLOW_COMPACT,
+    name: COMPACT_CONTEXT,
     label: "Compact",
     description: DESCRIPTION,
     parameters: {
@@ -47,11 +47,11 @@ export function registerCompactionTool(pi, controller) {
     },
   });
 }
-/** Declare or withdraw freeflow_compact when compaction's effective state changes, keeping other tools in place. */
+/** Declare or withdraw compact_context when compaction's effective state changes, keeping other tools in place. */
 export function applyCompactionTools(pi, effective) {
   if (typeof pi.getActiveTools !== "function" || typeof pi.setActiveTools !== "function") return;
   const current = pi.getActiveTools();
-  const present = current.includes(FREEFLOW_COMPACT);
-  if (effective && !present) pi.setActiveTools([...current, FREEFLOW_COMPACT]);
-  if (!effective && present) pi.setActiveTools(current.filter((name) => name !== FREEFLOW_COMPACT));
+  const present = current.includes(COMPACT_CONTEXT);
+  if (effective && !present) pi.setActiveTools([...current, COMPACT_CONTEXT]);
+  if (!effective && present) pi.setActiveTools(current.filter((name) => name !== COMPACT_CONTEXT));
 }

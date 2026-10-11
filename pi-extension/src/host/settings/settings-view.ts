@@ -53,6 +53,17 @@ export type SettingsEntry = {
   inactive: () => boolean;
   /** A section header: not selectable; its current value is shown as the section's status. */
   section?: boolean;
+  /** A section's own switch: selectable, drawn as the section's title. */
+  heading?: boolean;
+  /** Nesting under sections, for indentation. */
+  depth?: number;
+  /**
+   * The value in parts: shown, a note drawn in brackets ("inherited"), on or off (drawn green or red), and where an
+   * inherited value comes from (the help line).
+   */
+  parts?: () => { value: string; note?: string; tone?: "on" | "off"; origin?: string };
+  /** Why the setting has no effect now (a switch above it is off); it is drawn grey but still changes. */
+  dormant?: () => string | undefined;
   /** Enter/Space moves to the next choice in place instead of opening a picker. */
   cycle?: boolean;
   currentChoiceKey?: () => string;
@@ -350,22 +361,37 @@ class SettingsScreen implements Component {
   private rows(width: number): string[] {
     if (this.loading) return [this.color("dim", "  Loading…")];
     if (!this.entries.length) return [this.color("dim", "  No settings in this scope.")];
+    const indent = (entry: SettingsEntry) => "  ".repeat(entry.depth ?? 0);
     const items = this.entries.filter((entry) => !entry.section);
-    const labelWidth = Math.min(32, Math.max(...items.map((entry) => visibleWidth(entry.label))));
+    const labelWidth = Math.min(36, Math.max(...items.map((entry) => visibleWidth(indent(entry) + entry.label))));
     const lines = this.entries.map((entry, index) => {
       if (entry.section) {
         const status = entry.currentValue();
         const label = this.color("accent", this.theme.bold?.(entry.label) ?? entry.label);
-        return truncateToWidth(`  ${label}${status ? this.color("dim", `  ${status}`) : ""}`, width, "");
+        return truncateToWidth(
+          `  ${indent(entry)}${label}${status ? this.color("dim", `  ${status}`) : ""}`,
+          width,
+          "",
+        );
       }
       const selected = index === this.selected;
-      const inactive = entry.inactive();
+      const inactive = entry.inactive() || entry.dormant?.() !== undefined;
       const cursor = selected ? this.color("accent", "› ") : "  ";
-      const padded = entry.label + " ".repeat(Math.max(0, labelWidth - visibleWidth(entry.label)));
-      const label = selected ? this.color("accent", padded) : inactive ? this.color("dim", padded) : padded;
-      const value = entry.currentValue() + (inactive ? " · inactive" : "");
-      const shown = selected ? this.color("accent", value) : inactive ? this.color("dim", value) : value;
-      return truncateToWidth(`  ${cursor}${label}  ${shown}`, width, "");
+      const text = indent(entry) + entry.label;
+      const padded = text + " ".repeat(Math.max(0, labelWidth - visibleWidth(text)));
+      const label = selected
+        ? this.color("accent", padded)
+        : inactive
+          ? this.color("dim", padded)
+          : entry.heading
+            ? this.color("accent", this.theme.bold?.(padded) ?? padded)
+            : padded;
+      const parts = entry.parts?.() ?? { value: entry.currentValue() };
+      const toned =
+        inactive || !parts.tone ? parts.value : this.color(parts.tone === "on" ? "success" : "error", parts.value);
+      const value = inactive ? this.color("dim", toned) : selected && !parts.tone ? this.color("accent", toned) : toned;
+      const note = parts.note ? this.color("dim", ` (${parts.note})`) : "";
+      return truncateToWidth(`  ${cursor}${label}  ${value}${note}`, width, "");
     });
     if (lines.length <= MAX_ROWS) return lines;
     const start = Math.max(0, Math.min(this.selected - Math.floor(MAX_ROWS / 2), lines.length - MAX_ROWS));
@@ -378,6 +404,10 @@ class SettingsScreen implements Component {
     const wrap = (text: string, color: string) =>
       wrapTextWithAnsi(text, Math.max(1, width - 4)).map((line) => this.color(color, `  ${line}`));
     const lines = wrap(entry.description, "muted");
+    const origin = entry.parts?.().origin;
+    if (origin) lines.push(...wrap(origin, "dim"));
+    const dormant = entry.dormant?.();
+    if (dormant) lines.push(...wrap(dormant, "warning"));
     const choice = entry.cycle
       ? entry.choices?.find((candidate) => candidate.key === entry.currentChoiceKey?.())
       : undefined;

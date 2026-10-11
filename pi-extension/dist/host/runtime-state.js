@@ -106,6 +106,9 @@ export function freeflowRuntimeStateMessage(
       "Capabilities:",
       `- Cognitive Routing: ${publicCognitiveRoutingStatus(capabilityState?.cognitiveRouting, cognitiveRoutingRuntime)}`,
       `- Tool Execution: ${publicCapabilityStatus(capabilityState?.toolExecution)}`,
+      ...(capabilityState?.messaging?.enabled
+        ? [`- Messaging: ${publicCapabilityStatus(capabilityState.messaging)}`]
+        : []),
       "",
       "Cognitive Routing:",
       `- Control: \`${control}\``,
@@ -113,6 +116,7 @@ export function freeflowRuntimeStateMessage(
       ...(control === "automatic" ? [] : [`- Profile: \`${profile}\``]),
       `- Delegation: \`${cognitiveRoutingRuntime?.delegation ?? capabilityState?.cognitiveRouting?.delegation ?? "executor"}\``,
       `- Projection: \`${projectionMode}\``,
+      ...(options.taskMemory?.length ? ["", ...options.taskMemory] : []),
     ].join("\n"),
     display: false,
     details: { source: "provider-request-runtime-state" },
@@ -146,6 +150,7 @@ export function withFreeflowRuntimeState(
   const source = Array.isArray(messages) ? messages : [];
   const runtimeState = freeflowRuntimeStateMessage(capabilityState, cognitiveRoutingRuntime, freeflowContext, {
     projectionFailure: options.projectionFailure,
+    taskMemory: options.taskMemory,
   });
   const runtimeStateMessages = source.filter(
     (message) =>

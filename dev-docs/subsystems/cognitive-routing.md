@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/cognitive-routing/`, `capabilities/cognitive-routing/`, `runtime/prompts/cognitive-routing.md`
 > **Tests:** `pi-extension/tests/cognitive-routing/`, `pi-extension/tests/cache-reuse/`
-> **Verified at:** `e58354ec` (2026-10-03)
+> **Verified at:** `cadeaf8d` (2026-10-12)
 > **User docs:** `plugin-docs/capabilities/cognitive-routing.md`
 
 For contributors changing Cognitive Routing on Pi: how routing moves work between profiles in one session, how it records and recovers its state, how the Coordinator's projected view is built, and which of its behaviors are deliberate. What routing is for users, how to configure it, and how to choose a mode are in the user guide.
@@ -35,10 +35,10 @@ It deliberately does not:
 | Execution | One model response and its tool results, bound to session entries at turn end. | `execution-opened`, `execution-bound` events |
 | Handoff | A saved contract, report, recovery request or supplement, plus its delivery state (`pending`, `blocked`, `configured`, `superseded`). | `Handoff`, `Delivery` |
 | Source, ref | A tool result in session history with a stable ref `ctx:<entry-id>` and a body hash. | `sources.ts` |
-| Selection | The refs a worker selected as evidence for its assignment. | `Selection`, `freeflow_project` |
+| Selection | The refs a worker selected as evidence for its assignment. | `Selection`, `select_evidence` |
 | Reservation | The prepared plan for delivering a selection to the Coordinator: sources with hashes, target model, size budget. | `Reservation` |
 | Assessment | The Coordinator's judgment of a returned assignment. Its evidence view can be suspended by new user attention or a recovery, and resumed. | `assessment-suspended`, `assessment-resumed` |
-| Recovery | A bounded request for missing assessment evidence, answered by the same worker with a separate supplement. | `recovery-request-accepted`, `freeflow_unit recover` |
+| Recovery | A bounded request for missing assessment evidence, answered by the same worker with a separate supplement. | `recovery-request-accepted`, `routing_unit recover` |
 | Admitted, exposed | A source is exposed when it appeared in a request a profile received (`sources-exposed`), and admitted when it was delivered into the Coordinator's view. Admitted content stays in that view (see Decisions). | `admissions()` in `assembler.ts` |
 | Assessment obligation | While an assessment is active, the Coordinator's view must contain the selected evidence in full, rebuilt from history if needed. Suspending the assessment pauses only this obligation. | `assessment.view` |
 | Quiescent | No execution of the assignment is running. | — |
@@ -55,7 +55,7 @@ Routing hooks into Pi's events (wired in `pi-extension/src/index.ts`, forwarded 
 
 1. **`before_agent_start`**: `beforeRun()` applies control changes staged while idle (profile holds, presets) and sets Pi's model for the active profile. A run started by an extension message gets the same preparation at its first `message_end`.
 2. **`context_with_system`**: `routing.context()` (`ContextAssembler`) finds the latest delivered user input, opens an execution, and prepares the active profile's view (`prepareView()` in `projection.ts`). It adds routing's transient messages: routing state, attention, budget and communication. Request history then fixes their positions (see [Request history and prompt cache](request-history-and-cache.md)).
-3. **`tool_call`**: `preflight()` (`ToolGate`) checks every call. Routing tools must be called directly, never from a codemode script. Under automatic control every call must belong to the assistant message Pi persisted for this turn (its batch), and the batch must follow the handoff rule: a handoff call comes last, may be accompanied only by `freeflow_project` calls, and never by ordinary task tools. A worker whose assignment has returned may make only the recovery reads it was granted.
+3. **`tool_call`**: `preflight()` (`ToolGate`) checks every call. Routing tools must be called directly, never from a codemode script. Under automatic control every call must belong to the assistant message Pi persisted for this turn (its batch), and the batch must follow the handoff rule: a handoff call comes last, may be accompanied only by `select_evidence` calls, and never by ordinary task tools. A worker whose assignment has returned may make only the recovery reads it was granted.
 4. **Tool execution**: `ToolHandlers` runs routing tools one at a time. Each accepted call appends its event once, so repeating a call returns the saved result.
 5. **`turn_end`**: `Handoffs.turnEnd()` binds the response to its execution (`execution-bound`). If a delegation or return was accepted in this turn, `finishHandoff()` checks that the exchange is complete. For a return under projection it prepares the Coordinator's view and records the reservation, or marks the handoff `blocked` when evidence cannot be delivered. It then switches Pi to the receiving profile's model and effort (`ModelControl.applyPair()`) and records the handoff as `configured`, meaning Pi now runs the receiving profile. Pi's loop continues with the next request, now on the receiving profile.
 6. **`agent_settled`**: `settled()` retires executions that never bound and finishes the run's bookkeeping.
@@ -77,7 +77,7 @@ no open unit
 
 **Contract.** A useful contract communicates the required result and why it matters, established facts and remaining questions, scope and permitted effects, the evidence needed for assessment, and the return condition. A preparation assignment names what must be learned rather than guessing the patch. The routing skill teaches this; the runtime stores the contract as given.
 
-**Return.** A report records the actual work, evidence, limitations, changed assumptions and partial effects. Once the report is saved, ordinary task work for that assignment ends (`worker_task_phase_ended` in the gate). The worker may correct its selection and retry the saved handoff (`freeflow_return retry`), but cannot continue implementation because delivery is blocked.
+**Return.** A report records the actual work, evidence, limitations, changed assumptions and partial effects. Once the report is saved, ordinary task work for that assignment ends (`worker_task_phase_ended` in the gate). The worker may correct its selection and retry the saved handoff (`return_work retry`), but cannot continue implementation because delivery is blocked.
 
 **Assessment.** The Coordinator compares material claims with the property the contract required, what actually observed it, the assertions that decide it, which version of the work was checked, and the returned limitations. It may accept, ask for focused evidence (recovery), commission a correction, revise the approach, or return a choice to the user.
 
@@ -89,18 +89,18 @@ no open unit
 
 | Tool | Operations | Responsibility |
 | --- | --- | --- |
-| `freeflow_delegate` | `assign`, `replace` | The Coordinator saves a worker contract and requests execution. In `both` mode the Coordinator names the `worker`. |
-| `freeflow_return` | `submit`, `supplement`, `retry` | The recorded worker saves or revises its report, returns a recovery supplement, or retries the unchanged saved handoff. |
-| `freeflow_unit` | `inspect`, `assess`, `recover`, `cancel-recovery`, `close` | Reads saved work, manages recovery and assessment, or records the Coordinator's disposition. |
-| `freeflow_project` | `inspect`, `add`, `remove` | Manages the worker's evidence selection; refused with `projection_disabled` when projection is off. |
+| `delegate_work` | `assign`, `replace` | The Coordinator saves a worker contract and requests execution. In `both` mode the Coordinator names the `worker`. |
+| `return_work` | `submit`, `supplement`, `retry` | The recorded worker saves or revises its report, returns a recovery supplement, or retries the unchanged saved handoff. |
+| `routing_unit` | `inspect`, `assess`, `recover`, `cancel-recovery`, `close` | Reads saved work, manages recovery and assessment, or records the Coordinator's disposition. |
+| `select_evidence` | `inspect`, `add`, `remove` | Manages the worker's evidence selection; refused with `projection_disabled` when projection is off. |
 
 The harness owns unit, assignment, handoff and event identities. Models use returned refs; they never invent ids or keep a parallel ledger. Tool definitions stay fixed and visible to every profile for the prompt cache; the gate and handlers decide what may run.
 
 ### Evidence selection and projection
 
-Only tool results are evidence: `ctx:<entry>` on a tool result. A worker's own messages are not selectable; what it would say belongs in its report. A worker adds evidence and submits its return in the same response, with the return last. The report is saved even when a selected source has a problem; the receipt reports readiness. A ref that cannot be resolved is kept as an unresolved problem and does not stop the other selections. A selected source that resolves but cannot be delivered (for example an image the Coordinator's model cannot take) makes the handoff `blocked` until the worker fixes the selection with `freeflow_project` and uses `retry`.
+Only tool results are evidence: `ctx:<entry>` on a tool result. A worker's own messages are not selectable; what it would say belongs in its report. A worker adds evidence and submits its return in the same response, with the return last. The report is saved even when a selected source has a problem; the receipt reports readiness, and a blocked one says Coordinator receives nothing until the problems are fixed and how to fix them, rather than promising delivery. A ref that cannot be resolved is kept as an unresolved problem and does not stop the other selections. A selected source that resolves but cannot be delivered (for example an image the Coordinator's model cannot take) makes the handoff `blocked` until the worker fixes the selection with `select_evidence` and uses `retry`.
 
-`freeflow_project inspect` scopes: `assignment` (this assignment's candidates), `active`, `history`, and `selected` (saved selections with their diagnostics). Results show identity metadata, not content previews. Cursors bind to the inspection snapshot; changed ancestry or reload requires a fresh inspection.
+`select_evidence inspect` scopes: `assignment` (this assignment's candidates), `active`, `history`, and `selected` (saved selections with their diagnostics). Results show identity metadata, not content previews. Cursors bind to the inspection snapshot; changed ancestry or reload requires a fresh inspection.
 
 When the Coordinator's view is prepared (`prepareView()`), each selected tool result arrives with its native call envelope and required call/result structure. Unselected sibling results in the same call group appear as explicit omission placeholders, never fabricated content. Readiness also checks source availability and identity, receiver configuration, whether the target model can represent the source (images, failed sources), and whole-request size. `ready: true` means no known preparation problem at that boundary. It does not prove the claim, current external truth, an actual cache hit, or Coordinator acceptance. Valid selections survive another item's failure; adverse or unresolved evidence stays explicit.
 
@@ -113,19 +113,19 @@ Workers see the full ordinary history. A profile receives another profile's priv
 ```text
 worker report returned
 -> Coordinator identifies a material evidence gap
--> freeflow_unit recover saves a bounded request
+-> routing_unit recover saves a bounded request
 -> the assignment's recorded worker receives recovery scope
 -> worker selects exposed evidence and/or reads exact files the Coordinator named
--> freeflow_return supplement saves separate communication
+-> return_work supplement saves separate communication
 -> Coordinator receives the supplement or cancels recovery
--> freeflow_unit assess may resume the original assessment
+-> routing_unit assess may resume the original assessment
 ```
 
 Recovery may use previously exposed evidence, the exact task-file paths the Coordinator named in the request, packaged Freeflow skill or reference Markdown, and the routing and return controls. It may not search broadly, edit, test, build, run scripts, or resume task work (the gate's `recoveryReadAllowed()`). Reads stop when the supplement is saved. Evidence that needs new work (running tests, searching) needs a new assignment instead. The worker recorded on the assignment owns recovery even if configuration later selects another mode; if that worker is unavailable, routing blocks rather than substituting another profile. A supplement is separate from the original report, which keeps its identity, revision and selection. Fresh user attention does not settle recovery: the Coordinator receives the supplement or cancels.
 
 ### New user attention
 
-New user input belongs to the Coordinator. During a returned assessment it suspends the forced assessment-evidence obligation (`assessment-suspended`, reason `user-attention`) while keeping ordinary admitted history, the report, selections and current responsibility. A later `freeflow_unit assess` must re-establish readiness before the assessment view resumes. During outstanding worker execution, new direction reaches the worker as an attention message (`freeflow-routing-attention`) requiring it to stop ordinary task tools and return its partial state; the Coordinator then handles the new input.
+New user input belongs to the Coordinator. During a returned assessment it suspends the forced assessment-evidence obligation (`assessment-suspended`, reason `user-attention`) while keeping ordinary admitted history, the report, selections and current responsibility. A later `routing_unit assess` must re-establish readiness before the assessment view resumes. During outstanding worker execution, new direction reaches the worker as an attention message (`freeflow-routing-attention`) requiring it to stop ordinary task tools and return its partial state; the Coordinator then handles the new input.
 
 ### Persistence and reconciliation
 
@@ -137,7 +137,7 @@ After reload, tree navigation, context loss, or an external model or effort chan
 
 ### Compaction
 
-Freeflow's and Pi's compaction may remove active user or evidence bodies while the session history keeps them. Routing keeps the last delivered user basis so stored but undelivered entries do not look like new input. Under routing a worker compacts itself mid-assignment with `freeflow_compact` and continues; routing then re-sends the assignment's contract followed by a note that the compaction is done. A Coordinator under projection never compacts; it delegates an assignment that compacts and returns. After a worker's compaction the Coordinator sees a version of the carried context (what the compaction copied into the next cycle) that names the worker's copies, and evidence it received stays in its view until the next compaction. Details: [Compaction](compaction.md).
+Freeflow's and Pi's compaction may remove active user or evidence bodies while the session history keeps them. Routing keeps the last delivered user basis so stored but undelivered entries do not look like new input. Under routing a worker compacts itself mid-assignment with `compact_context` and continues; routing then re-sends the assignment's contract followed by a note that the compaction is done. A Coordinator under projection never compacts; it delegates an assignment that compacts and returns. After a worker's compaction the Coordinator sees a version of the carried context (what the compaction copied into the next cycle) that names the worker's copies, and evidence it received stays in its view until the next compaction. Details: [Compaction](compaction.md).
 
 ## Decisions
 
@@ -159,6 +159,7 @@ Freeflow's and Pi's compaction may remove active user or evidence bodies while t
 | Startup verifies persistence by the bytes appended since Pi parsed the file, falling back to a whole-file snapshot; the trust point is set only where Pi just parsed the file, never on `/reload`. | Re-reading and comparing the whole file cost 130 ms on a 24 MB session. A reload keeps Pi's session in memory without re-reading the file, so trusting it there could hide an entry a failed write left out (Pi 1.0.0 source, tag v1.0.0). | Always the full snapshot; trusting on every start. | Task 013 D-001 |
 | Event replay at startup stays proportional to the number of routing events; no checkpoints. | A checkpoint would be as large as the log, because routing state keeps every event for idempotency, unless idempotency is redesigned, which touches the persistence guarantees. Replay costs about 15 µs per event. | Checkpoint entries. Revisit if a real session's replay passes 100 ms (about 7,000 events). | Task 013 D-001 |
 | Routing tools cannot be called from codemode scripts. | A handoff must be the last call of the persisted assistant message, and a script's nested call never appears in it. Nested calls of ordinary tools are admitted with the call that issued them. | — | `92d1d78d` |
+| The tools are `delegate_work`, `return_work`, `routing_unit` and `select_evidence`, without a `freeflow_` prefix; history readers (`isTaskEvidence`, return receipts, the compaction result index) also accept the old names through `routingToolName()`. | grok-4.7 sent a `freeflow_`-prefixed tool to bash as a `/freeflow` command (task memory's tool, renamed `task_memory`); `freeflow_project` also shared a word with `/freeflow project`. Sessions saved before the rename keep their history unchanged, since cached history is never rewritten. | Keeping the prefix; rewriting old names in saved history. | Task 003, `legacy-names.test.js` |
 
 ## Intended Behavior That Looks Wrong
 
@@ -168,12 +169,13 @@ Freeflow's and Pi's compaction may remove active user or evidence bodies while t
 | A worker's report is saved even when its selected evidence has problems. | The report must not be lost; readiness is reported and fixed by `retry`. | Lost reports and repeated work. |
 | A returned worker cannot keep working even if the Coordinator's handoff is blocked. | The report ends ordinary task work; only correction or recovery remains. | Workers continue past their contract. |
 | Old contracts and reports stay in history after replacement or closure, labelled historical. | Admitted communication is kept (see Decisions). | The Coordinator loses context it already used. |
-| Under manual control the gate refuses every routing tool except `freeflow_unit`. | Inspection and closing saved work stay possible while a profile is held. | — |
+| Under manual control the gate refuses every routing tool except `routing_unit`. | Inspection and closing saved work stay possible while a profile is held. | — |
 | New user input during an assignment does not cancel it. | The worker returns partial state; the Coordinator decides. | Lost partial effects. |
 | Unknown historical attribution stays unknown. | Model identity is not role identity, and marker-shaped text is not provenance. | Mis-attributed evidence. |
 | Projection errors block the request rather than falling back to the full history. | The Coordinator must never receive a worker's full history by accident. | Silent cost and context blow-up. |
 | A recovering worker may not run tests or search, even to find the evidence asked for. | Recovery is a bounded lookup, not new work. | Recovery becomes an unreviewed assignment. |
 | Changing the delegation mode does not retarget an accepted assignment or its recovery. | The recorded worker owns its assignment. | Work moves between profiles mid-assignment. |
+| Selected evidence is not re-sent with a return: the Coordinator sees each selected tool result in place in the worker's run. Every other worker result shows a placeholder that says why: `[Not shown: the worker did not select this result as evidence]`, `[Routing receipt, not shown]`, or `[Selected, but not shown: ...]` for a selected result that failed a check. Source provenance names each result's call (`read: <path>`, `bash: <command>`), and the Runtime State says the selection is in view while the Coordinator assesses. | With the old placeholder `[Worker result omitted from this view]`, grok-4.7 Coordinators concluded every worker body was omitted, matched the skill's "evidence omitted: recover it", and requested recovery of results shown in full beside it (4 of 5 routed runs; request logs confirmed every requested ref was selected and in view). After the wording change, 0 of 8 runs recovered (Task 004 S-005). | Recovery rounds for evidence already delivered. |
 
 ## Surface
 
@@ -190,7 +192,7 @@ Routing is unavailable inside subagents and when Pi's model registry lacks the n
 
 **Commands:** `/freeflow profile coordinator|helper|executor` (manual hold), `/freeflow profile auto` (release), `/freeflow profile history [diagnostics]`, `/freeflow resume`. Ctrl+Shift+R cycles manual holds; Ctrl+Shift+A releases to the automatic Coordinator. Each of these except `history` turns routing on first when it is off. `/freeflow settings` edits switches and presets.
 
-**Tools:** `freeflow_delegate`, `freeflow_return`, `freeflow_unit`, `freeflow_project` (model-only; see above).
+**Tools:** `delegate_work`, `return_work`, `routing_unit`, `select_evidence` (model-only; see above), labelled Delegate, Return, Routing unit and Evidence where Pi shows a tool's label.
 
 **Session entries:** `freeflow-routing-v2` events. **Transient messages:** `freeflow-routing-v2-state`, `freeflow-routing-attention`, `freeflow-routing-budget`, `freeflow-routing-communication`.
 
@@ -216,6 +218,7 @@ The spec's invariants (Task 001 §3.3) that hold today. Most are guarded across 
 - A failed model switch records the handoff as blocked and tells the user. `handoffs.test.js`.
 - Manual holds survive navigation, and `/freeflow resume` cannot release them. `recovery.test.js`.
 - Image and failed-source limits stay explicit while error tool results remain evidence. `projection.test.js`.
+- Routing tools, their prompt guidelines and the routing cue are declared only while routing is effective (`applyRoutingToolVisibility`, `stableRuntimeContext`); turning routing on or off costs one cache write (Task 003 D-001, D-002). `tool-visibility.test.js`.
 - Routing tools are declared to the model but not callable from scripts; nested ordinary calls are admitted with their issuing call. `nested-calls.test.js`.
 - The producing execution, not the profile live after a switch, determines attribution; unknown attribution stays unknown. Covered in the suite; no single named test.
 - Replay never invokes historical tools. By construction (replay reads events only); no single named test.
@@ -255,6 +258,8 @@ Deterministic source and fixture checks establish configuration and gating rules
 
 ## Changes
 
+- Task 004 (2026-10-11): placeholders say why a worker result is not shown, provenance names each call, the Coordinator is told its selected evidence is in view, and the return receipt no longer reads as undelivered.
+- Task 003 (2026-10-11): routing tools renamed without the `freeflow_` prefix; old names still read from saved history.
 - Task 013 (2026-10-03): view renderings cached with stable identities (`25ec4b04`); startup verified by the file's tail, no trust point on `/reload`.
 - `1315e57e` (2026-10-03): projection on by default.
 - `70702419`, `b44ccc2a`, `305f20b6`, `01505b0f`, `9849a16c` (2026-10-02 to 03): compaction under routing.

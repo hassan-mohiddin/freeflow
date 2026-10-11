@@ -1,7 +1,7 @@
 export type ToolExecutionConfig = Readonly<{ enabled: boolean }>;
 export type ToolExecutionState = ToolExecutionConfig & Readonly<{ effective: boolean }>;
 
-export const DEFAULT_TOOL_EXECUTION_CONFIG: ToolExecutionConfig = Object.freeze({ enabled: false });
+export const DEFAULT_TOOL_EXECUTION_CONFIG: ToolExecutionConfig = Object.freeze({ enabled: true });
 
 // Settings of the retired v2 runtime (.deprecated/tool-execution-v2). Existing configuration files keep loading;
 // the values no longer do anything.

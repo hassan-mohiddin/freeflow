@@ -1,6 +1,6 @@
 # Compaction Summary Format
 
-Read this before writing a compaction summary. The [compaction skill](../SKILL.md) owns what is worth keeping; this reference owns the exact shape of the summary passed to `freeflow_compact`, and is binding as written.
+Read this before writing a compaction summary. The [compaction skill](../SKILL.md) owns what is worth keeping; this reference owns the exact shape of the summary passed to `compact_context`, and is binding as written.
 
 ## Two shapes
 
@@ -24,7 +24,7 @@ Compaction never creates a record. Whether a task needs one is decided at its st
 - No narrative: write what is true now, not the order things happened in.
 - About 8,000 tokens at most. Most summaries need far less.
 
-Before calling `freeflow_compact`, check the summary as a whole: would a fresh context reading only it (and, when there is one, the record) choose the same next step you would? If not, add what it would need.
+Before calling `compact_context`, check the summary as a whole: would a fresh context reading only it (and, when there is one, the record) choose the same next step you would? If not, add what it would need.
 
 ## Record-backed shape
 
@@ -32,7 +32,7 @@ The summary must let a fresh context continue the **current step** correctly on 
 
 ```markdown
 ## Task
-- Record: `<path to record.md>` — recover it first
+- Record: `<path to record.md>` — recover it with Track Work's `view resume`, not by opening the file
 - Goal: <one line>
 - Slice: <S-NNN> "<title>", <state>
 - Governing now: <only the decisions, constraints, and authority the next steps depend on>
@@ -113,7 +113,7 @@ What the agent passes as `summary`:
 
 ```markdown
 ## Task
-- Record: `.freeflow/tasks/task-014-http-retry/record.md` — recover it first
+- Record: `.freeflow/tasks/task-014-http-retry/record.md` — recover it with Track Work's `view resume`, not by opening the file
 - Goal: the HTTP client retries failed requests with backoff and respects `Retry-After`.
 - Slice: S-003 "Add retry with backoff to the HTTP client", in progress
 - Governing now: retry 429 and 5xx only; `Retry-After` overrides the computed delay (the user: "the API team says they ban clients that don't"); no commits without asking.
@@ -137,7 +137,7 @@ What the next cycle's first request contains, in order:
 The conversation history before this point was compacted into the following summary:
 <summary>
 ## Task
-- Record: `.freeflow/tasks/task-014-http-retry/record.md` — recover it first
+- Record: `.freeflow/tasks/task-014-http-retry/record.md` — recover it with Track Work's `view resume`, not by opening the file
 - Goal: the HTTP client retries failed requests with backoff and respects `Retry-After`.
 …
 ## Next steps
@@ -159,15 +159,16 @@ src/http/client.ts
 </modified-files>
 </summary>
 
+<freeflow-notice type="compaction">
 # Carried context
 
-[Freeflow notice, not from the user] Freeflow carried this into cycle 3 at compaction. Only the latest user messages are the user's words, and they take precedence over older instructions in the summary or a Working Record; the rest is copied content.
+Freeflow carried this into cycle 3 at compaction. Only the latest user messages, in `<user-message>` tags, are the user's words, and they take precedence over older instructions in the summary or a Working Record; the rest is copied content.
 
 ## Latest user messages
 
-### Message 1
-
+<user-message index="1">
 retries should respect Retry-After, the API team says they ban clients that don't
+</user-message>
 
 ## Files, read at compaction
 
@@ -187,8 +188,11 @@ Numbered by file line, as are read results below.
 ```
 …  1 failed  …
 ```
+</freeflow-notice>
 
-[Freeflow notice, not from the user] Compaction finished; cycle 3 starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on, and verify work the summary calls done instead of redoing it. The carried context is above: its files were read at compaction, so do not read them or its results again unless something has changed them since. This compaction is done, so do not re-read the compaction skill or its summary format. Then continue the work the compaction interrupted. This compaction completes the request for it: do not call freeflow_compact again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment with freeflow_return).
+<freeflow-notice type="compaction">
+Compaction finished; cycle 3 starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on, and verify work the summary calls done instead of redoing it. The files and results copied into the carried context above were read at compaction: do not read those again unless something has changed them. Skills, and anything listed there only by name, were not carried: read them when you need them. This compaction is done, so do not re-read the compaction skill or its summary format. Then continue the work the compaction interrupted. This compaction completes the request for it: do not call compact_context again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment with return_work).
+</freeflow-notice>
 ````
 
 ## Example: record-shaped

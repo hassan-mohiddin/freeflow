@@ -40,7 +40,7 @@ const report = (name) =>
     ["operation", "report", "outcome"],
   );
 export const ROUTING_SCHEMAS = {
-  freeflow_delegate: {
+  delegate_work: {
     oneOf: [
       object({ operation: operation("assign"), contract: string(), worker }, ["operation", "contract"]),
       object({ operation: operation("replace"), contract: string(), reason: string(2048), worker }, [
@@ -50,8 +50,8 @@ export const ROUTING_SCHEMAS = {
       ]),
     ],
   },
-  freeflow_return: { oneOf: [report("submit"), report("supplement"), object({ operation: operation("retry") })] },
-  freeflow_unit: {
+  return_work: { oneOf: [report("submit"), report("supplement"), object({ operation: operation("retry") })] },
+  routing_unit: {
     oneOf: [
       object(
         {
@@ -81,7 +81,7 @@ export const ROUTING_SCHEMAS = {
       }),
     ],
   },
-  freeflow_project: {
+  select_evidence: {
     oneOf: [
       object(
         {

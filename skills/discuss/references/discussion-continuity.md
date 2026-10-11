@@ -91,7 +91,7 @@ Authority or user decision needed:
 
 Do not restart from zero, rewrite unaffected decisions, or narrate completed work.
 
-After context loss, recover through Track Work's recovery order before relying on the record: the complete record, its defining artifacts, then its Recovery sources. Compare current sections and relevant History with current user direction, accepted artifacts, and live evidence. Reconcile affected meaning and dependent future work; do not repeat a disproved approach or preserve a stale plan merely because the record contains it. With intact context, use `resume` or targeted reads only when needed.
+After context loss, recover through Track Work's recovery order before relying on the record: its `resume` view, its defining artifacts, its Recovery sources, then the History entries the next action depends on. Compare current sections and relevant History with current user direction, accepted artifacts, and live evidence. Reconcile affected meaning and dependent future work; do not repeat a disproved approach or preserve a stale plan merely because the record contains it. With intact context, use `resume` or targeted reads only when needed.
 
 ## Stop
 

@@ -1,8 +1,8 @@
 # Request History And Prompt Cache
 
-> **Covers:** `pi-extension/src/host/request-history.ts`, `pi-extension/src/host/runtime-state.ts`, `pi-extension/src/host/projection-tags.ts`, `pi-extension/src/host/read-only-session.ts`, `pi-extension/src/provider-support/`
-> **Tests:** `pi-extension/tests/cache-reuse/`, `pi-extension/tests/provider-support/`, `pi-extension/tests/host/persisted-branch.test.js`
-> **Verified at:** `c2e36114` (2026-10-03)
+> **Covers:** `pi-extension/src/host/request-history.ts`, `pi-extension/src/host/section-keeper.ts`, `pi-extension/src/host/runtime-state.ts`, `pi-extension/src/host/projection-tags.ts`, `pi-extension/src/host/read-only-session.ts`, `pi-extension/src/provider-support/`
+> **Tests:** `pi-extension/tests/cache-reuse/`, `pi-extension/tests/provider-support/`, `pi-extension/tests/host/persisted-branch.test.js`, `pi-extension/tests/host/section-keeper.test.js`
+> **Verified at:** `9d2bcad4` (2026-10-11)
 > **User docs:** `plugin-docs/prompt-caching.md`
 
 For contributors changing how Freeflow assembles requests or touches provider payloads. This doc explains the mechanisms: how generated messages keep their positions, where cache breakpoints are added, when a cache is kept warm, and how regressions are detected. The rules every change must follow, and how to verify one, are in [Prompt cache rules](../guides/prompt-cache.md); this doc does not repeat them.
@@ -70,6 +70,10 @@ To add a new generated message kind: give it its own `customType`, add the type 
 ### Runtime State placement
 
 `withFreeflowRuntimeState()` places the Runtime State before the first user message the first time. Unchanged, it keeps its position (`runtimeStateAnchor`); changed, it moves to just before the latest user message. Request history normally overrides this placement: it strips transient messages and re-inserts them from frames. The anchor matters on the paths that bypass request history, when it is unavailable or fails. `freeflow-cognitive-routing-runtime-state` is an older type no longer produced; it is still recognized so sessions that contain it assemble correctly.
+
+### Freeflow's sections on runs Pi starts
+
+Pi removes the sections `before_agent_start` handlers set (Freeflow's, and other extensions' such as `mcp_servers`) with a patch on a run it starts for an extension message, and restores them with another at the next prompt (Pi issue #10267); both patches would change the cached prompt, and on providers that send the whole system prompt at the top of each request (xAI) each is a full miss. `keepSections()` drops those entries from the request, so the run keeps the last prompt's sections. The stored transcript keeps Pi's patches. See [System prompt architecture](prompt-assembly.md#pi) for what is kept and what passes through.
 
 ### Cache breakpoints (anchor)
 
@@ -189,6 +193,7 @@ Request history runs on every request; the rules are in [Performance](../guides/
   - `runtime-state.ts`: `freeflowRuntimeStateMessage()`, `withFreeflowRuntimeState()`, `RuntimeStateAnchor`, `filterBootstrapMessage()`.
   - `projection-tags.ts`: `tagProjectedMessages()`, `projectedEntryId()`, `tagDerived()`, `occurrenceIdentity()`, `isProjected()`, `isHostEdited()`.
   - `read-only-session.ts`: `persistedBranchMatches()`, `trustLoadedSession()`.
+  - `section-keeper.ts`: `currentSections()`, `keepSections()`.
 - `pi-extension/src/provider-support/`: see its [README](../../pi-extension/src/provider-support/README.md).
   - `index.ts`: `registerProviderSupport()` and its hooks.
   - `routes.ts`: `isChatGPTSignIn()`.
@@ -202,6 +207,7 @@ Request history runs on every request; the rules are in [Performance](../guides/
 - `tests/cache-reuse/`: end-to-end prefix extension across request history, routing views and providers. A failure here usually means something rewrote earlier request content; find which message changed between two consecutive request bodies before changing the test.
 - `tests/provider-support/`: anchor planning (`cache-anchor*.test.js`), keep-alive (`cache-keepalive*.test.js`), health, monitor, Sign in with ChatGPT, and effort history. See its [README](../../pi-extension/tests/provider-support/README.md).
 - `tests/host/persisted-branch.test.js`: tail readback and mismatch detection.
+- `tests/host/section-keeper.test.js`: reverting and restating patches dropped, other changes kept, the head refilled; `tests/tool-execution/background-native.test.js` (an idle notice keeps the system prompt byte-identical and each request extends the last).
 - `tests/integration/pi-extension.test.js`: Runtime State keeps a fixed prefix position across refreshes and turns.
 - `tests/integration/request-path-budget.test.js`: per-request work bounds.
 
@@ -211,6 +217,9 @@ Request history runs on every request; the rules are in [Performance](../guides/
 - Provider expiry, eviction, minimum cacheable length, and per-effort caches on Sign in with ChatGPT are outside Freeflow's control.
 - Another extension that changes the final request can break the prefix after Freeflow.
 - Request history still fingerprints messages with no stable identity (generated and host-edited ones) on every request; `request-path-budget.test.js` bounds how many a later request may fingerprint.
+- An extension that returns a whole `systemPrompt` from `before_agent_start` (the ARS Pi wrapper does, to hide its skills) gets that prompt only on prompt-started runs; Pi applies it outside the transcript, so Freeflow cannot keep it, and a run Pi starts misses the cache once at its start and once at the next prompt.
+- Pi builds the system prompt only for prompts (`sendCustomMessage` with `triggerTurn` skips `_preparePromptAndToolLoadout`; pinned Pi `abe508e1`), so a turn started in a session that has never had a prompt would reach the model with no system prompt at all. Freeflow therefore starts no turn there: notices are shown and wait for the user's first prompt (`canWake()` in `host/inbound.ts`). A resumed session is not affected: its transcript carries what Freeflow's last prompt set, and the host records that.
+- When a later prompt changes a section the keeper recorded (a settings change, say), `keepSections()` lets through the reversal patch it dropped during an earlier notice-started run, because that reversal no longer moves the section away from the recorded value. The request after that prompt then carries the reversal before the earlier notice, so it stops extending the previous request at that point instead of at the new prompt: one extra cache write on a change that already costs one, and the model sees the section removed during that notice. Accepted (Task 007): it needs a notice-started run followed by a prompt that changes Freeflow's sections, and tracking which recorded value each patch reverted would add state to every request.
 - Keep-alive covers only the suspended Coordinator, not other requesters that will resume.
 
 ## Changes

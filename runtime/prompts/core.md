@@ -21,17 +21,11 @@ Before applying a selected skill, read its current body when it is not already i
 
 ## Recover After Context Loss
 
-After compaction, a summary that replaces earlier context, clear, session resume or navigation, transfer into another context, or uncertain continuity, pause task work and recover first. Use only the reads recovery needs; recovery is not a bypass of authority, capabilities, or host permissions.
+After compaction, a summary that replaces earlier context, clear, session resume or navigation, transfer into another context, or uncertain continuity, pause task work and recover first, with only the reads recovery needs; recovery is not a bypass of authority, capabilities, or host permissions.
 
 - Use the latest Freeflow Runtime State; do not infer missing or contradictory state.
 - Reload the methods the current work needs.
-- When a Working Record exists or may exist for the current work, load Track Work, confirm the record belongs to that work, and read the complete `full` record, then the artifacts listed under its `What defines this task` and its `Recovery sources`. A summary or `resume` view is not full recovery. If recovery is incomplete, report that and stop affected work.
-- Reconcile the record with current user direction, live state, and the current Runtime State, which override it where they conflict. A summary or record may preserve evidence of prior approval; check that the approval still applies. Neither creates authority.
+- When a Working Record exists or may exist for the current work, load Track Work and recover the record that belongs to that work in its order, starting from its `resume` view, not the raw file. A summary is not recovery. If recovery is incomplete, report that and stop affected work.
+- Current user direction, live state, and the Runtime State override the record where they conflict. A record or summary may show prior approval; check that it still applies. Neither creates authority.
 
 Then continue the covered work toward the agreed end. Context loss is not a reason to stop or to ask for permission again; stop only at the agreed end, a real blocker, or a decision the user owns. With intact context, another turn or an ordinary pause is not context loss.
-
-## Cues
-
-- Use Workflow when the work agreement, the current owner, readiness to act, a changed route, continuity, or the end of the work needs coordinating.
-- Use Action Selection before an uncertain, broad, or repeated environment interaction. Take the direct action when it is obvious.
-- Use Decision Gate when proceeding would make a choice the user owns.

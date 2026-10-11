@@ -16,6 +16,7 @@ export const CURRENT_DOCUMENTS = [
   "plugin-docs/capabilities/cognitive-routing.md",
   "plugin-docs/capabilities/tool-execution.md",
   "plugin-docs/capabilities/compaction.md",
+  "plugin-docs/capabilities/task-memory.md",
   "plugin-docs/workflow.md",
   "plugin-docs/release-evidence/README.md",
   "plugin-docs/integrations/pi.md",

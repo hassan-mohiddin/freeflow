@@ -34,10 +34,10 @@ export function setFreeflowStatus(
   const cognitiveRoutingActive = cognitiveRouting?.effective === true && cognitiveRoutingRuntime?.effective === true;
   const startupSelectionSuppressesCognitiveRouting = options.startupSelectionSuppressed === true;
   if (cognitiveRoutingInactive) {
-    active.push("cognitive inactive");
+    active.push("routing inactive");
   } else if (cognitiveRoutingBlocked) {
     active.push(
-      `cognitive blocked · ${cognitiveRoutingRuntime?.runtimeReason ?? "runtime_blocked"} · /freeflow profile auto`,
+      `routing blocked · ${cognitiveRoutingRuntime?.runtimeReason ?? "runtime_blocked"} · /freeflow profile auto`,
     );
   } else if (cognitiveRoutingActive) {
     const profile = cognitiveRoutingRuntime.activeProfile;
@@ -47,7 +47,7 @@ export function setFreeflowStatus(
     );
   } else if (cognitiveRouting?.enabled === true) {
     if (cognitiveRouting.blockingReason?.code === "runtime_disabled") {
-      active.push("cognitive blocked · runtime_disabled");
+      active.push("routing blocked · runtime_disabled");
     } else if (
       cognitiveRouting.effective === true &&
       cognitiveRoutingRuntime === undefined &&
@@ -60,10 +60,18 @@ export function setFreeflowStatus(
         cognitiveRouting.effective === true
           ? (cognitiveRoutingRuntime?.blockingReason?.code ?? "runtime_inactive")
           : (cognitiveRouting.blockingReason?.code ?? "unavailable");
-      active.push(`cognitive blocked · ${reason}`);
+      active.push(`routing blocked · ${reason}`);
     }
   }
-  ctx.ui.setStatus("freeflow", `freeflow: ${active.length > 0 ? active.join(" · ") : "active"}`);
+  // The footer shows state that changes while you work, which only routing has; other capabilities are settings
+  // (Task 005). With every capability off it says so.
+  const anyOn = ["compaction", "toolExecution", "taskMemory", "messaging", "cognitiveRouting"].some(
+    (name) => capabilityState?.[name]?.effective === true || capabilityState?.[name]?.enabled === true,
+  );
+  ctx.ui.setStatus(
+    "freeflow",
+    `freeflow: ${active.length > 0 ? active.join(" · ") : anyOn || !capabilityState ? "on" : "on (all capabilities off)"}`,
+  );
 }
 /** The /freeflow status report: capability state and diagnostics, including prompt-cache health. */
 export function freeflowStatusText(state, cognitiveRoutingController, diagnostics) {
@@ -96,6 +104,12 @@ export function freeflowStatusText(state, cognitiveRoutingController, diagnostic
     `tool execution: ${state.toolExecution?.effective ? "enabled" : "disabled"}`,
     ...(diagnostics?.backgroundRunning ? [`background commands: ${diagnostics.backgroundRunning} running`] : []),
     `compaction: ${state.compaction?.effective ? `enabled${diagnostics?.compaction ? ` (${diagnostics.compaction})` : ""}` : "disabled"}`,
+    ...(state.taskMemory?.effective
+      ? [`task memory: enabled${diagnostics?.taskMemory ? ` (${diagnostics.taskMemory})` : ""}`]
+      : []),
+    ...(state.messaging?.effective
+      ? [`messaging: enabled${diagnostics?.messaging ? ` (${diagnostics.messaging})` : ""}`]
+      : []),
     ...(diagnostics?.cacheHealth?.length ? [`prompt cache: ${diagnostics.cacheHealth.join(" ")}`] : []),
   ].join("; ");
 }

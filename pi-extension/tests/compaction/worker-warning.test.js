@@ -11,10 +11,10 @@ const WARNING = "Compaction is due soon:";
 const count = (body, text) => JSON.stringify(body.input).split(text).length - 1;
 
 test("a worker warned mid-assignment compacts, continues its contract, and returns", { timeout: 30000 }, async () => {
-  const delegate = { name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence.txt twice." } };
+  const delegate = { name: "delegate_work", args: { operation: "assign", contract: "Read evidence.txt twice." } };
   const read = { name: "read", args: { path: "evidence.txt" } };
-  const submit = { name: "freeflow_return", args: { operation: "submit", report: "Done.", outcome: "completed" } };
-  const close = { name: "freeflow_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } };
+  const submit = { name: "return_work", args: { operation: "submit", report: "Done.", outcome: "completed" } };
+  const close = { name: "routing_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } };
   // Request 3 is the worker's second request: its usage crosses the warning, and the notice joins request 4.
   const usage = [5_000, 50_000, 100_000, 100_000, 2_000, 2_000, 2_000, 2_000];
   await fixture(
@@ -23,7 +23,7 @@ test("a worker warned mid-assignment compacts, continues its contract, and retur
         [delegate],
         [read],
         [read],
-        [{ name: "freeflow_compact", args: { summary: "WORKER_SUMMARY" } }],
+        [{ name: "compact_context", args: { summary: "WORKER_SUMMARY" } }],
         [read],
         [submit],
         [close],
@@ -75,7 +75,7 @@ test("a worker's compact now asks it to compact before returning; the warning le
       routingProfile: () => (assignment ? "executor" : undefined),
       routingAssignment: () => assignment,
       background: () => [],
-      noticePrefix: "[notice]",
+      notice: (text) => `[notice] ${text}`,
       coordinatorUnderProjection: () => false,
       carryEnabled: () => true,
       nativeRefs: () => assignment !== undefined,

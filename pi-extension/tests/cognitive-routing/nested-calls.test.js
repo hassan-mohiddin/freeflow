@@ -28,9 +28,8 @@ test("routing tools are declared to the model but not callable from scripts", { 
     async () => [],
     false,
     async () => {
-      const routing = api.getAllTools().filter((tool) => tool.name.startsWith("freeflow_"));
-      const exposures = Object.fromEntries(routing.map((tool) => [tool.name, tool.exposure]));
-      for (const name of ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project"])
+      const exposures = Object.fromEntries(api.getAllTools().map((tool) => [tool.name, tool.exposure]));
+      for (const name of ["delegate_work", "return_work", "routing_unit", "select_evidence"])
         assert.equal(exposures[name], "model-only", name);
     },
     true,
@@ -50,7 +49,7 @@ test("under automatic routing a nested call is admitted with its issuing call", 
       assert.match(read.text, /EXACT_EVIDENCE_BODY_81/);
       // model-only exposure makes Pi refuse it before Freeflow's gate, which refuses nested routing calls as well.
       assert.equal(unit.isError, true);
-      assert.match(unit.text, /Tool freeflow_unit not found|Call freeflow_unit directly, not from a script\./);
+      assert.match(unit.text, /Tool routing_unit not found|Call routing_unit directly, not from a script\./);
     },
     true,
     {
@@ -58,7 +57,7 @@ test("under automatic routing a nested call is admitted with its issuing call", 
         nestingTool(
           [
             ["read", { path: "evidence.txt" }],
-            ["freeflow_unit", { operation: "inspect" }],
+            ["routing_unit", { operation: "inspect" }],
           ],
           outcomes,
         ),
@@ -73,7 +72,7 @@ test("a worker's nested read is admitted while its assignment is outstanding", {
     async (n, _body, manager) => {
       if (n === 1)
         return [
-          { name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence.txt through a script." } },
+          { name: "delegate_work", args: { operation: "assign", contract: "Read evidence.txt through a script." } },
         ];
       if (n === 2) {
         const state = routingState(manager);

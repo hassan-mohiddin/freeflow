@@ -1,6 +1,6 @@
 ---
 name: track-work
-description: "Use when work needs durable task memory: starting, updating, recovering, or closing a Working Record, or preparing for compaction, a pause, or a handoff."
+description: "Use when a task needs memory that outlasts the conversation: starting, updating, or recovering its Working Record, or before a compaction, pause, or handoff. It decides what the record says."
 ---
 
 # Track Work
@@ -25,7 +25,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Record a Slice before causing effects outside the record: edits, commands, generated files, sent messages, or changes to external systems.
 - Use [working-record.mjs](scripts/working-record.mjs) for every lifecycle change: IDs, states, and moves between sections. Edit only meaning directly.
 - Only the user changes task state.
-- After context loss, recover in this order before any task action: the complete record through `view full`, then every artifact listed under `What defines this task`, then `Recovery sources`. If any of them cannot be read completely, report that and stop affected work.
+- After context loss, recover in this order before any task action: the record through `view resume` (not by opening `record.md`, which loads all of History), then every artifact listed under `What defines this task`, then `Recovery sources`, then the History entries the next action depends on through `view entry`. If any of them cannot be read completely, report that and stop affected work.
 - Recover only a record that the context you still have ties to the current work, such as the user's direction, or a summary or handoff that names it. A recent change does not show that a record belongs to the current work. When a record's task and the current work disagree, report it instead of recovering the record.
 - Never record a requested, reported, or expected result as observed. Keep unverified work, failures, and contradictions visible.
 - Never claim that state will survive context loss unless it is written in the record or in a source the record points to.
@@ -100,6 +100,8 @@ Future Work is your route at this moment, not a commitment. When you know roughl
 
 Before starting a proposal, check its dependencies against what actually happened and against the current agreement. Being next in Future Work is not a reason to take on its obligations.
 
+Before starting or reopening a Slice, check the History index for closed work on the same result and read it with `view entry`. A failed or abandoned approach lives there.
+
 A **Checkpoint** is a boundary on the route that is not itself a unit of work: a commit, a publication, a review, a decision, a continuity point. It belongs to the Slice it follows. Do not make a Checkpoint into a Slice.
 
 ```text
@@ -127,9 +129,10 @@ On long tasks, a `preserve` Checkpoint every few Slices keeps a recoverable poin
 
 Context loss includes compaction, summarization that replaces context, clear, session resume or navigation, transfer to another context, or uncertain continuity. Recover before task work (Rules), in order:
 
-1. `view full`: read the complete record, including History and Notes. If output is truncated, keep reading the same file until complete. `view resume` and summaries are not full recovery.
+1. `view resume`: the record's present state and a one-line index of closed History. If output is truncated, keep reading until complete. Do not open `record.md` itself for this: it loads the whole History, which the index lets you read only where needed. A summary is not recovery.
 2. Every artifact listed under `What defines this task`, such as the task's Spec and Plan.
 3. Every entry under `Recovery sources`, except one whose stated trigger ("read when …") does not apply yet; read that one when it does.
+4. The History entries the next action depends on, through `view entry <ID>`: closed work on the same result or area, a blocked or abandoned attempt at what you are about to do, a superseded Decision behind a current one, and any entry the record or a source names by ID. Do not read entries just because they exist.
 
 Then reconcile before acting. Establish the task and Slice state, the agreed outcome and return condition, active Decisions, pending Checkpoints, completed and partial effects, whether the next action's prerequisites hold, and what authorizes it.
 
@@ -152,6 +155,10 @@ When a context limit is near or a pause or transfer is coming, make the record s
 Do not rush a Slice to completion, claim an unfinished check passed, or guess the outcome of a running operation.
 
 A context boundary is not a Slice transition or a Checkpoint. Pause the Slice only when safe continuation is actually suspended, and use a `continuity` Checkpoint only for a planned pause or handoff, not for every compaction.
+
+## Projects And Child Records
+
+Read [Projects And Child Records](references/projects.md) when the work involves a registered task: a task ID such as `my-project/task-003`, a child record, a project, or the user asking to group tasks, split a task across parallel sessions, or move a record out of a repository.
 
 ## Maintain The Record
 

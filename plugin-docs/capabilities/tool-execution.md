@@ -1,22 +1,22 @@
 # Tool Execution
 
-Tool Execution is Freeflow's layer over Pi's own tools. It keeps Pi's `read`, `bash`, `edit`, `write`, `grep`, `find` and codemode as the working surface, and adds what Pi lacks: guidance on working in the environment, notices when files change behind the model, clearer edit errors, `apply_patch` for models trained on it, and background commands that notify the model when they exit.
+Tool Execution is Freeflow's layer over Pi's own tools. It keeps Pi's `read`, `bash`, `edit`, `write`, `grep`, `find` and codemode as the working surface, and adds what Pi lacks: guidance on working in the environment, notices when files change behind the model, clearer edit errors, `apply_patch` for models trained on it, background commands that notify the model when they exit, and monitors that tell it each line a command prints.
 
 It changes how a model works in the repository, not what it is allowed to do: every Freeflow tool runs through Pi's own tool path, permissions and file-mutation queue.
 
 ## Availability
 
 - Native Pi 0.99.1 or later, including Pi 1.0.
-- Disabled by default. Freeflow itself must be enabled for the repository.
-- One switch turns on the whole layer: the guidance, the file tracking, the edit messages, `apply_patch` and the background commands. There are no sub-switches.
+- On by default whenever Freeflow is enabled.
+- One switch turns on the whole layer: the guidance, the file tracking, the edit messages, `apply_patch`, the background commands and monitors. There are no sub-switches.
 
-## Enabling it
+## Turning it off
 
-Set `toolExecution.enabled` in `.freeflow/config.json` (shared) or `.freeflow/local.json` (personal), or use `/freeflow settings` and change Tool Execution in the Repository, Personal or Session scope:
+Set `toolExecution.enabled` to `false` in `.freeflow/config.json` (shared) or `.freeflow/local.json` (personal), or use `/freeflow settings` and change Tool Execution in the Repository, Personal or Session scope:
 
 ```json
 {
-  "toolExecution": { "enabled": true }
+  "toolExecution": { "enabled": false }
 }
 ```
 
@@ -34,6 +34,8 @@ The settings of the retired v2 runtime (`capture`, `programs`, `workspace`, `dis
 
 **Background commands.** `bash_background` starts a command in the background and returns an ID and an output file at once; the model is notified once, when the command exits, and reads the output file for output so far. `stop_background` stops one. Up to 16 can run at a time. Output files are private to the session; running commands are stopped when Pi shuts down. A background command that exits while the model is idle starts a new turn so the model can react.
 
+**Monitors.** `monitor` runs a command in the background and tells the model each line it prints, as it happens: a server's log filtered to the lines worth acting on, a test watcher, a deploy's status. Lines that arrive within 200 ms reach the model together, at most 40 to a message; error output goes only to the output file. A message that arrives while the model is idle starts a new turn, so a watch can report a failure while you are away. A monitor ends when its command exits, after its time limit (5 minutes by default, at most 30; the model can start it again), or with `stop_background`; the model is told which. A monitor that sends more than 20 messages in a minute is stopped, and the model is told to filter its output: every message that wakes the model is a model request you pay for. Monitors count toward the 16 background commands. Ask the agent to "watch" or "keep an eye on" something when you want it to react while you do something else.
+
 **File tracking.** Freeflow records what the model has read or written of each file (a content hash, or size and time for files over 8 MiB):
 
 - `write` refuses to overwrite an existing file the model has not read in the session.
@@ -47,7 +49,7 @@ Every Freeflow message to the model states the fact and one next step. Notices a
 
 ## Evidence limits
 
-Local tests cover the tools, messages, file tracking and prompt assembly on native Pi, and live sessions on GPT-6 Luna and Sol 6.1 used `apply_patch` in its grammar form and the background commands. Whether the guidance and the two edit tools improve task results, turns, tokens or cost has not been measured; a comparison on a benchmark is planned.
+Local tests cover the tools, messages, file tracking and prompt assembly on native Pi, and live sessions on GPT-6 Luna and Sol 6.1 used `apply_patch` in its grammar form and the background commands. In live sessions on grok-4.7 and Claude Haiku 5.5, a filtered monitor reported a service ready and then woke the idle agent to report an error the service logged while still running. Whether the guidance and the two edit tools improve task results, turns, tokens or cost has not been measured; a comparison on a benchmark is planned.
 
 ## Retired
 

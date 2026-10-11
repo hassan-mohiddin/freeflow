@@ -17,6 +17,8 @@ Each task has one directory:
 
 `NNN` is three or more digits. A new task takes the next number after the highest existing one; numbers are never reused. `specs/`, `plans/`, and `sources/` are created only when needed; `init` creates `scratch/`. Nothing in `scratch/` is part of the record unless the record points to it, and it may be deleted when the task ends. The directory must be ignored by Git and untracked.
 
+A registered task's directory lives in its project's store instead (`<Freeflow home>/projects/<project>/tasks/task-NNN-<short-name>/`, outside any repository; the store is marked by its `store.json`), with the same contents; see [Projects And Child Records](projects.md).
+
 A Spec or Plan may instead live in the repository's own documentation; the record points to it either way.
 
 ## Skeleton
@@ -352,10 +354,13 @@ After editing headings, fields, or entity structure, run `validate --record <rec
 
 ## Views
 
-Both views are plain Markdown and change nothing.
+Views are plain Markdown and change nothing.
 
-- `view full` returns the file exactly as stored. It does not require the record to be valid, so use it to inspect malformed or unsupported records.
-- `view resume` returns the header, Current Context, active Decisions, Current Work, Future Work, and Notes. It omits terminal History and is not sufficient after context loss.
+- `view resume` returns the header, Current Context, active Decisions, Current Work, Future Work, a History index, and Notes. The index has one line per closed History entry (superseded and retired Decisions, closed Checkpoints, closed Slices) in record order: ID, state, `by D-NNN` for a superseded Decision, `recorded retroactively` for a `slice record` entry, the title, and `(corrected)` when the entry has Corrections. It is the recovery view after context loss.
+- `view entry <ID> [<ID> ...]` returns the named `S-NNN`, `C-NNN`, or `D-NNN` entries exactly as stored, in the order given. An unknown ID prints nothing and fails.
+- `view full` returns the file exactly as stored. It does not require the record to be valid, so use it to inspect malformed or unsupported records, after an uncertain write, or for an audit.
+
+`view resume` and `view entry` require a valid Schema 4 record.
 
 ## Notes
 

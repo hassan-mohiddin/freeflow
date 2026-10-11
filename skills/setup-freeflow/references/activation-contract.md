@@ -51,9 +51,9 @@ Effective Freeflow requires:
 1. valid repository config;
 2. missing or valid local config;
 3. session-resolved `enabled: true`;
-4. the mandatory `core.md` and `interaction-contract.md` prompt files.
+4. on Pi, the mandatory `core.md` and `interaction-contract.md` prompt files; on other hosts, the files of the prompts selected under `prompts`.
 
-The core prompt and Interaction Contract are always delivered together when Freeflow is enabled. Base Freeflow skills are exposed with that core surface. Cognitive Routing and Tool Execution remain independently gated capabilities; Context Virtualization and Conversation History are removed.
+On Pi the core prompt, Interaction Contract and Working Method are always delivered together when Freeflow is enabled. On other hosts `prompts` (`core`, `interactionContract`, `workingMethod`; each a boolean, on by default, personal overriding shared per prompt) selects which of them the session-start hook delivers. Base Freeflow skills are exposed whenever Freeflow is enabled. Cognitive Routing and Tool Execution remain independently gated capabilities; Context Virtualization and Conversation History are removed.
 
 ## Mutation Authority By State
 

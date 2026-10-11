@@ -255,7 +255,16 @@ export function idFor(ref: string): string | undefined {
 }
 export { canonical };
 
-export const ROUTING_TOOLS = ["freeflow_delegate", "freeflow_return", "freeflow_unit", "freeflow_project"] as const;
+export const ROUTING_TOOLS = ["delegate_work", "return_work", "routing_unit", "select_evidence"] as const;
+/** The routing tools' names before Task 003's rename; sessions saved earlier still hold them in their history. */
+export const LEGACY_ROUTING_TOOLS: Readonly<Record<string, (typeof ROUTING_TOOLS)[number]>> = {
+  freeflow_delegate: "delegate_work",
+  freeflow_return: "return_work",
+  freeflow_unit: "routing_unit",
+  freeflow_project: "select_evidence",
+};
+/** A routing tool's current name, for a name read from saved history. */
+export const routingToolName = (name: string): string => LEGACY_ROUTING_TOOLS[name] ?? name;
 export interface ResultGrantPort {
   resolve(id: string, ctx: any): Promise<ResultGrant | undefined>;
 }

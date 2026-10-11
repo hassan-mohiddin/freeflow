@@ -34,16 +34,16 @@ test(
         [
           () => [
             {
-              name: "freeflow_delegate",
+              name: "delegate_work",
               args: { operation: "assign", contract: "Read big.txt and return it as evidence." },
             },
           ],
           () => [{ name: "read", args: { path: "big.txt" } }],
           () => [{ name: "read", args: { path: "evidence.txt" } }],
-          () => [{ name: "freeflow_compact", args: { summary: "WORKER_SUMMARY" } }],
-          () => [{ name: "freeflow_project", args: { operation: "add", refs: [bigRef(manager)] } }],
-          () => [{ name: "freeflow_return", args: { operation: "submit", report: "Done.", outcome: "completed" } }],
-          () => [{ name: "freeflow_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } }],
+          () => [{ name: "compact_context", args: { summary: "WORKER_SUMMARY" } }],
+          () => [{ name: "select_evidence", args: { operation: "add", refs: [bigRef(manager)] } }],
+          () => [{ name: "return_work", args: { operation: "submit", report: "Done.", outcome: "completed" } }],
+          () => [{ name: "routing_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } }],
         ][n - 1]?.() ?? [],
       true,
       async ({ requests, manager }) => {
@@ -60,6 +60,16 @@ test(
         assert.match(JSON.stringify(assessing.input), /## Carried for the worker/);
         assert.doesNotMatch(JSON.stringify(assessing.input), /## Tool results/);
         assert.equal(occurrences(assessing, "BIG_EVIDENCE"), 1, "the selected result appears once");
+        // The Coordinator is told that the selected result is already in its view, not re-sent (Task 004 S-005).
+        assert.match(
+          JSON.stringify(assessing.input),
+          /Selected evidence is already in your view, in place in the worker's run/,
+        );
+        // Its provenance names the call, so the Coordinator can match the ref to the body.
+        assert.match(
+          JSON.stringify(assessing.input),
+          /ctx:[0-9a-f]{8} \| producer: executor \| toolResult \| read: big\.txt \|[^"]*task evidence/,
+        );
         // The evidence stays after the unit closes: the closing request extends the assessing one.
         assert.ok(extendsPrevious(assessing, closing), "the Coordinator's prefix is unchanged after the unit closes");
         assert.equal(occurrences(closing, "BIG_EVIDENCE"), 1);
@@ -97,27 +107,25 @@ test("after a worker compacts, a recovery round keeps the Coordinator's prefix",
       [
         () => [
           {
-            name: "freeflow_delegate",
+            name: "delegate_work",
             args: { operation: "assign", contract: "Read big.txt and return it as evidence." },
           },
         ],
         () => [{ name: "read", args: { path: "big.txt" } }],
         () => [{ name: "read", args: { path: "evidence.txt" } }],
-        () => [{ name: "freeflow_compact", args: { summary: "WORKER_SUMMARY" } }],
-        () => [{ name: "freeflow_project", args: { operation: "add", refs: [refOf(manager, "BIG_EVIDENCE")] } }],
-        () => [{ name: "freeflow_return", args: { operation: "submit", report: "Done.", outcome: "completed" } }],
+        () => [{ name: "compact_context", args: { summary: "WORKER_SUMMARY" } }],
+        () => [{ name: "select_evidence", args: { operation: "add", refs: [refOf(manager, "BIG_EVIDENCE")] } }],
+        () => [{ name: "return_work", args: { operation: "submit", report: "Done.", outcome: "completed" } }],
         () => [
           {
-            name: "freeflow_unit",
+            name: "routing_unit",
             args: { operation: "recover", request: "Read the recovery file.", paths: ["recovery.txt"] },
           },
         ],
         () => [{ name: "read", args: { path: "recovery.txt" } }],
-        () => [{ name: "freeflow_project", args: { operation: "add", refs: [refOf(manager, "FRESH_RECOVERY")] } }],
-        () => [
-          { name: "freeflow_return", args: { operation: "supplement", report: "Recovered.", outcome: "completed" } },
-        ],
-        () => [{ name: "freeflow_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } }],
+        () => [{ name: "select_evidence", args: { operation: "add", refs: [refOf(manager, "FRESH_RECOVERY")] } }],
+        () => [{ name: "return_work", args: { operation: "supplement", report: "Recovered.", outcome: "completed" } }],
+        () => [{ name: "routing_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } }],
       ][n - 1]?.() ?? [],
     true,
     async ({ requests }) => {

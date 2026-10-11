@@ -7,6 +7,7 @@ Start with [Getting Started](getting-started.md) for host-specific installation,
 ## Integrations
 
 - [Pi integration](integrations/pi.md): normal Pi installation, activation, capabilities, and native host controls.
+- [Settings](settings.md): every setting with its key, values and default, what is on by default, and how `/freeflow settings` reads.
 
 ## Capabilities
 
@@ -14,6 +15,8 @@ Start with [Getting Started](getting-started.md) for host-specific installation,
 - [Cognitive Routing](capabilities/cognitive-routing.md): mode-aware Coordinator/Helper/Executor compute placement, worker evidence projection, and host qualification boundaries.
 - [Tool Execution](capabilities/tool-execution.md): Freeflow's layer over Pi's tools: working guidance, file tracking, clearer edit errors, `apply_patch`, and background commands.
 - [Compaction](capabilities/compaction.md): agent-prepared compaction at a safe point, carried context, recovery, and Pi's compaction as the fallback.
+- [Task Memory](capabilities/task-memory.md): Working Records attached to a Pi session, delivered after compaction and guarded against wrong-record writes; projects and child records for parallel sessions.
+- [Messaging](capabilities/messaging.md): messages between the agents in your Pi sessions on this machine, delivered while the other works or waits, with an optional approval step.
 
 The Freeflow Context tool, Context Virtualization, and Conversation History have been removed. Their historical implementation, prompts, tests, eval definitions, and capability docs are preserved in the [legacy context archive](../.deprecated/legacy-context/README.md). Context Control v2 is planned and unavailable in this release.
 

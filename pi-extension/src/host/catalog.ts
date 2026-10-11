@@ -61,6 +61,8 @@ export const STABLE_FREEFLOW_SURFACE = Object.freeze({
   cognitiveRouting: { effective: true },
   toolExecution: { effective: true },
   compaction: { effective: true },
+  taskMemory: { effective: true },
+  messaging: { effective: true },
 });
 
 export function freeflowSkillPath(skillName) {
@@ -76,6 +78,8 @@ export function freeflowModelSkillPaths(capabilityState = undefined) {
   if (capabilityState?.cognitiveRouting?.effective === true)
     paths.push(freeflowCapabilitySkillPath("cognitive-routing"));
   if (capabilityState?.compaction?.effective === true) paths.push(freeflowCapabilitySkillPath("compaction"));
+  if (capabilityState?.taskMemory?.effective === true) paths.push(freeflowCapabilitySkillPath("task-memory"));
+  if (capabilityState?.messaging?.effective === true) paths.push(freeflowCapabilitySkillPath("messaging"));
   return paths;
 }
 

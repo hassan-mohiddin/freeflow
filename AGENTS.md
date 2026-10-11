@@ -76,6 +76,7 @@ When reference skills conflict during skill development:
 - Use ADRs sparingly for hard-to-reverse, surprising, tradeoff-driven decisions.
 - Do not hardcode volatile repo facts, directory inventories, or stack summaries into durable memory.
 - Do not add enforcement hooks until skill wording and evals prove the behavior needs mechanical enforcement.
+- Before adding or moving guidance in `runtime/prompts/`, a skill description, or a tool's text, read Write Skill's [Guidance Placement](skills/write-skill/references/guidance-placement.md): each behavior on the lowest rung that reaches the agent in time, with one owner.
 
 ## Prompt Cache
 
@@ -83,7 +84,7 @@ Freeflow must never make a user pay more than native Pi for the same work. Read 
 
 - Never change content a provider has already cached: no edits, reordering, truncation, or re-rendering of earlier messages or tool results.
 - Append new content after what the requester already received; do not insert it earlier.
-- Keep the Freeflow system section and tool definitions fixed. Gates and the Runtime State express changing state.
+- Keep the Freeflow system section and tool definitions fixed between settings changes. Gates and the Runtime State express changing state; a settings change or another unavoidable event may change what is sent, at one cache write.
 - Route generated per-turn content through request history so it keeps its position.
 - Prove every request-assembly change with a test in which a later request starts with the earlier one.
 - Gate provider-specific request changes on provider documentation or a recorded live probe; leave unqualified routes untouched.

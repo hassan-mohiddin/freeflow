@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/compaction/`, `capabilities/compaction/`
 > **Tests:** `pi-extension/tests/compaction/`, `pi-extension/tests/integration/request-path-budget.test.js`
-> **Verified at:** `d8cff54e` (2026-10-03)
+> **Verified at:** `cadeaf8d` (2026-10-12)
 > **User docs:** `plugin-docs/capabilities/compaction.md`
 
 For contributors changing Freeflow compaction on Pi: how it decides when compaction is due, what it writes into the session, how it works with Cognitive Routing and with Pi's own compaction, and which of its behaviors are deliberate.
@@ -11,7 +11,7 @@ For contributors changing Freeflow compaction on Pi: how it decides when compact
 
 A long session outgrows the model's window. Pi handles that by compacting on its own: a separate summarizer call reads the conversation, writes a summary, and the session continues from the summary and a recent tail. That summarizer has none of the working agent's knowledge of what the next step needs, so it can drop exactly that.
 
-Freeflow compaction lets the working agent compact itself. Freeflow measures the context after every turn, warns the agent ahead of Pi's limit, and offers a tool, `freeflow_compact`. At a safe point the agent updates its Working Record, writes a summary, picks what to carry, and calls the tool. At the end of that turn Freeflow writes the compaction into the session and the same run continues from the summary, the carried context and a recovery message.
+Freeflow compaction lets the working agent compact itself. Freeflow measures the context after every turn, warns the agent ahead of Pi's limit, and offers a tool, `compact_context`. At a safe point the agent updates its Working Record, writes a summary, picks what to carry, and calls the tool. At the end of that turn Freeflow writes the compaction into the session and the same run continues from the summary, the carried context and a recovery message.
 
 It deliberately does not:
 
@@ -28,7 +28,7 @@ It deliberately does not:
 | Warning | The first point: compaction is due, keep working to a safe point. | `Thresholds.warning`, notice level `"warning"` |
 | Compact now | The firm point, 25k tokens before Pi's trigger. | `Thresholds.compactNow`, notice level `"compactNow"` |
 | Trigger | Where Pi compacts on its own: window minus Pi's reserve. | `Thresholds.trigger` |
-| Due | `freeflow_compact` is accepted: context past the warning, or the user ran `/freeflow compact` in this cycle. | `CompactionController.isDue()` |
+| Due | `compact_context` is accepted: context past the warning, or the user ran `/freeflow compact` in this cycle. | `CompactionController.isDue()` |
 | Safe point | A finished step whose result the agent knows. Taught by the skill, not enforced. | `capabilities/compaction/SKILL.md` |
 | Carry | Content copied into the next cycle: the user's latest messages, the agent's picks (files, tool results), and an automatic fill. | `carry.ts`, `CompactionController.fill()` |
 | Context reuse | The switch for carrying files and results. Off: only the summary and the user's messages carry over. | `compaction.carry`, `CompactionHost.carryEnabled()` |
@@ -39,7 +39,7 @@ It deliberately does not:
 
 Terms from elsewhere in Freeflow, defined fully in their own docs:
 
-- **Cognitive Routing** splits work between a **Coordinator** (talks to the user, plans, assesses) and **workers** (Helper and Executor profiles) that carry out **assignments**, each with a written **contract**, and end them with `freeflow_return`. A worker selects tool results as **evidence** for the Coordinator by routing ref. With **projection** on, the Coordinator's requests carry a reduced view: its own conversation plus selected evidence, not the workers' full history. See [Cognitive Routing](cognitive-routing.md).
+- **Cognitive Routing** splits work between a **Coordinator** (talks to the user, plans, assesses) and **workers** (Helper and Executor profiles) that carry out **assignments**, each with a written **contract**, and end them with `return_work`. A worker selects tool results as **evidence** for the Coordinator by routing ref. With **projection** on, the Coordinator's requests carry a reduced view: its own conversation plus selected evidence, not the workers' full history. See [Cognitive Routing](cognitive-routing.md).
 - **Working Record:** a task's `record.md` under `.freeflow/tasks/`, kept by the Track Work skill; recovery after compaction starts from it when the summary names one.
 - **Codemode:** Pi's mode in which the model writes a script that calls tools; those calls appear as nested calls on the script's result.
 
@@ -51,18 +51,18 @@ Worked example, 200k window with Pi's default reserve: trigger 200,000 − 16,38
 
 1. **Measure.** Pi's `turn_end` handler in `index.ts` calls `compaction.observe(ctx, turn)` after routing's own turn end. `measure()` takes the context size from the turn's own usage (`turnContextTokens()`), falling back to Pi's `getContextUsage()`. For a Coordinator under projection it takes the larger of that and the full history's estimate (`fullHistoryTokens()`), because the next worker request carries everything the Coordinator's small view leaves out. Thresholds come from `strictest()`: the smallest warning among every model that may receive the full history (the active model and, under routing, each profile's model), each with Pi's effective reserve.
 2. **Notify.** `observe()` returns a notice when the context crosses the warning (once per cycle) or compact now (on crossing, then each further 10k tokens). The first notice of a cycle, and the first compact now, include the result index when there is one. `index.ts` sends it as a `freeflow-compaction-notice` custom message: steered into the next request when the turn had tool calls (mid-run), held for the next prompt when the run is ending.
-3. **Request.** The agent reads the compaction skill and calls `freeflow_compact({ summary, carry })`. `request()` validates the call: compaction effective and due, not a Coordinator under projection, summary non-empty and at most 8,000 tokens, carry items well-formed and readable, within the carry budget. A valid call is stored as `pending` and the tool answers that compaction happens at the end of the turn. Nothing is written yet.
+3. **Request.** The agent reads the compaction skill and calls `compact_context({ summary, carry })`. `request()` validates the call: compaction effective and due, not a Coordinator under projection, summary non-empty and at most 8,000 tokens, carry items well-formed and readable, within the carry budget. A valid call is stored as `pending` and the tool answers that compaction happens at the end of the turn. Nothing is written yet.
 4. **Write.** At the same turn's end, `turnEnd()` runs before `observe()`. With a pending request and a normal stop (the assistant message's `stopReason` is not `error`, `aborted` or `length`) it re-reads the carried files fresh, fills the rest of the budget automatically, and returns three entries plus `continue: true`, which Pi appends and then continues the run:
    - a Pi `compaction` entry with `firstKeptEntryId: null` (nothing raw is kept), the agent's summary followed by the harness part, and `details` holding Pi's file lists and Freeflow's record;
    - a hidden `freeflow-carried-context` custom message;
    - a visible `freeflow-compaction-recovery` custom message telling the agent how to recover and not to re-read what was carried.
 5. **Reset.** Pi fires no `session_compact` for entries an extension appends, so `takeCompacted()` hands the compaction to the next `turn_start`, which runs the same resets as Pi's compaction (`restore(ctx, false)`: request history, cache tracking, routing reconcile; `false` because the branch is unchanged, so file state is not invalidated as after navigation) and reduces file tracking to the carried files (`files.compacted()`).
 
-`/freeflow compact` calls `requestByUser()`, which makes compaction due for this cycle, then sends `USER_REQUEST` (plus the result index) as the user's message, steered when a run is active.
+`/freeflow compact` calls `requestByUser()`, which makes compaction due for this cycle, then sends `USER_REQUEST` (plus the result index) as a `freeflow-compaction-request` custom message in Freeflow's notice tag, steered when a run is active and starting a turn when idle.
 
 ### Carry
 
-The carried context holds, in order: the user's latest messages (up to 3, 8,000 tokens, outside the budget, never the `/freeflow compact` text), the agent's files read fresh at compaction and numbered by file line, the agent's picked results, the automatic fill, and a list of the work's other results by ref.
+The carried context holds, in order: the user's latest messages, each in a `<user-message index="…">` tag (up to 3, 8,000 tokens, outside the budget; the `/freeflow compact` request is a custom message, so it is never among them), the agent's files read fresh at compaction and numbered by file line, the agent's picked results, the automatic fill, and a list of the work's other results by ref.
 
 The automatic fill takes the newest results of the work in progress (the current assignment under routing, otherwise the cycle) into the room the picks left, skipping any that does not fit. Freeflow's control calls and reads of its own instructions (`capabilities/`, `skills/`, `runtime/`) are excluded, as are earlier `read` results of a file the agent carries fresh. Up to 60 of the rest are listed by ref.
 
@@ -90,19 +90,20 @@ When Pi compacts (its trigger, an overflowing request, or `/compact`), `session_
 | Carry copies content (picks plus a greedy automatic fill of the newest work), lists the rest by ref, within min(15% window, 40k, warning/4). | A kept raw tail would keep the preparation turns themselves. Greedy fill carries the most recent work that fits. The warning cap stops a large Pi reserve from making the carried context refill the next cycle to the warning (seen in a live run). | A Pi-style kept tail. | `dcf82fc`, `7fb0792` |
 | Context reuse off carries nothing, but under routing the ref list stays. | Evidence selection still needs to name results the worker no longer sees. | Dropping the list too. | `942057d`, `7fb0792` |
 | Freeflow never names a Working Record; the summary does. | Freeflow cannot tell which record belongs to this work; a guessed record once sent recovery into another task. | Naming the most recent record. | `f00704a` |
-| `/freeflow compact` is sent as the user's message. | A run started by an extension message loses Freeflow's system sections from its second request (Pi issue #10267). | Sending it as a Freeflow custom message. | `6b56e7d`, `f41f1e0` |
-| A Coordinator under projection never compacts; it delegates an assignment whose contract says to read the compaction skill, compact with `freeflow_compact`, then return with `freeflow_return`. Its notices and the refusal say so. | Its view leaves out what workers did, so its summary would lose their work. | Letting the Coordinator compact its own view. | `6b56e7d`, `305f20b` |
+| `/freeflow compact` is sent as a Freeflow custom message. | The user typed the command, not the request text; `keepSections()` keeps Freeflow's system sections on the run Pi starts (Pi issue #10267). | Sending it as the user's message (the earlier workaround). | Task 002 D-008 |
+| A Coordinator under projection never compacts; it delegates an assignment whose contract says to read the compaction skill, compact with `compact_context`, then return with `return_work`. Its notices and the refusal say so. | Its view leaves out what workers did, so its summary would lose their work. | Letting the Coordinator compact its own view. | `6b56e7d`, `305f20b` |
 | After a worker's compaction the Coordinator sees names, not copies; evidence it received stays in its view until the next compaction; no resume placement after a recovery suspension. | Copies would repeat evidence it receives by selection; dropping received evidence or re-placing it broke the Coordinator's cache prefix in live probes. | Showing the worker's carried context unchanged. | `01505b0`, `9849a16` |
-| `freeflow_compact` is callable from codemode scripts (`exposure: "direct"`). | Agents that look for tools in codemode first concluded they could not compact. Routing tools stay model-only. | Model-only exposure. | `257ee32` |
+| `compact_context` is callable from codemode scripts (`exposure: "direct"`). | Agents that look for tools in codemode first concluded they could not compact. Routing tools stay model-only. | Model-only exposure. | `257ee32` |
 | Carried files and read results are numbered by file line. | Agents re-read carried files with `nl` to cite lines. | Plain copies. | `97b149b` |
 | Context size from the turn's own usage; full-history estimate extended incrementally; result index built only near the warning. | `observe()` runs after every turn; Pi's `getContextUsage()` rebuilds the session projection each call. | Asking Pi each turn; building the index every turn. | `9078dd0` |
+| The tool is `compact_context`, not `freeflow_compact`; the result index still treats `freeflow_compact` and the old routing names in saved history as control calls. | The old name matched `/freeflow compact`, and models confused prefixed tools with `/freeflow` commands. | Keeping the prefix. | Task 003 |
 
 ## Intended Behavior That Looks Wrong
 
 | Behavior | Why | If changed |
 | --- | --- | --- |
-| `freeflow_compact` is refused unless due. | Compaction is lossy; it should happen at Freeflow's notice or the user's request, not on the agent's whim. | Agents compact early and often, paying the per-cycle cost each time. |
-| A second `freeflow_compact` in a cycle that began with a compaction is refused, saying where to go next. | After Freeflow's compaction the request is done; after Pi's, the prepared one is no longer needed. Routed workers otherwise compacted twice when their re-sent contract still asked for it. | Repeated compactions and loops. |
+| `compact_context` is refused unless due. | Compaction is lossy; it should happen at Freeflow's notice or the user's request, not on the agent's whim. | Agents compact early and often, paying the per-cycle cost each time. |
+| A second `compact_context` in a cycle that began with a compaction is refused, saying where to go next. | After Freeflow's compaction the request is done; after Pi's, the prepared one is no longer needed. Routed workers otherwise compacted twice when their re-sent contract still asked for it. | Repeated compactions and loops. |
 | A Coordinator under projection is always refused, even when due. | See Decisions. | Its summary loses worker work. |
 | The compaction entry keeps nothing raw (`firstKeptEntryId: null`). | Carried content replaces the tail on purpose. | The preparation turns are kept and refill the cycle. |
 | No `session_compact` event fires for a Freeflow compaction; resets run at the next `turn_start`. | Pi fires it only for its own compactions. | Resets placed in a `session_compact` handler never run for this path. |
@@ -113,7 +114,6 @@ When Pi compacts (its trigger, an overflowing request, or `/compact`), `session_
 | A `bash` or codemode output that repeats a freshly carried file is not removed from carry; only earlier `read` results of that file are. | Freeflow cannot tell reliably what a command printed. Accepted for now. | — |
 | The Coordinator's carried context differs from the worker's. | See Decisions. | Duplicated evidence in the Coordinator's view. |
 | `/freeflow compact`'s own text is not among the carried user messages. | The compaction completes that request. | The next cycle sees "compact now" as a pending instruction and compacts again. |
-| The compaction skill is listed even when compaction is off. | Freeflow's skill list is resolved from a fixed surface (`STABLE_FREEFLOW_SURFACE`) so the system prompt does not change with settings; the tool, not the skill, is withdrawn. | The system prompt changes when the switch flips. |
 | A turn that errors, aborts or hits its length limit writes no compaction, and compaction stays due. | The agent may not have finished preparing. | A half-prepared compaction. |
 
 ## Surface
@@ -127,13 +127,13 @@ When Pi compacts (its trigger, an overflowing request, or `/compact`), `session_
 
 Pi settings read, never written: `compaction.reserveTokens` and `compaction.modelOverrides["<provider>/<id>"].reserveTokens` (`reserveTokens()`, default 16,384).
 
-**Tool:** `freeflow_compact` (`tool.ts`). Parameters `summary` (required) and `carry` (items `{ file, lines? }` or `{ result }`). Registered once with `defaultActive: false`, declared by `applyCompactionTools()` only while compaction is effective, `exposure: "direct"`, `executionMode: "sequential"`.
+**Tool:** `compact_context` (`tool.ts`). Parameters `summary` (required) and `carry` (items `{ file, lines? }` or `{ result }`). Registered once with `defaultActive: false`, declared by `applyCompactionTools()` only while compaction is effective, `exposure: "direct"`, `executionMode: "sequential"`.
 
 **Commands:** `/freeflow compact` (`compactNow()` in `index.ts`); `/freeflow status` shows `statusText()`: cycle, context against each point, and the kind and carried size of the last compaction. `/freeflow settings` shows the Compaction and Context reuse switches.
 
 **Events handled** (`index.ts`): `turn_end` (write or notify), `turn_start` (post-compaction resets), `session_before_compact` (fallback), `session_start` and `session_shutdown` (`reset()`).
 
-**Messages:** `freeflow-compaction-notice` (visible, `details.level`), `freeflow-carried-context` (hidden), `freeflow-compaction-recovery` (visible). All start with Freeflow's notice prefix so the agent never reads them as the user's words.
+**Messages:** `freeflow-compaction-request` (visible, `/freeflow compact`), `freeflow-compaction-notice` (visible, `details.level`), `freeflow-carried-context` (hidden), `freeflow-compaction-recovery` (visible). Each is wrapped in Freeflow's notice tag, `<freeflow-notice type="compaction">` (`CompactionHost.notice()`, `freeflowNotice()`), so the agent never reads them as the user's words: Pi gives the model every custom message in the user role. The one exception is the user's own messages the carried context quotes: they sit in `<user-message>` tags, which Freeflow's guidance names as the user's words, and copied files and results cannot open or close that tag. The notice and recovery messages are drawn as one `Compaction` row each, expanding to the text.
 
 **Skill:** `capabilities/compaction/SKILL.md` with `references/summary-format.md`: when to compact, the summary's shape, what to carry.
 
@@ -168,7 +168,7 @@ Pi settings read, never written: `compaction.reserveTokens` and `compaction.mode
 | A refused call (not due, too long, over budget, unreadable file, unknown ref) | The tool returns an error naming what to fix; nothing is scheduled. |
 | The compacting turn errors, aborts or hits its length limit | `pending` is dropped, nothing is written, and compaction stays due; compact now keeps repeating every further 10k tokens. |
 | A carried file becomes unreadable between the call and the turn end | Recorded with its error and shown as "Not carried" in the carried context. |
-| Pi compacts while a Freeflow compaction is pending | Pi's compaction wins; the pending request is dropped and the summary says not to call `freeflow_compact` again. |
+| Pi compacts while a Freeflow compaction is pending | Pi's compaction wins; the pending request is dropped and the summary says not to call `compact_context` again. |
 | During Pi's compaction, Pi's summarizer run with Freeflow's instructions fails, or Freeflow's additions throw | `fallback()` returns `undefined` and Pi compacts exactly as it would without Freeflow (`fallback.test.js`). |
 | The context passes Pi's trigger before the agent compacts | Pi compacts (fallback). |
 | No model reports a context window | `measure()` returns `undefined`: no notices, and `isDue()` is false until `/freeflow compact`. |
@@ -208,6 +208,7 @@ See [the tests README](../../pi-extension/tests/compaction/README.md) for each f
 
 ## Changes
 
+- Task 003 (2026-10-11): `freeflow_compact` renamed `compact_context`.
 - `9078dd0` (2026-10-03): per-turn cost cut (turn usage, incremental estimate, index near the warning).
 - `97b149b`, `257ee32`, `d818051` (2026-10-03): numbered carried files; compact before return only at compact now; codemode calls.
 - `01505b0`, `9849a16` (2026-10-03): the Coordinator's view and cache after a worker compacts.

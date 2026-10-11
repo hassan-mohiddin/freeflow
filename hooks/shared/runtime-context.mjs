@@ -2,6 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
+// The validator Pi uses, so a config is valid or invalid on every host alike.
+import {
+  selectedRuntimePrompts,
+  validateLocalConfig,
+  validateRepositoryConfig,
+} from "../../pi-extension/dist/host/config-validation.js";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 export const PLUGIN_ROOT = path.resolve(SCRIPT_DIR, "../..");
@@ -62,57 +68,6 @@ function readConfigLayer(filePath, validate) {
   }
 }
 
-function isRecord(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function removedContextConfigError(value, filePath) {
-  const removedKeys = ["contextVirtualization", "conversationHistory"].filter((key) => Object.hasOwn(value, key));
-  return removedKeys.length > 0
-    ? `Removed Freeflow context setting(s) in ${filePath}: ${removedKeys.join(", ")}. Delete those keys before using Freeflow.`
-    : null;
-}
-
-function validateCoreConfigFields(value) {
-  if (Object.hasOwn(value, "enabled") && typeof value.enabled !== "boolean") {
-    return "enabled must be a boolean";
-  }
-  return null;
-}
-
-function isValidSetupConfig(value) {
-  if (!isRecord(value)) return "repository config must be a JSON object";
-
-  const removedContextError = removedContextConfigError(value, ".freeflow/config.json");
-  if (removedContextError) return removedContextError;
-
-  const allowedKeys = new Set(["enabled", "outputRouter", "observedRouting", "scriptTransform", "cognitiveRouting"]);
-  if (!Object.keys(value).every((key) => allowedKeys.has(key))) {
-    return "repository config contains unsupported top-level keys";
-  }
-
-  const coreError = validateCoreConfigFields(value);
-  if (coreError) return coreError;
-
-  for (const key of ["outputRouter", "observedRouting", "scriptTransform"]) {
-    if (Object.hasOwn(value, key) && !isRecord(value[key])) return `${key} must be an object`;
-  }
-  return null;
-}
-
-function isValidLocalConfig(value) {
-  if (!isRecord(value)) return "local config must be a JSON object";
-
-  const removedContextError = removedContextConfigError(value, ".freeflow/local.json");
-  if (removedContextError) return removedContextError;
-
-  const allowedKeys = new Set(["enabled", "processing", "cognitiveRouting"]);
-  if (!Object.keys(value).every((key) => allowedKeys.has(key))) {
-    return "local config contains unsupported top-level keys";
-  }
-  return validateCoreConfigFields(value);
-}
-
 function resolveLayeredValue(repository, local, key, fallback) {
   if (Object.hasOwn(local, key)) return local[key];
   if (Object.hasOwn(repository, key)) return repository[key];
@@ -124,8 +79,8 @@ function resolveCoreConfig(repository, local) {
 }
 
 export function readConfig(root) {
-  const repository = readConfigLayer(path.join(root, ".freeflow", "config.json"), isValidSetupConfig);
-  const local = readConfigLayer(path.join(root, ".freeflow", "local.json"), isValidLocalConfig);
+  const repository = readConfigLayer(path.join(root, ".freeflow", "config.json"), validateRepositoryConfig);
+  const local = readConfigLayer(path.join(root, ".freeflow", "local.json"), validateLocalConfig);
   const localValid = !local.exists || local.valid;
   const configured = repository.valid && localValid;
   const core = resolveCoreConfig(repository.valid ? repository.parsed : {}, local.valid ? local.parsed : {});
@@ -139,42 +94,62 @@ export function readConfig(root) {
     localExists: local.exists,
     localValid,
     error: repository.valid ? local.error : repository.error,
+    errorPath: repository.valid ? ".freeflow/local.json" : ".freeflow/config.json",
     enabled,
+    prompts: selectedRuntimePrompts(repository.parsed, local.parsed),
   };
 }
 
-function loadRuntimeContext() {
-  const corePrompt = readText(path.join(PLUGIN_ROOT, "runtime", "prompts", "core.md"));
-  const interactionContract = readText(path.join(PLUGIN_ROOT, "runtime", "prompts", "interaction-contract.md"));
+const PROMPT_FILES = {
+  core: "core.md",
+  interactionContract: "interaction-contract.md",
+  workingMethod: "working-method.md",
+};
 
-  if (!corePrompt || !interactionContract) {
-    throw new Error("Freeflow core runtime prompt files are missing.");
+/**
+ * The selected prompts in Pi's order, or only `part` when a host delivers each prompt through its own hook. A selected
+ * core or Interaction Contract must exist; the Working Method is optional, as on Pi.
+ */
+function loadRuntimeContext(selection, part) {
+  const prompts = [];
+  for (const [key, file] of Object.entries(PROMPT_FILES)) {
+    if (!selection[key] || (part && key !== part)) continue;
+    const text = readText(path.join(PLUGIN_ROOT, "runtime", "prompts", file));
+    if (!text && key !== "workingMethod") throw new Error("Freeflow core runtime prompt files are missing.");
+    if (text) prompts.push(text);
   }
-
-  return { corePrompt, interactionContract };
+  return prompts;
 }
 
 function runtimeStateContext() {
   return ["# Freeflow Runtime State", "", "Freeflow: active"].join("\n");
 }
 
-export function renderRuntimeContext(root) {
+/**
+ * The session-start context for the repository at `root`: every selected prompt, or one `part` of it (`core`,
+ * `interactionContract`, `workingMethod`). Claude Code caps each hook's context at 10,000 characters, so it runs one
+ * hook per part. A configuration error and the Runtime State, which the core prompt refers to, travel with the core.
+ */
+export function renderRuntimeContext(root, part = undefined) {
+  if (part !== undefined && !Object.hasOwn(PROMPT_FILES, part)) return "";
   const config = readConfig(root);
   if (!config.valid) {
-    if (config.error?.startsWith("Removed Freeflow context setting(s) in ")) {
-      return [
-        "# Freeflow Configuration Error",
-        "",
-        `Freeflow is inactive. ${config.error}`,
-        "Remove the named key(s), then restart the session.",
-      ].join("\n");
-    }
-    return "";
+    // A missing repository config means Freeflow is not set up here: stay silent. An existing invalid file is reported,
+    // as Pi's status does, so Freeflow is not silently missing.
+    if (!config.error || (part && part !== "core")) return "";
+    return [
+      "# Freeflow Configuration Error",
+      "",
+      `Freeflow is inactive because ${config.errorPath} is invalid: ${config.error}`,
+      `Fix ${config.errorPath} or use the setup-freeflow skill, then start a new session.`,
+    ].join("\n");
   }
   if (!config.enabled) return "";
 
-  const { corePrompt, interactionContract } = loadRuntimeContext();
-  return [corePrompt, interactionContract, runtimeStateContext()].filter(Boolean).join("\n\n");
+  // The user chooses the prompts on hosts other than Pi; with none selected there is nothing to deliver.
+  const prompts = loadRuntimeContext(config.prompts, part);
+  if (config.prompts.core && (!part || part === "core")) prompts.push(runtimeStateContext());
+  return prompts.join("\n\n");
 }
 
 export function emitHookOutput(output) {
@@ -188,7 +163,8 @@ export function runSessionStartAdapter({ eventNames, getWorkspaceCwd, formatOutp
   if (!eventNames.includes(eventName)) return;
 
   const root = findWorkspaceRoot(getWorkspaceCwd(input));
-  const additionalContext = renderRuntimeContext(root);
+  // An optional third argument names the one prompt this hook delivers.
+  const additionalContext = renderRuntimeContext(root, process.argv[3]);
   if (additionalContext.trim()) {
     emitHookOutput(formatOutput({ eventName, input, additionalContext }));
   }
@@ -204,5 +180,12 @@ export function runSafely(run) {
 }
 
 export function isMainModule(metaUrl) {
-  return process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === metaUrl;
+  if (!process.argv[1]) return false;
+  // Compare real paths: Node resolves symlinks in import.meta.url but not in argv, and a host may run the plugin from a
+  // symlinked directory (macOS /var is /private/var).
+  try {
+    return fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(metaUrl));
+  } catch {
+    return pathToFileURL(path.resolve(process.argv[1])).href === metaUrl;
+  }
 }

@@ -216,22 +216,35 @@ function hookHandlers(config, event, label, errors) {
   return handlers;
 }
 
-function validateClaudeCodexHook(config, label, variable, adapter, errors) {
+// Claude Code caps each hook's context at 10,000 characters, so it runs one hook per runtime prompt; Codex runs one
+// hook whose additionalContextLimit (tokens) holds the whole context.
+const CLAUDE_PROMPT_PARTS = ["core", "interactionContract", "workingMethod"];
+
+function validateClaudeCodexHook(config, label, variable, adapter, { matcher, parts, contextLimit }, errors) {
   const groups = hookHandlers(config, "SessionStart", label, errors);
   if (groups.length === 0) return;
   const group = groups[0];
-  if (group.matcher !== "startup|resume|clear|compact") {
-    errors.push(`${label} must preserve the startup|resume|clear|compact matcher`);
+  if (group.matcher !== matcher) {
+    errors.push(`${label} must use the ${matcher} matcher`);
   }
-  if (!Array.isArray(group.hooks) || group.hooks.length !== 1) {
-    errors.push(`${label} must contain exactly one command handler`);
+  const expected = parts ?? [undefined];
+  if (!Array.isArray(group.hooks) || group.hooks.length !== expected.length) {
+    errors.push(`${label} must contain exactly ${expected.length} command handler(s)`);
     return;
   }
-  const handler = group.hooks[0];
-  if (handler.type !== "command") errors.push(`${label} must use a command handler`);
-  if (typeof handler.command !== "string" || !handler.command.includes(`${variable}/hooks/adapters/${adapter}`)) {
-    errors.push(`${label} must invoke the ${adapter} adapter through ${variable}`);
-  }
+  expected.forEach((part, index) => {
+    const handler = group.hooks[index];
+    const invocation = `${variable}/hooks/adapters/${adapter}" SessionStart${part ? ` ${part}` : ""}`;
+    if (handler.type !== "command") errors.push(`${label} handler ${index} must use a command handler`);
+    if (typeof handler.command !== "string" || !handler.command.endsWith(invocation)) {
+      errors.push(
+        `${label} handler ${index} must invoke the ${adapter} adapter through ${variable}${part ? ` for ${part}` : ""}`,
+      );
+    }
+    if (contextLimit !== undefined && !(handler.additionalContextLimit >= contextLimit)) {
+      errors.push(`${label} handler ${index} must set additionalContextLimit to at least ${contextLimit}`);
+    }
+  });
 }
 
 function validateGeminiHook(config, label, errors) {
@@ -352,7 +365,7 @@ export function validateHostManifests(root = process.cwd()) {
 
   if (packageJson && !Array.isArray(packageJson.files)) errors.push("package.json.files must be an allowlist array");
   for (const requiredPattern of [
-    "plugin.json",
+    ".codex-plugin/**",
     "gemini-extension.json",
     ".cursor-plugin/**",
     "com.github.copilot/**",
@@ -390,9 +403,26 @@ export function validateHostManifests(root = process.cwd()) {
     "hooks/claude/hooks.json",
     "${CLAUDE_PLUGIN_ROOT}",
     "claude-session-start.mjs",
+    { matcher: "startup|resume|clear|compact|fork", parts: CLAUDE_PROMPT_PARTS },
     errors,
   );
-  validateClaudeCodexHook(codexHooks, "hooks/codex/hooks.json", "${PLUGIN_ROOT}", "codex-session-start.mjs", errors);
+  validateClaudeCodexHook(
+    codexHooks,
+    "hooks/codex/hooks.json",
+    "${PLUGIN_ROOT}",
+    "codex-session-start.mjs",
+    { matcher: "startup|resume|clear|compact", contextLimit: 5000 },
+    errors,
+  );
+  // Codex loads no hooks from a plugin whose root plugin.json is an Agent Plugins manifest, so it installs the npm
+  // package, which omits that manifest (scripts/validation/check-package.mjs).
+  const codexSource = readJson(root, ".agents/plugins/marketplace.json", errors)?.plugins?.[0]?.source;
+  if (codexSource?.source !== "npm" || codexSource?.package !== packageJson?.name) {
+    errors.push(".agents/plugins/marketplace.json must install the npm package");
+  }
+  if (packageJson?.files?.includes("plugin.json")) {
+    errors.push("package.json files must leave out the root Agent Plugins plugin.json, or Codex loads no hooks");
+  }
   validateGeminiHook(geminiHooks, "hooks/hooks.json", errors);
   validateCursorHook(cursorHooks, "hooks/cursor/hooks.json", errors);
   validateCopilotHook(copilotHooks, "com.github.copilot/hooks/hooks.json", errors);

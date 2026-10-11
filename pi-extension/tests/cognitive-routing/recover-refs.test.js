@@ -8,15 +8,14 @@ test("a context ref given as a captured result is refused with where it belongs"
   let refusal;
   await fixture(
     async (n, body) => {
-      if (n === 1)
-        return [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence.txt." } }];
+      if (n === 1) return [{ name: "delegate_work", args: { operation: "assign", contract: "Read evidence.txt." } }];
       if (n === 2) return [{ name: "read", args: { path: "evidence.txt" } }];
       if (n === 3)
-        return [{ name: "freeflow_return", args: { operation: "submit", report: "Done.", outcome: "completed" } }];
+        return [{ name: "return_work", args: { operation: "submit", report: "Done.", outcome: "completed" } }];
       if (n === 4)
         return [
           {
-            name: "freeflow_unit",
+            name: "routing_unit",
             args: { operation: "recover", request: "Select the earlier read.", results: ["ctx:abcdef12"] },
           },
         ];

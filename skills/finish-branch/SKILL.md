@@ -1,6 +1,6 @@
 ---
 name: finish-branch
-description: Use when deciding how to integrate, preserve, or discard work on a branch or isolated checkout.
+description: "Use when deciding what to do with work on a branch or worktree: merge it, open a pull request, keep it for later, or delete it."
 ---
 
 # Finish Branch
@@ -41,7 +41,7 @@ The user owns whether to:
 - rewrite or force-push history;
 - clean up a checkout or worktree.
 
-Present only routes supported by the observed state. Do not force a fixed menu when an option is impossible, unsafe, or irrelevant. Approval of one route covers only the scope shown and accepted.
+Present only routes supported by the observed state. Do not force a fixed menu when an option is impossible, unsafe, or irrelevant. Approval of one route covers only the scope shown and accepted. Read Workflow's [Asking The User](../workflow/references/asking-the-user.md) before asking the user for a choice that is theirs to make; the supported routes are the options.
 
 ## State Readiness Honestly
 

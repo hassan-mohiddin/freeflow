@@ -1,6 +1,6 @@
 ---
 name: "cognitive-routing"
-description: "Use when Cognitive Routing is active to place work across configured profiles, direct bounded assignments, assess evidence, and preserve workflow continuity."
+description: "Use when Cognitive Routing is active: the Coordinator plans and delegates work to Helper or Executor profiles, and workers carry out and report their assignments."
 ---
 
 # Cognitive Routing
@@ -31,7 +31,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Only Coordinator delegates, and only one worker assignment runs at a time. Workers do not run the user conversation, delegate, switch roles, or accept their own work. New user input goes to Coordinator.
 - A worker return ends its ordinary task work. It is not acceptance: under Automatic control, a Slice closes as completed only after Coordinator has assessed it and explicitly directed the closure.
 - Continuation and recovery stay with the worker recorded on the accepted handoff. A mode change does not retarget accepted work. Never silently substitute another profile.
-- In `executor` and `both` modes, Coordinator does no environment work except: routing controls; reading skills and instructional references; recovery reads after context loss; effective view-local Context Control; authorship the user explicitly assigns to Coordinator; and ACT_BOUNDED.
+- In `executor` and `both` modes, Coordinator does no environment work except: routing controls; task memory actions, which Coordinator takes with the user (Task Memory); reading skills and instructional references; recovery reads after context loss; effective view-local Context Control; authorship the user explicitly assigns to Coordinator; and ACT_BOUNDED.
 - Never change compute configuration yourself.
 - Never fabricate evidence, and never drop adverse evidence to make a return look complete or ready.
 
@@ -81,7 +81,7 @@ Workflow's route preparation applies. Routing adds:
 
 Goal: the worker can act correctly on the first attempt without re-deriving what Coordinator already knows.
 
-Put the actual contract in `freeflow_delegate(operation: "assign")`. In `both` mode, set `worker` to `helper` or `executor`; with one enabled worker the tool infers it. Write for what the worker can see, not what you remember:
+Put the actual contract in `delegate_work(operation: "assign")`. In `both` mode, set `worker` to `helper` or `executor`; with one enabled worker the tool infers it. Write for what the worker can see, not what you remember:
 
 - the required result, why it matters, and the method to use;
 - established facts, accepted decisions, and open questions;
@@ -122,13 +122,13 @@ Goal: Coordinator receives what it needs to judge the result and nothing it does
 Helper and Executor share ordinary history. Reuse each other's sources and observations while keeping who produced them; do not create worker-to-worker projections. With projection on, Coordinator sees only what you select, so select enough original material for judgment, not the execution trail. Prepare evidence once, at the return boundary, not after each tool call.
 
 1. **Reconcile the result.** Compare the contract with the actual work, changed assumptions, partial effects, missing checks, and contrary findings. Make sure captures describe the candidate you are reporting, after any later edits.
-2. **Choose the evidence.** Start with what Coordinator requested and what it already has. Add governing background, material discoveries, and counterevidence it needs. Being eligible is not a reason to select a source, and a nearby result, filename, or shared report is not automatically the evidence for a claim. Unknown authorship stays unknown. When Coordinator already has adequate evidence or the result is self-contained, select nothing new.
-3. **Add the bodies and submit together.** With projection on, add the skill and reference reads that carry the methods Coordinator needs, and the original task-evidence bodies needed for assessment, in one `freeflow_project` add using visible refs directly. Only tool results are evidence; write findings, drafts, and interpretation into the report instead. In the same response, put `freeflow_return(operation: "submit")` last, with the result, evidence and limits, changed assumptions, partial effects, what remains, and why you are returning. Do not wait for the selection receipt: the report is saved even when evidence has problems. Never batch the return with new task work whose outcome the report assumes. Then stop ordinary task work.
-4. **Check the return receipt.** If it reports problems, resolve identity or representation problems with `freeflow_project`, then use payload-free `freeflow_return(operation: "retry")`. Withdraw a request only with a reason; withdrawing does not close a required evidence gap. Do not rerun work to manufacture a selectable receipt.
+2. **Choose the evidence.** Start with what Coordinator requested and what it already has. Add governing background, material discoveries, and counterevidence it needs. Being eligible is not a reason to select a source, and a nearby result, filename, or shared report is not automatically the evidence for a claim. Unknown authorship stays unknown. When Coordinator already has adequate evidence, or the result needs no observation to judge (a draft written into the report), select nothing new. A claim about what a command, test or file showed is not self-contained, however short its output: select that result.
+3. **Add the bodies and submit together.** With projection on, add the skill and reference reads that carry the methods Coordinator needs, and the original task-evidence bodies needed for assessment, in one `select_evidence` add using visible refs directly. Only tool results are evidence; write findings, drafts, and interpretation into the report instead. In the same response, put `return_work(operation: "submit")` last, with the result, evidence and limits, changed assumptions, partial effects, what remains, and why you are returning. Do not wait for the selection receipt: the report is saved even when evidence has problems. Never batch the return with new task work whose outcome the report assumes. Then stop ordinary task work.
+4. **Check the return receipt.** If it reports problems, resolve identity or representation problems with `select_evidence`, then use payload-free `return_work(operation: "retry")`. Withdraw a request only with a reason; withdrawing does not close a required evidence gap. Do not rerun work to manufacture a selectable receipt.
 
-Use `freeflow_project` inspect only when a ref's identity, eligibility, representation, or selection state is unclear; assignment size alone is not a reason. Once you find the refs you need, add them; the remaining candidates are not a work queue. With projection off, skip the projection tools, not verification or honest reporting.
+Use `select_evidence` inspect only when a ref's identity, eligibility, representation, or selection state is unclear; assignment size alone is not a reason. Once you find the refs you need, add them; the remaining candidates are not a work queue. With projection off, skip the projection tools, not verification or honest reporting.
 
-A required stop takes precedence over another read or test: return an honest `partial` or `blocked` report instead of forcing `completed`. `reportSaved` does not mean delivered or assessed. If the transfer is blocked, ordinary work stays ended; fix only the handoff problem and use payload-free `freeflow_return(operation: "retry")`. Use `submit` again only to deliberately revise the report.
+A required stop takes precedence over another read or test: return an honest `partial` or `blocked` report instead of forcing `completed`. `reportSaved` does not mean delivered or assessed. If the transfer is blocked, ordinary work stays ended; fix only the handoff problem and use payload-free `return_work(operation: "retry")`. Use `submit` again only to deliberately revise the report.
 
 ## Coordinator: Assess The Return
 
@@ -143,7 +143,7 @@ Assess your own direction too: did the contract leave a consequential decision i
 Before commissioning more work, ask whether it meets an accepted requirement, repairs a demonstrated defect, or only adds an optional guarantee; Workflow owns that test. Then choose from the gap:
 
 - **Supported result:** continue with the next covered work, or accept the outcome.
-- **Evidence omitted but it exists:** recover it (below) before investigating again; absence from your view does not mean the action never happened.
+- **Evidence omitted but it exists:** recover it (below) before investigating again; absence from your view does not mean the action never happened. Selected evidence is not omitted: it stays in your view where the worker produced it, so look there before recovering it.
 - **Missing or inadequate observation:** request the observation that decides it, without changing the required property.
 - **Supported defect:** assign the correction and affected checks to the owner its responsibility needs.
 - **Invalidated approach or unclear cause:** revise the direction or commission diagnosis rather than repeat the demand.
@@ -153,21 +153,21 @@ Repeated failure needs a changed premise, check, contract, working set, or mecha
 
 Before completed Slice closure, state your assessment of the Slice's result and evidence, resolve material contradictions, and confirm its Checkpoints are settled. Then direct the [Track Work](../../skills/track-work/SKILL.md) closure through whichever route your mode allows, preferably folded into work already going to that profile rather than a handoff of its own. A prior "close it if green" instruction cannot stand in for assessing results you have not seen. Workers may record factual progress while the Slice is open; a worker writing the closure returns instead if new evidence contradicts the accepted basis.
 
-Use `freeflow_unit(operation: "close")` when the unit's outcome is supported, or to record an authorized `cancelled` or `deferred` outcome. Closing a unit does not complete a Slice or task, clear history, or authorize a commit or delivery. Continue covered work to the agreed return point.
+Use `routing_unit(operation: "close")` when the unit's outcome is supported, or to record an authorized `cancelled` or `deferred` outcome. Closing a unit does not complete a Slice or task, clear history, or authorize a commit or delivery. Continue covered work to the agreed return point.
 
 ## Keep Control And Continuity
 
-New natural-language input, including "continue", goes to Coordinator. If it reaches a worker mid-assignment, honor any restriction at once, stop task work, and return the partial state. When the user asks what a worker did, answer from `freeflow_unit` inspection or by asking that worker; absence from your view does not mean the action never happened. Runtime State refreshes are observations, not new direction. Technical retries stay within the accepted assignment; `/freeflow resume` continues unchanged saved work after reconciliation and does not release a Manual hold.
+New natural-language input, including "continue", goes to Coordinator. If it reaches a worker mid-assignment, honor any restriction at once, stop task work, and return the partial state. When the user asks what a worker did, answer from `routing_unit` inspection or by asking that worker; absence from your view does not mean the action never happened. Runtime State refreshes are observations, not new direction. Technical retries stay within the accepted assignment; `/freeflow resume` continues unchanged saved work after reconciliation and does not release a Manual hold.
 
 During a Manual hold, preserve any interrupted assignment, partial effects, and pending assessment; keep no shadow delegation. If the held preset cannot do the work, report it and leave the choice to the user. When the user releases the hold, Coordinator reconciles current direction, the mode, outstanding responsibility, and anything done during the hold before routing again.
 
-After context loss, follow the bootstrap in the capability cue, reload the methods and the mode reference, and recover control, mode, contract or report, user direction, partial effects, and stop conditions. When a Working Record exists, Coordinator reads it in full through Track Work, and the artifacts under `What defines this task`, directly, in every mode. Large Recovery sources that only serve execution stay with the worker that needs them. An outstanding worker reconstructs and continues its recorded assignment, and its recovery reads stay within the contract's limits; do not wrap existing responsibility in a new assignment. A summary mentioning a superseded contract does not revive it.
+After context loss, follow the bootstrap in the capability cue, reload the methods and the mode reference, and recover control, mode, contract or report, user direction, partial effects, and stop conditions. When a Working Record exists, Coordinator recovers it through Track Work's order, including the artifacts under `What defines this task`, directly, in every mode. Large Recovery sources that only serve execution stay with the worker that needs them. An outstanding worker reconstructs and continues its recorded assignment, and its recovery reads stay within the contract's limits; do not wrap existing responsibility in a new assignment. A summary mentioning a superseded contract does not revive it.
 
 ### Recover Missing Evidence For An Assessment
 
-Outstanding assignments use ordinary continuation, not this. For the current returned assessment, Coordinator uses `freeflow_unit(operation: "recover")` with the missing-evidence question, any exact task-file `paths`, and any captured result ids in `results` (a context ref such as `ctx:1a2b3c4d` goes in the request instead; the worker selects it). Recovery belongs to the assignment's recorded worker. Preserve the unit, assignment, original report, outcome, revision, selections, and assessment.
+Outstanding assignments use ordinary continuation, not this. For the current returned assessment, Coordinator uses `routing_unit(operation: "recover")` with the missing-evidence question, any exact task-file `paths`, and any captured result ids in `results` (a context ref such as `ctx:1a2b3c4d` goes in the request instead; the worker selects it). Recovery belongs to the assignment's recorded worker. Preserve the unit, assignment, original report, outcome, revision, selections, and assessment.
 
-During recovery, the worker may select previously exposed evidence and read only exact admitted task paths, granted captured results, or packaged Freeflow skill and reference files. It must not edit, run commands or tests, broaden discovery, or resume task work. Report stale or unavailable evidence without rerunning anything. Return with `freeflow_return(operation: "supplement")` and stop reading. A `partial` or `blocked` supplement can deliver its communication while the full evidence obligation stays suspended; payload-free `retry` resends an unchanged saved supplement.
+During recovery, the worker may select previously exposed evidence and read only exact admitted task paths, granted captured results, or packaged Freeflow skill and reference files. It must not edit, run commands or tests, broaden discovery, or resume task work. Report stale or unavailable evidence without rerunning anything. Return with `return_work(operation: "supplement")` and stop reading. A `partial` or `blocked` supplement can deliver its communication while the full evidence obligation stays suspended; payload-free `retry` resends an unchanged saved supplement.
 
 A separate recovery assignment fits only when no existing assignment or assessment needs preserving. Coordinator uses `cancel-recovery` when the lookup is no longer needed; the original report and assessment remain. Deliver the supplement or cancel recovery before `assess`; new user input does not settle recovery. Do not simulate recovery by replacing an assignment/report or opening a new unit.
 

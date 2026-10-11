@@ -9,13 +9,16 @@ When its host gate is effective, the native entrypoint is designed to provide:
 - the 25-skill model/contributor surface and mandatory core/Interaction Contract prompts;
 - refresh-aware Runtime State with v2 routing `Control`, `Profile`, and `Delegation`;
 - Coordinator/Helper/Executor routing state recorded as native `freeflow-routing-v2` session entries;
-- the four v2 routing tools: `freeflow_delegate`, `freeflow_return`, `freeflow_unit`, and `freeflow_project`;
-- with Tool Execution, its prompt section, `apply_patch`, `bash_background` and `stop_background`, and the file-tracking layer around Pi's tools;
-- with Compaction, the `freeflow_compact` tool, its notices, and the compaction skill.
+- the four v2 routing tools: `delegate_work`, `return_work`, `routing_unit`, and `select_evidence`;
+- `ask_user`, whenever Freeflow is enabled;
+- with Tool Execution, its prompt section, `apply_patch`, `bash_background`, `monitor` and `stop_background`, and the file-tracking layer around Pi's tools;
+- with Compaction, the `compact_context` tool, its notices, and the compaction skill;
+- with Task Memory, the `task_memory` tool and its capability skill;
+- with Messaging, `list_sessions` and `send_message` (deferred, loaded through Pi's `tool_search`) and the messaging capability skill.
 
 ## Cache reuse boundaries
 
-Freeflow contributes stable guidance as a structured prompt section and composes the full transcript in `context_with_system`, retaining Pi's earlier system/tool patches at their original positions. A native two-turn fixture exercises that timeline; it does not prove server cache hits, and another extension can still change the final request. The Pi candidate keeps Freeflow reference definitions, tool schemas, and generated runtime snapshots stable while feature gates control whether operations may execute. Helper and Executor share ordinary active history, and compatible worker/Coordinator views reuse only matching permitted prefixes; Freeflow does not copy excluded evidence to manufacture a cache match. Native ancestry replay preserves Freeflow-generated snapshots when their fingerprints and permitted history still apply.
+Freeflow contributes stable guidance as a structured prompt section and composes the full transcript in `context_with_system`, retaining Pi's earlier system/tool patches at their original positions, except the patches that would remove Freeflow's own sections on a run Pi starts itself (Pi issue #10267; see [System prompt architecture](prompt-assembly.md#pi)). A native two-turn fixture exercises that timeline; it does not prove server cache hits, and another extension can still change the final request. The Pi candidate keeps Freeflow reference definitions, tool schemas, and generated runtime snapshots stable while feature gates control whether operations may execute. Helper and Executor share ordinary active history, and compatible worker/Coordinator views reuse only matching permitted prefixes; Freeflow does not copy excluded evidence to manufacture a cache match. Native ancestry replay preserves Freeflow-generated snapshots when their fingerprints and permitted history still apply.
 
 Reuse may shorten or restart when the active model/provider or unsupported effort path changes, earlier evidence is archived/restored/withdrawn or otherwise changes the view, native compaction or navigation replaces history, Freeflow or host instructions/tool schemas change, or a capability change alters permitted content. Provider expiry, eviction, minimum cacheable length, and actual server cache hits remain outside Freeflow's control.
 
@@ -33,7 +36,7 @@ Routing events are appended through Pi's native session-entry path and read back
 
 New user attention retains ordinary admitted history and pauses only the saved assessment obligation to restore compacted evidence. Closing, replacing and returning preserve admitted communication; current versus historical contracts remain distinct. When material evidence is missing from a returned assessment, Coordinator can attach a recovery request without replacing the assignment or report. The worker recorded on that assignment may select exposed evidence and read only exact admitted task paths or packaged Freeflow methods before returning a separate supplement; ordinary task work remains closed. Fresh attention does not settle recovery, and `assess` remains unavailable until the supplement arrives or Coordinator cancels recovery.
 
-Use `freeflow_unit` with `{"operation":"assess"}` only when that saved assessment is again intended and no recovery remains unsettled; failed readiness keeps it suspended. Recover Runtime State, the current assignment, saved report, selected evidence, and partial effects after context loss or native model/thinking changes. Current code accepts earlier supported v2 history, while older binaries may reject sessions containing the newer recovery events; there is no downgrade migration.
+Use `routing_unit` with `{"operation":"assess"}` only when that saved assessment is again intended and no recovery remains unsettled; failed readiness keeps it suspended. Recover Runtime State, the current assignment, saved report, selected evidence, and partial effects after context loss or native model/thinking changes. Current code accepts earlier supported v2 history, while older binaries may reject sessions containing the newer recovery events; there is no downgrade migration.
 
 ## Development boundary
 

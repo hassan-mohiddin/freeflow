@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { sessionEntryToContextMessages } from "@earendil-works/pi-coding-agent";
-import { canonical, idFor, isWorkerProfile, refFor } from "./types.js";
+import { canonical, idFor, isWorkerProfile, refFor, ROUTING_TOOLS, routingToolName } from "./types.js";
 import { isHostEdited, isProjected, projectedEntryId } from "../host/projection-tags.js";
 export const bodyHash = (value) => createHash("sha256").update(canonical(value)).digest("hex");
 /** Define a memoized hash so history is hashed only when a consumer needs it. */
@@ -11,11 +11,11 @@ function lazyHash(target, compute) {
     get: () => (value ??= compute()),
   });
 }
-const routingTools = new Set(["freeflow_delegate", "freeflow_return", "freeflow_project", "freeflow_unit"]);
+const routingTools = new Set(ROUTING_TOOLS);
 // Discovery, new selections, and delivery share this policy: evidence is what tools produced. What a worker
 // says belongs in its report, so its assistant messages are never evidence.
 export function isTaskEvidence(source) {
-  return source.message.role === "toolResult" && !routingTools.has(source.message.toolName);
+  return source.message.role === "toolResult" && !routingTools.has(routingToolName(source.message.toolName));
 }
 /** Saved selections keep their delivery, except assistant messages (whole or `#text`), which are never evidence. */
 export function deliveredSelection(sources, ref) {
@@ -83,7 +83,7 @@ export class Sources {
       const source = lazyHash({ ref: refFor(entry.id), entry, message, producer: "common", active: false }, () =>
         bodyHash(message),
       );
-      if (message.role === "toolResult" && message.toolName === "freeflow_return") {
+      if (message.role === "toolResult" && routingToolName(message.toolName) === "return_work") {
         for (const block of message.content ?? [])
           if (block.type === "text") {
             try {
@@ -280,6 +280,31 @@ export class Sources {
       (call) => call.id === source.message.toolCallId && call.name === source.message.toolName,
     );
     return matches.length === 1 ? locatorForCall(group.assistant, matches[0], this.locatorProvider) : undefined;
+  }
+  /**
+   * What a tool result's call did, in a few words: its path, command or first short string argument. Coordinator
+   * matches a selected ref to the result in its view by this label (Task 004 S-005); undefined when unknown.
+   */
+  callLabel(ref) {
+    const source = this.byRef.get(ref);
+    if (!source || source.message.role !== "toolResult") return undefined;
+    const call = (this.owners.get(source.ref)?.assistant.message.content ?? []).find(
+      (block) =>
+        block.type === "toolCall" && block.id === source.message.toolCallId && block.name === source.message.toolName,
+    );
+    const args = call?.arguments;
+    if (!args || typeof args !== "object") return undefined;
+    // A path keeps its end, where the file name is; anything else keeps its start.
+    const path = typeof args.path === "string" ? args.path.trim() : "";
+    if (path) return path.length > 100 ? `...${path.slice(-97)}` : path;
+    const chosen =
+      ["command", "pattern", "query", "url"]
+        .map((key) => args[key])
+        .find((value) => typeof value === "string" && value.trim()) ??
+      Object.values(args).find((value) => typeof value === "string" && value.trim() && value.length <= 200);
+    const label = normalizeLabel(chosen);
+    if (!label) return undefined;
+    return label.label.length > 100 ? `${label.label.slice(0, 97)}...` : label.label;
   }
   ordered(sources) {
     const ids = new Set([...sources].map((s) => s.ref));

@@ -49,7 +49,7 @@ test("an exited command reports its code, and stop names it as already exited", 
     const { id, outputPath } = await background.start("printf 'no newline'", "print", cwd, session);
     for (let i = 0; i < 200 && sent.length === 0; i++) await new Promise((r) => setTimeout(r, 25));
     assert.deepEqual(sent[0], [
-      `[Freeflow notice, not from the user] Background command ${id} (print) completed. Output: ${outputPath}.`,
+      `<freeflow-notice type="background">\nBackground command ${id} (print) completed. Output: ${outputPath}.\n</freeflow-notice>`,
       { id, status: "completed", exitCode: 0, outputPath },
       true,
     ]);
@@ -62,3 +62,32 @@ test("an exited command reports its code, and stop names it as already exited", 
     await rm(join(tmpdir(), "freeflow", session), { recursive: true, force: true });
   }
 });
+
+test(
+  "starts racing for the last free slot cannot pass the limit; a start still preparing at session end does not run",
+  { timeout: 30000 },
+  async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "freeflow-bg-"));
+    const session = `test-${process.pid}-${Date.now()}-race`;
+    const { jobs: background } = jobs();
+    try {
+      for (let i = 0; i < MAX_RUNNING - 1; i++) await background.start("sleep 60", undefined, cwd, session);
+      const results = await Promise.allSettled([
+        background.start("sleep 60", undefined, cwd, session),
+        background.start("sleep 60", undefined, cwd, session),
+      ]);
+      assert.deepEqual(results.map((result) => result.status).sort(), ["fulfilled", "rejected"]);
+      assert.equal(background.running().length, MAX_RUNNING);
+      await background.stopAll();
+      const late = background.start("sleep 60", undefined, cwd, session);
+      const ending = background.stopAll();
+      await assert.rejects(late, /session ended before the command started/);
+      await ending;
+      assert.equal(background.running().length, 0);
+    } finally {
+      await background.stopAll();
+      await rm(cwd, { recursive: true, force: true });
+      await rm(join(tmpdir(), "freeflow", session), { recursive: true, force: true });
+    }
+  },
+);

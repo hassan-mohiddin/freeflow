@@ -1,6 +1,6 @@
 ---
 name: migration-work
-description: Use when replacing an existing software or data path and moving its consumers, state, or traffic safely.
+description: "Use when migrating something in use to a new implementation, schema, service, or platform, and its users, data, or traffic must move over safely."
 ---
 
 # Migration Work

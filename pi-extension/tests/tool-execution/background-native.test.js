@@ -34,6 +34,7 @@ test("background tools are declared only while Tool Execution is on", async () =
     false,
     async ({ requests }) => {
       assert.ok(toolNames(requests[0]).includes("bash_background"));
+      assert.ok(toolNames(requests[0]).includes("monitor"));
       assert.ok(toolNames(requests[0]).includes("stop_background"));
     },
     true,
@@ -44,6 +45,7 @@ test("background tools are declared only while Tool Execution is on", async () =
     false,
     async ({ requests }) => {
       assert.ok(!toolNames(requests[0]).includes("bash_background"));
+      assert.ok(!toolNames(requests[0]).includes("monitor"));
       assert.ok(!toolNames(requests[0]).includes("stop_background"));
     },
     true,
@@ -82,6 +84,41 @@ test(
         assert.equal(await readFile(outputPath, "utf8"), "partial\n[exited with code 3]\n");
         assert.deepEqual(requests[2].tools, requests[0].tools, "job activity leaves the tools unchanged");
         assert.deepEqual(requests[2].system, requests[0].system);
+      },
+      true,
+      { ...on, model: ["anthropic", "claude-opus-5-5"] },
+    );
+  },
+);
+
+test(
+  "a monitor's line wakes the idle agent, then its exit does; each request extends the previous one",
+  { timeout: 30000 },
+  async () => {
+    await fixture(
+      async (n) =>
+        n === 1
+          ? [
+              {
+                name: "monitor",
+                args: { command: "sleep 0.5; echo ready; sleep 0.5; exit 2", description: "watch server" },
+              },
+            ]
+          : [],
+      false,
+      async ({ session, requests }) => {
+        assert.equal(requests.length, 2, "the start returned at once and the run ended");
+        const id = JSON.stringify(requests[1]).match(/Monitor (mon[0-9a-z]{6}) started/)?.[1];
+        assert.ok(id);
+        await until(() => requests.length === 4, "the event's turn and the exit's turn");
+        await session.waitForIdle();
+        const after = (i) => JSON.stringify(requests[i].messages.slice(requests[i - 1].messages.length + 1));
+        assert.match(after(2), new RegExp(`Monitor ${id} \\(watch server\\):\\\\nready`));
+        assert.match(after(3), new RegExp(`Monitor ${id} \\(watch server\\) exited with code 2 after 1 event\\.`));
+        extends_(requests[2], requests[1]);
+        extends_(requests[3], requests[2]);
+        assert.deepEqual(requests[3].tools, requests[0].tools, "monitor activity leaves the tools unchanged");
+        assert.deepEqual(requests[3].system, requests[0].system);
       },
       true,
       { ...on, model: ["anthropic", "claude-opus-5-5"] },
@@ -188,8 +225,8 @@ test(
   "a run an idle exit notice starts keeps Freeflow's system sections in every request",
   { timeout: 30000 },
   async () => {
-    // A run started by an extension message loses before_agent_start sections from its second request (Pi #10267),
-    // so an idle notice starts its run as a user message.
+    // Pi drops before_agent_start sections on a run an extension message starts (Pi #10267); the notice is still
+    // Freeflow's own message, and keepSections leaves the reversal out, so the prompt stays byte for byte the same.
     const sections = (body) => {
       const system = body.input.find((item) => item.role === "system")?.content ?? "";
       return (system.match(/\n<([a-z_]+)>/g) ?? []).map((tag) => tag.trim());
@@ -203,12 +240,134 @@ test(
           [],
         ][n - 1] ?? [],
       false,
-      async ({ session, requests }) => {
+      async ({ session, requests, manager }) => {
         await until(() => requests.length >= 4, "the notice's run to make two requests");
         await session.waitForIdle();
         assert.match(JSON.stringify(requests[2].input), /Background command bg[0-9a-z]{6} \(.*\) completed/);
         for (const body of requests.slice(2)) assert.ok(sections(body).includes("<freeflow_guidance>"));
         assert.deepEqual(sections(requests[3]), sections(requests[2]));
+        // The notice is Freeflow's message, not the user's, and the whole prompt is unchanged from the prompt's run.
+        const entries = manager.getBranch();
+        assert.ok(
+          entries.some((e) => e.type === "custom_message" && e.customType === "freeflow-background"),
+          "stored as Freeflow's message",
+        );
+        assert.ok(
+          !entries.some(
+            (e) =>
+              e.type === "message" &&
+              e.message.role === "user" &&
+              JSON.stringify(e.message).includes("Background command"),
+          ),
+          "never as the user's",
+        );
+        const system = (body) =>
+          JSON.stringify(body.input.filter((item) => item.role === "system" || item.role === "developer"));
+        for (const body of requests.slice(1))
+          assert.equal(system(body), system(requests[0]), "the system prompt is unchanged");
+        // Each request starts with the one before it (cache markers aside).
+        for (let i = 1; i < requests.length; i++)
+          assert.deepEqual(
+            strip(requests[i].input.slice(0, requests[i - 1].input.length)),
+            strip(requests[i - 1].input),
+            `request ${i + 1} extends request ${i}`,
+          );
+      },
+      true,
+      on,
+    );
+  },
+);
+
+test(
+  "a resumed session started by a message before any prompt keeps the sections its transcript carries",
+  { timeout: 30000 },
+  async () => {
+    // After a reload nothing is recorded in this process; the transcript still holds what the last prompt set.
+    const system = (body) =>
+      JSON.stringify(body.input.filter((item) => item.role === "system" || item.role === "developer"));
+    await fixture(
+      async (n) => [[], [{ name: "read", args: { path: "evidence.txt" } }], []][n - 1] ?? [],
+      false,
+      async ({ session, requests }) => {
+        await session.waitForIdle();
+        await session.reload();
+        await session.sendCustomMessage(
+          { customType: "freeflow-message", content: "<message>hi</message>", display: true, details: {} },
+          { triggerTurn: true },
+        );
+        await until(() => requests.length >= 3, "the message's run to make two requests");
+        await session.waitForIdle();
+        assert.match(system(requests[2]), /<freeflow_guidance>/);
+        for (const body of requests.slice(1))
+          assert.equal(system(body), system(requests[0]), "the system prompt is unchanged");
+        for (let i = 1; i < requests.length; i++)
+          assert.deepEqual(
+            strip(requests[i].input.slice(0, requests[i - 1].input.length)),
+            strip(requests[i - 1].input),
+            `request ${i + 1} extends request ${i}`,
+          );
+      },
+      true,
+      on,
+    );
+  },
+);
+
+test(
+  "a run Pi starts keeps the sections another extension set at the last prompt, as Pi's MCP servers",
+  { timeout: 30000 },
+  async () => {
+    // Pi's built-in MCP extension sets `mcp_servers` in before_agent_start; a run a message starts used to lose it from
+    // its second request, a full cache miss on providers that send the system prompt at the top (xAI).
+    const other = (pi) =>
+      pi.on("before_agent_start", (event) => {
+        event.systemPromptOptions.sections.other_servers = "OTHER_EXTENSION_SECTION";
+      });
+    const system = (body) =>
+      JSON.stringify(body.input.filter((item) => item.role === "system" || item.role === "developer"));
+    await fixture(
+      async (n) => [[], [{ name: "read", args: { path: "evidence.txt" } }], []][n - 1] ?? [],
+      false,
+      async ({ session, requests }) => {
+        await session.waitForIdle();
+        await session.sendCustomMessage(
+          { customType: "freeflow-message", content: "<message>hi</message>", display: true, details: {} },
+          { triggerTurn: true },
+        );
+        await until(() => requests.length >= 3, "the message's run to make two requests");
+        await session.waitForIdle();
+        assert.match(system(requests[0]), /OTHER_EXTENSION_SECTION/);
+        for (const body of requests.slice(1))
+          assert.equal(system(body), system(requests[0]), "the system prompt is unchanged");
+      },
+      true,
+      { ...on, extensions: [other] },
+    );
+  },
+);
+
+test(
+  "after /tree, a run an exit notice starts carries the system prompt that branch's transcript holds",
+  { timeout: 30000 },
+  async () => {
+    await fixture(
+      async (n) => (n === 1 ? [{ name: "bash_background", args: { command: "sleep 1; echo done" } }] : []),
+      false,
+      async ({ session, requests, manager }) => {
+        await session.waitForIdle();
+        const made = requests.length;
+        const prompted = requests.at(-1);
+        const firstPrompt = manager
+          .getBranch()
+          .find((entry) => entry.type === "message" && entry.message.role === "user");
+        // Navigating to the first prompt leaves the branch at its parent: the system message Pi recorded, no prompt.
+        await session.navigateTree(firstPrompt.id, { summarize: false });
+        await until(() => requests.length > made, "the exit notice's run");
+        await session.waitForIdle();
+        const system = (body) => JSON.stringify(body.input.filter((item) => item.role === "system"));
+        assert.match(system(requests[made]), /<freeflow_guidance>/);
+        assert.equal(system(requests[made]), system(prompted), "the same system prompt as the prompt's run");
       },
       true,
       on,
