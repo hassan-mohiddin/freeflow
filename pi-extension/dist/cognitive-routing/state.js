@@ -115,7 +115,7 @@ function applyEvent(state, event, owned = false) {
       for (const profile of PROFILES) {
         if (!Object.hasOwn(d.overrides, profile)) continue;
         const override = d.overrides[profile];
-        if (override === null) s.profileOverrides.delete(profile);
+        if (override === null || override === undefined) s.profileOverrides.delete(profile);
         else s.profileOverrides.set(profile, override);
       }
       break;
@@ -242,8 +242,8 @@ function applyEvent(state, event, owned = false) {
           d.recovery.supplementRevision === 0 &&
           d.recovery.supplementHandoffId === undefined &&
           d.recovery.cancellationReason === undefined &&
-          s.assessment?.handoffId === base?.id &&
           base?.kind === "return" &&
+          s.assessment?.handoffId === base.id &&
           a.returnHandoffId === base.id &&
           base.state === "configured" &&
           base.reportRevision === d.recovery.baseReportRevision &&
@@ -281,7 +281,8 @@ function applyEvent(state, event, owned = false) {
         s.control === "automatic" &&
           s.profile === assignmentWorker() &&
           a?.state === "returned" &&
-          r?.id === s.recoveryId &&
+          r !== undefined &&
+          r.id === s.recoveryId &&
           r.assignmentId === a.id &&
           s.assessment?.handoffId === r.assessmentHandoffId &&
           s.handoffs.get(r.assessmentHandoffId)?.reportRevision === r.baseReportRevision &&
@@ -308,7 +309,8 @@ function applyEvent(state, event, owned = false) {
       check(
         s.control === "automatic" &&
           s.profile === "coordinator" &&
-          r?.id === s.recoveryId &&
+          r !== undefined &&
+          r.id === s.recoveryId &&
           ["requested", "reading", "returning"].includes(r.state),
         "recovery_not_cancellable",
       );
@@ -421,7 +423,11 @@ function applyEvent(state, event, owned = false) {
       const u = s.units.get(d.unitId),
         a = assignment();
       check(
-        s.control === "automatic" && s.profile === "coordinator" && u?.id === s.unitId && u.state === "open",
+        s.control === "automatic" &&
+          s.profile === "coordinator" &&
+          u !== undefined &&
+          u.id === s.unitId &&
+          u.state === "open",
         "unit_not_open",
       );
       if (d.outcome === "accepted")

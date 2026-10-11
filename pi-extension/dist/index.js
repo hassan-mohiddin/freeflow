@@ -110,13 +110,11 @@ function fullHistoryTokens(ctx) {
         previous.tokens,
       );
   }
-  if (tokens === undefined)
-    tokens = (manager.buildSessionProjection()?.messages ?? []).reduce(
-      (sum, message) => sum + estimateTokens(message),
-      0,
-    );
-  historyEstimate.set(manager, { branch, tokens });
-  return tokens + system;
+  const counted =
+    tokens ??
+    (manager.buildSessionProjection()?.messages ?? []).reduce((sum, message) => sum + estimateTokens(message), 0);
+  historyEstimate.set(manager, { branch, tokens: counted });
+  return counted + system;
 }
 async function sendSkillCommand(pi, ctx, skill, args) {
   const state = await readCapabilityState(ctx.cwd, ctx);

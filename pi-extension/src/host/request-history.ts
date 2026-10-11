@@ -90,7 +90,7 @@ export class RequestHistory {
   };
   private frameHash = (entry: any): string => {
     const cached = this.validatedFrames.get(entry.id);
-    return cached?.entry === entry ? cached.hash : hash(entry);
+    return cached !== undefined && cached.entry === entry ? cached.hash : hash(entry);
   };
   // Unedited native entries and Freeflow's renderings of them never change under their identity, so their
   // fingerprints are computed once per session.
@@ -216,11 +216,15 @@ export class RequestHistory {
       : new Map<string, Frame>();
     for (const entry of newEntries) {
       const cached = this.validatedFrames.get(entry.id);
-      const same = cached?.entry === entry;
+      const same = cached !== undefined && cached.entry === entry;
       const frame = same ? cached.frame : parse(entry.data);
       if (
         (frame.basis !== entry.parentId &&
-          !(reader.getHeader?.()?.parentSession && !ids.has(frame.basis) && !newIds.has(frame.basis))) ||
+          // A null basis is in neither set, so it counts as outside the parent session's branch.
+          !(
+            reader.getHeader?.()?.parentSession &&
+            (frame.basis === null || (!ids.has(frame.basis) && !newIds.has(frame.basis)))
+          )) ||
         byId.has(frame.id)
       )
         throw new Error("Context frame anchor differs");
