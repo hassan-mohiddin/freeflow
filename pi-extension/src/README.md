@@ -23,6 +23,6 @@
 
 ## Conventions
 
-- Source is TypeScript compiled with `strict: false`; many host objects are typed `any` because Pi's runtime objects are wider than its exported types.
+- Source is TypeScript. Strict mode is being turned on one flag at a time: `strictFunctionTypes`, `strictBindCallApply`, `noImplicitThis`, `alwaysStrict` and `useUnknownInCatchVariables` are on; `noImplicitAny` and `strictNullChecks` come next. Many host objects are typed `any` because Pi's runtime objects are wider than its exported types.
 - A file starts with a comment saying what it owns. Keep that comment true when the file changes.
 - Import with the `.js` extension (`./host/config.js`), as Node's ES modules require after compilation.
