@@ -436,7 +436,7 @@ export function registerBackgroundTools(pi: any, jobs: BackgroundJobs, host: Bac
         content: [
           {
             type: "text",
-            text: `Monitor ${started.id} started. Each line it prints reaches you as a notice; it stops when the command exits, after ${minutes} min, or with stop_background. Output: ${started.outputPath}.`,
+            text: `Monitor ${started.id} started. Each line it prints reaches you as a notice; it stops when the command exits, after ${minutes} min, or with stop_background. When you tell the user you are watching, say it stops after ${minutes} min unless restarted. Output: ${started.outputPath}.`,
           },
         ],
         details: started,
