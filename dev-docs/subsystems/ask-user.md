@@ -32,6 +32,10 @@ Closing any dialog dismisses the whole question.
 
 **Result.** `outcomeText()` gives the model each question with the chosen labels or the user's words and any note, then: each answer decides only its question, and a note that asks or sets a condition is not a decision. A dismissed or unavailable question is an error result telling the agent to ask in its reply and not act on the choice. `details.outcome` carries the structured answers for the transcript.
 
+**Rows.** The call row reads `Question · header: question`, with the options when expanded; the result row `Answered · header: answer (note: ...)`, the user's own words in quotes, or `Closed without answering (Esc)`. Several questions list one line each. Rows use `foldRow()` (`host/rows.ts`): a short body shows in both views, a long one only when expanded, as Pi's own rows.
+
+**Deadline.** `FormOptions.deadline` adds a countdown line and closes the form unanswered when it passes (`askUser()` ticks it each second); `confirmWithUser()` takes `timeoutMs` and its own Yes and No labels, and passes the timeout to Pi's `confirm` outside the terminal. Messaging's held messages use it with Deliver and Refuse.
+
 **Availability.** The `askUser` entry in the capability state (`host/config.ts`) is effective whenever Freeflow is enabled, and disabled inside subagents with the other optional capabilities. `applyAskUserTool()` declares or withdraws the tool in `status()`. The tool is `model-only`, as task memory's is: it asks the user, so scripts must not call it, and called directly its transcript rows apply.
 
 **Routing refusal.** The tool's host checks `routing.observationScope()`: under automatic control, a Helper or Executor gets a refusal telling it to put the choice in its report.
