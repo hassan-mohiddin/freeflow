@@ -725,6 +725,65 @@ export class TaskMemory {
       return { ok: false, text: error?.message ?? String(error) };
     }
   }
+  /** Removal names a registered task by ID, or a project by name (Task 006). */
+  removalTarget(target) {
+    const task = typeof target.task === "string" ? target.task.trim() : "";
+    const project = typeof target.project === "string" ? target.project.trim() : "";
+    if (project) return { target: { project } };
+    if (!task) return { error: "Name the task's ID, or the project." };
+    if (!TASK_ID.test(task))
+      return {
+        error: `${task} is not a task ID: only registered tasks (such as my-project/task-003) and projects can be removed.`,
+      };
+    return { target: { task } };
+  }
+  /** The question to put to the user before removing a task or a project, or why it cannot be removed. */
+  async removalQuestion(target) {
+    const { target: named, error } = this.removalTarget(target);
+    if (!named) return { error };
+    try {
+      const plan = await this.registry.removal(named);
+      const [first, ...children] = plan.tasks;
+      const what = plan.project
+        ? `project ${plan.project.name} and its ${plan.tasks.length} task(s)`
+        : `${first.id} "${first.title}"${children.length ? ` and its children ${children.map((task) => task.id).join(", ")}` : ""}`;
+      const me = this.host.owner().session;
+      const others = plan.tasks.filter((task) => task.owner && task.owner !== me);
+      return {
+        question: [
+          `Remove ${what}? The records move to the trash; only you can empty it, with /freeflow trash empty.`,
+          ...(others.length
+            ? [`Owned by other sessions: ${others.map((task) => `${task.id} (session ${task.owner})`).join(", ")}.`]
+            : []),
+          ...(plan.worktrees.length ? [`Git worktrees stay: ${plan.worktrees.map((w) => w.path).join(", ")}.`] : []),
+        ].join(" "),
+      };
+    } catch (failure) {
+      return { error: failure?.message ?? String(failure) };
+    }
+  }
+  /** Remove a task with its children, or a project; the user confirmed. Removed records are detached here. */
+  async remove(target) {
+    const { target: named, error } = this.removalTarget(target);
+    if (!named) return { ok: false, text: error };
+    try {
+      const plan = await this.registry.removal(named);
+      const records = (await Promise.all(plan.tasks.map((task) => this.registry.task(task.id))))
+        .map((task) => task?.record)
+        .filter((record) => typeof record === "string");
+      const result = named.task
+        ? await this.registry.removeTask(named.task)
+        : await this.registry.removeProject(named.project);
+      for (const record of records) if (this.current.attached.includes(record)) this.write("detach", record);
+      return {
+        ok: true,
+        headline: `Removed ${result.project ? `project ${result.project.name}` : result.tasks[0].id}${result.tasks.length > (result.project ? 0 : 1) ? ` and ${result.tasks.length - (result.project ? 0 : 1)} task(s)` : ""} · in the trash`,
+        text: await this.registry.removalText(result),
+      };
+    } catch (failure) {
+      return { ok: false, text: failure?.message ?? String(failure) };
+    }
+  }
   /** A registered task's directories, or a change to them; the user confirmed a change. */
   async environment(record, change, cwd) {
     const { id, error } = await this.locate(record, cwd);

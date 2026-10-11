@@ -9,6 +9,7 @@ The **Rules** below are binding; everything else is judgment.
 - Create or link a project, import a record into one, and change a task's directories, only when the user asks, or when the user confirms your proposal in a harness dialog (Pi task memory).
 - Write a record only from the session that owns it. A parent task's record is written by the parent's session; a child's record by the child's session.
 - A child has no children.
+- Remove a task or a project only when the user asks for it to be removed, or confirms your proposal in a harness dialog. Removal moves records to the trash under the Freeflow home; never empty the trash or delete records another way: that is the user's.
 
 ## What A Project Is
 
@@ -25,6 +26,8 @@ working-record.mjs task here                                         the task th
 working-record.mjs task env --id <id>                                where a task's work happens
 working-record.mjs task import --record <record.md> --project <name> move an existing record in
 working-record.mjs task search --query <q> --id <id> --scope task|tree|project
+working-record.mjs task remove --id <id>                             a task and its children, to the trash
+working-record.mjs project remove --name <name>                      a project and its tasks, to the trash
 ```
 
 Run each command with `--help` before preparing its input. A record that is not registered keeps working where it is.

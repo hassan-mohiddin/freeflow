@@ -21,7 +21,7 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { slugify } from "./format.mjs";
-import { STORE_MARKER, taskRoot } from "./store.mjs";
+import { LAST_TASK_NUMBER, STORE_MARKER, taskRoot } from "./store.mjs";
 
 /**
  * The task registry: projects, registered tasks, their parents, and which session owns each record. One JSON file
@@ -70,6 +70,29 @@ export function startCommand(path, agent) {
 }
 
 const empty = () => ({ version: 1, projects: {}, tasks: {} });
+
+/** A removal's result for the agent and the user: what went, where it is, what was left and how to remove it. */
+export function removalText(result, trash) {
+  const ids = result.tasks.map((task) => task.id);
+  const what = result.project
+    ? `project ${result.project.name} (${result.project.slug})${ids.length ? ` and its tasks ${ids.join(", ")}` : ""}`
+    : ids.length > 1
+      ? `${ids[0]} and its children ${ids.slice(1).join(", ")}`
+      : ids[0];
+  const lines = [
+    `Removed ${what}. ${result.trash.length ? `The records are in the trash: ${result.trash.join(", ")}.` : "There were no record files to move."} Only the user empties the trash (${trash}).`,
+  ];
+  if (result.unlinked?.length) lines.push(`Project links removed: ${result.unlinked.join(", ")}.`);
+  if (result.worktrees.length)
+    lines.push(
+      "Git worktrees and branches were left in place. To remove them, run from the main repository:",
+      ...result.worktrees.map(
+        (worktree) =>
+          `- ${worktree.id}: git worktree remove ${quote(worktree.path)}${worktree.branch ? ` && git branch -D ${quote(worktree.branch)}` : ""}`,
+      ),
+    );
+  return lines.join("\n");
+}
 
 /** A path with its symlinks resolved, or as given when it does not exist. */
 function real(path) {
@@ -417,6 +440,125 @@ export class Registry {
     const branch = (await git("branch", "--show-current")) || undefined;
     const worktree = (await git("rev-parse", "--git-dir")) !== (await git("rev-parse", "--git-common-dir"));
     return { primary, directories, exists: true, branch, worktree };
+  }
+
+  /** Where removed tasks and projects go; only the user empties it (Task 006). */
+  get trash() {
+    return join(this.home, "trash");
+  }
+
+  /**
+   * What removing a task, or a project, would take: the tasks (a task with its children, or all of a project's), their
+   * owners, and the Git worktrees fan-out made for them, which removal leaves in place.
+   */
+  async removal({ task: id, project: name } = {}) {
+    const data = await this.read();
+    let project;
+    let entries;
+    if (name !== undefined) {
+      const found = await this.project(name);
+      if (!found) throw new RegistryError(`No project named ${name}.`);
+      project = found;
+      entries = Object.entries(data.tasks).filter(([, task]) => task.project === found.slug);
+    } else {
+      const task = data.tasks[id];
+      if (!task) throw new RegistryError(`No task ${id}.`);
+      entries = [[id, task], ...Object.entries(data.tasks).filter(([, other]) => other.parent === id)];
+    }
+    const worktrees = [];
+    for (const [taskId] of entries) {
+      const environment = await this.environment(taskId).catch(() => undefined);
+      if (environment?.worktree && environment.primary)
+        worktrees.push({ id: taskId, path: environment.primary, branch: environment.branch });
+    }
+    return {
+      ...(project ? { project: { slug: project.slug, name: project.project.name } } : {}),
+      tasks: entries.map(([taskId, task]) => ({ id: taskId, title: task.title, owner: task.owner?.session })),
+      worktrees,
+    };
+  }
+
+  /** Move a directory into the trash under a dated name; the trash is in the Freeflow home, so this is a rename. */
+  async toTrash(path, name) {
+    await mkdir(this.trash, { recursive: true });
+    const target = join(this.trash, `${new Date().toISOString().replace(/[:.]/g, "-")}-${name}`);
+    await rename(path, target);
+    return target;
+  }
+
+  /**
+   * Remove a registered task and its children: their task directories move to the trash and their registry entries go.
+   * Task numbers are never reused, so an old ID cannot come to name a new task. Worktrees and branches stay.
+   */
+  async removeTask(id) {
+    const plan = await this.removal({ task: id });
+    const data = await this.read();
+    // Keep the highest removed number, so the store never hands it out again.
+    const tasksDirectory = dirname(dirname(data.tasks[id].record));
+    const numbers = plan.tasks.map(({ id: taskId }) => Number(/task-(\d+)$/.exec(taskId)?.[1] ?? 0));
+    const marker = join(tasksDirectory, LAST_TASK_NUMBER);
+    const recorded = Number((await readFile(marker, "utf8").catch(() => "0")).trim()) || 0;
+    await writeFile(marker, `${Math.max(recorded, ...numbers)}\n`);
+    const moved = [];
+    for (const { id: taskId } of plan.tasks) {
+      const directory = dirname(data.tasks[taskId].record);
+      const there = await stat(directory)
+        .then(() => true)
+        .catch(() => false);
+      if (there)
+        moved.push([await this.toTrash(directory, `${data.tasks[taskId].project}-${basename(directory)}`), directory]);
+    }
+    try {
+      await this.update((current) => {
+        for (const { id: taskId } of plan.tasks) delete current.tasks[taskId];
+      });
+    } catch (error) {
+      for (const [trashed, directory] of moved) await rename(trashed, directory).catch(() => {});
+      throw error;
+    }
+    return { ...plan, trash: moved.map(([trashed]) => trashed) };
+  }
+
+  /**
+   * Remove a project: its store (every task's record) moves to the trash, the project and its tasks leave the registry,
+   * and the project links in its repositories and children's worktrees go. Worktrees and branches stay.
+   */
+  async removeProject(name) {
+    const plan = await this.removal({ project: name });
+    const { slug } = plan.project;
+    const project = (await this.read()).projects[slug];
+    const trashed = await this.toTrash(project.store, `project-${slug}`);
+    try {
+      await this.update((current) => {
+        delete current.projects[slug];
+        for (const { id } of plan.tasks) delete current.tasks[id];
+      });
+    } catch (error) {
+      await rename(trashed, project.store).catch(() => {});
+      throw error;
+    }
+    const unlinked = [];
+    for (const directory of [...project.repos, ...plan.worktrees.map((worktree) => worktree.path)]) {
+      const link = join(directory, PROJECT_LINK);
+      const target = await readlink(link).catch(() => undefined);
+      if (target !== undefined && resolve(directory, target) === resolve(project.store)) {
+        await unlink(link).catch(() => {});
+        unlinked.push(link);
+      }
+    }
+    return { ...plan, trash: [trashed], unlinked };
+  }
+
+  /** What the trash holds, oldest first. */
+  async trashEntries() {
+    return (await readdir(this.trash).catch(() => [])).sort();
+  }
+
+  /** Delete everything in the trash. Only the user's own command calls this; agents never do (Task 006). */
+  async emptyTrash() {
+    const entries = await this.trashEntries();
+    await rm(this.trash, { recursive: true, force: true });
+    return entries;
   }
 
   /** Registered tasks whose primary directory contains cwd, deepest first. */

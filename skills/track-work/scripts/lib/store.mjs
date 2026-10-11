@@ -70,6 +70,9 @@ async function assertNoSymlinkPath(target, stopAt) {
 /** The marker a project store keeps at its root; see registry.mjs. */
 export const STORE_MARKER = "store.json";
 
+/** In a tasks directory: the highest task number a removal took away, so numbering never goes back. */
+export const LAST_TASK_NUMBER = ".last-task-number";
+
 /** A repository keeps its records in .freeflow/tasks; a project store, marked by store.json, in tasks. */
 export function taskRoot(root) {
   return existsSync(join(root, STORE_MARKER)) ? resolve(root, "tasks") : resolve(root, ".freeflow", "tasks");
@@ -161,8 +164,9 @@ async function nextTaskNumber(tasks) {
   } catch (error) {
     if (error?.code !== "ENOENT") throw error;
   }
-  // Numbers are never reused, so an old reference to a deleted task cannot point at a new one.
-  let highest = 0;
+  // Numbers are never reused, so an old reference to a deleted task cannot point at a new one; a removal records the
+  // highest number it took away (LAST_TASK_NUMBER), since its directory is gone.
+  let highest = Number((await readFile(join(tasks, LAST_TASK_NUMBER), "utf8").catch(() => "0")).trim()) || 0;
   for (const entry of entries) {
     const match = /^task-(\d{3,})-/.exec(entry.name);
     if (entry.isDirectory() && match) highest = Math.max(highest, Number(match[1]));

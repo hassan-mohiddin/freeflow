@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
@@ -635,6 +635,36 @@ test("plugin-docs/settings.md documents every row the settings screen shows and 
   }
 });
 
+test("/freeflow trash lists removed items, and only /freeflow trash empty deletes them, after asking", async () => {
+  // Task 006: the trash is emptied only by the user's command.
+  const before = process.env.FREEFLOW_HOME;
+  const home = await mkdtemp(join(tmpdir(), "freeflow-home-"));
+  process.env.FREEFLOW_HOME = home;
+  const cwd = await configuredRepo({});
+  try {
+    await mkdir(join(home, "trash", "2026-10-12T00-00-00-000Z-trial-task-001-try-it"), { recursive: true });
+    const { commands } = loadExtension(freeflowExtension);
+    const command = commands.find((candidate) => candidate.name === "freeflow");
+    const run = async (args, answer) => {
+      const ctx = context(cwd);
+      ctx.hasUI = true;
+      ctx.mode = "rpc";
+      ctx.ui.confirm = async () => answer;
+      await command.definition.handler(args, ctx);
+      return ctx.notifications.at(-1).message;
+    };
+    assert.match(await run("trash", false), /^Trash \(.+\):\n- 2026-10-12T00-00-00-000Z-trial-task-001-try-it\n/);
+    assert.equal(await run("trash empty", false), "The trash was not emptied.");
+    assert.equal((await readdir(join(home, "trash"))).length, 1);
+    assert.equal(await run("trash empty", true), "Deleted 1 item(s) from the trash.");
+    assert.equal(await run("trash", false), "The trash is empty.");
+  } finally {
+    process.env.FREEFLOW_HOME = before;
+    await rm(cwd, { recursive: true, force: true });
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
 test("Pi settings show Task Memory off by default, and status reports it when on", async () => {
   const cwd = await configuredRepo({});
   try {
@@ -1013,6 +1043,7 @@ test("Pi describes the mode-free Freeflow argument surface and manual profile co
       description: "Attach, focus, detach or confirm Working Records (task memory)",
     },
     { value: "project", label: "project", description: "Create or link a task-memory project" },
+    { value: "trash", label: "trash", description: "Removed tasks and projects; trash empty deletes them for good" },
     { value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" },
     { value: "resume", label: "resume", description: "Resume the current saved routing responsibility" },
     { value: "enable", label: "enable", description: "Enable Freeflow for this repository" },

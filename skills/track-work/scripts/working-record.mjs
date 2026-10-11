@@ -17,7 +17,7 @@ import {
   writeInitialAtomically,
 } from "./lib/store.mjs";
 import { renderEntries, renderFull, renderResume } from "./lib/views.mjs";
-import { PROJECT_LINK, Registry, TASK_ID, startCommand } from "./lib/registry.mjs";
+import { PROJECT_LINK, Registry, TASK_ID, removalText, startCommand } from "./lib/registry.mjs";
 import { searchRecords } from "./lib/search.mjs";
 
 const ROOT_HELP =
@@ -31,8 +31,8 @@ function usage() {
     "  working-record.mjs view entry <ID> [<ID> ...] --record <record.md>",
     "  working-record.mjs validate --record <record.md>",
     "  working-record.mjs <slice|checkpoint|decision|task> <operation> ...",
-    "  working-record.mjs project <new|link|show|list> ...",
-    "  working-record.mjs task <create|import|search|env|here|fanout> ...",
+    "  working-record.mjs project <new|link|show|list|remove> ...",
+    "  working-record.mjs task <create|import|search|env|here|fanout|remove> ...",
     "",
     ROOT_HELP,
     "A registered task's ID (such as my-project/task-003) may be given as --record.",
@@ -71,7 +71,7 @@ const COMMAND_HELP = new Map([
     "task",
     [
       "Usage: working-record.mjs task <operation> ...",
-      "Operations: task set-state; and for projects: task create, task import, task search, task env, task here, task fanout.",
+      "Operations: task set-state; and for projects: task create, task import, task search, task env, task here, task fanout, task remove.",
       "Run working-record.mjs <group> <operation> --help for options and input fields.",
     ].join("\n"),
   ],
@@ -86,7 +86,7 @@ const COMMAND_HELP = new Map([
   ["validate", "Usage: validate --record <record.md>"],
   [
     "project",
-    "Usage: working-record.mjs project <operation> ...\nOperations: project new, project link, project show, project list.\nA project groups tasks; its records live in a store under the Freeflow home (FREEFLOW_HOME, default ~/.freeflow), outside any repository. Create or link a project only when the user asks.",
+    "Usage: working-record.mjs project <operation> ...\nOperations: project new, project link, project show, project list, project remove.\nA project groups tasks; its records live in a store under the Freeflow home (FREEFLOW_HOME, default ~/.freeflow), outside any repository. Create or link a project only when the user asks.",
   ],
   [
     "project new",
@@ -113,6 +113,14 @@ const COMMAND_HELP = new Map([
     "Usage: project show [--cwd <directory>] [--name <project>]\nPrints a project and its tasks: ID, title, parent, and whether a session owns it. Without --name, the project linked to the repository containing --cwd.",
   ],
   ["project list", "Usage: project list\nPrints every project: name, number of tasks, and linked repositories."],
+  [
+    "project remove",
+    "Usage: project remove --name <project>\nMoves the project's store (every task's record) to the trash under the Freeflow home, removes the project and its tasks from the registry, and removes its .freeflow/project links. Git worktrees and branches stay; the output gives the commands to remove them. Run it only when the user asked to remove that project. Never empty the trash: the user does.",
+  ],
+  [
+    "task remove",
+    "Usage: task remove --id <task ID>\nMoves the task's record, and its children's, to the trash under the Freeflow home and removes them from the registry. Task numbers are never reused. Git worktrees and branches stay; the output gives the commands to remove them. Run it only when the user asked to remove that task. Never empty the trash: the user does.",
+  ],
   [
     "task create",
     "Usage: task create --title <title> --goal <goal> [--parent <task-id>] [--cwd <directory>]\nCreates a registered record in the project linked to --cwd, or with --parent a child of that task in its project, and prints its ID and path. A child has no children.",
@@ -261,6 +269,8 @@ function allowedOptions(command, operation) {
     return new Set(["--name", "--cwd", "--worktrees", "--help"]);
   if (command === "project" && operation === "show") return new Set(["--cwd", "--name", "--help"]);
   if (command === "project" && operation === "list") return new Set(["--help"]);
+  if (command === "task" && operation === "remove") return new Set(["--id", "--help"]);
+  if (command === "project" && operation === "remove") return new Set(["--name", "--help"]);
   return null;
 }
 
@@ -380,6 +390,11 @@ async function runRegistry(command, operation, options) {
     return `Project ${await registry.createProject(requireOption(options, "--name"), where, options["--worktrees"])} created and linked to ${await registry.repoRoot(where)}.${await browse()}\n`;
   if (command === "project" && operation === "link")
     return `${await registry.repoRoot(where)} linked to project ${await registry.linkProject(requireOption(options, "--name"), where, options["--worktrees"])}.${await browse()}\n`;
+  // Removal moves records to the trash; nothing here empties it, which is the user's to do (Task 006).
+  if (command === "task" && operation === "remove")
+    return `${removalText(await registry.removeTask(requireOption(options, "--id")), registry.trash)}\n`;
+  if (command === "project" && operation === "remove")
+    return `${removalText(await registry.removeProject(requireOption(options, "--name")), registry.trash)}\n`;
   if (command === "project" && operation === "list") {
     const data = await registry.read();
     const projects = Object.entries(data.projects);
@@ -469,7 +484,7 @@ async function runCore(command, rest) {
   validateCommandOptions(command, operation, options);
   if (
     command === "project" ||
-    (command === "task" && ["create", "import", "search", "env", "here", "fanout"].includes(operation))
+    (command === "task" && ["create", "import", "search", "env", "here", "fanout", "remove"].includes(operation))
   )
     return runRegistry(command, operation, options);
   // A registered task's ID stands for its record's path.

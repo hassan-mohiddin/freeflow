@@ -23,6 +23,13 @@ export function freeflowHome(): string {
   return process.env.FREEFLOW_HOME || join(homedir(), ".freeflow");
 }
 
+export type Removal = {
+  project?: { slug: string; name: string };
+  tasks: { id: string; title: string; owner?: string }[];
+  worktrees: { id: string; path: string; branch?: string }[];
+};
+export type Removed = Removal & { trash: string[]; unlinked?: string[] };
+
 export class Registry {
   private impl: Promise<any> | undefined;
 
@@ -110,6 +117,33 @@ export class Registry {
   /** The project link for cwd's repository, made if missing; undefined when it belongs to no project (Task 004 D-003). */
   linkHere(cwd: string): Promise<{ link: string; error?: string } | undefined> {
     return this.call("linkHere", cwd);
+  }
+  /** What removing a task (with its children) or a project would take (Task 006). */
+  removal(target: { task?: string; project?: string }): Promise<Removal> {
+    return this.call("removal", target);
+  }
+  removeTask(id: string): Promise<Removed> {
+    return this.call("removeTask", id);
+  }
+  removeProject(name: string): Promise<Removed> {
+    return this.call("removeProject", name);
+  }
+  trashEntries(): Promise<string[]> {
+    return this.call("trashEntries");
+  }
+  /** Only the user's /freeflow trash empty calls this. */
+  emptyTrash(): Promise<string[]> {
+    return this.call("emptyTrash");
+  }
+  async trashPath(): Promise<string> {
+    this.impl ??= import(pathToFileURL(join(this.packageRoot, "skills/track-work/scripts/lib/registry.mjs")).href).then(
+      (lib) => new lib.Registry(this.home),
+    );
+    return (await this.impl).trash;
+  }
+  async removalText(result: Removed): Promise<string> {
+    const lib = await import(pathToFileURL(join(this.packageRoot, "skills/track-work/scripts/lib/registry.mjs")).href);
+    return lib.removalText(result, await this.trashPath());
   }
   here(cwd: string): Promise<Entry[]> {
     return this.call("here", cwd);

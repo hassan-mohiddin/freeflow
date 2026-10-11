@@ -17,6 +17,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Act on the user's authority only through a `task_memory` proposal the user confirms: `attach`, `create`, `child`, `fanout`, `project_new`, `project_link`, `import`, `confirm`, and `env` with a change each open a dialog, unless the user's auto-approve setting covers that action, which is their standing confirmation (the result then says it was auto-approved). A declined proposal is the user's answer: do not retry it, rephrase it, or reach the same result another way unless the user asks again.
 - Write a record only when it is attached to this session, not held, and, if registered, owned by this session. Write each update to the record it concerns, whichever record is the focus. Never write another task's record because you read it.
 - When Freeflow refuses a record write, tell the user which record and why. Never write that record another way, such as a shell command.
+- Remove tasks and projects only with `remove` and `project_remove`. Never empty the trash or delete records, stores or the registry another way: emptying the trash is the user's command, so when asked to, tell the user to run `/freeflow trash empty`.
 
 ## Turn Requests Into Actions
 
@@ -33,6 +34,7 @@ Goal: the user works in plain language; you pick the action and show its outcome
 | split off, run in parallel, in another session or worktree | `fanout` when the work will change files, `child` when it only reads |
 | create a project, add this repository to a project | `project_new`, `project_link` |
 | move this record into the project | `import` |
+| remove, delete a task or a project | `remove` (a task and its children) or `project_remove`: records move to the trash |
 | what did we decide about X, find X | `search`, then `view` the entry that answers it |
 | where does this task's work happen | `env` without a change |
 

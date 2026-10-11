@@ -346,3 +346,62 @@ test("a record named through the project link is the registered record to lookup
     process.env.FREEFLOW_HOME = before;
   }
 });
+
+test("remove always asks, even with every auto-approve switch on; a yes moves the task to the trash and detaches it", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { TaskMemory } = await import("../../dist/task-memory/runtime.js");
+  const { registerTaskMemoryTool } = await import("../../dist/task-memory/tool.js");
+  const { Registry } = await import("../../../skills/track-work/scripts/lib/registry.mjs");
+  const before = process.env.FREEFLOW_HOME;
+  process.env.FREEFLOW_HOME = await mkdtemp(join(tmpdir(), "freeflow-home-"));
+  try {
+    const repo = await mkdtemp(join(tmpdir(), "freeflow-repo-"));
+    execFileSync("git", ["-C", repo, "init", "-q"]);
+    const lib = new Registry(process.env.FREEFLOW_HOME);
+    const slug = await lib.createProject("Trial", repo);
+    const task = await lib.createTask(slug, "Try it", "Goal.");
+    const memory = new TaskMemory({
+      effective: () => true,
+      append: () => {},
+      send: () => {},
+      owner: () => ({ session: "this-session", since: "2026-10-12T00:00:00.000Z" }),
+      confirm: async () => true,
+      packageRoot: process.cwd(),
+    });
+    assert.equal((await memory.attach(task.id, repo)).ok, true);
+    let tool;
+    registerTaskMemoryTool(
+      { registerTool: (definition) => (tool = definition) },
+      { memory, changed() {}, autoApproved: () => true },
+    );
+    const asked = [];
+    let answer = false;
+    const ctx = {
+      cwd: repo,
+      hasUI: true,
+      mode: "rpc",
+      ui: { confirm: async (title, message) => (asked.push({ title, message }), answer) },
+    };
+    const declined = await tool.execute("1", { action: "remove", record: task.id }, undefined, undefined, ctx);
+    assert.equal(declined.isError, true);
+    assert.ok(await lib.task(task.id), "a decline removes nothing");
+    assert.equal(asked[0].title, "Remove task?");
+    assert.match(
+      asked[0].message,
+      /^Remove trial\/task-001 "Try it"\? The records move to the trash; only you can empty it, with \/freeflow trash empty\./,
+    );
+    answer = true;
+    const removed = await tool.execute("2", { action: "remove", record: task.id }, undefined, undefined, ctx);
+    assert.equal(removed.isError, undefined);
+    assert.match(removed.content[0].text, /^Removed trial\/task-001\. The records are in the trash: /);
+    assert.equal(await lib.task(task.id), undefined);
+    assert.deepEqual(memory.state().attached, [], "the removed record is detached");
+    assert.equal(asked.length, 2, "both calls asked, though auto-approve is on");
+    // Emptying the trash is not an action the agent has.
+    const empty = await tool.execute("3", { action: "trash_empty" }, undefined, undefined, ctx);
+    assert.equal(empty.isError, true);
+    assert.equal((await lib.trashEntries()).length, 1);
+  } finally {
+    process.env.FREEFLOW_HOME = before;
+  }
+});

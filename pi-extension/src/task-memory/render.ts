@@ -54,6 +54,10 @@ export function callTitle(args: any = {}): string {
       return args.primary || args.add_dir || args.remove_dir
         ? `Change directories of ${record}`
         : `Directories of ${record}`;
+    case "remove":
+      return `Remove ${record}`;
+    case "project_remove":
+      return `Remove project ${quoted(args.name)}`.trim();
     default:
       return "Task memory";
   }

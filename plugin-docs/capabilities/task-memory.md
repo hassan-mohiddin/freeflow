@@ -22,7 +22,7 @@ Task memory does not decide when a task needs a record or what goes in it: Track
 
 ## Ask in plain language
 
-Everything below can be done by asking the agent: "list my projects", "show this project's tasks", "open the retry task", "start a task for the parser port", "split the parser off into its own worktree", "what did we decide about the cache key?". The agent picks the action. Anything that creates something or lets the session write (creating a project or task, linking a repository, attaching, splitting off a child, importing, releasing a held record, changing a task's directories) opens a dialog first, and nothing happens unless you confirm. A decline stands: the agent does not retry or work around it. Reading, listing, searching and moving the focus need no dialog.
+Everything below can be done by asking the agent: "list my projects", "show this project's tasks", "open the retry task", "start a task for the parser port", "split the parser off into its own worktree", "what did we decide about the cache key?", "remove the trial project". The agent picks the action. Anything that creates something, lets the session write or removes something (creating a project or task, linking a repository, attaching, splitting off a child, importing, releasing a held record, changing a task's directories, removing a task or project) opens a dialog first, and nothing happens unless you confirm. A decline stands: the agent does not retry or work around it. Reading, listing, searching and moving the focus need no dialog.
 
 To stop being asked for some of these, turn on their auto-approve switches in `/freeflow settings` (Personal or Repository scope), or in a config file. Each switch covers a group of actions and is off by default:
 
@@ -109,6 +109,14 @@ For a child that only reads or researches, no worktree is needed. Start a new se
 
 The parent's resume view lists its children with each child's state and next action, and the agent can read a child's record or search across the task and its children. A child's result reaches the parent's record when the parent's session records it. With [Messaging](messaging.md) on, the child's session can report to the parent's session itself.
 
+## Removing tasks and projects
+
+Ask the agent to remove a task or a project, or run `/freeflow task remove <task ID>` or `/freeflow project remove <name>`. A dialog names what goes (a task takes its child tasks with it; a project takes all its tasks), which other sessions own any of it, and which Git worktrees stay. Removal always asks: no auto-approve switch covers it.
+
+Removed records are not deleted. They move to the trash, `~/.freeflow/trash/`, and leave the registry; a project's `.freeflow/project` links go too. Task numbers are never reused, so an old ID cannot come to name a new task. Fan-out worktrees and branches stay, and the result gives the `git worktree remove` and `git branch -D` commands if you want them gone.
+
+`/freeflow trash` lists what the trash holds. **Only you empty it**, with `/freeflow trash empty`, which asks once more and then deletes for good. The agent has no way to empty it: asked to, it tells you to run the command. To get a removed task back before then, move its folder out of the trash into a repository's `.freeflow/tasks/`, renamed without the date prefix (to its `task-NNN-…` name). It then works as a record outside any project, and `/freeflow task import` puts it back into one, with a new number.
+
 ## Search
 
 Ask the agent to search task memory. It searches the focused task, the task with its parent and children, or every task in the project, and returns matching lines with the record and entry each comes from.
@@ -127,8 +135,11 @@ Ask the agent to search task memory. It searches the focused task, the task with
 | `/freeflow task fanout <title>` | Create a child of the focused task with its own worktree and branch. |
 | `/freeflow task child <parent ID> <title>` | From a new session: create a child of that task and attach it here. |
 | `/freeflow task import <record> <project>` | Move a repository record into a project's store. |
+| `/freeflow task remove <ID>` | Move a task and its children to the trash, after a dialog. |
 | `/freeflow project [new\|link <name> [--worktrees <dir>]]` | Show, create, or link the repository's project. |
 | `/freeflow project list` | List every project. |
+| `/freeflow project remove <name>` | Move a project and all its tasks to the trash, after a dialog. |
+| `/freeflow trash [empty]` | List the trash, or delete everything in it for good (asks first). Only you can do this. |
 
 `/freeflow status` reports whether task memory is on, and the Runtime State the agent sees lists the attached records and marks the focus.
 

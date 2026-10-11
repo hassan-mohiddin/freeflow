@@ -80,6 +80,33 @@ export class Registry {
   linkHere(cwd) {
     return this.call("linkHere", cwd);
   }
+  /** What removing a task (with its children) or a project would take (Task 006). */
+  removal(target) {
+    return this.call("removal", target);
+  }
+  removeTask(id) {
+    return this.call("removeTask", id);
+  }
+  removeProject(name) {
+    return this.call("removeProject", name);
+  }
+  trashEntries() {
+    return this.call("trashEntries");
+  }
+  /** Only the user's /freeflow trash empty calls this. */
+  emptyTrash() {
+    return this.call("emptyTrash");
+  }
+  async trashPath() {
+    this.impl ??= import(pathToFileURL(join(this.packageRoot, "skills/track-work/scripts/lib/registry.mjs")).href).then(
+      (lib) => new lib.Registry(this.home),
+    );
+    return (await this.impl).trash;
+  }
+  async removalText(result) {
+    const lib = await import(pathToFileURL(join(this.packageRoot, "skills/track-work/scripts/lib/registry.mjs")).href);
+    return lib.removalText(result, await this.trashPath());
+  }
   here(cwd) {
     return this.call("here", cwd);
   }

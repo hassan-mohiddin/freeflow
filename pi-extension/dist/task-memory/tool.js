@@ -3,7 +3,7 @@ import { renderTaskCall, renderTaskResult } from "./render.js";
 import { confirmWithUser } from "../ask-user/ask.js";
 export const TASK_MEMORY_TOOL = "task_memory";
 const DESCRIPTION =
-  "Task memory: the Working Records (Track Work) this session works on, and their projects. Reading needs no permission: projects lists every project; list lists this repository's records, or a project's tasks; view reads a record's resume view or one entry by task ID; search finds lines in the focused task, its tree, or its project. Attention: focus switches to an attached record; detach stops working on one. Proposals, each confirmed by the user in a dialog before anything happens: attach a record; create a task in this repository's project and attach it; child or fanout (a child with its own Git worktree) of the focused task for a parallel session; project_new or project_link for this repository; import a repository record into a project; confirm a held record; env to change a task's directories. A decline is the user's answer: do not retry it or work around it.";
+  "Task memory: the Working Records (Track Work) this session works on, and their projects. Reading needs no permission: projects lists every project; list lists this repository's records, or a project's tasks; view reads a record's resume view or one entry by task ID; search finds lines in the focused task, its tree, or its project. Attention: focus switches to an attached record; detach stops working on one. Proposals, each confirmed by the user in a dialog before anything happens: attach a record; create a task in this repository's project and attach it; child or fanout (a child with its own Git worktree) of the focused task for a parallel session; project_new or project_link for this repository; import a repository record into a project; confirm a held record; env to change a task's directories; remove a task with its children, or project_remove a whole project, which moves their records to the trash. Only the user empties the trash, with /freeflow trash empty: when asked to, tell the user to run it. A decline is the user's answer: do not retry it or work around it.";
 const ACTIONS = [
   "projects",
   "list",
@@ -20,9 +20,11 @@ const ACTIONS = [
   "import",
   "confirm",
   "env",
+  "remove",
+  "project_remove",
 ];
 // Actions that change which records this session holds; the Runtime State follows them.
-const CHANGES_STATE = new Set(["attach", "focus", "detach", "create", "import", "confirm"]);
+const CHANGES_STATE = new Set(["attach", "focus", "detach", "create", "import", "confirm", "remove", "project_remove"]);
 /** Actions any profile may take: they only read. `env` reads too, unless it changes a directory. */
 const READS = new Set(["projects", "list", "view", "search"]);
 const reads = (params) =>
@@ -42,9 +44,12 @@ export function registerTaskMemoryTool(pi, host) {
       additionalProperties: false,
       properties: {
         action: { type: "string", enum: ACTIONS },
-        record: { type: "string", description: "A task ID such as my-project/task-003, or a record.md path" },
+        record: {
+          type: "string",
+          description: "A task ID such as my-project/task-003, or a record.md path; remove takes a task ID",
+        },
         project: { type: "string", description: "list: a project's name; import: the project to move the record into" },
-        name: { type: "string", description: "project_new, project_link: the project's name" },
+        name: { type: "string", description: "project_new, project_link, project_remove: the project's name" },
         worktrees: { type: "string", description: "project_new, project_link: where children's worktrees go" },
         title: { type: "string", description: "create, child, fanout: the new task's title" },
         goal: { type: "string", description: "create, child, fanout: its goal, one line" },
@@ -200,6 +205,15 @@ async function run(host, params, ctx, approved = false) {
         if (declined) return declined;
       }
       return memory.environment(params.record, change, cwd);
+    }
+    case "remove":
+    case "project_remove": {
+      // Removal always asks: no auto-approve setting covers it (Task 006).
+      const target = params.action === "remove" ? { task: params.record } : { project: params.name };
+      const { question, error } = await memory.removalQuestion(target);
+      if (!question) return { ok: false, text: error ?? "Nothing to remove." };
+      const title = params.action === "remove" ? "Remove task?" : "Remove project?";
+      return (await confirmProposal(ctx, title, question)) ?? memory.remove(target);
     }
     default:
       return { ok: false, text: `action must be one of ${ACTIONS.join(", ")}.` };

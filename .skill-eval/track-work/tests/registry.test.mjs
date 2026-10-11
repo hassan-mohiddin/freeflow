@@ -4,7 +4,7 @@ import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import test from "node:test";
-import { Registry, RegistryError } from "../../../skills/track-work/scripts/lib/registry.mjs";
+import { Registry, RegistryError, removalText } from "../../../skills/track-work/scripts/lib/registry.mjs";
 
 const fresh = async () => {
   const home = await mkdtemp(join(tmpdir(), "freeflow-home-"));
@@ -319,4 +319,67 @@ test("a linked repository and a child's worktree get .freeflow/project, a link t
   const child = await registry.fanout(parent.id, "Child", "Goal.");
   assert.equal(await readlink(join(child.path, ".freeflow", "project")), store);
   assert.equal(await registry.linkHere(await mkdtemp(join(tmpdir(), "freeflow-none-"))), undefined);
+});
+
+test("removal moves a task and its children, or a project, to the trash; only emptyTrash deletes", async () => {
+  const { readdir, readlink, lstat } = await import("node:fs/promises");
+  const { home } = await fresh();
+  const repo = await gitRepo();
+  const registry = new Registry(home);
+  const slug = await registry.createProject("Gone", repo);
+  const parent = await registry.createTask(slug, "Parent", "Goal.", undefined, repo);
+  const child = await registry.fanout(parent.id, "Child", "Goal.");
+  const other = await registry.createTask(slug, "Other", "Goal.");
+
+  const plan = await registry.removal({ task: parent.id });
+  assert.deepEqual(
+    plan.tasks.map((task) => task.id),
+    [parent.id, child.id],
+  );
+  assert.deepEqual(plan.worktrees, [{ id: child.id, path: child.path, branch: child.branch }]);
+  const removed = await registry.removeTask(parent.id);
+  assert.equal(await registry.task(parent.id), undefined);
+  assert.equal(await registry.task(child.id), undefined);
+  assert.ok(await registry.task(other.id), "other tasks stay");
+  assert.equal(removed.trash.length, 2);
+  assert.match(await readFile(join(removed.trash[0], "record.md"), "utf8"), /Parent/);
+  assert.equal((await stat(child.path)).isDirectory(), true, "the worktree stays");
+  // Numbers are never reused, so an old ID cannot come to name a new task, also when the highest number was removed.
+  const last = await registry.createTask(slug, "Last", "Goal.");
+  assert.equal(last.id, `${slug}/task-004`);
+  await registry.removeTask(last.id);
+  assert.equal((await registry.createTask(slug, "Next", "Goal.")).id, `${slug}/task-005`);
+
+  const script = resolve("skills/track-work/scripts/working-record.mjs");
+  const text = execFileSync(process.execPath, [script, "task", "remove", "--id", other.id], {
+    env: { ...process.env, FREEFLOW_HOME: home },
+  }).toString();
+  assert.match(text, new RegExp(`^Removed ${other.id}\\. The records are in the trash: `));
+  assert.match(text, /Only the user empties the trash/);
+  // The CLI has no way to empty the trash: that is the user's own command.
+  assert.throws(
+    () =>
+      execFileSync(process.execPath, [script, "trash", "empty"], {
+        env: { ...process.env, FREEFLOW_HOME: home },
+        stdio: "pipe",
+      }),
+    /Unknown command/,
+  );
+
+  const store = join(home, "projects", slug);
+  assert.equal(await readlink(join(repo, ".freeflow", "project")), store);
+  const project = await registry.removeProject("Gone");
+  assert.equal((await registry.read()).projects[slug], undefined);
+  assert.deepEqual(
+    Object.values((await registry.read()).tasks).filter((task) => task.project === slug),
+    [],
+  );
+  await assert.rejects(lstat(join(repo, ".freeflow", "project")), /ENOENT/);
+  await assert.rejects(stat(store), /ENOENT/);
+  assert.match(project.trash[0], /project-gone$/);
+  assert.match(removalText(project, registry.trash), /^Removed project Gone \(gone\)/);
+
+  assert.equal((await registry.trashEntries()).length, 5);
+  assert.equal((await registry.emptyTrash()).length, 5);
+  assert.deepEqual(await readdir(home).then((names) => names.includes("trash")), false);
 });

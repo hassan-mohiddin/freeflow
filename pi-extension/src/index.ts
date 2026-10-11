@@ -159,12 +159,14 @@ function freeflowCompletions(prefix: string | undefined, routingAvailable: boole
           ["task fanout", "fanout", "Create a child of the focused task with its own worktree"],
           ["task child", "child", "Create a child of a task and attach it here"],
           ["task import", "import", "Move a repository record into a project"],
+          ["task remove", "remove", "Move a task and its children to the trash"],
         ]
       : query.startsWith("project ")
         ? [
             ["project list", "list", "Every project"],
             ["project new", "new", "Create a project and link this repository"],
             ["project link", "link", "Link this repository to a project"],
+            ["project remove", "remove", "Move a project and its tasks to the trash"],
           ]
         : query.startsWith("profile ") && routingAvailable
           ? [
@@ -180,6 +182,7 @@ function freeflowCompletions(prefix: string | undefined, routingAvailable: boole
               ["compact", "compact", "Prepare, compact and recover now"],
               ["task", "task", "Attach, focus, detach or confirm Working Records (task memory)"],
               ["project", "project", "Create or link a task-memory project"],
+              ["trash", "trash", "Removed tasks and projects; trash empty deletes them for good"],
               ...(routingAvailable
                 ? [
                     ["profile", "profile", "Hold or release Cognitive Routing profile control"],
@@ -537,6 +540,50 @@ export default function freeflow(pi: FreeflowAPI) {
     return link && !link.error ? ` Browse its records in ${link.link}.` : "";
   }
 
+  // Removal asks even from the user's own command: it moves records out of every session that holds them (Task 006).
+  async function removeWithConfirmation(
+    ctx: any,
+    target: { task?: string; project?: string },
+    title: string,
+  ): Promise<TaskResult> {
+    const { question, error } = await taskMemory.removalQuestion(target);
+    if (!question) return { ok: false, text: error ?? "Nothing to remove." };
+    if (!ctx.hasUI || !(await confirmWithUser(ctx, title, question))) return { ok: false, text: "Not removed." };
+    return taskMemory.remove(target);
+  }
+
+  // The trash holds removed tasks and projects. Only this command empties it, so only the user can (Task 006).
+  async function trashCommand(rest: string, ctx: any) {
+    const where = await taskMemory.registry.trashPath();
+    const entries = await taskMemory.registry.trashEntries();
+    if (rest.trim().toLowerCase() !== "empty") {
+      ctx.ui.notify(
+        entries.length
+          ? `Trash (${where}):\n${entries.map((entry) => `- ${entry}`).join("\n")}\n/freeflow trash empty deletes them for good.`
+          : "The trash is empty.",
+        "info",
+      );
+      return;
+    }
+    if (!entries.length) {
+      ctx.ui.notify("The trash is empty.", "info");
+      return;
+    }
+    const yes =
+      ctx.hasUI &&
+      (await confirmWithUser(
+        ctx,
+        "Empty the trash?",
+        `Delete ${entries.length} removed item(s) in ${where} for good? This cannot be undone.`,
+      ));
+    if (!yes) {
+      ctx.ui.notify("The trash was not emptied.", "info");
+      return;
+    }
+    const deleted = await taskMemory.registry.emptyTrash();
+    ctx.ui.notify(`Deleted ${deleted.length} item(s) from the trash.`, "info");
+  }
+
   async function projectCommand(rest: string, ctx: any) {
     if (!taskMemoryEffective()) {
       ctx.ui.notify("Task memory is off. Turn it on in /freeflow settings (Task Memory).", "warning");
@@ -554,6 +601,11 @@ export default function freeflow(pi: FreeflowAPI) {
       } else if (sub === "link" && name) {
         const slug = await taskMemory.registry.linkProject(name, ctx.cwd, worktrees);
         ctx.ui.notify(`This repository is linked to project ${slug}.${await browseNote(ctx.cwd)}`, "info");
+      } else if (sub === "remove" && name) {
+        const result = await removeWithConfirmation(ctx, { project: name }, "Remove project?");
+        ctx.ui.notify(result.text, result.ok ? "info" : "warning");
+        refreshState = true;
+        status(ctx);
       } else if (sub === "list") {
         const result = await taskMemory.projects(ctx.cwd);
         ctx.ui.notify(result.text, result.ok ? "info" : "warning");
@@ -618,10 +670,12 @@ export default function freeflow(pi: FreeflowAPI) {
       result = yes
         ? await taskMemory.importRecord(path, project.join(" "), ctx.cwd)
         : { ok: false, text: "Not imported." };
+    } else if (action === "remove") {
+      result = await removeWithConfirmation(ctx, { task: target }, "Remove task?");
     } else
       result = {
         ok: false,
-        text: "Use /freeflow task [list [project]|new <title>|attach <id or record>|focus <id or record>|detach <id or record>|confirm [record]|child <parent-id> <title>|fanout <title>|import <record> <project>].",
+        text: "Use /freeflow task [list [project]|new <title>|attach <id or record>|focus <id or record>|detach <id or record>|confirm [record]|child <parent-id> <title>|fanout <title>|import <record> <project>|remove <id>].",
       };
     if (result.snapshot) {
       sendSnapshot(result.text, result.snapshot);
@@ -1060,6 +1114,11 @@ export default function freeflow(pi: FreeflowAPI) {
       const task = /^task(?:\s+(.*))?$/i.exec((args ?? "").trim());
       if (task) {
         await taskCommand(task[1] ?? "", ctx);
+        return;
+      }
+      const trash = /^trash(?:\s+(.*))?$/i.exec((args ?? "").trim());
+      if (trash) {
+        await trashCommand(trash[1] ?? "", ctx);
         return;
       }
       const project = /^project(?:\s+(.*))?$/i.exec((args ?? "").trim());
