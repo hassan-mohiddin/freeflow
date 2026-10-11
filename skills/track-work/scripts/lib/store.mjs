@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { execFile as execFileCallback } from "node:child_process";
 import { lstat, mkdir, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
-import { existsSync, realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 
@@ -73,17 +73,25 @@ export const STORE_MARKER = "store.json";
 /** In a tasks directory: the highest task number a removal took away, so numbering never goes back. */
 export const LAST_TASK_NUMBER = ".last-task-number";
 
+/** Whether root is a project store: its store.json is the registry's marker, not some other file of that name. */
+function isStore(root) {
+  try {
+    const marker = JSON.parse(readFileSync(join(root, STORE_MARKER), "utf8"));
+    return marker?.version === 1 && typeof marker.project === "string";
+  } catch {
+    return false;
+  }
+}
+
 /** A repository keeps its records in .freeflow/tasks; a project store, marked by store.json, in tasks. */
 export function taskRoot(root) {
-  return existsSync(join(root, STORE_MARKER)) ? resolve(root, "tasks") : resolve(root, ".freeflow", "tasks");
+  return isStore(root) ? resolve(root, "tasks") : resolve(root, ".freeflow", "tasks");
 }
 
 /** The project store holding an absolute record path (<store>/tasks/<task>/record.md), or undefined. */
 export function storeOf(recordPath) {
   const store = dirname(dirname(dirname(resolve(recordPath))));
-  return basename(dirname(dirname(resolve(recordPath)))) === "tasks" && existsSync(join(store, STORE_MARKER))
-    ? store
-    : undefined;
+  return basename(dirname(dirname(resolve(recordPath)))) === "tasks" && isStore(store) ? store : undefined;
 }
 
 /**
@@ -157,7 +165,7 @@ export async function readInput(inputPath, cwd = process.cwd()) {
   }
 }
 
-async function nextTaskNumber(tasks) {
+export async function nextTaskNumber(tasks) {
   let entries = [];
   try {
     entries = await readdir(tasks, { withFileTypes: true });
