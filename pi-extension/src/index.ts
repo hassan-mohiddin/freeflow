@@ -115,13 +115,14 @@ function fullHistoryTokens(ctx: any): number {
         previous.tokens,
       );
   }
-  if (tokens === undefined)
-    tokens = (manager.buildSessionProjection()?.messages ?? []).reduce(
+  const counted =
+    tokens ??
+    (manager.buildSessionProjection()?.messages ?? []).reduce(
       (sum: number, message: any) => sum + estimateTokens(message),
       0,
     );
-  historyEstimate.set(manager, { branch, tokens });
-  return tokens + system;
+  historyEstimate.set(manager, { branch, tokens: counted });
+  return counted + system;
 }
 async function sendSkillCommand(pi: FreeflowAPI, ctx: ExtensionCommandContext, skill: string, args?: string) {
   const state = await readCapabilityState(ctx.cwd, ctx);

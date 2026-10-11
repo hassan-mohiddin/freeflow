@@ -71,7 +71,7 @@ export async function refreshRuntimeContext(capabilityState: any = undefined) {
 }
 
 export async function getRuntimeContext(capabilityState: any = undefined) {
-  if (runtimeContextCacheSatisfies(capabilityState)) {
+  if (runtimeContextCache && runtimeContextCacheSatisfies(capabilityState)) {
     return runtimeContextCache;
   }
   return refreshRuntimeContext(capabilityState);

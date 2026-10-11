@@ -364,9 +364,9 @@ export class Sources {
         .map((key) => (args as any)[key])
         .find((value) => typeof value === "string" && value.trim()) ??
       Object.values(args).find((value) => typeof value === "string" && value.trim() && value.length <= 200);
-    const label = normalizeLabel(chosen);
+    const label = normalizeLabel(chosen)?.label;
     if (!label) return undefined;
-    return label.label.length > 100 ? `${label.label.slice(0, 97)}...` : label.label;
+    return label.length > 100 ? `${label.slice(0, 97)}...` : label;
   }
   ordered(sources: Iterable<Source>): Source[] {
     const ids = new Set([...sources].map((s) => s.ref));

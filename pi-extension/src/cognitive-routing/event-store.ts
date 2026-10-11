@@ -102,7 +102,10 @@ export class EventStore {
           const event = parseRoutingEvent(entry.data);
           const receipt = this.observed.get(eventKey(event));
           return (
-            receipt?.entryId === entry.id && receipt.eventId === event.eventId && receipt.value === eventValue(event)
+            receipt !== undefined &&
+            receipt.entryId === entry.id &&
+            receipt.eventId === event.eventId &&
+            receipt.value === eventValue(event)
           );
         })
       ) {
