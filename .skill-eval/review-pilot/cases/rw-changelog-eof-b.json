@@ -21,7 +21,7 @@
     "candidate": {
       "source": {
         "kind": "git",
-        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+        "ref": "6214858769e226369c061eb9bb157aa444455a07"
       },
       "skills": ["skills/review-work"],
       "target": 0,

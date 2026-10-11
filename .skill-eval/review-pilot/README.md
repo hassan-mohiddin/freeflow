@@ -35,7 +35,7 @@ Clean and seeded results are reported separately, and each case says only what i
 
 ## Arms
 
-Both arms pin the review skills at e09b99d3, so until a candidate is set the suite is an A/A comparison that measures run-to-run noise. To measure a change to the review skills, point `candidate.source.ref` at the commit that contains it.
+The baseline arm pins the review skills at e09b99d3, before Review Artifact was merged into Review Work. The candidate arm pins 62148587, the merge, where both kinds of case use `skills/review-work`. To measure a later change, point `candidate.source.ref` at the commit that contains it. Pointing both arms at one commit gives an A/A comparison that measures run-to-run noise.
 
 ## Limits
 
