@@ -18,11 +18,29 @@ Task memory does not decide when a task needs a record or what goes in it: Track
 ```
 
 - Off inside subagents: a subagent works on its session's task.
-- Attaching is refused while Cognitive Routing runs automatically. It works with routing off (its switch in `/freeflow settings`) or under a manual hold (`/freeflow profile <name>`).
+- Works with Cognitive Routing too. Under automatic routing the Coordinator, the profile you talk to, handles task memory with you: it proposes attaching, creating and the rest. Helper and Executor workers can only read task memory; one that needs an action puts it in its report for the Coordinator to propose. Every profile receives the focused record's resume view, also after a worker compacts.
 
 ## Ask in plain language
 
-Everything below can be done by asking the agent: "list my projects", "show this project's tasks", "open the retry task", "start a task for the parser port", "split the parser off into its own worktree", "what did we decide about the cache key?". The agent picks the action. Anything that creates something or lets the session write (creating a project or task, linking a repository, attaching, splitting off a child, importing, releasing a held record, changing a task's directories) opens a dialog first, and nothing happens unless you confirm. A decline stands: the agent does not retry or work around it. Reading, listing, searching and moving the focus need no dialog. The `/freeflow` commands in [Commands](#commands) do the same things directly.
+Everything below can be done by asking the agent: "list my projects", "show this project's tasks", "open the retry task", "start a task for the parser port", "split the parser off into its own worktree", "what did we decide about the cache key?". The agent picks the action. Anything that creates something or lets the session write (creating a project or task, linking a repository, attaching, splitting off a child, importing, releasing a held record, changing a task's directories) opens a dialog first, and nothing happens unless you confirm. A decline stands: the agent does not retry or work around it. Reading, listing, searching and moving the focus need no dialog.
+
+To stop being asked for some of these, turn on their auto-approve switches in `/freeflow settings` (Personal or Repository scope), or in a config file. Each switch covers a group of actions and is off by default:
+
+| Switch | Actions it lets the agent take without asking |
+| --- | --- |
+| `attach` | attaching a record, and making a held record writable |
+| `create` | creating a task or a child task |
+| `env` | changing a task's directories |
+| `fanout` | a child task with its own Git worktree and branch |
+| `projects` | creating or linking a project, and importing a record into one |
+
+```json
+{
+  "taskMemory": { "enabled": true, "autoApprove": { "attach": true, "create": true } }
+}
+```
+
+An action taken this way says in the transcript that it was auto-approved. Your personal file overrides the repository's switch by switch. The `/freeflow` commands in [Commands](#commands) do the same things directly.
 
 In the transcript each task-memory step is one line, such as `Task memory · Attach my-app/task-003` with `Attached Retry logic [my-app/task-003] · active` and the task's next action under it; expand it to see what the agent read. When the agent receives a task's resume view, a `Task memory` line names the task, its state and next action; expand it to read the view.
 
