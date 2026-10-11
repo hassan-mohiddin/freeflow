@@ -158,7 +158,7 @@ export class ToolHandlers {
     check(enabled.includes(worker), "worker_disabled", `${worker} is not enabled by delegation mode.`);
     const unit = state.unitId
       ? state.units.get(state.unitId)!
-      : { id: randomUUID(), objective: input.contract, state: "open" as const, assignmentIds: [] };
+      : { id: randomUUID(), objective: input.contract, state: "open" as const, assignmentIds: [] as string[] };
     const old = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
     if (input.operation === "replace")
       check(old?.state === "outstanding" && !this.models.applying, "no_quiescent_assignment");

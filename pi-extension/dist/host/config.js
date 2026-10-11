@@ -181,6 +181,7 @@ export async function readFreeflowConfigLayers(cwd) {
     parseError: blockingState?.parseError ?? null,
   };
 }
+// host is Pi's extension context (or none); Pi's runtime objects are wider than its exported types.
 export async function readCapabilityState(cwd, host = undefined) {
   const layers = await readFreeflowConfigLayers(cwd);
   const effectiveCore = resolveSessionCoreConfig(layers);

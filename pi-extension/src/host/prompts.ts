@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
  * Freeflow's prompt files and the fixed system section built from them. The section never changes with feature state
  * so it stays cached; the Runtime State tells the model what is active.
  */
-let runtimeContextCache = null;
+let runtimeContextCache: RuntimeContext | null = null;
 
 export function isPromptAvailable(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -25,7 +25,10 @@ async function readPromptFile(url: URL): Promise<string | null> {
   }
 }
 
-async function loadRuntimeContext(capabilityState = undefined) {
+/** Freeflow's prompt files as read; a missing file reads as null. */
+export type RuntimeContext = Awaited<ReturnType<typeof loadRuntimeContext>>;
+
+async function loadRuntimeContext(capabilityState: any = undefined) {
   const freeflowEnabled = capabilityState?.enabled === true;
   const cognitiveRoutingEnabled = capabilityState?.cognitiveRouting?.effective === true;
   const [corePrompt, interactionContractPrompt, workingMethodPrompt, cognitiveRoutingPrompt, toolExecutionPrompt] =
@@ -50,22 +53,24 @@ async function loadRuntimeContext(capabilityState = undefined) {
   return { corePrompt, interactionContractPrompt, workingMethodPrompt, cognitiveRoutingPrompt, toolExecutionPrompt };
 }
 
-function runtimeContextCacheSatisfies(capabilityState) {
+function runtimeContextCacheSatisfies(capabilityState: any) {
   if (!runtimeContextCache) return false;
   const expected = {
     corePrompt: capabilityState?.enabled === true,
     interactionContractPrompt: capabilityState?.enabled === true,
     cognitiveRoutingPrompt: capabilityState?.cognitiveRouting?.effective === true,
   };
-  return Object.entries(expected).every(([key, required]) => !required || isPromptAvailable(runtimeContextCache[key]));
+  return Object.entries(expected).every(
+    ([key, required]) => !required || isPromptAvailable(runtimeContextCache?.[key as keyof RuntimeContext]),
+  );
 }
 
-export async function refreshRuntimeContext(capabilityState = undefined) {
+export async function refreshRuntimeContext(capabilityState: any = undefined) {
   runtimeContextCache = await loadRuntimeContext(capabilityState);
   return runtimeContextCache;
 }
 
-export async function getRuntimeContext(capabilityState = undefined) {
+export async function getRuntimeContext(capabilityState: any = undefined) {
   if (runtimeContextCacheSatisfies(capabilityState)) {
     return runtimeContextCache;
   }
@@ -77,7 +82,7 @@ export async function getRuntimeContext(capabilityState = undefined) {
  * only while Cognitive Routing is effective (Task 003 D-002). It changes only when a setting changes, which costs one
  * prompt-cache write (D-001); between such changes it is identical from request to request.
  */
-export function stableRuntimeContext(context, options: { routing?: boolean } = {}) {
+export function stableRuntimeContext(context: any, options: { routing?: boolean } = {}) {
   const sections = [
     ["Freeflow core", context?.corePrompt],
     ["Freeflow core", context?.interactionContractPrompt],
