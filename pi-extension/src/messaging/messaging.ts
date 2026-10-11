@@ -80,6 +80,8 @@ export class Messaging {
   private server: Server | undefined;
   private me: Sender | undefined;
   private busyNow = false;
+  private writing: Promise<void> = Promise.resolve();
+  private stopping = false;
   private held: Held[] = [];
   private asking = false;
   private watchers = new Map<string, { sender: Sender; until: number }>();
@@ -135,6 +137,9 @@ export class Messaging {
   async stop(): Promise<void> {
     const me = this.me;
     if (me) {
+      // No registry write starts from here on, and the one in flight lands before the entry is removed.
+      this.stopping = true;
+      await this.writing;
       await this.notifyWatchers("exited");
       await this.registry.remove(me.sessionId);
       this.published = "";
@@ -143,6 +148,7 @@ export class Messaging {
     await close(this.server, me?.socket ?? "");
     this.server = undefined;
     this.me = undefined;
+    this.stopping = false;
     this.watchers.clear();
   }
 
@@ -264,9 +270,16 @@ export class Messaging {
   private published = "";
 
   /** Write this session's registry entry when it changed. */
-  private async publish(): Promise<void> {
+  /** One registry write at a time, in order, so a busy flag written later is never overwritten by an earlier one. */
+  private publish(): Promise<void> {
+    const run = this.writing.then(() => this.write());
+    this.writing = run.catch(() => {});
+    return run;
+  }
+
+  private async write(): Promise<void> {
     const me = this.me;
-    if (!me) return;
+    if (!me || this.stopping) return;
     const entry = {
       sessionId: me.sessionId,
       name: me.name,
@@ -370,7 +383,8 @@ export class Messaging {
       return { status: "delivered", ...(this.host.canWake?.() === false ? { waiting: true } : {}) };
     }
     if (this.held.length >= MAX_HELD) {
-      const dropped = this.held.shift();
+      // The oldest waiting message goes, never the one the user is looking at in the dialog.
+      const [dropped] = this.held.splice(this.asking ? 1 : 0, 1);
       if (dropped) void this.outcome(dropped, "expired");
     }
     this.held.push(message);

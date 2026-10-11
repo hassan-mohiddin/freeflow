@@ -143,10 +143,16 @@ export class Inbound {
   private send(notice: Notice): Promise<void> {
     const message = { customType: notice.customType, content: notice.content, display: true, details: notice.details };
     const wake = notice.wake && this.host.canWake?.() !== false;
+    // A send that throws at once is caught like one that rejects later: a notice never breaks its source.
     const asMessage = () =>
-      Promise.resolve(
-        this.host.sendMessage(message, wake ? { triggerTurn: true, deliverAs: "steer" } : { triggerTurn: false }),
-      ).catch(() => {});
+      new Promise((resolve) =>
+        resolve(
+          this.host.sendMessage(message, wake ? { triggerTurn: true, deliverAs: "steer" } : { triggerTurn: false }),
+        ),
+      ).then(
+        () => {},
+        () => {},
+      );
     // Always Freeflow's own message, never the user's: keepSections holds Freeflow's system sections on the run it
     // starts (Pi #10267), which once made idle notices go out as user messages.
     return asMessage();
