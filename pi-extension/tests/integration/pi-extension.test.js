@@ -141,12 +141,20 @@ function choose(component, label, section) {
   for (let i = 0; i < 60; i++) {
     const lines = renderText(component).split("\n");
     const at = lines.findIndex((line) => line.startsWith("  › "));
-    const header = lines
-      .slice(0, at)
-      .reverse()
-      .find((line) => /^ {2}\S/.test(line));
-    const inSection = section ? header?.trim().startsWith(section) : true;
-    if (at >= 0 && lines[at].startsWith(`  › ${label} `) && inSection) return;
+    if (at >= 0) {
+      // A section's switch is the section's own row (Task 005); "Enabled" in a section names that row.
+      const wanted = label === "Enabled" && section ? section : label;
+      const row = lines[at].slice(4);
+      const nested = row.startsWith("  ");
+      const headerLine = nested
+        ? lines
+            .slice(0, at)
+            .reverse()
+            .find((line) => /^ {2}(› |  )?\S/.test(line))
+        : lines[at];
+      const header = headerLine?.replace(/^ {2}(› |  )?/, "");
+      if (row.trim().startsWith(`${wanted} `) && (!section || header?.startsWith(section))) return;
+    }
     component.handleInput(KEY.down);
   }
   throw new Error(`No settings row ${section ? `${section} › ` : ""}${label}`);
@@ -419,8 +427,8 @@ test("normal Pi settings expose active Cognitive Routing configuration", async (
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
       const rootText = renderText(component);
-      assert.match(rootText, /Cognitive Routing\s+active/);
-      assert.match(rootText, /Coordinator preset\s+inherit → test\/model-a · low \(repository\)/);
+      assert.match(rootText, /Cognitive Routing\s+on \(repository\)\n/);
+      assert.match(rootText, /Coordinator preset\s+test\/model-a · low \(repository\)/);
       return undefined;
     };
 
@@ -448,7 +456,7 @@ test("Pi settings show Tool Execution as one switch and status reports it", asyn
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
       const text = renderText(component, 180);
-      assert.match(text, /Tool Execution\s+active\n\s+Enabled\s+enabled\n/);
+      assert.match(text, /Tool Execution\s+on\n/);
       assert.doesNotMatch(text, /capture|programs|workspace|accounting/i);
       return undefined;
     };
@@ -477,10 +485,7 @@ test("Pi settings show Compaction as one switch, on by default, and status repor
     const settingsCtx = context(cwd);
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
-      assert.match(
-        renderText(component, 180),
-        /Compaction\s+active\n\s+Enabled\s+enabled · default\n\s+Context reuse\s+enabled · default/,
-      );
+      assert.match(renderText(component, 180), /Compaction\s+on \(default\)\n\s+Context reuse\s+on \(default\)/);
       return undefined;
     };
     await command.definition.handler("settings repo", settingsCtx);
@@ -504,6 +509,48 @@ test("Pi settings show Compaction as one switch, on by default, and status repor
   }
 });
 
+test("settings: a section's switch is its own row, sections run everyday to experimental, an off section is locked", async () => {
+  // Task 005: no "Enabled" rows; values first with their source in brackets; on green, off red; a setting under an
+  // off switch cannot change and says why.
+  const cwd = await configuredRepo({});
+  try {
+    const { commands } = loadExtension(freeflowExtension);
+    const command = commands.find((candidate) => candidate.name === "freeflow");
+    const settingsCtx = context(cwd);
+    const colored = { ...testTheme, fg: (color, text) => `<${color}>${text}</${color}>` };
+    settingsCtx.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+      const text = renderText(component, 180);
+      assert.doesNotMatch(text, /\bEnabled\b/);
+      assert.match(
+        text,
+        /Freeflow\s+on \(default\)\n[\s\S]*Compaction\s+on \(default\)\n\s+Context reuse[\s\S]*Tool Execution[\s\S]*Task Memory[\s\S]*Messaging\s+off \(default\)/,
+      );
+      choose(component, "Ask before delivering", "Messaging");
+      assert.match(renderText(component, 180), /Turn on Messaging to change this\./);
+      component.handleInput(KEY.enter);
+      await component.waitForWrites();
+      assert.match(renderText(component, 180), /Ask before delivering\s+never \(default\)/);
+      return undefined;
+    };
+    await command.definition.handler("settings repo", settingsCtx);
+    assert.equal(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")).messaging, undefined);
+    const colorCtx = context(cwd);
+    colorCtx.ui.custom = async (factory) => {
+      const text = renderText(
+        factory({ requestRender() {} }, colored, {}, () => {}),
+        180,
+      );
+      assert.match(text, /Compaction.*<success>on<\/success><dim> \(default\)<\/dim>/);
+      assert.match(text, /Messaging.*<error>off<\/error>/);
+      return undefined;
+    };
+    await command.definition.handler("settings repo", colorCtx);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("Pi settings show Task Memory off by default, and status reports it when on", async () => {
   const cwd = await configuredRepo({});
   try {
@@ -512,7 +559,7 @@ test("Pi settings show Task Memory off by default, and status reports it when on
     const settingsCtx = context(cwd);
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
-      assert.match(renderText(component, 180), /Task Memory\s+disabled\n\s+(› )?Enabled\s+disabled · default/);
+      assert.match(renderText(component, 180), /Task Memory\s+off \(default\)\n/);
       return undefined;
     };
     await command.definition.handler("settings repo", settingsCtx);
@@ -529,7 +576,7 @@ test("Pi settings show Task Memory off by default, and status reports it when on
     const settingsCtx = context(on);
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
-      assert.match(renderText(component, 180), /Task Memory\s+active\n\s+(› )?Enabled\s+enabled\n/);
+      assert.match(renderText(component, 180), /Task Memory\s+on\n/);
       return undefined;
     };
     await command.definition.handler("settings repo", settingsCtx);
@@ -573,7 +620,7 @@ test("Pi settings persist delegation mode without rewriting complete presets", a
       // Delegation cycles in place: executor → helper → both.
       await press(component, "Delegation", "Cognitive Routing");
       await press(component, "Delegation", "Cognitive Routing");
-      assert.match(renderText(component), /› Delegation\s+Helper and Executor/);
+      assert.match(renderText(component), /›\s+Delegation\s+Helper and Executor/);
       component.handleInput(KEY.escape);
       return result;
     };
@@ -748,7 +795,7 @@ test("session delegation setting enables Helper in the same panel without writin
       // Session delegation cycles inherit → executor → helper → both, in place.
       for (let i = 0; i < 3; i++) await press(component, "Delegation", "Cognitive Routing");
       assert.equal(mode, "both");
-      assert.match(component.render(180).join("\n"), /› Delegation\s+Helper and Executor · session/);
+      assert.match(component.render(180).join("\n"), /›\s+Delegation\s+Helper and Executor\n/);
       assert.match(component.render(180).join("\n"), /Helper preset/);
       return { changed: false };
     };

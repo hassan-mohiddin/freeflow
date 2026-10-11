@@ -93,13 +93,22 @@ const KEY = { down: "\u001b[B", enter: "\r", escape: "\u001b" };
 /** Move the settings cursor to the row with this label inside this section. */
 function choose(component, label, section) {
   for (let i = 0; i < 60; i++) {
-    const lines = component.render(120);
+    const lines = component.render(120).join("\n").split("\n");
     const at = lines.findIndex((line) => line.startsWith("  › "));
-    const header = lines
-      .slice(0, at)
-      .reverse()
-      .find((line) => /^ {2}\S/.test(line));
-    if (at >= 0 && lines[at].startsWith(`  › ${label} `) && header?.trim().startsWith(section)) return;
+    if (at >= 0) {
+      // A section's switch is the section's own row (Task 005); "Enabled" in a section names that row.
+      const wanted = label === "Enabled" && section ? section : label;
+      const row = lines[at].slice(4);
+      const nested = row.startsWith("  ");
+      const headerLine = nested
+        ? lines
+            .slice(0, at)
+            .reverse()
+            .find((line) => /^ {2}(› |  )?\S/.test(line))
+        : lines[at];
+      const header = headerLine?.replace(/^ {2}(› |  )?/, "");
+      if (row.trim().startsWith(`${wanted} `) && (!section || header?.startsWith(section))) return;
+    }
     component.handleInput(KEY.down);
   }
   throw new Error(`No settings row ${section} › ${label}`);
@@ -249,7 +258,7 @@ test("Cognitive Routing settings refresh after enabling the capability", async (
       choose(component, "Enabled", "Cognitive Routing");
       component.handleInput("\r");
       await component.waitForWrites();
-      assert.match(component.render(120).join("\n"), /Cognitive Routing\s+configured\n\s+› Enabled\s+enabled\n/);
+      assert.match(component.render(120).join("\n"), /› Cognitive Routing\s+on\n/);
       component.handleInput("\u001b");
       return result;
     };
@@ -445,8 +454,8 @@ test("session settings switch task memory on for the session only", async () => 
       component.handleInput(KEY.escape);
     };
     await command.definition.handler("settings session", settings);
-    assert.match(before, /Task Memory\s+disabled\n\s+(› )?Enabled\s+inherit → disabled \(default\)/);
-    assert.match(after, /Task Memory\s+active\n\s+› Enabled\s+enabled · session/);
+    assert.match(before, /Task Memory\s+off \(default\)\n/);
+    assert.match(after, /› Task Memory\s+on\n/);
     const { readCapabilityState } = await import("../../dist/host/config.js");
     assert.equal(await readFile(join(cwd, ".freeflow/local.json"), "utf8").catch(() => undefined), undefined);
     await resetSessionOverrides(settings, {});
@@ -473,11 +482,8 @@ test("session settings list every capability switch and change one in place", as
     };
     await command.definition.handler("settings session", settings);
     assert.match(rendered, /\[Session\]/);
-    assert.match(rendered, /Tool Execution\s+active\n\s+Enabled\s+inherit → enabled \(repository\)/);
-    assert.match(
-      rendered,
-      /Compaction\s+active\n\s+Enabled\s+inherit → enabled \(default\)\n\s+› Context reuse\s+enabled · session/,
-    );
+    assert.match(rendered, /Tool Execution\s+on \(repository\)\n/);
+    assert.match(rendered, /Compaction\s+on \(default\)\n\s+›\s+Context reuse\s+on\n/);
     assert.match(rendered, /Reset overrides\s+1 active/, "the reset row counts the override just made");
     const { readCapabilityState } = await import("../../dist/host/config.js");
     assert.equal((await readCapabilityState(cwd)).compaction.carry, true);

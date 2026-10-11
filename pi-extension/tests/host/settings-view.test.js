@@ -262,7 +262,7 @@ test("the cursor skips section headers and inactive settings do not change", asy
   component.handleInput("\r");
   await component.waitForWrites();
   assert.deepEqual(second.commits, []);
-  assert.match(component.render(80).join("\n"), /Second\s+on · inactive/);
+  assert.match(component.render(80).join("\n"), /Second\s+on\n/);
 });
 
 test("Tab and Shift+Tab switch scopes, each with its own settings", async () => {

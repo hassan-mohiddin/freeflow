@@ -100,8 +100,12 @@ function setConfigValue(config, item, value) {
   }
   setPath(config, item.path, value);
 }
+/** What choosing inherit means, for the help line: "Follow the default (on)." */
+function inheritText(value, source) {
+  return source === "default" ? `Follow the default (${value}).` : `Follow the ${source} setting (${value}).`;
+}
 function booleanValue(value) {
-  return value === true ? "enabled" : "disabled";
+  return value === true ? "on" : "off";
 }
 function configValueForChoice(item, value) {
   const key = String(value);
@@ -164,9 +168,9 @@ function createScopedBooleanItem(options) {
       kind: "enum",
       value: selectedValue,
       values: [LOCAL_INHERIT, "true", "false"],
-      valueLabels: { inherit: "inherit", true: "enabled", false: "disabled" },
+      valueLabels: { inherit: "inherit", true: "on", false: "off" },
       valueDescriptions: {
-        inherit: `Use ${formatCoreValue(inheritedValue)} from ${SOURCE_LABELS[inheritedSource]}.`,
+        inherit: inheritText(formatCoreValue(inheritedValue), SOURCE_LABELS[inheritedSource]),
         true: "Enabled for you in this checkout.",
         false: "Disabled for you in this checkout.",
       },
@@ -225,7 +229,7 @@ function createScopedChoiceItem(options) {
         values: [LOCAL_INHERIT, ...options.values],
         valueLabels: { inherit: "inherit", ...options.valueLabels },
         valueDescriptions: {
-          inherit: `Use ${options.valueLabels[inheritedValue] ?? inheritedValue} from ${SOURCE_LABELS[inheritedSource]}.`,
+          inherit: inheritText(options.valueLabels[inheritedValue] ?? inheritedValue, SOURCE_LABELS[inheritedSource]),
           ...options.valueDescriptions,
         },
         configScope: "local",
@@ -274,7 +278,7 @@ function createScopedDelegationItem(options) {
             both: "Helper and Executor",
           },
           valueDescriptions: {
-            inherit: `Use ${inheritedValue} from ${SOURCE_LABELS[inheritedSource]}.`,
+            inherit: inheritText(inheritedValue, SOURCE_LABELS[inheritedSource]),
             ...descriptions,
           },
           configScope: "local",
@@ -329,9 +333,9 @@ function createSessionBooleanItem(options) {
     kind: "enum",
     value: typeof override === "boolean" ? String(override) : LOCAL_INHERIT,
     values: [LOCAL_INHERIT, "true", "false"],
-    valueLabels: { inherit: "inherit", true: "enabled", false: "disabled" },
+    valueLabels: { inherit: "inherit", true: "on", false: "off" },
     valueDescriptions: {
-      inherit: `Use ${formatCoreValue(options.inheritedValue)} from ${SOURCE_LABELS[options.inheritedSource]}.`,
+      inherit: inheritText(formatCoreValue(options.inheritedValue), SOURCE_LABELS[options.inheritedSource]),
       true: "Enabled for this Pi session only.",
       false: "Disabled for this Pi session only.",
     },
@@ -350,6 +354,23 @@ function configuredSetting(rawConfig, localConfig, path, defaultValue) {
   const repository = getPath(rawConfig, path);
   if (typeof repository === "boolean") return { value: repository, source: "repository" };
   return { value: defaultValue, source: "builtin" };
+}
+/** Sections from everyday to experimental (Task 005): Freeflow, then the capabilities, then session tools. */
+const SECTION_ORDER = [
+  "freeflow.enabled",
+  "freeflow.compaction",
+  "freeflow.toolExecution",
+  "freeflow.taskMemory",
+  "freeflow.messaging",
+  "freeflow.cognitiveRouting",
+  "freeflow.session",
+];
+function inSectionOrder(items) {
+  const rank = (item) => {
+    const at = SECTION_ORDER.indexOf(item.id);
+    return at < 0 ? SECTION_ORDER.length : at;
+  };
+  return [...items].sort((a, b) => rank(a) - rank(b));
 }
 function sectionItem(id, label, description, status, children) {
   return { id, label, description, kind: "group", value: true, displaySuffix: status, children };
@@ -413,7 +434,7 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
       "Show Coordinator the worker evidence selected for it instead of the whole history.",
       "cognitiveRouting.projection",
       routing.projection,
-      false,
+      true,
     );
     projectionItem.inactive = routingInactive;
     const delegationOverride = cognitiveRoutingController?.sessionDelegationOverride() ?? LOCAL_INHERIT;
@@ -455,7 +476,10 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
           both: "Helper and Executor",
         },
         valueDescriptions: {
-          inherit: `Use ${routing.delegation} from ${SOURCE_LABELS[cognitiveRoutingSettingsSource(routing.delegationSource)]}.`,
+          inherit: inheritText(
+            routing.delegation,
+            SOURCE_LABELS[cognitiveRoutingSettingsSource(routing.delegationSource)],
+          ),
           executor: "Coordinator delegates assignments to Executor.",
           helper: "Coordinator delegates supporting assignments to Helper and keeps production implementation.",
           both: "Coordinator chooses Helper or Executor for each assignment.",
@@ -598,7 +622,7 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
       },
     ]),
   ];
-  return items;
+  return inSectionOrder(items);
 }
 const COGNITIVE_ROUTING_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 const COGNITIVE_ROUTING_EFFORT_DESCRIPTIONS = {
@@ -912,9 +936,10 @@ function freeflowItems(rawConfig, options = {}) {
       description:
         "Select worker evidence for Coordinator; disable projection to keep ordinary Pi context in all enabled profiles.",
       path: ["cognitiveRouting", "projection"],
-      effectiveValue: cognitiveRoutingState?.projection ?? false,
+      // On by default with routing, as cognitive-routing/config.ts resolves it.
+      effectiveValue: cognitiveRoutingState?.projection ?? true,
       effectiveSource: cognitiveRoutingSettingsSource(cognitiveRoutingState?.projectionSource),
-      defaultValue: false,
+      defaultValue: true,
     });
     cognitiveRoutingProjectionItem.inactive = freeflowInactive || cognitiveRoutingRuntimeDisabled;
     cognitiveRoutingProjectionItem.runtimeInactive = cognitiveRoutingRuntimeDisabled;
@@ -1126,14 +1151,14 @@ function freeflowItems(rawConfig, options = {}) {
     displaySuffix: messagingState?.effective ? "active" : messagingState?.enabled ? "inactive" : "disabled",
     children: [messagingEnabledItem, messagingInboundItem],
   };
-  return [
+  return inSectionOrder([
     freeflowItem,
     ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []),
     toolExecutionGroup,
     compactionGroup,
     taskMemoryGroup,
     messagingGroup,
-  ];
+  ]);
 }
 function pruneKnownDefaults(config) {
   const defaultPaths = [
@@ -1231,24 +1256,36 @@ function formatSettingValue(item, value) {
   const key = String(value ?? "");
   return item.valueLabels?.[key] && key !== LOCAL_INHERIT ? item.valueLabels[key] : formatCoreValue(value);
 }
-function displayValue(item) {
-  if (item.kind === "group") return item.displaySuffix ?? "";
-  if (item.transient && item.format) return item.format(item.value);
+function displayParts(item) {
+  const tone = (value) => (value === true ? { tone: "on" } : value === false ? { tone: "off" } : {});
+  if (item.kind === "group") return { value: item.displaySuffix ?? "" };
+  if (item.transient && item.format) return { value: item.format(item.value) };
   if (item.id === "freeflow.cognitiveRouting.profile")
-    return item.valueLabels?.[String(item.value)] ?? String(item.value);
+    return { value: item.valueLabels?.[String(item.value)] ?? String(item.value) };
   if (item.configScope === "local" || item.configScope === "session") {
     const inherits = item.value === LOCAL_INHERIT || item.value === undefined;
     if (inherits) {
-      if (item.inheritedValue === undefined) return "not configured";
-      return `inherit → ${formatSettingValue(item, item.inheritedValue)} (${SOURCE_LABELS[item.inheritedSource ?? "builtin"]})`;
+      if (item.inheritedValue === undefined) return { value: "not configured" };
+      return {
+        value: formatSettingValue(item, item.inheritedValue),
+        note: SOURCE_LABELS[item.inheritedSource ?? "builtin"],
+        ...tone(item.inheritedValue),
+      };
     }
-    return `${formatSettingValue(item, effectiveItemValue(item))} · ${SOURCE_LABELS[item.configScope]}`;
+    const value = effectiveItemValue(item);
+    return { value: formatSettingValue(item, value), ...tone(value) };
   }
   const value = item.value === undefined && isCognitiveRoutingProfileItem(item) ? undefined : item.value;
-  const shown = formatSettingValue(item, value);
+  const shown = { value: formatSettingValue(item, value), ...tone(value) };
   if (item.localOverrideValue !== undefined && !valuesEqual(item.localOverrideValue, item.value))
-    return `${shown} · personal override: ${formatSettingValue(item, item.localOverrideValue)}`;
-  return item.effectiveSource === "builtin" && item.defaultValue !== undefined ? `${shown} · default` : shown;
+    return { ...shown, note: `personal: ${formatSettingValue(item, item.localOverrideValue)}` };
+  return item.effectiveSource === "builtin" && item.defaultValue !== undefined ? { ...shown, note: "default" } : shown;
+}
+function joinParts(parts) {
+  return parts.note ? `${parts.value} (${parts.note})` : parts.value;
+}
+function displayValue(item) {
+  return joinParts(displayParts(item));
 }
 /** Small choices change in place; holding a profile switches models and a reset clears everything, so those ask. */
 const PICKED_CHOICES = new Set(["freeflow.cognitiveRouting.profile", "freeflow.session.reset"]);
@@ -1345,8 +1382,8 @@ function refreshSettingsDerivedState(items) {
 function settingsChoices(item) {
   if (item.kind === "boolean") {
     return [
-      { key: "true", value: true, label: "enabled" },
-      { key: "false", value: false, label: "disabled" },
+      { key: "true", value: true, label: "on" },
+      { key: "false", value: false, label: "off" },
     ];
   }
   if (item.kind !== "enum") return undefined;
@@ -1368,52 +1405,96 @@ function resetSessionItemState(items) {
     }
   });
 }
-function settingsEntries(items, rootItems, onChange) {
+function settingsEntries(items, rootItems, onChange, depth = 0, lockedBy) {
+  // Freeflow's own switch locks everything else on the screen while it is off.
+  if (depth === 0 && !lockedBy) {
+    const master = rootItems.find((candidate) => candidate.id === "freeflow.enabled");
+    const off = () => (master && effectiveItemValue(master) === false ? "Turn on Freeflow to change this." : undefined);
+    return items.flatMap((item) =>
+      settingsEntries([item], rootItems, onChange, 0, item === master ? () => undefined : off),
+    );
+  }
   return items.flatMap((item) => {
     if (item.kind === "group" && item.children) {
+      // A capability's own switch is its section's row; while it is off, the section's other settings are locked.
+      const toggle = item.children.find((child) => child.id === `${item.id}.enabled`);
+      if (toggle) {
+        const header = settingEntry(toggle, rootItems, onChange, depth, lockedBy);
+        // The section's status adds what the switch alone does not say: not active, unavailable, the routing control.
+        const parts = () => {
+          const shown = displayParts(toggle);
+          const status = item.displaySuffix ?? "";
+          const extra =
+            status === "inactive"
+              ? shown.tone === "on"
+                ? "not active"
+                : ""
+              : ["", "active", "disabled", "configured"].includes(status)
+                ? ""
+                : status.replace(/^active · /, "");
+          return extra ? { ...shown, note: shown.note ? `${shown.note} · ${extra}` : extra } : shown;
+        };
+        const off = () =>
+          lockedBy?.() ?? (effectiveItemValue(toggle) === false ? `Turn on ${item.label} to change this.` : undefined);
+        return [
+          { ...header, label: item.label, heading: true, parts, currentValue: () => joinParts(parts()) },
+          ...settingsEntries(
+            item.children.filter((child) => child !== toggle),
+            rootItems,
+            onChange,
+            depth + 1,
+            off,
+          ),
+        ];
+      }
       const section = {
         id: item.id,
         label: item.label,
         description: item.description,
         section: true,
+        depth,
         currentValue: () => displayValue(item),
         inactive: () => item.inactive === true,
       };
-      return [section, ...settingsEntries(item.children, rootItems, onChange)];
+      return [section, ...settingsEntries(item.children, rootItems, onChange, depth + 1, lockedBy)];
     }
-    const choices = settingsChoices(item);
-    return [
-      {
-        id: item.id,
-        label: item.label,
-        description: item.description,
-        currentValue: () => displayValue(item),
-        inactive: () => item.inactive === true,
-        currentChoiceKey: () => String(item.value),
-        choices,
-        cycle: Boolean(choices?.length) && !PICKED_CHOICES.has(item.id),
-        wizard: item.wizard ? () => item.wizard() : undefined,
-        edit:
-          !["boolean", "enum", "group"].includes(item.kind) && !item.wizard
-            ? {
-                initialValue: () => item.editInitialValue?.() ?? displayValue(item),
-                parse: (text) => (item.parse ? item.parse(text) : text),
-              }
-            : undefined,
-        commit: async (value) => {
-          if (valuesEqual(item.value, value)) return { changed: false, reloadRequired: false };
-          const outcome = await onChange(item, value);
-          if (outcome.changed) {
-            updateScopedItemState(item, value);
-            if (item.id === "freeflow.session.reset") resetSessionItemState(rootItems);
-            else if (!item.transient) item.value = value;
-            refreshSettingsDerivedState(rootItems);
-          }
-          return outcome;
-        },
-      },
-    ];
+    return [settingEntry(item, rootItems, onChange, depth, lockedBy)];
   });
+}
+function settingEntry(item, rootItems, onChange, depth, lockedBy) {
+  const choices = settingsChoices(item);
+  return {
+    id: item.id,
+    label: item.label,
+    description: item.description,
+    depth,
+    parts: () => displayParts(item),
+    currentValue: () => displayValue(item),
+    inactive: () => item.inactive === true || lockedBy?.() !== undefined,
+    ...(lockedBy ? { locked: lockedBy } : {}),
+    currentChoiceKey: () => String(item.value),
+    choices,
+    cycle: Boolean(choices?.length) && !PICKED_CHOICES.has(item.id),
+    wizard: item.wizard ? () => item.wizard() : undefined,
+    edit:
+      !["boolean", "enum", "group"].includes(item.kind) && !item.wizard
+        ? {
+            initialValue: () => item.editInitialValue?.() ?? displayValue(item),
+            parse: (text) => (item.parse ? item.parse(text) : text),
+          }
+        : undefined,
+    commit: async (value) => {
+      if (valuesEqual(item.value, value)) return { changed: false, reloadRequired: false };
+      const outcome = await onChange(item, value);
+      if (outcome.changed) {
+        updateScopedItemState(item, value);
+        if (item.id === "freeflow.session.reset") resetSessionItemState(rootItems);
+        else if (!item.transient) item.value = value;
+        refreshSettingsDerivedState(rootItems);
+      }
+      return outcome;
+    },
+  };
 }
 async function openSettings(options) {
   if (typeof options.ctx?.ui?.custom !== "function") {
