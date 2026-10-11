@@ -1,5 +1,9 @@
 {
   "schema_version": 1,
-  "skill": "execute-work",
-  "cases": ["cases/EWQ-001-repeated-evidence-route.json"]
+  "kind": "suite",
+  "id": "execute-work",
+  "groups": [
+    "cases/EWQ-001-repeated-evidence-route-activation.json",
+    "cases/EWQ-001-repeated-evidence-route-outcome.json"
+  ]
 }

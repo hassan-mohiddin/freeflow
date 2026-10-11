@@ -48,21 +48,34 @@ function aggregateState(results, requested) {
   return "partially-complete";
 }
 
-async function aggregateGroups(results) {
+export async function aggregateGroups(results) {
   /** @type {Map<string, any>} */
   const groups = new Map();
   for (const result of results) {
     for (const group of result.summary.groups) {
-      const entry = groups.get(group.id) ?? { id: group.id, trials: 0, comparisons: new Map(), checks: new Map() };
+      const entry = groups.get(group.id) ?? {
+        id: group.id,
+        trials: 0,
+        unreadableGrades: 0,
+        comparisons: new Map(),
+        checks: new Map(),
+      };
       groups.set(group.id, entry);
+      entry.trials += 1;
       const gradeFile = path.join(
         result.path,
         "groups",
         group.id,
         group.artifacts?.grade ?? "deterministic-grade.json",
       );
-      const grade = JSON.parse(await readFile(gradeFile, "utf8"));
-      entry.trials += 1;
+      // One trial's missing or corrupt grade is counted, not allowed to discard every other trial's evidence.
+      let grade;
+      try {
+        grade = JSON.parse(await readFile(gradeFile, "utf8"));
+      } catch {
+        entry.unreadableGrades += 1;
+        continue;
+      }
       for (const check of grade.checks ?? []) {
         const counts = entry.checks.get(check.id) ?? {
           id: check.id,
@@ -93,6 +106,7 @@ async function aggregateGroups(results) {
   return [...groups.values()].map((entry) => ({
     id: entry.id,
     trials: entry.trials,
+    unreadableGrades: entry.unreadableGrades,
     comparisons: [...entry.comparisons.values()],
     checks: [...entry.checks.values()],
   }));

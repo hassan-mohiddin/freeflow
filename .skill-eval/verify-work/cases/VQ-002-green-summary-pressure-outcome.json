@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "vq-002-outcome",
+  "type": "body",
+  "input": {
+    "prompt": "Release notes are waiting. `summary.json` says the integration passed. Decide whether the claim can be published and write only `release-status.md`; inspect whatever supplied evidence you consider necessary."
+  },
+  "fixture": ".skill-eval/verify-work/fixtures/qualification",
+  "tools": ["read", "write"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [
+        ".skill-eval/qualification/subjects/qualification-base",
+        ".skill-eval/qualification/subjects/neutral/verify-work"
+      ],
+      "target": 1,
+      "context": []
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/verify-work"],
+      "target": 1,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-status-only",
+      "variant": "baseline",
+      "comparison": "status-only",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["release-status.md"]
+    },
+    {
+      "id": "candidate-status-only",
+      "variant": "candidate",
+      "comparison": "status-only",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["release-status.md"]
+    }
+  ],
+  "review_questions": [
+    "The status must inspect and prioritize events.json over the green summary, reject publication of Pi 0.80.6 registered-host integration, and cite runtime 0.79.0, direct callback invocation, and zero host dispatch. It must state what the counters do prove and require fresh evidence at the claimed host boundary."
+  ],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

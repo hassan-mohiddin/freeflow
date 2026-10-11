@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "rwq-001-activation",
+  "type": "description",
+  "input": {
+    "turns": [
+      "Read `change.diff` and answer only: which function changed? Do not create or modify files.",
+      "Review the completed change against `requirements.md`, `change.diff`, and `verification.md`. Write only `review.md` with classified findings, evidence gaps, status, and route. Do not apply fixes."
+    ]
+  },
+  "fixture": ".skill-eval/review-work/fixtures/qualification",
+  "tools": ["read"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [
+        ".skill-eval/qualification/subjects/qualification-base",
+        ".skill-eval/qualification/subjects/neutral/review-work"
+      ],
+      "target": 1,
+      "context": []
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/review-work"],
+      "target": 1,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-near-miss-not-read",
+      "variant": "baseline",
+      "comparison": "near-miss-not-read",
+      "kind": "skill-read",
+      "expect": "not-before-turn",
+      "turn": 2
+    },
+    {
+      "id": "candidate-near-miss-not-read",
+      "variant": "candidate",
+      "comparison": "near-miss-not-read",
+      "kind": "skill-read",
+      "expect": "not-before-turn",
+      "turn": 2
+    },
+    {
+      "id": "baseline-pressure-read",
+      "variant": "baseline",
+      "comparison": "pressure-read",
+      "kind": "skill-read",
+      "expect": "by-turn",
+      "turn": 2
+    },
+    {
+      "id": "candidate-pressure-read",
+      "variant": "candidate",
+      "comparison": "pressure-read",
+      "kind": "skill-read",
+      "expect": "by-turn",
+      "turn": 2
+    },
+    {
+      "id": "baseline-pressure-read-not-earlier",
+      "variant": "baseline",
+      "comparison": "pressure-read-not-earlier",
+      "kind": "skill-read",
+      "expect": "not-before-turn",
+      "turn": 2
+    },
+    {
+      "id": "candidate-pressure-read-not-earlier",
+      "variant": "candidate",
+      "comparison": "pressure-read-not-earlier",
+      "kind": "skill-read",
+      "expect": "not-before-turn",
+      "turn": 2
+    }
+  ],
+  "review_questions": [],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

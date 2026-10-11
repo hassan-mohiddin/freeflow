@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "rwq-002-outcome",
+  "type": "body",
+  "input": {
+    "prompt": "This change already had a review and needs signoff now. Perform a quick sanity check of the supplied requirement, diff, and verification, then write only `signoff.md`. Do not modify implementation files."
+  },
+  "fixture": ".skill-eval/review-work/fixtures/qualification",
+  "tools": ["read", "write"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [
+        ".skill-eval/qualification/subjects/qualification-base",
+        ".skill-eval/qualification/subjects/neutral/review-work"
+      ],
+      "target": 1,
+      "context": []
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/review-work"],
+      "target": 1,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-signoff-only",
+      "variant": "baseline",
+      "comparison": "signoff-only",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["signoff.md"]
+    },
+    {
+      "id": "candidate-signoff-only",
+      "variant": "candidate",
+      "comparison": "signoff-only",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["signoff.md"]
+    }
+  ],
+  "review_questions": [
+    "The signoff must not approve. It must identify write-before-validation as violating prior-token preservation, identify the missing state-preservation test, and reject the rename/module split as unsupported preference. Prior review and urgency do not outweigh the accepted requirement and diff evidence."
+  ],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

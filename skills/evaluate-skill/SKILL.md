@@ -93,7 +93,7 @@ Before subject output exists:
 7. inspect canonical evidence and deterministic facts before judging meaning;
 8. classify the failed boundary before proposing revision.
 
-For a new skill, the baseline has no target skill. For a revision, the baseline is the exact previous package. For a description-only revision, keep body, references, scripts, and other resources byte-identical.
+For a new skill, the baseline has no target skill. For a revision, the baseline is the exact previous package. For a description-only revision, keep body, references, scripts, and other resources byte-identical, and declare `"revision": "description-only"` so the evaluator refuses a group that changes more.
 
 If both variants pass, the pressure may be weak or the baseline already sufficient. If both fail, distinguish skill, fixture, dependency, environment, host, isolation, and criterion failures before revising instructions.
 

@@ -228,6 +228,73 @@ export async function materializeEnvironment({ environment, root, variantDirecto
   };
 }
 
+/**
+ * Snapshots each variant's target skill into `destinationRoot/<variant>` and checks that the two differ only in
+ * the frontmatter description: every other file, and SKILL.md outside its description, must be byte-identical.
+ * Throws with the first difference found.
+ */
+export async function verifyDescriptionOnlyRevision({ variants, root, destinationRoot }) {
+  const canonicalRoot = await realpath(root);
+  const snapshots = {};
+  for (const variant of ["baseline", "candidate"]) {
+    const environment = variants[variant];
+    const declaredPath = environment.skills[environment.target];
+    const destination = path.join(destinationRoot, variant);
+    if (environment.source.kind === "working-tree") {
+      snapshots[variant] = await snapshotWorkingTreeResource({
+        canonicalRoot,
+        declaredPath,
+        destination,
+        requireDirectory: true,
+        label: "skill",
+      });
+    } else {
+      const git = await prepareGitSource(canonicalRoot, environment.source.ref);
+      snapshots[variant] = await snapshotGitResource({
+        ...git,
+        declaredPath,
+        destination,
+        requireDirectory: true,
+        label: "skill",
+      });
+    }
+  }
+  const baselineFiles = new Map(snapshots.baseline.files.map((file) => [file.path, file]));
+  const candidateFiles = new Map(snapshots.candidate.files.map((file) => [file.path, file]));
+  for (const filePath of new Set([...baselineFiles.keys(), ...candidateFiles.keys()])) {
+    if (filePath === "SKILL.md") continue;
+    const baselineFile = baselineFiles.get(filePath);
+    const candidateFile = candidateFiles.get(filePath);
+    if (!baselineFile || !candidateFile || baselineFile.sha256 !== candidateFile.sha256) {
+      throw new Error(`description-only revision changes ${filePath} outside SKILL.md`);
+    }
+  }
+  const [baselineSkill, candidateSkill] = await Promise.all(
+    [snapshots.baseline, snapshots.candidate].map((snapshot) => readFile(path.join(snapshot.path, "SKILL.md"), "utf8")),
+  );
+  if (withoutDescription(baselineSkill) !== withoutDescription(candidateSkill)) {
+    throw new Error("description-only revision changes SKILL.md outside its frontmatter description");
+  }
+}
+
+// Removes the frontmatter `description` entry (one line, or a block scalar with its indented continuation).
+function withoutDescription(text) {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/.exec(text);
+  if (!match) return text;
+  const kept = [];
+  let skipping = false;
+  for (const line of match[1].split(/\r?\n/)) {
+    if (/^description\s*:/.test(line)) {
+      skipping = true;
+      continue;
+    }
+    if (skipping && /^\s+\S/.test(line)) continue;
+    skipping = false;
+    kept.push(line);
+  }
+  return `---\n${kept.join("\n")}\n---${match[2]}${text.slice(match[0].length)}`;
+}
+
 export async function verifyEnvironment(environment) {
   for (const [label, resources] of [
     ["skill", environment.skills],

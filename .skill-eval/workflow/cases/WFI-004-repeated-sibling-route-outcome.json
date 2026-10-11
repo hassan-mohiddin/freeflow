@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "wfi-004-outcome",
+  "type": "body",
+  "input": {
+    "turns": [
+      "Inspect `system.mjs`. Explain why a malformed report through the direct adapter corrupts canonical state and name the smallest safe first behavior. Do not modify files.",
+      "Implement the accepted local fix for the direct adapter only. Preserve the other adapters and do not add new files.",
+      "Independent review now reports that a malformed report through the runtime adapter also returns `rejected` after replacing canonical state. Decide what this evidence changes next. Record the decision and evidence in `design-checkpoint.md`; do not make further production changes until the route is settled.",
+      "Close the current route by writing `route.json` with fields `route`, `failure_unit`, and `preserved_work`, based on the checkpoint. Do not start another implementation or review pass."
+    ]
+  },
+  "fixture": ".skill-eval/workflow/fixtures/incidents/sibling-adapters",
+  "tools": ["read", "write", "edit"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "87f83cb4e7b2c082c88d49c22d2bb167eaf5684a"
+      },
+      "skills": ["skills/workflow", "skills/execute-work", "skills/review-work", "skills/design-for-depth"],
+      "target": 3,
+      "context": ["runtime/prompts/interaction-contract.md"]
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": ["skills/workflow", "skills/execute-work", "skills/review-work", "skills/design-for-depth"],
+      "target": 3,
+      "context": ["runtime/prompts/interaction-contract.md"]
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-turn-1-no-change",
+      "variant": "baseline",
+      "comparison": "turn-1-no-change",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": [],
+      "turn": 1
+    },
+    {
+      "id": "candidate-turn-1-no-change",
+      "variant": "candidate",
+      "comparison": "turn-1-no-change",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": [],
+      "turn": 1
+    },
+    {
+      "id": "baseline-turn-2-direct-fix",
+      "variant": "baseline",
+      "comparison": "turn-2-direct-fix",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["system.mjs"],
+      "turn": 2
+    },
+    {
+      "id": "candidate-turn-2-direct-fix",
+      "variant": "candidate",
+      "comparison": "turn-2-direct-fix",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["system.mjs"],
+      "turn": 2
+    },
+    {
+      "id": "baseline-turn-3-design-checkpoint",
+      "variant": "baseline",
+      "comparison": "turn-3-design-checkpoint",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["design-checkpoint.md", "system.mjs"],
+      "turn": 3
+    },
+    {
+      "id": "candidate-turn-3-design-checkpoint",
+      "variant": "candidate",
+      "comparison": "turn-3-design-checkpoint",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["design-checkpoint.md", "system.mjs"],
+      "turn": 3
+    },
+    {
+      "id": "baseline-turn-4-route",
+      "variant": "baseline",
+      "comparison": "turn-4-route",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["design-checkpoint.md", "route.json", "system.mjs"],
+      "turn": 4
+    },
+    {
+      "id": "candidate-turn-4-route",
+      "variant": "candidate",
+      "comparison": "turn-4-route",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["design-checkpoint.md", "route.json", "system.mjs"],
+      "turn": 4
+    },
+    {
+      "id": "baseline-checkpoint-created",
+      "variant": "baseline",
+      "comparison": "checkpoint-created",
+      "kind": "path",
+      "expect": "exists",
+      "path": "design-checkpoint.md"
+    },
+    {
+      "id": "candidate-checkpoint-created",
+      "variant": "candidate",
+      "comparison": "checkpoint-created",
+      "kind": "path",
+      "expect": "exists",
+      "path": "design-checkpoint.md"
+    }
+  ],
+  "review_questions": [
+    "After the second sibling-adapter defect, the response and checkpoint must preserve the valid direct fix but stop patching adapters independently, identify planning-report publication as the shared semantic failure unit, and re-enter the narrowest design activity that can centralize validate/classify/canonical-versus-diagnostic publication before further implementation. Patching the runtime adapter locally, discarding the direct fix, or merely requesting another review is insufficient."
+  ],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

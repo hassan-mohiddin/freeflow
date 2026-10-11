@@ -87,6 +87,7 @@ export async function runBody({ group, variant, root, variantDirectory, fixture,
     subject.requiresContextObservation,
   );
   observation.contextObservationArtifact = contextObservation.artifact;
+  if (contextObservation.error) (observation.protocolErrors ??= []).push(contextObservation.error);
   await verifySubjectResources(subject, observation);
   const after = await fingerprintDirectory(subject.workspace);
 
@@ -199,12 +200,14 @@ async function runOneShotDescription(options) {
     subject.requiresContextObservation,
   );
   observation.contextObservationArtifact = contextObservation.artifact;
+  if (contextObservation.error) (observation.protocolErrors ??= []).push(contextObservation.error);
   await verifySubjectResources(subject, observation);
   const successfulReadPaths = await canonicalReadPaths(observation.successfulReads, subject.workspace);
   const targetRead =
     subject.environment.targetPath !== null && successfulReadPaths.includes(subject.environment.targetPath);
   return descriptionRun(options, subject, observation, {
     input: { prompt: options.group.input.prompt },
+    toolActivity: observation.toolActivity ?? [],
     activation: {
       targetRead,
       firstReadTurn: targetRead ? 1 : null,
@@ -231,6 +234,7 @@ async function runPersistentDescription(options) {
     subject.requiresContextObservation,
   );
   observation.contextObservationArtifact = contextObservation.artifact;
+  if (contextObservation.error) (observation.protocolErrors ??= []).push(contextObservation.error);
   await verifySubjectResources(subject, observation);
 
   const turns = [];
@@ -359,24 +363,39 @@ export function baseProcessEnvironment() {
   );
 }
 
+// A missing or malformed observation fails the subject but keeps everything the process already reported:
+// transcript, response, usage, and process evidence stay in run.json.
 async function readContextObservations(file, required) {
-  const contents = await readFile(file, "utf8").catch((error) => {
-    if (error?.code === "ENOENT") {
-      if (required) throw new Error("context observer produced no evidence");
-      return "";
-    }
-    throw error;
-  });
+  let contents;
+  try {
+    contents = await readFile(file, "utf8");
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+    if (!required) return { observations: [], artifact: null, error: null };
+    return {
+      observations: [],
+      artifact: null,
+      error: { reason: "context-observer-missing", message: "context observer produced no evidence" },
+    };
+  }
   const observations = [];
   for (const line of contents.split("\n").filter(Boolean)) {
     try {
       observations.push(JSON.parse(line));
     } catch (error) {
-      throw new Error(`context observation is malformed: ${error instanceof Error ? error.message : String(error)}`);
+      return {
+        observations: [],
+        artifact: null,
+        error: {
+          reason: "context-observation-malformed",
+          message: `context observation is malformed: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      };
     }
   }
   return {
     observations,
+    error: null,
     artifact:
       contents === ""
         ? null
@@ -403,11 +422,12 @@ async function verifySubjectResources(subject, observation) {
   }
 }
 
-function descriptionRun(options, subject, observation, { input, activation }) {
+function descriptionRun(options, subject, observation, { input, activation, toolActivity }) {
   return {
     ...subjectRun(options, subject, observation),
     evaluationType: "description",
     ...input,
+    ...(toolActivity === undefined ? {} : { toolActivity }),
     activation,
   };
 }
@@ -457,6 +477,7 @@ export async function runPiProcess({ command, args, cwd, eventsFile, stderrFile,
   const stderr = createWriteStream(stderrFile, { encoding: "utf8" });
   const transcript = [];
   const calls = new Map();
+  const toolActivity = [];
   const successfulReads = [];
   const parseErrors = [];
   const protocolErrors = [];
@@ -540,11 +561,24 @@ export async function runPiProcess({ command, args, cwd, eventsFile, stderrFile,
     }
     if (event.type === "agent_settled") settled = true;
     if (event.type === "tool_execution_start") {
-      calls.set(event.toolCallId, { toolName: event.toolName, args: event.args });
+      // Same shape as RPC turns record, so graders and the advisory reviewer see one-shot tool use too.
+      const activity = {
+        toolCallId: event.toolCallId ?? null,
+        toolName: event.toolName ?? null,
+        args: event.args ?? null,
+        completed: false,
+        isError: null,
+      };
+      toolActivity.push(activity);
+      calls.set(event.toolCallId, activity);
     }
-    if (event.type === "tool_execution_end" && !event.isError) {
+    if (event.type === "tool_execution_end") {
       const call = calls.get(event.toolCallId);
-      if (call?.toolName === "read" && typeof call.args?.path === "string") {
+      if (call) {
+        call.completed = true;
+        call.isError = event.isError === true;
+      }
+      if (!event.isError && call?.toolName === "read" && typeof call.args?.path === "string") {
         successfulReads.push(call.args.path);
       }
     }
@@ -594,6 +628,7 @@ export async function runPiProcess({ command, args, cwd, eventsFile, stderrFile,
     parseErrors,
     protocolErrors,
     successfulReads,
+    toolActivity,
     transcript,
     response,
     usage,

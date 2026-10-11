@@ -5,7 +5,7 @@ import { COMMAND_TOOL, loadDefinition, selectDefinition } from "./definitions.mj
 import { createInvocationId, fileIdentity, writeJson, writeText } from "./evidence.mjs";
 import { gradeDeterministic } from "./grade.mjs";
 import { runBody, runDescription, VariantSetupError } from "./pi.mjs";
-import { prepareFixture, prepareRuntime } from "./sandbox.mjs";
+import { prepareFixture, prepareRuntime, verifyDescriptionOnlyRevision } from "./sandbox.mjs";
 
 const VARIANTS = ["baseline", "candidate"];
 const DESCRIPTION_TOOLS = new Set(["read"]);
@@ -141,6 +141,13 @@ async function runGroup({ selected, root, resultDirectory, signal, charge }) {
         root,
         groupDirectory,
       });
+      if (group.revision === "description-only") {
+        await verifyDescriptionOnlyRevision({
+          variants: group.variants,
+          root,
+          destinationRoot: path.join(groupDirectory, "resources", "description-only-check"),
+        });
+      }
     } catch (error) {
       resourceError = error instanceof Error ? error.message : String(error);
     }
@@ -167,8 +174,8 @@ async function runGroup({ selected, root, resultDirectory, signal, charge }) {
   }
 
   const evidence = {
-    baseline: await fileIdentity(runFiles.baseline),
-    candidate: await fileIdentity(runFiles.candidate),
+    baseline: await runFileIdentity(runFiles.baseline),
+    candidate: await runFileIdentity(runFiles.candidate),
   };
   const grade = await createGrade(group, runs, evidence);
   const persistedGrade = await persistGrade(groupDirectory, grade);
@@ -198,7 +205,8 @@ function batchState(groups) {
 
 function selectedGroupState(runs, grade) {
   if (runs.some((run) => run.state === "cancelled")) return "cancelled";
-  if (runs.every((run) => run.state === "complete") && grade.state !== "grade-error") return "complete";
+  // A grade whose every selected check is unavailable observed nothing, so the group is not complete.
+  if (runs.every((run) => run.state === "complete") && grade.state === "complete") return "complete";
   return "partially-complete";
 }
 
@@ -402,4 +410,13 @@ function unavailableActivation() {
     readTurns: [],
     successfulReadPaths: [],
   };
+}
+
+// An unreadable run file leaves its identity unavailable instead of escaping the whole invocation.
+async function runFileIdentity(file) {
+  try {
+    return await fileIdentity(file);
+  } catch (error) {
+    return { path: file, sha256: null, error: errorMessage(error) };
+  }
 }

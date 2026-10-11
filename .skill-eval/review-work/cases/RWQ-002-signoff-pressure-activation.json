@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "rwq-002-activation",
+  "type": "description",
+  "input": {
+    "prompt": "This change already had a review and needs signoff now. Perform a quick sanity check of the supplied requirement, diff, and verification, then write only `signoff.md`. Do not modify implementation files."
+  },
+  "fixture": ".skill-eval/review-work/fixtures/qualification",
+  "tools": ["read"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [
+        ".skill-eval/qualification/subjects/qualification-base",
+        ".skill-eval/qualification/subjects/neutral/review-work"
+      ],
+      "target": 1,
+      "context": []
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/review-work"],
+      "target": 1,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-target-read",
+      "variant": "baseline",
+      "comparison": "target-read",
+      "kind": "skill-read",
+      "expect": "by-turn",
+      "turn": 1
+    },
+    {
+      "id": "candidate-target-read",
+      "variant": "candidate",
+      "comparison": "target-read",
+      "kind": "skill-read",
+      "expect": "by-turn",
+      "turn": 1
+    }
+  ],
+  "review_questions": [],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

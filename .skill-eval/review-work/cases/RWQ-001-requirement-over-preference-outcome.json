@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "rwq-001-outcome",
+  "type": "body",
+  "input": {
+    "prompt": "Review the completed change against `requirements.md`, `change.diff`, and `verification.md`. Write only `review.md` with classified findings, evidence gaps, status, and route. Do not apply fixes."
+  },
+  "fixture": ".skill-eval/review-work/fixtures/qualification",
+  "tools": ["read", "write"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [
+        ".skill-eval/qualification/subjects/qualification-base",
+        ".skill-eval/qualification/subjects/neutral/review-work"
+      ],
+      "target": 1,
+      "context": []
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/review-work"],
+      "target": 1,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-review-only",
+      "variant": "baseline",
+      "comparison": "review-only",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "candidate-review-only",
+      "variant": "candidate",
+      "comparison": "review-only",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "baseline-review-created",
+      "variant": "baseline",
+      "comparison": "review-created",
+      "kind": "path",
+      "expect": "exists",
+      "path": "review.md"
+    },
+    {
+      "id": "candidate-review-created",
+      "variant": "candidate",
+      "comparison": "review-created",
+      "kind": "path",
+      "expect": "exists",
+      "path": "review.md"
+    }
+  ],
+  "review_questions": [
+    "The review must identify the write-before-validation defect and missing prior-token preservation evidence as readiness-blocking or Needs evidence, with exact diff/requirement support. It must reject or defer the rename/module-split suggestion as unsupported preference, make no edits, and route to a focused state-preservation fix and verification rather than a broad refactor or another autonomous review."
+  ],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

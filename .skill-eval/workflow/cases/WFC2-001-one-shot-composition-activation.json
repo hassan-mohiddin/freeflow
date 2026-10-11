@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "wfc2-001-activation",
+  "type": "description",
+  "input": {
+    "prompt": "Read `request.md`, then write `result.json` with `base_marker`, `target_marker`, and `route`. Do not modify any other file."
+  },
+  "fixture": ".skill-eval/workflow/fixtures/composition-one-shot",
+  "tools": ["read"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [
+        "skills/workflow",
+        ".skill-eval/workflow/subjects/composition-base",
+        ".skill-eval/workflow/subjects/marker-reference"
+      ],
+      "target": 2,
+      "context": ["runtime/prompts/interaction-contract.md"]
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [
+        "skills/workflow",
+        ".skill-eval/workflow/subjects/composition-base",
+        ".skill-eval/workflow/subjects/marker-candidate"
+      ],
+      "target": 2,
+      "context": ["runtime/prompts/interaction-contract.md"]
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-base-read",
+      "variant": "baseline",
+      "comparison": "base-read",
+      "kind": "resource-read",
+      "resource": "skill",
+      "index": 1,
+      "path": "SKILL.md",
+      "expect": "read"
+    },
+    {
+      "id": "candidate-base-read",
+      "variant": "candidate",
+      "comparison": "base-read",
+      "kind": "resource-read",
+      "resource": "skill",
+      "index": 1,
+      "path": "SKILL.md",
+      "expect": "read"
+    },
+    {
+      "id": "baseline-target-read",
+      "variant": "baseline",
+      "comparison": "target-read",
+      "kind": "skill-read",
+      "expect": "by-turn",
+      "turn": 1
+    },
+    {
+      "id": "candidate-target-read",
+      "variant": "candidate",
+      "comparison": "target-read",
+      "kind": "skill-read",
+      "expect": "by-turn",
+      "turn": 1
+    }
+  ],
+  "review_questions": [],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

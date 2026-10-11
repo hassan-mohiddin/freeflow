@@ -45,7 +45,7 @@ function group(id, type) {
       candidate: environment({ skills: [`skills/${id}`], target: 0 }),
     },
     expectations: [],
-    review_questions: [],
+    review_questions: ["Did the subject complete the task?"],
   };
 }
 
@@ -304,6 +304,26 @@ test("group definitions reject structural contradictions", async () => {
         },
       },
       {
+        name: "unknown-revision-kind",
+        change(definition) {
+          definition.revision = "body-only";
+        },
+      },
+      {
+        name: "description-only-without-baseline-target",
+        change(definition) {
+          definition.revision = "description-only";
+        },
+      },
+      {
+        name: "description-only-on-body-group",
+        change(definition) {
+          definition.type = "body";
+          definition.variants.baseline = environment({ skills: ["skills/valid-group"], target: 0 });
+          definition.revision = "description-only";
+        },
+      },
+      {
         name: "duplicate-expectation",
         change(definition) {
           definition.expectations = [
@@ -320,6 +340,43 @@ test("group definitions reject structural contradictions", async () => {
       const groupFile = await writeJson(root, `${scenario.name}.json`, definition);
       await assert.rejects(loadDefinition(groupFile, { root }), { name: "DefinitionError" }, scenario.name);
     }
+  });
+});
+
+test("a misspelled expectation field is rejected before any subject runs", async () => {
+  await withTempDirectory(async (root) => {
+    const definition = group("misspelled-field", "body");
+    definition.expectations = [
+      { id: "result-text", kind: "response-text", variant: "candidate", expect: "contains", value: "done" },
+      // `turns` instead of `turn`: a grader would ignore it and check the final response instead.
+      { id: "early-text", kind: "response-text", variant: "candidate", expect: "contains", value: "x", turns: 1 },
+    ];
+    const groupFile = await writeJson(root, "misspelled.json", definition);
+    await assert.rejects(loadDefinition(groupFile, { root }), {
+      name: "DefinitionError",
+      message: /expectations\[1\] contains unsupported field turns for kind response-text/,
+    });
+
+    definition.expectations.pop();
+    const validFile = await writeJson(root, "valid.json", definition);
+    const loaded = await loadDefinition(validFile, { root });
+    assert.equal(loaded.expectations.length, 1);
+  });
+});
+
+test("a group with no expectations and no review questions is rejected", async () => {
+  await withTempDirectory(async (root) => {
+    const definition = group("observes-nothing", "description");
+    definition.review_questions = [];
+    const groupFile = await writeJson(root, "nothing.json", definition);
+    await assert.rejects(loadDefinition(groupFile, { root }), {
+      name: "DefinitionError",
+      message: /at least one expectation or review question/,
+    });
+
+    definition.review_questions = ["Did the subject finish?"];
+    const reviewOnly = await writeJson(root, "review-only.json", definition);
+    await loadDefinition(reviewOnly, { root });
   });
 });
 

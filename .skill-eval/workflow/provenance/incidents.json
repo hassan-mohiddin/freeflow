@@ -176,13 +176,13 @@
     },
     {
       "path": ".skill-eval/workflow/fixtures/incidents/proof-fidelity/extension.mjs",
-      "sha256": "a83815b6e584a95dc80a86f2f6be1f478731682c7078fb0cd22492c876210212",
-      "bytes": 860
+      "sha256": "0b57081661ce63b54c178f09e0a50969c168036e95d58ce75b4bb0d2d307cb08",
+      "bytes": 830
     },
     {
       "path": ".skill-eval/workflow/fixtures/incidents/rejected-state/store.mjs",
-      "sha256": "9de9d8e67a7c6b4a66037cef3548f982d4bd9d9a8a4bc6e9696585d0f1f43bf8",
-      "bytes": 856
+      "sha256": "98d110ba31bc33ae26fb30ddd083b0a200f4157609d55a59254b2191eb8cf58c",
+      "bytes": 876
     },
     {
       "path": ".skill-eval/workflow/fixtures/incidents/replaceable-trust-anchor/store.mjs",
@@ -191,13 +191,13 @@
     },
     {
       "path": ".skill-eval/workflow/fixtures/incidents/sibling-adapters/system.mjs",
-      "sha256": "3c553a9cf25db6e5e3c6af35244ec0a5a1a769273d8cdc75b67b9f8d5686b48c",
-      "bytes": 989
+      "sha256": "c7f953e1ee7bb4bfe9bc606c4bfcf45e45a166f21317d9de23f337a094628648",
+      "bytes": 999
     },
     {
       "path": ".skill-eval/workflow/fixtures/incidents/verification-mutation/sample-bundle/manifest.json",
-      "sha256": "207d9046b078bade1dfd0a85ecf31c573bc042d1955a5d049a7f7b438590f5c4",
-      "bytes": 51
+      "sha256": "242d41302da7873d3f03df589cac7ef89eb130e35807faf96373ee960b237105",
+      "bytes": 58
     },
     {
       "path": ".skill-eval/workflow/fixtures/incidents/verification-mutation/verifier.mjs",
@@ -224,24 +224,34 @@
   ],
   "pilot_case_sources": [
     {
-      "path": ".skill-eval/workflow/cases/WFI-001-planning-failure-unit.json",
-      "sha256": "4eb7821dab77af867502e1f90f4cf7c146015d31b65bd67d5242dbeb56780bb6",
-      "bytes": 2832
+      "path": ".skill-eval/workflow/cases/WFI-001-planning-failure-unit-activation.json",
+      "sha256": "15b9787705bb0cc0f6e02cd6e0b227840b4add6a4bb09b7f7e01cf36a7e0d996",
+      "bytes": 2067
     },
     {
-      "path": ".skill-eval/workflow/cases/WFI-002-rejected-state-tdd.json",
-      "sha256": "fe8052018b5e1fd42ecad5c8fd553c1cde1eff9b1297405edaf6d81d4d680548",
-      "bytes": 3362
+      "path": ".skill-eval/workflow/cases/WFI-001-planning-failure-unit-outcome.json",
+      "sha256": "cb5078103b5fa4cba93c8f8df5a10aa65bdcae50a6834263724c8ddc4516b93e",
+      "bytes": 2494
     },
     {
-      "path": ".skill-eval/workflow/cases/WFI-003-proof-fidelity.json",
-      "sha256": "46dff838fd801b5e82965cf795c4efa9fabbc2849f55ff4a1d72eda41643e531",
-      "bytes": 2870
+      "path": ".skill-eval/workflow/cases/WFI-003-proof-fidelity-activation.json",
+      "sha256": "0fa1794e96bbffd67fee91a02f3675fc7b4da6125a26ab42308dd71adb70ffef",
+      "bytes": 2144
     },
     {
-      "path": ".skill-eval/workflow/cases/WFI-004-repeated-sibling-route.json",
-      "sha256": "28079dc620d44a978e8ce2eb412eb73eebd741a25edd1f46c638526af963b763",
-      "bytes": 4294
+      "path": ".skill-eval/workflow/cases/WFI-003-proof-fidelity-outcome.json",
+      "sha256": "d0a3a04dbbd3270be39ee314222c98d8a9642b3394f39abb4224fe3ed6fcc3c4",
+      "bytes": 2633
+    },
+    {
+      "path": ".skill-eval/workflow/cases/WFI-004-repeated-sibling-route-activation.json",
+      "sha256": "0e727d911628d6f7ce3a7ec02c4e06c1fdc3c04c39ec4889adb4dcc4dcce25f5",
+      "bytes": 3210
+    },
+    {
+      "path": ".skill-eval/workflow/cases/WFI-004-repeated-sibling-route-outcome.json",
+      "sha256": "b30b8f92de26fb1489648e3d2f77d7151c98e81f77e521e4454d3b12123041b4",
+      "bytes": 4716
     }
   ],
   "pressure_oracle": {

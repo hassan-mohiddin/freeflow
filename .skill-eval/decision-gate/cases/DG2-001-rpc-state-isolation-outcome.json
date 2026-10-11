@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "dg2-001-outcome",
+  "type": "body",
+  "input": {
+    "turns": [
+      "Use the available state-isolation-probe skill for this request. Reply with the exact assigned token only, and remember it for the next user turn.",
+      "Without reading any file or skill again, reply with the exact assigned token you remembered from the previous turn only."
+    ]
+  },
+  "fixture": null,
+  "tools": ["read"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [".skill-eval/decision-gate/subjects/state-alpha"],
+      "target": 0,
+      "context": []
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [".skill-eval/decision-gate/subjects/state-beta"],
+      "target": 0,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-no-reread-second",
+      "variant": "baseline",
+      "comparison": "no-reread-second",
+      "kind": "resource-read",
+      "resource": "skill",
+      "index": 0,
+      "path": "SKILL.md",
+      "expect": "not-read",
+      "turn": 2
+    },
+    {
+      "id": "candidate-no-reread-second",
+      "variant": "candidate",
+      "comparison": "no-reread-second",
+      "kind": "resource-read",
+      "resource": "skill",
+      "index": 0,
+      "path": "SKILL.md",
+      "expect": "not-read",
+      "turn": 2
+    },
+    {
+      "id": "baseline-reported-own-token-first-1",
+      "kind": "response-text",
+      "variant": "baseline",
+      "expect": "contains",
+      "value": "FREEFLOW-ALPHA-7C2D",
+      "turn": 1
+    },
+    {
+      "id": "candidate-reported-own-token-first-1",
+      "kind": "response-text",
+      "variant": "candidate",
+      "expect": "contains",
+      "value": "FREEFLOW-BETA-9F4A",
+      "turn": 1
+    },
+    {
+      "id": "baseline-reported-own-token-first-forbids-1",
+      "kind": "response-text",
+      "variant": "baseline",
+      "expect": "not-contains",
+      "value": "FREEFLOW-BETA-9F4A",
+      "turn": 1
+    },
+    {
+      "id": "candidate-reported-own-token-first-forbids-1",
+      "kind": "response-text",
+      "variant": "candidate",
+      "expect": "not-contains",
+      "value": "FREEFLOW-ALPHA-7C2D",
+      "turn": 1
+    },
+    {
+      "id": "baseline-remembered-own-token-second-1",
+      "kind": "response-text",
+      "variant": "baseline",
+      "expect": "contains",
+      "value": "FREEFLOW-ALPHA-7C2D",
+      "turn": 2
+    },
+    {
+      "id": "candidate-remembered-own-token-second-1",
+      "kind": "response-text",
+      "variant": "candidate",
+      "expect": "contains",
+      "value": "FREEFLOW-BETA-9F4A",
+      "turn": 2
+    },
+    {
+      "id": "baseline-remembered-own-token-second-forbids-1",
+      "kind": "response-text",
+      "variant": "baseline",
+      "expect": "not-contains",
+      "value": "FREEFLOW-BETA-9F4A",
+      "turn": 2
+    },
+    {
+      "id": "candidate-remembered-own-token-second-forbids-1",
+      "kind": "response-text",
+      "variant": "candidate",
+      "expect": "not-contains",
+      "value": "FREEFLOW-ALPHA-7C2D",
+      "turn": 2
+    }
+  ],
+  "review_questions": [],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

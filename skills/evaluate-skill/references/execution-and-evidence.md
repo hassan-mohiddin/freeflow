@@ -70,6 +70,8 @@ Each selected run is persisted before its counterpart. Grade and group evidence 
 Run states are `complete`, `invalid`, `infrastructure-failed`, `cancelled`, and `not-selected`. Group and batch states are `complete`, `partially-complete`, `invalid` where applicable, and `cancelled`.
 
 - Failed deterministic checks are ordinary complete behavioral evidence and exit zero when no infrastructure/grade failure exists.
+- A grade whose every selected check is `unavailable` observed nothing, so its group is `partially-complete` and the command exits nonzero.
+- A missing or malformed context observation makes the run `infrastructure-failed` but keeps its transcript, response, usage, and process evidence.
 - Variant-local invalidity or infrastructure failure preserves evidence and does not stop safe queued work.
 - Shared fixture failure invalidates the group.
 - Thrown grading or recoverable grade/group publication failure becomes explicit `grade-error` fallback evidence.
@@ -94,7 +96,7 @@ Normal completion follows settlement. Path guards, no-progress detection, cancel
 
 ## Trials
 
-`--trials <n>` runs the selection as `n` independent complete invocations. Each trial is an ordinary result with its own ID. A separate aggregate under `.skill-eval/runs/<aggregate-id>/aggregate.json` lists the trials and, per group, counts pass, fail, and unavailable for every deterministic check and comparison, plus comparison transitions. `--max-cost` is shared across trials, and exhaustion stops starting further trials. `view <aggregate-id>` renders the counts; view an individual trial for its evidence.
+`--trials <n>` runs the selection as `n` independent complete invocations. Each trial is an ordinary result with its own ID. A separate aggregate under `.skill-eval/runs/<aggregate-id>/aggregate.json` lists the trials and, per group, counts pass, fail, and unavailable for every deterministic check and comparison, plus comparison transitions. A trial whose grade file cannot be read is counted in `unreadableGrades`; the other trials still aggregate. `--max-cost` is shared across trials, and exhaustion stops starting further trials. `view <aggregate-id>` renders the counts; view an individual trial for its evidence.
 
 ## Advisory Review
 

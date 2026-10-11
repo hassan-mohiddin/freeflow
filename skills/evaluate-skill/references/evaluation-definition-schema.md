@@ -2,7 +2,7 @@
 
 Read this when authoring or checking schema-version-1 group and suite JSON.
 
-This reference is a contract: the shapes and constraints below are binding as written. Structural violations are rejected before any subject runs; a malformed expectation surfaces afterward as `grade-error` evidence.
+This reference is a contract: the shapes and constraints below are binding as written. Structural violations are rejected before any subject runs, including an expectation field its kind does not define and a group with no expectations and no review questions. An expectation of an unknown kind, or with invalid values for its fields, surfaces afterward as `grade-error` evidence.
 
 This file owns user-authored definition shapes. Read [execution and evidence](execution-and-evidence.md) for commands, path resolution, run states, persistence, views, isolation, and safeguards.
 
@@ -21,7 +21,7 @@ Definition files and declared paths are checked for lexical and canonical contai
 
 ## Common Group Shape
 
-Every group contains exactly these fields, plus optional `model`:
+Every group contains exactly these fields, plus optional `model`, `runtime`, `commands`, and `revision`:
 
 ```json
 {
@@ -69,6 +69,8 @@ Rules:
 - `variants` contains exactly `baseline` and `candidate`.
 - `expectations` is an ordered array with unique expectation IDs.
 - `review_questions` is an ordered string array. Questions are rendered for the reviewer and never sent to the subject.
+- A group declares at least one expectation or review question. A group with only review questions has no deterministic checks; its evidence comes from the advisory review alone.
+- `revision` is optional and, when present, is `description-only`. It is valid only for a description group whose two variants both name a target skill. Before any subject runs, the evaluator snapshots both targets and refuses the group as `invalid` unless every file other than `SKILL.md` is byte-identical and `SKILL.md` differs only in its frontmatter `description`.
 - `model` is optional. `model.model` names the provider/model; optional `model.thinking` selects its thinking level. The CLI has no model override.
 - `runtime` is optional. When omitted, the group runs under a plain `pi` host with the isolated prompt and no declared extensions. When present, it declares the host, prompt mode, ordered extension bundles, and string environment overrides.
 - `commands` is optional and only for body groups that list the `run_command` tool. See [Declared Commands](#declared-commands).
@@ -127,7 +129,7 @@ A description group uses natural prompts and asks whether the exact target was r
 }
 ```
 
-For a description-only revision, the two target snapshots must keep body and resources byte-identical while changing only frontmatter description text.
+For a description-only revision, declare `"revision": "description-only"`. The evaluator then checks that the two target snapshots keep body and resources byte-identical and change only the frontmatter description, and refuses the group otherwise.
 
 Description groups allow no tools or only `read`. `skill-read` is their target-activation check.
 
@@ -276,7 +278,7 @@ or:
 { "kind": "git", "ref": "<exact-ref>" }
 ```
 
-A source applies only to declared skill and context paths in that variant. It never supplies the group fixture: `fixture` is snapshotted once from the definition-root working tree, then copied independently for selected variants. `skills` preserves registration order. `target` is `null` or a zero-based index into `skills`; the candidate target cannot be `null`. `context` preserves declaration order and may name UTF-8 files or directories.
+A source applies only to declared skill and context paths in that variant. It never supplies the group fixture: `fixture` is snapshotted once from the definition-root working tree, then copied independently for selected variants. `skills` preserves registration order. `target` is `null` or a zero-based index into `skills`. A candidate that declares skills must name its target; a candidate with `skills: []` uses `target: null`. `context` preserves declaration order and may name UTF-8 files or directories.
 
 ## Expectations
 
@@ -287,6 +289,8 @@ Every expectation has:
 - `variant`: `baseline` or `candidate`;
 - optional `comparison`: shared by exactly one baseline and one candidate expectation describing the same expected check;
 - optional body `turn`: one-based declared prompt/turn number.
+
+An expectation may contain only these common fields and the kind-specific fields in the table below. Any other field is rejected before any subject runs, because its grader would ignore it.
 
 Without `turn`, response checks use the final response and workspace checks use final state. Turn-scoped workspace checks cause an immutable workspace snapshot after each settled turn.
 

@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "dfq-002-activation",
+  "type": "description",
+  "input": {
+    "prompt": "The deadline is today. The team proposes copying the direct adapter's validate-before-write fix into `parent_finish` and moving on. Read `system.json` and write only `next-step.json` with the action you recommend and why. Do not modify `system.json`."
+  },
+  "fixture": ".skill-eval/design-for-depth/fixtures/qualification",
+  "tools": ["read"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [
+        ".skill-eval/qualification/subjects/qualification-base",
+        ".skill-eval/qualification/subjects/neutral/design-for-depth"
+      ],
+      "target": 1,
+      "context": []
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/design-for-depth"],
+      "target": 1,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-target-read",
+      "variant": "baseline",
+      "comparison": "target-read",
+      "kind": "skill-read",
+      "expect": "by-turn",
+      "turn": 1
+    },
+    {
+      "id": "candidate-target-read",
+      "variant": "candidate",
+      "comparison": "target-read",
+      "kind": "skill-read",
+      "expect": "by-turn",
+      "turn": 1
+    }
+  ],
+  "review_questions": [],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

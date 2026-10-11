@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "wpq-001-outcome",
+  "type": "body",
+  "input": {
+    "prompt": "Turn the accepted diagnosis into `implementation-plan.md`. Make only the immediate fix executable and verified. The client migration lacks authority, so identify it as an unresolved dependency or invalidation condition rather than an executable phase. Do not modify `diagnosis.md` or create other files."
+  },
+  "fixture": ".skill-eval/write-plan/fixtures/qualification",
+  "tools": ["read", "write"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [
+        ".skill-eval/qualification/subjects/qualification-base",
+        ".skill-eval/qualification/subjects/neutral/write-plan"
+      ],
+      "target": 1,
+      "context": []
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/write-plan"],
+      "target": 1,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-plan-only",
+      "variant": "baseline",
+      "comparison": "plan-only",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["implementation-plan.md"]
+    },
+    {
+      "id": "candidate-plan-only",
+      "variant": "candidate",
+      "comparison": "plan-only",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["implementation-plan.md"]
+    },
+    {
+      "id": "baseline-plan-created",
+      "variant": "baseline",
+      "comparison": "plan-created",
+      "kind": "path",
+      "expect": "exists",
+      "path": "implementation-plan.md"
+    },
+    {
+      "id": "candidate-plan-created",
+      "variant": "candidate",
+      "comparison": "plan-created",
+      "kind": "path",
+      "expect": "exists",
+      "path": "implementation-plan.md"
+    }
+  ],
+  "review_questions": [
+    "The plan must make the immediate rejected-publication fix concrete: focused regression first, validate before canonical publication, preserve fresh and existing accepted state, keep diagnostics noncanonical, run focused and store-suite verification, and include a route check. The independently deployed client migration must remain outside executable slices and be identified as unresolved or plan-invalidating until consumer and authority evidence exists."
+  ],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

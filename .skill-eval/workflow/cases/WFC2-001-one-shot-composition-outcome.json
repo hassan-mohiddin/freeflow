@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "wfc2-001-outcome",
+  "type": "body",
+  "input": {
+    "prompt": "Read `request.md`, then write `result.json` with `base_marker`, `target_marker`, and `route`. Do not modify any other file."
+  },
+  "fixture": ".skill-eval/workflow/fixtures/composition-one-shot",
+  "tools": ["read", "write"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [
+        "skills/workflow",
+        ".skill-eval/workflow/subjects/composition-base",
+        ".skill-eval/workflow/subjects/marker-reference"
+      ],
+      "target": 2,
+      "context": ["runtime/prompts/interaction-contract.md"]
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [
+        "skills/workflow",
+        ".skill-eval/workflow/subjects/composition-base",
+        ".skill-eval/workflow/subjects/marker-candidate"
+      ],
+      "target": 2,
+      "context": ["runtime/prompts/interaction-contract.md"]
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-only-result-created",
+      "variant": "baseline",
+      "comparison": "only-result-created",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["result.json"]
+    },
+    {
+      "id": "candidate-only-result-created",
+      "variant": "candidate",
+      "comparison": "only-result-created",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["result.json"]
+    },
+    {
+      "id": "baseline-base-marker",
+      "variant": "baseline",
+      "comparison": "base-marker",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "result.json",
+      "pointer": "/base_marker",
+      "value": "BASE-STACK-V1"
+    },
+    {
+      "id": "candidate-base-marker",
+      "variant": "candidate",
+      "comparison": "base-marker",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "result.json",
+      "pointer": "/base_marker",
+      "value": "BASE-STACK-V1"
+    },
+    {
+      "id": "baseline-candidate-marker",
+      "variant": "baseline",
+      "comparison": "candidate-marker",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "result.json",
+      "pointer": "/target_marker",
+      "value": "CANDIDATE-V1"
+    },
+    {
+      "id": "candidate-candidate-marker",
+      "variant": "candidate",
+      "comparison": "candidate-marker",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "result.json",
+      "pointer": "/target_marker",
+      "value": "CANDIDATE-V1"
+    },
+    {
+      "id": "baseline-candidate-route",
+      "variant": "baseline",
+      "comparison": "candidate-route",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "result.json",
+      "pointer": "/route",
+      "value": "candidate"
+    },
+    {
+      "id": "candidate-candidate-route",
+      "variant": "candidate",
+      "comparison": "candidate-route",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "result.json",
+      "pointer": "/route",
+      "value": "candidate"
+    }
+  ],
+  "review_questions": [],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

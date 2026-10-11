@@ -520,6 +520,13 @@ test("required context observations fail the subject when the observer artifact 
       "missing observer run",
     );
     assert.equal(run.state, "infrastructure-failed");
+    // The process finished normally, so its evidence is kept rather than discarded.
+    assert.equal(run.response, "Candidate response");
+    assert.ok(run.transcript.length > 0);
+    assert.equal(run.usage.input, 10);
+    assert.equal(run.process.exitCode, 0);
+    assert.ok(run.process.protocolErrors.some((entry) => entry.reason === "context-observer-missing"));
+    assert.equal(run.artifacts.events, "events.jsonl");
   });
 });
 
@@ -1783,6 +1790,7 @@ test("omitted runtime defaults to an explicit non-session profile", async () => 
     const group = descriptionGroup();
     delete group.runtime;
     group.expectations = [];
+    group.review_questions = ["Did the response choose a delivery route?"];
     await writeSkill(root, "skills/release-route", {
       name: "release-route",
       description: "Use when choosing how to deliver a completed software change.",
@@ -1813,6 +1821,90 @@ test("omitted runtime defaults to an explicit non-session profile", async () => 
     });
     assert.equal(run.process.command, "pi");
     assert.ok(run.process.args.includes("--no-session"));
+  });
+});
+
+test("one-shot description runs keep their reads and tool activity for grading and review", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    const group = descriptionGroup();
+    group.expectations = [
+      {
+        id: "candidate-skill-file-read",
+        kind: "resource-read",
+        variant: "candidate",
+        resource: "skill",
+        index: 0,
+        path: "SKILL.md",
+        expect: "read",
+      },
+      {
+        id: "candidate-skill-file-read-turn-one",
+        kind: "resource-read",
+        variant: "candidate",
+        resource: "skill",
+        index: 0,
+        path: "SKILL.md",
+        expect: "read",
+        turn: 1,
+      },
+    ];
+    const definition = await writeJson(root, "groups/one-shot-reads.json", group);
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}` },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const groupDirectory = path.join(resultDirectory, "groups/natural-activation");
+    const grade = parseJson(await readFile(path.join(groupDirectory, "deterministic-grade.json"), "utf8"), "grade");
+    assert.deepEqual(
+      grade.checks.map(({ id, state }) => ({ id, state })),
+      [
+        { id: "candidate-skill-file-read", state: "pass" },
+        { id: "candidate-skill-file-read-turn-one", state: "pass" },
+      ],
+    );
+    const run = parseJson(await readFile(path.join(groupDirectory, "candidate/run.json"), "utf8"), "run");
+    assert.equal(run.toolActivity.length, 1);
+    assert.equal(run.toolActivity[0].toolName, "read");
+    assert.equal(run.toolActivity[0].completed, true);
+    assert.equal(run.toolActivity[0].isError, false);
+  });
+});
+
+test("a run whose selected checks are all unavailable exits non-zero", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    const group = descriptionGroup();
+    // Only baseline checks, but only the candidate runs: nothing selected can be observed.
+    group.expectations = [{ id: "baseline-no-read", kind: "skill-read", variant: "baseline", expect: "never" }];
+    const definition = await writeJson(root, "groups/nothing-observed.json", group);
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}` },
+    });
+    assert.equal(result.status, 1, result.stdout);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const summary = parseJson(await readFile(path.join(resultDirectory, "summary.json"), "utf8"), "summary");
+    assert.equal(summary.groups[0].state, "partially-complete");
+    const grade = parseJson(
+      await readFile(path.join(resultDirectory, "groups/natural-activation/deterministic-grade.json"), "utf8"),
+      "grade",
+    );
+    assert.equal(grade.state, "unavailable");
   });
 });
 
@@ -1897,5 +1989,50 @@ test("run persists isolated one-shot description evidence before deterministic a
     );
     assert.ok(await readFile(path.join(groupDirectory, "baseline", "events.jsonl"), "utf8"));
     assert.equal(await readFile(path.join(groupDirectory, "candidate", "final.md"), "utf8"), "Candidate response\n");
+  });
+});
+
+test("a description-only revision runs only when the targets differ in their description alone", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    await writeSkill(root, "skills/before", { name: "release-route", description: "Use when shipping." });
+    await writeSkill(root, "skills/after", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    const group = descriptionGroup();
+    group.revision = "description-only";
+    group.variants.baseline.skills = ["skills/before"];
+    group.variants.baseline.target = 0;
+    group.variants.candidate.skills = ["skills/after"];
+    const definition = await writeJson(root, "groups/description-only.json", group);
+    const run = () =>
+      spawnSync(process.execPath, [entrypoint, "run", definition], {
+        cwd: root,
+        encoding: "utf8",
+        env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`, FAKE_PI_LOG: fakeLog },
+      });
+
+    const allowed = run();
+    assert.equal(allowed.status, 0, allowed.stderr);
+
+    await writeFile(
+      path.join(root, "skills/after/SKILL.md"),
+      (await readFile(path.join(root, "skills/after/SKILL.md"), "utf8")) + "\nNew body rule.\n",
+    );
+    await writeFile(fakeLog, "");
+    const refused = run();
+    assert.equal(refused.status, 1);
+    const resultDirectory = refused.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const summary = parseJson(await readFile(path.join(resultDirectory, "summary.json"), "utf8"), "summary");
+    assert.equal(summary.groups[0].state, "invalid");
+    const baselineRun = parseJson(
+      await readFile(path.join(resultDirectory, "groups/natural-activation/baseline/run.json"), "utf8"),
+      "baseline run",
+    );
+    assert.match(JSON.stringify(baselineRun), /outside its frontmatter description/);
+    assert.equal(await readFile(fakeLog, "utf8"), "", "no subject may start");
   });
 });

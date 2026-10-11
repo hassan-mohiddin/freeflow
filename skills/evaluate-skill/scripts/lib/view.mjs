@@ -178,7 +178,8 @@ function renderAggregate(resultDirectory, aggregate) {
   }
   for (const trial of aggregate.trials) lines.push(compactRow("trial", [trial.id, trial.state]));
   for (const group of aggregate.groups) {
-    lines.push("", `Group ${group.id} trials=${group.trials}`);
+    const unreadable = group.unreadableGrades ? ` unreadable-grades=${group.unreadableGrades}` : "";
+    lines.push("", `Group ${group.id} trials=${group.trials}${unreadable}`);
     for (const comparison of group.comparisons) {
       lines.push(
         compactRow("comparison", [

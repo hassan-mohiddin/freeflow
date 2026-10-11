@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { readFile, readdir } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -52,9 +52,13 @@ for (const skillName of activeSkills) {
   const expectedResources = new Set();
   for (const target of links) {
     const resolvedTarget = resolve(dirname(skillPath), target);
-    const skillMatch = target.match(/(?:^|\/)\.\.\/([^/]+)\/SKILL\.md$/);
-    if (skillMatch && skillNames.has(skillMatch[1])) {
-      expectedRoutes.add(skillMatch[1]);
+    // Match on the resolved path so both `../name/SKILL.md` and `../../skills/name/SKILL.md` count as routes.
+    const linkedSkill =
+      basename(resolvedTarget) === "SKILL.md" && dirname(dirname(resolvedTarget)) === skillsRoot
+        ? basename(dirname(resolvedTarget))
+        : null;
+    if (linkedSkill && skillNames.has(linkedSkill)) {
+      expectedRoutes.add(linkedSkill);
     } else if (!target.endsWith("SKILL.md")) {
       expectedResources.add(resolvedTarget);
     }

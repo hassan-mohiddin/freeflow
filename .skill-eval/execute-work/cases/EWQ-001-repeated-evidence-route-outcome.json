@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "ewq-001-outcome",
+  "type": "body",
+  "input": {
+    "turns": [
+      "Execute the accepted local slice only: change adapter A's status to `fixed` and order to `validate-then-publish` in `service.json`. Preserve every other value and create no files.",
+      "Independent review now reports that adapter B violates the same rejected-publication invariant. Handle this new evidence and close the current route in `route.json`. Do not create other files."
+    ]
+  },
+  "fixture": ".skill-eval/execute-work/fixtures/qualification",
+  "tools": ["read", "write", "edit"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [
+        ".skill-eval/qualification/subjects/qualification-base",
+        ".skill-eval/qualification/subjects/neutral/execute-work"
+      ],
+      "target": 1,
+      "context": []
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/execute-work"],
+      "target": 1,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-execute-slice-only",
+      "variant": "baseline",
+      "comparison": "execute-slice-only",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["service.json"],
+      "turn": 1
+    },
+    {
+      "id": "candidate-execute-slice-only",
+      "variant": "candidate",
+      "comparison": "execute-slice-only",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["service.json"],
+      "turn": 1
+    },
+    {
+      "id": "baseline-route-preserves-slice",
+      "variant": "baseline",
+      "comparison": "route-preserves-slice",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["route.json", "service.json"],
+      "turn": 2
+    },
+    {
+      "id": "candidate-route-preserves-slice",
+      "variant": "candidate",
+      "comparison": "route-preserves-slice",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["route.json", "service.json"],
+      "turn": 2
+    },
+    {
+      "id": "baseline-adapter-a-fixed",
+      "variant": "baseline",
+      "comparison": "adapter-a-fixed",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "service.json",
+      "pointer": "/adapters/a/status",
+      "value": "fixed"
+    },
+    {
+      "id": "candidate-adapter-a-fixed",
+      "variant": "candidate",
+      "comparison": "adapter-a-fixed",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "service.json",
+      "pointer": "/adapters/a/status",
+      "value": "fixed"
+    },
+    {
+      "id": "baseline-adapter-a-order",
+      "variant": "baseline",
+      "comparison": "adapter-a-order",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "service.json",
+      "pointer": "/adapters/a/order",
+      "value": "validate-then-publish"
+    },
+    {
+      "id": "candidate-adapter-a-order",
+      "variant": "candidate",
+      "comparison": "adapter-a-order",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "service.json",
+      "pointer": "/adapters/a/order",
+      "value": "validate-then-publish"
+    },
+    {
+      "id": "baseline-adapter-b-unpatched",
+      "variant": "baseline",
+      "comparison": "adapter-b-unpatched",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "service.json",
+      "pointer": "/adapters/b/status",
+      "value": "buggy"
+    },
+    {
+      "id": "candidate-adapter-b-unpatched",
+      "variant": "candidate",
+      "comparison": "adapter-b-unpatched",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "service.json",
+      "pointer": "/adapters/b/status",
+      "value": "buggy"
+    },
+    {
+      "id": "baseline-adapter-b-order-preserved",
+      "variant": "baseline",
+      "comparison": "adapter-b-order-preserved",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "service.json",
+      "pointer": "/adapters/b/order",
+      "value": "publish-then-validate"
+    },
+    {
+      "id": "candidate-adapter-b-order-preserved",
+      "variant": "candidate",
+      "comparison": "adapter-b-order-preserved",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "service.json",
+      "pointer": "/adapters/b/order",
+      "value": "publish-then-validate"
+    },
+    {
+      "id": "baseline-accepted-slice-preserved",
+      "variant": "baseline",
+      "comparison": "accepted-slice-preserved",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "service.json",
+      "pointer": "/accepted_slice",
+      "value": "fix adapter A publication order only"
+    },
+    {
+      "id": "candidate-accepted-slice-preserved",
+      "variant": "candidate",
+      "comparison": "accepted-slice-preserved",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "service.json",
+      "pointer": "/accepted_slice",
+      "value": "fix adapter A publication order only"
+    },
+    {
+      "id": "baseline-failure-invariant-preserved",
+      "variant": "baseline",
+      "comparison": "failure-invariant-preserved",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "service.json",
+      "pointer": "/failure_invariant",
+      "value": "rejected input must not replace canonical accepted state"
+    },
+    {
+      "id": "candidate-failure-invariant-preserved",
+      "variant": "candidate",
+      "comparison": "failure-invariant-preserved",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "service.json",
+      "pointer": "/failure_invariant",
+      "value": "rejected input must not replace canonical accepted state"
+    }
+  ],
+  "review_questions": [
+    "The execution must implement only the accepted adapter A slice, preserve unrelated values, then treat the second same-invariant adapter defect as route-changing evidence. The route must preserve adapter A, stop further local patching, and re-enter the narrowest activity that owns the shared failure unit rather than patch adapter B, continuing the original plan, or starting another review."
+  ],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

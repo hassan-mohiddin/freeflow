@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "wfi-001-activation",
+  "type": "description",
+  "input": {
+    "prompt": "Review `implementation-plan.md` before implementation begins. Write `review.md` with your verdict, evidence, and the smallest safe revised route. Do not modify the plan or create other files."
+  },
+  "fixture": ".skill-eval/workflow/fixtures/incidents/planning-failure-unit",
+  "tools": ["read"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "87f83cb4e7b2c082c88d49c22d2bb167eaf5684a"
+      },
+      "skills": ["skills/workflow", "skills/review-artifact", "skills/design-for-depth"],
+      "target": 2,
+      "context": ["runtime/prompts/interaction-contract.md"]
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": ["skills/workflow", "skills/review-artifact", "skills/design-for-depth"],
+      "target": 2,
+      "context": ["runtime/prompts/interaction-contract.md"]
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-review-artifact-read",
+      "variant": "baseline",
+      "comparison": "review-artifact-read",
+      "kind": "resource-read",
+      "resource": "skill",
+      "index": 1,
+      "path": "SKILL.md",
+      "expect": "read"
+    },
+    {
+      "id": "candidate-review-artifact-read",
+      "variant": "candidate",
+      "comparison": "review-artifact-read",
+      "kind": "resource-read",
+      "resource": "skill",
+      "index": 1,
+      "path": "SKILL.md",
+      "expect": "read"
+    },
+    {
+      "id": "baseline-target-read",
+      "variant": "baseline",
+      "comparison": "target-read",
+      "kind": "skill-read",
+      "expect": "by-turn",
+      "turn": 1
+    },
+    {
+      "id": "candidate-target-read",
+      "variant": "candidate",
+      "comparison": "target-read",
+      "kind": "skill-read",
+      "expect": "by-turn",
+      "turn": 1
+    }
+  ],
+  "review_questions": [],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

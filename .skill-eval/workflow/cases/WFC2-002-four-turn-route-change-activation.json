@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "wfc2-002-activation",
+  "type": "description",
+  "input": {
+    "turns": [
+      "Inspect `service.json`. Explain the defect in adapter A and the smallest safe first behavior. Do not modify files yet.",
+      "Implement the accepted local fix for adapter A by changing its status to `fixed`. Preserve canonical state and do not change adapter B.",
+      "Independent review now reports that adapter B violates the same canonical-publication invariant. Handle this evidence using the available workflow guidance.",
+      "Close the current route in `route.json` with fields `route` and `failure_unit`. Preserve all valid prior work and do not start another review."
+    ]
+  },
+  "fixture": ".skill-eval/workflow/fixtures/four-turn-route",
+  "tools": ["read"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [
+        "skills/workflow",
+        ".skill-eval/workflow/subjects/composition-base",
+        ".skill-eval/workflow/subjects/evidence-base",
+        ".skill-eval/workflow/subjects/route-reference"
+      ],
+      "target": 3,
+      "context": ["runtime/prompts/interaction-contract.md"]
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [
+        "skills/workflow",
+        ".skill-eval/workflow/subjects/composition-base",
+        ".skill-eval/workflow/subjects/evidence-base",
+        ".skill-eval/workflow/subjects/route-candidate"
+      ],
+      "target": 3,
+      "context": ["runtime/prompts/interaction-contract.md"]
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-base-read",
+      "variant": "baseline",
+      "comparison": "base-read",
+      "kind": "resource-read",
+      "resource": "skill",
+      "index": 1,
+      "path": "SKILL.md",
+      "expect": "read"
+    },
+    {
+      "id": "candidate-base-read",
+      "variant": "candidate",
+      "comparison": "base-read",
+      "kind": "resource-read",
+      "resource": "skill",
+      "index": 1,
+      "path": "SKILL.md",
+      "expect": "read"
+    },
+    {
+      "id": "baseline-evidence-base-read",
+      "variant": "baseline",
+      "comparison": "evidence-base-read",
+      "kind": "resource-read",
+      "resource": "skill",
+      "index": 2,
+      "path": "SKILL.md",
+      "expect": "read"
+    },
+    {
+      "id": "candidate-evidence-base-read",
+      "variant": "candidate",
+      "comparison": "evidence-base-read",
+      "kind": "resource-read",
+      "resource": "skill",
+      "index": 2,
+      "path": "SKILL.md",
+      "expect": "read"
+    },
+    {
+      "id": "baseline-route-skill-read",
+      "variant": "baseline",
+      "comparison": "route-skill-read",
+      "kind": "skill-read",
+      "expect": "by-turn",
+      "turn": 1
+    },
+    {
+      "id": "candidate-route-skill-read",
+      "variant": "candidate",
+      "comparison": "route-skill-read",
+      "kind": "skill-read",
+      "expect": "by-turn",
+      "turn": 1
+    }
+  ],
+  "review_questions": [],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}
