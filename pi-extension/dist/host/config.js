@@ -72,7 +72,7 @@ async function readConfigFileState(path, validate) {
     }
     return { path, exists: true, valid: true, parsed, parseError: null };
   } catch (error) {
-    const code = error && typeof error === "object" ? error.code : undefined;
+    const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
     if (code === "ENOENT") {
       return {
         path,
