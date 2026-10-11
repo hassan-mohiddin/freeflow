@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/task-memory/`, `capabilities/task-memory/`, `skills/track-work/scripts/lib/registry.mjs`, `skills/track-work/scripts/lib/search.mjs`
 > **Tests:** `pi-extension/tests/task-memory/`, `pi-extension/tests/cache-reuse/task-memory.test.js`, `.skill-eval/track-work/tests/registry.test.mjs`
-> **Verified at:** `40b61e2d` (2026-10-11)
+> **Verified at:** `a1f2d6b3` (2026-10-11)
 
 For contributors changing Freeflow task memory on Pi, a preview: how a session holds Working Records, how projects, child records and record ownership work, what reaches the model and when, the write gate, and the choices behind them. It is off unless `taskMemory.enabled` is set. User docs: [Task Memory](../../plugin-docs/capabilities/task-memory.md).
 

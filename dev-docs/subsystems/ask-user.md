@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/ask-user/`, `pi-extension/src/host/inbound.ts`, `skills/workflow/references/asking-the-user.md`
 > **Tests:** `pi-extension/tests/ask-user/`, `pi-extension/tests/host/inbound.test.js`
-> **Verified at:** `36f7ce46` (2026-10-11)
+> **Verified at:** `a1f2d6b3` (2026-10-11)
 
 For contributors changing how Freeflow on Pi asks the user a question, or how content from outside the turn reaches the model. Design and decisions: Task 002's spec (`.freeflow/tasks/task-002-*/specs/ask-user-monitor-messaging.md`, local to the developer's checkout).
 
