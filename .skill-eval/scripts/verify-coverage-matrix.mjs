@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { access, readFile, readdir } from "node:fs/promises";
+import { CANONICAL_SKILL_NAMES } from "../../scripts/validation/canonical-skills.mjs";
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "../..");
@@ -30,7 +31,7 @@ skillNames.sort();
 const matrixNames = Object.keys(matrix.skills).sort();
 
 assert.deepEqual(matrixNames, skillNames);
-assert.equal(matrixNames.length, 25);
+assert.deepEqual(matrixNames, [...CANONICAL_SKILL_NAMES]);
 
 const required = [
   "job",

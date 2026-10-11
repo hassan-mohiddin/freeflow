@@ -267,9 +267,20 @@ check_host_skill_surface() {
 	local ok=1
 	local skill_count
 
-	skill_count="$(find "$plugin_root/skills" -mindepth 1 -maxdepth 1 -type d -exec test -f '{}/SKILL.md' ';' -print | wc -l | tr -d ' ')"
-	if [ "$skill_count" != "25" ]; then
-		record_check "$check" "fail" "Codex/Claude skills directory must contain exactly 25 skill packages; found $skill_count."
+	local skill_differences
+	# Compare the skill packages with the canonical list in the Pi catalog, not a fixed count.
+	skill_differences="$(node --input-type=module -e '
+import { readdirSync, existsSync } from "node:fs";
+import { join } from "node:path";
+const [root, catalog] = process.argv.slice(1);
+const { skillSetDifferences } = await import(catalog);
+const found = readdirSync(join(root, "skills"), { withFileTypes: true })
+  .filter((entry) => entry.isDirectory() && existsSync(join(root, "skills", entry.name, "SKILL.md")))
+  .map((entry) => entry.name);
+console.log(skillSetDifferences(found, "Codex/Claude skills directory").join("; "));
+' "$plugin_root" "$repo_root/scripts/validation/canonical-skills.mjs" 2>&1)" || skill_differences="could not compare skills with the catalog: $skill_differences"
+	if [ -n "$skill_differences" ]; then
+		record_check "$check" "fail" "$skill_differences."
 		ok=0
 	fi
 
@@ -291,7 +302,7 @@ check_host_skill_surface() {
 	fi
 
 	if [ "$ok" = "1" ]; then
-		record_check "$check" "pass" "Supported host surfaces expose the canonical 25 functional skills with no retired TDD or Output Router runtime or discovery surface."
+		record_check "$check" "pass" "Supported host surfaces expose exactly the catalog's canonical skills with no retired TDD or Output Router runtime or discovery surface."
 	fi
 }
 

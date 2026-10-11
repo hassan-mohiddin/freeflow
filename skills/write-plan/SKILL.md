@@ -79,9 +79,9 @@ Identify affected upstream and downstream artifacts and revise only content whos
 
 Goal: the Plan can achieve the accepted outcome before anyone relies on it.
 
-After factual source checks, use [Review Artifact](../review-artifact/SKILL.md) for one silent author self-review of the complete Plan, its accepted sources, and the intended execution boundary. Check that the ordered work can achieve the accepted outcome, dependencies are supported, later uncertainty is honest, final checks match acceptance, and selected checkpoints are proportionate. Correct clear covered defects and recheck affected facts and lenses.
+After factual source checks, use [Review Work](../review-work/SKILL.md) for one silent author self-review of the complete Plan, its accepted sources, and the intended execution boundary. Check that the ordered work can achieve the accepted outcome, dependencies are supported, later uncertainty is honest, final checks match acceptance, and selected checkpoints are proportionate. Correct clear covered defects and recheck affected facts and lenses.
 
-Use Review Artifact's independent route only when separately selected and authorized to protect a concrete boundary; supply complete sources, dependencies, and limits, and adjudicate the returned report before acting on it.
+Use Review Work's independent route only when separately selected and authorized to protect a concrete boundary; supply complete sources, dependencies, and limits, and adjudicate the returned report before acting on it.
 
 ## Report And Return
 

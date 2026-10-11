@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Breaking Changes
+
+- Review Artifact is merged into Review Work, and `/review-artifact` is removed: use `/review-work`, which now reviews code and other finished work as well as documents that guide later work (specs, plans, designs, decision records, handoffs and skills). Its rules, review budget and judgments are unchanged; each kind keeps its own sources, job checks and lenses, and one reviewer contract and one adjudication reference cover both.
+
 ### Added
 
 - Adds Task Memory on native Pi as a preview, off by default (the Task Memory switch in `/freeflow settings`, or `taskMemory.enabled`). A session attaches the Working Records it works on; Freeflow delivers the focused record's resume view when it becomes the focus and after a compaction, reload, resume, fork or `/tree` navigation, and refuses record writes to records the session has not attached. Projects group tasks, with records under `~/.freeflow` (or `FREEFLOW_HOME`), IDs such as `my-app/task-003` and one owning session each; each task's resume view lists the project's other tasks, which the agent reads and searches when they bear on its work. Fan-out creates a child record with its own Git worktree and branch for a parallel session and gives a command to paste into a new terminal, where Pi offers to attach the child. Everything can be asked for in plain language ("list my projects", "open the retry task", "split the parser off"): the agent proposes, and anything that creates something or lets the session write opens a dialog for the user to confirm. `/freeflow task` and `/freeflow project` commands do the same directly. Task-memory steps and delivered resume views show as one line in the transcript and expand to the full text.

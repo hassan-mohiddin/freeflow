@@ -2,6 +2,7 @@
 
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { skillSetDifferences } from "./canonical-skills.mjs";
 
 const requiredFiles = [
   ".codex-plugin/plugin.json",
@@ -135,8 +136,11 @@ try {
     );
   if (absoluteSourcePaths.length > 0)
     throw new Error(`npm package embeds the local source checkout path: ${absoluteSourcePaths.join(", ")}`);
-  if (portableSkillFiles.length !== 25)
-    throw new Error(`npm package must contain exactly 25 canonical skill files; found ${portableSkillFiles.length}`);
+  const packageSkillDifferences = skillSetDifferences(
+    portableSkillFiles.map((path) => path.split("/")[1]),
+    "npm package",
+  );
+  if (packageSkillDifferences.length > 0) throw new Error(packageSkillDifferences.join("; "));
   if (duplicateSkillTrees.length > 0)
     throw new Error(`npm package includes duplicate maintained skill trees: ${duplicateSkillTrees.join(", ")}`);
   if (files.has("opencode.json")) throw new Error("npm package must exclude the repository-only opencode.json");

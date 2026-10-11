@@ -153,4 +153,4 @@ A local implementation detail, expected result, or completed slice does not revi
 
 For a founded material change, update only the affected strategy and dependencies, record why it changed, and preserve prior rationale. Update linked artifacts only when their owned content changed and revision is authorized; otherwise mark dependent work contingent and return the missing decision or revision.
 
-Use a superseding Plan when editing in place would obscure the earlier accepted strategy or reviewed state. Apply author self-review through Review Artifact to a materially revised or superseding Plan. Independent review is separately selected and authorized when it protects a concrete boundary, not required merely because the Plan changed.
+Use a superseding Plan when editing in place would obscure the earlier accepted strategy or reviewed state. Apply author self-review through Review Work to a materially revised or superseding Plan. Independent review is separately selected and authorized when it protects a concrete boundary, not required merely because the Plan changed.

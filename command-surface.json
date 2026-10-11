@@ -23,10 +23,6 @@
       "skill": "write-spec"
     },
     {
-      "command": "/review-artifact",
-      "skill": "review-artifact"
-    },
-    {
       "command": "/write-plan",
       "skill": "write-plan"
     },

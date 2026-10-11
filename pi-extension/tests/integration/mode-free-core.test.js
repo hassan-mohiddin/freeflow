@@ -9,6 +9,7 @@ import freeflowExtension from "../../dist/index.js";
 import { readCapabilityState, readFreeflowConfigLayers, setSessionCoreOverride } from "../../dist/host/config.js";
 import { getRuntimeContext, hasUsableMandatoryPrompts, stableRuntimeContext } from "../../dist/host/prompts.js";
 import { freeflowRuntimeStateMessage } from "../../dist/host/runtime-state.js";
+import { FREEFLOW_MODEL_SKILL_NAMES } from "../../dist/host/catalog.js";
 import { contextHandler, beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
 function context(cwd) {
@@ -158,8 +159,8 @@ test("Pi exposes base skills without mode or Skills controls", async () => {
     const { handlers, commands } = loadExtension();
     const ctx = context(cwd);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    // The 25 base skills and Compaction's (on by default); a capability's skill is listed only while it is effective.
-    assert.equal(resources.skillPaths.length, 26);
+    // The canonical base skills and Compaction's (on by default); a capability's skill is listed only while it is effective.
+    assert.equal(resources.skillPaths.length, FREEFLOW_MODEL_SKILL_NAMES.length + 1);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/capabilities/compaction/SKILL.md")));
     assert.ok(!resources.skillPaths.some((path) => /capabilities\/(cognitive-routing|task-memory)\//.test(path)));
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/workflow/SKILL.md")));

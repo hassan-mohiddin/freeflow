@@ -66,7 +66,7 @@ Interaction Lifecycle
    └─ continue, correct, diagnose, ask, defer, or stop
 ```
 
-Focused methods own different results: Discuss, Track Work, Execute Work, Diagnose Failure, Verify Work, Review Work, Review Artifact, Write Spec, Write Plan, Release Work, and others. They compose when their conditions apply; they are not mandatory phases.
+Focused methods own different results: Discuss, Track Work, Execute Work, Diagnose Failure, Verify Work, Review Work, Write Spec, Write Plan, Release Work, and others. They compose when their conditions apply; they are not mandatory phases.
 
 On a qualified native Pi host, automatic Cognitive Routing sits inside the current Workflow owner:
 
@@ -96,7 +96,7 @@ A comparatively economical but capable Helper can contribute much of Both mode's
 
 | Surface | Availability |
 | --- | --- |
-| Interaction Contract, Workflow, and 25 base skills | Shared supported package surface when Freeflow is effectively activated |
+| Interaction Contract, Workflow, and the base skills | Shared supported package surface when Freeflow is effectively activated |
 | Track Work / Working Records | Shared skill surface |
 | Context Control v2 | Planned/in development; not available in this release |
 | Cognitive Routing | Experimental native Pi source candidate |
@@ -223,7 +223,6 @@ Canonical Pi direct calls include:
 /action-selection
 /track-work
 /write-spec
-/review-artifact
 /write-plan
 /write-docs
 /execute-work

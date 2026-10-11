@@ -56,7 +56,7 @@ When durable memory exists, Track Work preserves the checkpoint’s selection, c
 | --- | --- |
 | `preserve` | Commit Work |
 | `publish` | Commit Work for a simple push; otherwise Finish Branch or Release Work |
-| `review` | Review Work or Review Artifact |
+| `review` | Review Work |
 | `decision` | Decision Gate |
 | `continuity` | Handoff |
 

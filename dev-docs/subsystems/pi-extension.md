@@ -6,7 +6,7 @@ How Freeflow's native Pi extension plugs into Pi, what it keeps cache-safe, and 
 
 When its host gate is effective, the native entrypoint is designed to provide:
 
-- the 25-skill model/contributor surface and mandatory core/Interaction Contract prompts;
+- the model/contributor skill surface (the canonical list is `FREEFLOW_MODEL_SKILL_NAMES` in `src/host/catalog.ts`) and mandatory core/Interaction Contract prompts;
 - refresh-aware Runtime State with v2 routing `Control`, `Profile`, and `Delegation`;
 - Coordinator/Helper/Executor routing state recorded as native `freeflow-routing-v2` session entries;
 - the four v2 routing tools: `delegate_work`, `return_work`, `routing_unit`, and `select_evidence`;
