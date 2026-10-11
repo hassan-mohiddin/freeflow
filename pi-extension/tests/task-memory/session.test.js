@@ -176,6 +176,8 @@ test("off by default: no tool, no gate, no Runtime State lines", { timeout: 3000
     true,
     {
       cognitiveRouting: { enabled: false },
+      // Tool Execution (on by default) refuses overwriting an unread file; this test is about task memory alone.
+      freeflowConfig: { toolExecution: { enabled: false } },
       beforePrompt: ({ cwd: dir }) => {
         cwd = dir;
         makeRecords(dir);

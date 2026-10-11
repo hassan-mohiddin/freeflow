@@ -471,11 +471,11 @@ Configuration proves neither installation nor effective runtime delivery. Verify
 
 ## Use Tool Execution on native Pi
 
-Tool Execution is experimental and off by default. Turn it on in `/freeflow settings` or with:
+Tool Execution is experimental and on by default. Turn it off in `/freeflow settings` or with:
 
 ```json
 {
-  "toolExecution": { "enabled": true }
+  "toolExecution": { "enabled": false }
 }
 ```
 

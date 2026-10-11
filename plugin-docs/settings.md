@@ -10,7 +10,7 @@ With nothing configured, Freeflow on Pi runs with these capabilities; each one's
 | --- | --- | --- |
 | Freeflow | on | The core guidance, the Interaction Contract, the Working Method and the skills, plus `ask_user` dialogs |
 | [Compaction](capabilities/compaction.md) | on | The agent compacts at a safe point from its own summary; Pi's compaction stays the fallback |
-| [Tool Execution](capabilities/tool-execution.md) | off | Working guidance, file tracking, clearer edit errors, `apply_patch`, background commands and monitors |
+| [Tool Execution](capabilities/tool-execution.md) | on | Working guidance, file tracking, clearer edit errors, `apply_patch`, background commands and monitors |
 | [Task Memory](capabilities/task-memory.md) | off | Working Records attached to the session; projects and child tasks |
 | [Messaging](capabilities/messaging.md) | off | Messages between the agents in your Pi sessions on this machine |
 | [Cognitive Routing](capabilities/cognitive-routing.md) | off | Coordinator, Helper and Executor profiles on different models |
@@ -38,7 +38,7 @@ Freeflow settings    Session  [Personal]  Repository
   › Freeflow                    on (inherited)
     Compaction                  on (inherited)
       Context reuse             on (inherited)
-    Tool Execution              off (inherited)
+    Tool Execution              on (inherited)
     Task Memory                 off (inherited)
       Auto-approve attach       off (inherited)
       Auto-approve create       off (inherited)
@@ -94,7 +94,7 @@ Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes 
 | Freeflow | `enabled` | `true`, `false` | `true` | Session, Personal, Repository |
 | Compaction | `compaction.enabled` | `true`, `false` | `true` | Session, Personal, Repository |
 | Context reuse | `compaction.carry` | `true`, `false` | `true` | Session, Personal, Repository |
-| Tool Execution | `toolExecution.enabled` | `true`, `false` | `false` | Session, Personal, Repository |
+| Tool Execution | `toolExecution.enabled` | `true`, `false` | `true` | Session, Personal, Repository |
 | Task Memory | `taskMemory.enabled` | `true`, `false` | `false` | Session, Personal, Repository |
 | Auto-approve attach | `taskMemory.autoApprove.attach` | `true`, `false` | `false` | Personal, Repository |
 | Auto-approve create | `taskMemory.autoApprove.create` | `true`, `false` | `false` | Personal, Repository |
@@ -127,13 +127,12 @@ A configuration file with a key Freeflow does not know is refused with an error 
 
 ## Example
 
-A repository that turns on Tool Execution and Task Memory for everyone, with your personal file adding Messaging and one auto-approve switch:
+A repository that turns on Task Memory for everyone, with your personal file adding Messaging and one auto-approve switch, and turning Tool Execution off for you:
 
 `.freeflow/config.json`:
 
 ```json
 {
-  "toolExecution": { "enabled": true },
   "taskMemory": { "enabled": true }
 }
 ```
@@ -142,6 +141,7 @@ A repository that turns on Tool Execution and Task Memory for everyone, with you
 
 ```json
 {
+  "toolExecution": { "enabled": false },
   "messaging": { "enabled": true },
   "taskMemory": { "autoApprove": { "attach": true } }
 }

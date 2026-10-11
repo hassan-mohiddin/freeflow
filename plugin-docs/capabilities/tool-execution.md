@@ -7,16 +7,16 @@ It changes how a model works in the repository, not what it is allowed to do: ev
 ## Availability
 
 - Native Pi 0.99.1 or later, including Pi 1.0.
-- Disabled by default. Freeflow itself must be enabled for the repository.
+- On by default whenever Freeflow is enabled.
 - One switch turns on the whole layer: the guidance, the file tracking, the edit messages, `apply_patch`, the background commands and monitors. There are no sub-switches.
 
-## Enabling it
+## Turning it off
 
-Set `toolExecution.enabled` in `.freeflow/config.json` (shared) or `.freeflow/local.json` (personal), or use `/freeflow settings` and change Tool Execution in the Repository, Personal or Session scope:
+Set `toolExecution.enabled` to `false` in `.freeflow/config.json` (shared) or `.freeflow/local.json` (personal), or use `/freeflow settings` and change Tool Execution in the Repository, Personal or Session scope:
 
 ```json
 {
-  "toolExecution": { "enabled": true }
+  "toolExecution": { "enabled": false }
 }
 ```
 

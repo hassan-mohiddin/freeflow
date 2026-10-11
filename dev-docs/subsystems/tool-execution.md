@@ -46,7 +46,7 @@ It deliberately does not:
 
 ### Configuration and declaration
 
-`resolveToolExecutionConfig()` layers `toolExecution.enabled` from `.freeflow/config.json`, then `.freeflow/local.json`, then session scope. The default is off. On every `status()` call `applyToolExecutionTools()` declares `apply_patch`, `bash_background` and `stop_background` when effective and withdraws them when not. All three are registered once at load with `defaultActive: false`, so their definitions never change; only whether they are declared does.
+`resolveToolExecutionConfig()` layers `toolExecution.enabled` from `.freeflow/config.json`, then `.freeflow/local.json`, then session scope. The default is on (`DEFAULT_TOOL_EXECUTION_CONFIG`). On every `status()` call `applyToolExecutionTools()` declares `apply_patch`, `bash_background` and `stop_background` when effective and withdraws them when not. All three are registered once at load with `defaultActive: false`, so their definitions never change; only whether they are declared does.
 
 ### Prompt
 
@@ -118,6 +118,7 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 
 | Decision | Reason | Rejected | Source |
 | --- | --- | --- | --- |
+| On by default whenever Freeflow is enabled. | The user's choice after using it in their own sessions (2026-10-12); its guidance and tools are fixed per configuration, so they are cached after the first request. Messaging and Task Memory stay off. | Off by default (0.8.0). | Task 005 D-003 |
 | Keep Pi's tools and add a layer through hooks; build only what Pi lacks (`apply_patch`, background commands). | Pi's tools match Claude Code's where it matters. The advantage of a strong harness is the file-state layer and guidance around the tools. Replacing tools Pi maintains would break codemode and other extensions that rely on them. | Claude Code-style replacement tools; the earlier Execution Runtime v2 (its own read, search, patch and script tools, output capture, a session store), which Pi 0.99's codemode, tool exposure and saved truncated output overlapped. | `ca1cc90`, `48a9387`; v2 kept in `.deprecated/tool-execution-v2/` |
 | One switch for the whole layer. | Users get complete workflows without internal seams as settings. | Sub-switches per part. | `ca1cc90` |
 | Replace Pi's `rules` and `docs` sections in place, add `environment` and `tool_execution` after Freeflow's guidance; never touch Pi's preamble. | Three of Pi's generic lines contradict the taught working style (bash-first reading, full reports). The Claude subscription plugin shapes prompts only when Pi's preamble is present. Replacing the whole prompt would drop project context, skills and other extensions' guidelines. | Replacing Pi's whole prompt; removing the preamble. | `ccfe0be`, `f51aff6` |
@@ -148,7 +149,7 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 
 ## Surface
 
-**Configuration:** `toolExecution.enabled` (default `false`) in `.freeflow/config.json`, `.freeflow/local.json`, or session scope through `/freeflow settings`. Retired keys accepted and ignored without a warning: `capture`, `programs`, `workspace`, `discovery`, `adapters`, `accounting`. Any other key fails validation.
+**Configuration:** `toolExecution.enabled` (default `true`) in `.freeflow/config.json`, `.freeflow/local.json`, or session scope through `/freeflow settings`. Retired keys accepted and ignored without a warning: `capture`, `programs`, `workspace`, `discovery`, `adapters`, `accounting`. Any other key fails validation.
 
 **Pi settings read:** `shellPath` (environment facts and background shell).
 

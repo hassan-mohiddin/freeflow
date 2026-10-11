@@ -87,7 +87,7 @@ In RPC clients each question is a list to pick from. Without a UI (print or JSON
 
 ## Tool Execution, Compaction, Task Memory and Messaging configuration
 
-Tool Execution, Task Memory and Messaging are disabled by default; Compaction is enabled by default:
+Compaction and Tool Execution are enabled by default; Task Memory and Messaging are disabled by default:
 
 ```json
 {

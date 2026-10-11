@@ -1,4 +1,4 @@
-export const DEFAULT_TOOL_EXECUTION_CONFIG = Object.freeze({ enabled: false });
+export const DEFAULT_TOOL_EXECUTION_CONFIG = Object.freeze({ enabled: true });
 // Settings of the retired v2 runtime (.deprecated/tool-execution-v2). Existing configuration files keep loading;
 // the values no longer do anything.
 const RETIRED_KEYS = ["capture", "programs", "workspace", "discovery", "adapters", "accounting"];

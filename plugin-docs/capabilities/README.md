@@ -5,7 +5,7 @@ Capabilities are optional Pi extensions outside the shared 25-skill surface. The
 ## Common rules
 
 - Capabilities are off or unavailable unless their configuration and host gates are effective.
-- Cognitive Routing, Tool Execution, Compaction, Task Memory and Messaging are independently gated. Compaction is on by default with Freeflow; the others are off by default.
+- Cognitive Routing, Tool Execution, Compaction, Task Memory and Messaging are independently gated. Compaction and Tool Execution are on by default with Freeflow; the others are off by default.
 - One effective-state snapshot controls each capability’s prompt cue, discoverable skill, settings, and tools.
 - Runtime State reports current availability; it does not authorize work or prove behavioral readiness.
 - Capabilities preserve the ordinary Workflow owner and return evidence or state changes to that owner.
