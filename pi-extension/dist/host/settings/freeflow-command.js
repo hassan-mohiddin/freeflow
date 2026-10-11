@@ -428,6 +428,7 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
       false,
     );
     enabledItem.inactive = freeflowInactive || routingUnavailable;
+    enabledItem.runtimeInactive = routingUnavailable;
     const projectionItem = sessionSwitch(
       "freeflow.cognitiveRouting.projection",
       "Context projection",
@@ -437,6 +438,7 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
       true,
     );
     projectionItem.inactive = routingInactive;
+    projectionItem.runtimeInactive = routingUnavailable;
     const delegationOverride = cognitiveRoutingController?.sessionDelegationOverride() ?? LOCAL_INHERIT;
     const delegation = cognitiveRoutingState?.delegation ?? routing.delegation;
     routingItems.push(
@@ -460,7 +462,8 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
           ]),
         ]),
         inactive: routingInactive,
-        runtimeInactive: routing.blockingReason?.code === "runtime_disabled",
+        // Holding a profile switches the model at once, so it needs routing running, not only configured.
+        runtimeInactive: routingInactive,
       },
       {
         id: "freeflow.cognitiveRouting.delegation",
@@ -491,6 +494,7 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
         inheritedValue: routing.delegation,
         inheritedSource: cognitiveRoutingSettingsSource(routing.delegationSource),
         inactive: routingInactive,
+        runtimeInactive: routingUnavailable,
       },
       projectionItem,
     );
@@ -507,6 +511,7 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
           sessionProfiles,
         });
         item.inactive ||= routingInactive;
+        item.runtimeInactive ||= routingUnavailable;
         routingItems.push(item);
       }
     }
@@ -1277,9 +1282,13 @@ function displayParts(item) {
   }
   const value = item.value === undefined && isCognitiveRoutingProfileItem(item) ? undefined : item.value;
   const shown = { value: formatSettingValue(item, value), ...tone(value) };
-  if (item.localOverrideValue !== undefined && !valuesEqual(item.localOverrideValue, item.value))
-    return { ...shown, note: `personal: ${formatSettingValue(item, item.localOverrideValue)}` };
-  return item.effectiveSource === "builtin" && item.defaultValue !== undefined ? { ...shown, note: "default" } : shown;
+  const notes = [
+    ...(item.effectiveSource === "builtin" && item.defaultValue !== undefined ? ["default"] : []),
+    ...(item.localOverrideValue !== undefined && !valuesEqual(item.localOverrideValue, item.value)
+      ? [`personal: ${formatSettingValue(item, item.localOverrideValue)}`]
+      : []),
+  ];
+  return notes.length ? { ...shown, note: notes.join(" · ") } : shown;
 }
 function joinParts(parts) {
   return parts.note ? `${parts.value} (${parts.note})` : parts.value;
@@ -1409,7 +1418,8 @@ function settingsEntries(items, rootItems, onChange, depth = 0, lockedBy) {
   // Freeflow's own switch locks everything else on the screen while it is off.
   if (depth === 0 && !lockedBy) {
     const master = rootItems.find((candidate) => candidate.id === "freeflow.enabled");
-    const off = () => (master && effectiveItemValue(master) === false ? "Turn on Freeflow to change this." : undefined);
+    const off = () =>
+      master && effectiveItemValue(master) === false ? "Takes effect when Freeflow is on." : undefined;
     return items.flatMap((item) =>
       settingsEntries([item], rootItems, onChange, 0, item === master ? () => undefined : off),
     );
@@ -1435,7 +1445,7 @@ function settingsEntries(items, rootItems, onChange, depth = 0, lockedBy) {
           return extra ? { ...shown, note: shown.note ? `${shown.note} · ${extra}` : extra } : shown;
         };
         const off = () =>
-          lockedBy?.() ?? (effectiveItemValue(toggle) === false ? `Turn on ${item.label} to change this.` : undefined);
+          lockedBy?.() ?? (effectiveItemValue(toggle) === false ? `Takes effect when ${item.label} is on.` : undefined);
         return [
           { ...header, label: item.label, heading: true, parts, currentValue: () => joinParts(parts()) },
           ...settingsEntries(
@@ -1470,8 +1480,10 @@ function settingEntry(item, rootItems, onChange, depth, lockedBy) {
     depth,
     parts: () => displayParts(item),
     currentValue: () => displayValue(item),
-    inactive: () => item.inactive === true || lockedBy?.() !== undefined,
-    ...(lockedBy ? { locked: lockedBy } : {}),
+    // A setting under an off switch stays changeable, so it can be set up before the switch is turned on; only what
+    // the host cannot do (runtimeInactive), or what acts at once, blocks it.
+    inactive: () => item.runtimeInactive === true || (item.inactive === true && lockedBy?.() === undefined),
+    ...(lockedBy ? { dormant: lockedBy } : {}),
     currentChoiceKey: () => String(item.value),
     choices,
     cycle: Boolean(choices?.length) && !PICKED_CHOICES.has(item.id),

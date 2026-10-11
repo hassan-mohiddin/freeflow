@@ -128,7 +128,7 @@ While an effective native host is idle:
 /freeflow project
 ```
 
-`/freeflow settings` opens the settings screen on the Personal scope; `/freeflow settings session`, `local` (or `personal`) and `repo` (or `repository`) open it on that scope. `/freeflow status` shows the effective state, prompt-cache diagnostics, running background commands and monitors, and the compaction cycle. `/freeflow compact` asks the agent to prepare and compact now. `/freeflow task` and `/freeflow project` attach Working Records and manage projects when Task Memory is on; their subcommands are listed in [Task Memory](../capabilities/task-memory.md#commands). `coordinator`, `helper`, and `executor` place a manual hold when available, `auto` releases it to automatic Coordinator control, and `history` reads work-oriented routing history (`history diagnostics` retains the raw event view). `/freeflow resume` explicitly resumes saved routing responsibility after reconciliation. These commands require an idle host and do not authorize task work.
+`/freeflow settings` opens the settings screen on the Personal scope; `/freeflow settings session`, `local` (or `personal`) and `repo` (or `repository`) open it on that scope. [Settings](../settings.md) lists every setting and explains the screen. `/freeflow status` shows the effective state, prompt-cache diagnostics, running background commands and monitors, and the compaction cycle. `/freeflow compact` asks the agent to prepare and compact now. `/freeflow task` and `/freeflow project` attach Working Records and manage projects when Task Memory is on; their subcommands are listed in [Task Memory](../capabilities/task-memory.md#commands). `coordinator`, `helper`, and `executor` place a manual hold when available, `auto` releases it to automatic Coordinator control, and `history` reads work-oriented routing history (`history diagnostics` retains the raw event view). `/freeflow resume` explicitly resumes saved routing responsibility after reconciliation. These commands require an idle host and do not authorize task work.
 
 When the source adapter exposes the native controls:
 
@@ -156,6 +156,7 @@ What the extension registers, its cache reuse boundaries, how it persists and re
 - [Compaction](../capabilities/compaction.md)
 - [Task Memory](../capabilities/task-memory.md)
 - [Messaging](../capabilities/messaging.md)
+- [Settings](../settings.md)
 - [Cognitive Routing](../capabilities/cognitive-routing.md)
 - [Freeflow architecture](../../dev-docs/README.md)
 - [Workflow](../workflow.md)

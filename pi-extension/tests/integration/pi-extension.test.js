@@ -509,9 +509,9 @@ test("Pi settings show Compaction as one switch, on by default, and status repor
   }
 });
 
-test("settings: a section's switch is its own row, sections run everyday to experimental, an off section is locked", async () => {
+test("settings: a section's switch is its own row, sections run everyday to experimental, an off section's settings still change", async () => {
   // Task 005: no "Enabled" rows; values first with their source in brackets; on green, off red; a setting under an
-  // off switch cannot change and says why.
+  // off switch is grey, says it takes effect once the switch is on, and can still be set up beforehand.
   const cwd = await configuredRepo({});
   try {
     const { commands } = loadExtension(freeflowExtension);
@@ -527,14 +527,16 @@ test("settings: a section's switch is its own row, sections run everyday to expe
         /Freeflow\s+on \(default\)\n[\s\S]*Compaction\s+on \(default\)\n\s+Context reuse[\s\S]*Tool Execution[\s\S]*Task Memory[\s\S]*Messaging\s+off \(default\)/,
       );
       choose(component, "Ask before delivering", "Messaging");
-      assert.match(renderText(component, 180), /Turn on Messaging to change this\./);
+      assert.match(renderText(component, 180), /Takes effect when Messaging is on\./);
       component.handleInput(KEY.enter);
       await component.waitForWrites();
-      assert.match(renderText(component, 180), /Ask before delivering\s+never \(default\)/);
+      assert.match(renderText(component, 180), /Ask before delivering\s+outside the project\n/);
       return undefined;
     };
     await command.definition.handler("settings repo", settingsCtx);
-    assert.equal(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")).messaging, undefined);
+    assert.deepEqual(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")).messaging, {
+      inbound: "project",
+    });
     const colorCtx = context(cwd);
     colorCtx.ui.custom = async (factory) => {
       const text = renderText(
@@ -546,6 +548,65 @@ test("settings: a section's switch is its own row, sections run everyday to expe
       return undefined;
     };
     await command.definition.handler("settings repo", colorCtx);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("plugin-docs/settings.md documents every row the settings screen shows and every config key", async () => {
+  // Task 005: the reference page cannot fall behind the screen or the configuration code.
+  const doc = await readFile(new URL("../../../plugin-docs/settings.md", import.meta.url), "utf8");
+  const { SESSION_OVERRIDE_KEYS } = await import("../../dist/host/config.js");
+  const { RUNTIME_PROMPTS, validateRepositoryConfig } = await import("../../dist/host/config-validation.js");
+  const { AUTO_APPROVE_GROUPS } = await import("../../dist/task-memory/config.js");
+  const { INBOUND_POLICIES } = await import("../../dist/messaging/config.js");
+  const { DELEGATION_MODES } = await import("../../dist/cognitive-routing/types.js");
+  const keys = [
+    ...SESSION_OVERRIDE_KEYS,
+    ...Object.keys(AUTO_APPROVE_GROUPS).map((group) => `taskMemory.autoApprove.${group}`),
+    "messaging.inbound",
+    "cognitiveRouting.delegation",
+    ...["coordinator", "helper", "executor"].map((profile) => `cognitiveRouting.profiles.${profile}`),
+    ...RUNTIME_PROMPTS.map((prompt) => `prompts.${prompt}`),
+  ];
+  for (const key of keys) assert.ok(doc.includes(`| \`${key}\` |`), `settings.md lists ${key}`);
+  for (const value of [...INBOUND_POLICIES, ...DELEGATION_MODES])
+    assert.ok(doc.includes(`\`${value}\``), `settings.md names the value ${value}`);
+  // Every key the page lists is one Freeflow accepts.
+  for (const [, key] of doc.matchAll(/^\| [^|]+ \| `([a-zA-Z.]+)` \|/gm)) {
+    const config = {};
+    let at = config;
+    const parts = key.split(".");
+    for (const part of parts.slice(0, -1)) at = at[part] = {};
+    at[parts.at(-1)] =
+      key === "messaging.inbound" ? "accept" : key === "cognitiveRouting.delegation" ? "executor" : true;
+    if (!key.startsWith("cognitiveRouting.profiles")) assert.equal(validateRepositoryConfig(config), null, key);
+  }
+  // Every row the screen shows, in every tab, is in the page's table.
+  const cwd = await configuredRepo({});
+  try {
+    const { commands } = loadExtension(freeflowExtension, {
+      appendEntry() {},
+      async setModel() {
+        return true;
+      },
+      setThinkingLevel() {},
+    });
+    const command = commands.find((candidate) => candidate.name === "freeflow");
+    for (const scope of ["session", "local", "repo"]) {
+      const settingsCtx = context(cwd);
+      settingsCtx.ui.custom = async (factory) => {
+        const text = renderText(
+          factory({ requestRender() {} }, testTheme, {}, () => {}),
+          200,
+        );
+        const rows = [...text.matchAll(/^ {2}(?:› | {2})\s*(\S.*?)\s{2,}\S/gm)].map((match) => match[1]);
+        assert.ok(rows.length > 5, `${scope} rows`);
+        for (const row of rows) assert.ok(doc.includes(`| ${row} |`), `settings.md lists the ${scope} row ${row}`);
+        return undefined;
+      };
+      await command.definition.handler(`settings ${scope}`, settingsCtx);
+    }
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

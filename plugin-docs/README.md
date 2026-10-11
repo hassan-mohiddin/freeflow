@@ -7,6 +7,7 @@ Start with [Getting Started](getting-started.md) for host-specific installation,
 ## Integrations
 
 - [Pi integration](integrations/pi.md): normal Pi installation, activation, capabilities, and native host controls.
+- [Settings](settings.md): every setting with its key, values and default, what is on by default, and how `/freeflow settings` reads.
 
 ## Capabilities
 

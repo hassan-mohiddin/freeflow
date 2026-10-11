@@ -247,7 +247,7 @@ class SettingsScreen {
         );
       }
       const selected = index === this.selected;
-      const inactive = entry.inactive();
+      const inactive = entry.inactive() || entry.dormant?.() !== undefined;
       const cursor = selected ? this.color("accent", "› ") : "  ";
       const text = indent(entry) + entry.label;
       const padded = text + " ".repeat(Math.max(0, labelWidth - visibleWidth(text)));
@@ -275,8 +275,8 @@ class SettingsScreen {
     const wrap = (text, color) =>
       wrapTextWithAnsi(text, Math.max(1, width - 4)).map((line) => this.color(color, `  ${line}`));
     const lines = wrap(entry.description, "muted");
-    const locked = entry.locked?.();
-    if (locked) lines.push(...wrap(locked, "warning"));
+    const dormant = entry.dormant?.();
+    if (dormant) lines.push(...wrap(dormant, "warning"));
     const choice = entry.cycle
       ? entry.choices?.find((candidate) => candidate.key === entry.currentChoiceKey?.())
       : undefined;

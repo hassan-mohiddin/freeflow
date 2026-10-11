@@ -20,6 +20,7 @@
 - Codex, Claude Code, Gemini CLI, Cursor, and GitHub Copilot now receive Freeflow's Working Method (how to read a request, check evidence, and report a finished change) at session start, as Pi already did. It adds about 1,500 words to the session-start context.
 - On Pi, Freeflow's tools drop the `freeflow_` prefix, which models confused with `/freeflow` commands: Cognitive Routing's `freeflow_delegate`, `freeflow_return`, `freeflow_unit` and `freeflow_project` are now `delegate_work`, `return_work`, `routing_unit` and `select_evidence`, and `freeflow_compact` is `compact_context`. Sessions saved earlier keep working: their history keeps the old names, and routing and compaction still read it.
 - On Pi, a background command's exit and `/freeflow compact` now reach the agent as Freeflow's own messages, shown as one-line rows, instead of as messages from you. Freeflow's part of the system prompt now stays the same on the turns they start; working around the Pi issue that dropped it was why these were sent as your messages.
+- `/freeflow settings` on Pi reads at a glance: each capability's switch is its section's row (no more "Enabled" rows under every section), values read `on` in green and `off` in red with their source in brackets (`off (default)`, `on (repository)`), and a setting whose section is off is greyed with a line saying it takes effect once that switch is on, while it can still be set up. Sections run Freeflow, Compaction, Tool Execution, Task Memory, Messaging, Cognitive Routing. [Settings](plugin-docs/settings.md) lists every setting, its key, values and default, and what Freeflow turns on by default.
 
 ### Fixed
 
@@ -27,6 +28,7 @@
 - Claude Code now receives Freeflow's whole session-start context. Claude Code caps each hook's context at 10,000 characters and shows longer output only as a short preview, so Freeflow now delivers each prompt through its own hook, and also at the start of forked sessions.
 - Codex now runs Freeflow's session-start hook. Since 0.7.1, Codex loaded Freeflow's skills but none of its hooks, because it ignores hooks in a plugin that carries the Agent Plugins manifest the other hosts need. Codex now installs Freeflow from its npm package, which leaves that manifest out, and the hook raises Codex's context limit so the whole context fits. After upgrading the `freeflow` marketplace, approve the Freeflow hook in Codex's `/hooks`; Codex skips it until you do.
 - Freeflow no longer goes silently inactive on Codex, Claude Code, Gemini CLI, Cursor, and GitHub Copilot in a repository whose `.freeflow/config.json` or `.freeflow/local.json` has `toolExecution` or `compaction` settings, such as those written by `/freeflow settings` on Pi. The session-start hooks now check configuration with the same validator as Pi, and an existing invalid configuration file now produces a short configuration error naming the file instead of no Freeflow context.
+- `/freeflow settings` showed Cognitive Routing's Context projection as `off (default)`; routing turns projection on by default, and the screen now says so.
 
 ## 0.8.0 - 2026-10-03
 

@@ -59,8 +59,8 @@ export type SettingsEntry = {
   depth?: number;
   /** The value in parts: shown, where it comes from (drawn in brackets), and on or off (drawn green or red). */
   parts?: () => { value: string; note?: string; tone?: "on" | "off" };
-  /** Why the setting cannot be changed now (its section is off); undefined when it can. */
-  locked?: () => string | undefined;
+  /** Why the setting has no effect now (a switch above it is off); it is drawn grey but still changes. */
+  dormant?: () => string | undefined;
   /** Enter/Space moves to the next choice in place instead of opening a picker. */
   cycle?: boolean;
   currentChoiceKey?: () => string;
@@ -372,7 +372,7 @@ class SettingsScreen implements Component {
         );
       }
       const selected = index === this.selected;
-      const inactive = entry.inactive();
+      const inactive = entry.inactive() || entry.dormant?.() !== undefined;
       const cursor = selected ? this.color("accent", "› ") : "  ";
       const text = indent(entry) + entry.label;
       const padded = text + " ".repeat(Math.max(0, labelWidth - visibleWidth(text)));
@@ -401,8 +401,8 @@ class SettingsScreen implements Component {
     const wrap = (text: string, color: string) =>
       wrapTextWithAnsi(text, Math.max(1, width - 4)).map((line) => this.color(color, `  ${line}`));
     const lines = wrap(entry.description, "muted");
-    const locked = entry.locked?.();
-    if (locked) lines.push(...wrap(locked, "warning"));
+    const dormant = entry.dormant?.();
+    if (dormant) lines.push(...wrap(dormant, "warning"));
     const choice = entry.cycle
       ? entry.choices?.find((candidate) => candidate.key === entry.currentChoiceKey?.())
       : undefined;
