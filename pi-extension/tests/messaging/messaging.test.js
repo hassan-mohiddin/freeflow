@@ -71,7 +71,10 @@ test("a session in the same project receives the message; the notice names the s
     const child = await make("bbbb-2222", { name: "child", project: "app", task: "app/task-002" });
     const result = await child.messaging.send("parent", "Tests pass on the parser branch.", { summary: "parser done" });
     assert.equal(result.ok, true);
-    assert.equal(result.text, "Delivered to parent (aaaa-1111).");
+    assert.equal(
+      result.text,
+      "Delivered to parent (aaaa-1111). A reply, if it sends one, reaches you as a notice: you do not need to wait or look for it.",
+    );
     assert.equal(parent.delivered.length, 1);
     const notice = parent.delivered[0].content;
     assert.ok(

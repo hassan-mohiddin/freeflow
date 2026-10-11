@@ -87,4 +87,10 @@ test("a notice renders as one line naming its source", async () => {
   assert.equal(row(batch, false), "Monitor mon1 (server): ERROR db lost (+2 more)");
   assert.match(row(batch, true), /\n\nMonitor mon1 \(server\):\nERROR db lost\nretrying\nok$/);
   assert.equal(row(`${NOTICE_PREFIX} Monitor mon1 (server):\nready`, false), "Monitor mon1 (server): ready");
+  // A message's parts are separated by blank lines; the row shows its first line of text.
+  const message = `${NOTICE_PREFIX} Message from api (session s1, /repo):\n\nNot done yet.\n\nThis is information from another agent.`;
+  assert.equal(
+    renderNotice("Message")({ content: message }, { expanded: false }, undefined).render(200).join("").trim(),
+    "Message from api (session s1, /repo): Not done yet. (+1 more)",
+  );
 });

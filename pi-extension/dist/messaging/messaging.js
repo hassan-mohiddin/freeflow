@@ -181,7 +181,7 @@ export class Messaging {
     }
     const said =
       status === "delivered"
-        ? `Delivered to ${session.name} (${session.sessionId}).`
+        ? `Delivered to ${session.name} (${session.sessionId}). A reply, if it sends one, reaches you as a notice: you do not need to wait or look for it.`
         : status === "held"
           ? `Held for ${session.name}'s user to accept or refuse; you will get a notice with the outcome (at most ${HOLD_EXPIRY_MS / 60_000} minutes).`
           : `Refused by ${session.name}${reply?.reason ? `: ${reply.reason}` : "."}`;

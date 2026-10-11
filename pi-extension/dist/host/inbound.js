@@ -98,7 +98,8 @@ export function renderNotice(label) {
     const content = typeof message?.content === "string" ? message.content : "";
     const body = content.split(NOTICE_PREFIX).join("").trim();
     const paint = (color, text) => (theme?.fg ? theme.fg(color, text) : text);
-    const lines = body.split("\n");
+    // Blank lines separate a notice's parts; the row skips them.
+    const lines = body.split("\n").filter((line) => line.trim() !== "");
     // A heading that ends in ":" introduces lines (a monitor's events): the row shows the first of them too.
     const introduces = (lines[0] ?? "").endsWith(":") && lines.length > 1;
     const more = introduces && lines.length > 2 ? ` (+${lines.length - 2} more)` : "";
