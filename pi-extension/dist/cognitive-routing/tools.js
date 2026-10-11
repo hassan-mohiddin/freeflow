@@ -47,14 +47,18 @@ export function registerRoutingTools(pi, runtime) {
     pi.registerTool(definition);
   }
 }
-export function applyRoutingToolVisibility(pi, _runtime, _available = true) {
+export function applyRoutingToolVisibility(pi, _runtime, available = true) {
   if (!pi.getActiveTools || !pi.setActiveTools) return;
   const current = pi.getActiveTools();
+  // Declared only while routing is effective (Task 003 D-002); turning it on or off costs one cache write (D-001).
   // Missing routing tools are appended and present ones keep their place, so tools another extension adds later
   // (tool_search, for one) are never reordered around them.
   const kept = current.filter(
-    (name) => name !== "freeflow_switch_profile" && name !== "freeflow_cognitive_routing_history",
+    (name) =>
+      name !== "freeflow_switch_profile" &&
+      name !== "freeflow_cognitive_routing_history" &&
+      (available || !ROUTING_TOOLS.includes(name)),
   );
-  const next = [...kept, ...ROUTING_TOOLS.filter((name) => !kept.includes(name))];
+  const next = available ? [...kept, ...ROUTING_TOOLS.filter((name) => !kept.includes(name))] : kept;
   if (JSON.stringify(next) !== JSON.stringify(current)) pi.setActiveTools(next);
 }

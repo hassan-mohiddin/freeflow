@@ -114,7 +114,6 @@ It deliberately does not:
 
 | Behavior | Why | If changed |
 | --- | --- | --- |
-| The `task-memory` skill is listed while task memory is off. | Pi's skill list is fixed (`STABLE_FREEFLOW_SURFACE`) so the system prompt does not change with settings; the tool is withdrawn instead. | The system prompt changes when the switch flips. |
 | A shell write to a record by other means (`sed -i`, redirection) is not refused. | The gate guards a cooperating agent against the wrong record; Pi has no sandbox. | — |
 | Reads of unattached or unowned records are allowed. | Reading grants nothing; a parent reads its children this way. | — |
 | After `/tree` navigation the attached records and focus can change. | State follows the branch: the records attached at that point of the conversation. A notice reports the change. | A session-wide selection that ignores where in the conversation the user is. |

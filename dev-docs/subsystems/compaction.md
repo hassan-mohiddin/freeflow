@@ -113,7 +113,6 @@ When Pi compacts (its trigger, an overflowing request, or `/compact`), `session_
 | A `bash` or codemode output that repeats a freshly carried file is not removed from carry; only earlier `read` results of that file are. | Freeflow cannot tell reliably what a command printed. Accepted for now. | — |
 | The Coordinator's carried context differs from the worker's. | See Decisions. | Duplicated evidence in the Coordinator's view. |
 | `/freeflow compact`'s own text is not among the carried user messages. | The compaction completes that request. | The next cycle sees "compact now" as a pending instruction and compacts again. |
-| The compaction skill is listed even when compaction is off. | Freeflow's skill list is resolved from a fixed surface (`STABLE_FREEFLOW_SURFACE`) so the system prompt does not change with settings; the tool, not the skill, is withdrawn. | The system prompt changes when the switch flips. |
 | A turn that errors, aborts or hits its length limit writes no compaction, and compaction stays due. | The agent may not have finished preparing. | A half-prepared compaction. |
 
 ## Surface

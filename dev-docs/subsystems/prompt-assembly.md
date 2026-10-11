@@ -135,8 +135,8 @@ Manual control runs the ordinary unsplit Workflow for the held profile. Automati
 ## Failure and recovery boundaries
 
 - Missing `core.md` or `interaction-contract.md`: preserve the host’s base prompt, hide base skills and optional capabilities, and report Freeflow guidance unavailable.
-- Missing optional capability: report the capability unavailable. On the Pi source surface, stable reference definitions may remain catalog-visible while active execution gates reject unavailable operations; presence is not authority.
-- Disabled Freeflow: preserve the host prompt and block Freeflow operations. Pi's stable reference catalog may remain dormant in the assembled surface; capability state and execution gates still determine applicability.
+- Missing optional capability: report the capability unavailable; its skill, cue and tools are not sent.
+- Disabled or unconfigured Freeflow, or missing mandatory prompts: preserve the host prompt and send nothing of Freeflow's except the Runtime State and the Setup Freeflow skill (so `/setup-freeflow` works); a settings change that turns Freeflow on or off costs one cache write (Task 003 D-001, D-002).
 - Historical bootstrap entries: filter them from current projection; do not create new one-time bootstrap messages.
 - Runtime State unavailable: do not infer it from model identity, response style, or old transition history.
 - Native Pi request replay preserves Freeflow-generated snapshots only when the permitted ancestry and rendered prefix remain compatible; model/provider, tool/schema, instruction, earlier-content, compaction, navigation, or unsupported effort changes may shorten reuse. Provider cache hits remain outside the local assembly contract.

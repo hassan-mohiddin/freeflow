@@ -83,7 +83,7 @@ Freeflow must never make a user pay more than native Pi for the same work. Read 
 
 - Never change content a provider has already cached: no edits, reordering, truncation, or re-rendering of earlier messages or tool results.
 - Append new content after what the requester already received; do not insert it earlier.
-- Keep the Freeflow system section and tool definitions fixed. Gates and the Runtime State express changing state.
+- Keep the Freeflow system section and tool definitions fixed between settings changes. Gates and the Runtime State express changing state; a settings change or another unavoidable event may change what is sent, at one cache write.
 - Route generated per-turn content through request history so it keeps its position.
 - Prove every request-assembly change with a test in which a later request starts with the earlier one.
 - Gate provider-specific request changes on provider documentation or a recorded live probe; leave unqualified routes untouched.

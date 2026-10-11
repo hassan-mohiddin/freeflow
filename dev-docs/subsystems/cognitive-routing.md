@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/cognitive-routing/`, `capabilities/cognitive-routing/`, `runtime/prompts/cognitive-routing.md`
 > **Tests:** `pi-extension/tests/cognitive-routing/`, `pi-extension/tests/cache-reuse/`
-> **Verified at:** `a2589993` (2026-10-11)
+> **Verified at:** `abbdeb32` (2026-10-11)
 > **User docs:** `plugin-docs/capabilities/cognitive-routing.md`
 
 For contributors changing Cognitive Routing on Pi: how routing moves work between profiles in one session, how it records and recovers its state, how the Coordinator's projected view is built, and which of its behaviors are deliberate. What routing is for users, how to configure it, and how to choose a mode are in the user guide.
@@ -216,6 +216,7 @@ The spec's invariants (Task 001 §3.3) that hold today. Most are guarded across 
 - A failed model switch records the handoff as blocked and tells the user. `handoffs.test.js`.
 - Manual holds survive navigation, and `/freeflow resume` cannot release them. `recovery.test.js`.
 - Image and failed-source limits stay explicit while error tool results remain evidence. `projection.test.js`.
+- Routing tools, their prompt guidelines and the routing cue are declared only while routing is effective (`applyRoutingToolVisibility`, `stableRuntimeContext`); turning routing on or off costs one cache write (Task 003 D-001, D-002). `tool-visibility.test.js`.
 - Routing tools are declared to the model but not callable from scripts; nested ordinary calls are admitted with their issuing call. `nested-calls.test.js`.
 - The producing execution, not the profile live after a switch, determines attribution; unknown attribution stays unknown. Covered in the suite; no single named test.
 - Replay never invokes historical tools. By construction (replay reads events only); no single named test.

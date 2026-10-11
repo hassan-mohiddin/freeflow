@@ -31,6 +31,7 @@ import {
   CONTRIBUTOR_COMMANDS,
   WORKFLOW_COMMANDS,
   freeflowModelSkillPaths,
+  freeflowSkillPath,
   STABLE_FREEFLOW_SURFACE,
   skillPrompt,
 } from "./host/catalog.js";
@@ -515,7 +516,13 @@ export default function freeflow(pi: FreeflowAPI) {
   pi.on("resources_discover", async (event, ctx) => {
     const state = capability ?? (await loadSurface(ctx ?? { cwd: (event as any)?.cwd ?? process.cwd() }));
     return {
-      skillPaths: freeflowModelSkillPaths({ ...STABLE_FREEFLOW_SURFACE, toolExecution: state.toolExecution }),
+      // Only what this configuration can use (Task 003 D-002): capability skills only while their capability is
+      // effective, and while Freeflow is inactive (disabled, unconfigured, or its prompts missing) only Setup Freeflow,
+      // so /setup-freeflow still works.
+      skillPaths:
+        state?.enabled === true && hasUsableMandatoryPrompts(prompts)
+          ? freeflowModelSkillPaths(state)
+          : [freeflowSkillPath("setup-freeflow")],
     };
   });
   pi.on("session_start", async (event, ctx) => {
@@ -607,7 +614,11 @@ export default function freeflow(pi: FreeflowAPI) {
       if (toolExecution)
         Object.assign(sections, toolExecutionSections(event.systemPrompt, api.getSettings?.()?.shellPath));
       for (const name of ["freeflow_guidance", "environment", "tool_execution"]) delete sections[name];
-      sections.freeflow_guidance = stableRuntimeContext(prompts);
+      // Nothing of Freeflow while it is disabled or unconfigured (Task 003 D-002).
+      if (capability?.enabled === true && hasUsableMandatoryPrompts(prompts))
+        sections.freeflow_guidance = stableRuntimeContext(prompts, {
+          routing: capability?.cognitiveRouting?.effective === true,
+        });
       if (toolExecution)
         Object.assign(sections, toolExecutionTail(api.getSettings?.()?.shellPath, prompts?.toolExecutionPrompt));
     }

@@ -158,7 +158,10 @@ test("Pi exposes base skills without mode or Skills controls", async () => {
     const { handlers, commands } = loadExtension();
     const ctx = context(cwd);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 28);
+    // The 25 base skills and Compaction's (on by default); a capability's skill is listed only while it is effective.
+    assert.equal(resources.skillPaths.length, 26);
+    assert.ok(resources.skillPaths.some((path) => path.endsWith("/capabilities/compaction/SKILL.md")));
+    assert.ok(!resources.skillPaths.some((path) => /capabilities\/(cognitive-routing|task-memory)\//.test(path)));
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/workflow/SKILL.md")));
     assert.ok(
       !resources.skillPaths.some(
@@ -207,9 +210,11 @@ test("mandatory prompt readiness gates Runtime State, discovery, and direct skil
     const ctx = context(cwd);
     const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
     assert.equal(before.systemPrompt, "base prompt");
-    assert.match(before.renderedGuidance, /guidance is dormant/);
+    // Without its mandatory prompts Freeflow sends no guidance section, and lists only Setup Freeflow.
+    assert.equal(before.renderedGuidance ?? "", "");
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 28);
+    assert.equal(resources.skillPaths.length, 1);
+    assert.ok(resources.skillPaths[0].endsWith("/skills/setup-freeflow/SKILL.md"));
 
     const discuss = commands.find((command) => command.name === "discuss");
     assert.ok(discuss);

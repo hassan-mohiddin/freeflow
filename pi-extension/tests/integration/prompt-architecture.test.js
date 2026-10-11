@@ -171,7 +171,7 @@ test("composes the mandatory core fragments, current capabilities, discovery, an
   }
 });
 
-test("subagents retain reference definitions while optional capabilities stay inactive", async () => {
+test("subagents get the base guidance without capability skills, cues or tools", async () => {
   const cwd = await configuredRepo({
     cognitiveRouting: {
       enabled: true,
@@ -189,17 +189,16 @@ test("subagents retain reference definitions while optional capabilities stay in
     const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
     assert.match(before.renderedGuidance, /# Freeflow Stable Guidance/);
     assert.match(before.renderedGuidance, /# Freeflow Interaction Contract/);
-    assert.match(before.renderedGuidance, /## Cognitive Routing Cue/);
+    // Routing is inactive in a subagent, so its cue is not sent (Task 003 D-002).
+    assert.doesNotMatch(before.renderedGuidance, /## Cognitive Routing Cue/);
     assert.doesNotMatch(before.renderedGuidance, /Context Virtualization|Conversation History/);
 
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/action-selection/SKILL.md")));
-    // Capability skills stay listed as references (a stable prompt); the capabilities themselves are inactive.
+    // Capability skills are listed only while their capability is effective, and every one is off in a subagent.
     assert.deepEqual(
-      resources.skillPaths
-        .filter((path) => path.includes("/capabilities/"))
-        .map((path) => path.split("/capabilities/")[1]),
-      ["cognitive-routing/SKILL.md", "compaction/SKILL.md", "task-memory/SKILL.md"],
+      resources.skillPaths.filter((path) => path.includes("/capabilities/")),
+      [],
     );
 
     const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
@@ -244,7 +243,7 @@ test("Tool Execution adds its guidance section after Freeflow's and no skill of 
     await handlers.get("session_start")({ type: "session_start" }, ctx);
     const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
     const sections = before.systemPromptOptions.sections;
-    assert.match(before.renderedGuidance, /## Reference guidance: Working Method\n\n# Freeflow Working Method/);
+    assert.match(before.renderedGuidance, /## Working Method\n\n# Freeflow Working Method/);
     assert.doesNotMatch(before.renderedGuidance, /Working In The Environment/);
     assert.match(sections.tool_execution, /^# Working In The Environment/);
     assert.match(sections.tool_execution, /bash_background/);
@@ -338,7 +337,7 @@ test("missing optional prompt fragments preserve the mandatory core surface", as
   }
 });
 
-test("missing mandatory Interaction Contract retains a dormant surface with unavailable state", async () => {
+test("missing mandatory Interaction Contract sends no Freeflow guidance and reports it unavailable", async () => {
   const root = await mkdtemp(join(tmpdir(), "freeflow-interaction-contract-failure-"));
   const cwd = await configuredRepo();
   try {
@@ -357,16 +356,16 @@ test("missing mandatory Interaction Contract retains a dormant surface with unav
     await handlers.get("session_start")({}, ctx);
     const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
     assert.equal(before.systemPrompt, "base prompt");
-    assert.match(before.renderedGuidance, /guidance is dormant/);
+    assert.equal(before.renderedGuidance ?? "", "", "no Freeflow guidance while inactive");
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 28);
+    assert.equal(resources.skillPaths.length, 1, "only Setup Freeflow while inactive");
 
     await writeFile(join(root, "runtime", "prompts", "interaction-contract.md"), " \n\t", "utf8");
     const whitespaceBefore = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
     assert.equal(whitespaceBefore.systemPrompt, "base prompt");
-    assert.match(whitespaceBefore.renderedGuidance, /guidance is dormant/);
+    assert.equal(whitespaceBefore.renderedGuidance ?? "", "", "no Freeflow guidance while inactive");
     const whitespaceResources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(whitespaceResources.skillPaths.length, 28);
+    assert.equal(whitespaceResources.skillPaths.length, 1, "only Setup Freeflow while inactive");
     const whitespaceContext = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(whitespaceContext.messages.at(-1).content, /Freeflow: unavailable/);
   } finally {
@@ -375,7 +374,7 @@ test("missing mandatory Interaction Contract retains a dormant surface with unav
   }
 });
 
-test("missing mandatory core prompt retains a dormant surface with unavailable state", async () => {
+test("missing mandatory core prompt sends no Freeflow guidance and reports it unavailable", async () => {
   const root = await mkdtemp(join(tmpdir(), "freeflow-core-prompt-failure-"));
   const cwd = await configuredRepo();
   try {
@@ -393,9 +392,9 @@ test("missing mandatory core prompt retains a dormant surface with unavailable s
 
     const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
     assert.equal(before.systemPrompt, "base prompt");
-    assert.match(before.renderedGuidance, /guidance is dormant/);
+    assert.equal(before.renderedGuidance ?? "", "", "no Freeflow guidance while inactive");
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 28);
+    assert.equal(resources.skillPaths.length, 1, "only Setup Freeflow while inactive");
     const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(providerContext.messages.at(-1).content, /Freeflow: unavailable/);
     assert.doesNotMatch(
@@ -409,9 +408,9 @@ test("missing mandatory core prompt retains a dormant surface with unavailable s
     await writeFile(join(root, "runtime", "prompts", "core.md"), " \n\t", "utf8");
     const whitespaceBefore = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
     assert.equal(whitespaceBefore.systemPrompt, "base prompt");
-    assert.match(whitespaceBefore.renderedGuidance, /guidance is dormant/);
+    assert.equal(whitespaceBefore.renderedGuidance ?? "", "", "no Freeflow guidance while inactive");
     const whitespaceResources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(whitespaceResources.skillPaths.length, 28);
+    assert.equal(whitespaceResources.skillPaths.length, 1, "only Setup Freeflow while inactive");
     const whitespaceContext = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(whitespaceContext.messages.at(-1).content, /Freeflow: unavailable/);
   } finally {
@@ -427,7 +426,7 @@ test("Runtime State remains present while Freeflow is disabled without optional 
     const ctx = context(cwd);
     const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
     assert.equal(before.systemPrompt, "base prompt");
-    assert.match(before.renderedGuidance, /guidance is dormant/);
+    assert.equal(before.renderedGuidance ?? "", "", "no Freeflow guidance while inactive");
     assert.equal(before.message, undefined);
 
     const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
@@ -437,7 +436,7 @@ test("Runtime State remains present while Freeflow is disabled without optional 
     assert.doesNotMatch(runtimeState.content, /Default mode|Active mode|Interaction Contract|Skills/);
 
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 28);
+    assert.equal(resources.skillPaths.length, 1, "only Setup Freeflow while inactive");
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

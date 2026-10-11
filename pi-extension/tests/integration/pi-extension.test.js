@@ -916,11 +916,12 @@ test("Pi keeps Freeflow inactive until repository activation exists", async () =
   try {
     const { handlers } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 28);
+    // Inactive Freeflow lists only Setup Freeflow (Task 003 D-002).
+    assert.equal(resources.skillPaths.length, 1);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
     const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, context(cwd));
     assert.equal(result.systemPrompt, "base prompt");
-    assert.match(result.renderedGuidance, /guidance is dormant/);
+    assert.equal(result.renderedGuidance ?? "", "", "no Freeflow guidance while inactive");
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -975,11 +976,12 @@ test("Pi treats invalid configuration as inactive", async () => {
   try {
     const { handlers, commands } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 28);
+    // Inactive Freeflow lists only Setup Freeflow (Task 003 D-002).
+    assert.equal(resources.skillPaths.length, 1);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
     const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, context(cwd));
     assert.equal(result.systemPrompt, "base prompt");
-    assert.match(result.renderedGuidance, /guidance is dormant/);
+    assert.equal(result.renderedGuidance ?? "", "", "no Freeflow guidance while inactive");
     const freeflowCommand = commands.find((command) => command.name === "freeflow");
     const statusCtx = context(cwd);
     await freeflowCommand.definition.handler("status", statusCtx);
@@ -1097,7 +1099,8 @@ test("Pi fails closed when an existing local override is invalid", async () => {
     assert.equal(state.enabled, false);
     const { handlers } = loadExtension();
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 28);
+    // Inactive Freeflow lists only Setup Freeflow (Task 003 D-002).
+    assert.equal(resources.skillPaths.length, 1);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -1117,16 +1120,17 @@ test("Pi local enablement overrides the repository master switch", async () => {
   }
 });
 
-test("Pi master Freeflow toggle makes features inactive while preserving remaining references", async () => {
+test("Pi master Freeflow toggle makes features inactive and sends only Setup Freeflow", async () => {
   const cwd = await configuredRepo({ enabled: false });
   try {
     const { handlers, activeToolNames } = loadExtension();
     const ctx = context(cwd);
     const resources = await handlers.get("resources_discover")({ cwd }, ctx);
-    assert.equal(resources.skillPaths.length, 28);
+    // Inactive Freeflow lists only Setup Freeflow (Task 003 D-002).
+    assert.equal(resources.skillPaths.length, 1);
     const result = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, ctx);
     assert.equal(result.systemPrompt, "base prompt");
-    assert.match(result.renderedGuidance, /guidance is dormant/);
+    assert.equal(result.renderedGuidance ?? "", "", "no Freeflow guidance while inactive");
     const providerContext = await contextHandler(handlers)({ messages: [] }, ctx);
     assert.match(lastRuntimeState(providerContext.messages).content, /Freeflow: inactive/);
     assert.doesNotMatch(
@@ -1565,7 +1569,7 @@ test("Pi filters persisted Workflow and Cognitive Routing bootstrap entries with
   }
 });
 
-test("Pi preserves the host prompt prefix and dormant contract when a mandatory file is missing", async () => {
+test("Pi preserves the host prompt and sends no Freeflow guidance when a mandatory file is missing", async () => {
   const root = await mkdtemp(join(tmpdir(), "freeflow-pi-missing-prompt-"));
   const cwd = await configuredRepo();
   try {
@@ -1580,9 +1584,10 @@ test("Pi preserves the host prompt prefix and dormant contract when a mandatory 
     const { handlers } = loadExtension(extension);
     const before = await beforeAgentStartHandler(handlers)({ systemPrompt: "base prompt" }, context(cwd));
     assert.equal(before.systemPrompt, "base prompt");
-    assert.match(before.renderedGuidance, /guidance is dormant/);
+    assert.equal(before.renderedGuidance ?? "", "", "no Freeflow guidance while inactive");
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
-    assert.equal(resources.skillPaths.length, 28);
+    // Inactive Freeflow lists only Setup Freeflow (Task 003 D-002).
+    assert.equal(resources.skillPaths.length, 1);
   } finally {
     await rm(cwd, { recursive: true, force: true });
     await rm(root, { recursive: true, force: true });
