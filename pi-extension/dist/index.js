@@ -119,7 +119,7 @@ function fullHistoryTokens(ctx) {
 async function sendSkillCommand(pi, ctx, skill, args) {
   const state = await readCapabilityState(ctx.cwd, ctx);
   if (skill === "setup-freeflow" && !state.configured) {
-    await pi.sendUserMessage(skillPrompt(skill, args), { expandPromptTemplates: true });
+    pi.sendUserMessage(skillPrompt(skill, args), { expandPromptTemplates: true });
     return;
   }
   if (!state.configured || !state.enabled) {
@@ -131,7 +131,7 @@ async function sendSkillCommand(pi, ctx, skill, args) {
     ctx.ui.notify("Freeflow core prompts are unavailable; the requested skill cannot be dispatched.", "warning");
     return;
   }
-  await pi.sendUserMessage(skillPrompt(skill, args), { expandPromptTemplates: true });
+  pi.sendUserMessage(skillPrompt(skill, args), { expandPromptTemplates: true });
 }
 function freeflowCompletions(prefix, routingAvailable) {
   const query = prefix ?? "";

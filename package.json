@@ -22,7 +22,8 @@
     "build:pi-extension": "node -e \"require('node:fs').rmSync('pi-extension/dist', { recursive: true, force: true })\" && tsc -p pi-extension/tsconfig.json && npm run format:pi-extension-dist",
     "build": "npm run build:pi-extension",
     "typecheck": "tsc -p pi-extension/tsconfig.json --noEmit",
-    "check": "npm run typecheck && npm run check:source && npm run check:host-manifests && npm run check:changelog && npm run check:release-workflow && npm run check:docs && npm run format:check && npm run check:release-version && npm run check:commands && npm run check:activation && npm run check:runtime && npm run check:package && npm run check:eval-coverage && npm run check:eval-definitions && npm run check:coverage-matrix && npm run check:skill-routing && npm run check:incident-fixtures",
+    "lint": "eslint pi-extension/src",
+    "check": "npm run typecheck && npm run lint && npm run check:source && npm run check:host-manifests && npm run check:changelog && npm run check:release-workflow && npm run check:docs && npm run format:check && npm run check:release-version && npm run check:commands && npm run check:activation && npm run check:runtime && npm run check:package && npm run check:eval-coverage && npm run check:eval-definitions && npm run check:coverage-matrix && npm run check:skill-routing && npm run check:incident-fixtures",
     "check:source": "node scripts/validation/check-source-files.mjs",
     "check:host-manifests": "node scripts/validation/check-host-manifests.mjs",
     "check:changelog": "node scripts/validation/check-changelog.mjs --structure",
@@ -118,9 +119,12 @@
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "1.0.1",
     "@earendil-works/pi-tui": "1.0.1",
+    "@eslint/js": "10.0.1",
     "@types/node": "^22.15.30",
+    "eslint": "10.12.0",
     "prettier": "3.9.5",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "typescript-eslint": "8.71.1"
   },
   "dependencies": {}
 }

@@ -132,7 +132,8 @@ export class Inbound {
     }
     this.sent.set(batch.key, [...recent, now]);
     const [first] = notices;
-    this.send({
+    // send() never rejects: a failed delivery is dropped there.
+    void this.send({
       customType: first.customType,
       content: batch.join ? batch.join(notices) : notices.map((notice) => notice.content).join("\n"),
       details: { ...first.details, batched: notices.length },

@@ -94,7 +94,7 @@ While held, it replays the Coordinator's exact last payload with the output capp
 Each refresh checks economics from the model's declared `cost`: assuming a 90% chance the Coordinator resumes (`CONTINUATION`), the expected saving over a cache miss must be at least $0.05. Each refresh is recorded as a `freeflow-cache-keepalive-v1` entry. The hold stops when:
 
 - the hold ends;
-- a refresh fails, or reads under 90% of the prompt from cache;
+- a refresh fails (including one that throws), or reads under 90% of the prompt from cache;
 - a refresh would arrive after expiry (for example after the machine slept);
 - the hold reaches 6 hours or $2;
 - the payload cannot be replayed with a cap (Anthropic budget thinking).

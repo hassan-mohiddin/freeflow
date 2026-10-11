@@ -37,7 +37,7 @@ export async function listen(path: string, handle: (request: any) => Promise<any
     socket.setTimeout(REQUEST_TIMEOUT_MS, () => {
       if (!answered) socket.destroy();
     });
-    socket.on("data", async (chunk: string) => {
+    const onData = async (chunk: string) => {
       if (answered) return;
       buffer += chunk;
       if (buffer.length > MAX_REQUEST_BYTES) {
@@ -55,7 +55,9 @@ export async function listen(path: string, handle: (request: any) => Promise<any
         reply = { status: "refused", reason: error instanceof Error ? error.message : String(error) };
       }
       socket.end(`${JSON.stringify(reply)}\n`);
-    });
+    };
+    // A failure while answering closes the connection, rather than surfacing as an unhandled rejection.
+    socket.on("data", (chunk: string) => void onData(chunk).catch(() => socket.destroy()));
   });
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);

@@ -42,7 +42,10 @@ export class CacheKeepAlive {
   constructor(options = {}) {
     this.options = options;
     this.now = options.now ?? Date.now;
-    this.setTimer = options.setTimer ?? ((fn, ms) => setTimeout(fn, ms).unref?.());
+    // A refresh that throws ends the hold, rather than surfacing as an unhandled rejection.
+    this.setTimer =
+      options.setTimer ??
+      ((fn, ms) => setTimeout(() => void Promise.resolve(fn()).catch(() => this.stop("refresh failed")), ms).unref?.());
     this.clearTimer = options.clearTimer ?? ((timer) => clearTimeout(timer));
     this.send = options.send ?? sendThroughHost;
   }
