@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
+import { withoutNoticeTags } from "../host/inbound.js";
 import { LiveRegistry } from "./registry.js";
 import { close, listen, request, socketPathFor } from "./transport.js";
 /**
@@ -23,8 +24,8 @@ export const WATCH_EXPIRY_MS = 12 * 60 * 60_000;
 const shortId = (sessionId) => sessionId.replace(/-/g, "").slice(-8);
 const attribute = (value) =>
   value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/\n/g, " ");
-/** A message body cannot close its own tag. */
-const escapeBody = (text) => text.replace(/<\/(message|message-status|session-status)/gi, "<\\/$1");
+/** A message body cannot close its own tag, or pass for one of Freeflow's notices. */
+const escapeBody = (text) => withoutNoticeTags(text).replace(/<\/(message|message-status|session-status)/gi, "<\\/$1");
 export function displayName(identity) {
   return identity.name?.trim() || `${basename(identity.cwd) || "session"}-${shortId(identity.sessionId).slice(0, 4)}`;
 }
@@ -34,6 +35,8 @@ export class Messaging {
   server;
   me;
   busyNow = false;
+  writing = Promise.resolve();
+  stopping = false;
   held = [];
   asking = false;
   watchers = new Map();
@@ -79,6 +82,9 @@ export class Messaging {
   async stop() {
     const me = this.me;
     if (me) {
+      // No registry write starts from here on, and the one in flight lands before the entry is removed.
+      this.stopping = true;
+      await this.writing;
       await this.notifyWatchers("exited");
       await this.registry.remove(me.sessionId);
       this.published = "";
@@ -87,6 +93,7 @@ export class Messaging {
     await close(this.server, me?.socket ?? "");
     this.server = undefined;
     this.me = undefined;
+    this.stopping = false;
     this.watchers.clear();
   }
   /** The agent started or settled. Written only on change; turning idle notifies sessions waiting for it. */
@@ -200,9 +207,15 @@ export class Messaging {
   }
   published = "";
   /** Write this session's registry entry when it changed. */
-  async publish() {
+  /** One registry write at a time, in order, so a busy flag written later is never overwritten by an earlier one. */
+  publish() {
+    const run = this.writing.then(() => this.write());
+    this.writing = run.catch(() => {});
+    return run;
+  }
+  async write() {
     const me = this.me;
-    if (!me) return;
+    if (!me || this.stopping) return;
     const entry = {
       sessionId: me.sessionId,
       name: me.name,
@@ -303,7 +316,8 @@ export class Messaging {
       return { status: "delivered", ...(this.host.canWake?.() === false ? { waiting: true } : {}) };
     }
     if (this.held.length >= MAX_HELD) {
-      const dropped = this.held.shift();
+      // The oldest waiting message goes, never the one the user is looking at in the dialog.
+      const [dropped] = this.held.splice(this.asking ? 1 : 0, 1);
       if (dropped) void this.outcome(dropped, "expired");
     }
     this.held.push(message);

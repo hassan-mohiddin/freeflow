@@ -2,6 +2,13 @@ import { ROUTING_TOOLS } from "./types.js";
 import { ROUTING_SCHEMAS, explainRoutingArguments, matches } from "./schemas.js";
 export { ROUTING_SCHEMAS } from "./schemas.js";
 import { renderRoutingCall, renderRoutingResult } from "./render.js";
+/** What Pi shows for each tool, as the other Freeflow tools name theirs. */
+const ROUTING_LABELS = {
+  delegate_work: "Delegate",
+  return_work: "Return",
+  routing_unit: "Routing unit",
+  select_evidence: "Evidence",
+};
 const descriptions = {
   delegate_work:
     "Save a supported assignment contract and request enabled worker execution. Explicit replace supersedes a quiescent outstanding assignment in the same unit.",
@@ -30,7 +37,7 @@ export function registerRoutingTools(pi, runtime) {
   for (const name of ROUTING_TOOLS) {
     const definition = {
       name,
-      label: name.replace("freeflow_", "Routing "),
+      label: ROUTING_LABELS[name],
       description: descriptions[name],
       parameters: ROUTING_SCHEMAS[name],
       // Handoffs and evidence selection are assistant-issued boundaries: codemode scripts must not call them.

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -43,7 +44,8 @@ export class LiveRegistry {
   async write(entry: LiveSession): Promise<void> {
     await mkdir(this.folder, { recursive: true, mode: 0o700 });
     const path = join(this.folder, fileName(entry.sessionId));
-    const temporary = `${path}.${process.pid}.tmp`;
+    // One temporary file per write, so two writes in flight never rename each other's file.
+    const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
     await writeFile(temporary, `${JSON.stringify(entry, null, 2)}\n`, { mode: 0o600 });
     await rename(temporary, path);
   }

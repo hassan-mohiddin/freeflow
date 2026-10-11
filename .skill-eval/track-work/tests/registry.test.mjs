@@ -383,3 +383,38 @@ test("removal moves a task and its children, or a project, to the trash; only em
   assert.equal((await registry.emptyTrash()).length, 5);
   assert.deepEqual(await readdir(home).then((names) => names.includes("trash")), false);
 });
+
+test("task numbers stay retired across import and a project removed and made again; import moves only task directories", async () => {
+  const { mkdir } = await import("node:fs/promises");
+  const { repo, registry } = await fresh();
+  const slug = await registry.createProject("Again", repo);
+  await registry.createTask(slug, "One", "Goal.");
+  const two = await registry.createTask(slug, "Two", "Goal.");
+  await registry.removeTask(two.id);
+  const old = execFileSync(process.execPath, [script, "init", "--root", repo, "--name", "Old", "--input", "-"], {
+    input: "### Goal\n- Old work.\n\n### Next useful action\n- Continue.\n",
+  })
+    .toString()
+    .trim();
+  assert.equal((await registry.importRecord("Again", old)).id, `${slug}/task-003`, "import skips the removed number");
+
+  const notes = await mkdtemp(join(tmpdir(), "notes-"));
+  await writeFile(join(notes, "record.md"), "# Working Record: Notes\n");
+  await assert.rejects(registry.importRecord("Again", join(notes, "record.md")), /not in a Track Work task directory/);
+  assert.equal((await stat(notes)).isDirectory(), true, "the folder stays where it was");
+
+  await registry.removeProject("Again");
+  await registry.createProject("Again", repo);
+  assert.equal((await registry.createTask(slug, "New", "Goal.")).id, `${slug}/task-004`);
+
+  // A repository's own store.json is not a project store marker.
+  const other = await mkdtemp(join(tmpdir(), "freeflow-repo-"));
+  await writeFile(join(other, "store.json"), '{"items":[]}\n');
+  await mkdir(join(other, ".freeflow", "tasks"), { recursive: true });
+  const made = execFileSync(process.execPath, [script, "init", "--root", other, "--name", "Here", "--input", "-"], {
+    input: "### Goal\n- Work.\n\n### Next useful action\n- Continue.\n",
+  })
+    .toString()
+    .trim();
+  assert.match(made, /\.freeflow\/tasks\/task-001-here\/record\.md$/);
+});

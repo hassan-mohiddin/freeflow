@@ -10,6 +10,8 @@ import { join } from "node:path";
  */
 const MAX_REQUEST_BYTES = 1_100_000;
 const CLIENT_TIMEOUT_MS = 5_000;
+/** A connection that has not sent its request line by then is closed, so a stray client cannot hold the server open. */
+const REQUEST_TIMEOUT_MS = 10_000;
 export function socketPathFor(sessionId) {
   const user = (() => {
     try {
@@ -29,6 +31,9 @@ export async function listen(path, handle) {
     let answered = false;
     socket.setEncoding("utf8");
     socket.on("error", () => {});
+    socket.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      if (!answered) socket.destroy();
+    });
     socket.on("data", async (chunk) => {
       if (answered) return;
       buffer += chunk;
@@ -56,6 +61,8 @@ export async function listen(path, handle) {
       resolve();
     });
   });
+  // A later server error (an accept that fails, say) must not reach Node as an uncaught exception and end Pi.
+  server.on("error", () => {});
   // The socket alone never keeps Pi running: a print-mode run still exits when its work is done.
   server.unref();
   return server;

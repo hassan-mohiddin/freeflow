@@ -180,3 +180,19 @@ test("the tool refuses a Cognitive Routing worker, rejects bad questions, and ca
   assert.equal(refused.isError, true);
   assert.equal(refused.content[0].text, refusal);
 });
+
+test("an aborted call closes the terminal dialog unanswered", async () => {
+  const controller = new AbortController();
+  const ctx = {
+    hasUI: true,
+    mode: "tui",
+    ui: {
+      // Like Pi's custom(): resolves only when the dialog calls done.
+      custom: (factory) => new Promise((resolve) => factory({ requestRender() {} }, theme, {}, resolve)),
+    },
+  };
+  const asked = askUser(ctx, [q("Lib", ["a", "b"])], controller.signal);
+  controller.abort();
+  assert.deepEqual(await asked, { status: "dismissed" });
+  assert.deepEqual(await askUser(ctx, [q("Lib", ["a", "b"])], controller.signal), { status: "dismissed" });
+});

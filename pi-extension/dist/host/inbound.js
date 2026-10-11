@@ -15,11 +15,18 @@ import { Text } from "@earendil-works/pi-tui";
 /** The marker Freeflow's notices carried before the tag; saved sessions still contain it, so rows still read it. */
 export const LEGACY_NOTICE_PREFIX = "[Freeflow notice, not from the user]";
 /**
+ * Text that came from outside Freeflow (a command's output, another session's message) with every `<freeflow-notice`
+ * tag in it broken, so it can neither close a notice nor open one that looks like Freeflow's.
+ */
+export function withoutNoticeTags(text) {
+  return text.replace(/<(\/?)(freeflow-notice)/gi, "<\\$1$2");
+}
+/**
  * Freeflow's own notice as the model reads it. Pi gives the model every custom message in the user role; the tag, which
- * Freeflow's guidance explains, says the text is Freeflow's and not the user's. The text cannot close its own tag.
+ * Freeflow's guidance explains, says the text is Freeflow's and not the user's. The text cannot open or close the tag.
  */
 export function freeflowNotice(type, text) {
-  return `<freeflow-notice type="${type}">\n${text.replace(/<\/freeflow-notice/gi, "<\\/freeflow-notice")}\n</freeflow-notice>`;
+  return `<freeflow-notice type="${type}">\n${withoutNoticeTags(text)}\n</freeflow-notice>`;
 }
 /** A notice's text without its tag, or without the old prefix. */
 export function noticeBody(content) {
@@ -93,10 +100,16 @@ export class Inbound {
   send(notice) {
     const message = { customType: notice.customType, content: notice.content, display: true, details: notice.details };
     const wake = notice.wake && this.host.canWake?.() !== false;
+    // A send that throws at once is caught like one that rejects later: a notice never breaks its source.
     const asMessage = () =>
-      Promise.resolve(
-        this.host.sendMessage(message, wake ? { triggerTurn: true, deliverAs: "steer" } : { triggerTurn: false }),
-      ).catch(() => {});
+      new Promise((resolve) =>
+        resolve(
+          this.host.sendMessage(message, wake ? { triggerTurn: true, deliverAs: "steer" } : { triggerTurn: false }),
+        ),
+      ).then(
+        () => {},
+        () => {},
+      );
     // Always Freeflow's own message, never the user's: keepSections holds Freeflow's system sections on the run it
     // starts (Pi #10267), which once made idle notices go out as user messages.
     return asMessage();

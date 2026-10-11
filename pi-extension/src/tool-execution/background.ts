@@ -3,6 +3,7 @@ import { createWriteStream, type WriteStream } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import { createLocalBashOperations } from "@earendil-works/pi-coding-agent";
 
 export const BASH_BACKGROUND = "bash_background";
@@ -43,6 +44,8 @@ interface Job {
   stopping?: "tool" | "shutdown" | "expired" | "limit";
   /** Settles after the process exited and the output file is closed. */
   done: Promise<void>;
+  /** The process has ended: a limit reached while its last lines are delivered no longer stops it. */
+  ended?: boolean;
 }
 
 export interface BackgroundHost {
@@ -59,6 +62,8 @@ export interface BackgroundHost {
   event(id: string, line: string, join: (lines: string[]) => string, onLimit: () => void): void;
   /** Deliver a monitor's pending lines now and forget its batching state, before its end notice. */
   endEvents(id: string): void;
+  /** Drop a monitor's pending lines and batching state: the session is ending. */
+  discardEvents?(id: string): void;
 }
 
 const newId = (prefix: string) => `${prefix}${randomBytes(6).readUIntBE(0, 6).toString(36).slice(-6).padStart(6, "0")}`;
@@ -82,6 +87,10 @@ function close(stream: WriteStream, trailer: string): Promise<void> {
  */
 export class BackgroundJobs {
   private jobs = new Map<string, Job>();
+  /** Launches between their check of MAX_RUNNING and their job's registration. */
+  private starting = 0;
+  /** Changes when the session ends, so a launch that was still starting then does not run. */
+  private generation = 0;
 
   constructor(private readonly host: BackgroundHost) {}
 
@@ -111,21 +120,31 @@ export class BackgroundJobs {
     sessionId: string,
     timeoutMs?: number,
   ) {
-    const running = this.running();
-    if (running.length >= MAX_RUNNING)
+    if (this.running().length + this.starting >= MAX_RUNNING)
       throw new Error(`${MAX_RUNNING} background commands are running. Stop one with stop_background, then retry.`);
     const prefix = kind === "monitor" ? "mon" : "bg";
     let id = newId(prefix);
     while (this.jobs.has(id)) id = newId(prefix);
+    const generation = this.generation;
     const folder = join(tmpdir(), "freeflow", sessionId.replace(/[^A-Za-z0-9._-]/g, "_"), "background");
-    await mkdir(folder, { recursive: true, mode: 0o700 });
     const outputPath = join(folder, `${id}.output`);
     // A monitor's stderr is appended to the same file by the shell, so both writers append.
-    const stream = createWriteStream(outputPath, { flags: kind === "monitor" ? "a" : "w", mode: 0o600 });
-    await new Promise<void>((resolve, reject) => {
-      stream.once("open", () => resolve());
-      stream.once("error", reject);
-    });
+    let stream!: WriteStream;
+    this.starting++;
+    try {
+      await mkdir(folder, { recursive: true, mode: 0o700 });
+      stream = createWriteStream(outputPath, { flags: kind === "monitor" ? "a" : "w", mode: 0o600 });
+      await new Promise<void>((resolve, reject) => {
+        stream.once("open", () => resolve());
+        stream.once("error", reject);
+      });
+    } finally {
+      this.starting--;
+    }
+    if (generation !== this.generation) {
+      await close(stream, "[not started: the session ended]\n");
+      throw new Error("The session ended before the command started.");
+    }
     const controller = new AbortController();
     let endsWithNewline = true;
     const job: Job = {
@@ -139,6 +158,8 @@ export class BackgroundJobs {
       done: Promise.resolve(),
     };
     let partial = "";
+    // One decoder per job, so a character split across two reads is decoded whole.
+    const decoder = new StringDecoder("utf8");
     const event = (line: string) => {
       job.events++;
       const text = line.length > MAX_LINE_CHARS ? `${line.slice(0, MAX_LINE_CHARS)}... (line cut)` : line;
@@ -156,8 +177,13 @@ export class BackgroundJobs {
         endsWithNewline = data[data.length - 1] === 10;
         stream.write(data);
         if (kind !== "monitor" || job.stopping) return;
-        const lines = (partial + data.toString("utf8")).split("\n");
-        partial = lines.pop() ?? "";
+        const lines = (partial + decoder.write(data)).split("\n");
+        // An unfinished line keeps only what a terminal would show (the text after its last carriage return), so a
+        // progress bar redrawn with \r does not grow it without bound; the output file has everything.
+        partial = (lines.pop() ?? "")
+          .split("\r")
+          .at(-1)!
+          .slice(-4 * MAX_LINE_CHARS);
         for (const line of lines) if (line.trim() !== "") event(line.replace(/\r$/, ""));
       },
       signal: controller.signal,
@@ -166,10 +192,13 @@ export class BackgroundJobs {
       timeoutMs === undefined ? undefined : setTimeout(() => this.halt(job, "expired"), timeoutMs).unref?.();
     const finish = () => {
       if (timer) clearTimeout(timer as ReturnType<typeof setTimeout>);
+      job.ended = true;
       if (kind !== "monitor") return;
+      partial += decoder.end();
       if (partial.trim() !== "" && !job.stopping) event(partial);
       partial = "";
-      this.host.endEvents(id);
+      if (job.stopping === "shutdown" && this.host.discardEvents) this.host.discardEvents(id);
+      else this.host.endEvents(id);
     };
     job.done = run.then(
       async ({ exitCode }) => {
@@ -210,7 +239,7 @@ export class BackgroundJobs {
 
   /** Stop a monitor on its own account: its timeout passed, or it sent more than its rate limit allows. */
   private halt(job: Job, reason: "expired" | "limit"): void {
-    if (job.status !== "running" || job.stopping) return;
+    if (job.status !== "running" || job.stopping || job.ended) return;
     job.stopping = reason;
     job.controller.abort();
   }
@@ -255,6 +284,7 @@ export class BackgroundJobs {
 
   /** Session end: stop every running job, wait for the processes to exit, forget them. No notice is sent. */
   async stopAll(): Promise<void> {
+    this.generation++;
     const running = this.running();
     for (const job of running) {
       job.stopping = "shutdown";
@@ -436,7 +466,7 @@ export function registerBackgroundTools(pi: any, jobs: BackgroundJobs, host: Bac
         content: [
           {
             type: "text",
-            text: `Monitor ${started.id} started. Each line it prints reaches you as a notice; it stops when the command exits, after ${minutes} min, or with stop_background. Output: ${started.outputPath}.`,
+            text: `Monitor ${started.id} started. Each line it prints reaches you as a notice; it stops when the command exits, after ${minutes} min, or with stop_background. When you tell the user you are watching, say it stops after ${minutes} min unless restarted. Output: ${started.outputPath}.`,
           },
         ],
         details: started,

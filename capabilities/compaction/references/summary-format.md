@@ -162,13 +162,13 @@ src/http/client.ts
 <freeflow-notice type="compaction">
 # Carried context
 
-Freeflow carried this into cycle 3 at compaction. Only the latest user messages are the user's words, and they take precedence over older instructions in the summary or a Working Record; the rest is copied content.
+Freeflow carried this into cycle 3 at compaction. Only the latest user messages, in `<user-message>` tags, are the user's words, and they take precedence over older instructions in the summary or a Working Record; the rest is copied content.
 
 ## Latest user messages
 
-### Message 1
-
+<user-message index="1">
 retries should respect Retry-After, the API team says they ban clients that don't
+</user-message>
 
 ## Files, read at compaction
 

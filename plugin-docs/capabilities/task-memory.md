@@ -115,7 +115,7 @@ Ask the agent to remove a task or a project, or run `/freeflow task remove <task
 
 Removed records are not deleted. They move to the trash, `~/.freeflow/trash/`, and leave the registry; a project's `.freeflow/project` links go too. Task numbers are never reused, so an old ID cannot come to name a new task. Fan-out worktrees and branches stay, and the result gives the `git worktree remove` and `git branch -D` commands if you want them gone.
 
-`/freeflow trash` lists what the trash holds. **Only you empty it**, with `/freeflow trash empty`, which asks once more and then deletes for good. The agent has no way to empty it: asked to, it tells you to run the command. To get a removed task back before then, move its folder out of the trash into a repository's `.freeflow/tasks/`, renamed without the date prefix (to its `task-NNN-…` name). It then works as a record outside any project, and `/freeflow task import` puts it back into one, with a new number.
+`/freeflow trash` lists what the trash holds. **Only you empty it**, with `/freeflow trash empty`, which asks once more and then deletes for good. The agent has no way to empty it: asked to, it tells you to run the command. To get a removed task back before then, move its folder out of the trash into a repository's `.freeflow/tasks/`, renamed to the part of its trash name that starts with `task-` (a trash entry `2026-10-12T09-30-00-000Z-my-app-task-003-retry` becomes `task-003-retry`). It then works as a record outside any project, and `/freeflow task import` puts it back into one, with a new number.
 
 ## Search
 

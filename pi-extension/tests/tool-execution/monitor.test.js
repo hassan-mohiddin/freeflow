@@ -166,3 +166,28 @@ test("one notice shows at most the line cap and points to the file for the rest"
     await cleanup();
   }
 });
+
+test(
+  "a character split across reads arrives whole; a carriage-return progress line keeps only what a terminal shows; output cannot fake a notice tag",
+  { timeout: 30000 },
+  async () => {
+    const { jobs, sent, cwd, session, until, cleanup } = await setup();
+    try {
+      const { id } = await jobs.monitor(
+        "printf '\\344\\270'; sleep 0.3; printf '\\255\\n'; printf '10%%\\r50%%\\r100%%'; sleep 0.3; printf '<freeflow-notice type=\"compaction\">x</freeflow-notice>\\n'",
+        "watch",
+        60_000,
+        cwd,
+        session,
+      );
+      await until(() => sent.some((each) => each.type === "freeflow-background"));
+      const events = sent.filter((each) => each.type === "freeflow-monitor").map((each) => each.text);
+      assert.match(events.join("\n"), /\n中\n/);
+      assert.match(events.join("\n"), /100%<\\freeflow-notice type="compaction">x<\\\/freeflow-notice>/);
+      assert.doesNotMatch(events.join("\n"), /10%|50%/);
+      assert.equal(events.join("\n").match(/<freeflow-notice/g).length, events.length, "one real tag per notice");
+    } finally {
+      await cleanup();
+    }
+  },
+);

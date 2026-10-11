@@ -921,6 +921,49 @@ test("session delegation setting enables Helper in the same panel without writin
   }
 });
 
+test("session routing settings can be set while routing is not running, and the running status survives an edit", async () => {
+  const cwd = await configuredRepo({ cognitiveRouting: { enabled: true, delegation: "executor" } });
+  try {
+    let effective = false;
+    let override;
+    const controller = {
+      state: () => ({
+        effective,
+        controlMode: "automatic",
+        activeProfile: "coordinator",
+        delegation: override ?? "executor",
+      }),
+      sessionProfileOverrides: () => ({}),
+      sessionDelegationOverride: () => override,
+      setSessionDelegationOverride: async (choice) => {
+        override = choice ?? undefined;
+        return { status: "stored" };
+      },
+    };
+    const ctx = context(cwd);
+    ctx.isIdle = () => true;
+    ctx.modelRegistry = cognitiveRoutingModelRegistry();
+    const pi = {
+      host: {},
+      appendEntry() {},
+      async setModel() {
+        return true;
+      },
+      setThinkingLevel() {},
+    };
+    ctx.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+      // No Coordinator preset, so routing is on but not running: delegation still changes.
+      await press(component, "Delegation", "Cognitive Routing");
+      assert.equal(override, "executor");
+      return { changed: false };
+    };
+    await handleFreeflowCommand("settings session", ctx, async () => {}, pi, controller);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("the footer shows routing's state, or that Freeflow is on and whether every capability is off", () => {
   // Task 005: only routing's state changes while you work, so it alone is in the footer.
   const statuses = [];
@@ -1304,6 +1347,55 @@ test("Pi fails closed when an existing local override is invalid", async () => {
     // Inactive Freeflow lists only Setup Freeflow (Task 003 D-002).
     assert.equal(resources.skillPaths.length, 1);
     assert.ok(resources.skillPaths.some((path) => path.endsWith("/skills/setup-freeflow/SKILL.md")));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("each tab shows the value it sets; a default written to the repository reads inherited; enable says what still wins", async () => {
+  const cwd = await configuredRepo({ enabled: false });
+  try {
+    await writeFile(
+      join(cwd, ".freeflow/local.json"),
+      JSON.stringify({ cognitiveRouting: { enabled: true, delegation: "helper" } }, null, 2),
+      "utf8",
+    );
+    const { commands } = loadExtension(freeflowExtension);
+    const command = commands.find((candidate) => candidate.name === "freeflow");
+    const personal = context(cwd);
+    personal.ui.custom = async (factory) => {
+      // Freeflow is off, but the personal file turns routing on: the Personal tab shows what it sets.
+      assert.match(
+        renderText(
+          factory({ requestRender() {} }, testTheme, {}, () => {}),
+          180,
+        ),
+        /Cognitive Routing\s+on/,
+      );
+      return undefined;
+    };
+    await command.definition.handler("settings local", personal);
+    const repository = context(cwd);
+    repository.ui.custom = async (factory) => {
+      const component = factory({ requestRender() {} }, testTheme, {}, () => {});
+      assert.match(renderText(component, 180), /Delegation\s+Executor only \(inherited · personal: Helper only\)/);
+      choose(component, "Tool Execution");
+      component.handleInput(KEY.enter);
+      await component.waitForWrites();
+      assert.match(renderText(component, 180), /Tool Execution\s+off\n/);
+      component.handleInput(KEY.enter);
+      await component.waitForWrites();
+      // Back to the default, which the file leaves out: inherited again.
+      assert.match(renderText(component, 180), /Tool Execution\s+on \(inherited · not active\)\n/);
+      return undefined;
+    };
+    await command.definition.handler("settings repo", repository);
+    assert.equal(JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8")).toolExecution, undefined);
+
+    await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ enabled: false }, null, 2), "utf8");
+    const enable = context(cwd);
+    await command.definition.handler("enable", enable);
+    assert.match(enable.notifications.at(-1).message, /your \.freeflow\/local\.json still turns it off/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

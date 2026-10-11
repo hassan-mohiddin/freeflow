@@ -29,6 +29,7 @@ import { strictest } from "./compaction/thresholds.js";
 import { SNAPSHOT_TYPE, TASK_ENTRY, TaskMemory } from "./task-memory/runtime.js";
 import { applyTaskMemoryTools, registerTaskMemoryTool } from "./task-memory/tool.js";
 import { freeflowHome } from "./task-memory/registry.js";
+import { DEFAULT_INBOUND_POLICY } from "./messaging/config.js";
 import { MESSAGE_TYPE, Messaging } from "./messaging/messaging.js";
 import { applyMessagingTools, registerMessagingTools } from "./messaging/tools.js";
 import { renderMessage } from "./messaging/render.js";
@@ -352,6 +353,7 @@ export default function freeflow(pi) {
       inbound.flush(`monitor:${id}`);
       inbound.close(`monitor:${id}`);
     },
+    discardEvents: (id) => inbound.close(`monitor:${id}`),
   };
   const background = new BackgroundJobs(backgroundHost);
   registerBackgroundTools(api, background, backgroundHost);
@@ -461,7 +463,7 @@ export default function freeflow(pi) {
           ...(owns.length ? { owns } : {}),
         };
       },
-      policy: () => capability?.messaging?.inbound ?? "project",
+      policy: () => capability?.messaging?.inbound ?? DEFAULT_INBOUND_POLICY,
       busy: () => agentRunning,
       deliver: (content, details) => {
         inbound.deliver({ customType: MESSAGE_TYPE, content, details, wake: true });
@@ -710,18 +712,22 @@ export default function freeflow(pi) {
           : [freeflowSkillPath("setup-freeflow")],
     };
   });
-  pi.on("session_start", async (event, ctx) => {
-    liveHost = ctx;
-    // Sections recorded for another session (after /new or /resume) are not this one's.
+  /** Sections recorded on another session or branch are not this one's; whether this branch had a prompt is its own. */
+  const forgetSections = (ctx) => {
     ownSections = undefined;
     ownHead = undefined;
     ownSectionsVersion++;
-    promptRun = false;
     prompted = (cachedBranch(ctx.sessionManager) ?? []).some(
       (entry) =>
         entry?.type === "message" &&
         (entry.message?.role === "user" || (entry.message?.role === "system" && entry.message.sections)),
     );
+  };
+  pi.on("session_start", async (event, ctx) => {
+    liveHost = ctx;
+    // Sections recorded for another session (after /new or /resume) are not this one's.
+    forgetSections(ctx);
+    promptRun = false;
     const generation = ++surfaceGeneration;
     resetHistory();
     // Where Pi has just parsed this session file, later checks read only the bytes appended since.
@@ -1011,6 +1017,8 @@ export default function freeflow(pi) {
     await update(ctx);
   };
   pi.on("session_tree", async (_event, ctx) => {
+    // A run Pi starts on this branch keeps this branch's last prompt's sections, not the branch left behind.
+    forgetSections(ctx);
     // Task memory follows the branch: the records attached at this point of the conversation.
     const before = taskMemory.state();
     const changed = taskMemory.rebuild(cachedBranch(ctx.sessionManager));

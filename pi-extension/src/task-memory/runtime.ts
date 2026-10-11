@@ -1,5 +1,6 @@
 import { existsSync, realpathSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
+import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { freeflowHome, Registry, type Owner, type RegisteredTask } from "./registry.js";
@@ -72,6 +73,10 @@ const STORE_RECORD = /[\\/]tasks[\\/]task-\d+-[^\\/]+[\\/]record\.md$/;
 // A Track Work command that writes a record: lifecycle groups, task set-state, and task import.
 const RECORD_WRITE =
   /working-record\.mjs["']?\s+(?:(?:slice|checkpoint|decision)\s+[a-z-]+|task\s+(?:set-state|import))(?![a-z-])/;
+// A Track Work command that changes the registry: the task_memory tool asks the user for each of these on Pi.
+const REGISTRY_CHANGE =
+  /working-record\.mjs["']?\s+(?:task\s+(?:create|fanout|remove)|project\s+(?:new|link|remove))(?![a-z-])/;
+const ENVIRONMENT_CHANGE = /working-record\.mjs["']?\s+task\s+env(?![a-z-])[^;&|\n]*--(?:primary|add-dir|remove-dir)/;
 // Markers recordTargets returns for a write whose record is named by task ID, or cannot be read from the command.
 export const ID_TARGET = "id:";
 export const UNRESOLVED_TARGET = "unresolved:";
@@ -144,7 +149,15 @@ export function recordTargets(toolName: string, input: any, cwd: string, attache
     const real = canonicalPath(path);
     return attached.find((item) => canonicalPath(item) === real) ?? path;
   };
-  const absolute = (path: string, base = cwd) => asAttached(isAbsolute(path) ? resolve(path) : resolve(base, path));
+  // As Pi's tools read a path: a leading @ dropped, ~ for the home directory.
+  const expand = (path: string) => {
+    const bare = path.startsWith("@") ? path.slice(1) : path;
+    return bare === "~" ? homedir() : bare.startsWith("~/") ? join(homedir(), bare.slice(2)) : bare;
+  };
+  const absolute = (path: string, base = cwd) => {
+    const bare = expand(path);
+    return asAttached(isAbsolute(bare) ? resolve(bare) : resolve(base, bare));
+  };
   const isTarget = (path: string) => isRecordPath(path) || attached.includes(path);
   if ((toolName === "edit" || toolName === "write") && typeof input?.path === "string") {
     const path = absolute(input.path);
@@ -176,13 +189,26 @@ export function recordTargets(toolName: string, input: any, cwd: string, attache
   return [];
 }
 
-/** Replace $NAME and ${NAME} with values assigned as NAME=value earlier in the same command; others stay as they are. */
+/**
+ * Replace $NAME and ${NAME} with the value last assigned as NAME=value before that point in the same command, as the
+ * shell would; others stay as they are.
+ */
 function expandAssignments(command: string): string {
-  const values = new Map<string, string>();
-  for (const match of command.matchAll(/(?:^|[\s;&|(])([A-Za-z_][A-Za-z0-9_]*)=(?:"([^"]*)"|'([^']*)'|([^\s;&|]*))/g))
-    values.set(match[1], match[2] ?? match[3] ?? match[4] ?? "");
-  return command.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (whole, braced, bare) =>
-    values.has(braced ?? bare) ? values.get(braced ?? bare)! : whole,
+  const assignments = [
+    ...command.matchAll(/(?:^|[\s;&|(])([A-Za-z_][A-Za-z0-9_]*)=(?:"([^"]*)"|'([^']*)'|([^\s;&|]*))/g),
+  ].map((match) => ({
+    name: match[1],
+    value: match[2] ?? match[3] ?? match[4] ?? "",
+    end: match.index! + match[0].length,
+  }));
+  return command.replace(
+    /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g,
+    (whole, braced, bare, offset: number) => {
+      let value: string | undefined;
+      for (const assignment of assignments)
+        if (assignment.name === (braced ?? bare) && assignment.end <= offset) value = assignment.value;
+      return value ?? whole;
+    },
   );
 }
 
@@ -472,7 +498,9 @@ export class TaskMemory {
 
   /** Release held records, one or all, taking ownership of registered ones: the user's command is the confirmation. */
   async confirm(record: unknown, cwd: string): Promise<TaskResult> {
-    const path = typeof record === "string" && record.trim() ? await this.attachedMatch(record, cwd) : undefined;
+    const named = typeof record === "string" && record.trim();
+    const path = named ? await this.attachedMatch(record as string, cwd) : undefined;
+    if (named && !path) return { ok: false, text: `${record} is not attached to this session. ${this.attachedText()}` };
     const targets = this.current.held.filter((item) => !path || item === path);
     if (!targets.length) return { ok: false, text: "No held record matches." };
     for (const item of targets) {
@@ -557,7 +585,8 @@ export class TaskMemory {
     return [
       `Record the split in ${parent}'s record now, with this Track Work command (edit the wording if needed; then update ${parent}'s Next useful action if this session should not do that work):`,
       "",
-      `node ${this.script()} slice record --record ${parent} --title "Split off: ${title.replaceAll('"', "'")}" --state completed --input - <<'EOF'`,
+      // Single quotes, so a title with $(…) or backticks is text, not a command the shell runs.
+      `node ${this.script()} slice record --record ${parent} --title '${`Split off: ${title}`.replaceAll("'", "'\\''")}' --state completed --input - <<'EOF'`,
       `- Occurred: ${today}`,
       `- Intended result: ${title} continues in its own session as ${child}.`,
       `- Authority source: The user confirmed the split in Freeflow's dialog.`,
@@ -605,16 +634,15 @@ export class TaskMemory {
   async suggestion(branch: readonly any[]): Promise<{ id: string; title: string; record: string } | undefined> {
     if (!this.host.effective() || this.current.attached.length) return undefined;
     try {
-      const [found] = await this.registry.here(this.host.cwd());
-      if (!found) return undefined;
-      const declined = branch.some(
-        (entry) =>
-          entry?.type === "custom" &&
-          entry.customType === TASK_ENTRY &&
-          entry.data?.op === "decline" &&
-          entry.data?.record === found.task.record,
+      const declined = new Set(
+        branch
+          .filter(
+            (entry) => entry?.type === "custom" && entry.customType === TASK_ENTRY && entry.data?.op === "decline",
+          )
+          .map((entry) => entry.data?.record),
       );
-      return declined ? undefined : { id: found.id, title: found.task.title, record: found.task.record };
+      const found = (await this.registry.here(this.host.cwd())).find(({ task }) => !declined.has(task.record));
+      return found ? { id: found.id, title: found.task.title, record: found.task.record } : undefined;
     } catch {
       return undefined;
     }
@@ -962,6 +990,20 @@ export class TaskMemory {
   /** A refusal for a tool call that would write a record this session has not attached, or does not own. */
   async gate(toolName: string, input: any, cwd: string): Promise<{ block: true; reason: string } | undefined> {
     if (!this.host.effective()) return undefined;
+    if (toolName === "bash" && typeof input?.command === "string") {
+      const changes = (segment: string) =>
+        (REGISTRY_CHANGE.test(segment) || ENVIRONMENT_CHANGE.test(segment)) && !/(^|\s)--help(\s|$)/.test(segment);
+      if (
+        expandAssignments(input.command)
+          .split(/;|&&|\|\||\||\n/)
+          .some(changes)
+      )
+        return {
+          block: true,
+          reason:
+            "Task memory: creating, fanning out or removing tasks, creating, linking or removing projects, and changing a task's directories go through the task_memory tool, which asks the user. Use its action; do not run Track Work's command for it.",
+        };
+    }
     for (const named of recordTargets(toolName, input, cwd, this.current.attached)) {
       if (named.startsWith(UNRESOLVED_TARGET))
         return {

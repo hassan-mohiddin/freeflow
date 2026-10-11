@@ -405,3 +405,96 @@ test("remove always asks, even with every auto-approve switch on; a yes moves th
     process.env.FREEFLOW_HOME = before;
   }
 });
+
+test("the gate reads a reassigned variable and a ~ path as the shell and Pi's tools would", async () => {
+  const { homedir } = await import("node:os");
+  const S = "/p/working-record.mjs";
+  const victim = "/repo/.freeflow/tasks/task-002-x/record.md";
+  const mine = "/repo/.freeflow/tasks/task-001-a/record.md";
+  assert.deepEqual(
+    recordTargets(
+      "bash",
+      { command: `R=${victim}; node ${S} decision add --record "$R" --title T; R=${mine}` },
+      "/repo",
+      [mine],
+    ),
+    [victim],
+  );
+  assert.deepEqual(
+    recordTargets(
+      "bash",
+      { command: `R=${victim}; R=${mine}; node ${S} decision add --record "$R" --title T` },
+      "/repo",
+      [mine],
+    ),
+    [mine],
+  );
+  const home = join(homedir(), ".freeflow/tasks/task-003-y/record.md");
+  assert.deepEqual(recordTargets("write", { path: "~/.freeflow/tasks/task-003-y/record.md" }, "/repo", []), [home]);
+  assert.deepEqual(recordTargets("edit", { path: "@.freeflow/tasks/task-002-x/record.md" }, "/repo", []), [victim]);
+});
+
+test("registry changes through Track Work's command are refused; reads, help and confirm of an unknown record are not changes", async () => {
+  const { TaskMemory } = await import("../../dist/task-memory/runtime.js");
+  const memory = new TaskMemory({
+    effective: () => true,
+    append: () => {},
+    send: () => {},
+    owner: () => ({ session: "this-session", since: "2026-10-11T00:00:00.000Z" }),
+    confirm: async () => false,
+    cwd: () => "/repo",
+    packageRoot: process.cwd(),
+    registry: {
+      here: async () => [
+        { id: "p/task-001", task: { record: "/a/record.md", title: "A" } },
+        { id: "p/task-002", task: { record: "/b/record.md", title: "B" } },
+      ],
+    },
+  });
+  for (const command of [
+    "S=/p/working-record.mjs; node $S task remove --id p/task-001",
+    "node /p/working-record.mjs project link --name P",
+    "node /p/working-record.mjs task env --id p/task-001 --primary /tmp",
+    "node /p/working-record.mjs task create --title T --goal G",
+  ])
+    assert.match(
+      (await memory.gate("bash", { command }, "/repo"))?.reason ?? "",
+      /go through the task_memory tool/,
+      command,
+    );
+  for (const command of [
+    "node /p/working-record.mjs task env --id p/task-001",
+    "node /p/working-record.mjs task remove --help",
+    "node /p/working-record.mjs project list",
+  ])
+    assert.equal(await memory.gate("bash", { command }, "/repo"), undefined, command);
+
+  // A suggestion skips a declined task and offers the next one in this directory.
+  const branch = [entry("decline", "/a/record.md")];
+  assert.equal((await memory.suggestion(branch))?.id, "p/task-002");
+
+  const record = "/repo/.freeflow/tasks/task-001-a/record.md";
+  memory.rebuild([entry("attach", record)]);
+  memory.holdInherited();
+  const refused = await memory.confirm("/repo/.freeflow/tasks/task-009-z/record.md", "/repo");
+  assert.equal(refused.ok, false);
+  assert.match((await memory.gate("write", { path: record }, "/repo")).reason, /held/, "the held record stays held");
+});
+
+test("the split command quotes the child's title, so the shell runs nothing in it", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { TaskMemory } = await import("../../dist/task-memory/runtime.js");
+  const memory = new TaskMemory({
+    effective: () => true,
+    append: () => {},
+    send: () => {},
+    owner: () => ({ session: "s", since: "2026-10-12T00:00:00.000Z" }),
+    confirm: async () => false,
+    packageRoot: process.cwd(),
+  });
+  const title = "It's $(echo ran) `echo ran`";
+  const text = memory.delegation("p/task-001", "p/task-002", title, "Created.");
+  const argument = /--title ('(?:[^']|'\\'')*') --state/.exec(text)?.[1];
+  assert.ok(argument, text);
+  assert.equal(execFileSync("bash", ["-c", `printf '%s' ${argument}`]).toString(), `Split off: ${title}`);
+});

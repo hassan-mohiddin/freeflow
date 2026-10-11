@@ -21,7 +21,7 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { slugify } from "./format.mjs";
-import { LAST_TASK_NUMBER, STORE_MARKER, taskRoot } from "./store.mjs";
+import { LAST_TASK_NUMBER, nextTaskNumber, STORE_MARKER, taskRoot } from "./store.mjs";
 
 /**
  * The task registry: projects, registered tasks, their parents, and which session owns each record. One JSON file
@@ -206,6 +206,15 @@ export class Registry {
         if (project.repos.includes(root)) throw new RegistryError(`${root} is already linked to ${project.name}.`);
       data.projects[slug] = { name, store, repos: [root], ...(worktrees ? { worktrees: directory(worktrees) } : {}) };
     });
+    // A project removed under this name keeps its task numbers retired, so its old IDs never name new tasks.
+    const retired = (await this.read()).retired?.[slug];
+    if (retired) {
+      const tasks = taskRoot(store);
+      await mkdir(tasks, { recursive: true });
+      const marker = join(tasks, LAST_TASK_NUMBER);
+      const recorded = Number((await readFile(marker, "utf8").catch(() => "0")).trim()) || 0;
+      if (retired > recorded) await writeFile(marker, `${retired}\n`);
+    }
     await this.linkStore(root, store);
     return slug;
   }
@@ -316,6 +325,7 @@ export class Registry {
     const record = resolve(await output);
     const id = `${slug}/${basename(dirname(record)).match(/^task-\d+/)?.[0]}`;
     await this.update((next) => {
+      if (next.tasks[id]) throw new RegistryError(`${id} is already registered.`);
       next.tasks[id] = {
         record,
         project: slug,
@@ -335,11 +345,15 @@ export class Registry {
     if (!project) throw new RegistryError(`No project ${projectName}.`);
     if (Object.values(data.tasks).some((task) => task.record === record))
       throw new RegistryError(`${record} is already registered.`);
+    const source = dirname(record);
+    // Only a Track Work task directory moves: anything else could take unrelated files with it.
+    if (!/^task-\d{3,}-[a-z0-9][a-z0-9-]*$/.test(basename(source)))
+      throw new RegistryError(
+        `${record} is not in a Track Work task directory (task-NNN-name), so it cannot be imported.`,
+      );
     const tasks = taskRoot(project.store);
     await mkdir(tasks, { recursive: true });
-    const numbers = (await readdir(tasks)).map((name) => Number(/^task-(\d+)/.exec(name)?.[1] ?? 0));
-    const number = String(Math.max(0, ...numbers) + 1).padStart(3, "0");
-    const source = dirname(record);
+    const number = String(await nextTaskNumber(tasks)).padStart(3, "0");
     const target = join(tasks, basename(source).replace(/^task-\d+/, `task-${number}`));
     try {
       await rename(source, target);
@@ -352,6 +366,7 @@ export class Registry {
     const title = /^# Working Record:\s*(.+?)\s*$/m.exec(await readFile(moved, "utf8"))?.[1] ?? basename(target);
     const id = `${slug}/task-${number}`;
     await this.update((next) => {
+      if (next.tasks[id]) throw new RegistryError(`${id} is already registered.`);
       next.tasks[id] = { record: moved, project: slug, title };
     });
     return { id, record: moved };
@@ -527,9 +542,15 @@ export class Registry {
     const plan = await this.removal({ project: name });
     const { slug } = plan.project;
     const project = (await this.read()).projects[slug];
+    const marker = join(taskRoot(project.store), LAST_TASK_NUMBER);
+    const highest = Math.max(
+      Number((await readFile(marker, "utf8").catch(() => "0")).trim()) || 0,
+      ...plan.tasks.map(({ id }) => Number(/task-(\d+)$/.exec(id)?.[1] ?? 0)),
+    );
     const trashed = await this.toTrash(project.store, `project-${slug}`);
     try {
       await this.update((current) => {
+        if (highest) current.retired = { ...current.retired, [slug]: Math.max(current.retired?.[slug] ?? 0, highest) };
         delete current.projects[slug];
         for (const { id } of plan.tasks) delete current.tasks[id];
       });

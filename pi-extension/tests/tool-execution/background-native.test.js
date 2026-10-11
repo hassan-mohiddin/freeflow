@@ -346,3 +346,31 @@ test(
     );
   },
 );
+
+test(
+  "after /tree, a run an exit notice starts carries the system prompt that branch's transcript holds",
+  { timeout: 30000 },
+  async () => {
+    await fixture(
+      async (n) => (n === 1 ? [{ name: "bash_background", args: { command: "sleep 1; echo done" } }] : []),
+      false,
+      async ({ session, requests, manager }) => {
+        await session.waitForIdle();
+        const made = requests.length;
+        const prompted = requests.at(-1);
+        const firstPrompt = manager
+          .getBranch()
+          .find((entry) => entry.type === "message" && entry.message.role === "user");
+        // Navigating to the first prompt leaves the branch at its parent: the system message Pi recorded, no prompt.
+        await session.navigateTree(firstPrompt.id, { summarize: false });
+        await until(() => requests.length > made, "the exit notice's run");
+        await session.waitForIdle();
+        const system = (body) => JSON.stringify(body.input.filter((item) => item.role === "system"));
+        assert.match(system(requests[made]), /<freeflow_guidance>/);
+        assert.equal(system(requests[made]), system(prompted), "the same system prompt as the prompt's run");
+      },
+      true,
+      on,
+    );
+  },
+);

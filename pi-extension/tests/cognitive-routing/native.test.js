@@ -100,6 +100,10 @@ test(
         reportId = s.assessment.handoffId;
         assert.equal(s.handoffs.get(reportId).text, report);
         assert.equal(s.handoffs.get(reportId).state, "blocked");
+        // The receipt does not promise a delivery the block stops; it says how to unblock it.
+        const receipt = JSON.stringify(manager.getBranch().findLast((e) => e.message?.toolName === "return_work"));
+        assert.match(receipt, /Saved, but blocked: Coordinator receives nothing until the problems below are fixed/);
+        assert.doesNotMatch(receipt, /delivers the report to Coordinator/);
         return [{ name: "write", args: { path: "forbidden.txt", content: "must not happen" } }];
       }
       if (n === 5) {

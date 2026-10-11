@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/cognitive-routing/`, `capabilities/cognitive-routing/`, `runtime/prompts/cognitive-routing.md`
 > **Tests:** `pi-extension/tests/cognitive-routing/`, `pi-extension/tests/cache-reuse/`
-> **Verified at:** `19228af3` (2026-10-11)
+> **Verified at:** `cadeaf8d` (2026-10-12)
 > **User docs:** `plugin-docs/capabilities/cognitive-routing.md`
 
 For contributors changing Cognitive Routing on Pi: how routing moves work between profiles in one session, how it records and recovers its state, how the Coordinator's projected view is built, and which of its behaviors are deliberate. What routing is for users, how to configure it, and how to choose a mode are in the user guide.
@@ -98,7 +98,7 @@ The harness owns unit, assignment, handoff and event identities. Models use retu
 
 ### Evidence selection and projection
 
-Only tool results are evidence: `ctx:<entry>` on a tool result. A worker's own messages are not selectable; what it would say belongs in its report. A worker adds evidence and submits its return in the same response, with the return last. The report is saved even when a selected source has a problem; the receipt reports readiness. A ref that cannot be resolved is kept as an unresolved problem and does not stop the other selections. A selected source that resolves but cannot be delivered (for example an image the Coordinator's model cannot take) makes the handoff `blocked` until the worker fixes the selection with `select_evidence` and uses `retry`.
+Only tool results are evidence: `ctx:<entry>` on a tool result. A worker's own messages are not selectable; what it would say belongs in its report. A worker adds evidence and submits its return in the same response, with the return last. The report is saved even when a selected source has a problem; the receipt reports readiness, and a blocked one says Coordinator receives nothing until the problems are fixed and how to fix them, rather than promising delivery. A ref that cannot be resolved is kept as an unresolved problem and does not stop the other selections. A selected source that resolves but cannot be delivered (for example an image the Coordinator's model cannot take) makes the handoff `blocked` until the worker fixes the selection with `select_evidence` and uses `retry`.
 
 `select_evidence inspect` scopes: `assignment` (this assignment's candidates), `active`, `history`, and `selected` (saved selections with their diagnostics). Results show identity metadata, not content previews. Cursors bind to the inspection snapshot; changed ancestry or reload requires a fresh inspection.
 
@@ -192,7 +192,7 @@ Routing is unavailable inside subagents and when Pi's model registry lacks the n
 
 **Commands:** `/freeflow profile coordinator|helper|executor` (manual hold), `/freeflow profile auto` (release), `/freeflow profile history [diagnostics]`, `/freeflow resume`. Ctrl+Shift+R cycles manual holds; Ctrl+Shift+A releases to the automatic Coordinator. Each of these except `history` turns routing on first when it is off. `/freeflow settings` edits switches and presets.
 
-**Tools:** `delegate_work`, `return_work`, `routing_unit`, `select_evidence` (model-only; see above).
+**Tools:** `delegate_work`, `return_work`, `routing_unit`, `select_evidence` (model-only; see above), labelled Delegate, Return, Routing unit and Evidence where Pi shows a tool's label.
 
 **Session entries:** `freeflow-routing-v2` events. **Transient messages:** `freeflow-routing-v2-state`, `freeflow-routing-attention`, `freeflow-routing-budget`, `freeflow-routing-communication`.
 
