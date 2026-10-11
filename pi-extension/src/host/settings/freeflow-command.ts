@@ -33,6 +33,7 @@ import { workersForDelegation } from "../../cognitive-routing/types.js";
 import { DEFAULT_TOOL_EXECUTION_CONFIG, type ToolExecutionState } from "../../tool-execution/config.js";
 import { DEFAULT_COMPACTION_CARRY, DEFAULT_COMPACTION_ENABLED, type CompactionState } from "../../compaction/config.js";
 import { DEFAULT_TASK_MEMORY_ENABLED, type TaskMemoryState } from "../../task-memory/config.js";
+import { DEFAULT_MESSAGING_ENABLED, type MessagingState } from "../../messaging/config.js";
 
 /*
  * The /freeflow command and the settings model it edits: every Freeflow setting with its repository, personal, and
@@ -648,6 +649,14 @@ function sessionFreeflowItems(
     state.taskMemory?.enabled ?? DEFAULT_TASK_MEMORY_ENABLED,
     DEFAULT_TASK_MEMORY_ENABLED,
   );
+  const messagingItem = sessionSwitch(
+    "freeflow.messaging.enabled",
+    "Enabled",
+    "Exchange messages with other Pi sessions on this machine.",
+    "messaging.enabled",
+    state.messaging?.enabled ?? DEFAULT_MESSAGING_ENABLED,
+    DEFAULT_MESSAGING_ENABLED,
+  );
 
   const items: SettingsItem[] = [
     freeflowItem,
@@ -687,6 +696,9 @@ function sessionFreeflowItems(
       capabilityStatus(state.taskMemory),
       [taskMemoryItem],
     ),
+    sectionItem("freeflow.messaging", "Messaging", "Messaging for this session.", capabilityStatus(state.messaging), [
+      messagingItem,
+    ]),
     sectionItem("freeflow.session", "Session", "Session overrides.", "", [
       {
         id: "freeflow.session.reset",
@@ -1028,6 +1040,7 @@ function freeflowItems(
     toolExecution?: ToolExecutionState;
     compaction?: CompactionState;
     taskMemory?: TaskMemoryState;
+    messaging?: MessagingState;
     ctx?: any;
     runtimeAvailable?: boolean;
   } = {},
@@ -1238,12 +1251,39 @@ function freeflowItems(
     children: [taskMemoryEnabledItem],
   };
 
+  const messagingState = options.messaging;
+  const messagingEnabledItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.messaging.enabled",
+    label: "Enabled",
+    description:
+      "A preview: list this session for other Pi sessions on this machine and let the agent exchange messages with them. Messages from outside the project are held for you to accept.",
+    path: ["messaging", "enabled"],
+    effectiveValue: messagingState?.enabled ?? DEFAULT_MESSAGING_ENABLED,
+    effectiveSource: toolSource(["messaging", "enabled"]),
+    defaultValue: DEFAULT_MESSAGING_ENABLED,
+  });
+  messagingEnabledItem.inactive = freeflowInactive;
+  const messagingGroup: SettingsItem = {
+    id: "freeflow.messaging",
+    label: "Messaging",
+    description: "Configure messaging between Pi sessions on this machine.",
+    kind: "group",
+    value: messagingState?.enabled ?? DEFAULT_MESSAGING_ENABLED,
+    inactive: freeflowInactive,
+    displaySuffix: messagingState?.effective ? "active" : messagingState?.enabled ? "inactive" : "disabled",
+    children: [messagingEnabledItem],
+  };
+
   return [
     freeflowItem,
     ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []),
     toolExecutionGroup,
     compactionGroup,
     taskMemoryGroup,
+    messagingGroup,
   ];
 }
 
@@ -1255,6 +1295,7 @@ function pruneKnownDefaults(config: Record<string, unknown>) {
     { path: ["compaction", "enabled"], value: DEFAULT_COMPACTION_ENABLED },
     { path: ["compaction", "carry"], value: DEFAULT_COMPACTION_CARRY },
     { path: ["taskMemory", "enabled"], value: DEFAULT_TASK_MEMORY_ENABLED },
+    { path: ["messaging", "enabled"], value: DEFAULT_MESSAGING_ENABLED },
   ];
 
   for (const item of defaultPaths) {
@@ -1453,6 +1494,14 @@ function refreshSettingsDerivedState(items: SettingsItem[]) {
     const on = effectiveItemValue(taskMemoryEnabled) === true;
     taskMemoryGroup.value = on;
     taskMemoryGroup.displaySuffix = on && !freeflowInactive ? "active" : on ? "inactive" : "disabled";
+  }
+
+  const messagingGroup = findSettingsItem(items, "freeflow.messaging");
+  const messagingEnabled = findSettingsItem(items, "freeflow.messaging.enabled");
+  if (messagingGroup && messagingEnabled) {
+    const on = effectiveItemValue(messagingEnabled) === true;
+    messagingGroup.value = on;
+    messagingGroup.displaySuffix = on && !freeflowInactive ? "active" : on ? "inactive" : "disabled";
   }
 
   walkSettingsItems(items, (candidate) => {
@@ -1707,6 +1756,7 @@ export async function handleFreeflowCommand(
       toolExecution: state.toolExecution,
       compaction: state.compaction,
       taskMemory: state.taskMemory,
+      messaging: state.messaging,
       ctx,
       runtimeAvailable: isCognitiveRoutingRuntimeAvailable(pi),
     }).find((candidate) => candidate.id === "freeflow.enabled")!;
@@ -1763,6 +1813,7 @@ export async function handleFreeflowCommand(
       toolExecution: stateNow.toolExecution,
       compaction: stateNow.compaction,
       taskMemory: stateNow.taskMemory,
+      messaging: stateNow.messaging,
       ctx,
       runtimeAvailable: isCognitiveRoutingRuntimeAvailable(pi),
     });

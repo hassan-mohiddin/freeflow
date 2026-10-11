@@ -99,6 +99,9 @@ export function freeflowStatusText(state, cognitiveRoutingController, diagnostic
     ...(state.taskMemory?.effective
       ? [`task memory: enabled${diagnostics?.taskMemory ? ` (${diagnostics.taskMemory})` : ""}`]
       : []),
+    ...(state.messaging?.effective
+      ? [`messaging: enabled${diagnostics?.messaging ? ` (${diagnostics.messaging})` : ""}`]
+      : []),
     ...(diagnostics?.cacheHealth?.length ? [`prompt cache: ${diagnostics.cacheHealth.join(" ")}`] : []),
   ].join("; ");
 }

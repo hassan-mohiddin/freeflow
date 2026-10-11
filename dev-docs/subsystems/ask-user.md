@@ -10,7 +10,7 @@ For contributors changing how Freeflow on Pi asks the user a question, or how co
 
 **`ask_user`** lets the agent put a choice that is the user's to a dialog mid-turn and continue on the answer, instead of asking in its reply and ending the turn. Any activity that needs the user's choice uses it: scope beyond what was authorized, a blocking decision (Decision Gate), a direction once discussion narrows (Discuss), a route for finishing a branch. Each activity keeps its own judgment about what to ask; the tool changes how.
 
-**The inbound channel** is one delivery rule for content arriving from outside the turn. Background command exits and monitor events are its sources; messages from other sessions are planned (Task 002, step 3).
+**The inbound channel** is one delivery rule for content arriving from outside the turn. Background command exits, monitor events and messages from other sessions ([Messaging](messaging.md)) are its sources.
 
 It deliberately does not:
 

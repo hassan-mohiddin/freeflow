@@ -27,6 +27,9 @@ import { applyCompactionTools, registerCompactionTool } from "./compaction/tool.
 import { strictest } from "./compaction/thresholds.js";
 import { SNAPSHOT_TYPE, TASK_ENTRY, TaskMemory } from "./task-memory/runtime.js";
 import { applyTaskMemoryTools, registerTaskMemoryTool } from "./task-memory/tool.js";
+import { freeflowHome } from "./task-memory/registry.js";
+import { MESSAGE_TYPE, Messaging } from "./messaging/messaging.js";
+import { applyMessagingTools, registerMessagingTools } from "./messaging/tools.js";
 import { renderSnapshotMessage } from "./task-memory/render.js";
 import { applyAskUserTool, registerAskUserTool } from "./ask-user/tool.js";
 import { confirmWithUser } from "./ask-user/ask.js";
@@ -210,6 +213,7 @@ export default function freeflow(pi) {
   const compactionEffective = () => capability?.compaction?.effective === true;
   const taskMemoryEffective = () => capability?.taskMemory?.effective === true;
   const askUserEffective = () => capability?.askUser?.effective === true;
+  const messagingEffective = () => capability?.messaging?.effective === true;
   const cacheHealth = new CacheHealth();
   let prompts;
   let refreshState = true;
@@ -251,6 +255,8 @@ export default function freeflow(pi) {
     applyCompactionTools(api, compactionEffective());
     applyTaskMemoryTools(api, taskMemoryEffective());
     applyAskUserTool(api, askUserEffective());
+    applyMessagingTools(api, messagingEffective());
+    syncMessaging(ctx);
     setFreeflowStatus(ctx, capability, routing.state(), prompts);
   }
   // Control and setting changes made between prompts are staged; their net effect is written as a prompt starts.
@@ -402,6 +408,59 @@ export default function freeflow(pi) {
     cwd: () => liveHost?.cwd ?? process.cwd(),
     packageRoot,
   });
+  // Messaging between live Pi sessions (Task 002 D-005). Its tools are deferred: tool_search loads them.
+  // Read from the event context that last synced messaging, while it was current: a captured context goes stale when
+  // Pi replaces the session, so later asynchronous work uses these values, not the context.
+  let messagingSeen;
+  let agentRunning = false;
+  const live = (read, fallback) => {
+    try {
+      return read();
+    } catch {
+      return fallback;
+    }
+  };
+  const messaging = new Messaging(
+    {
+      identity: async () => {
+        const seen = messagingSeen ?? { sessionId: `pid-${process.pid}`, cwd: process.cwd() };
+        const project = await taskMemory.registry.projectFor(seen.cwd).catch(() => undefined);
+        const focus = taskMemory.state().focus;
+        const task = focus ? await taskMemory.registry.byRecord(focus).catch(() => undefined) : undefined;
+        return { ...seen, ...(project ? { project: project.slug } : {}), ...(task ? { task: task.id } : {}) };
+      },
+      policy: () => capability?.messaging?.inbound ?? "project",
+      busy: () => agentRunning,
+      deliver: (content, details) => inbound.deliver({ customType: MESSAGE_TYPE, content, details, wake: true }),
+      canAsk: () => live(() => liveHost?.hasUI === true, false),
+      confirm: async (title, message, timeout) =>
+        (await Promise.resolve(live(() => liveHost?.ui?.confirm?.(title, message, { timeout }), false)).catch(
+          () => false,
+        )) === true,
+      ownerOf: async (id) => (await taskMemory.registry.task(id).catch(() => undefined))?.owner?.session,
+    },
+    freeflowHome(),
+  );
+  registerMessagingTools(api, messaging, messagingEffective);
+  api.registerMessageRenderer?.(MESSAGE_TYPE, renderNotice("Message"));
+  // Start or stop listening as messaging's effective state changes; a running session refreshes its registry entry.
+  let messagingSync = Promise.resolve();
+  function syncMessaging(ctx) {
+    const effective = messagingEffective();
+    if (effective)
+      messagingSeen = live(() => {
+        const manager = ctx.sessionManager;
+        const name = manager?.getSessionName?.();
+        return {
+          sessionId: manager?.getSessionId?.() ?? `pid-${process.pid}`,
+          ...(name ? { name } : {}),
+          cwd: ctx.cwd ?? process.cwd(),
+        };
+      }, messagingSeen);
+    messagingSync = messagingSync
+      .then(() => (effective ? messaging.start() : messaging.running() ? messaging.stop() : undefined))
+      .catch(() => {});
+  }
   // A delivered resume view shows as one line naming the task; expanding shows the view the model received.
   api.registerMessageRenderer?.(SNAPSHOT_TYPE, (message, options, theme) =>
     renderSnapshotMessage(message, options, theme),
@@ -599,6 +658,10 @@ export default function freeflow(pi) {
   });
   pi.on("session_shutdown", async () => {
     surfaceGeneration++;
+    // Leave the live registry and close the socket, after any start still queued; sessions waiting for this one learn
+    // that it ended.
+    messagingSync = messagingSync.then(() => messaging.stop()).catch(() => {});
+    await messagingSync;
     // Background processes belong to this extension instance; none may report into the next session.
     await background.stopAll();
     inbound.reset();
@@ -632,6 +695,7 @@ export default function freeflow(pi) {
       if (capability?.enabled === true && hasUsableMandatoryPrompts(prompts))
         sections.freeflow_guidance = stableRuntimeContext(prompts, {
           routing: capability?.cognitiveRouting?.effective === true,
+          messaging: messagingEffective(),
         });
       if (toolExecution)
         Object.assign(sections, toolExecutionTail(api.getSettings?.()?.shellPath, prompts?.toolExecutionPrompt));
@@ -641,7 +705,11 @@ export default function freeflow(pi) {
     if (changed)
       return { message: { customType: "freeflow-files", content: `${NOTICE_PREFIX} ${changed}`, display: true } };
   });
-  pi.on("agent_start", () => routing.runStarted());
+  pi.on("agent_start", () => {
+    routing.runStarted();
+    agentRunning = true;
+    if (messaging.running()) void messaging.setBusy(true).catch(() => {});
+  });
   pi.on("message_end", async (event, ctx) => {
     const message = event.message;
     if (
@@ -720,6 +788,8 @@ export default function freeflow(pi) {
     await files.compacted(compacted.carriedFiles, ctx);
   });
   pi.on("agent_settled", async (_event, ctx) => {
+    agentRunning = false;
+    if (messaging.running()) await messaging.setBusy(false).catch(() => {});
     await routing.settled(ctx);
     await update(ctx);
   });
@@ -893,6 +963,9 @@ export default function freeflow(pi) {
           backgroundRunning: background.running().length,
           compaction: compaction.statusText(ctx),
           taskMemory: taskMemory.attachedText(),
+          messaging: messaging.self()
+            ? `this session is ${messaging.self().name}${messaging.heldCount() ? `, ${messaging.heldCount()} held` : ""}`
+            : undefined,
         }),
       });
     },

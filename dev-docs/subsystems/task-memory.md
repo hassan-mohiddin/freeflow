@@ -17,7 +17,7 @@ It deliberately does not:
 - require a record: a session with nothing attached gets no snapshot (its record writes are still refused until the user attaches the record);
 - decide what a record says or when a task needs one: [Track Work](../../skills/track-work/SKILL.md) still owns that;
 - change the record format: every record, registered or not, is a Track Work record created by its `init` and read through its `views.mjs`, so it stays valid for the script skill on other hosts;
-- pass messages between a parent and its children: the user runs both sessions, and the parent reads children's records;
+- carry messages between a parent and its children itself: with Messaging on, a child reports to its parent's session through `send_message` addressed by task ID ([Messaging](messaging.md)), and the parent reads children's records;
 - treat subagents as children: Freeflow turns task memory off inside subagents, and a subagent works on its session's task;
 - work under automatic Cognitive Routing yet: attaching is refused there.
 
@@ -95,7 +95,7 @@ It deliberately does not:
 | A store keeps records in `tasks/`, marked by `store.json`, not a repository's `.freeflow/tasks/`. | The store is not a repository; the marker makes the layout self-describing, so it does not depend on `FREEFLOW_HOME` agreeing across processes. | Nesting `.freeflow/tasks/` inside the store; detecting stores by their location under the home. | `0da5b5cd` |
 | Task IDs reuse Track Work's `init` numbering in the store. | No format change and no second numbering scheme. | Global random IDs. | `b51e51cc` |
 | One owner session per registered record; takeover only with the user's confirmation. | One writer per record without a merge contract; Pi cannot tell when a session has ended, so the user decides. | Relying only on Track Work's stale-write check. | `b51e51cc` |
-| Children are interactive sessions; the parent's session alone writes the parent and reads children. | The user mediates, so no messaging is needed; subagents stay within their session's task. | Children writing the parent, which needs merging; subagents as children. | `b51e51cc` |
+| Children are interactive sessions; the parent's session alone writes the parent and reads children. With Messaging on, a child reports to the parent's session by task ID and the parent writes what it records. | One writer per record; subagents stay within their session's task. Messaging (Task 002 D-005) replaced "the user carries results between sessions". | Children writing the parent, which needs merging; subagents as children. | `b51e51cc` |
 | Records are read and created through Track Work's own library and script. | One implementation of the record format, so records stay valid for the script skill on other hosts. | A copy of the format code in the extension. | `77815ab0` |
 | The registry, search and import live in Track Work's library; Pi delegates to them. | Portable parts serve every host through the script; Pi adds only harness behavior. | Two Track Work products, one per kind of host. | `5fec4720` |
 | The resume view opens by saying it is task memory, not an instruction, and that the user's latest message decides the work; the capability skill has the matching Rule. | In Pi evals on claude-haiku-5-5, with a record in focus the agent did the record's Next useful action instead of the user's request 3 of 3 times; with task memory off it did the request 3 of 3. | Relying on Track Work's general "the record is memory, not authority" Rule, which the agent had and still did not apply. | `00ab3048` |

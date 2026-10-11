@@ -1,5 +1,6 @@
 import { validateCompactionConfig } from "../compaction/config.js";
 import { validateTaskMemoryConfig } from "../task-memory/config.js";
+import { validateMessagingConfig } from "../messaging/config.js";
 import { validateToolExecutionConfig } from "../tool-execution/config.js";
 /**
  * Whether a Freeflow config file is valid: one answer for Pi and for the session-start hooks of the other hosts, which
@@ -57,6 +58,7 @@ export function validateRepositoryConfig(value) {
     "toolExecution",
     "compaction",
     "taskMemory",
+    "messaging",
     "prompts",
   ]);
   for (const key of Object.keys(value)) {
@@ -87,6 +89,10 @@ export function validateRepositoryConfig(value) {
     const error = validateTaskMemoryConfig(value.taskMemory);
     if (error) return error;
   }
+  if (value.messaging !== undefined) {
+    const error = validateMessagingConfig(value.messaging);
+    if (error) return error;
+  }
   return null;
 }
 export function validateLocalConfig(value) {
@@ -103,6 +109,7 @@ export function validateLocalConfig(value) {
     "toolExecution",
     "compaction",
     "taskMemory",
+    "messaging",
     "prompts",
   ]);
   for (const key of Object.keys(value)) {
@@ -124,6 +131,10 @@ export function validateLocalConfig(value) {
     const error = validateCompactionConfig(value.compaction);
     if (error) return error;
   }
-  if (value.taskMemory !== undefined) return validateTaskMemoryConfig(value.taskMemory);
+  if (value.taskMemory !== undefined) {
+    const error = validateTaskMemoryConfig(value.taskMemory);
+    if (error) return error;
+  }
+  if (value.messaging !== undefined) return validateMessagingConfig(value.messaging);
   return null;
 }

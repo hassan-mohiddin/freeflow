@@ -6,6 +6,7 @@ import { sessionStage, stagedFor } from "./staging.js";
 import { resolveToolExecutionConfig } from "../tool-execution/config.js";
 import { resolveCompactionConfig } from "../compaction/config.js";
 import { resolveTaskMemoryConfig } from "../task-memory/config.js";
+import { resolveMessagingConfig } from "../messaging/config.js";
 import { validateLocalConfig, validateRepositoryConfig } from "./config-validation.js";
 import { cachedBranch } from "./branch.js";
 /**
@@ -24,6 +25,7 @@ export const SESSION_OVERRIDE_KEYS = [
   "compaction.enabled",
   "compaction.carry",
   "taskMemory.enabled",
+  "messaging.enabled",
 ] as const;
 export type SessionCoreKey = (typeof SESSION_OVERRIDE_KEYS)[number];
 
@@ -235,6 +237,7 @@ export async function readCapabilityState(cwd, host = undefined) {
   const toolExecution = resolveToolExecutionConfig(repositoryConfig, sessionLocalConfig, enabled);
   const compaction = resolveCompactionConfig(repositoryConfig, sessionLocalConfig, enabled);
   const taskMemory = resolveTaskMemoryConfig(repositoryConfig, sessionLocalConfig, enabled);
+  const messaging = resolveMessagingConfig(repositoryConfig, sessionLocalConfig, enabled);
   const capabilityState = {
     configured: layers.configured,
     repositoryConfigured: layers.repositoryConfigured,
@@ -256,6 +259,7 @@ export async function readCapabilityState(cwd, host = undefined) {
     toolExecution,
     compaction,
     taskMemory,
+    messaging,
     // ask_user: core, on whenever Freeflow is enabled (Task 002 D-001); off in subagents, which have no user.
     askUser: { enabled, effective: enabled },
   };
@@ -267,6 +271,7 @@ export async function readCapabilityState(cwd, host = undefined) {
     toolExecution: disableSubagentCapability(capabilityState.toolExecution),
     compaction: disableSubagentCapability(capabilityState.compaction),
     taskMemory: disableSubagentCapability(capabilityState.taskMemory),
+    messaging: disableSubagentCapability(capabilityState.messaging),
     askUser: disableSubagentCapability(capabilityState.askUser),
   };
 }

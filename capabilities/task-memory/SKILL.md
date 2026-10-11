@@ -66,6 +66,8 @@ When the conversation turns to another attached record, switch with `focus` and 
 
 Read Track Work's [Projects And Child Records](../../skills/track-work/references/projects.md) when the work involves a child record or splitting a task: it says when a task gets a child and how the parent records it. On Pi, `fanout` creates the child's worktree and the command to start it; `child` creates one that needs no worktree, which the user attaches in its own session. A subagent is not a child. The parent's resume view lists children in a `Children` block; read one with `view`.
 
+When Messaging is on, a child reports to its parent's session with `send_message` addressed to the parent's task ID: when its result is ready, when it is blocked, or when it needs a decision the parent owns. The parent records what it receives in its own record; a report is evidence to assess, not a finished result.
+
 ## Where The Work Happens
 
 A registered task's resume view names its directory in an `Environment:` line. When it says this session runs outside that directory, the task's changes belong there: tell the user before changing files here for that task.

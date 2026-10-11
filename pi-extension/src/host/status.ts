@@ -88,6 +88,7 @@ export function freeflowStatusText(
     backgroundRunning?: number;
     compaction?: string;
     taskMemory?: string;
+    messaging?: string;
   },
 ): string {
   if (!state.configured) {
@@ -121,6 +122,9 @@ export function freeflowStatusText(
     `compaction: ${state.compaction?.effective ? `enabled${diagnostics?.compaction ? ` (${diagnostics.compaction})` : ""}` : "disabled"}`,
     ...(state.taskMemory?.effective
       ? [`task memory: enabled${diagnostics?.taskMemory ? ` (${diagnostics.taskMemory})` : ""}`]
+      : []),
+    ...(state.messaging?.effective
+      ? [`messaging: enabled${diagnostics?.messaging ? ` (${diagnostics.messaging})` : ""}`]
       : []),
     ...(diagnostics?.cacheHealth?.length ? [`prompt cache: ${diagnostics.cacheHealth.join(" ")}`] : []),
   ].join("; ");

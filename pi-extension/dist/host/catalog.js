@@ -58,6 +58,7 @@ export const STABLE_FREEFLOW_SURFACE = Object.freeze({
   toolExecution: { effective: true },
   compaction: { effective: true },
   taskMemory: { effective: true },
+  messaging: { effective: true },
 });
 export function freeflowSkillPath(skillName) {
   return fileURLToPath(new URL(`../../../skills/${skillName}/SKILL.md`, import.meta.url));

@@ -43,6 +43,8 @@ const requiredFiles = [
   "capabilities/task-memory/SKILL.md",
   "pi-extension/dist/task-memory/runtime.js",
   "pi-extension/dist/task-memory/registry.js",
+  "pi-extension/dist/messaging/messaging.js",
+  "runtime/prompts/messaging.md",
   "skills/track-work/scripts/lib/registry.mjs",
   "skills/track-work/scripts/lib/search.mjs",
   "skills/track-work/scripts/lib/views.mjs",
