@@ -20,7 +20,7 @@ const BOOTSTRAP_COMPONENTS = Object.freeze({
   cognitiveRouting: "cognitive-routing",
 });
 
-function bootstrapEntryComponents(entry) {
+function bootstrapEntryComponents(entry: any) {
   const isCustomMessage = entry?.role === "custom" || entry?.type === "custom_message" || entry?.type === "custom";
   if (!isCustomMessage) return [];
   if (entry.customType === FREEFLOW_BOOTSTRAP_MESSAGE_TYPE) {
@@ -41,7 +41,7 @@ function bootstrapEntryComponents(entry) {
   return [];
 }
 
-export function filterBootstrapMessage(message) {
+export function filterBootstrapMessage(message: any) {
   return bootstrapEntryComponents(message).length === 0 ? message : undefined;
 }
 
@@ -62,18 +62,20 @@ type FreeflowContextMessage = {
   [key: string]: unknown;
 };
 
-function publicCognitiveRoutingControl(controlMode) {
+function publicCognitiveRoutingControl(controlMode: unknown) {
   if (controlMode === "automatic") return "automatic";
-  if (["manual-helper", "manual-executor", "manual-coordinator"].includes(controlMode)) return "manual";
+  if (["manual-helper", "manual-executor", "manual-coordinator"].includes(String(controlMode))) return "manual";
   return "unavailable";
 }
 
-function publicCognitiveRoutingProfile(activeProfile, effective) {
+function publicCognitiveRoutingProfile(activeProfile: unknown, effective: unknown) {
   if (effective !== true) return "unavailable";
-  return ["helper", "executor", "coordinator"].includes(activeProfile) ? activeProfile : "unavailable";
+  return typeof activeProfile === "string" && ["helper", "executor", "coordinator"].includes(activeProfile)
+    ? activeProfile
+    : "unavailable";
 }
 
-function publicCapabilityStatus(capability) {
+function publicCapabilityStatus(capability: any) {
   if (capability?.effective === true) return "active";
   if (!capability) return "unavailable";
   const blockingCode = capability.blockingReason?.code;
@@ -81,7 +83,7 @@ function publicCapabilityStatus(capability) {
   return "inactive";
 }
 
-function publicCognitiveRoutingStatus(capability, runtime) {
+function publicCognitiveRoutingStatus(capability: any, runtime: CognitiveRoutingRuntimeSnapshot | undefined) {
   if (runtime?.runtimeStatus === "inactive") return "inactive";
   return publicCapabilityStatus(capability);
 }
@@ -101,9 +103,9 @@ function publicCognitiveRoutingProjectionMode(
 }
 
 export function freeflowRuntimeStateMessage(
-  capabilityState,
+  capabilityState: any,
   cognitiveRoutingRuntime: CognitiveRoutingRuntimeSnapshot | undefined = undefined,
-  freeflowContext = undefined,
+  freeflowContext: any = undefined,
   options: {
     projectionFailure?: string;
     /** Task memory's lines, present only while it is effective. */
@@ -189,9 +191,9 @@ function insertRuntimeStateBeforeFirstUser(
 
 export function withFreeflowRuntimeState(
   messages: readonly FreeflowContextMessage[] | undefined,
-  capabilityState,
+  capabilityState: any,
   cognitiveRoutingRuntime: CognitiveRoutingRuntimeSnapshot | undefined = undefined,
-  freeflowContext = undefined,
+  freeflowContext: any = undefined,
   options: {
     force?: boolean;
     projectionFailure?: string;

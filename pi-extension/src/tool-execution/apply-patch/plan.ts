@@ -220,7 +220,7 @@ export async function applyPatch(text: string, cwd: string, files: PatchFileStat
       steps = await plan(hunks, cwd, files, notes);
     } catch (error) {
       if (!(error instanceof PlanError)) throw error;
-      return { status: "not_applied", files: [], notes, error: error.message };
+      return { status: "not_applied", files: [] as PatchResult["files"], notes, error: error.message };
     }
     const changes: FileChange[] = steps.map((step) => ({
       path: step.path,

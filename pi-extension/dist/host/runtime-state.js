@@ -38,12 +38,14 @@ export function filterBootstrapMessage(message) {
 }
 function publicCognitiveRoutingControl(controlMode) {
   if (controlMode === "automatic") return "automatic";
-  if (["manual-helper", "manual-executor", "manual-coordinator"].includes(controlMode)) return "manual";
+  if (["manual-helper", "manual-executor", "manual-coordinator"].includes(String(controlMode))) return "manual";
   return "unavailable";
 }
 function publicCognitiveRoutingProfile(activeProfile, effective) {
   if (effective !== true) return "unavailable";
-  return ["helper", "executor", "coordinator"].includes(activeProfile) ? activeProfile : "unavailable";
+  return typeof activeProfile === "string" && ["helper", "executor", "coordinator"].includes(activeProfile)
+    ? activeProfile
+    : "unavailable";
 }
 function publicCapabilityStatus(capability) {
   if (capability?.effective === true) return "active";

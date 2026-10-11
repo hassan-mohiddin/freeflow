@@ -7,7 +7,7 @@ import { resolveToolExecutionConfig } from "../tool-execution/config.js";
 import { resolveCompactionConfig } from "../compaction/config.js";
 import { resolveTaskMemoryConfig } from "../task-memory/config.js";
 import { resolveMessagingConfig } from "../messaging/config.js";
-import { validateLocalConfig, validateRepositoryConfig } from "./config-validation.js";
+import { type ConfigObject, validateLocalConfig, validateRepositoryConfig } from "./config-validation.js";
 import { cachedBranch } from "./branch.js";
 /**
  * Freeflow configuration: the repository and personal config files, their layering, per-session core overrides, and
@@ -66,11 +66,23 @@ function disableSubagentCapability(capability: any): any {
   };
 }
 
-function isRecord(value) {
+function isRecord(value: unknown): value is ConfigObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-async function readConfigFileState(path, validate) {
+/** One config file as read: whether it exists, whether it is valid, and why not. */
+type ConfigFileState = {
+  path: string;
+  exists: boolean;
+  valid: boolean;
+  parsed: ConfigObject;
+  parseError: string | null;
+};
+
+async function readConfigFileState(
+  path: string,
+  validate: (value: unknown) => string | null,
+): Promise<ConfigFileState> {
   try {
     const raw = await readFile(path, "utf8");
     const parsed = JSON.parse(raw);
@@ -107,25 +119,25 @@ async function readConfigFileState(path, validate) {
   }
 }
 
-function readFreeflowConfigState(cwd) {
+function readFreeflowConfigState(cwd: string) {
   return readConfigFileState(join(cwd, ".freeflow/config.json"), validateRepositoryConfig);
 }
 
-function readFreeflowLocalConfigState(cwd) {
+function readFreeflowLocalConfigState(cwd: string) {
   return readConfigFileState(join(cwd, ".freeflow/local.json"), validateLocalConfig);
 }
 
-export async function readFreeflowConfig(cwd) {
+export async function readFreeflowConfig(cwd: string) {
   const state = await readFreeflowConfigState(cwd);
   return state.valid ? state.parsed : {};
 }
 
-export async function readFreeflowLocalConfig(cwd) {
+export async function readFreeflowLocalConfig(cwd: string) {
   const state = await readFreeflowLocalConfigState(cwd);
   return state.valid ? state.parsed : {};
 }
 
-function resolveLayeredValue(repository, local, key, fallback) {
+function resolveLayeredValue(repository: ConfigObject, local: ConfigObject, key: string, fallback: unknown) {
   if (Object.hasOwn(local, key)) {
     return { value: local[key], source: "local" };
   }
@@ -135,7 +147,7 @@ function resolveLayeredValue(repository, local, key, fallback) {
   return { value: fallback, source: "builtin" };
 }
 
-function resolveCoreConfig(repository, local) {
+function resolveCoreConfig(repository: ConfigObject, local: ConfigObject) {
   const enabled = resolveLayeredValue(repository, local, "enabled", true);
   return {
     config: { enabled: enabled.value },
@@ -143,7 +155,7 @@ function resolveCoreConfig(repository, local) {
   };
 }
 
-function normalizeSessionOverrides(value): SessionCoreOverrides {
+function normalizeSessionOverrides(value: unknown): SessionCoreOverrides {
   if (!isRecord(value)) return {};
   const overrides: SessionCoreOverrides = {};
   for (const key of SESSION_CORE_KEYS) {
@@ -172,7 +184,7 @@ function withSessionLayer(local: Record<string, unknown>, session: Record<string
   return merged;
 }
 
-function resolveSessionCoreConfig(layers) {
+function resolveSessionCoreConfig(layers: FreeflowConfigLayers) {
   const configured = layers.coreConfig;
   const sources = layers.sources;
   const enabled = currentSessionOverrides.enabled;
@@ -183,7 +195,9 @@ function resolveSessionCoreConfig(layers) {
   };
 }
 
-export async function readFreeflowConfigLayers(cwd) {
+export type FreeflowConfigLayers = Awaited<ReturnType<typeof readFreeflowConfigLayers>>;
+
+export async function readFreeflowConfigLayers(cwd: string) {
   const [repository, local] = await Promise.all([readFreeflowConfigState(cwd), readFreeflowLocalConfigState(cwd)]);
   const repositoryConfig = repository.valid ? repository.parsed : {};
   const localConfig = local.valid ? local.parsed : {};
@@ -209,7 +223,11 @@ export async function readFreeflowConfigLayers(cwd) {
   };
 }
 
-export async function readCapabilityState(cwd, host = undefined) {
+/** Freeflow's settings and each capability's state for a directory, as every surface reads them. */
+export type CapabilityState = Awaited<ReturnType<typeof readCapabilityState>>;
+
+// host is Pi's extension context (or none); Pi's runtime objects are wider than its exported types.
+export async function readCapabilityState(cwd: string, host: any = undefined) {
   const layers = await readFreeflowConfigLayers(cwd);
   const effectiveCore = resolveSessionCoreConfig(layers);
   const enabled = layers.configured && effectiveCore.config.enabled;
@@ -276,7 +294,7 @@ export async function readCapabilityState(cwd, host = undefined) {
   };
 }
 
-function recordedSessionOverrides(sessionManager) {
+function recordedSessionOverrides(sessionManager: any) {
   let recorded = {};
   for (const entry of sessionManager?.getBranch ? cachedBranch(sessionManager) : (sessionManager?.getEntries?.() ?? []))
     if (entry.type === "custom" && entry.customType === SESSION_OVERRIDES_ENTRY)
@@ -284,27 +302,27 @@ function recordedSessionOverrides(sessionManager) {
   return recorded;
 }
 
-export function restoreSessionOverrides(ctx) {
+export function restoreSessionOverrides(ctx: any) {
   const staged = stagedFor(ctx.sessionManager)?.overrides;
   currentSessionOverrides = normalizeSessionOverrides(staged ?? recordedSessionOverrides(ctx.sessionManager));
 }
 
 /** Session overrides change nothing until the next prompt, so they are staged and written then. */
-function recordSessionOverrides(ctx, pi) {
+function recordSessionOverrides(ctx: any, pi: any) {
   const stage = sessionStage(ctx?.sessionManager);
   if (stage) stage.overrides = { ...currentSessionOverrides };
   else pi?.appendEntry?.(SESSION_OVERRIDES_ENTRY, { overrides: { ...currentSessionOverrides } });
 }
 
 /** Write staged session overrides at the start of a prompt, unless they equal what the session recorded. */
-export function writeStagedSessionOverrides(overrides, pi, sessionManager) {
+export function writeStagedSessionOverrides(overrides: unknown, pi: any, sessionManager: any) {
   if (!overrides) return;
   const next = normalizeSessionOverrides(overrides);
   if (JSON.stringify(next) === JSON.stringify(recordedSessionOverrides(sessionManager))) return;
   pi?.appendEntry?.(SESSION_OVERRIDES_ENTRY, { overrides: { ...next } });
 }
 
-export async function setSessionCoreOverride(key: SessionCoreKey, value: boolean | null, ctx, pi) {
+export async function setSessionCoreOverride(key: SessionCoreKey, value: boolean | null, ctx: any, pi: any) {
   if (!SESSION_CORE_KEYS.has(key)) {
     throw new Error(`Invalid Freeflow session override: ${String(key)}`);
   }
@@ -334,7 +352,7 @@ export async function setSessionCoreOverride(key: SessionCoreKey, value: boolean
   };
 }
 
-export async function resetSessionOverrides(ctx, pi) {
+export async function resetSessionOverrides(ctx: any, pi: any) {
   const hadCoreOverrides = Object.keys(currentSessionOverrides).length > 0;
   const reloadRequired = hadCoreOverrides;
 

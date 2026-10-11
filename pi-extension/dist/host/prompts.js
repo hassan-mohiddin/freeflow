@@ -50,7 +50,9 @@ function runtimeContextCacheSatisfies(capabilityState) {
     interactionContractPrompt: capabilityState?.enabled === true,
     cognitiveRoutingPrompt: capabilityState?.cognitiveRouting?.effective === true,
   };
-  return Object.entries(expected).every(([key, required]) => !required || isPromptAvailable(runtimeContextCache[key]));
+  return Object.entries(expected).every(
+    ([key, required]) => !required || isPromptAvailable(runtimeContextCache?.[key]),
+  );
 }
 export async function refreshRuntimeContext(capabilityState = undefined) {
   runtimeContextCache = await loadRuntimeContext(capabilityState);

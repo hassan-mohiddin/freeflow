@@ -8,15 +8,18 @@ import { validateToolExecutionConfig } from "../tool-execution/config.js";
  * import the built file. Keep this module and its imports free of Pi packages; the hooks run in plain Node.
  */
 
-function isRecord(value) {
+function isRecord(value: unknown): value is ConfigObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
+/** A parsed config file: JSON whose shape the validators below check. */
+export type ConfigObject = Record<string, any>;
 
 /** The runtime prompts a hook host delivers, each on unless a config turns it off. Pi always delivers all of them. */
 export const RUNTIME_PROMPTS = ["core", "interactionContract", "workingMethod"] as const;
 export type RuntimePromptSelection = Record<(typeof RUNTIME_PROMPTS)[number], boolean>;
 
-function validatePromptsConfig(value) {
+function validatePromptsConfig(value: unknown) {
   if (!isRecord(value)) return "prompts must be an object";
   const unknown = Object.keys(value).find((key) => !(RUNTIME_PROMPTS as readonly string[]).includes(key));
   if (unknown) return `prompts has unsupported key: ${unknown}`;
@@ -26,15 +29,15 @@ function validatePromptsConfig(value) {
 }
 
 /** The prompts a hook host delivers for two valid config layers: the personal layer overrides the repository's. */
-export function selectedRuntimePrompts(repository, local): RuntimePromptSelection {
-  const layer = (config) => (isRecord(config?.prompts) ? config.prompts : {});
+export function selectedRuntimePrompts(repository: unknown, local: unknown): RuntimePromptSelection {
+  const layer = (config: any) => (isRecord(config?.prompts) ? config.prompts : {});
   const [shared, personal] = [layer(repository), layer(local)];
   const selection = {} as RuntimePromptSelection;
   for (const key of RUNTIME_PROMPTS) selection[key] = (personal[key] ?? shared[key] ?? true) === true;
   return selection;
 }
 
-function removedContextConfigError(value, filePath) {
+function removedContextConfigError(value: ConfigObject, filePath: string) {
   const removedKeys = ["contextVirtualization", "conversationHistory"].filter((key) =>
     Object.prototype.hasOwnProperty.call(value, key),
   );
@@ -43,7 +46,7 @@ function removedContextConfigError(value, filePath) {
     : null;
 }
 
-function validateCoreConfigFields(value) {
+function validateCoreConfigFields(value: ConfigObject) {
   if (value.enabled !== undefined && typeof value.enabled !== "boolean") {
     return "enabled must be a boolean";
   }
@@ -51,7 +54,7 @@ function validateCoreConfigFields(value) {
   return null;
 }
 
-export function validateRepositoryConfig(value) {
+export function validateRepositoryConfig(value: unknown): string | null {
   if (!isRecord(value)) {
     return "config must be a JSON object";
   }
@@ -111,7 +114,7 @@ export function validateRepositoryConfig(value) {
   return null;
 }
 
-export function validateLocalConfig(value) {
+export function validateLocalConfig(value: unknown): string | null {
   if (!isRecord(value)) {
     return "local config must be a JSON object";
   }
