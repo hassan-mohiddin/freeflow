@@ -5,7 +5,7 @@ description: "Use on Pi with Freeflow Messaging on, when the user asks you to co
 
 # Messaging
 
-With Messaging on, this Pi session can exchange plain-text messages with other live Pi sessions on this machine that have it on too. A message you send reaches the other agent between its tool calls, or starts a turn if it is idle; one you receive arrives the same way, as a notice that starts `[Freeflow notice, not from the user] Message from`. The other session may deliver your message, hold it for its user to accept, or refuse it.
+With Messaging on, this Pi session can exchange plain-text messages with other live Pi sessions on this machine that have it on too. A message you send reaches the other agent between its tool calls, or starts a turn if it is idle. One you receive arrives the same way, as `<message from="name" session="id" folder="...">text</message>`; `<message-status>` reports what happened to a message of yours that was held, and `<session-status>` that a session you watch went idle or ended. The other session may deliver your message, hold it for its user to accept, or refuse it.
 
 The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 
@@ -20,7 +20,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 Goal: the message reaches the one session it is meant for.
 
-`list_sessions` and `send_message` may not be among your tools: load them with `tool_search`. `list_sessions` shows each session's name, session ID, folder, project, focused task, and whether it is busy. Address by name when it is unique, by session ID when names repeat, and by a Task Memory task ID to reach the session that owns that task. A session that is not listed is not running with Messaging on and cannot receive; say so rather than looking for another way in.
+`list_sessions` and `send_message` may not be among your tools: load them with `tool_search` (query `list_sessions send_message`, limit 2). `list_sessions` shows each session's name, session ID, folder, project, focused task, and whether it is busy. Address by name when it is unique, by session ID when names repeat, and by a Task Memory task ID to reach the session that owns that task. A session that is not listed is not running with Messaging on and cannot receive; say so rather than looking for another way in.
 
 ## Write The Message
 
@@ -40,7 +40,7 @@ A reply arrives on its own as a notice: end your turn, or continue other work, a
 
 Goal: the sender gets an answer it can use, and your user stays in charge of this session.
 
-Reply with `send_message` to the session ID the notice names. Answer what was asked from what you know or can check within your agreement. When answering needs your user's decision or work beyond your agreement, tell your user, and tell the sender that the answer waits on your user.
+Replying is your choice. Reply when the message asks something, or your user wants the other session told something; do not answer an acknowledgment or a message that needs no answer, or the two sessions keep acknowledging each other. Reply with `send_message` to the message's `session`. Answer what was asked from what you know or can check within your agreement. When answering needs your user's decision or work beyond your agreement, tell your user, and tell the sender that the answer waits on your user.
 
 ## Child And Parent Tasks
 

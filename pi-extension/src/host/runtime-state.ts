@@ -146,6 +146,9 @@ export function freeflowRuntimeStateMessage(
       "Capabilities:",
       `- Cognitive Routing: ${publicCognitiveRoutingStatus(capabilityState?.cognitiveRouting, cognitiveRoutingRuntime)}`,
       `- Tool Execution: ${publicCapabilityStatus(capabilityState?.toolExecution)}`,
+      ...(capabilityState?.messaging?.enabled
+        ? [`- Messaging: ${publicCapabilityStatus(capabilityState.messaging)}`]
+        : []),
       "",
       "Cognitive Routing:",
       `- Control: \`${control}\``,

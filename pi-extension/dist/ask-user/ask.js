@@ -12,9 +12,21 @@ const DONE = "Done";
 export async function askUser(ctx, questions, signal, form = {}) {
   if (!ctx?.hasUI || !ctx.ui) return { status: "unavailable", reason: "No one can answer a dialog in this session." };
   if (ctx.mode === "tui" && typeof ctx.ui.custom === "function") {
-    const outcome = await ctx.ui.custom(
-      (tui, theme, _keybindings, done) => new QuestionForm(questions, theme, done, () => tui?.requestRender?.(), form),
-    );
+    let timer;
+    const outcome = await ctx.ui.custom((tui, theme, _keybindings, done) => {
+      const view = new QuestionForm(questions, theme, done, () => tui?.requestRender?.(), form);
+      // A dialog with a deadline counts down and closes itself unanswered when it passes.
+      if (form.deadline !== undefined)
+        timer = setInterval(() => {
+          if (Date.now() >= form.deadline) done({ status: "dismissed" });
+          else {
+            view.invalidate();
+            tui?.requestRender?.();
+          }
+        }, 1000);
+      return view;
+    });
+    if (timer) clearInterval(timer);
     return outcome ?? { status: "dismissed" };
   }
   const answers = [];
@@ -62,15 +74,27 @@ async function askOne(ctx, question, signal) {
  * A yes-or-no question in the same dialog as ask_user, for Freeflow's own confirmations (task memory's proposals).
  * Outside the terminal it is Pi's confirm, unchanged; without a UI it is false.
  */
-export async function confirmWithUser(ctx, title, message) {
+export async function confirmWithUser(ctx, title, message, options = {}) {
   if (!ctx?.hasUI || !ctx.ui) return false;
-  if (ctx.mode !== "tui" || typeof ctx.ui.custom !== "function") return Boolean(await ctx.ui.confirm(title, message));
+  if (ctx.mode !== "tui" || typeof ctx.ui.custom !== "function")
+    return Boolean(
+      await ctx.ui.confirm(
+        title,
+        message,
+        ...(options.timeoutMs !== undefined ? [{ timeout: options.timeoutMs }] : []),
+      ),
+    );
   const header = title.replace(/\?$/, "").slice(0, 40);
+  const yes = options.yes ?? "Yes";
   const outcome = await askUser(
     ctx,
-    [{ question: message, header, options: [{ label: "Yes" }, { label: "No" }] }],
+    [{ question: message, header, options: [{ label: yes }, { label: options.no ?? "No" }] }],
     undefined,
-    { ownAnswer: false, notes: false },
+    {
+      ownAnswer: false,
+      notes: false,
+      ...(options.timeoutMs !== undefined ? { deadline: Date.now() + options.timeoutMs } : {}),
+    },
   );
-  return outcome.status === "answered" && outcome.answers[0]?.selected[0] === "Yes";
+  return outcome.status === "answered" && outcome.answers[0]?.selected[0] === yes;
 }

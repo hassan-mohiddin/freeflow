@@ -1,14 +1,16 @@
 /**
  * Messaging between Pi sessions on this machine (Task 002 D-005): a preview, off unless a config turns it on.
- * `inbound` decides what happens to a message from another session: `project` (the default) accepts sessions in the
- * same Task Memory project and holds the rest for the user; `accept`, `hold` and `refuse` apply to every sender.
+ * `inbound` decides what happens to a message from another session: `accept` (the default, Task 002 D-008) delivers
+ * it; `project` delivers sessions in the same Task Memory project and holds the rest for the user; `hold` holds every
+ * message; `refuse` refuses them all.
  */
 export type InboundPolicy = "project" | "accept" | "hold" | "refuse";
 export type MessagingState = Readonly<{ enabled: boolean; effective: boolean; inbound: InboundPolicy }>;
 
 export const DEFAULT_MESSAGING_ENABLED = false;
-export const DEFAULT_INBOUND_POLICY: InboundPolicy = "project";
-const POLICIES: readonly string[] = ["project", "accept", "hold", "refuse"] satisfies InboundPolicy[];
+export const DEFAULT_INBOUND_POLICY: InboundPolicy = "accept";
+export const INBOUND_POLICIES = ["accept", "project", "hold", "refuse"] as const satisfies readonly InboundPolicy[];
+const POLICIES: readonly string[] = INBOUND_POLICIES;
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

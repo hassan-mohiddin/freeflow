@@ -64,9 +64,3 @@ export function outcomeText(outcome) {
   );
   return lines.join("\n");
 }
-/** One line per answer, for the transcript. */
-export function answerSummary(answers) {
-  return answers
-    .map((answer) => `${answer.header}: ${answer.text !== undefined ? `"${answer.text}"` : answer.selected.join(", ")}`)
-    .join(" · ");
-}

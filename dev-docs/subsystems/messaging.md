@@ -23,7 +23,7 @@ It deliberately does not:
 
 **Sending.** `send_message` resolves its `to` (`resolve()`): a session ID or its last characters, a name, a folder, or a Task Memory task ID through the registry's owner. Ambiguity, this session and unknown addresses are errors that say what to use instead. The answer is `delivered`, `held` or `refused`, and the tool result says which. With `notify_when_idle`, the sender asks the receiver to tell it once when it next goes idle or exits; a receiver idle now says so at once.
 
-**Receiving.** `handle()` checks limits, then the inbound policy (`messaging.inbound`, default `project`):
+**Receiving.** `handle()` checks limits, then the inbound policy (`messaging.inbound`, default `accept`; the settings row "Ask before delivering" shows it as never, outside the project, every message, refuse all):
 
 | Policy | Same project | Other or none |
 | --- | --- | --- |
@@ -32,7 +32,7 @@ It deliberately does not:
 | `hold` | held | held |
 | `refuse` | refused | refused |
 
-A delivered message goes through the inbound channel as a `freeflow-message` notice ([Ask user and the inbound channel](ask-user.md)): steered in after the current tool batch while the agent works, a new turn when it is idle. The notice names the sender, its folder and task, then the text, then one line saying it is not the user's instruction and how to reply. A held message waits in a queue (at most 100, oldest dropped) and is put to the user one at a time with Pi's `confirm`, which closes after the hold expiry (5 minutes). The sender gets one notice with the outcome: accepted, refused, or not answered in time. Without a UI a held message is refused at once.
+A delivered message goes through the inbound channel as a `freeflow-message` notice ([Ask user and the inbound channel](ask-user.md)): steered in after the current tool batch while the agent works, a new turn when it is idle. It reads `<message from="name" session="id" folder="..." task="...">text</message>`, with attribute values and any closing tag inside the text escaped; held outcomes read `<message-status to=... session=...>` and idle notices `<session-status name=... session=...>`. The tags carry no notice prefix and no authority sentence: the model receives every Pi custom message as a user-role message, so the tag marks the source, and the messaging skill (whose description fires when a message arrives) carries the rules. A held message waits in a queue (at most 100, oldest dropped) and is put to the user one at a time in the `ask_user` dialog (`confirmWithUser()` with Deliver and Refuse and a countdown; Pi's `confirm` with a timeout outside the terminal), which closes after the hold expiry (5 minutes). The sender gets one notice with the outcome: accepted, refused, or not answered in time. Without a UI a held message is refused at once.
 
 **Guidance.** The tools have `deferred` exposure: Pi does not send them until its `tool_search` loads them. While messaging is effective, `applyMessagingTools()` activates `tool_search` (and withdraws it when messaging turns off, only if Freeflow activated it); where Pi has no `tool_search`, it declares the two tools directly. The capability skill `capabilities/messaging/SKILL.md` is listed only while messaging is effective; its description is the trigger (the user asks to contact or answer another session, or a message arrives), and its body says how to load the tools, write and answer messages, and report from a child task. The authority rule is in the skill, in `send_message`'s description and in every delivered notice.
 
@@ -48,6 +48,8 @@ A delivered message goes through the inbound channel as a `freeflow-message` not
 | Default policy: same project delivered, the rest held. | Claude Code compares permission modes, which Pi lacks; a project is the user's own grouping of related sessions. | Accept all; hold all. | Task 002 D-005 |
 | Held messages ask at once and expire after 5 minutes; the sender learns the outcome. | As Claude Code; a hold never leaves the sender waiting without an answer. | Asking at the next idle moment; review on demand. | Task 002 D-005 |
 | Identity is read from the event context synchronously, busy is tracked from `agent_start`/`agent_settled`. | Pi invalidates a captured context when it replaces the session; asynchronous work must not read it. | Reading `liveHost` in `identity()`. | Native test, Task 002 |
+| Messages are delivered by default; approval is a setting. | The user's trial: every message waited for a yes when the two sessions shared no project. | Holding messages from outside the project by default (D-005). | Task 002 D-008 |
+| Rows: `send_message` shows `Message → name: first line` and its outcome, a received message `Message ← name: first line`, outcomes and status one line each (`render.ts`, `host/rows.ts`); a long body shows only when expanded. | Pi's own rows; the user asked for collapsed and expanded views. | Raw notice text. | Task 002 D-008 |
 
 ## Intended Behavior That Looks Wrong
 
@@ -69,6 +71,7 @@ A delivered message goes through the inbound channel as a `freeflow-message` not
 - `messaging/transport.ts`: `socketPathFor()`, `listen()`, `request()`, `close()`.
 - `messaging/messaging.ts`: `Messaging` (`start`, `stop`, `setBusy`, `resolve`, `send`, `handle`), the limits, `MESSAGE_TYPE`.
 - `messaging/tools.ts`: `registerMessagingTools()`, `applyMessagingTools()`.
+- `messaging/render.ts`: the transcript rows; `host/rows.ts`: the shared fold (short bodies in both views, long ones when expanded).
 - `index.ts`: the host (identity, policy, delivery through `Inbound`, `confirm`, task owners), `syncMessaging()` in `status()`, `agent_start`/`agent_settled`, `session_shutdown`.
 
 ## Tests

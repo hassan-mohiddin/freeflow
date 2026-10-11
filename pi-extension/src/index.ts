@@ -31,6 +31,7 @@ import { applyTaskMemoryTools, registerTaskMemoryTool } from "./task-memory/tool
 import { freeflowHome } from "./task-memory/registry.js";
 import { MESSAGE_TYPE, Messaging } from "./messaging/messaging.js";
 import { applyMessagingTools, registerMessagingTools } from "./messaging/tools.js";
+import { renderMessage } from "./messaging/render.js";
 import { renderSnapshotMessage } from "./task-memory/render.js";
 import { applyAskUserTool, registerAskUserTool } from "./ask-user/tool.js";
 import { confirmWithUser } from "./ask-user/ask.js";
@@ -438,16 +439,20 @@ export default function freeflow(pi: FreeflowAPI) {
       busy: () => agentRunning,
       deliver: (content, details) => inbound.deliver({ customType: MESSAGE_TYPE, content, details, wake: true }),
       canAsk: () => live(() => liveHost?.hasUI === true, false),
+      // The same dialog as ask_user, with a countdown (Task 002 D-008).
       confirm: async (title, message, timeout) =>
-        (await Promise.resolve(live(() => liveHost?.ui?.confirm?.(title, message, { timeout }), false)).catch(
-          () => false,
-        )) === true,
+        (await Promise.resolve(
+          live<Promise<boolean> | boolean>(
+            () => confirmWithUser(liveHost, title, message, { timeoutMs: timeout, yes: "Deliver", no: "Refuse" }),
+            false,
+          ),
+        ).catch(() => false)) === true,
       ownerOf: async (id) => (await taskMemory.registry.task(id).catch(() => undefined))?.owner?.session,
     },
     freeflowHome(),
   );
   registerMessagingTools(api, messaging, messagingEffective);
-  api.registerMessageRenderer?.(MESSAGE_TYPE, renderNotice("Message"));
+  api.registerMessageRenderer?.(MESSAGE_TYPE, renderMessage);
   // Start or stop listening as messaging's effective state changes; a running session refreshes its registry entry.
   let messagingSync = Promise.resolve();
   function syncMessaging(ctx: any) {

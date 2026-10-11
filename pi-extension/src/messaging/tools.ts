@@ -1,4 +1,6 @@
 import type { Messaging } from "./messaging.js";
+import { Text } from "@earendil-works/pi-tui";
+import { renderListResult, renderSendCall, renderSendResult } from "./render.js";
 
 export const LIST_SESSIONS = "list_sessions";
 export const SEND_MESSAGE = "send_message";
@@ -26,6 +28,8 @@ export function registerMessagingTools(pi: any, messaging: Messaging, effective:
     parameters: { type: "object", additionalProperties: false, properties: {} },
     exposure: "deferred",
     defaultActive: false,
+    renderCall: (_args: any, theme: any) => new Text(theme?.fg ? theme.fg("toolTitle", "Sessions") : "Sessions", 0, 0),
+    renderResult: (result: any, options: any, theme: any) => renderListResult(result, options, theme),
     async execute() {
       guard();
       const me = messaging.self();
@@ -65,6 +69,8 @@ export function registerMessagingTools(pi: any, messaging: Messaging, effective:
     },
     exposure: "deferred",
     defaultActive: false,
+    renderCall: (args: any, theme: any, context: any) => renderSendCall(args, theme, context),
+    renderResult: (result: any, options: any, theme: any) => renderSendResult(result, options, theme),
     async execute(_id: string, params: { to: string; message: string; summary?: string; notify_when_idle?: boolean }) {
       guard();
       const result = await messaging.send(String(params?.to ?? ""), String(params?.message ?? ""), {

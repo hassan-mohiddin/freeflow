@@ -1,11 +1,11 @@
 import { Text } from "@earendil-works/pi-tui";
+import { firstLine, foldRow, paint } from "../host/rows.js";
 import { askUser } from "./ask.js";
 import {
   MAX_HEADER,
   MAX_OPTIONS,
   MAX_QUESTIONS,
   MIN_OPTIONS,
-  answerSummary,
   outcomeText,
   validateQuestions,
   type AskOutcome,
@@ -85,23 +85,36 @@ export function registerAskUserTool(pi: any, host: AskUserHost): void {
     exposure: "model-only",
     defaultActive: false,
     executionMode: "sequential",
-    renderCall: (args: any, theme: any) => {
-      const headers = (Array.isArray(args?.questions) ? args.questions : [])
-        .map((question: any) => (typeof question?.header === "string" ? question.header : ""))
-        .filter(Boolean);
-      const title = theme?.fg ? theme.fg("toolTitle", theme.bold ? theme.bold("Question") : "Question") : "Question";
-      return new Text(`${title}${headers.length ? ` · ${headers.join(", ")}` : ""}`, 0, 0);
+    // One line each for what was asked and what the user answered; options and notes when expanded or short.
+    renderCall: (args: any, theme: any, context: any) => {
+      const questions = (Array.isArray(args?.questions) ? args.questions : []).filter((q: any) => q?.question);
+      const title = paint(theme, "toolTitle", "Question");
+      if (!questions.length) return new Text(title, 0, 0);
+      const head =
+        questions.length === 1
+          ? `${title} · ${paint(theme, "accent", String(questions[0].header ?? ""))}: ${firstLine(questions[0].question, 120)}`
+          : `${title} · ${questions.map((q: any) => paint(theme, "accent", String(q.header ?? ""))).join(", ")}`;
+      const body = questions.flatMap((q: any) => [
+        ...(questions.length > 1 ? [`${q.header}: ${q.question}`] : q.question.length > 120 ? [q.question] : []),
+        ...(Array.isArray(q.options) ? q.options : []).map(
+          (o: any) => `${questions.length > 1 ? "  " : ""}- ${o.label}${o.description ? ` — ${o.description}` : ""}`,
+        ),
+      ]);
+      return foldRow(head, context?.expanded === true ? body : [], context?.expanded === true, theme);
     },
     renderResult: (result: any, options: any, theme: any) => {
       const outcome: AskOutcome | undefined = result?.details?.outcome;
-      const paint = (color: string, text: string) => (theme?.fg ? theme.fg(color, text) : text);
-      const head =
-        outcome?.status === "answered"
-          ? paint("success", `Answered · ${answerSummary(outcome.answers)}`)
-          : outcome?.status === "dismissed"
-            ? paint("warning", "Closed without an answer")
-            : paint("warning", textOf(result).split("\n")[0] || "Not asked");
-      return new Text(options?.expanded ? `${head}\n\n${textOf(result)}` : head, 0, 0);
+      if (outcome?.status === "answered") {
+        const lines = outcome.answers.map(
+          (answer) =>
+            `${answer.header}: ${answer.text !== undefined ? `"${answer.text}"` : answer.selected.join(", ")}${answer.note ? ` (note: ${answer.note})` : ""}`,
+        );
+        const head = paint(theme, "success", lines.length === 1 ? `Answered · ${lines[0]}` : "Answered");
+        return foldRow(head, lines.length === 1 ? [] : lines, options?.expanded === true, theme);
+      }
+      if (outcome?.status === "dismissed")
+        return new Text(paint(theme, "warning", "Closed without answering (Esc)"), 0, 0);
+      return new Text(paint(theme, "warning", firstLine(textOf(result)) || "Not asked"), 0, 0);
     },
     async execute(_id: string, params: any, signal: AbortSignal, _update: unknown, ctx: any) {
       const refused = host.refusal(ctx);

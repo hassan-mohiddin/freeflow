@@ -93,10 +93,3 @@ export function outcomeText(outcome: AskOutcome): string {
   );
   return lines.join("\n");
 }
-
-/** One line per answer, for the transcript. */
-export function answerSummary(answers: readonly Answer[]): string {
-  return answers
-    .map((answer) => `${answer.header}: ${answer.text !== undefined ? `"${answer.text}"` : answer.selected.join(", ")}`)
-    .join(" · ");
-}

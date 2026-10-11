@@ -26,6 +26,8 @@ type Theme = {
 export interface FormOptions {
   ownAnswer?: boolean;
   notes?: boolean;
+  /** When the dialog closes on its own (epoch ms), shown as a countdown; the caller closes it then. */
+  deadline?: number;
 }
 
 const OWN_ANSWER = "Type my own answer";
@@ -263,6 +265,13 @@ export class QuestionForm implements Component, Focusable {
       }
     }
     lines.push("");
+    if (this.options.deadline !== undefined) {
+      const left = Math.max(0, Math.ceil((this.options.deadline - Date.now()) / 1000));
+      wrap(
+        " ",
+        t.fg("dim", `Closes in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")} without an answer`),
+      );
+    }
     const help =
       this.mode !== "choose"
         ? "Enter to save · Esc to go back"

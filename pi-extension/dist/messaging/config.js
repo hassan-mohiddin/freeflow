@@ -1,6 +1,7 @@
 export const DEFAULT_MESSAGING_ENABLED = false;
-export const DEFAULT_INBOUND_POLICY = "project";
-const POLICIES = ["project", "accept", "hold", "refuse"];
+export const DEFAULT_INBOUND_POLICY = "accept";
+export const INBOUND_POLICIES = ["accept", "project", "hold", "refuse"];
+const POLICIES = INBOUND_POLICIES;
 function record(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -16,7 +16,7 @@ import { workersForDelegation } from "../../cognitive-routing/types.js";
 import { DEFAULT_TOOL_EXECUTION_CONFIG } from "../../tool-execution/config.js";
 import { DEFAULT_COMPACTION_CARRY, DEFAULT_COMPACTION_ENABLED } from "../../compaction/config.js";
 import { AUTO_APPROVE_GROUPS, DEFAULT_TASK_MEMORY_ENABLED } from "../../task-memory/config.js";
-import { DEFAULT_MESSAGING_ENABLED } from "../../messaging/config.js";
+import { DEFAULT_INBOUND_POLICY, DEFAULT_MESSAGING_ENABLED, INBOUND_POLICIES } from "../../messaging/config.js";
 /*
  * The /freeflow command and the settings model it edits: every Freeflow setting with its repository, personal, and
  * session scopes, the routing profile wizard, config file writes, and reload after saving. settings-view.ts draws the
@@ -202,6 +202,48 @@ function createScopedBooleanItem(options) {
   }
   item.displaySuffix = coreDisplaySuffix(item);
   return item;
+}
+/** A choice among fixed values, in the Personal or Repository scope; Personal can inherit the repository's value. */
+function createScopedChoiceItem(options) {
+  const repositoryValue = getPath(options.rawConfig, options.path);
+  const inheritedValue = options.values.includes(repositoryValue) ? repositoryValue : options.defaultValue;
+  const inheritedSource = repositoryValue === undefined ? "builtin" : "repository";
+  const localValue = getPath(options.localConfig, options.path);
+  const common = {
+    id: options.id,
+    label: options.label,
+    path: options.path,
+    kind: "enum",
+    effectiveValue: options.effectiveValue,
+    effectiveSource: options.effectiveSource,
+  };
+  return options.scope === "local"
+    ? {
+        ...common,
+        description: `${options.description} Inherit uses the repository value.`,
+        value: options.values.includes(localValue) ? localValue : LOCAL_INHERIT,
+        values: [LOCAL_INHERIT, ...options.values],
+        valueLabels: { inherit: "inherit", ...options.valueLabels },
+        valueDescriptions: {
+          inherit: `Use ${options.valueLabels[inheritedValue] ?? inheritedValue} from ${SOURCE_LABELS[inheritedSource]}.`,
+          ...options.valueDescriptions,
+        },
+        configScope: "local",
+        configValues: Object.fromEntries([["inherit", undefined], ...options.values.map((value) => [value, value])]),
+        inheritedValue,
+        inheritedSource,
+      }
+    : {
+        ...common,
+        description: `${options.description} This edits shared .freeflow/config.json.`,
+        value: inheritedValue,
+        values: [...options.values],
+        valueLabels: options.valueLabels,
+        valueDescriptions: options.valueDescriptions,
+        defaultValue: options.defaultValue,
+        configScope: "repository",
+        localOverrideValue: options.values.includes(localValue) ? localValue : undefined,
+      };
 }
 function createScopedDelegationItem(options) {
   const path = ["cognitiveRouting", "delegation"];
@@ -1052,6 +1094,28 @@ function freeflowItems(rawConfig, options = {}) {
     defaultValue: DEFAULT_MESSAGING_ENABLED,
   });
   messagingEnabledItem.inactive = freeflowInactive;
+  // Messages are delivered unless the user asks to approve them (Task 002 D-008).
+  const messagingInboundItem = createScopedChoiceItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.messaging.inbound",
+    label: "Ask before delivering",
+    description: "Whether a message from another session waits for you to accept it.",
+    path: ["messaging", "inbound"],
+    values: INBOUND_POLICIES,
+    valueLabels: { accept: "never", project: "outside the project", hold: "every message", refuse: "refuse all" },
+    valueDescriptions: {
+      accept: "Deliver every message to the agent.",
+      project: "Deliver messages from sessions in this repository's Task Memory project; ask you about the rest.",
+      hold: "Ask you before delivering any message.",
+      refuse: "Refuse every message.",
+    },
+    defaultValue: DEFAULT_INBOUND_POLICY,
+    effectiveValue: messagingState?.inbound ?? DEFAULT_INBOUND_POLICY,
+    effectiveSource: toolSource(["messaging", "inbound"]),
+  });
+  messagingInboundItem.inactive = freeflowInactive;
   const messagingGroup = {
     id: "freeflow.messaging",
     label: "Messaging",
@@ -1060,7 +1124,7 @@ function freeflowItems(rawConfig, options = {}) {
     value: messagingState?.enabled ?? DEFAULT_MESSAGING_ENABLED,
     inactive: freeflowInactive,
     displaySuffix: messagingState?.effective ? "active" : messagingState?.enabled ? "inactive" : "disabled",
-    children: [messagingEnabledItem],
+    children: [messagingEnabledItem, messagingInboundItem],
   };
   return [
     freeflowItem,
@@ -1084,6 +1148,7 @@ function pruneKnownDefaults(config) {
       value: false,
     })),
     { path: ["messaging", "enabled"], value: DEFAULT_MESSAGING_ENABLED },
+    { path: ["messaging", "inbound"], value: DEFAULT_INBOUND_POLICY },
   ];
   for (const item of defaultPaths) {
     if (valuesEqual(getPath(config, item.path), item.value)) {

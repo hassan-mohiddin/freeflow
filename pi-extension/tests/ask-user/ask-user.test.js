@@ -158,6 +158,8 @@ test("Freeflow's confirmations keep Pi's confirm outside the terminal", async ()
   const ctx = { hasUI: true, mode: "rpc", ui: { confirm: async (...args) => (calls.push(args), true) } };
   assert.equal(await confirmWithUser(ctx, "Attach?", "Attach it?"), true);
   assert.deepEqual(calls, [["Attach?", "Attach it?"]]);
+  await confirmWithUser(ctx, "Deliver?", "From api.", { timeoutMs: 300_000, yes: "Deliver", no: "Refuse" });
+  assert.deepEqual(calls[1], ["Deliver?", "From api.", { timeout: 300_000 }], "a timeout reaches Pi's confirm");
   assert.equal(await confirmWithUser({ hasUI: false }, "Attach?", "Attach it?"), false);
 });
 
