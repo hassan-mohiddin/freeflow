@@ -31,7 +31,7 @@ export function tagProjectedMessages(
     for (const projected of entry.messages) if (projected?.role !== messages[index++]?.role) return;
   // Host edits change the visible body, so their targets keep exact content association.
   const edited = new Set<string>();
-  for (const entry of branch) if (entry.type === "context_edit") edited.add(entry.targetId);
+  for (const entry of branch) if (entry.type === "context_edit" && entry.targetId) edited.add(entry.targetId);
   index = 0;
   for (const entry of projection.entries) {
     const source = entry.sourceEntry;

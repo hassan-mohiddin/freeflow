@@ -52,8 +52,8 @@ const reservation = (r: any): r is Reservation =>
   pair(r.target) &&
   text(r.qualification) &&
   Array.isArray(r.sources) &&
-  r.sources.every((s) => shape(s, ["ref", "bodyHash"]) && identity(s.ref) && /^[a-f0-9]{64}$/.test(s.bodyHash)) &&
-  new Set(r.sources.map((s) => s.ref)).size === r.sources.length &&
+  r.sources.every((s: any) => shape(s, ["ref", "bodyHash"]) && identity(s.ref) && /^[a-f0-9]{64}$/.test(s.bodyHash)) &&
+  new Set(r.sources.map((s: any) => s.ref)).size === r.sources.length &&
   Number.isFinite(r.maximumInputTokens) &&
   r.maximumInputTokens > 0 &&
   Number.isFinite(r.outputReserve) &&
@@ -348,7 +348,7 @@ export function parseRoutingEvent(raw: unknown): RoutingEvent {
           uniqueStrings(s.selected) &&
           problemList(s.unresolved) &&
           Array.isArray(s.withdrawals) &&
-          s.withdrawals.every((w) => shape(w, ["ref", "reason"]) && identity(w.ref) && text(w.reason, 2048)),
+          s.withdrawals.every((w: any) => shape(w, ["ref", "reason"]) && identity(w.ref) && text(w.reason, 2048)),
         "invalid_selection",
       );
       break;
@@ -392,7 +392,9 @@ export function parseRoutingEvent(raw: unknown): RoutingEvent {
         identity(d.executionId) &&
           ["solo", ...PROFILES].includes(d.view) &&
           Array.isArray(d.sources) &&
-          d.sources.every((s) => shape(s, ["ref", "bodyHash"]) && identity(s.ref) && /^[a-f0-9]{64}$/.test(s.bodyHash)),
+          d.sources.every(
+            (s: any) => shape(s, ["ref", "bodyHash"]) && identity(s.ref) && /^[a-f0-9]{64}$/.test(s.bodyHash),
+          ),
         "invalid_exposure",
       );
       break;

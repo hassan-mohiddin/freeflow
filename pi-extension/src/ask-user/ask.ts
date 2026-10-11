@@ -65,7 +65,7 @@ async function askOne(ctx: any, question: Question, signal?: AbortSignal): Promi
   const base = { header: question.header, question: question.question };
   const own = async () => {
     const text = (await ctx.ui.input(title, "Your answer", signal ? { signal } : undefined))?.trim();
-    return text ? { ...base, selected: [], text } : undefined;
+    return text ? { ...base, selected: [] as string[], text } : undefined;
   };
   if (!question.multiSelect) {
     const choice = await ctx.ui.select(title, [...labels, OWN], signal ? { signal } : undefined);

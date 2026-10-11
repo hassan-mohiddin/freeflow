@@ -6,10 +6,10 @@ import { hasUsableMandatoryPrompts } from "./prompts.js";
  * diagnostics such as prompt-cache health.
  */
 export function setFreeflowStatus(
-  ctx,
-  capabilityState = undefined,
-  cognitiveRoutingRuntime = undefined,
-  freeflowContext = undefined,
+  ctx: any,
+  capabilityState: any = undefined,
+  cognitiveRoutingRuntime: any = undefined,
+  freeflowContext: any = undefined,
   options: {
     cognitiveRoutingStartupPending?: boolean;
     startupSelectionSuppressed?: boolean;

@@ -115,18 +115,19 @@ function fullHistoryTokens(ctx: any): number {
         previous.tokens,
       );
   }
-  if (tokens === undefined)
-    tokens = (manager.buildSessionProjection()?.messages ?? []).reduce(
+  const counted =
+    tokens ??
+    (manager.buildSessionProjection()?.messages ?? []).reduce(
       (sum: number, message: any) => sum + estimateTokens(message),
       0,
     );
-  historyEstimate.set(manager, { branch, tokens });
-  return tokens + system;
+  historyEstimate.set(manager, { branch, tokens: counted });
+  return counted + system;
 }
 async function sendSkillCommand(pi: FreeflowAPI, ctx: ExtensionCommandContext, skill: string, args?: string) {
   const state = await readCapabilityState(ctx.cwd, ctx);
   if (skill === "setup-freeflow" && !state.configured) {
-    await pi.sendUserMessage(skillPrompt(skill, args), { expandPromptTemplates: true });
+    pi.sendUserMessage(skillPrompt(skill, args), { expandPromptTemplates: true });
     return;
   }
   if (!state.configured || !state.enabled) {
@@ -138,7 +139,7 @@ async function sendSkillCommand(pi: FreeflowAPI, ctx: ExtensionCommandContext, s
     ctx.ui.notify("Freeflow core prompts are unavailable; the requested skill cannot be dispatched.", "warning");
     return;
   }
-  await pi.sendUserMessage(skillPrompt(skill, args), { expandPromptTemplates: true });
+  pi.sendUserMessage(skillPrompt(skill, args), { expandPromptTemplates: true });
 }
 
 function freeflowCompletions(prefix: string | undefined, routingAvailable: boolean) {
@@ -266,7 +267,7 @@ export default function freeflow(pi: FreeflowAPI) {
     const loaded = await getRuntimeContext(STABLE_FREEFLOW_SURFACE);
     if (generation !== surfaceGeneration) throw new Error("Discarded surface preparation for a replaced session.");
     if (!hasUsableMandatoryPrompts(loaded)) {
-      for (const key of ["cognitiveRouting", "toolExecution"])
+      for (const key of ["cognitiveRouting", "toolExecution"] as const)
         next[key] = unavailable(next[key], "Mandatory Freeflow prompts are unavailable.");
     }
     if (next.cognitiveRouting.effective && !isPromptAvailable(loaded.cognitiveRoutingPrompt))
@@ -421,7 +422,7 @@ export default function freeflow(pi: FreeflowAPI) {
     },
   });
   registerCompactionTool(api, compaction);
-  const sendSnapshot = (content: string, record: string) =>
+  const sendSnapshot = (content: string, record: string): void =>
     void Promise.resolve(
       api.sendMessage({ customType: SNAPSHOT_TYPE, content, display: true, details: { record } }),
     ).catch(() => {});
@@ -454,9 +455,9 @@ export default function freeflow(pi: FreeflowAPI) {
     {
       identity: async () => {
         const seen = messagingSeen ?? { sessionId: `pid-${process.pid}`, cwd: process.cwd() };
-        const project = await taskMemory.registry.projectFor(seen.cwd).catch(() => undefined);
+        const project = await taskMemory.registry.projectFor(seen.cwd).catch((): undefined => undefined);
         const focus = taskMemory.state().focus;
-        const task = focus ? await taskMemory.registry.byRecord(focus).catch(() => undefined) : undefined;
+        const task = focus ? await taskMemory.registry.byRecord(focus).catch((): undefined => undefined) : undefined;
         // The tasks this session owns, so a child finds its parent's session in list_sessions (Task 002 D-009).
         const tasks = await taskMemory.registry
           .read()
@@ -542,7 +543,7 @@ export default function freeflow(pi: FreeflowAPI) {
   // /freeflow project: the user creates projects and links repositories to them; the model never does (D-015).
   // Where the user can browse the project's records, when the project link was made (Task 004 D-003).
   async function browseNote(cwd: string): Promise<string> {
-    const link = await taskMemory.registry.linkHere(cwd).catch(() => undefined);
+    const link = await taskMemory.registry.linkHere(cwd).catch((): undefined => undefined);
     return link && !link.error ? ` Browse its records in ${link.link}.` : "";
   }
 
@@ -765,7 +766,7 @@ export default function freeflow(pi: FreeflowAPI) {
       await taskMemory.load();
       // The project link for the user to browse records in the editor, made again if missing (Task 004 D-003). Not
       // awaited: it runs Git, and nothing at startup reads it.
-      void taskMemory.registry.linkHere(ctx.cwd).catch(() => undefined);
+      void taskMemory.registry.linkHere(ctx.cwd).catch((): undefined => undefined);
       // A fork or clone copies the branch's attachments; they stay held until the user confirms them here.
       if ((event as any)?.reason === "fork") {
         const held = taskMemory.holdInherited();

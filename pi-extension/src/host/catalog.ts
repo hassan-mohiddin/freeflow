@@ -67,15 +67,15 @@ export const STABLE_FREEFLOW_SURFACE = Object.freeze({
   messaging: { effective: true },
 });
 
-export function freeflowSkillPath(skillName) {
+export function freeflowSkillPath(skillName: string) {
   return fileURLToPath(new URL(`../../../skills/${skillName}/SKILL.md`, import.meta.url));
 }
 
-export function freeflowCapabilitySkillPath(skillName) {
+export function freeflowCapabilitySkillPath(skillName: string) {
   return fileURLToPath(new URL(`../../../capabilities/${skillName}/SKILL.md`, import.meta.url));
 }
 
-export function freeflowModelSkillPaths(capabilityState = undefined) {
+export function freeflowModelSkillPaths(capabilityState: any = undefined) {
   const paths = FREEFLOW_MODEL_SKILL_NAMES.map((skillName) => freeflowSkillPath(skillName));
   if (capabilityState?.cognitiveRouting?.effective === true)
     paths.push(freeflowCapabilitySkillPath("cognitive-routing"));
@@ -85,7 +85,7 @@ export function freeflowModelSkillPaths(capabilityState = undefined) {
   return paths;
 }
 
-export function skillPrompt(skill, args) {
+export function skillPrompt(skill: string, args?: string) {
   const trimmed = args?.trim();
   return trimmed ? `/skill:${skill}\n\n${trimmed}` : `/skill:${skill}`;
 }

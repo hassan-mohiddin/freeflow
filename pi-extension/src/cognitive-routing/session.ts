@@ -265,6 +265,6 @@ export class RoutingSession {
   workerBasis(state: State, assignmentId: string): string | null {
     const recovery = state.recoveryId ? state.recoveries.get(state.recoveryId) : undefined;
     if (recovery?.state === "reading") return state.handoffs.get(recovery.requestHandoffId)?.basisUserEntryId ?? null;
-    return this.taskBasis(state, assignmentId);
+    return this.taskBasis(state, assignmentId) ?? null;
   }
 }

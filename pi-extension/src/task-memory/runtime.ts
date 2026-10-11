@@ -785,7 +785,7 @@ export class TaskMemory {
   async projects(cwd: string): Promise<TaskResult> {
     try {
       const data = await this.registry.read();
-      const here = await this.registry.projectFor(cwd).catch(() => undefined);
+      const here = await this.registry.projectFor(cwd).catch((): undefined => undefined);
       const entries = Object.entries(data.projects);
       if (!entries.length)
         return {
@@ -1012,7 +1012,7 @@ export class TaskMemory {
         };
       let target = named;
       if (named.startsWith(ID_TARGET)) {
-        const task = await this.registry.task(named.slice(ID_TARGET.length)).catch(() => undefined);
+        const task = await this.registry.task(named.slice(ID_TARGET.length)).catch((): undefined => undefined);
         if (!task) continue;
         target = task.record;
       }

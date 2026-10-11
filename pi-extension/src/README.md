@@ -23,6 +23,6 @@
 
 ## Conventions
 
-- Source is TypeScript. Strict mode is being turned on one flag at a time: `strictFunctionTypes`, `strictBindCallApply`, `noImplicitThis`, `alwaysStrict` and `useUnknownInCatchVariables` are on; `noImplicitAny` and `strictNullChecks` come next. Many host objects are typed `any` because Pi's runtime objects are wider than its exported types.
+- Source is TypeScript. TypeScript runs in strict mode (`"strict": true`): a value that may be missing must be checked before use, and every `any` is written out: Pi's host objects (`ctx`, `pi`, session managers, entries) and capability state are typed `any` on purpose, because Pi's runtime objects are wider than its exported types; parsed config files are `ConfigObject`.
 - A file starts with a comment saying what it owns. Keep that comment true when the file changes.
 - Import with the `.js` extension (`./host/config.js`), as Node's ES modules require after compilation.

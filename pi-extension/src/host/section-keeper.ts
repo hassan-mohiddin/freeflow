@@ -82,8 +82,8 @@ export function keepSections(
       const reverts = wanted !== undefined && current[name] === wanted && value !== wanted;
       const restates = value === current[name];
       if (wanted !== undefined && (reverts || restates)) {
-        kept ??= { ...sections };
-        delete kept[name];
+        const trimmed = (kept ??= { ...sections });
+        delete trimmed[name];
         continue;
       }
       current[name] = value as string | null;
