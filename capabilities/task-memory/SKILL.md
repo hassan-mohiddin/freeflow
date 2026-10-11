@@ -72,6 +72,12 @@ A child session is one the user starts and steers alongside the parent; workers 
 
 A registered task's resume view names its directory in an `Environment:` line. When it says this session runs outside that directory, the task's changes belong there: tell the user before changing files here for that task.
 
+## Under Cognitive Routing
+
+Goal: the user talks to the Coordinator, so task memory stays with the Coordinator.
+
+Under automatic routing the Coordinator proposes task memory actions and keeps the focused record current, as it owns the user's direction. A worker reads task memory (`projects`, `list`, `view`, `search`, `env` without a change) and writes a record only when its assignment's contract says so; an action it would propose, such as attaching another task, goes in its report for the Coordinator to propose. The resume view reaches every profile, including after a worker's compaction.
+
 ## Held Records
 
 A forked or cloned session inherits the records attached on the branch it came from, held: listed and readable but not writable, so two sessions do not write one record by accident. Propose `confirm` only when the user wants this session to continue that record.

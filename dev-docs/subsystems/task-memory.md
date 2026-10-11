@@ -19,7 +19,7 @@ It deliberately does not:
 - change the record format: every record, registered or not, is a Track Work record created by its `init` and read through its `views.mjs`, so it stays valid for the script skill on other hosts;
 - carry messages between a parent and its children itself: with Messaging on, a child reports to its parent's session through `send_message` addressed by task ID ([Messaging](messaging.md)), and the parent reads children's records;
 - treat subagents as children: Freeflow turns task memory off inside subagents, and a subagent works on its session's task;
-- work under automatic Cognitive Routing yet: attaching is refused there.
+- let a Cognitive Routing worker propose task memory actions: under automatic routing only the Coordinator does, and workers only read (Task 004 D-001);
 
 ## Vocabulary
 
@@ -109,6 +109,7 @@ It deliberately does not:
 | The tool is named `task_memory`, not `freeflow_task`. | On grok-4.7 (medium), the first call of a fresh session went to bash as `freeflow_task action=… name=…` in 5 of 5 runs with the old name, model-only, and 3 of 5 with direct exposure and codemode; renamed, the tool was called directly 5 of 5. The old name reads like the `/freeflow task` command the skill and docs also name. | `freeflow_task`, matching the other `freeflow_*` tools. | Harness runs, 2026-10-11 |
 | `task_memory` is `model-only`. | It asks the user, which Pi reserves for model-only tools; called inside a codemode script its transcript views were bypassed (user trial on grok-4.7). | `direct` exposure (the first version). | User trial, 2026-10-11 |
 | Delivered resume views are displayed, collapsed to one line. | The user sees when and which task memory the agent received. | Hidden messages (the first version). | User, 2026-10-11 |
+| Task memory works under automatic Cognitive Routing; the Coordinator proposes actions and workers only read (`refusal()` in the `task_memory` tool, wired to routing's observation scope). | The resume view is a Freeflow custom message, which routing treats as common context, so every profile receives it, also after a worker's compaction (probe and `routing-native.test.js`); workers do not talk to the user, as with `ask_user`. A worker writes the record only when its contract says so, by guidance. | Refusing to attach under automatic routing (the first version, until projected views were checked). | Task 004 D-001 |
 
 ## Intended Behavior That Looks Wrong
 
@@ -137,7 +138,7 @@ It deliberately does not:
 - `pi-extension/tests/cache-reuse/task-memory.test.js`: on an OpenAI and a Claude model, each request is a prefix of the next, with the same tools and system prompt, through attach, focus, detach, a command attach, and after a Freeflow compaction.
 - `pi-extension/tests/integration/request-path-budget.test.js`: a scenario with a focused record keeps Pi branch walks per prompt bounded and independent of session length; `npm run perf:request` has a matching `task memory, one record in focus` scenario.
 - `pi-extension/tests/integration/pi-extension.test.js` and `unaffected-regressions.test.js`: the Task Memory settings section, off by default, its status line, and the session switch.
-- `state.test.js`: the state fold, which tool calls write a record, the fork hold and confirm, and the refusal under automatic routing. The fork path is tested here because the SDK session the native fixture uses cannot fork.
+- `state.test.js`: the state fold, which tool calls write a record, the fork hold and confirm, and that under automatic routing a worker may only read task memory. `routing-native.test.js`: under automatic routing every profile gets the resume view once, also after a worker compacts, and the Coordinator's prefix holds. The fork path is tested here because the SDK session the native fixture uses cannot fork.
 - `.skill-eval/track-work/tests/registry.test.mjs` (Track Work's suite): projects, tasks and children through `init`; one owner with takeover and owner-only release; a concurrent change re-applied and a second conflict writing nothing; an unreadable registry left untouched; import; the CLI commands, including a task ID as `--record`; environment and `here` with nested directories; fan-out creating worktree, branch and config, and its failure leaving the child registered.
 - `session.test.js`: native, unregistered records: attach confirmed and declined, attach by command, the gate, off by default, reload, navigation, and delivery after Pi's and Freeflow's compaction.
 - `environment.test.js`: native: the `Environment:` line and the outside-directory warning; the directory offer attaching a task, and a decline not repeated across reloads; fan-out from the owner creating the worktree, branch and copied config.

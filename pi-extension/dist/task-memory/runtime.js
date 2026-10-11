@@ -345,8 +345,6 @@ export class TaskMemory {
     }
   }
   async attach(record, cwd) {
-    if (this.host.routingAutomatic())
-      return { ok: false, text: "Task memory does not attach records under automatic Cognitive Routing yet." };
     const { path, id, error } = await this.locate(record, cwd);
     if (!path) return { ok: false, text: error };
     if (id) {

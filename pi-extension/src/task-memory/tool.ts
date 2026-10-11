@@ -11,6 +11,11 @@ export interface TaskToolHost {
   memory: TaskMemory;
   /** After a change, so the Runtime State shows it. */
   changed(ctx: any): void;
+  /**
+   * Why this profile may not take an action that opens a dialog or changes what the session holds, or undefined when
+   * it may: under automatic Cognitive Routing only the Coordinator does (Task 004 D-001).
+   */
+  refusal?(): string | undefined;
 }
 
 const ACTIONS = [
@@ -32,6 +37,14 @@ const ACTIONS = [
 ];
 // Actions that change which records this session holds; the Runtime State follows them.
 const CHANGES_STATE = new Set(["attach", "focus", "detach", "create", "import", "confirm"]);
+/** Actions any profile may take: they only read. `env` reads too, unless it changes a directory. */
+const READS = new Set(["projects", "list", "view", "search"]);
+const reads = (params: any) =>
+  READS.has(params?.action) ||
+  (params?.action === "env" &&
+    !params?.primary?.trim?.() &&
+    !params?.add_dir?.trim?.() &&
+    !params?.remove_dir?.trim?.());
 
 /** Registered once, declared only while task memory is effective (see applyTaskMemoryTools). */
 export function registerTaskMemoryTool(pi: any, host: TaskToolHost): void {
@@ -68,7 +81,8 @@ export function registerTaskMemoryTool(pi: any, host: TaskToolHost): void {
     renderResult: (result: any, options: any, theme: any, context: any) =>
       renderTaskResult(result, options, theme, context),
     async execute(_id: string, params: any, _signal: AbortSignal, _update: unknown, ctx: any) {
-      const result = await run(host, params, ctx);
+      const refused = reads(params) ? undefined : host.refusal?.();
+      const result = refused ? { ok: false, text: refused } : await run(host, params, ctx);
       if (result.ok && CHANGES_STATE.has(params?.action)) host.changed(ctx);
       let next: string | undefined;
       if (result.ok && result.snapshot) {

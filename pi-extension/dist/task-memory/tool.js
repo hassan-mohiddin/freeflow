@@ -22,6 +22,14 @@ const ACTIONS = [
 ];
 // Actions that change which records this session holds; the Runtime State follows them.
 const CHANGES_STATE = new Set(["attach", "focus", "detach", "create", "import", "confirm"]);
+/** Actions any profile may take: they only read. `env` reads too, unless it changes a directory. */
+const READS = new Set(["projects", "list", "view", "search"]);
+const reads = (params) =>
+  READS.has(params?.action) ||
+  (params?.action === "env" &&
+    !params?.primary?.trim?.() &&
+    !params?.add_dir?.trim?.() &&
+    !params?.remove_dir?.trim?.());
 /** Registered once, declared only while task memory is effective (see applyTaskMemoryTools). */
 export function registerTaskMemoryTool(pi, host) {
   pi.registerTool({
@@ -56,7 +64,8 @@ export function registerTaskMemoryTool(pi, host) {
     renderCall: (args, theme) => renderTaskCall(args, theme),
     renderResult: (result, options, theme, context) => renderTaskResult(result, options, theme, context),
     async execute(_id, params, _signal, _update, ctx) {
-      const result = await run(host, params, ctx);
+      const refused = reads(params) ? undefined : host.refusal?.();
+      const result = refused ? { ok: false, text: refused } : await run(host, params, ctx);
       if (result.ok && CHANGES_STATE.has(params?.action)) host.changed(ctx);
       let next;
       if (result.ok && result.snapshot) {

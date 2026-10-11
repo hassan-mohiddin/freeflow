@@ -36,8 +36,6 @@ export const PROJECT_INDEX_LIMIT = 15;
 
 export interface TaskMemoryHost {
   effective(): boolean;
-  /** Cognitive Routing under automatic control: task memory does not attach there yet. */
-  routingAutomatic(): boolean;
   append(data: Record<string, unknown>): void;
   send(content: string, record: string): void;
   /** This session, as a record's owner. */
@@ -405,8 +403,6 @@ export class TaskMemory {
   }
 
   async attach(record: unknown, cwd: string): Promise<TaskResult> {
-    if (this.host.routingAutomatic())
-      return { ok: false, text: "Task memory does not attach records under automatic Cognitive Routing yet." };
     const { path, id, error } = await this.locate(record, cwd);
     if (!path) return { ok: false, text: error! };
     if (id) {

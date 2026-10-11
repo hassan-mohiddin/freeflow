@@ -393,10 +393,6 @@ export default function freeflow(pi) {
     ).catch(() => {});
   const taskMemory = new TaskMemory({
     effective: taskMemoryEffective,
-    routingAutomatic: () =>
-      capability?.cognitiveRouting?.effective === true &&
-      routing.state()?.effective === true &&
-      routing.state()?.controlMode === "automatic",
     append: (data) => api.appendEntry(TASK_ENTRY, data),
     send: sendSnapshot,
     owner: () => ({
@@ -467,6 +463,13 @@ export default function freeflow(pi) {
   );
   registerTaskMemoryTool(api, {
     memory: taskMemory,
+    // Under automatic routing only the Coordinator proposes task memory actions; workers do not talk to the user.
+    refusal: () => {
+      const scope = routing.observationScope();
+      return scope.control === "automatic" && (scope.profile === "helper" || scope.profile === "executor")
+        ? "A Cognitive Routing worker may only read task memory (projects, list, view, search, env). Put the action you would propose in your report (return_work); the Coordinator proposes it."
+        : undefined;
+    },
     changed: (ctx) => {
       refreshState = true;
       status(ctx);

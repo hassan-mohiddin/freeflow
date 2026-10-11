@@ -75,7 +75,6 @@ test("a fork's inherited records are held: readable, not writable, until confirm
   const appended = [];
   const memory = new TaskMemory({
     effective: () => true,
-    routingAutomatic: () => false,
     append: (data) => appended.push(data),
     send: () => {},
     owner: () => ({ session: "this-session", since: "2026-10-11T00:00:00.000Z" }),
@@ -98,20 +97,41 @@ test("a fork's inherited records are held: readable, not writable, until confirm
   assert.deepEqual(memory.holdInherited(), []);
 });
 
-test("attaching is refused under automatic Cognitive Routing", async () => {
-  const { TaskMemory } = await import("../../dist/task-memory/runtime.js");
-  const memory = new TaskMemory({
-    effective: () => true,
-    routingAutomatic: () => true,
-    append: () => assert.fail("nothing is written"),
-    send: () => {},
-    owner: () => ({ session: "this-session", since: "2026-10-11T00:00:00.000Z" }),
-    confirm: async () => false,
-    packageRoot: process.cwd(),
-  });
-  const result = await memory.attach("/repo/.freeflow/tasks/task-001-a/record.md", "/repo");
-  assert.equal(result.ok, false);
-  assert.match(result.text, /automatic Cognitive Routing/);
+test("under automatic routing a worker may only read task memory; the Coordinator may propose", async () => {
+  const { registerTaskMemoryTool } = await import("../../dist/task-memory/tool.js");
+  let tool;
+  let worker = true;
+  const called = [];
+  const memory = new Proxy(
+    {},
+    {
+      get:
+        (_, name) =>
+        async (...args) => (called.push(name), { ok: true, text: `${String(name)} ran` }),
+    },
+  );
+  registerTaskMemoryTool(
+    { registerTool: (definition) => (tool = definition) },
+    { memory, changed: () => {}, refusal: () => (worker ? "workers only read" : undefined) },
+  );
+  const run = (params) =>
+    tool.execute("id", params, undefined, undefined, { cwd: "/repo", hasUI: true, ui: { confirm: async () => true } });
+  for (const params of [
+    { action: "attach", record: "x" },
+    { action: "focus", record: "x" },
+    { action: "detach", record: "x" },
+    { action: "fanout", title: "t" },
+    { action: "env", record: "x", primary: "/elsewhere" },
+  ]) {
+    const result = await run(params);
+    assert.equal(result.isError, true, params.action);
+    assert.equal(result.content[0].text, "workers only read");
+  }
+  assert.deepEqual(called, [], "nothing ran for a worker");
+  for (const params of [{ action: "list" }, { action: "view", record: "x" }, { action: "env", record: "x" }])
+    assert.notEqual((await run(params)).isError, true, params.action);
+  worker = false;
+  assert.notEqual((await run({ action: "focus", record: "x" })).isError, true, "the Coordinator may change focus");
 });
 
 test("with an unreadable registry, writes to records in the store are refused", async () => {
@@ -122,7 +142,6 @@ test("with an unreadable registry, writes to records in the store are refused", 
   await writeFile(join(home, "registry.json"), "{broken");
   const memory = new TaskMemory({
     effective: () => true,
-    routingAutomatic: () => false,
     append: () => {},
     send: () => {},
     owner: () => ({ session: "this-session", since: "2026-10-11T00:00:00.000Z" }),
@@ -208,7 +227,6 @@ test("the gate refuses a record write whose target cannot be read from the comma
   const { TaskMemory } = await import("../../dist/task-memory/runtime.js");
   const memory = new TaskMemory({
     effective: () => true,
-    routingAutomatic: () => false,
     append: () => {},
     send: () => {},
     owner: () => ({ session: "this-session", since: "2026-10-11T00:00:00.000Z" }),
