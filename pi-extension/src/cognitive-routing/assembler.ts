@@ -102,7 +102,7 @@ export class ContextAssembler {
         : "",
       // Selected bodies are not re-sent with the return; they stay where the worker produced them (Task 004 S-005).
       state.profile === "coordinator" && state.assessment && selection.selected.length
-        ? "Selected evidence is already in your view, in place in the worker's run: each selected ref is a tool result there, marked `task evidence` in its source provenance. Recover only evidence the assessment needs that is not there."
+        ? "Selected evidence is already in your view, in place in the worker's run: the source provenance after the run names each selected ref's call (its path or command) and marks it `task evidence`. Recover only evidence the assessment needs that is not there."
         : "",
       isWorkerProfile(this.session.turn?.profile) &&
       a &&

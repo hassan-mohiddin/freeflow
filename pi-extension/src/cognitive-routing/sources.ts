@@ -343,6 +343,28 @@ export class Sources {
     );
     return matches.length === 1 ? locatorForCall(group.assistant, matches[0], this.locatorProvider) : undefined;
   }
+  /**
+   * What a tool result's call did, in a few words: its path, command or first short string argument. Coordinator
+   * matches a selected ref to the result in its view by this label (Task 004 S-005); undefined when unknown.
+   */
+  callLabel(ref: string): string | undefined {
+    const source = this.byRef.get(ref);
+    if (!source || source.message.role !== "toolResult") return undefined;
+    const call = (this.owners.get(source.ref)?.assistant.message.content ?? []).find(
+      (block: any) =>
+        block.type === "toolCall" && block.id === source.message.toolCallId && block.name === source.message.toolName,
+    );
+    const args = call?.arguments;
+    if (!args || typeof args !== "object") return undefined;
+    const chosen =
+      ["path", "command", "pattern", "query", "url"]
+        .map((key) => (args as any)[key])
+        .find((value) => typeof value === "string" && value.trim()) ??
+      Object.values(args).find((value) => typeof value === "string" && value.trim() && value.length <= 200);
+    const label = normalizeLabel(chosen);
+    if (!label) return undefined;
+    return label.label.length > 100 ? `${label.label.slice(0, 97)}...` : label.label;
+  }
   ordered(sources: Iterable<Source>): Source[] {
     const ids = new Set([...sources].map((s) => s.ref));
     return this.entries.flatMap((entry) => {

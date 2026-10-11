@@ -56,8 +56,10 @@ export function annotateSources(
         isWorkerProfile(s.producer) && isTaskEvidence(s) && full.has(s.ref)
           ? "task evidence; selection checks apply"
           : "not offered for new evidence selection";
+      // The call's path or command lets a reader match this ref to the result above it.
+      const label = s.message.toolName ? sources.callLabel(s.ref) : undefined;
       return [
-        `${s.ref} | producer: ${s.producer} | ${s.message.role}${s.message.toolName ? ` | ${s.message.toolName}` : ""}${s.assignmentId ? ` | assignment: ${s.assignmentId}` : ""} | ${representation} | ${selection}`,
+        `${s.ref} | producer: ${s.producer} | ${s.message.role}${s.message.toolName ? ` | ${s.message.toolName}${label ? `: ${label}` : ""}` : ""}${s.assignmentId ? ` | assignment: ${s.assignmentId}` : ""} | ${representation} | ${selection}`,
       ];
     });
     const keys = new Set(attributed.map((s) => `${s.producer}\u0000${s.assignmentId ?? ""}`));
