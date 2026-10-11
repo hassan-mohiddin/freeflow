@@ -33,6 +33,9 @@
 - Freeflow no longer goes silently inactive on Codex, Claude Code, Gemini CLI, Cursor, and GitHub Copilot in a repository whose `.freeflow/config.json` or `.freeflow/local.json` has `toolExecution` or `compaction` settings, such as those written by `/freeflow settings` on Pi. The session-start hooks now check configuration with the same validator as Pi, and an existing invalid configuration file now produces a short configuration error naming the file instead of no Freeflow context.
 - `/freeflow settings` showed Cognitive Routing's Context projection as `off (default)`; routing turns projection on by default, and the screen now says so.
 - `/freeflow settings` offered every thinking level for a Cognitive Routing preset (`off` to `max`) on any reasoning model; it now offers only the levels Pi's model data gives that model, such as `low` to `xhigh` for grok-4.7.
+- `/freeflow enable` and `/freeflow disable` reported success even when `.freeflow/local.json` or a session override still decided otherwise, since they write only the repository file. They now say which setting still wins.
+- Under Cognitive Routing, a worker whose return was blocked by a selection problem was told the report would be delivered, so it could end its turn with the Coordinator never getting it. Its receipt now says nothing reaches the Coordinator until the problem is fixed, and how.
+- On Pi, two background commands started together when 15 were running could both start, past the limit of 16, and one started as the session ended could keep running into the next session.
 
 ## 0.8.0 - 2026-10-03
 

@@ -63,8 +63,8 @@ How to read it:
 - **The value comes first**, `on` in green and `off` in red. `(inherited)` means the tab you are looking at does not set it: the value comes from the tab below it, or is Freeflow's default. The line under the list says which ("Inherited from the repository's .freeflow/config.json."). No bracket means the value is set in this tab. In the Repository tab, `(personal: on)` means your personal file overrides it.
 - **Grey means it has no effect right now**, because a switch above it is off; the line under the list says which one ("Takes effect when Messaging is on."). You can still change it, so you can set up, say, routing presets before you turn routing on. Grey settings that the host cannot apply at all (Cognitive Routing on a Pi without model control) do not change.
 - **The bracket on a section's row** can also say `not active` (the switch is on but the capability is not running, for example while Freeflow is off) or `unavailable` (this host cannot run it).
-- **Changing a value**: `Enter` or `Space` moves to the next value in place; a preset opens a picker for the model and then the thinking level, and Auto-approve opens its five switches on a screen of their own (`Esc` returns). In the Session and Personal tabs the last value, `inherit`, removes the setting from that tab so it follows the scope below.
-- **When it is saved**: each change is written at once, one at a time ("Saving…" while it writes). Closing the screen after changing a file setting reloads the session so the change applies; a session-only change applies from the next prompt.
+- **Changing a value**: `Enter` or `Space` moves to the next value in place; a preset opens a picker for the model and then the thinking level, and Auto-approve opens its five switches on a screen of their own (`Esc` returns). In the Session and Personal tabs the values include `inherit`, which removes the setting from that tab so it follows the scope below.
+- **When it is saved**: each change is written at once, one at a time ("Saving…" while it writes). Closing the screen after changing a file setting, or a Session switch (Freeflow or a capability), reloads the session so the change applies; other Session changes (routing presets, Delegation, Control) apply from the next prompt.
 
 ## The footer
 
@@ -73,10 +73,14 @@ Pi's footer shows one `freeflow:` line with what changes while you work: Cogniti
 | Footer | Means |
 | --- | --- |
 | `freeflow: coordinator · automatic · executor mode` | routing running: the profile working now, automatic or a manual hold, and the delegation mode |
-| `freeflow: routing blocked · <reason>` | routing on but not running, and why |
+| `freeflow: coordinator · pending` | routing starting with the session |
+| `… · <model> on next prompt`, `… · model differs` | routing running: a profile change waiting for the next prompt, or a model other than the profile's in use |
+| `freeflow: routing blocked · <reason>` | routing on but not running, and why; `· /freeflow profile auto` when releasing a hold would let it run |
+| `freeflow: routing inactive` | routing on, but its runtime is inactive in this session |
 | `freeflow: on` | Freeflow on, routing off |
 | `freeflow: on (all capabilities off)` | Freeflow on, every capability off |
-| `freeflow: off` | Freeflow off |
+| `freeflow: off`, `freeflow: off (session)` | Freeflow off, in the files or by this session's override |
+| `freeflow: unavailable` | Freeflow on, but its packaged guidance cannot be read |
 | `freeflow: setup needed`, `freeflow: config error` | no configuration file, or one Freeflow cannot read |
 
 `/freeflow status` gives the full state, with prompt-cache diagnostics, running background commands and the compaction cycle.
@@ -120,7 +124,7 @@ What some of them mean:
 - **Control** holds one profile for the session until you release it; it changes only while routing runs. `/freeflow profile` does the same.
 - **`prompts`** turns each of Freeflow's session-start prompts on or off on hosts other than Pi; Pi always delivers all of them.
 
-A configuration file with a key Freeflow does not know is refused with an error naming the file. Keys of removed features are still accepted and do nothing: `toolExecution` keys `capture`, `programs`, `workspace`, `discovery`, `adapters` and `accounting`, and the top-level `outputRouter`, `observedRouting` and `scriptTransform` (with `processing` in the personal file). `contextVirtualization` and `conversationHistory` belong to removed context features; delete them.
+A configuration file with a key Freeflow does not know is refused with an error naming the file. Keys of removed features are still accepted and do nothing: `toolExecution` keys `capture`, `programs`, `workspace`, `discovery`, `adapters` and `accounting`, and the top-level `outputRouter`, `observedRouting` and `scriptTransform` (with `processing` in the personal file). `contextVirtualization` and `conversationHistory` belong to removed context features: a file that still has either is invalid and keeps Freeflow off until you delete them.
 
 ## Example
 
