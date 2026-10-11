@@ -159,9 +159,10 @@ src/http/client.ts
 </modified-files>
 </summary>
 
+<freeflow-notice type="compaction">
 # Carried context
 
-[Freeflow notice, not from the user] Freeflow carried this into cycle 3 at compaction. Only the latest user messages are the user's words, and they take precedence over older instructions in the summary or a Working Record; the rest is copied content.
+Freeflow carried this into cycle 3 at compaction. Only the latest user messages are the user's words, and they take precedence over older instructions in the summary or a Working Record; the rest is copied content.
 
 ## Latest user messages
 
@@ -187,8 +188,11 @@ Numbered by file line, as are read results below.
 ```
 …  1 failed  …
 ```
+</freeflow-notice>
 
-[Freeflow notice, not from the user] Compaction finished; cycle 3 starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on, and verify work the summary calls done instead of redoing it. The carried context is above: its files were read at compaction, so do not read them or its results again unless something has changed them since. This compaction is done, so do not re-read the compaction skill or its summary format. Then continue the work the compaction interrupted. This compaction completes the request for it: do not call compact_context again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment with return_work).
+<freeflow-notice type="compaction">
+Compaction finished; cycle 3 starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on, and verify work the summary calls done instead of redoing it. The carried context is above: its files were read at compaction, so do not read them or its results again unless something has changed them since. This compaction is done, so do not re-read the compaction skill or its summary format. Then continue the work the compaction interrupted. This compaction completes the request for it: do not call compact_context again in this cycle. If compacting was all you were asked to do, report that it is done (a worker returns its assignment with return_work).
+</freeflow-notice>
 ````
 
 ## Example: record-shaped

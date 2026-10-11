@@ -37,7 +37,7 @@ It deliberately does not:
 | File key | A path resolved as Pi's tools resolve it, then through `realpath`, so `./a`, `a`, `@a` and a symlink are one file. | `resolveToolPath()`, `fileKey()` |
 | Changed behind the model | An observed file whose content differs from the last observation and from the last notice. | `changedSinceNoticed()` |
 | Nested call | A tool call a codemode script made; Pi reports it with a `parentToolCallId`. | `FileTracking.toolResult()` |
-| Notice prefix | `[Freeflow notice, not from the user]`, marking harness messages so the model never reads them as the user's words. | `NOTICE_PREFIX` in `background.ts` |
+| Notice tag | `<freeflow-notice type="…">…</freeflow-notice>`, marking Freeflow's notices so the model never reads them as the user's words: Pi gives the model every custom message in the user role. Freeflow's guidance says what the tag means. Notices in saved sessions may still start with the earlier `[Freeflow notice, not from the user]`, which rows still read. | `freeflowNotice()`, `LEGACY_NOTICE_PREFIX` in `host/inbound.ts` |
 | Steer | Pi's delivery mode that adds a message to a running agent loop after the current turn's tool results. | `deliverAs: "steer"` |
 | Request path | Work done for every model request, in Pi's `context_with_system` hook. Tool Execution does none. | `index.ts` |
 | Until-loop | The waiting pattern the guidance teaches: `until <check>; do sleep 1; done`, run with `bash_background`, so the model is notified once when the condition holds. | `bash-guard.ts`, `background.ts` descriptions |
@@ -218,7 +218,7 @@ All four have `exposure: "direct"` (callable from codemode) and refuse to run wh
   - `file-state.ts`: `FileState`, `resolveToolPath()`, `touchedPaths()`, `HASH_LIMIT_BYTES`.
   - `file-tracking.ts`: `FileTracking` (`toolCall`, `toolResult`, `changedNotice`, `compacted`, `forPatch`, `written`).
   - `edit-messages.ts`: `rewriteEditError()`, `closestMatch()`, `matchingLines()`, `normalizeForMatch()`, and every message text (`writeRefusal()`, `changedAfterEdit()`, `noNeedToReread()`, `changedFilesNotice()`).
-  - `background.ts`: `BackgroundJobs` (`start()`, `monitor()`, `stop()`, `restate()`), `registerBackgroundTools()`, `NOTICE_PREFIX`, `MAX_RUNNING`, the `MONITOR_*` limits.
+  - `background.ts`: `BackgroundJobs` (`start()`, `monitor()`, `stop()`, `restate()`), `registerBackgroundTools()`, `freeflowNotice` (re-exported), `MAX_RUNNING`, the `MONITOR_*` limits.
   - `bash-guard.ts`: `backgroundRefusal()`, `LONGEST_FOREGROUND_SLEEP_S`.
   - `apply-patch/`: `grammar.ts`, `parser.ts`, `match.ts` (Codex ports), `plan.ts` (`applyPatch()`), `tool.ts` (`registerApplyPatch()`). Its [README](../../pi-extension/src/tool-execution/apply-patch/README.md) records the upstream commit and license.
 - `pi-extension/src/index.ts`: wiring. `before_agent_start` (prompt sections, prompt-time notice), `tool_call` (routing gate, bash guard, `FileTracking.toolCall()`), `tool_result`, `turn_end`, `session_tree`, `session_compact` (restatement), `session_shutdown`, and the background host's `send`, `event` and `endEvents`.

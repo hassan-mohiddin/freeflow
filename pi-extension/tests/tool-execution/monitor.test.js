@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { BackgroundJobs, MONITOR_MAX_LINES, MONITOR_PER_MINUTE } from "../../dist/tool-execution/background.js";
 import { Inbound } from "../../dist/host/inbound.js";
 
-const PREFIX = "[Freeflow notice, not from the user]";
+const tagged = (type, text) => `<freeflow-notice type="${type}">\n${text}\n</freeflow-notice>`;
 
 /** Monitors wired as index.ts wires them, through a real Inbound whose host records what reaches the model. */
 async function setup() {
@@ -63,9 +63,9 @@ test(
       assert.deepEqual(
         sent.map((each) => each.text),
         [
-          `${PREFIX} Monitor ${id} (watch):\na\nb`,
-          `${PREFIX} Monitor ${id} (watch):\nd`,
-          `${PREFIX} Monitor ${id} (watch) exited with code 0 after 3 events. Output: ${outputPath}.`,
+          tagged("monitor", `Monitor ${id} (watch):\na\nb`),
+          tagged("monitor", `Monitor ${id} (watch):\nd`),
+          tagged("monitor", `Monitor ${id} (watch) exited with code 0 after 3 events. Output: ${outputPath}.`),
         ],
       );
       assert.deepEqual(sent[0].options, { triggerTurn: true, deliverAs: "steer" });
@@ -92,7 +92,10 @@ test("a monitor past its timeout is stopped with one notice", { timeout: 30000 }
     await until(() => sent.length > 0);
     assert.equal(
       sent[0].text,
-      `${PREFIX} Monitor ${id} (idle) reached its timeout after 0 events and was stopped. Start it again to keep watching. Output: ${outputPath}.`,
+      tagged(
+        "monitor",
+        `Monitor ${id} (idle) reached its timeout after 0 events and was stopped. Start it again to keep watching. Output: ${outputPath}.`,
+      ),
     );
     assert.equal(jobs.running().length, 0);
     assert.match(await readFile(outputPath, "utf8"), /\[stopped: timeout\]\n$/);
@@ -135,7 +138,10 @@ test("stop_background stops a monitor without a notice; restatement names monito
     await new Promise((r) => setTimeout(r, 50));
     assert.equal(
       sent[0].text,
-      `${PREFIX} Still running: monitor ${id} (quiet), output ${outputPath}. Do not start them again; stop one with stop_background before restarting it.`,
+      tagged(
+        "background",
+        `Still running: monitor ${id} (quiet), output ${outputPath}. Do not start them again; stop one with stop_background before restarting it.`,
+      ),
     );
     assert.equal((await jobs.stop(id)).text, `Stopped ${id}.`);
     await new Promise((r) => setTimeout(r, 300));
@@ -151,7 +157,7 @@ test("one notice shows at most the line cap and points to the file for the rest"
   try {
     const { id, outputPath } = await jobs.monitor("seq 1 100; sleep 1", "count", 60_000, cwd, session);
     await until(() => sent.length > 0);
-    const lines = sent[0].text.split("\n");
+    const lines = sent[0].text.split("\n").slice(1, -1); // inside the notice tag
     assert.equal(lines.length, 1 + MONITOR_MAX_LINES + 1);
     assert.equal(lines[1], "1");
     assert.equal(lines.at(-1), `... ${100 - MONITOR_MAX_LINES} more lines in ${outputPath}`);

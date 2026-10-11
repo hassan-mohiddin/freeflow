@@ -103,7 +103,7 @@ test("a list inserted with the warning moves the warning point earlier by the li
       routingProfile: () => undefined,
       routingAssignment: () => undefined,
       background: () => [],
-      noticePrefix: "[notice]",
+      notice: (text) => `[notice] ${text}`,
       coordinatorUnderProjection: () => false,
       carryEnabled: () => true,
       nativeRefs: () => nativeRefs,

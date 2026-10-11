@@ -17,14 +17,14 @@ import {
   BackgroundJobs,
   MONITOR_PER_MINUTE,
   MONITOR_TYPE,
-  NOTICE_PREFIX,
+  freeflowNotice,
   NOTICE_TYPE,
   registerBackgroundTools,
 } from "./tool-execution/background.js";
 import { Inbound, renderNotice } from "./host/inbound.js";
 import { currentSections, headSections, keepSections } from "./host/section-keeper.js";
 import { backgroundRefusal } from "./tool-execution/bash-guard.js";
-import { CompactionController, USER_REQUEST, type TurnEnd } from "./compaction/controller.js";
+import { CompactionController, RECOVERY_TYPE, USER_REQUEST, type TurnEnd } from "./compaction/controller.js";
 import { applyCompactionTools, registerCompactionTool } from "./compaction/tool.js";
 import { strictest } from "./compaction/thresholds.js";
 import { SNAPSHOT_TYPE, TASK_ENTRY, TaskMemory, type TaskResult } from "./task-memory/runtime.js";
@@ -336,6 +336,10 @@ export default function freeflow(pi: FreeflowAPI) {
   api.registerMessageRenderer?.(NOTICE_TYPE, renderNotice("Background"));
   api.registerMessageRenderer?.(MONITOR_TYPE, renderNotice("Monitor"));
   api.registerMessageRenderer?.(COMPACT_REQUEST_TYPE, renderNotice("Compaction"));
+  // Compaction's warnings and its recovery message, and the changed-file notice: one line each, the rest on expand.
+  api.registerMessageRenderer?.(COMPACTION_NOTICE_TYPE, renderNotice("Compaction"));
+  api.registerMessageRenderer?.(RECOVERY_TYPE, renderNotice("Compaction"));
+  api.registerMessageRenderer?.("freeflow-files", renderNotice("Files"));
   const backgroundHost = {
     effective: toolExecutionEffective,
     shellPath: () => api.getSettings?.()?.shellPath,
@@ -369,7 +373,7 @@ export default function freeflow(pi: FreeflowAPI) {
     routingAssignment: () => routing.currentAssignment(),
     assignmentResults: () => routing.assignmentResults(),
     background: () => background.running().map(({ id, label, outputPath }) => ({ id, label, outputPath })),
-    noticePrefix: NOTICE_PREFIX,
+    notice: (text: string) => freeflowNotice("compaction", text),
     carryEnabled: () => capability?.compaction?.carry !== false,
     nativeRefs: () => capability?.cognitiveRouting?.effective === true,
     resolveRef: (ref: string) => routing.evidenceSource(ref),
@@ -699,7 +703,10 @@ export default function freeflow(pi: FreeflowAPI) {
     // Freeflow's message saying the user asked, not text in the user's name (Task 002 D-008); keepSections holds
     // Freeflow's system sections on the run it starts (Pi #10267).
     const index = compaction.indexText(ctx);
-    const text = `${NOTICE_PREFIX} The user ran /freeflow compact. ${USER_REQUEST}${index ? `\n\n${index}` : ""}`;
+    const text = freeflowNotice(
+      "compaction",
+      `The user ran /freeflow compact. ${USER_REQUEST}${index ? `\n\n${index}` : ""}`,
+    );
     await Promise.resolve(
       api.sendMessage(
         { customType: COMPACT_REQUEST_TYPE, content: text, display: true, details: {} },
@@ -845,7 +852,7 @@ export default function freeflow(pi: FreeflowAPI) {
     // Like Claude Code's next-turn reminder: files the model read that changed while it was not running a tool.
     const changed = toolExecutionEffective() ? await files.changedNotice(ctx, false) : undefined;
     if (changed)
-      return { message: { customType: "freeflow-files", content: `${NOTICE_PREFIX} ${changed}`, display: true } };
+      return { message: { customType: "freeflow-files", content: freeflowNotice("files", changed), display: true } };
   });
   pi.on("agent_start", () => {
     routing.runStarted();

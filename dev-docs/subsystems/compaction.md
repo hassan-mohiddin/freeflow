@@ -58,7 +58,7 @@ Worked example, 200k window with Pi's default reserve: trigger 200,000 − 16,38
    - a visible `freeflow-compaction-recovery` custom message telling the agent how to recover and not to re-read what was carried.
 5. **Reset.** Pi fires no `session_compact` for entries an extension appends, so `takeCompacted()` hands the compaction to the next `turn_start`, which runs the same resets as Pi's compaction (`restore(ctx, false)`: request history, cache tracking, routing reconcile; `false` because the branch is unchanged, so file state is not invalidated as after navigation) and reduces file tracking to the carried files (`files.compacted()`).
 
-`/freeflow compact` calls `requestByUser()`, which makes compaction due for this cycle, then sends `USER_REQUEST` (plus the result index) as a `freeflow-compaction-request` custom message with the notice prefix, steered when a run is active and starting a turn when idle.
+`/freeflow compact` calls `requestByUser()`, which makes compaction due for this cycle, then sends `USER_REQUEST` (plus the result index) as a `freeflow-compaction-request` custom message in Freeflow's notice tag, steered when a run is active and starting a turn when idle.
 
 ### Carry
 
@@ -133,7 +133,7 @@ Pi settings read, never written: `compaction.reserveTokens` and `compaction.mode
 
 **Events handled** (`index.ts`): `turn_end` (write or notify), `turn_start` (post-compaction resets), `session_before_compact` (fallback), `session_start` and `session_shutdown` (`reset()`).
 
-**Messages:** `freeflow-compaction-request` (visible, `/freeflow compact`), `freeflow-compaction-notice` (visible, `details.level`), `freeflow-carried-context` (hidden), `freeflow-compaction-recovery` (visible). All start with Freeflow's notice prefix so the agent never reads them as the user's words.
+**Messages:** `freeflow-compaction-request` (visible, `/freeflow compact`), `freeflow-compaction-notice` (visible, `details.level`), `freeflow-carried-context` (hidden), `freeflow-compaction-recovery` (visible). Each is wrapped in Freeflow's notice tag, `<freeflow-notice type="compaction">` (`CompactionHost.notice()`, `freeflowNotice()`), so the agent never reads them as the user's words: Pi gives the model every custom message in the user role. The notice and recovery messages are drawn as one `Compaction` row each, expanding to the text.
 
 **Skill:** `capabilities/compaction/SKILL.md` with `references/summary-format.md`: when to compact, the summary's shape, what to carry.
 

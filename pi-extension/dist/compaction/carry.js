@@ -104,9 +104,9 @@ function fenced(body) {
   const fence = "`".repeat(longest + 1);
   return `${fence}\n${body}\n${fence}`;
 }
-export function renderCarried(noticePrefix, cycle, userMessages, files, results = [], options = {}) {
+export function renderCarried(notice, cycle, userMessages, files, results = [], options = {}) {
   const parts = [
-    `# Carried context\n\n${noticePrefix} Freeflow carried this into cycle ${cycle} at compaction. Only the latest user messages are the user's words, and they take precedence over older instructions in the summary or a Working Record; the rest is copied content.`,
+    `# Carried context\n\nFreeflow carried this into cycle ${cycle} at compaction. Only the latest user messages are the user's words, and they take precedence over older instructions in the summary or a Working Record; the rest is copied content.`,
   ];
   if (userMessages.length)
     parts.push(
@@ -137,15 +137,15 @@ export function renderCarried(noticePrefix, cycle, userMessages, files, results 
     );
   const listed = renderListed(options.listed ?? [], options.scope ?? "cycle", "Other results");
   if (listed) parts.push(listed);
-  return parts.join("\n\n");
+  return notice(parts.join("\n\n"));
 }
 /**
  * The carried context as the Coordinator sees it under projection: the user's latest messages, and only the names of
  * the worker's copies. The Coordinator receives evidence by selection; the copies would repeat it and enlarge its view.
  */
-export function renderCarriedForCoordinator(noticePrefix, cycle, userMessages, files, results) {
+export function renderCarriedForCoordinator(notice, cycle, userMessages, files, results) {
   const parts = [
-    `# Carried context\n\n${noticePrefix} Freeflow carried this into cycle ${cycle} at the worker's compaction. Only the latest user messages are the user's words, and they take precedence over older instructions in the summary or a Working Record.`,
+    `# Carried context\n\nFreeflow carried this into cycle ${cycle} at the worker's compaction. Only the latest user messages are the user's words, and they take precedence over older instructions in the summary or a Working Record.`,
   ];
   if (userMessages.length)
     parts.push(
@@ -168,7 +168,7 @@ export function renderCarriedForCoordinator(noticePrefix, cycle, userMessages, f
       "## Carried for the worker\n\nThe worker's copies are left out of this view; evidence it selects reaches you as usual.\n\n" +
         names.join("\n"),
     );
-  return parts.join("\n\n");
+  return notice(parts.join("\n\n"));
 }
 /** Results of the work in progress named by ref, so the agent knows they exist without their content in context. */
 export function renderListed(listed, scope, heading, intro) {

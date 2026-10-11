@@ -144,20 +144,23 @@ export class CompactionController {
     if (level === "compactNow") this.sent.compactNowAt = tokens;
     return { level, text: this.noticeText(level, tokens, thresholds, ctx, withList) };
   }
+  /** A compaction notice, tagged as Freeflow's (the host's notice()). */
   noticeText(level, tokens, thresholds, ctx, withList = true) {
-    const prefix = this.host.noticePrefix;
+    return this.host.notice(this.noticeTextBody(level, tokens, thresholds, ctx, withList));
+  }
+  noticeTextBody(level, tokens, thresholds, ctx, withList = true) {
     const { window, trigger } = thresholds;
     if (this.host.coordinatorUnderProjection())
-      return `${prefix} ${level === "compactNow" ? "Compact now" : "Compaction is due soon"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger}. Your view leaves out what workers did, so do not compact yourself: ${level === "compactNow" ? "now" : "at a safe point (after the current assessment, or before the next assignment)"}, delegate an assignment asking the worker to read the compaction skill, compact with compact_context, and then return with return_work; then continue.`;
+      return `${level === "compactNow" ? "Compact now" : "Compaction is due soon"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger}. Your view leaves out what workers did, so do not compact yourself: ${level === "compactNow" ? "now" : "at a safe point (after the current assessment, or before the next assignment)"}, delegate an assignment asking the worker to read the compaction skill, compact with compact_context, and then return with return_work; then continue.`;
     const index = withList ? this.indexText(ctx) : "";
     const list = index ? `\n\n${index}` : "";
     // A worker's return hands the same history to the Coordinator and the next assignment, so it ends no growth.
     const worker = this.host.routingAssignment() !== undefined;
     if (level === "compactNow")
-      return `${prefix} Compact now: context is at about ${tokens} of ${window} tokens. Pi compacts on its own past about ${trigger}, or when a request overflows the model's window. The end of your current step is the safe point: write down any partial state, then prepare and call compact_context; ${worker ? "compact before you return, since the Coordinator and the next assignment continue this history; " : ""}if Pi compacts first, its own summary replaces yours.${list}`;
+      return `Compact now: context is at about ${tokens} of ${window} tokens. Pi compacts on its own past about ${trigger}, or when a request overflows the model's window. The end of your current step is the safe point: write down any partial state, then prepare and call compact_context; ${worker ? "compact before you return, since the Coordinator and the next assignment continue this history; " : ""}if Pi compacts first, its own summary replaces yours.${list}`;
     // Before compact now there is room for the Coordinator's next turn, so a worker may finish a return first.
     const end = `If you are at one now, compact now; if your work ends within a step or two with ${worker ? "a return" : "a final answer"}, finish it instead.`;
-    return `${prefix} Compaction is due soon: context is at about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger}. Keep working until a safe point: a finished step whose result you know (a check read, an edit set complete, a report written), not mid-edit or with a command running. ${end} At the safe point, read the compaction skill, update the Working Record, ${this.carryText(ctx)}, write the summary, and call compact_context. A "compact now" notice follows near Pi's limit.${list}`;
+    return `Compaction is due soon: context is at about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger}. Keep working until a safe point: a finished step whose result you know (a check read, an edit set complete, a report written), not mid-edit or with a command running. ${end} At the safe point, read the compaction skill, update the Working Record, ${this.carryText(ctx)}, write the summary, and call compact_context. A "compact now" notice follows near Pi's limit.${list}`;
   }
   /** Check a compact_context call and schedule it for the end of this turn; throws with the reason it is refused. */
   async request(params, ctx) {
@@ -302,11 +305,20 @@ export class CompactionController {
     })}`;
     const userMessages = latestUserMessages(branch, (message) => message.startsWith(USER_REQUEST));
     const { automatic, listed } = this.fill(branch, ctx, files, results);
-    const carriedText = renderCarried(this.host.noticePrefix, cycle, userMessages, files, [...results, ...automatic], {
-      listed,
-      scope: this.host.nativeRefs() && this.host.assignmentResults() ? "assignment" : "cycle",
-    });
-    const recovery = `${this.host.noticePrefix} ${recoveryText(cycle, "The carried context is above: its files were read at compaction, so do not read them or its results again unless something has changed them since. ")} ${AFTER_REQUESTED}`;
+    const carriedText = renderCarried(
+      (text) => this.host.notice(text),
+      cycle,
+      userMessages,
+      files,
+      [...results, ...automatic],
+      {
+        listed,
+        scope: this.host.nativeRefs() && this.host.assignmentResults() ? "assignment" : "cycle",
+      },
+    );
+    const recovery = this.host.notice(
+      `${recoveryText(cycle, "The carried context is above: its files were read at compaction, so do not read them or its results again unless something has changed them since. ")} ${AFTER_REQUESTED}`,
+    );
     this.requested = undefined;
     this.compacted = { carriedFiles: files.filter((file) => "text" in file).map((file) => file.path) };
     return {
@@ -342,10 +354,13 @@ export class CompactionController {
           ...(this.host.nativeRefs()
             ? {
                 details: {
-                  coordinatorContent: renderCarriedForCoordinator(this.host.noticePrefix, cycle, userMessages, files, [
-                    ...results,
-                    ...automatic,
-                  ]),
+                  coordinatorContent: renderCarriedForCoordinator(
+                    (text) => this.host.notice(text),
+                    cycle,
+                    userMessages,
+                    files,
+                    [...results, ...automatic],
+                  ),
                 },
               }
             : {}),

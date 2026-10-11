@@ -53,7 +53,8 @@ test(
         const after = requests[2].messages;
         assert.deepEqual(strip(after.slice(0, before.length)), strip(before));
         const added = JSON.stringify(after.slice(before.length));
-        assert.ok(added.indexOf("Continue.") < added.indexOf(`[Freeflow notice, not from the user] ${CHANGED}`));
+        assert.ok(added.indexOf("Continue.") < added.indexOf(CHANGED));
+        assert.ok(added.includes('<freeflow-notice type=\\"files\\">'), "tagged as Freeflow's notice");
         await session.prompt("Again.");
         await session.waitForIdle();
         assert.doesNotMatch(JSON.stringify(requests[3].messages.slice(after.length)), /changed since you read/);

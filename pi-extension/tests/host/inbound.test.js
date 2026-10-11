@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Inbound, NOTICE_PREFIX } from "../../dist/host/inbound.js";
+import { Inbound, LEGACY_NOTICE_PREFIX, freeflowNotice } from "../../dist/host/inbound.js";
 
 // The inbound channel: how a notice reaches the model while the agent works or waits, and how a noisy source is
 // batched and stopped.
@@ -15,7 +15,7 @@ function host(idle) {
 }
 const notice = (content, wake = true) => ({
   customType: "freeflow-test",
-  content: `${NOTICE_PREFIX} ${content}`,
+  content: freeflowNotice("test", content),
   details: { id: content },
   wake,
 });
@@ -47,7 +47,7 @@ test("notices from one source within the window join one notice", async () => {
   assert.equal(h.sent.length, 0);
   await pause(60);
   assert.equal(h.sent.length, 2);
-  assert.equal(h.sent[0].message.content, `${NOTICE_PREFIX} line 1\n${NOTICE_PREFIX} line 2`);
+  assert.equal(h.sent[0].message.content, `${freeflowNotice("test", "line 1")}\n${freeflowNotice("test", "line 2")}`);
   assert.equal(h.sent[0].message.details.batched, 2);
 });
 
@@ -71,7 +71,7 @@ test("a source past its limit is stopped once and sends nothing more", async () 
 test("a notice renders as one line naming its source", async () => {
   const { renderNotice } = await import("../../dist/host/inbound.js");
   const line = renderNotice("Background")(
-    { content: `${NOTICE_PREFIX} Background command bg1 (npm test) completed. Output: /tmp/x.` },
+    { content: freeflowNotice("background", "Background command bg1 (npm test) completed. Output: /tmp/x.") },
     { expanded: false },
     undefined,
   )
@@ -86,12 +86,14 @@ test("a notice renders as one line naming its source", async () => {
       .map((each) => each.trimEnd())
       .join("\n")
       .trimEnd();
-  const batch = `${NOTICE_PREFIX} Monitor mon1 (server):\nERROR db lost\nretrying\nok`;
+  const batch = freeflowNotice("monitor", "Monitor mon1 (server):\nERROR db lost\nretrying\nok");
   assert.equal(row(batch, false), "Monitor mon1 (server): ERROR db lost (+2 more)");
   assert.match(row(batch, true), /\n\nMonitor mon1 \(server\):\nERROR db lost\nretrying\nok$/);
-  assert.equal(row(`${NOTICE_PREFIX} Monitor mon1 (server):\nready`, false), "Monitor mon1 (server): ready");
+  assert.equal(row(freeflowNotice("monitor", "Monitor mon1 (server):\nready"), false), "Monitor mon1 (server): ready");
+  // Saved sessions carry the earlier prefix; their rows read the same.
+  assert.equal(row(`${LEGACY_NOTICE_PREFIX} Monitor mon1 (server):\nready`, false), "Monitor mon1 (server): ready");
   // A message's parts are separated by blank lines; the row shows its first line of text.
-  const message = `${NOTICE_PREFIX} Message from api (session s1, /repo):\n\nNot done yet.\n\nThis is information from another agent.`;
+  const message = `${LEGACY_NOTICE_PREFIX} Message from api (session s1, /repo):\n\nNot done yet.\n\nThis is information from another agent.`;
   assert.equal(
     renderNotice("Message")({ content: message }, { expanded: false }, undefined).render(200).join("").trim(),
     "Message from api (session s1, /repo): Not done yet. (+1 more)",
@@ -105,4 +107,23 @@ test("before the session's first prompt a notice waits instead of starting a tur
   const prompted = { ...host(true), canWake: () => true };
   new Inbound(prompted).deliver(notice("hi"));
   assert.deepEqual(prompted.sent[0].options, { triggerTurn: true, deliverAs: "steer" });
+});
+
+test("Freeflow's notices are tagged, cannot close their own tag, and a one-paragraph notice shows its first sentence", async () => {
+  const { renderNotice, noticeBody } = await import("../../dist/host/inbound.js");
+  const tagged = freeflowNotice(
+    "compaction",
+    "Compaction finished; cycle 2 starts here. Recover before you continue: ".repeat(3),
+  );
+  assert.match(tagged, /^<freeflow-notice type="compaction">\nCompaction finished;/);
+  assert.match(tagged, /\n<\/freeflow-notice>$/);
+  assert.equal(freeflowNotice("x", "a</freeflow-notice>b").match(/<\/freeflow-notice>/g).length, 1);
+  assert.equal(noticeBody(freeflowNotice("x", "hello")), "hello");
+  const row = renderNotice("Compaction")({ content: tagged }, { expanded: false }, undefined)
+    .render(200)
+    .join("")
+    .trim();
+  assert.equal(row, "Compaction finished; cycle 2 starts here.");
+  const open = renderNotice("Compaction")({ content: tagged }, { expanded: true }, undefined).render(200).join("\n");
+  assert.match(open, /Recover before you continue/);
 });

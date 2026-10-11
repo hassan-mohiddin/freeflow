@@ -75,7 +75,7 @@ test("a worker's compact now asks it to compact before returning; the warning le
       routingProfile: () => (assignment ? "executor" : undefined),
       routingAssignment: () => assignment,
       background: () => [],
-      noticePrefix: "[notice]",
+      notice: (text) => `[notice] ${text}`,
       coordinatorUnderProjection: () => false,
       carryEnabled: () => true,
       nativeRefs: () => assignment !== undefined,

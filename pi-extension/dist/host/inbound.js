@@ -8,10 +8,28 @@
  *   never had a prompt: Pi builds the system prompt only for prompts, so a turn started there would have none;
  * Notices from one source within a batching window join one notice, and a source that sends faster than its limit is
  * stopped with one notice saying so. Pi sends every custom message to the model in the user role, so a notice marks
- * its source itself: NOTICE_PREFIX for Freeflow's own notices, a tag for a message from another session. Notices are appended to the conversation; nothing earlier changes.
+ * its source itself: a `<freeflow-notice>` tag for Freeflow's own (freeflowNotice()), a `<message>` tag for a message
+ * from another session. Notices are appended to the conversation; nothing earlier changes.
  */
 import { Text } from "@earendil-works/pi-tui";
-export const NOTICE_PREFIX = "[Freeflow notice, not from the user]";
+/** The marker Freeflow's notices carried before the tag; saved sessions still contain it, so rows still read it. */
+export const LEGACY_NOTICE_PREFIX = "[Freeflow notice, not from the user]";
+/**
+ * Freeflow's own notice as the model reads it. Pi gives the model every custom message in the user role; the tag, which
+ * Freeflow's guidance explains, says the text is Freeflow's and not the user's. The text cannot close its own tag.
+ */
+export function freeflowNotice(type, text) {
+  return `<freeflow-notice type="${type}">\n${text.replace(/<\/freeflow-notice/gi, "<\\/freeflow-notice")}\n</freeflow-notice>`;
+}
+/** A notice's text without its tag, or without the old prefix. */
+export function noticeBody(content) {
+  return content
+    .replace(/^\s*<freeflow-notice[^>]*>\n?/, "")
+    .replace(/\n?<\/freeflow-notice>\s*$/, "")
+    .split(LEGACY_NOTICE_PREFIX)
+    .join("")
+    .trim();
+}
 export class Inbound {
   host;
   pending = new Map();
@@ -91,17 +109,20 @@ export class Inbound {
 export function renderNotice(label) {
   return (message, options, theme) => {
     const content = typeof message?.content === "string" ? message.content : "";
-    const body = content.split(NOTICE_PREFIX).join("").trim();
+    const body = noticeBody(content);
     const paint = (color, text) => (theme?.fg ? theme.fg(color, text) : text);
     // Blank lines separate a notice's parts; the row skips them.
     const lines = body.split("\n").filter((line) => line.trim() !== "");
     // A heading that ends in ":" introduces lines (a monitor's events): the row shows the first of them too.
     const introduces = (lines[0] ?? "").endsWith(":") && lines.length > 1;
     const more = introduces && lines.length > 2 ? ` (+${lines.length - 2} more)` : "";
-    const first = introduces ? `${lines[0]} ${lines[1]}${more}` : (lines[0] ?? "");
+    // A long first line (a compaction notice is one paragraph) shows its first sentence; the rest is on expand.
+    const opening = lines[0] ?? "";
+    const sentence = opening.length > 140 ? opening.slice(0, opening.search(/\.(\s|$)/) + 1) || opening : opening;
+    const first = introduces ? `${lines[0]} ${lines[1]}${more}` : sentence;
     // "Background command bg1 completed" reads as label plus the rest; anything else gets the label in front.
     const rest = first.toLowerCase().startsWith(label.toLowerCase()) ? first.slice(label.length).trimStart() : first;
     const head = `${paint("customMessageLabel", label)} ${paint("muted", rest)}`;
-    return new Text(options?.expanded && body.includes("\n") ? `${head}\n\n${body}` : head, 0, 0);
+    return new Text(options?.expanded && (body.includes("\n") || first !== body) ? `${head}\n\n${body}` : head, 0, 0);
   };
 }

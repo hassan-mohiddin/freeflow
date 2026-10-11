@@ -19,8 +19,8 @@ export const MONITOR_PER_MINUTE = 20;
 export const MONITOR_MAX_LINES = 40;
 const MAX_LINE_CHARS = 1_000;
 /** Marks harness messages, which arrive on their own schedule, as not written by the user. */
-import { NOTICE_PREFIX } from "../host/inbound.js";
-export { NOTICE_PREFIX };
+import { freeflowNotice } from "../host/inbound.js";
+export { freeflowNotice };
 const newId = (prefix) => `${prefix}${randomBytes(6).readUIntBE(0, 6).toString(36).slice(-6).padStart(6, "0")}`;
 const shellQuote = (text) => `'${text.replace(/'/g, `'\\''`)}'`;
 function labelFor(command, description) {
@@ -164,11 +164,14 @@ export class BackgroundJobs {
   eventText(job, lines) {
     const shown = lines.slice(0, MONITOR_MAX_LINES);
     const more = lines.length - shown.length;
-    return [
-      `${NOTICE_PREFIX} Monitor ${job.id} (${job.label}):`,
-      ...shown,
-      ...(more > 0 ? [`... ${more} more lines in ${job.outputPath}`] : []),
-    ].join("\n");
+    return freeflowNotice(
+      "monitor",
+      [
+        `Monitor ${job.id} (${job.label}):`,
+        ...shown,
+        ...(more > 0 ? [`... ${more} more lines in ${job.outputPath}`] : []),
+      ].join("\n"),
+    );
   }
   async stop(id) {
     const job = this.jobs.get(id);
@@ -212,7 +215,10 @@ export class BackgroundJobs {
       .map((job) => `${job.kind === "monitor" ? "monitor " : ""}${job.id} (${job.label}), output ${job.outputPath}`)
       .join("; ");
     this.host.send(
-      `${NOTICE_PREFIX} Still running: ${list}. Do not start them again; stop one with stop_background before restarting it.`,
+      freeflowNotice(
+        "background",
+        `Still running: ${list}. Do not start them again; stop one with stop_background before restarting it.`,
+      ),
       { running: running.map((job) => ({ id: job.id, outputPath: job.outputPath })) },
       false,
     );
@@ -238,7 +244,7 @@ export class BackgroundJobs {
               ? `failed to run: ${runError}.`
               : `exited with code ${job.exitCode} after ${events}.`;
       this.host.send(
-        `${NOTICE_PREFIX} Monitor ${job.id} (${job.label}) ${outcome} Output: ${job.outputPath}.`,
+        freeflowNotice("monitor", `Monitor ${job.id} (${job.label}) ${outcome} Output: ${job.outputPath}.`),
         details,
         true,
       );
@@ -251,7 +257,10 @@ export class BackgroundJobs {
           ? "completed"
           : `failed with exit code ${job.exitCode}`;
     this.host.send(
-      `${NOTICE_PREFIX} Background command ${job.id} (${job.label}) ${outcome}. Output: ${job.outputPath}.`,
+      freeflowNotice(
+        "background",
+        `Background command ${job.id} (${job.label}) ${outcome}. Output: ${job.outputPath}.`,
+      ),
       details,
       true,
     );
