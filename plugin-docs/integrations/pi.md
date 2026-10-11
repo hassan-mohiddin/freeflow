@@ -85,7 +85,7 @@ Tool Execution and Task Memory are disabled by default; Compaction is enabled by
 
 Tool Execution keeps Pi's tools and adds guidance, file tracking, clearer edit errors, `apply_patch` and the background commands `bash_background` and `stop_background`. The retired v2 keys (`capture`, `programs`, `workspace`, `discovery`, `adapters`, `accounting`) still load and do nothing. See [Tool Execution](../capabilities/tool-execution.md).
 
-Compaction warns the agent before Pi's own limit and lets it compact with `freeflow_compact` from its own summary and carried context; Pi's compaction stays on as the fallback. `compaction.carry` (Context reuse) controls whether files and tool results are carried. See [Compaction](../capabilities/compaction.md).
+Compaction warns the agent before Pi's own limit and lets it compact with `compact_context` from its own summary and carried context; Pi's compaction stays on as the fallback. `compaction.carry` (Context reuse) controls whether files and tool results are carried. See [Compaction](../capabilities/compaction.md).
 
 Task Memory, a preview, lets the session attach Working Records, delivers the focused record's resume view when context is rebuilt, and refuses record writes to records not attached; it adds projects with records stored under `~/.freeflow` (or `FREEFLOW_HOME`) and child records for parallel sessions. See [Task Memory](../capabilities/task-memory.md).
 

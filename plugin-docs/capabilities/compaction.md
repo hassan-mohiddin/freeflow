@@ -2,7 +2,7 @@
 
 Pi compacts a long session on its own when the context nears the model's window: a separate summarizer call reads the conversation and writes a summary, and the session continues from that summary and a recent tail. The agent doing the work has no say in it, so the summary can miss what the next step needed.
 
-Freeflow compaction lets the agent compact itself, at a point it chooses, from what it knows. Freeflow warns the agent ahead of Pi's limit; at a safe point the agent updates its Working Record, writes the summary, chooses what to carry, and calls `freeflow_compact`. At the end of that turn Freeflow replaces the conversation with the summary, the carried context and a recovery message, and the same run continues. Pi's own compaction stays on as the fallback when the context fills before the agent compacts.
+Freeflow compaction lets the agent compact itself, at a point it chooses, from what it knows. Freeflow warns the agent ahead of Pi's limit; at a safe point the agent updates its Working Record, writes the summary, chooses what to carry, and calls `compact_context`. At the end of that turn Freeflow replaces the conversation with the summary, the carried context and a recovery message, and the same run continues. Pi's own compaction stays on as the fallback when the context fills before the agent compacts.
 
 ## Availability
 
@@ -52,7 +52,7 @@ The carry budget is 15% of the window, at most 40k tokens, and at most a quarter
 
 ## When Pi compacts first
 
-Pi's own compaction keeps Pi's summarizer and recent tail. Freeflow adds its summary instructions to Pi's summarizer and appends its own state and recovery steps; under Cognitive Routing it also lists the current assignment's results by reference. A `freeflow_compact` call after Pi has compacted is refused with the reason, so the agent does not compact twice. If anything in Freeflow's part fails, Pi compacts as it would alone.
+Pi's own compaction keeps Pi's summarizer and recent tail. Freeflow adds its summary instructions to Pi's summarizer and appends its own state and recovery steps; under Cognitive Routing it also lists the current assignment's results by reference. A `compact_context` call after Pi has compacted is refused with the reason, so the agent does not compact twice. If anything in Freeflow's part fails, Pi compacts as it would alone.
 
 ## With Cognitive Routing
 

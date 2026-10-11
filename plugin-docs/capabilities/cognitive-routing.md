@@ -294,7 +294,7 @@ With `projection: false`:
 
 - enabled profiles receive Pi's ordinary active context;
 - routing still records responsibility and saved communication;
-- `freeflow_project` is unavailable;
+- `select_evidence` is unavailable;
 - a report can return without an evidence-selection ceremony.
 
 ### Projection on
