@@ -69,14 +69,14 @@ const text = (content) =>
       ? content.map((part) => (part?.type === "text" ? part.text : "")).join("")
       : "";
 /**
- * The latest user messages on the branch, oldest first, within the carried limit. Messages `skip` matches are left
- * out: Freeflow's own /freeflow compact request is sent as the user's message, and the compaction completes it.
+ * The latest user messages on the branch, oldest first, within the carried limit. Freeflow's own /freeflow compact
+ * request is a custom message, not a user message, so it is never among them.
  */
-export function latestUserMessages(branch, skip = () => false) {
+export function latestUserMessages(branch) {
   const messages = branch
     .filter((entry) => entry?.type === "message" && entry.message?.role === "user")
     .map((entry) => text(entry.message.content).trim())
-    .filter((message) => message && !skip(message))
+    .filter(Boolean)
     .slice(-USER_MESSAGE_LIMIT.count);
   const kept = [];
   let left = USER_MESSAGE_LIMIT.tokens;

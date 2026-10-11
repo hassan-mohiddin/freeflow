@@ -32,7 +32,7 @@ import { cachedBranch } from "../host/branch.js";
  */
 export const CARRIED_TYPE = "freeflow-carried-context";
 export const RECOVERY_TYPE = "freeflow-compaction-recovery";
-/** What /freeflow compact sends as the user's message; a list of results may follow it. */
+/** What /freeflow compact asks for, in a Freeflow notice; a list of results may follow it. */
 export const USER_REQUEST = "Compact now: read the compaction skill, prepare the next cycle, and call compact_context.";
 const ABNORMAL_STOPS = new Set(["error", "aborted", "length"]);
 /** The most results the carried context lists by ref; the newest are listed. */
@@ -303,7 +303,7 @@ export class CompactionController {
       background: this.host.background(),
       files: sessionFileLists(branch),
     })}`;
-    const userMessages = latestUserMessages(branch, (message) => message.startsWith(USER_REQUEST));
+    const userMessages = latestUserMessages(branch);
     const { automatic, listed } = this.fill(branch, ctx, files, results);
     const carriedText = renderCarried(
       (text) => this.host.notice(text),

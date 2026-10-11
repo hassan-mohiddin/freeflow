@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
 import type { Server } from "node:net";
 
+import { withoutNoticeTags } from "../host/inbound.js";
 import type { InboundPolicy } from "./config.js";
 import { LiveRegistry, type LiveSession } from "./registry.js";
 import { close, listen, request, socketPathFor } from "./transport.js";
@@ -66,8 +67,9 @@ export type SendResult = Readonly<{ ok: boolean; text: string; details: Record<s
 const shortId = (sessionId: string) => sessionId.replace(/-/g, "").slice(-8);
 const attribute = (value: string) =>
   value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/\n/g, " ");
-/** A message body cannot close its own tag. */
-const escapeBody = (text: string) => text.replace(/<\/(message|message-status|session-status)/gi, "<\\/$1");
+/** A message body cannot close its own tag, or pass for one of Freeflow's notices. */
+const escapeBody = (text: string) =>
+  withoutNoticeTags(text).replace(/<\/(message|message-status|session-status)/gi, "<\\/$1");
 
 export function displayName(identity: Identity): string {
   return identity.name?.trim() || `${basename(identity.cwd) || "session"}-${shortId(identity.sessionId).slice(0, 4)}`;

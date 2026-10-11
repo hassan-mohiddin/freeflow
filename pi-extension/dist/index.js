@@ -352,6 +352,7 @@ export default function freeflow(pi) {
       inbound.flush(`monitor:${id}`);
       inbound.close(`monitor:${id}`);
     },
+    discardEvents: (id) => inbound.close(`monitor:${id}`),
   };
   const background = new BackgroundJobs(backgroundHost);
   registerBackgroundTools(api, background, backgroundHost);

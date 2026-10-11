@@ -3,6 +3,7 @@ import { createWriteStream } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import { createLocalBashOperations } from "@earendil-works/pi-coding-agent";
 export const BASH_BACKGROUND = "bash_background";
 export const MONITOR = "monitor";
@@ -40,6 +41,10 @@ function close(stream, trailer) {
 export class BackgroundJobs {
   host;
   jobs = new Map();
+  /** Launches between their check of MAX_RUNNING and their job's registration. */
+  starting = 0;
+  /** Changes when the session ends, so a launch that was still starting then does not run. */
+  generation = 0;
   constructor(host) {
     this.host = host;
   }
@@ -59,21 +64,31 @@ export class BackgroundJobs {
     return this.launch("monitor", command, description, cwd, sessionId, ms);
   }
   async launch(kind, command, description, cwd, sessionId, timeoutMs) {
-    const running = this.running();
-    if (running.length >= MAX_RUNNING)
+    if (this.running().length + this.starting >= MAX_RUNNING)
       throw new Error(`${MAX_RUNNING} background commands are running. Stop one with stop_background, then retry.`);
     const prefix = kind === "monitor" ? "mon" : "bg";
     let id = newId(prefix);
     while (this.jobs.has(id)) id = newId(prefix);
+    const generation = this.generation;
     const folder = join(tmpdir(), "freeflow", sessionId.replace(/[^A-Za-z0-9._-]/g, "_"), "background");
-    await mkdir(folder, { recursive: true, mode: 0o700 });
     const outputPath = join(folder, `${id}.output`);
     // A monitor's stderr is appended to the same file by the shell, so both writers append.
-    const stream = createWriteStream(outputPath, { flags: kind === "monitor" ? "a" : "w", mode: 0o600 });
-    await new Promise((resolve, reject) => {
-      stream.once("open", () => resolve());
-      stream.once("error", reject);
-    });
+    let stream;
+    this.starting++;
+    try {
+      await mkdir(folder, { recursive: true, mode: 0o700 });
+      stream = createWriteStream(outputPath, { flags: kind === "monitor" ? "a" : "w", mode: 0o600 });
+      await new Promise((resolve, reject) => {
+        stream.once("open", () => resolve());
+        stream.once("error", reject);
+      });
+    } finally {
+      this.starting--;
+    }
+    if (generation !== this.generation) {
+      await close(stream, "[not started: the session ended]\n");
+      throw new Error("The session ended before the command started.");
+    }
     const controller = new AbortController();
     let endsWithNewline = true;
     const job = {
@@ -87,6 +102,8 @@ export class BackgroundJobs {
       done: Promise.resolve(),
     };
     let partial = "";
+    // One decoder per job, so a character split across two reads is decoded whole.
+    const decoder = new StringDecoder("utf8");
     const event = (line) => {
       job.events++;
       const text = line.length > MAX_LINE_CHARS ? `${line.slice(0, MAX_LINE_CHARS)}... (line cut)` : line;
@@ -104,8 +121,13 @@ export class BackgroundJobs {
         endsWithNewline = data[data.length - 1] === 10;
         stream.write(data);
         if (kind !== "monitor" || job.stopping) return;
-        const lines = (partial + data.toString("utf8")).split("\n");
-        partial = lines.pop() ?? "";
+        const lines = (partial + decoder.write(data)).split("\n");
+        // An unfinished line keeps only what a terminal would show (the text after its last carriage return), so a
+        // progress bar redrawn with \r does not grow it without bound; the output file has everything.
+        partial = (lines.pop() ?? "")
+          .split("\r")
+          .at(-1)
+          .slice(-4 * MAX_LINE_CHARS);
         for (const line of lines) if (line.trim() !== "") event(line.replace(/\r$/, ""));
       },
       signal: controller.signal,
@@ -114,10 +136,13 @@ export class BackgroundJobs {
       timeoutMs === undefined ? undefined : setTimeout(() => this.halt(job, "expired"), timeoutMs).unref?.();
     const finish = () => {
       if (timer) clearTimeout(timer);
+      job.ended = true;
       if (kind !== "monitor") return;
+      partial += decoder.end();
       if (partial.trim() !== "" && !job.stopping) event(partial);
       partial = "";
-      this.host.endEvents(id);
+      if (job.stopping === "shutdown" && this.host.discardEvents) this.host.discardEvents(id);
+      else this.host.endEvents(id);
     };
     job.done = run.then(
       async ({ exitCode }) => {
@@ -157,7 +182,7 @@ export class BackgroundJobs {
   }
   /** Stop a monitor on its own account: its timeout passed, or it sent more than its rate limit allows. */
   halt(job, reason) {
-    if (job.status !== "running" || job.stopping) return;
+    if (job.status !== "running" || job.stopping || job.ended) return;
     job.stopping = reason;
     job.controller.abort();
   }
@@ -199,6 +224,7 @@ export class BackgroundJobs {
   }
   /** Session end: stop every running job, wait for the processes to exit, forget them. No notice is sent. */
   async stopAll() {
+    this.generation++;
     const running = this.running();
     for (const job of running) {
       job.stopping = "shutdown";

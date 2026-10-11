@@ -21,10 +21,17 @@ export async function askUser(
 ): Promise<AskOutcome> {
   if (!ctx?.hasUI || !ctx.ui) return { status: "unavailable", reason: "No one can answer a dialog in this session." };
   if (ctx.mode === "tui" && typeof ctx.ui.custom === "function") {
+    if (signal?.aborted) return { status: "dismissed" };
     let timer: ReturnType<typeof setInterval> | undefined;
+    let onAbort: (() => void) | undefined;
     const outcome = await ctx.ui.custom(
       (tui: any, theme: any, _keybindings: unknown, done: (outcome: AskOutcome) => void) => {
         const view = new QuestionForm(questions, theme, done, () => tui?.requestRender?.(), form);
+        // Pi's custom dialog takes no signal: an aborted call (the user pressed Escape on the turn) closes it here.
+        if (signal) {
+          onAbort = () => done({ status: "dismissed" });
+          signal.addEventListener("abort", onAbort, { once: true });
+        }
         // A dialog with a deadline counts down and closes itself unanswered when it passes.
         if (form.deadline !== undefined)
           timer = setInterval(() => {
@@ -38,6 +45,7 @@ export async function askUser(
       },
     );
     if (timer) clearInterval(timer);
+    if (onAbort) signal?.removeEventListener("abort", onAbort);
     return outcome ?? { status: "dismissed" };
   }
   const answers: Answer[] = [];

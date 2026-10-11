@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
+import { withoutNoticeTags } from "../host/inbound.js";
 import { LiveRegistry } from "./registry.js";
 import { close, listen, request, socketPathFor } from "./transport.js";
 /**
@@ -23,8 +24,8 @@ export const WATCH_EXPIRY_MS = 12 * 60 * 60_000;
 const shortId = (sessionId) => sessionId.replace(/-/g, "").slice(-8);
 const attribute = (value) =>
   value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/\n/g, " ");
-/** A message body cannot close its own tag. */
-const escapeBody = (text) => text.replace(/<\/(message|message-status|session-status)/gi, "<\\/$1");
+/** A message body cannot close its own tag, or pass for one of Freeflow's notices. */
+const escapeBody = (text) => withoutNoticeTags(text).replace(/<\/(message|message-status|session-status)/gi, "<\\/$1");
 export function displayName(identity) {
   return identity.name?.trim() || `${basename(identity.cwd) || "session"}-${shortId(identity.sessionId).slice(0, 4)}`;
 }

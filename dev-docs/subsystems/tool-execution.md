@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/tool-execution/`, `runtime/prompts/tool-execution.md`
 > **Tests:** `pi-extension/tests/tool-execution/`
-> **Verified at:** `36f7ce46` (2026-10-11)
+> **Verified at:** `cadeaf8d` (2026-10-12)
 > **User docs:** `plugin-docs/capabilities/tool-execution.md`
 
 For contributors changing Tool Execution on Pi: what Freeflow adds around Pi's own tools, how each part hooks into Pi, and which of its behaviors are deliberate.
@@ -65,7 +65,7 @@ Every value comes from the configuration and the machine, so the system prompt i
 - **`tool_result`**:
   - for `read`, `edit` and `write` (direct or nested): records an observation of the path. After an `edit` it appends "No need to re-read …", and after an `edit` or `write` whose target had changed it appends a note that the change applied to the current text.
   - for a failed `edit`: rewrites Pi's not-found or not-unique error (`rewriteEditError()`).
-  - for any other tool (not nested): appends `changedFilesNotice()` to that tool's own result when observed files changed behind the model, so a `bash` command that changed a file the model read reports it on its own result. Nested non-tracked calls are skipped; the script's own result carries the notice. Appended lines carry no notice prefix: they are part of the tool's result.
+  - for any other tool (not nested): appends `changedFilesNotice()` to that tool's own result when observed files changed behind the model, so a `bash` command that changed a file the model read reports it on its own result. Nested non-tracked calls are skipped; the script's own result carries the notice. Appended lines carry no notice tag: they are part of the tool's result.
 - **`before_agent_start`**: `changedNotice(ctx, false)` returns a `freeflow-files` message for files that changed between prompts. The `false` means it never builds state here, because a branch not yet built has no baseline to compare against.
 - **`turn_end`**: clears remembered changed targets.
 
@@ -93,7 +93,7 @@ Planning refuses an Add over an existing file the model has not read, a Move ont
 
 ### Background commands
 
-`BackgroundJobs` (`background.ts`) runs a command through Pi's own shell backend (`createLocalBashOperations()`), so it gets the same shell, environment and process-tree kill as `bash`. Output streams to `<tmpdir>/freeflow/<session>/background/<id>.output`; the folder has mode 0700, the file 0600, and it ends with an exit trailer. At most 16 run at once (`MAX_RUNNING`).
+`BackgroundJobs` (`background.ts`) runs a command through Pi's own shell backend (`createLocalBashOperations()`), so it gets the same shell, environment and process-tree kill as `bash`. Output streams to `<tmpdir>/freeflow/<session>/background/<id>.output`; the folder has mode 0700, the file 0600, and it ends with an exit trailer. At most 16 run at once (`MAX_RUNNING`), counting starts still opening their output file, so starts racing for the last slot cannot pass the limit. A start still opening its file when the session ends does not run.
 
 On exit, `notify()` sends a `freeflow-background` notice through the inbound channel (`host/inbound.ts`, see [Ask user and the inbound channel](ask-user.md)), drawn in the transcript as one line:
 
@@ -106,7 +106,7 @@ A command stopped through `stop_background` or at session end sends no notice. `
 
 `monitor()` is Claude Code's Monitor on the same `BackgroundJobs`: same shell, output file, ID space (`mon…` beside `bg…`), the 16-job limit, `stop_background`, restatement and shutdown. It differs in three ways:
 
-- **Events.** Each non-empty stdout line goes to the host's `event()`, which delivers it through the inbound channel under the key `monitor:<id>`: lines within 200 ms join one `freeflow-monitor` notice (`eventText()`: a header naming the monitor, at most 40 lines, then a pointer to the output file for the rest; a line over 1,000 characters is cut). A notice wakes an idle agent (spec O-6). A partial last line is delivered at exit, and `endEvents()` flushes pending lines before the end notice, so the end notice always comes last.
+- **Events.** Each non-empty stdout line goes to the host's `event()`, which delivers it through the inbound channel under the key `monitor:<id>`: lines within 200 ms join one `freeflow-monitor` notice (`eventText()`: a header naming the monitor, at most 40 lines, then a pointer to the output file for the rest; a line over 1,000 characters is cut). A notice wakes an idle agent (spec O-6). Output is decoded per monitor, so a character split across two reads arrives whole. An unfinished line keeps only the text after its last carriage return, as a terminal shows it, capped at 4,000 characters: a progress bar redrawn with `\r` sends no events and holds no growing buffer, and the output file keeps everything. A partial last line is delivered at exit, and `endEvents()` flushes pending lines before the end notice, so the end notice always comes last; a monitor that has exited is not stopped for its rate limit while those last lines go out. At session end its pending lines are dropped (`discardEvents()`) instead. Output lines cannot open or close a `<freeflow-notice>` tag (`withoutNoticeTags()`), so a watched log cannot fake one of Freeflow's notices.
 - **Stderr** goes to the output file only: the command runs as `{ command } 2>> <output>`, and both writers append.
 - **Its own end.** `timeout_ms` (default 5 minutes, at most 30) and the rate limit (more than 20 notices in a minute, `MONITOR_PER_MINUTE`) stop it through `halt()`, with one `freeflow-background` notice saying why and how to continue. An exit sends one notice with the code and the event count; a stop through `stop_background` or at session end sends none.
 
@@ -166,7 +166,7 @@ All four have `exposure: "direct"` (callable from codemode) and refuse to run wh
 
 **Prompt sections:** `rules`, `docs` (replaced), `environment`, `tool_execution` (added after `freeflow_guidance`).
 
-**Messages:** `freeflow-files` (changed files at prompt start), `freeflow-background` (exit, expiry and limit notices and restatements) and `freeflow-monitor` (monitor events), both starting with the notice prefix; and lines appended to tool results, without the prefix.
+**Messages:** `freeflow-files` (changed files at prompt start), `freeflow-background` (exit, expiry and limit notices and restatements) and `freeflow-monitor` (monitor events), each wrapped in the notice tag; and lines appended to tool results, without it.
 
 **Status:** `/freeflow status` shows the number of running background commands and monitors.
 
