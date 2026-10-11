@@ -454,7 +454,7 @@ test("session settings switch task memory on for the session only", async () => 
       component.handleInput(KEY.escape);
     };
     await command.definition.handler("settings session", settings);
-    assert.match(before, /Task Memory\s+off \(default\)\n/);
+    assert.match(before, /Task Memory\s+off \(inherited\)\n/);
     assert.match(after, /› Task Memory\s+on\n/);
     const { readCapabilityState } = await import("../../dist/host/config.js");
     assert.equal(await readFile(join(cwd, ".freeflow/local.json"), "utf8").catch(() => undefined), undefined);
@@ -482,8 +482,8 @@ test("session settings list every capability switch and change one in place", as
     };
     await command.definition.handler("settings session", settings);
     assert.match(rendered, /\[Session\]/);
-    assert.match(rendered, /Tool Execution\s+on \(repository\)\n/);
-    assert.match(rendered, /Compaction\s+on \(default\)\n\s+›\s+Context reuse\s+on\n/);
+    assert.match(rendered, /Tool Execution\s+on \(inherited\)\n/);
+    assert.match(rendered, /Compaction\s+on \(inherited\)\n\s+›\s+Context reuse\s+on\n/);
     assert.match(rendered, /Reset overrides\s+1 active/, "the reset row counts the override just made");
     const { readCapabilityState } = await import("../../dist/host/config.js");
     assert.equal((await readCapabilityState(cwd)).compaction.carry, true);

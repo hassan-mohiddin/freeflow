@@ -102,7 +102,7 @@ function setConfigValue(config, item, value) {
 }
 /** What choosing inherit means, for the help line: "Follow the default (on)." */
 function inheritText(value, source) {
-  return source === "default" ? `Follow the default (${value}).` : `Follow the ${source} setting (${value}).`;
+  return source === "default" ? `Inherit Freeflow's default (${value}).` : `Inherit the ${source} setting (${value}).`;
 }
 function booleanValue(value) {
   return value === true ? "on" : "off";
@@ -163,7 +163,7 @@ function createScopedBooleanItem(options) {
     item = {
       id: options.id,
       label: options.label,
-      description: `${options.description} Inherit uses the repository value.`,
+      description: options.description,
       path: options.path,
       kind: "enum",
       value: selectedValue,
@@ -199,6 +199,7 @@ function createScopedBooleanItem(options) {
       value: inheritedValue,
       defaultValue: options.defaultValue,
       configScope: "repository",
+      repositoryUnset: typeof repositoryValue !== "boolean",
       effectiveValue: options.effectiveValue,
       effectiveSource: options.effectiveSource,
       localOverrideValue: typeof localValue === "boolean" ? localValue : undefined,
@@ -224,7 +225,7 @@ function createScopedChoiceItem(options) {
   return options.scope === "local"
     ? {
         ...common,
-        description: `${options.description} Inherit uses the repository value.`,
+        description: options.description,
         value: options.values.includes(localValue) ? localValue : LOCAL_INHERIT,
         values: [LOCAL_INHERIT, ...options.values],
         valueLabels: { inherit: "inherit", ...options.valueLabels },
@@ -246,6 +247,7 @@ function createScopedChoiceItem(options) {
         valueDescriptions: options.valueDescriptions,
         defaultValue: options.defaultValue,
         configScope: "repository",
+        repositoryUnset: repositoryValue === undefined,
         localOverrideValue: options.values.includes(localValue) ? localValue : undefined,
       };
 }
@@ -265,8 +267,7 @@ function createScopedDelegationItem(options) {
       ? {
           id: "freeflow.cognitiveRouting.delegation",
           label: "Delegation",
-          description:
-            "Choose enabled workers for automatic routing. Inherit uses the repository value; this setting does not rank model presets.",
+          description: "Choose enabled workers for automatic routing; this setting does not rank model presets.",
           path,
           kind: "enum",
           value: ["executor", "helper", "both"].includes(localValue) ? localValue : LOCAL_INHERIT,
@@ -328,7 +329,7 @@ function createSessionBooleanItem(options) {
   return {
     id: options.id,
     label: options.label,
-    description: `${options.description} Inherit uses the personal or repository value.`,
+    description: options.description,
     path: options.key.split("."),
     kind: "enum",
     value: typeof override === "boolean" ? String(override) : LOCAL_INHERIT,
@@ -1261,6 +1262,12 @@ function formatSettingValue(item, value) {
   const key = String(value ?? "");
   return item.valueLabels?.[key] && key !== LOCAL_INHERIT ? item.valueLabels[key] : formatCoreValue(value);
 }
+const ORIGINS = {
+  builtin: "Inherited: not set in any file, so Freeflow's default applies.",
+  repository: "Inherited from the repository's .freeflow/config.json.",
+  local: "Inherited from your .freeflow/local.json.",
+  session: "Inherited from this session.",
+};
 function displayParts(item) {
   const tone = (value) => (value === true ? { tone: "on" } : value === false ? { tone: "off" } : {});
   if (item.kind === "group") return { value: item.displaySuffix ?? "" };
@@ -1273,7 +1280,8 @@ function displayParts(item) {
       if (item.inheritedValue === undefined) return { value: "not configured" };
       return {
         value: formatSettingValue(item, item.inheritedValue),
-        note: SOURCE_LABELS[item.inheritedSource ?? "builtin"],
+        note: "inherited",
+        origin: ORIGINS[item.inheritedSource ?? "builtin"],
         ...tone(item.inheritedValue),
       };
     }
@@ -1282,13 +1290,18 @@ function displayParts(item) {
   }
   const value = item.value === undefined && isCognitiveRoutingProfileItem(item) ? undefined : item.value;
   const shown = { value: formatSettingValue(item, value), ...tone(value) };
+  const unset = item.repositoryUnset ?? (item.effectiveSource === "builtin" && item.defaultValue !== undefined);
   const notes = [
-    ...(item.effectiveSource === "builtin" && item.defaultValue !== undefined ? ["default"] : []),
+    ...(unset ? ["inherited"] : []),
     ...(item.localOverrideValue !== undefined && !valuesEqual(item.localOverrideValue, item.value)
       ? [`personal: ${formatSettingValue(item, item.localOverrideValue)}`]
       : []),
   ];
-  return notes.length ? { ...shown, note: notes.join(" · ") } : shown;
+  return {
+    ...shown,
+    ...(notes.length ? { note: notes.join(" · ") } : {}),
+    ...(unset ? { origin: "Inherited: not set in .freeflow/config.json, so Freeflow's default applies." } : {}),
+  };
 }
 function joinParts(parts) {
   return parts.note ? `${parts.value} (${parts.note})` : parts.value;
@@ -1500,6 +1513,8 @@ function settingEntry(item, rootItems, onChange, depth, lockedBy) {
       const outcome = await onChange(item, value);
       if (outcome.changed) {
         updateScopedItemState(item, value);
+        // The repository file now sets it.
+        if (item.configScope === "repository") item.repositoryUnset = false;
         if (item.id === "freeflow.session.reset") resetSessionItemState(rootItems);
         else if (!item.transient) item.value = value;
         refreshSettingsDerivedState(rootItems);

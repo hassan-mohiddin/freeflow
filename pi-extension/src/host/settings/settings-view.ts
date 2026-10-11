@@ -57,8 +57,11 @@ export type SettingsEntry = {
   heading?: boolean;
   /** Nesting under sections, for indentation. */
   depth?: number;
-  /** The value in parts: shown, where it comes from (drawn in brackets), and on or off (drawn green or red). */
-  parts?: () => { value: string; note?: string; tone?: "on" | "off" };
+  /**
+   * The value in parts: shown, a note drawn in brackets ("inherited"), on or off (drawn green or red), and where an
+   * inherited value comes from (the help line).
+   */
+  parts?: () => { value: string; note?: string; tone?: "on" | "off"; origin?: string };
   /** Why the setting has no effect now (a switch above it is off); it is drawn grey but still changes. */
   dormant?: () => string | undefined;
   /** Enter/Space moves to the next choice in place instead of opening a picker. */
@@ -401,6 +404,8 @@ class SettingsScreen implements Component {
     const wrap = (text: string, color: string) =>
       wrapTextWithAnsi(text, Math.max(1, width - 4)).map((line) => this.color(color, `  ${line}`));
     const lines = wrap(entry.description, "muted");
+    const origin = entry.parts?.().origin;
+    if (origin) lines.push(...wrap(origin, "dim"));
     const dormant = entry.dormant?.();
     if (dormant) lines.push(...wrap(dormant, "warning"));
     const choice = entry.cycle

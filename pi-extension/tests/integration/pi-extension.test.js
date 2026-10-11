@@ -427,8 +427,8 @@ test("normal Pi settings expose active Cognitive Routing configuration", async (
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
       const rootText = renderText(component);
-      assert.match(rootText, /Cognitive Routing\s+on \(repository\)\n/);
-      assert.match(rootText, /Coordinator preset\s+test\/model-a · low \(repository\)/);
+      assert.match(rootText, /Cognitive Routing\s+on \(inherited\)\n/);
+      assert.match(rootText, /Coordinator preset\s+test\/model-a · low \(inherited\)/);
       return undefined;
     };
 
@@ -485,7 +485,7 @@ test("Pi settings show Compaction as one switch, on by default, and status repor
     const settingsCtx = context(cwd);
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
-      assert.match(renderText(component, 180), /Compaction\s+on \(default\)\n\s+Context reuse\s+on \(default\)/);
+      assert.match(renderText(component, 180), /Compaction\s+on \(inherited\)\n\s+Context reuse\s+on \(inherited\)/);
       return undefined;
     };
     await command.definition.handler("settings repo", settingsCtx);
@@ -524,8 +524,10 @@ test("settings: a section's switch is its own row, sections run everyday to expe
       assert.doesNotMatch(text, /\bEnabled\b/);
       assert.match(
         text,
-        /Freeflow\s+on \(default\)\n[\s\S]*Compaction\s+on \(default\)\n\s+Context reuse[\s\S]*Tool Execution[\s\S]*Task Memory[\s\S]*Messaging\s+off \(default\)/,
+        /Freeflow\s+on \(inherited\)\n[\s\S]*Compaction\s+on \(inherited\)\n\s+Context reuse[\s\S]*Tool Execution[\s\S]*Task Memory[\s\S]*Messaging\s+off \(inherited\)/,
       );
+      // Where an inherited value comes from is on the help line, not in the list (Task 005 D-002).
+      assert.match(text, /Inherited: not set in \.freeflow\/config\.json, so Freeflow's default applies\./);
       choose(component, "Ask before delivering", "Messaging");
       assert.match(renderText(component, 180), /Takes effect when Messaging is on\./);
       component.handleInput(KEY.enter);
@@ -543,7 +545,7 @@ test("settings: a section's switch is its own row, sections run everyday to expe
         factory({ requestRender() {} }, colored, {}, () => {}),
         180,
       );
-      assert.match(text, /Compaction.*<success>on<\/success><dim> \(default\)<\/dim>/);
+      assert.match(text, /Compaction.*<success>on<\/success><dim> \(inherited\)<\/dim>/);
       assert.match(text, /Messaging.*<error>off<\/error>/);
       return undefined;
     };
@@ -620,7 +622,7 @@ test("Pi settings show Task Memory off by default, and status reports it when on
     const settingsCtx = context(cwd);
     settingsCtx.ui.custom = async (factory) => {
       const component = factory({ requestRender() {} }, testTheme, {}, () => {});
-      assert.match(renderText(component, 180), /Task Memory\s+off \(default\)\n/);
+      assert.match(renderText(component, 180), /Task Memory\s+off \(inherited\)\n/);
       return undefined;
     };
     await command.definition.handler("settings repo", settingsCtx);

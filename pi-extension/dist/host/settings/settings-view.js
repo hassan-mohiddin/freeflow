@@ -275,6 +275,8 @@ class SettingsScreen {
     const wrap = (text, color) =>
       wrapTextWithAnsi(text, Math.max(1, width - 4)).map((line) => this.color(color, `  ${line}`));
     const lines = wrap(entry.description, "muted");
+    const origin = entry.parts?.().origin;
+    if (origin) lines.push(...wrap(origin, "dim"));
     const dormant = entry.dormant?.();
     if (dormant) lines.push(...wrap(dormant, "warning"));
     const choice = entry.cycle

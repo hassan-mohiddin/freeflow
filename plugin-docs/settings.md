@@ -36,27 +36,28 @@ A setting you leave unset in a scope follows the next scope down: Session follow
 Freeflow settings    Session  [Personal]  Repository
   .freeflow/local.json: only you, in this checkout. Overrides the repository.
 
-  › Freeflow                    on (default)
-    Compaction                  on (default)
-      Context reuse             on (default)
-    Tool Execution              off (default)
-    Task Memory                 off (default)
-      Auto-approve attach       off (default)
-      Auto-approve create       off (default)
-      Auto-approve directories  off (default)
-      Auto-approve fan-out      off (default)
-      Auto-approve projects     off (default)
-    Messaging                   off (default)
-      Ask before delivering     never (default)
-    Cognitive Routing           off (default)
-      Delegation                Executor only (default)
+  › Freeflow                    on (inherited)
+    Compaction                  on (inherited)
+      Context reuse             on (inherited)
+    Tool Execution              off (inherited)
+    Task Memory                 off (inherited)
+      Auto-approve attach       off (inherited)
+      Auto-approve create       off (inherited)
+      Auto-approve directories  off (inherited)
+      Auto-approve fan-out      off (inherited)
+      Auto-approve projects     off (inherited)
+    Messaging                   off (inherited)
+      Ask before delivering     never (inherited)
+    Cognitive Routing           off (inherited)
+      Delegation                Executor only (inherited)
       Coordinator preset        not configured
       Helper preset             not configured
       Executor preset           not configured
-      Context projection        on (default)
+      Context projection        on (inherited)
 
   Master switch for Freeflow's core guidance, skills, and optional capabilities in this checkout.
-  inherit: Follow the default (on).
+  Inherited: not set in any file, so Freeflow's default applies.
+  inherit: Inherit Freeflow's default (on).
 
   ↑↓ move · Enter/Space change · Tab scope · Esc close
 ```
@@ -64,7 +65,7 @@ Freeflow settings    Session  [Personal]  Repository
 How to read it:
 
 - **A section's row is its switch.** `Compaction  on` is Compaction's on/off; the indented rows under it are its settings.
-- **The value comes first**, `on` in green and `off` in red. The bracket says where it comes from when it is not set in the tab you are looking at: `(default)`, `(repository)`, `(personal)`. No bracket means the value is set in this tab. In the Repository tab, `(personal: on)` means your personal file overrides it.
+- **The value comes first**, `on` in green and `off` in red. `(inherited)` means the tab you are looking at does not set it: the value comes from the tab below it, or is Freeflow's default. The line under the list says which ("Inherited from the repository's .freeflow/config.json."). No bracket means the value is set in this tab. In the Repository tab, `(personal: on)` means your personal file overrides it.
 - **Grey means it has no effect right now**, because a switch above it is off; the line under the list says which one ("Takes effect when Messaging is on."). You can still change it, so you can set up, say, routing presets before you turn routing on. Grey settings that the host cannot apply at all (Cognitive Routing on a Pi without model control) do not change.
 - **The bracket on a section's row** can also say `not active` (the switch is on but the capability is not running, for example while Freeflow is off) or `unavailable` (this host cannot run it).
 - **Changing a value**: `Enter` or `Space` moves to the next value in place; a preset opens a picker for the model and then the thinking level. In the Session and Personal tabs the last value, `inherit`, removes the setting from that tab so it follows the scope below.
