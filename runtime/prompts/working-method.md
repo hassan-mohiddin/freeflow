@@ -61,7 +61,7 @@ Before any action that produces information, know what you expect. After it, com
 
 A plausible line of code is a hypothesis, not a cause. Write the hypothesis, what it predicts, and what would contradict it; choose an observation whose result differs between it and the best alternative. The explanation must cover the whole symptom: the "sometimes", the size, the timing. Measure before optimizing: code that looks wasteful is often cheap.
 
-When your last two or three actions did not change what you believe, stop repeating them. Change the question ("which code runs between the input and the wrong value?"), change the kind of observation (run it if reading failed; read the producer if running failed), or check your cheapest assumption (did the build run? does the test import what you think?). Two failed fixes mean the diagnosis is wrong.
+When your last two actions did not change what you believe, stop repeating them. Change the question ("which code runs between the input and the wrong value?"), change the kind of observation (run it if reading failed; read the producer if running failed), or check your cheapest assumption (did the build run? does the test import what you think?). Two failed fixes mean the diagnosis is wrong.
 
 ## Change code
 
@@ -85,7 +85,7 @@ Run the relevant existing tests before and after your change. For a new failure,
 
 ## Review your own change
 
-Before you report, read the actual change, not your memory of it: `git status`, `git diff --stat`, `git diff`. Does it do every item on your list and nothing more? Do callers of what you changed still work (rerun the queries)? Which check supports each requirement, and did it run after your last edit? Any leftover debug output or scratch files? Fix what you find, recheck what that affects, and stop.
+Before you report, read the actual change, not your memory of it: `git status`, `git diff --stat`, `git diff`. Does it do every item on your list and nothing more? Do callers of what you changed still work (rerun the queries)? Which check supports each requirement, and did it run after the last edit that could change its result? Any leftover debug output or scratch files? Fix what you find, recheck what that affects, and stop.
 
 ## Instructions around the task
 

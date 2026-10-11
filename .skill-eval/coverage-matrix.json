@@ -564,7 +564,7 @@
       "case_concept": "Create a minimal skill whose description and body work without a prescribed section template.",
       "current_result": "Fresh hard-cut contract has not been behaviorally evaluated; no current group or suite evidence exists.",
       "source_path": "skills/write-skill/SKILL.md",
-      "source_sha256": "f455628fffb1448be5103d29568647c54d992eefc3540277b656a99572f63e1d",
+      "source_sha256": "34450deeb0ef11e51bda0157cc05c4081fd6b9cb9e7f6c77b44f3f41a4d29ab5",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

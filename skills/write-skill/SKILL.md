@@ -174,6 +174,8 @@ Repetition for emphasis, author reassurance, or stylistic consistency does not e
 
 ## Add Resources Only When They Change Loading Or Ownership
 
+Read [Guidance Placement](references/guidance-placement.md) before deciding where an instruction lives: in always-loaded instructions, a skill description, a skill body, a reference, or a tool's own text.
+
 Before adding or reorganizing references, assets, or scripts, read [Progressive Disclosure](references/progressive-disclosure.md).
 
 Start with one `SKILL.md` and remove accidental complexity before splitting files.

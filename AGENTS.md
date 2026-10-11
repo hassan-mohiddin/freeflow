@@ -76,6 +76,7 @@ When reference skills conflict during skill development:
 - Use ADRs sparingly for hard-to-reverse, surprising, tradeoff-driven decisions.
 - Do not hardcode volatile repo facts, directory inventories, or stack summaries into durable memory.
 - Do not add enforcement hooks until skill wording and evals prove the behavior needs mechanical enforcement.
+- Before adding or moving guidance in `runtime/prompts/`, a skill description, or a tool's text, read Write Skill's [Guidance Placement](skills/write-skill/references/guidance-placement.md): each behavior on the lowest rung that reaches the agent in time, with one owner.
 
 ## Prompt Cache
 
