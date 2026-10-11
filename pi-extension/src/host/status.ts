@@ -49,7 +49,7 @@ export function setFreeflowStatus(
     const profile = cognitiveRoutingRuntime.activeProfile;
     const control = String(cognitiveRoutingRuntime.controlMode).startsWith("manual-") ? "manual hold" : "automatic";
     active.push(
-      `routing ${profile} · ${control} · ${cognitiveRoutingRuntime.delegation ?? cognitiveRouting.delegation ?? "executor"} mode${cognitiveRoutingRuntime.pendingPair ? ` · ${cognitiveRoutingRuntime.pendingPair} on next prompt` : ""}${cognitiveRoutingRuntime.pairMismatch ? " · model differs" : ""}`,
+      `${profile} · ${control} · ${cognitiveRoutingRuntime.delegation ?? cognitiveRouting.delegation ?? "executor"} mode${cognitiveRoutingRuntime.pendingPair ? ` · ${cognitiveRoutingRuntime.pendingPair} on next prompt` : ""}${cognitiveRoutingRuntime.pairMismatch ? " · model differs" : ""}`,
     );
   } else if (cognitiveRouting?.enabled === true) {
     if (cognitiveRouting.blockingReason?.code === "runtime_disabled") {
@@ -60,7 +60,7 @@ export function setFreeflowStatus(
       options.cognitiveRoutingStartupPending === true &&
       !startupSelectionSuppressesCognitiveRouting
     ) {
-      active.push("routing coordinator · pending");
+      active.push("coordinator · pending");
     } else {
       const reason =
         cognitiveRouting.effective === true
@@ -73,7 +73,7 @@ export function setFreeflowStatus(
   const on = [
     capabilityState?.compaction?.effective === true ? "compaction" : "",
     capabilityState?.toolExecution?.effective === true ? "tools" : "",
-    capabilityState?.taskMemory?.effective === true ? "tasks" : "",
+    capabilityState?.taskMemory?.effective === true ? "memory" : "",
     capabilityState?.messaging?.effective === true ? "messaging" : "",
   ].filter(Boolean);
   const shown = [...on, ...active];

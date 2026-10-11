@@ -901,7 +901,7 @@ test("the footer names each capability that is on, in the settings order, and ro
   assert.deepEqual(statuses, [
     "freeflow: on",
     "freeflow: compaction · tools · messaging",
-    "freeflow: compaction · routing coordinator · automatic · executor mode",
+    "freeflow: compaction · coordinator · automatic · executor mode",
   ]);
 });
 
@@ -918,7 +918,7 @@ test("Pi statusline reports Cognitive Routing without legacy context status", ()
     { effective: true, activeProfile: "executor", controlMode: "automatic", delegation: "both" },
     readyFreeflowContext,
   );
-  assert.equal(ctx.statuses.at(-1).value, "freeflow: routing executor · automatic · both mode");
+  assert.equal(ctx.statuses.at(-1).value, "freeflow: executor · automatic · both mode");
   assert.doesNotMatch(ctx.statuses.at(-1).value, /interaction|workflow|skills/i);
 });
 
@@ -940,7 +940,7 @@ test("Pi statusline defaults pending activation to the Coordinator profile", () 
     readyFreeflowContext,
     { cognitiveRoutingStartupPending: true },
   );
-  assert.equal(ctx.statuses.at(-1).value, "freeflow: routing coordinator · pending");
+  assert.equal(ctx.statuses.at(-1).value, "freeflow: coordinator · pending");
 });
 
 test("Pi statusline keeps an inactive Cognitive Routing runtime blocked", () => {
