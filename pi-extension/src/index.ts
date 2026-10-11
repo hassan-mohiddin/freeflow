@@ -225,6 +225,9 @@ export default function freeflow(pi: FreeflowAPI) {
   // The sections Freeflow sets, and whether the current run is one a prompt started (so its requests carry them).
   let ownNames: string[] = [];
   let promptRun = false;
+  // Whether the session has had a prompt. Pi builds the system prompt only for prompts, so until then a turn Freeflow
+  // started for a notice would reach the model with none: notices wait for the user's first prompt instead.
+  let prompted = false;
   const files = new FileTracking();
   const toolExecutionEffective = () => capability?.toolExecution?.effective === true;
   const compactionEffective = () => capability?.compaction?.effective === true;
@@ -324,6 +327,7 @@ export default function freeflow(pi: FreeflowAPI) {
     sendMessage: (message, options) => api.sendMessage(message, options),
     sendUserMessage: (content) => api.sendUserMessage(content),
     isIdle: () => liveHost?.isIdle?.(),
+    canWake: () => prompted,
   });
   api.registerMessageRenderer?.(NOTICE_TYPE, renderNotice("Background"));
   api.registerMessageRenderer?.(MONITOR_TYPE, renderNotice("Monitor"));
@@ -460,7 +464,19 @@ export default function freeflow(pi: FreeflowAPI) {
       },
       policy: () => capability?.messaging?.inbound ?? "project",
       busy: () => agentRunning,
-      deliver: (content, details) => inbound.deliver({ customType: MESSAGE_TYPE, content, details, wake: true }),
+      deliver: (content, details) => {
+        inbound.deliver({ customType: MESSAGE_TYPE, content, details, wake: true });
+        if (!prompted && details.kind === "message")
+          live(
+            () =>
+              liveHost?.ui?.notify?.(
+                `A message from ${String(details.name ?? "another session")} is waiting: the agent reads it with your next prompt.`,
+                "info",
+              ),
+            undefined,
+          );
+      },
+      canWake: () => prompted,
       canAsk: () => live(() => liveHost?.hasUI === true, false),
       // The same dialog as ask_user, with a countdown (Task 002 D-008).
       confirm: async (title, message, timeout) =>
@@ -654,6 +670,11 @@ export default function freeflow(pi: FreeflowAPI) {
     ownSections = undefined;
     ownSectionsVersion++;
     promptRun = false;
+    prompted = (cachedBranch(ctx.sessionManager) ?? []).some(
+      (entry: any) =>
+        entry?.type === "message" &&
+        (entry.message?.role === "user" || (entry.message?.role === "system" && entry.message.sections)),
+    );
     const generation = ++surfaceGeneration;
     resetHistory();
     // Where Pi has just parsed this session file, later checks read only the bytes appended since.
@@ -763,6 +784,7 @@ export default function freeflow(pi: FreeflowAPI) {
         ...(toolExecution ? ["rules", "docs"] : []),
       ].filter((name) => typeof sections[name] === "string");
       promptRun = true;
+      prompted = true;
     }
     // Like Claude Code's next-turn reminder: files the model read that changed while it was not running a tool.
     const changed = toolExecutionEffective() ? await files.changedNotice(ctx, false) : undefined;

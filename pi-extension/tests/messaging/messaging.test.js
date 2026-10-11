@@ -42,6 +42,7 @@ async function world() {
         busy: () => state.busy,
         deliver: (content, details) => delivered.push({ content, details }),
         canAsk: () => state.ui,
+        canWake: () => options.canWake ?? true,
         confirm: async (title, message, timeout) => {
           asked.push({ title, message, timeout });
           if (typeof state.answer === "function") return state.answer(timeout);
@@ -190,6 +191,24 @@ test("list_sessions shows each session's ID and the tasks it owns, marking the f
       text,
       /^- parent \(1234-5678-abcd\) · idle · \/repo\/a · owns app\/task-001, app\/task-003 \(focus\)$/m,
     );
+  } finally {
+    await cleanup();
+  }
+});
+
+test("a session that has had no prompt yet takes the message without a turn, and the sender is told", async () => {
+  const { make, cleanup } = await world();
+  try {
+    const fresh = await make("ffff-0001", { name: "fresh", policy: "accept", canWake: false });
+    const sender = await make("ssss-0002", { name: "sender" });
+    const result = await sender.messaging.send(fresh.sessionId, "hi");
+    assert.equal(result.ok, true);
+    assert.equal(result.details.waiting, true);
+    assert.match(
+      result.text,
+      /^Delivered to fresh \(ffff-0001\), which has had no prompt yet: its agent reads the message when its user next sends one\./,
+    );
+    assert.equal(fresh.delivered.length, 1);
   } finally {
     await cleanup();
   }

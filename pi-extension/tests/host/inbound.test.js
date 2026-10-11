@@ -97,3 +97,12 @@ test("a notice renders as one line naming its source", async () => {
     "Message from api (session s1, /repo): Not done yet. (+1 more)",
   );
 });
+
+test("before the session's first prompt a notice waits instead of starting a turn without a system prompt", async () => {
+  const fresh = { ...host(true), canWake: () => false };
+  new Inbound(fresh).deliver(notice("hi"));
+  assert.deepEqual(fresh.sent[0].options, { triggerTurn: false }, "shown now, read with the next prompt");
+  const prompted = { ...host(true), canWake: () => true };
+  new Inbound(prompted).deliver(notice("hi"));
+  assert.deepEqual(prompted.sent[0].options, { triggerTurn: true, deliverAs: "steer" });
+});

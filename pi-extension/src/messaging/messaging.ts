@@ -49,8 +49,10 @@ export interface MessagingHost {
   identity(): Promise<Identity>;
   policy(): InboundPolicy;
   busy(): boolean;
-  /** Deliver a notice to this session's model; it wakes an idle agent. */
+  /** Deliver a notice to this session's model; it wakes an idle agent when it can. */
   deliver(content: string, details: Record<string, unknown>): void;
+  /** Whether a delivered message can start a turn: false until the session's first prompt. */
+  canWake?(): boolean;
   /** Whether this session has a UI in which a held message can be put to the user. */
   canAsk(): boolean;
   /** Ask the user yes or no; false when dismissed or after timeoutMs. */
@@ -237,16 +239,19 @@ export class Messaging {
       }
     }
     const said =
-      status === "delivered"
-        ? `Delivered to ${session.name} (${session.sessionId}). A reply, if it sends one, reaches you as a notice: you do not need to wait or look for it.`
-        : status === "held"
-          ? `Held for ${session.name}'s user to accept or refuse; you will get a notice with the outcome (at most ${HOLD_EXPIRY_MS / 60_000} minutes).`
-          : `Refused by ${session.name}${reply?.reason ? `: ${reply.reason}` : "."}`;
+      status === "delivered" && reply?.waiting === true
+        ? `Delivered to ${session.name} (${session.sessionId}), which has had no prompt yet: its agent reads the message when its user next sends one. A reply, if it sends one, reaches you as a notice: you do not need to wait or look for it.`
+        : status === "delivered"
+          ? `Delivered to ${session.name} (${session.sessionId}). A reply, if it sends one, reaches you as a notice: you do not need to wait or look for it.`
+          : status === "held"
+            ? `Held for ${session.name}'s user to accept or refuse; you will get a notice with the outcome (at most ${HOLD_EXPIRY_MS / 60_000} minutes).`
+            : `Refused by ${session.name}${reply?.reason ? `: ${reply.reason}` : "."}`;
     return this.result(status === "delivered" || status === "held", `${said}${watch}`, {
       to: session.sessionId,
       name: session.name,
       status,
       id,
+      ...(reply?.waiting === true ? { waiting: true } : {}),
     });
   }
 
@@ -360,7 +365,7 @@ export class Messaging {
     if (decision === "accept") {
       this.accepted.push(now);
       this.deliverMessage(message);
-      return { status: "delivered" };
+      return { status: "delivered", ...(this.host.canWake?.() === false ? { waiting: true } : {}) };
     }
     if (this.held.length >= MAX_HELD) {
       const dropped = this.held.shift();
