@@ -313,3 +313,36 @@ test(
     );
   },
 );
+
+test(
+  "a run Pi starts keeps the sections another extension set at the last prompt, as Pi's MCP servers",
+  { timeout: 30000 },
+  async () => {
+    // Pi's built-in MCP extension sets `mcp_servers` in before_agent_start; a run a message starts used to lose it from
+    // its second request, a full cache miss on providers that send the system prompt at the top (xAI).
+    const other = (pi) =>
+      pi.on("before_agent_start", (event) => {
+        event.systemPromptOptions.sections.other_servers = "OTHER_EXTENSION_SECTION";
+      });
+    const system = (body) =>
+      JSON.stringify(body.input.filter((item) => item.role === "system" || item.role === "developer"));
+    await fixture(
+      async (n) => [[], [{ name: "read", args: { path: "evidence.txt" } }], []][n - 1] ?? [],
+      false,
+      async ({ session, requests }) => {
+        await session.waitForIdle();
+        await session.sendCustomMessage(
+          { customType: "freeflow-message", content: "<message>hi</message>", display: true, details: {} },
+          { triggerTurn: true },
+        );
+        await until(() => requests.length >= 3, "the message's run to make two requests");
+        await session.waitForIdle();
+        assert.match(system(requests[0]), /OTHER_EXTENSION_SECTION/);
+        for (const body of requests.slice(1))
+          assert.equal(system(body), system(requests[0]), "the system prompt is unchanged");
+      },
+      true,
+      { ...on, extensions: [other] },
+    );
+  },
+);

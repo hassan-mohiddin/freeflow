@@ -1,17 +1,18 @@
 /**
- * Keep Freeflow's system sections on runs Pi starts itself (Pi #10267).
+ * Keep the last prompt's system sections on runs Pi starts itself (Pi #10267).
  *
  * Pi applies the sections a `before_agent_start` handler sets only for a run a user prompt started. A run started by an
  * extension message (a background exit, a monitor event, a message from another session) rebuilds the sections from
- * Pi's base options, so Pi appends a system patch that removes Freeflow's sections, and puts them back with another
- * patch at the next prompt. Both patches change the prompt the provider caches, and in between the model loses the
- * guidance it was given.
+ * Pi's base options, so Pi appends a system patch that removes those sections (Freeflow's, and other extensions' such
+ * as Pi's own MCP servers), and puts them back with another patch at the next prompt. Both patches change the prompt the
+ * provider caches, and in between the model loses the guidance it was given.
  *
- * `currentSections` reads the sections a request carries, as Pi renders them; the host records Freeflow's from a
- * request of a run a prompt started. `keepSections` removes exactly the reversals from the request: a patch entry for a section Freeflow set is dropped
- * when it would move the section away from Freeflow's value while the request still carries that value, or when it only
- * restores the value the request already carries. Any other change (Freeflow switched off, its text changed by a
- * settings change, a section it does not own) passes through. The stored transcript is never changed.
+ * `currentSections` reads the sections a request carries, as Pi renders them; the host records them from a request of
+ * a run a prompt started, while Freeflow sets sections. `keepSections` removes exactly the reversals from the request:
+ * a patch entry for a recorded section is dropped when it would move the section away from the recorded value while
+ * the request still carries that value, or when it only restores the value the request already carries. Any other
+ * change (a section the prompt's run did not have, a value the next prompt's run records) passes through. The stored
+ * transcript is never changed.
  */
 export type OwnSections = Readonly<Record<string, string>>;
 
@@ -27,8 +28,28 @@ export function currentSections(messages: readonly any[]): Record<string, string
 // One filtered copy per patch and section set, so a request reuses the object the previous request carried.
 const copies = new WeakMap<object, Map<string, any>>();
 
-/** `version` changes whenever `own` does; it keys the reused copies without serialising the sections per request. */
-export function keepSections(messages: readonly any[], own: OwnSections | undefined, version = 0): any[] {
+/** The sections of the first system message, the head of the prompt. */
+export function headSections(messages: readonly any[]): Record<string, string | null> | undefined {
+  const head = messages.find((message) => message?.role === "system" && message.sections);
+  return head ? { ...head.sections } : undefined;
+}
+
+function sameSections(a: Record<string, unknown>, b: Readonly<Record<string, unknown>>): boolean {
+  const names = Object.keys(a);
+  return names.length === Object.keys(b).length && names.every((name) => a[name] === b[name]);
+}
+
+/**
+ * `version` changes whenever `own` does; it keys the reused copies without serialising the sections per request.
+ * `head` is the head's sections when `own` was recorded: a head still equal to it is kept as it is, since later
+ * patches carry any change; one that differs was rebuilt, and gets the recorded values.
+ */
+export function keepSections(
+  messages: readonly any[],
+  own: OwnSections | undefined,
+  version = 0,
+  head?: Readonly<Record<string, string | null>>,
+): any[] {
   if (!own || !Object.keys(own).length) return [...messages];
   const key = String(version);
   const current: Record<string, string | null | undefined> = {};
@@ -40,11 +61,12 @@ export function keepSections(messages: readonly any[], own: OwnSections | undefi
       out.push(message);
       continue;
     }
-    // The head carries Freeflow's sections as recorded: a head Pi rebuilt from its base options (after a compaction in
-    // a run it started) would otherwise lack them.
+    // A head Pi rebuilt from its base options (after a compaction in a run it started) gets the recorded sections; the
+    // head the recording saw stays as it is, so the prompt's start never changes.
     if (first) {
       first = false;
-      const missing = Object.entries(own).filter(([name, value]) => sections[name] !== value);
+      const rebuilt = !head || !sameSections(sections, head);
+      const missing = rebuilt ? Object.entries(own).filter(([name, value]) => sections[name] !== value) : [];
       for (const [name, value] of Object.entries(sections)) current[name] = value as string | null;
       if (!missing.length) {
         out.push(message);

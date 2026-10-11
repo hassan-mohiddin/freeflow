@@ -73,7 +73,7 @@ To add a new generated message kind: give it its own `customType`, add the type 
 
 ### Freeflow's sections on runs Pi starts
 
-Pi removes Freeflow's system sections with a patch on a run it starts for an extension message, and restores them with another at the next prompt (Pi issue #10267); both patches would change the cached prompt. `keepSections()` drops those entries from the request and keeps the head's sections as recorded during prompt-started runs. The stored transcript keeps Pi's patches. See [System prompt architecture](prompt-assembly.md#pi) for what is kept and what passes through.
+Pi removes the sections `before_agent_start` handlers set (Freeflow's, and other extensions' such as `mcp_servers`) with a patch on a run it starts for an extension message, and restores them with another at the next prompt (Pi issue #10267); both patches would change the cached prompt, and on providers that send the whole system prompt at the top of each request (xAI) each is a full miss. `keepSections()` drops those entries from the request, so the run keeps the last prompt's sections. The stored transcript keeps Pi's patches. See [System prompt architecture](prompt-assembly.md#pi) for what is kept and what passes through.
 
 ### Cache breakpoints (anchor)
 
@@ -217,6 +217,7 @@ Request history runs on every request; the rules are in [Performance](../guides/
 - Provider expiry, eviction, minimum cacheable length, and per-effort caches on Sign in with ChatGPT are outside Freeflow's control.
 - Another extension that changes the final request can break the prefix after Freeflow.
 - Request history still fingerprints messages with no stable identity (generated and host-edited ones) on every request; `request-path-budget.test.js` bounds how many a later request may fingerprint.
+- An extension that returns a whole `systemPrompt` from `before_agent_start` (the ARS Pi wrapper does, to hide its skills) gets that prompt only on prompt-started runs; Pi applies it outside the transcript, so Freeflow cannot keep it, and a run Pi starts misses the cache once at its start and once at the next prompt.
 - Pi builds the system prompt only for prompts (`sendCustomMessage` with `triggerTurn` skips `_preparePromptAndToolLoadout`; pinned Pi `abe508e1`), so a turn started in a session that has never had a prompt would reach the model with no system prompt at all. Freeflow therefore starts no turn there: notices are shown and wait for the user's first prompt (`canWake()` in `host/inbound.ts`). A resumed session is not affected: its transcript carries what Freeflow's last prompt set, and the host records that.
 - Keep-alive covers only the suspended Coordinator, not other requesters that will resume.
 

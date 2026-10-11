@@ -8,8 +8,21 @@ export function currentSections(messages) {
 }
 // One filtered copy per patch and section set, so a request reuses the object the previous request carried.
 const copies = new WeakMap();
-/** `version` changes whenever `own` does; it keys the reused copies without serialising the sections per request. */
-export function keepSections(messages, own, version = 0) {
+/** The sections of the first system message, the head of the prompt. */
+export function headSections(messages) {
+  const head = messages.find((message) => message?.role === "system" && message.sections);
+  return head ? { ...head.sections } : undefined;
+}
+function sameSections(a, b) {
+  const names = Object.keys(a);
+  return names.length === Object.keys(b).length && names.every((name) => a[name] === b[name]);
+}
+/**
+ * `version` changes whenever `own` does; it keys the reused copies without serialising the sections per request.
+ * `head` is the head's sections when `own` was recorded: a head still equal to it is kept as it is, since later
+ * patches carry any change; one that differs was rebuilt, and gets the recorded values.
+ */
+export function keepSections(messages, own, version = 0, head) {
   if (!own || !Object.keys(own).length) return [...messages];
   const key = String(version);
   const current = {};
@@ -21,11 +34,12 @@ export function keepSections(messages, own, version = 0) {
       out.push(message);
       continue;
     }
-    // The head carries Freeflow's sections as recorded: a head Pi rebuilt from its base options (after a compaction in
-    // a run it started) would otherwise lack them.
+    // A head Pi rebuilt from its base options (after a compaction in a run it started) gets the recorded sections; the
+    // head the recording saw stays as it is, so the prompt's start never changes.
     if (first) {
       first = false;
-      const missing = Object.entries(own).filter(([name, value]) => sections[name] !== value);
+      const rebuilt = !head || !sameSections(sections, head);
+      const missing = rebuilt ? Object.entries(own).filter(([name, value]) => sections[name] !== value) : [];
       for (const [name, value] of Object.entries(sections)) current[name] = value;
       if (!missing.length) {
         out.push(message);

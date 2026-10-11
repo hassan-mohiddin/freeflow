@@ -43,3 +43,15 @@ test("a head Pi rebuilt without Freeflow's sections carries the recorded ones", 
   assert.equal(keepSections([rebuilt, user], own, 3)[0], out[0], "the same head object on the next request");
   assert.equal(rebuilt.sections.freeflow_guidance, undefined, "the stored message is unchanged");
 });
+
+test("the head the recording saw stays as it is, though a later patch changed a recorded section", () => {
+  // A later prompt changed `rules`; the head keeps its original value so the prompt's start never changes.
+  const changed = { role: "system", content: "", sections: { rules: "<rules>new</rules>" } };
+  const recorded = { rules: "<rules>new</rules>", freeflow_guidance: "<g>ff</g>" };
+  const out = keepSections([head, user, changed, user], recorded, 4, { ...head.sections });
+  assert.equal(out[0], head, "the head is not rewritten");
+  assert.equal(out[2], changed, "the later change stays where it was");
+  // A run Pi starts then reverts it: the reversal is left out.
+  const revert = { role: "system", content: "", sections: { rules: "<rules>pi</rules>" } };
+  assert.equal(keepSections([head, user, changed, user, revert], recorded, 4, { ...head.sections }).length, 4);
+});

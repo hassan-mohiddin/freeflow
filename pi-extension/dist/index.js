@@ -21,7 +21,7 @@ import {
   registerBackgroundTools,
 } from "./tool-execution/background.js";
 import { Inbound, renderNotice } from "./host/inbound.js";
-import { currentSections, keepSections } from "./host/section-keeper.js";
+import { currentSections, headSections, keepSections } from "./host/section-keeper.js";
 import { backgroundRefusal } from "./tool-execution/bash-guard.js";
 import { CompactionController, USER_REQUEST } from "./compaction/controller.js";
 import { applyCompactionTools, registerCompactionTool } from "./compaction/tool.js";
@@ -212,9 +212,10 @@ export default function freeflow(pi) {
     delete runtimeStateAnchor.index;
   };
   let capability;
-  // The system sections Freeflow set at the last prompt; see keepSections.
+  // The system sections of the last prompt's run, while Freeflow sets sections; see keepSections.
   let ownSections;
   let ownSectionsVersion = 0;
+  let ownHead;
   // The sections Freeflow sets, and whether the current run is one a prompt started (so its requests carry them).
   let ownNames = [];
   let promptRun = false;
@@ -658,6 +659,7 @@ export default function freeflow(pi) {
     liveHost = ctx;
     // Sections recorded for another session (after /new or /resume) are not this one's.
     ownSections = undefined;
+    ownHead = undefined;
     ownSectionsVersion++;
     promptRun = false;
     prompted = (cachedBranch(ctx.sessionManager) ?? []).some(
@@ -891,12 +893,13 @@ export default function freeflow(pi) {
       ctx.sessionManager?.buildSessionProjection?.(),
       cachedBranch(ctx.sessionManager) ?? [],
     );
-    // A prompt's run carries Freeflow's sections as Pi renders them: remember them for runs Pi starts itself.
+    // A run Pi starts itself keeps the prompt of the last prompt's run: every section, as Pi rendered it, so the
+    // sections other extensions set there (Pi's own MCP servers, for one) are not removed either (Pi #10267).
+    // Recorded only while Freeflow sets sections; with Freeflow off, Pi's prompt passes through unchanged.
+    const strings = (current) =>
+      Object.fromEntries(Object.entries(current).filter((entry) => typeof entry[1] === "string"));
     if (promptRun) {
-      const current = currentSections(event.messages);
-      const own = Object.fromEntries(
-        ownNames.filter((name) => typeof current[name] === "string").map((name) => [name, current[name]]),
-      );
+      const own = ownNames.length ? strings(currentSections(event.messages)) : {};
       if (
         !ownSections ||
         Object.keys(own).length !== Object.keys(ownSections).length ||
@@ -905,25 +908,18 @@ export default function freeflow(pi) {
         ownSections = own;
         ownSectionsVersion++;
       }
+      ownHead = headSections(event.messages);
     } else if (!ownSections) {
       // A run Pi started before any prompt of this process (a resumed session messaged while idle): the transcript
-      // still carries what Freeflow's last prompt set, when its guidance is there. Rules and docs are Freeflow's only
-      // with Tool Execution.
+      // still carries the last prompt's sections, when Freeflow's guidance is among them.
       const current = currentSections(event.messages);
       if (typeof current.freeflow_guidance === "string") {
-        const names = [
-          "freeflow_guidance",
-          "environment",
-          "tool_execution",
-          ...(toolExecutionEffective() ? ["rules", "docs"] : []),
-        ];
-        ownSections = Object.fromEntries(
-          names.filter((name) => typeof current[name] === "string").map((name) => [name, current[name]]),
-        );
+        ownSections = strings(current);
+        ownHead = headSections(event.messages);
         ownSectionsVersion++;
       }
     }
-    let messages = keepSections(event.messages, ownSections, ownSectionsVersion)
+    let messages = keepSections(event.messages, ownSections, ownSectionsVersion, ownHead)
       .map(filterBootstrapMessage)
       .filter(Boolean);
     messages = withFreeflowRuntimeState(messages, capability, routing.state(), prompts, {
