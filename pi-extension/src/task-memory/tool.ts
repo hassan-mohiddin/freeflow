@@ -1,4 +1,5 @@
 import type { TaskMemory, TaskResult } from "./runtime.js";
+import { autoApproveGroup, type AutoApproveGroup } from "./config.js";
 import { renderTaskCall, renderTaskResult } from "./render.js";
 import { confirmWithUser } from "../ask-user/ask.js";
 
@@ -16,6 +17,8 @@ export interface TaskToolHost {
    * it may: under automatic Cognitive Routing only the Coordinator does (Task 004 D-001).
    */
   refusal?(): string | undefined;
+  /** Whether the user's taskMemory.autoApprove setting lets proposals in this group run without the dialog. */
+  autoApproved?(group: AutoApproveGroup): boolean;
 }
 
 const ACTIONS = [
@@ -82,7 +85,11 @@ export function registerTaskMemoryTool(pi: any, host: TaskToolHost): void {
       renderTaskResult(result, options, theme, context),
     async execute(_id: string, params: any, _signal: AbortSignal, _update: unknown, ctx: any) {
       const refused = reads(params) ? undefined : host.refusal?.();
-      const result = refused ? { ok: false, text: refused } : await run(host, params, ctx);
+      const group = reads(params) ? undefined : autoApproveGroup(params?.action);
+      const approved = group !== undefined && host.autoApproved?.(group) === true;
+      const result = refused ? { ok: false, text: refused } : await run(host, params, ctx, approved);
+      if (approved && result.ok)
+        result.text = `Auto-approved by the user's taskMemory.autoApprove setting (${group}); no dialog was shown.\n\n${result.text}`;
       if (result.ok && CHANGES_STATE.has(params?.action)) host.changed(ctx);
       let next: string | undefined;
       if (result.ok && result.snapshot) {
@@ -107,7 +114,7 @@ export function registerTaskMemoryTool(pi: any, host: TaskToolHost): void {
 }
 
 /** Ask the user before an action taken on their authority; without a UI the proposal cannot be confirmed. */
-async function ask(ctx: any, title: string, message: string): Promise<TaskResult | undefined> {
+async function confirmProposal(ctx: any, title: string, message: string): Promise<TaskResult | undefined> {
   if (!ctx.hasUI) return { ok: false, text: `${title} needs the user's confirmation, and no UI is available.` };
   if (await confirmWithUser(ctx, title, message)) return undefined;
   return { ok: false, headline: "Declined by the user", text: "The user declined. Do not retry or work around it." };
@@ -115,8 +122,11 @@ async function ask(ctx: any, title: string, message: string): Promise<TaskResult
 
 const show = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
-async function run(host: TaskToolHost, params: any, ctx: any): Promise<TaskResult> {
+async function run(host: TaskToolHost, params: any, ctx: any, approved = false): Promise<TaskResult> {
   const { memory } = host;
+  // An action the user's auto-approve setting covers runs without asking.
+  const ask = (context: any, title: string, message: string) =>
+    approved ? Promise.resolve(undefined) : confirmProposal(context, title, message);
   const cwd = ctx.cwd;
   switch (params?.action) {
     case "projects":

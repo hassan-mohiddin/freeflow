@@ -470,6 +470,8 @@ export default function freeflow(pi) {
         ? "A Cognitive Routing worker may only read task memory (projects, list, view, search, env). Put the action you would propose in your report (return_work); the Coordinator proposes it."
         : undefined;
     },
+    // Proposals in groups the user allowed run without the dialog (Task 004 D-002).
+    autoApproved: (group) => capability?.taskMemory?.autoApprove?.[group] === true,
     changed: (ctx) => {
       refreshState = true;
       status(ctx);

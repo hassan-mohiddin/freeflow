@@ -32,7 +32,12 @@ import type {
 import { workersForDelegation } from "../../cognitive-routing/types.js";
 import { DEFAULT_TOOL_EXECUTION_CONFIG, type ToolExecutionState } from "../../tool-execution/config.js";
 import { DEFAULT_COMPACTION_CARRY, DEFAULT_COMPACTION_ENABLED, type CompactionState } from "../../compaction/config.js";
-import { DEFAULT_TASK_MEMORY_ENABLED, type TaskMemoryState } from "../../task-memory/config.js";
+import {
+  AUTO_APPROVE_GROUPS,
+  DEFAULT_TASK_MEMORY_ENABLED,
+  type AutoApproveGroup,
+  type TaskMemoryState,
+} from "../../task-memory/config.js";
 import { DEFAULT_MESSAGING_ENABLED, type MessagingState } from "../../messaging/config.js";
 
 /*
@@ -1240,6 +1245,30 @@ function freeflowItems(
     defaultValue: DEFAULT_TASK_MEMORY_ENABLED,
   });
   taskMemoryEnabledItem.inactive = freeflowInactive;
+  // Which proposals skip the confirmation dialog (Task 004 D-002); a standing preference, so no Session scope.
+  const approveLabels: Record<AutoApproveGroup, [string, string]> = {
+    attach: ["Auto-approve attach", "attaching a record, and making a held record writable"],
+    create: ["Auto-approve create", "creating a task or a child task"],
+    env: ["Auto-approve directories", "changing a task's directories"],
+    fanout: ["Auto-approve fan-out", "a child task with its own Git worktree and branch"],
+    projects: ["Auto-approve projects", "creating or linking a project, and importing a record into one"],
+  };
+  const approveItems = (Object.keys(AUTO_APPROVE_GROUPS) as AutoApproveGroup[]).map((group) => {
+    const item = createScopedBooleanItem({
+      scope,
+      rawConfig,
+      localConfig,
+      id: `freeflow.taskMemory.autoApprove.${group}`,
+      label: approveLabels[group][0],
+      description: `Let the agent do this without asking you first: ${approveLabels[group][1]}. Off asks every time.`,
+      path: ["taskMemory", "autoApprove", group],
+      effectiveValue: taskMemoryState?.autoApprove?.[group] ?? false,
+      effectiveSource: toolSource(["taskMemory", "autoApprove", group]),
+      defaultValue: false,
+    });
+    item.inactive = freeflowInactive;
+    return item;
+  });
   const taskMemoryGroup: SettingsItem = {
     id: "freeflow.taskMemory",
     label: "Task Memory",
@@ -1248,7 +1277,7 @@ function freeflowItems(
     value: taskMemoryState?.enabled ?? DEFAULT_TASK_MEMORY_ENABLED,
     inactive: freeflowInactive,
     displaySuffix: taskMemoryState?.effective ? "active" : taskMemoryState?.enabled ? "inactive" : "disabled",
-    children: [taskMemoryEnabledItem],
+    children: [taskMemoryEnabledItem, ...approveItems],
   };
 
   const messagingState = options.messaging;
@@ -1295,6 +1324,10 @@ function pruneKnownDefaults(config: Record<string, unknown>) {
     { path: ["compaction", "enabled"], value: DEFAULT_COMPACTION_ENABLED },
     { path: ["compaction", "carry"], value: DEFAULT_COMPACTION_CARRY },
     { path: ["taskMemory", "enabled"], value: DEFAULT_TASK_MEMORY_ENABLED },
+    ...(Object.keys(AUTO_APPROVE_GROUPS) as AutoApproveGroup[]).map((group) => ({
+      path: ["taskMemory", "autoApprove", group],
+      value: false,
+    })),
     { path: ["messaging", "enabled"], value: DEFAULT_MESSAGING_ENABLED },
   ];
 

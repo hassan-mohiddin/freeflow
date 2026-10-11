@@ -250,3 +250,63 @@ test("the gate refuses a record write whose target cannot be read from the comma
   );
   assert.match(unattached.reason, /is not attached to this session/);
 });
+
+test("taskMemory.autoApprove: validated, layered per group, off by default", async () => {
+  const { validateTaskMemoryConfig, resolveTaskMemoryConfig } = await import("../../dist/task-memory/config.js");
+  assert.equal(validateTaskMemoryConfig({ autoApprove: { attach: true, projects: false } }), null);
+  assert.match(
+    validateTaskMemoryConfig({ autoApprove: { delete: true } }),
+    /unsupported key: delete; use attach, create, env, fanout, projects/,
+  );
+  assert.equal(
+    validateTaskMemoryConfig({ autoApprove: { attach: "yes" } }),
+    "taskMemory.autoApprove.attach must be a boolean",
+  );
+  assert.equal(validateTaskMemoryConfig({ autoApprove: true }), "taskMemory.autoApprove must be an object");
+  const off = resolveTaskMemoryConfig({}, {}, true).autoApprove;
+  assert.deepEqual(off, { attach: false, create: false, env: false, fanout: false, projects: false });
+  const layered = resolveTaskMemoryConfig(
+    { taskMemory: { autoApprove: { attach: true, create: true } } },
+    { taskMemory: { autoApprove: { create: false, fanout: true } } },
+    true,
+  ).autoApprove;
+  assert.deepEqual(layered, { attach: true, create: false, env: false, fanout: true, projects: false });
+});
+
+test("an auto-approved proposal runs without the dialog and says so; others still ask", async () => {
+  const { registerTaskMemoryTool } = await import("../../dist/task-memory/tool.js");
+  let tool;
+  const allowed = new Set(["attach"]);
+  // list returns text; the other actions return a result.
+  const memory = new Proxy(
+    {},
+    { get: (_, name) => async () => (name === "list" ? "list ran" : { ok: true, text: `${String(name)} ran` }) },
+  );
+  registerTaskMemoryTool(
+    { registerTool: (definition) => (tool = definition) },
+    { memory, changed: () => {}, autoApproved: (group) => allowed.has(group) },
+  );
+  const asked = [];
+  const ctx = (hasUI) => ({
+    cwd: "/repo",
+    hasUI,
+    ui: { confirm: async (title) => (asked.push(title), true), custom: undefined },
+  });
+  // Covered by the setting: no UI is needed and nothing is asked.
+  const attached = await tool.execute("id", { action: "attach", record: "x" }, undefined, undefined, ctx(false));
+  assert.notEqual(attached.isError, true);
+  assert.match(
+    attached.content[0].text,
+    /^Auto-approved by the user's taskMemory\.autoApprove setting \(attach\); no dialog was shown\.\n\nattach ran$/,
+  );
+  const confirmed = await tool.execute("id", { action: "confirm", record: "x" }, undefined, undefined, ctx(false));
+  assert.notEqual(confirmed.isError, true, "confirm is in the attach group");
+  assert.deepEqual(asked, []);
+  // Not covered: still a proposal, refused without a UI.
+  const created = await tool.execute("id", { action: "create", title: "t" }, undefined, undefined, ctx(false));
+  assert.equal(created.isError, true);
+  assert.match(created.content[0].text, /needs the user's confirmation, and no UI is available/);
+  // A read is never labelled as approved.
+  const listed = await tool.execute("id", { action: "list" }, undefined, undefined, ctx(false));
+  assert.equal(listed.content[0].text, "list ran");
+});

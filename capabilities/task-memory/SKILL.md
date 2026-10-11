@@ -12,7 +12,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 ## Rules
 
 - The user's latest request decides the work. The focused record's Next useful action is where that task stood, not a request: when the user asks for something else, including work on another record, do that (proposing to attach the other record when a write needs it) and do not switch to the focused record's work. When the request is unclear or incomplete, ask what the user means; never fall back to the record's Next useful action.
-- Act on the user's authority only through a `task_memory` proposal the user confirms: `attach`, `create`, `child`, `fanout`, `project_new`, `project_link`, `import`, `confirm`, and `env` with a change each open a dialog. A declined proposal is the user's answer: do not retry it, rephrase it, or reach the same result another way unless the user asks again.
+- Act on the user's authority only through a `task_memory` proposal the user confirms: `attach`, `create`, `child`, `fanout`, `project_new`, `project_link`, `import`, `confirm`, and `env` with a change each open a dialog, unless the user's auto-approve setting covers that action, which is their standing confirmation (the result then says it was auto-approved). A declined proposal is the user's answer: do not retry it, rephrase it, or reach the same result another way unless the user asks again.
 - Write a record only when it is attached to this session, not held, and, if registered, owned by this session. Write each update to the record it concerns, whichever record is the focus. Never write another task's record because you read it.
 - When Freeflow refuses a record write, tell the user which record and why. Never write that record another way, such as a shell command.
 

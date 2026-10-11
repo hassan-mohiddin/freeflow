@@ -1,3 +1,4 @@
+import { autoApproveGroup } from "./config.js";
 import { renderTaskCall, renderTaskResult } from "./render.js";
 import { confirmWithUser } from "../ask-user/ask.js";
 export const TASK_MEMORY_TOOL = "task_memory";
@@ -65,7 +66,11 @@ export function registerTaskMemoryTool(pi, host) {
     renderResult: (result, options, theme, context) => renderTaskResult(result, options, theme, context),
     async execute(_id, params, _signal, _update, ctx) {
       const refused = reads(params) ? undefined : host.refusal?.();
-      const result = refused ? { ok: false, text: refused } : await run(host, params, ctx);
+      const group = reads(params) ? undefined : autoApproveGroup(params?.action);
+      const approved = group !== undefined && host.autoApproved?.(group) === true;
+      const result = refused ? { ok: false, text: refused } : await run(host, params, ctx, approved);
+      if (approved && result.ok)
+        result.text = `Auto-approved by the user's taskMemory.autoApprove setting (${group}); no dialog was shown.\n\n${result.text}`;
       if (result.ok && CHANGES_STATE.has(params?.action)) host.changed(ctx);
       let next;
       if (result.ok && result.snapshot) {
@@ -89,14 +94,17 @@ export function registerTaskMemoryTool(pi, host) {
   });
 }
 /** Ask the user before an action taken on their authority; without a UI the proposal cannot be confirmed. */
-async function ask(ctx, title, message) {
+async function confirmProposal(ctx, title, message) {
   if (!ctx.hasUI) return { ok: false, text: `${title} needs the user's confirmation, and no UI is available.` };
   if (await confirmWithUser(ctx, title, message)) return undefined;
   return { ok: false, headline: "Declined by the user", text: "The user declined. Do not retry or work around it." };
 }
 const show = (value) => (typeof value === "string" ? value.trim() : "");
-async function run(host, params, ctx) {
+async function run(host, params, ctx, approved = false) {
   const { memory } = host;
+  // An action the user's auto-approve setting covers runs without asking.
+  const ask = (context, title, message) =>
+    approved ? Promise.resolve(undefined) : confirmProposal(context, title, message);
   const cwd = ctx.cwd;
   switch (params?.action) {
     case "projects":
