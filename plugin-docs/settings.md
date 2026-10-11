@@ -4,13 +4,12 @@ Every Freeflow setting in one place: what Freeflow turns on by default, every se
 
 ## What is on by default
 
-With nothing configured, Freeflow on Pi runs with:
+With nothing configured, Freeflow on Pi runs with these capabilities; each one's own settings and their defaults are in the [screen picture](#freeflow-settings) and the [table of all settings](#all-settings).
 
 | Feature | Default | What it is |
 | --- | --- | --- |
 | Freeflow | on | The core guidance, the Interaction Contract, the Working Method and the skills, plus `ask_user` dialogs |
 | [Compaction](capabilities/compaction.md) | on | The agent compacts at a safe point from its own summary; Pi's compaction stays the fallback |
-| Context reuse | on | Compaction carries files and tool results into the next cycle |
 | [Tool Execution](capabilities/tool-execution.md) | off | Working guidance, file tracking, clearer edit errors, `apply_patch`, background commands and monitors |
 | [Task Memory](capabilities/task-memory.md) | off | Working Records attached to the session; projects and child tasks |
 | [Messaging](capabilities/messaging.md) | off | Messages between the agents in your Pi sessions on this machine |
