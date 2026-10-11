@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/ask-user/`, `pi-extension/src/host/inbound.ts`, `skills/workflow/references/asking-the-user.md`
 > **Tests:** `pi-extension/tests/ask-user/`, `pi-extension/tests/host/inbound.test.js`
-> **Verified at:** `6b4d34f5` (2026-10-11)
+> **Verified at:** `faa368e6` (2026-10-11)
 
 For contributors changing how Freeflow on Pi asks the user a question, or how content from outside the turn reaches the model. Design and decisions: Task 002's spec (`.freeflow/tasks/task-002-*/specs/ask-user-monitor-messaging.md`, local to the developer's checkout).
 
@@ -24,7 +24,7 @@ It deliberately does not:
 
 **Asking by mode** (`askUser()` in `ask.ts`):
 
-- the terminal (`ctx.mode === "tui"`): one `QuestionForm` through `ctx.ui.custom`. A single question answers on Enter; several are tabs with a Submit tab. Each question lists its options with descriptions, then "Type my own answer"; Space toggles a multi-select option; `n` adds a note; Esc closes the dialog unanswered. The form is adapted from Pi's `examples/extensions/questionnaire.ts` and uses Pi's `Input` for text.
+- the terminal (`ctx.mode === "tui"`): one `QuestionForm` (`form.ts`) through `ctx.ui.custom`. A single question answers on Enter; several are tabs with a Submit tab. Each question lists its options with descriptions, then "Type my own answer"; Space toggles a multi-select option; `n` adds a note; Esc closes the dialog unanswered. The form is adapted from Pi's `examples/extensions/questionnaire.ts` and uses Pi's `Input` for text.
 - RPC and other UIs: one `ctx.ui.select` per question, each option shown as `label — description` (Pi's `select` has no per-option description), then `ctx.ui.input` for the user's own answer; multi-select repeats `select` until the user picks Done.
 - no UI (print, JSON): unavailable.
 
@@ -42,9 +42,9 @@ Closing any dialog dismisses the whole question.
 2. One host-neutral bullet in `runtime/prompts/interaction-contract.md`: a question tool usually fits a bounded choice that is the user's; ask in the reply when the choice needs explaining or is open. It reaches Claude Code and the other hook hosts too.
 3. Workflow's reference `asking-the-user.md` with the full method, read "before asking the user for a choice that is theirs to make". Workflow, Decision Gate, Discuss and Finish Branch link it with that same condition.
 
-**Task memory's confirmations** use `confirmWithUser()`: in the terminal a one-question `QuestionForm` without an own-answer row or notes, elsewhere Pi's `confirm` as before.
+**Task memory's confirmations** use `confirmWithUser()`: in the terminal a one-question `QuestionForm` with the options Yes and No and without an own-answer row or notes, elsewhere Pi's `confirm` as before.
 
-**Inbound channel** (`Inbound` in `host/inbound.ts`). `deliver(notice)` sends a notice at once; with a batch key, notices for that key within the window (default 200 ms) join one notice, and a key past its per-minute limit is stopped once (`onLimit`) and sends nothing more until `close()`. Delivery: while the agent works, `sendMessage` with `triggerTurn` and `deliverAs: "steer"` (after the current tool batch); while idle, `sendUserMessage`, because a run an extension message starts loses Freeflow's system sections from its second request (Pi #10267); a notice that should not wake the agent is sent with `triggerTurn: false`. `renderNotice()` draws a notice as one line naming its source.
+**Inbound channel** (`Inbound` in `host/inbound.ts`). `deliver(notice)` sends a notice at once; with a batch key, notices for that key within the window (default 200 ms) join one notice, and a key past its per-minute limit is stopped once (`onLimit`) and sends nothing more until `close()`. The source chooses its key (one per monitor, say), window and limit, and calls `close()` when it ends; background exits use no key, since each command exits once. `reset()` at `session_shutdown` drops everything pending. Delivery: while the agent works, `sendMessage` with `triggerTurn` and `deliverAs: "steer"` (after the current tool batch); while idle, `sendUserMessage`, because a run an extension message starts loses Freeflow's system sections from its second request (Pi #10267); a notice that should not wake the agent is sent with `triggerTurn: false`. `renderNotice()` draws a notice as one line naming its source.
 
 ## Decisions
 
