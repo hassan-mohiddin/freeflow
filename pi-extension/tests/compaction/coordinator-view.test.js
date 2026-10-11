@@ -65,6 +65,11 @@ test(
           JSON.stringify(assessing.input),
           /Selected evidence is already in your view, in place in the worker's run/,
         );
+        // Its provenance names the call, so the Coordinator can match the ref to the body.
+        assert.match(
+          JSON.stringify(assessing.input),
+          /ctx:[0-9a-f]{8} \| producer: executor \| toolResult \| read: big\.txt \|[^"]*task evidence/,
+        );
         // The evidence stays after the unit closes: the closing request extends the assessing one.
         assert.ok(extendsPrevious(assessing, closing), "the Coordinator's prefix is unchanged after the unit closes");
         assert.equal(occurrences(closing, "BIG_EVIDENCE"), 1);
