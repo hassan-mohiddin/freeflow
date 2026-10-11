@@ -77,6 +77,8 @@ A project groups related tasks, possibly across several repositories. Ask the ag
 
 A project's records live in a store under the Freeflow home, `~/.freeflow/projects/<project>/tasks/task-NNN-<name>/record.md`, not in the repository, so removing a worktree does not remove its task memory. A record outside a project stays in its checkout's `.freeflow/tasks/` and goes with the checkout. Each task has an ID such as `my-app/task-003`, which works wherever a record path does. Set `FREEFLOW_HOME` to keep the registry and stores elsewhere.
 
+**Browse the records in your editor.** Each repository linked to a project, and each child's worktree, gets `.freeflow/project`, a link to the project's store, so you can open and edit its records while the agent works; your edits change the real files. Freeflow keeps the link out of Git through the clone's `.git/info/exclude`, so no tracked file changes, and makes it again at session start if it is missing. Where a link cannot be made, `/freeflow project` shows the store's real path. The agent itself reaches records by task ID, not through the link.
+
 Once the repository is linked, ask the agent for a new task, or run `/freeflow task new <title>`; either creates it in the project and attaches it to the session. A record in the repository's `.freeflow/tasks/` keeps working there, without an ID or owner; `/freeflow task import <record> <project>` moves it into the project's store after you confirm.
 
 **One session writes each project record.** Attaching a project record makes this session its owner. If another session owns it, Freeflow asks before taking it over; that session's writes are then refused. A session that has ended keeps ownership until another takes it over, because Pi cannot tell that a session is gone.
@@ -105,7 +107,7 @@ cd '/Users/you/Developer/Worktrees/app-parser' && pi
 
 For a child that only reads or researches, no worktree is needed. Start a new session and run `/freeflow task child <parent ID> <title>`, which creates the child and attaches it there.
 
-The parent's resume view lists its children with each child's state and next action, and the agent can read a child's record or search across the task and its children. A child's result reaches the parent's record when the parent's session records it.
+The parent's resume view lists its children with each child's state and next action, and the agent can read a child's record or search across the task and its children. A child's result reaches the parent's record when the parent's session records it. With [Messaging](messaging.md) on, the child's session can report to the parent's session itself.
 
 ## Search
 

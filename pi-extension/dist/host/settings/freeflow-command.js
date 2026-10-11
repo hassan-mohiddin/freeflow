@@ -1087,7 +1087,7 @@ function freeflowItems(rawConfig, options = {}) {
     id: "freeflow.messaging.enabled",
     label: "Enabled",
     description:
-      "A preview: list this session for other Pi sessions on this machine and let the agent exchange messages with them. Messages from outside the project are held for you to accept.",
+      "A preview: list this session for other Pi sessions on this machine and let the agent exchange messages with them.",
     path: ["messaging", "enabled"],
     effectiveValue: messagingState?.enabled ?? DEFAULT_MESSAGING_ENABLED,
     effectiveSource: toolSource(["messaging", "enabled"]),

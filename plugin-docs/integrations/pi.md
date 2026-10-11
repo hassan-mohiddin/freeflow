@@ -1,6 +1,6 @@
 # Pi Integration
 
-Freeflow can be packaged for Pi. The native entrypoint wires Freeflow's core prompt and skills, [Cognitive Routing](../capabilities/cognitive-routing.md), [Tool Execution](../capabilities/tool-execution.md) and [Compaction](../capabilities/compaction.md). An unreleased checkout is not a published release.
+Freeflow can be packaged for Pi. The native entrypoint wires Freeflow's core prompt and skills, [Cognitive Routing](../capabilities/cognitive-routing.md), [Tool Execution](../capabilities/tool-execution.md), [Compaction](../capabilities/compaction.md), [Task Memory](../capabilities/task-memory.md) and [Messaging](../capabilities/messaging.md). An unreleased checkout is not a published release.
 
 ## Install
 
@@ -81,17 +81,20 @@ Whenever Freeflow is enabled, the agent can put a choice that is yours to make i
 - `Tab` moves between questions when there are several, then to Submit;
 - `Esc` closes the dialog without answering; the agent then does not act on that choice.
 
+In the transcript a question is one line, `Question · <header>: <question>`, and your answer another, `Answered · <header>: <choice>` (or `Closed without answering (Esc)`); expand them to see the options and notes.
+
 In RPC clients each question is a list to pick from. Without a UI (print or JSON mode), and for a Cognitive Routing worker, the agent asks in its reply instead.
 
-## Tool Execution, Compaction and Task Memory configuration
+## Tool Execution, Compaction, Task Memory and Messaging configuration
 
-Tool Execution and Task Memory are disabled by default; Compaction is enabled by default:
+Tool Execution, Task Memory and Messaging are disabled by default; Compaction is enabled by default:
 
 ```json
 {
   "toolExecution": { "enabled": true },
   "compaction": { "enabled": true, "carry": true },
-  "taskMemory": { "enabled": true }
+  "taskMemory": { "enabled": true },
+  "messaging": { "enabled": true, "inbound": "accept" }
 }
 ```
 
@@ -100,6 +103,8 @@ Tool Execution keeps Pi's tools and adds guidance, file tracking, clearer edit e
 Compaction warns the agent before Pi's own limit and lets it compact with `compact_context` from its own summary and carried context; Pi's compaction stays on as the fallback. `compaction.carry` (Context reuse) controls whether files and tool results are carried. See [Compaction](../capabilities/compaction.md).
 
 Task Memory, a preview, lets the session attach Working Records, delivers the focused record's resume view when context is rebuilt, and refuses record writes to records not attached; it adds projects with records stored under `~/.freeflow` (or `FREEFLOW_HOME`) and child records for parallel sessions. See [Task Memory](../capabilities/task-memory.md).
+
+Messaging, a preview, lets the agents in your Pi sessions on this machine send each other messages; `messaging.inbound` (Ask before delivering) chooses whether a message waits for you to accept it: `accept` (the default), `project`, `hold` or `refuse`. See [Messaging](../capabilities/messaging.md).
 
 ## Controls
 
@@ -150,6 +155,7 @@ What the extension registers, its cache reuse boundaries, how it persists and re
 - [Tool Execution](../capabilities/tool-execution.md)
 - [Compaction](../capabilities/compaction.md)
 - [Task Memory](../capabilities/task-memory.md)
+- [Messaging](../capabilities/messaging.md)
 - [Cognitive Routing](../capabilities/cognitive-routing.md)
 - [Freeflow architecture](../../dev-docs/README.md)
 - [Workflow](../workflow.md)

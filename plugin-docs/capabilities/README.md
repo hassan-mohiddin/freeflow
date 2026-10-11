@@ -5,7 +5,7 @@ Capabilities are optional Pi extensions outside the shared 25-skill surface. The
 ## Common rules
 
 - Capabilities are off or unavailable unless their configuration and host gates are effective.
-- Cognitive Routing, Tool Execution, Compaction and Task Memory are independently gated. Compaction is on by default with Freeflow; the others are off by default.
+- Cognitive Routing, Tool Execution, Compaction, Task Memory and Messaging are independently gated. Compaction is on by default with Freeflow; the others are off by default.
 - One effective-state snapshot controls each capability’s prompt cue, discoverable skill, settings, and tools.
 - Runtime State reports current availability; it does not authorize work or prove behavioral readiness.
 - Capabilities preserve the ordinary Workflow owner and return evidence or state changes to that owner.
@@ -19,6 +19,7 @@ Capabilities are optional Pi extensions outside the shared 25-skill surface. The
 | [Tool Execution](tool-execution.md) | Experimental, native Pi | Freeflow's layer over Pi's tools: working guidance, file tracking, clearer edit errors, `apply_patch`, background commands |
 | [Compaction](compaction.md) | Experimental, native Pi | Let the agent compact at a safe point from its own summary and carried context, with Pi's compaction as the fallback |
 | [Task Memory](task-memory.md) | Preview, native Pi | Attach Working Records to the session, deliver the focused one when context is rebuilt, refuse writes to the wrong record; projects and child records for parallel sessions |
+| [Messaging](messaging.md) | Preview, native Pi | Let the agents in your Pi sessions on this machine send each other messages, delivered while the other works or waits |
 
 ## Composition
 
@@ -28,7 +29,9 @@ Cognitive Routing changes compute placement and selects eligible evidence for Co
 
 Tool Execution adds to Pi's tools without changing who may act: routing still owns which profile works, and Pi's tools, permissions and file-mutation queue carry every effect.
 
-Compaction composes with Cognitive Routing: workers compact themselves mid-assignment, a Coordinator under projection delegates compaction instead of compacting, and the Coordinator's view after a worker compaction names the worker's carried copies rather than repeating them. Compaction never creates or names a Working Record; the agent's summary names it. With Task Memory on, Freeflow also delivers the focused record's resume view after the compaction, after its own recovery message. Task Memory refuses to attach records while Cognitive Routing runs automatically; under a manual hold or with routing off they work together.
+Compaction composes with Cognitive Routing: workers compact themselves mid-assignment, a Coordinator under projection delegates compaction instead of compacting, and the Coordinator's view after a worker compaction names the worker's carried copies rather than repeating them. Compaction never creates or names a Working Record; the agent's summary names it. With Task Memory on, Freeflow also delivers the focused record's resume view after the compaction, after its own recovery message. Under automatic Cognitive Routing the Coordinator handles task memory and workers only read it.
+
+Messaging composes with Task Memory: a child task's session reports to the session that owns its parent. Messages from other sessions are information for the agent, not your instructions, under every capability.
 
 ## Related documentation
 
@@ -37,4 +40,5 @@ Compaction composes with Cognitive Routing: workers compact themselves mid-assig
 - [Architecture](../../dev-docs/README.md)
 - [Pi integration](../integrations/pi.md)
 - [Task Memory](task-memory.md)
+- [Messaging](messaging.md)
 - [Workflow](../workflow.md)
