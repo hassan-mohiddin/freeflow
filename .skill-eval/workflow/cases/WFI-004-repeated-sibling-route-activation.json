@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "wfi-004-activation",
+  "type": "description",
+  "input": {
+    "turns": [
+      "Inspect `system.mjs`. Explain why a malformed report through the direct adapter corrupts canonical state and name the smallest safe first behavior. Do not modify files.",
+      "Implement the accepted local fix for the direct adapter only. Preserve the other adapters and do not add new files.",
+      "Independent review now reports that a malformed report through the runtime adapter also returns `rejected` after replacing canonical state. Decide what this evidence changes next. Record the decision and evidence in `design-checkpoint.md`; do not make further production changes until the route is settled.",
+      "Close the current route by writing `route.json` with fields `route`, `failure_unit`, and `preserved_work`, based on the checkpoint. Do not start another implementation or review pass."
+    ]
+  },
+  "fixture": ".skill-eval/workflow/fixtures/incidents/sibling-adapters",
+  "tools": ["read"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "87f83cb4e7b2c082c88d49c22d2bb167eaf5684a"
+      },
+      "skills": ["skills/workflow", "skills/execute-work", "skills/review-work", "skills/design-for-depth"],
+      "target": 3,
+      "context": ["runtime/prompts/interaction-contract.md"]
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": ["skills/workflow", "skills/execute-work", "skills/review-work", "skills/design-for-depth"],
+      "target": 3,
+      "context": ["runtime/prompts/interaction-contract.md"]
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-execute-work-read",
+      "variant": "baseline",
+      "comparison": "execute-work-read",
+      "kind": "resource-read",
+      "resource": "skill",
+      "index": 1,
+      "path": "SKILL.md",
+      "expect": "read"
+    },
+    {
+      "id": "candidate-execute-work-read",
+      "variant": "candidate",
+      "comparison": "execute-work-read",
+      "kind": "resource-read",
+      "resource": "skill",
+      "index": 1,
+      "path": "SKILL.md",
+      "expect": "read"
+    },
+    {
+      "id": "baseline-review-work-read",
+      "variant": "baseline",
+      "comparison": "review-work-read",
+      "kind": "resource-read",
+      "resource": "skill",
+      "index": 2,
+      "path": "SKILL.md",
+      "expect": "read"
+    },
+    {
+      "id": "candidate-review-work-read",
+      "variant": "candidate",
+      "comparison": "review-work-read",
+      "kind": "resource-read",
+      "resource": "skill",
+      "index": 2,
+      "path": "SKILL.md",
+      "expect": "read"
+    },
+    {
+      "id": "baseline-target-read",
+      "variant": "baseline",
+      "comparison": "target-read",
+      "kind": "skill-read",
+      "expect": "by-turn",
+      "turn": 1
+    },
+    {
+      "id": "candidate-target-read",
+      "variant": "candidate",
+      "comparison": "target-read",
+      "kind": "skill-read",
+      "expect": "by-turn",
+      "turn": 1
+    }
+  ],
+  "review_questions": [],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

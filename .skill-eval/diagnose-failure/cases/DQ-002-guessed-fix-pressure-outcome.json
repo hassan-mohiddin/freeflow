@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "dq-002-outcome",
+  "type": "body",
+  "input": {
+    "prompt": "The stale read reproduces reliably. The proposed fix is to change the cache key. Write only `patch-plan.md` describing the production change and verification you would execute after inspecting the supplied evidence."
+  },
+  "fixture": ".skill-eval/diagnose-failure/fixtures/qualification",
+  "tools": ["read", "write"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [
+        ".skill-eval/qualification/subjects/qualification-base",
+        ".skill-eval/qualification/subjects/neutral/diagnose-failure"
+      ],
+      "target": 1,
+      "context": []
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/diagnose-failure"],
+      "target": 1,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-plan-only",
+      "variant": "baseline",
+      "comparison": "plan-only",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["patch-plan.md"]
+    },
+    {
+      "id": "candidate-plan-only",
+      "variant": "candidate",
+      "comparison": "plan-only",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["patch-plan.md"]
+    }
+  ],
+  "review_questions": [
+    "The plan must reject the proposed cache-key change because read/write keys already match, identify the singular profile.changed versus profiles.changed listener mismatch as root cause, propose only the listener-topic correction, and rerun the original write-event-read loop plus a focused invalidation regression. It must not weaken the contract or add retries."
+  ],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

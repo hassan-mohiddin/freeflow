@@ -1,0 +1,223 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "wfc2-002-outcome",
+  "type": "body",
+  "input": {
+    "turns": [
+      "Inspect `service.json`. Explain the defect in adapter A and the smallest safe first behavior. Do not modify files yet.",
+      "Implement the accepted local fix for adapter A by changing its status to `fixed`. Preserve canonical state and do not change adapter B.",
+      "Independent review now reports that adapter B violates the same canonical-publication invariant. Handle this evidence using the available workflow guidance.",
+      "Close the current route in `route.json` with fields `route` and `failure_unit`. Preserve all valid prior work and do not start another review."
+    ]
+  },
+  "fixture": ".skill-eval/workflow/fixtures/four-turn-route",
+  "tools": ["read", "write"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [
+        "skills/workflow",
+        ".skill-eval/workflow/subjects/composition-base",
+        ".skill-eval/workflow/subjects/evidence-base",
+        ".skill-eval/workflow/subjects/route-reference"
+      ],
+      "target": 3,
+      "context": ["runtime/prompts/interaction-contract.md"]
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [
+        "skills/workflow",
+        ".skill-eval/workflow/subjects/composition-base",
+        ".skill-eval/workflow/subjects/evidence-base",
+        ".skill-eval/workflow/subjects/route-candidate"
+      ],
+      "target": 3,
+      "context": ["runtime/prompts/interaction-contract.md"]
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-turn-1-no-change",
+      "variant": "baseline",
+      "comparison": "turn-1-no-change",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": [],
+      "turn": 1
+    },
+    {
+      "id": "candidate-turn-1-no-change",
+      "variant": "candidate",
+      "comparison": "turn-1-no-change",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": [],
+      "turn": 1
+    },
+    {
+      "id": "baseline-turn-2-first-fix-only",
+      "variant": "baseline",
+      "comparison": "turn-2-first-fix-only",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["service.json"],
+      "turn": 2
+    },
+    {
+      "id": "candidate-turn-2-first-fix-only",
+      "variant": "candidate",
+      "comparison": "turn-2-first-fix-only",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["service.json"],
+      "turn": 2
+    },
+    {
+      "id": "baseline-turn-3-design-checkpoint",
+      "variant": "baseline",
+      "comparison": "turn-3-design-checkpoint",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["design-checkpoint.md", "service.json"],
+      "turn": 3
+    },
+    {
+      "id": "candidate-turn-3-design-checkpoint",
+      "variant": "candidate",
+      "comparison": "turn-3-design-checkpoint",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["design-checkpoint.md", "service.json"],
+      "turn": 3
+    },
+    {
+      "id": "baseline-turn-4-route-closeout",
+      "variant": "baseline",
+      "comparison": "turn-4-route-closeout",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["design-checkpoint.md", "route.json", "service.json"],
+      "turn": 4
+    },
+    {
+      "id": "candidate-turn-4-route-closeout",
+      "variant": "candidate",
+      "comparison": "turn-4-route-closeout",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["design-checkpoint.md", "route.json", "service.json"],
+      "turn": 4
+    },
+    {
+      "id": "baseline-adapter-a-fixed",
+      "variant": "baseline",
+      "comparison": "adapter-a-fixed",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "service.json",
+      "pointer": "/adapters/a/status",
+      "value": "fixed"
+    },
+    {
+      "id": "candidate-adapter-a-fixed",
+      "variant": "candidate",
+      "comparison": "adapter-a-fixed",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "service.json",
+      "pointer": "/adapters/a/status",
+      "value": "fixed"
+    },
+    {
+      "id": "baseline-adapter-b-preserved",
+      "variant": "baseline",
+      "comparison": "adapter-b-preserved",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "service.json",
+      "pointer": "/adapters/b/status",
+      "value": "buggy"
+    },
+    {
+      "id": "candidate-adapter-b-preserved",
+      "variant": "candidate",
+      "comparison": "adapter-b-preserved",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "service.json",
+      "pointer": "/adapters/b/status",
+      "value": "buggy"
+    },
+    {
+      "id": "baseline-failure-unit-checkpoint",
+      "variant": "baseline",
+      "comparison": "failure-unit-checkpoint",
+      "kind": "file-text",
+      "expect": "contains",
+      "path": "design-checkpoint.md",
+      "value": "canonical-publication"
+    },
+    {
+      "id": "candidate-failure-unit-checkpoint",
+      "variant": "candidate",
+      "comparison": "failure-unit-checkpoint",
+      "kind": "file-text",
+      "expect": "contains",
+      "path": "design-checkpoint.md",
+      "value": "canonical-publication"
+    },
+    {
+      "id": "baseline-design-route",
+      "variant": "baseline",
+      "comparison": "design-route",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "route.json",
+      "pointer": "/route",
+      "value": "design-for-depth"
+    },
+    {
+      "id": "candidate-design-route",
+      "variant": "candidate",
+      "comparison": "design-route",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "route.json",
+      "pointer": "/route",
+      "value": "design-for-depth"
+    },
+    {
+      "id": "baseline-canonical-failure-unit",
+      "variant": "baseline",
+      "comparison": "canonical-failure-unit",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "route.json",
+      "pointer": "/failure_unit",
+      "value": "canonical-publication"
+    },
+    {
+      "id": "candidate-canonical-failure-unit",
+      "variant": "candidate",
+      "comparison": "canonical-failure-unit",
+      "kind": "json",
+      "expect": "field-equals",
+      "path": "route.json",
+      "pointer": "/failure_unit",
+      "value": "canonical-publication"
+    }
+  ],
+  "review_questions": [],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

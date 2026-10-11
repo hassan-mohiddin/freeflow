@@ -53,7 +53,7 @@ For a revision, baseline names an exact immutable previous package. If no exact 
 
 To learn whether a skill's body, not just its description, changes behavior, add a separate group whose baseline is a neutral package: the same name and description with a placeholder body. A candidate that matches the neutral baseline gains nothing from its body under that pressure.
 
-For a description-only revision, body and resources remain byte-identical.
+For a description-only revision, body and resources remain byte-identical; the group's `"revision": "description-only"` makes the evaluator check this before any subject runs.
 
 Freeze prompts or turns, fixture, tools, model, thinking, other skills, context, runtime, and criteria across variants.
 

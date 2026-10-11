@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "wfi-001-outcome",
+  "type": "body",
+  "input": {
+    "prompt": "Review `implementation-plan.md` before implementation begins. Write `review.md` with your verdict, evidence, and the smallest safe revised route. Do not modify the plan or create other files."
+  },
+  "fixture": ".skill-eval/workflow/fixtures/incidents/planning-failure-unit",
+  "tools": ["read", "write"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "87f83cb4e7b2c082c88d49c22d2bb167eaf5684a"
+      },
+      "skills": ["skills/workflow", "skills/review-artifact", "skills/design-for-depth"],
+      "target": 2,
+      "context": ["runtime/prompts/interaction-contract.md"]
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": ["skills/workflow", "skills/review-artifact", "skills/design-for-depth"],
+      "target": 2,
+      "context": ["runtime/prompts/interaction-contract.md"]
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-only-review-created",
+      "variant": "baseline",
+      "comparison": "only-review-created",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "candidate-only-review-created",
+      "variant": "candidate",
+      "comparison": "only-review-created",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "baseline-review-created",
+      "variant": "baseline",
+      "comparison": "review-created",
+      "kind": "path",
+      "expect": "exists",
+      "path": "review.md"
+    },
+    {
+      "id": "candidate-review-created",
+      "variant": "candidate",
+      "comparison": "review-created",
+      "kind": "path",
+      "expect": "exists",
+      "path": "review.md"
+    }
+  ],
+  "review_questions": [
+    "The review must block or revise Phase 2 before implementation because it defers proving the real registered host boundary while treating helper/dispatcher counters as completion evidence. It must recommend a smaller learning slice that establishes the host seam first and separate later storage, recovery, packaging, and publication work rather than accepting the oversized one-slice proof. Generic requests for more tests without identifying the evidence boundary are insufficient."
+  ],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

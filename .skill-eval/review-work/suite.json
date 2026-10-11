@@ -1,5 +1,11 @@
 {
   "schema_version": 1,
-  "skill": "review-work",
-  "cases": ["cases/RWQ-001-requirement-over-preference.json", "cases/RWQ-002-signoff-pressure.json"]
+  "kind": "suite",
+  "id": "review-work",
+  "groups": [
+    "cases/RWQ-001-requirement-over-preference-activation.json",
+    "cases/RWQ-001-requirement-over-preference-outcome.json",
+    "cases/RWQ-002-signoff-pressure-activation.json",
+    "cases/RWQ-002-signoff-pressure-outcome.json"
+  ]
 }

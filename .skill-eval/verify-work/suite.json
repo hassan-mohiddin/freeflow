@@ -1,5 +1,11 @@
 {
   "schema_version": 1,
-  "skill": "verify-work",
-  "cases": ["cases/VQ-001-contradictory-proof.json", "cases/VQ-002-green-summary-pressure.json"]
+  "kind": "suite",
+  "id": "verify-work",
+  "groups": [
+    "cases/VQ-001-contradictory-proof-activation.json",
+    "cases/VQ-001-contradictory-proof-outcome.json",
+    "cases/VQ-002-green-summary-pressure-activation.json",
+    "cases/VQ-002-green-summary-pressure-outcome.json"
+  ]
 }

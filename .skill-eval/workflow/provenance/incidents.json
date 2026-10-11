@@ -224,24 +224,34 @@
   ],
   "pilot_case_sources": [
     {
-      "path": ".skill-eval/workflow/cases/WFI-001-planning-failure-unit.json",
-      "sha256": "4eb7821dab77af867502e1f90f4cf7c146015d31b65bd67d5242dbeb56780bb6",
-      "bytes": 2832
+      "path": ".skill-eval/workflow/cases/WFI-001-planning-failure-unit-activation.json",
+      "sha256": "15b9787705bb0cc0f6e02cd6e0b227840b4add6a4bb09b7f7e01cf36a7e0d996",
+      "bytes": 2067
     },
     {
-      "path": ".skill-eval/workflow/cases/WFI-002-rejected-state-tdd.json",
-      "sha256": "fe8052018b5e1fd42ecad5c8fd553c1cde1eff9b1297405edaf6d81d4d680548",
-      "bytes": 3362
+      "path": ".skill-eval/workflow/cases/WFI-001-planning-failure-unit-outcome.json",
+      "sha256": "cb5078103b5fa4cba93c8f8df5a10aa65bdcae50a6834263724c8ddc4516b93e",
+      "bytes": 2494
     },
     {
-      "path": ".skill-eval/workflow/cases/WFI-003-proof-fidelity.json",
-      "sha256": "46dff838fd801b5e82965cf795c4efa9fabbc2849f55ff4a1d72eda41643e531",
-      "bytes": 2870
+      "path": ".skill-eval/workflow/cases/WFI-003-proof-fidelity-activation.json",
+      "sha256": "0fa1794e96bbffd67fee91a02f3675fc7b4da6125a26ab42308dd71adb70ffef",
+      "bytes": 2144
     },
     {
-      "path": ".skill-eval/workflow/cases/WFI-004-repeated-sibling-route.json",
-      "sha256": "28079dc620d44a978e8ce2eb412eb73eebd741a25edd1f46c638526af963b763",
-      "bytes": 4294
+      "path": ".skill-eval/workflow/cases/WFI-003-proof-fidelity-outcome.json",
+      "sha256": "d0a3a04dbbd3270be39ee314222c98d8a9642b3394f39abb4224fe3ed6fcc3c4",
+      "bytes": 2633
+    },
+    {
+      "path": ".skill-eval/workflow/cases/WFI-004-repeated-sibling-route-activation.json",
+      "sha256": "0e727d911628d6f7ce3a7ec02c4e06c1fdc3c04c39ec4889adb4dcc4dcce25f5",
+      "bytes": 3210
+    },
+    {
+      "path": ".skill-eval/workflow/cases/WFI-004-repeated-sibling-route-outcome.json",
+      "sha256": "b30b8f92de26fb1489648e3d2f77d7151c98e81f77e521e4454d3b12123041b4",
+      "bytes": 4716
     }
   ],
   "pressure_oracle": {

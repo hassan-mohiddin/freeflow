@@ -60,10 +60,10 @@ export function readPaths(run, turn) {
     if (Array.isArray(run.turns)) {
       return run.turns.flatMap((entry) => (Array.isArray(entry.successfulReadPaths) ? entry.successfulReadPaths : []));
     }
-    return Array.isArray(run.successfulReadPaths) ? run.successfulReadPaths : [];
+    return singleTurnReadPaths(run) ?? [];
   }
   if (!Array.isArray(run.turns)) {
-    return turn === 1 && Array.isArray(run.successfulReadPaths) ? run.successfulReadPaths : null;
+    return turn === 1 ? singleTurnReadPaths(run) : null;
   }
   const observedTurn = run.turns.find((entry) => entry.turn === turn);
   return observedTurn && Array.isArray(observedTurn.successfulReadPaths) ? observedTurn.successfulReadPaths : null;
@@ -123,4 +123,11 @@ export function compareText(left, right) {
   if (left < right) return -1;
   if (left > right) return 1;
   return 0;
+}
+
+// One-shot description runs record their reads under activation rather than at the top level.
+function singleTurnReadPaths(run) {
+  if (Array.isArray(run.successfulReadPaths)) return run.successfulReadPaths;
+  if (Array.isArray(run.activation?.successfulReadPaths)) return run.activation.successfulReadPaths;
+  return null;
 }

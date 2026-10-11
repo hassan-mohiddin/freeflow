@@ -1,12 +1,19 @@
 {
   "schema_version": 1,
-  "skill": "workflow",
-  "cases": [
-    "cases/WFC2-001-one-shot-composition.json",
-    "cases/WFC2-002-four-turn-route-change.json",
-    "cases/WFI-001-planning-failure-unit.json",
-    "cases/WFI-003-proof-fidelity.json",
-    "cases/WFI-004-repeated-sibling-route.json",
-    "cases/WFQ-001-route-on-owner-ambiguity.json"
+  "kind": "suite",
+  "id": "workflow",
+  "groups": [
+    "cases/WFC2-001-one-shot-composition-activation.json",
+    "cases/WFC2-001-one-shot-composition-outcome.json",
+    "cases/WFC2-002-four-turn-route-change-activation.json",
+    "cases/WFC2-002-four-turn-route-change-outcome.json",
+    "cases/WFI-001-planning-failure-unit-activation.json",
+    "cases/WFI-001-planning-failure-unit-outcome.json",
+    "cases/WFI-003-proof-fidelity-activation.json",
+    "cases/WFI-003-proof-fidelity-outcome.json",
+    "cases/WFI-004-repeated-sibling-route-activation.json",
+    "cases/WFI-004-repeated-sibling-route-outcome.json",
+    "cases/WFQ-001-route-on-owner-ambiguity-activation.json",
+    "cases/WFQ-001-route-on-owner-ambiguity-outcome.json"
   ]
 }

@@ -6,6 +6,8 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { aggregateGroups } from "../../../skills/evaluate-skill/scripts/lib/trials.mjs";
+
 const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-skill/scripts/skill-eval.mjs", import.meta.url));
 const FAKE_KEYS = ["FAKE_PI_LOG", "FAKE_PI_COST"];
 
@@ -217,5 +219,32 @@ test("run options reject invalid trial counts and cost ceilings", async () => {
       assert.equal(result.status, 1, args.join(" "));
       assert.match(result.stderr, /trials|max-cost|Unknown option/, args.join(" "));
     }
+  });
+});
+
+test("aggregation counts an unreadable trial grade instead of discarding every trial", async () => {
+  await withTempDirectory(async (root) => {
+    const good = path.join(root, "trial-1");
+    const broken = path.join(root, "trial-2");
+    await writeJson(good, "groups/activation/deterministic-grade.json", {
+      checks: [{ id: "candidate-read", variant: "candidate", kind: "skill-read", state: "pass" }],
+      comparisons: [],
+    });
+    await mkdir(path.join(broken, "groups/activation"), { recursive: true });
+    await writeFile(path.join(broken, "groups/activation/deterministic-grade.json"), "{not json");
+    const summary = { groups: [{ id: "activation", artifacts: { grade: "deterministic-grade.json" } }] };
+
+    const groups = await aggregateGroups([
+      { path: good, summary },
+      { path: broken, summary },
+    ]);
+
+    assert.equal(groups.length, 1);
+    assert.equal(groups[0].trials, 2);
+    assert.equal(groups[0].unreadableGrades, 1);
+    assert.deepEqual(
+      groups[0].checks.map(({ id, pass, fail, unavailable }) => ({ id, pass, fail, unavailable })),
+      [{ id: "candidate-read", pass: 1, fail: 0, unavailable: 0 }],
+    );
   });
 });

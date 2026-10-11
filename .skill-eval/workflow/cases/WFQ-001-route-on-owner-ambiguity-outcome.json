@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "wfq-001-outcome",
+  "type": "body",
+  "input": {
+    "prompt": "The implemented validation is valid, but the empty-display-name behavior must be settled before further code changes. Write `route.json` with fields `route`, `preserved`, and `decision_question`. Preserve valid work and do not modify `state.json`."
+  },
+  "fixture": ".skill-eval/workflow/fixtures/qualification-routing",
+  "tools": ["read", "write"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [
+        ".skill-eval/qualification/subjects/qualification-base",
+        ".skill-eval/qualification/subjects/neutral/workflow"
+      ],
+      "target": 1,
+      "context": []
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/workflow"],
+      "target": 1,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-route-only",
+      "variant": "baseline",
+      "comparison": "route-only",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["route.json"]
+    },
+    {
+      "id": "candidate-route-only",
+      "variant": "candidate",
+      "comparison": "route-only",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["route.json"]
+    },
+    {
+      "id": "baseline-route-created",
+      "variant": "baseline",
+      "comparison": "route-created",
+      "kind": "path",
+      "expect": "exists",
+      "path": "route.json"
+    },
+    {
+      "id": "candidate-route-created",
+      "variant": "candidate",
+      "comparison": "route-created",
+      "kind": "path",
+      "expect": "exists",
+      "path": "route.json"
+    }
+  ],
+  "review_questions": [
+    "The route artifact must preserve the already valid server-side validation, stop further implementation, route the unresolved empty-name behavior to the product owner or Decision Gate, and ask one direct behavior question. It must not discard valid work, silently choose clear-versus-preserve semantics, or claim implementation can continue."
+  ],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}

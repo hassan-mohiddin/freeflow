@@ -243,6 +243,21 @@ function isBlockedEnvironmentKey(normalizedKey) {
   );
 }
 
+// Fields each known expectation kind may declare. A field outside this set would be ignored by its grader,
+// so it is rejected before any subject runs. Unknown kinds still surface afterward as grade errors.
+const EXPECTATION_COMMON_FIELDS = ["id", "kind", "variant", "comparison", "turn", "expect"];
+const EXPECTATION_FIELDS = new Map([
+  ["skill-read", []],
+  ["resource-read", ["resource", "index", "path"]],
+  ["path", ["path"]],
+  ["changed-paths", ["paths"]],
+  ["file-text", ["path", "value"]],
+  ["json", ["path", "pointer", "value"]],
+  ["response-text", ["value"]],
+  ["context-text", ["value", "surface", "request"]],
+  ["tool-call", ["tool", "argumentContains", "argumentNotContains"]],
+]);
+
 function validateExpectations(value, definitionPath) {
   if (!Array.isArray(value)) fail("invalid-definition", "group.expectations must be an array", definitionPath);
   const ids = new Set();
@@ -250,6 +265,19 @@ function validateExpectations(value, definitionPath) {
     const expectation = requireObject(entry, `group.expectations[${index}]`, definitionPath);
     requireId(expectation.id, `group.expectations[${index}].id`, definitionPath);
     requireString(expectation.kind, `group.expectations[${index}].kind`, definitionPath);
+    const kindFields = EXPECTATION_FIELDS.get(expectation.kind);
+    if (kindFields) {
+      const allowed = new Set([...EXPECTATION_COMMON_FIELDS, ...kindFields]);
+      for (const key of Object.keys(expectation)) {
+        if (!allowed.has(key)) {
+          fail(
+            "invalid-definition",
+            `group.expectations[${index}] contains unsupported field ${key} for kind ${expectation.kind}`,
+            definitionPath,
+          );
+        }
+      }
+    }
     if (ids.has(expectation.id)) {
       fail("invalid-definition", `group.expectations contains duplicate ID ${expectation.id}`, definitionPath);
     }
@@ -314,7 +342,7 @@ function validateGroup(value, definitionPath) {
       "expectations",
       "review_questions",
     ],
-    ["model", "runtime", "commands"],
+    ["model", "runtime", "commands", "revision"],
     "group",
     definitionPath,
   );
@@ -340,6 +368,25 @@ function validateGroup(value, definitionPath) {
   }
   validateExpectations(group.expectations, definitionPath);
   requireStringArray(group.review_questions, "group.review_questions", definitionPath);
+  if (Object.hasOwn(group, "revision")) {
+    if (group.revision !== "description-only") {
+      fail("invalid-definition", "group.revision must be description-only when declared", definitionPath);
+    }
+    if (group.type !== "description" || variants.baseline.target === null || variants.candidate.target === null) {
+      fail(
+        "invalid-definition",
+        "a description-only revision needs a description group with a target skill in both variants",
+        definitionPath,
+      );
+    }
+  }
+  if (group.expectations.length === 0 && group.review_questions.length === 0) {
+    fail(
+      "invalid-definition",
+      "group must declare at least one expectation or review question; otherwise a run would observe nothing",
+      definitionPath,
+    );
+  }
   if (Object.hasOwn(group, "model")) validateModel(group.model, definitionPath);
   return group;
 }

@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "dq-001-outcome",
+  "type": "body",
+  "input": {
+    "prompt": "The stale read reproduces 10/10 times. The team wants to patch the cache key immediately. Diagnose the failure from `contract.md`, `symptom.json`, and `traces.json`; write only `diagnosis.md` with the repro, competing hypotheses, discriminating evidence, root cause, smallest fix, and verification route. Do not edit production files."
+  },
+  "fixture": ".skill-eval/diagnose-failure/fixtures/qualification",
+  "tools": ["read", "write"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [
+        ".skill-eval/qualification/subjects/qualification-base",
+        ".skill-eval/qualification/subjects/neutral/diagnose-failure"
+      ],
+      "target": 1,
+      "context": []
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/diagnose-failure"],
+      "target": 1,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-diagnosis-only",
+      "variant": "baseline",
+      "comparison": "diagnosis-only",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["diagnosis.md"]
+    },
+    {
+      "id": "candidate-diagnosis-only",
+      "variant": "candidate",
+      "comparison": "diagnosis-only",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["diagnosis.md"]
+    },
+    {
+      "id": "baseline-diagnosis-created",
+      "variant": "baseline",
+      "comparison": "diagnosis-created",
+      "kind": "path",
+      "expect": "exists",
+      "path": "diagnosis.md"
+    },
+    {
+      "id": "candidate-diagnosis-created",
+      "variant": "candidate",
+      "comparison": "diagnosis-created",
+      "kind": "path",
+      "expect": "exists",
+      "path": "diagnosis.md"
+    }
+  ],
+  "review_questions": [
+    "The diagnosis must preserve the 10/10 symptom loop, compare at least cache-key and invalidation-delivery hypotheses, use equal read/write keys to reject the key hypothesis, identify the `profile.changed` versus `profiles.changed` topic mismatch as root cause, propose the smallest listener-topic fix, and require rerunning the original write-event-read loop plus a focused invalidation regression. It must not patch from the initial cache-key guess or weaken the contract."
+  ],
+  "model": {
+    "model": "openai-codex/gpt-5.6-sol",
+    "thinking": "low"
+  }
+}
