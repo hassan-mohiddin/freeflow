@@ -32,12 +32,20 @@ export type Sender = Readonly<{
   socket: string;
   project?: string;
   task?: string;
+  owns?: readonly string[];
 }>;
 
-export type Identity = Readonly<{ sessionId: string; name?: string; cwd: string; project?: string; task?: string }>;
+export type Identity = Readonly<{
+  sessionId: string;
+  name?: string;
+  cwd: string;
+  project?: string;
+  task?: string;
+  owns?: readonly string[];
+}>;
 
 export interface MessagingHost {
-  /** Who this session is now: its Pi session ID, Pi's session name if set, folder, project and focused task. */
+  /** Who this session is now: its Pi session ID, Pi's session name if set, folder, project, focused and owned tasks. */
   identity(): Promise<Identity>;
   policy(): InboundPolicy;
   busy(): boolean;
@@ -47,8 +55,6 @@ export interface MessagingHost {
   canAsk(): boolean;
   /** Ask the user yes or no; false when dismissed or after timeoutMs. */
   confirm(title: string, message: string, timeoutMs: number): Promise<boolean>;
-  /** The session ID that owns a Task Memory task, when Task Memory knows one. */
-  ownerOf(taskId: string): Promise<string | undefined>;
 }
 
 type Held = { id: string; from: Sender; text: string; summary?: string; at: number };
@@ -76,6 +82,8 @@ export class Messaging {
   private sent: number[] = [];
   private received = new Map<string, number[]>();
   private accepted: number[] = [];
+  /** Display names of the sessions seen in the registry, for transcript rows. */
+  private names = new Map<string, string>();
 
   private readonly holdExpiryMs: number;
 
@@ -113,6 +121,7 @@ export class Messaging {
       socket,
       ...(identity.project ? { project: identity.project } : {}),
       ...(identity.task ? { task: identity.task } : {}),
+      ...(identity.owns?.length ? { owns: identity.owns } : {}),
     };
     this.busyNow = this.host.busy();
     await this.publish();
@@ -142,45 +151,40 @@ export class Messaging {
   }
 
   async list(): Promise<LiveSession[]> {
-    return this.registry.list();
+    const sessions = await this.registry.list();
+    for (const session of sessions) this.names.set(session.sessionId, session.name);
+    return sessions;
   }
 
-  /** Find the one live session an address names: a session ID (or its end), a name, a folder, or a task ID. */
+  /** The display name of a session this one has seen, for a row that has only its ID. */
+  nameOf(sessionId: string): string | undefined {
+    return this.names.get(sessionId);
+  }
+
+  /**
+   * The live session with this session ID. Only a full ID addresses a session: names and folders are for display and
+   * may repeat (Task 002 D-009). An address that is not an ID gets the IDs it might mean, so the next call can use one.
+   */
   async resolve(to: string): Promise<{ session?: LiveSession; error?: string }> {
-    const address = to.trim().replace(/^@/, "");
+    const address = to.trim();
+    if (address === this.me?.sessionId) return { error: "That is this session. Address another one." };
     const sessions = (await this.list()).filter((session) => session.sessionId !== this.me?.sessionId);
-    const pick = (matches: LiveSession[]) =>
-      matches.length === 1
-        ? { session: matches[0] }
-        : matches.length > 1
-          ? {
-              error: `"${to}" matches ${matches.length} sessions: ${matches.map((s) => `${s.name} (${s.sessionId})`).join(", ")}. Use a session ID.`,
-            }
-          : undefined;
-    if (address === this.me?.sessionId || address === this.me?.name)
-      return { error: "That is this session. Address another one." };
-    const byId = pick(sessions.filter((s) => s.sessionId === address));
-    if (byId) return byId;
-    if (address.length >= 6) {
-      const byEnd = pick(sessions.filter((s) => s.sessionId.replace(/-/g, "").endsWith(address.replace(/-/g, ""))));
-      if (byEnd) return byEnd;
-    }
-    const byName = pick(sessions.filter((s) => s.name === address));
-    if (byName) return byName;
-    const byFolder = pick(sessions.filter((s) => s.cwd === address));
-    if (byFolder) return byFolder;
-    if (address.includes("/") && !address.startsWith("/")) {
-      const owner = await this.host.ownerOf(address);
-      if (owner) {
-        const byOwner = pick(sessions.filter((s) => s.sessionId === owner));
-        if (byOwner) return byOwner;
-        return { error: `Task ${address} is owned by session ${owner}, which is not running with messaging on.` };
-      }
-      const byTask = pick(sessions.filter((s) => s.task === address));
-      if (byTask) return byTask;
-    }
+    const session = sessions.find((each) => each.sessionId === address);
+    if (session) return { session };
+    const compact = address.replace(/-/g, "");
+    const near = sessions.filter(
+      (each) =>
+        each.name === address ||
+        each.cwd === address ||
+        each.owns?.includes(address) ||
+        each.task === address ||
+        (compact.length >= 4 && each.sessionId.replace(/-/g, "").includes(compact)),
+    );
+    const how = "Address a session by its session ID, from list_sessions or the session= of a message it sent.";
     return {
-      error: `No live session with messaging on matches "${to}". list_sessions shows the sessions that can receive.`,
+      error: near.length
+        ? `"${to}" is not a session ID. ${how} Sessions it may mean: ${near.map((each) => `${each.name} (${each.sessionId})`).join(", ")}.`
+        : `No live session with messaging on has the session ID "${to}". ${how}`,
     };
   }
 
@@ -265,6 +269,7 @@ export class Messaging {
       busy: this.busyNow,
       ...(me.project ? { project: me.project } : {}),
       ...(me.task ? { task: me.task } : {}),
+      ...(me.owns?.length ? { owns: me.owns } : {}),
       startedAt: this.startedAt,
     };
     const text = JSON.stringify(entry);

@@ -17,11 +17,11 @@ It deliberately does not:
 
 ## How It Works
 
-**Discovery.** While messaging is effective, the session lists itself in the live registry (`LiveRegistry`, `registry.ts`): one JSON file per session under `<freeflow home>/sessions/` with its session ID, name (Pi's session name, else folder plus four characters of the ID), folder, process ID, socket, busy or idle, its Task Memory project and focused task. The file is written only when it changes (`publish()`), and removed at `session_shutdown` or when messaging turns off. Listing drops entries whose process is gone and deletes them with their sockets.
+**Discovery.** While messaging is effective, the session lists itself in the live registry (`LiveRegistry`, `registry.ts`): one JSON file per session under `<freeflow home>/sessions/` with its session ID, name (Pi's session name, else folder plus four characters of the ID), folder, process ID, socket, busy or idle, its Task Memory project, its focused task and the tasks it owns (read from the task registry's owners, so a child can find its parent's session). The file is written only when it changes (`publish()`), and removed at `session_shutdown` or when messaging turns off. Listing drops entries whose process is gone and deletes them with their sockets.
 
 **Transport.** Each session listens on a Unix socket (`transport.ts`) in `<tmpdir>/freeflow-<uid>/msg/`, mode 0700, named by a hash of the session ID so the path stays under macOS's limit. One request per connection: a line of JSON in, a line of JSON out. The server is `unref()`ed, so it never keeps Pi running by itself.
 
-**Sending.** `send_message` resolves its `to` (`resolve()`): a session ID or its last characters, a name, a folder, or a Task Memory task ID through the registry's owner. Ambiguity, this session and unknown addresses are errors that say what to use instead. The answer is `delivered`, `held` or `refused`, and the tool result says which. With `notify_when_idle`, the sender asks the receiver to tell it once when it next goes idle or exits; a receiver idle now says so at once.
+**Sending.** `send_message` takes one kind of address: a live session's full session ID (`resolve()`). Names, folders, ID fragments and task IDs are refused, with the IDs of the sessions they may mean, so the next call can use one; this session and unknown IDs are errors too. The agent gets IDs from `list_sessions` or from the `session=` of a message it answers; a child finds its parent by the owned task in `list_sessions`. The answer is `delivered`, `held` or `refused`, and the tool result says which. With `notify_when_idle`, the sender asks the receiver to tell it once when it next goes idle or exits; a receiver idle now says so at once.
 
 **Receiving.** `handle()` checks limits, then the inbound policy (`messaging.inbound`, default `accept`; the settings row "Ask before delivering" shows it as never, outside the project, every message, refuse all):
 
@@ -49,6 +49,7 @@ A delivered message goes through the inbound channel as a `freeflow-message` not
 | Held messages ask at once and expire after 5 minutes; the sender learns the outcome. | As Claude Code; a hold never leaves the sender waiting without an answer. | Asking at the next idle moment; review on demand. | Task 002 D-005 |
 | Identity is read from the event context synchronously, busy is tracked from `agent_start`/`agent_settled`. | Pi invalidates a captured context when it replaces the session; asynchronous work must not read it. | Reading `liveHost` in `identity()`. | Native test, Task 002 |
 | Messages are delivered by default; approval is a setting. | The user's trial: every message waited for a yes when the two sessions shared no project. | Holding messages from outside the project by default (D-005). | Task 002 D-008 |
+| Only a full session ID addresses a session; rows show names. | Names and folders repeat and ID fragments can match two sessions, so one address form avoids delivering to the wrong session (the user, 2026-10-11). A task ID could name an owner whose session ended; `list_sessions` lists only live ones. Rows show the Pi name, else the folder plus four characters of the ID, and a short ID only when no name is known: the result names the session and puts the name in the row's shared render state, so the call line shows it, also after a reload. | Names, folders, ID ends and task IDs as addresses (D-005). | Task 002 D-009 |
 | Rows: `send_message` shows `Message → name: first line` and its outcome, a received message `Message ← name: first line`, outcomes and status one line each (`render.ts`, `host/rows.ts`); a long body shows only when expanded. | Pi's own rows; the user asked for collapsed and expanded views. | Raw notice text. | Task 002 D-008 |
 
 ## Intended Behavior That Looks Wrong
@@ -72,9 +73,10 @@ A delivered message goes through the inbound channel as a `freeflow-message` not
 - `messaging/messaging.ts`: `Messaging` (`start`, `stop`, `setBusy`, `resolve`, `send`, `handle`), the limits, `MESSAGE_TYPE`.
 - `messaging/tools.ts`: `registerMessagingTools()`, `applyMessagingTools()`.
 - `messaging/render.ts`: the transcript rows; `host/rows.ts`: the shared fold (short bodies in both views, long ones when expanded).
-- `index.ts`: the host (identity, policy, delivery through `Inbound`, `confirm`, task owners), `syncMessaging()` in `status()`, `agent_start`/`agent_settled`, `session_shutdown`.
+- `index.ts`: the host (identity, policy, delivery through `Inbound`, `confirm`, owned tasks), `syncMessaging()` in `status()`, `agent_start`/`agent_settled`, `session_shutdown`.
 
 ## Tests
 
-- `tests/messaging/messaging.test.js`: sessions in one process through real sockets: delivery and the notice text, held messages accepted, refused, expired and without a UI, address resolution, `notify_when_idle`, limits, stale entries.
+- `tests/messaging/messaging.test.js`: sessions in one process through real sockets: delivery and the notice text, held messages accepted, refused, expired and without a UI, only full IDs addressing a session (other forms refused with the IDs they may mean), `list_sessions` with owned tasks, `notify_when_idle`, limits, stale entries.
+- `tests/messaging/render.test.js`: the rows: sent, received, outcomes and status, folding, and the call line showing the session's name from the result instead of its ID.
 - `tests/messaging/messaging-native.test.js`: in a real Pi session, `tool_search` active and the tools deferred until loaded, the skill listed, the registry entry, a reload; the tools declared directly without `tool_search`; and nothing of messaging while it is off.

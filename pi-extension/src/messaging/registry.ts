@@ -17,6 +17,8 @@ export type LiveSession = Readonly<{
   project?: string;
   /** The task ID of the session's focused Working Record, when it is registered. */
   task?: string;
+  /** The Task Memory tasks this session owns, so another session can find the one that owns a task. */
+  owns?: readonly string[];
   startedAt: string;
 }>;
 

@@ -434,7 +434,20 @@ export default function freeflow(pi) {
         const project = await taskMemory.registry.projectFor(seen.cwd).catch(() => undefined);
         const focus = taskMemory.state().focus;
         const task = focus ? await taskMemory.registry.byRecord(focus).catch(() => undefined) : undefined;
-        return { ...seen, ...(project ? { project: project.slug } : {}), ...(task ? { task: task.id } : {}) };
+        // The tasks this session owns, so a child finds its parent's session in list_sessions (Task 002 D-009).
+        const tasks = await taskMemory.registry
+          .read()
+          .then((data) => data.tasks)
+          .catch(() => ({}));
+        const owns = Object.entries(tasks)
+          .filter(([, each]) => each?.owner?.session === seen.sessionId)
+          .map(([id]) => id);
+        return {
+          ...seen,
+          ...(project ? { project: project.slug } : {}),
+          ...(task ? { task: task.id } : {}),
+          ...(owns.length ? { owns } : {}),
+        };
       },
       policy: () => capability?.messaging?.inbound ?? "project",
       busy: () => agentRunning,
@@ -448,7 +461,6 @@ export default function freeflow(pi) {
             false,
           ),
         ).catch(() => false)) === true,
-      ownerOf: async (id) => (await taskMemory.registry.task(id).catch(() => undefined))?.owner?.session,
     },
     freeflowHome(),
   );

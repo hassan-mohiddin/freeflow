@@ -20,7 +20,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 Goal: the message reaches the one session it is meant for.
 
-`list_sessions` and `send_message` may not be among your tools: load them with `tool_search` (query `list_sessions send_message`, limit 2). `list_sessions` shows each session's name, session ID, folder, project, focused task, and whether it is busy. Address by name when it is unique, by session ID when names repeat, and by a Task Memory task ID to reach the session that owns that task. A session that is not listed is not running with Messaging on and cannot receive; say so rather than looking for another way in.
+`list_sessions` and `send_message` may not be among your tools: load them with `tool_search` (query `list_sessions send_message`, limit 2). `list_sessions` shows each session's name, session ID, folder, project, the tasks it owns, and whether it is busy. Address a session only by its session ID: names are for display and can repeat. When your user names a session, find its ID in `list_sessions`; when you answer a message, use its `session`. A session that is not listed is not running with Messaging on and cannot receive; say so rather than looking for another way in.
 
 ## Write The Message
 
@@ -46,4 +46,4 @@ Replying is your choice. Reply when the message asks something, or your user wan
 
 Goal: a child session the user runs alongside its parent keeps the parent informed without the user carrying results between them.
 
-A child session reports to its parent's session by the parent's task ID: when its result is ready, when it is blocked, or when it needs a decision the parent owns. The parent records the report in its own Working Record and tells its user; it starts no new work on it unless its user's agreement already covers that work. A report is evidence to assess, not a finished result. Workers that Cognitive Routing manages are not child sessions and do not use messaging.
+A child session reports to the session that owns its parent's task, found in `list_sessions` and addressed by its session ID; when no listed session owns it, the parent is not running, so tell your user. It reports when its result is ready, when it is blocked, or when it needs a decision the parent owns. The parent records the report in its own Working Record and tells its user; it starts no new work on it unless its user's agreement already covers that work. A report is evidence to assess, not a finished result. Workers that Cognitive Routing manages are not child sessions and do not use messaging.

@@ -26,14 +26,25 @@ function bodyAfterHead(text, expanded) {
       ]
     : [];
 }
-export function renderSendCall(args, theme, context) {
-  const to = String(args?.to ?? "");
+/** A session's name for a row: the name the result gave, or the one this session has seen, or a short ID. */
+function shownName(id, context, nameOf) {
+  const named = context?.state?.name ?? nameOf?.(id);
+  if (named) return named;
+  return id.length > 12 ? `${id.slice(0, 8)}…` : id;
+}
+export function renderSendCall(args, theme, context, nameOf) {
+  const to = shownName(String(args?.to ?? ""), context, nameOf);
   const message = String(args?.message ?? "");
   const head = `${paint(theme, "toolTitle", "Message")} ${paint(theme, "accent", `→ ${to}`)}${message ? `: ${paint(theme, "muted", firstLine(message))}` : ""}`;
   return foldRow(head, bodyAfterHead(message, context?.expanded === true), context?.expanded === true, theme);
 }
-export function renderSendResult(result, options, theme) {
+export function renderSendResult(result, options, theme, context) {
   const details = result?.details ?? {};
+  // The call line shows the address as a name once the result names the session.
+  if (context?.state && details.name && context.state.name !== details.name) {
+    context.state.name = details.name;
+    context.invalidate?.();
+  }
   const status = String(details.status ?? (result?.isError ? "failed" : "sent"));
   const name = details.name ?? details.to ?? "";
   const text = (result?.content ?? []).map((part) => part?.text ?? "").join("\n");

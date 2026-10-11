@@ -30,15 +30,27 @@ function bodyAfterHead(text: string, expanded: boolean): string[] {
     : [];
 }
 
-export function renderSendCall(args: any, theme: any, context: any): Text {
-  const to = String(args?.to ?? "");
+/** A session's name for a row: the name the result gave, or the one this session has seen, or a short ID. */
+function shownName(id: string, context: any, nameOf?: (id: string) => string | undefined): string {
+  const named = context?.state?.name ?? nameOf?.(id);
+  if (named) return named;
+  return id.length > 12 ? `${id.slice(0, 8)}…` : id;
+}
+
+export function renderSendCall(args: any, theme: any, context: any, nameOf?: (id: string) => string | undefined): Text {
+  const to = shownName(String(args?.to ?? ""), context, nameOf);
   const message = String(args?.message ?? "");
   const head = `${paint(theme, "toolTitle", "Message")} ${paint(theme, "accent", `→ ${to}`)}${message ? `: ${paint(theme, "muted", firstLine(message))}` : ""}`;
   return foldRow(head, bodyAfterHead(message, context?.expanded === true), context?.expanded === true, theme);
 }
 
-export function renderSendResult(result: any, options: any, theme: any): Text {
+export function renderSendResult(result: any, options: any, theme: any, context?: any): Text {
   const details = result?.details ?? {};
+  // The call line shows the address as a name once the result names the session.
+  if (context?.state && details.name && context.state.name !== details.name) {
+    context.state.name = details.name;
+    context.invalidate?.();
+  }
   const status = String(details.status ?? (result?.isError ? "failed" : "sent"));
   const name = details.name ?? details.to ?? "";
   const text = (result?.content ?? []).map((part: any) => part?.text ?? "").join("\n");

@@ -91,3 +91,16 @@ test("ask_user rows show the question and the answer, or that the dialog was clo
   const closed = { details: { outcome: { status: "dismissed" } } };
   assert.equal(lines(tool.renderResult(closed, { expanded: false })), "Closed without answering (Esc)");
 });
+
+test("a message's call line shows the session's name, not its ID, once anything names it", () => {
+  const id = "01a12c0e-56c5-7435-ade3-db93e9321de8";
+  const context = { state: {}, expanded: false, invalidate: () => (context.invalidated = true) };
+  // Before the result: a name this session has seen, else a short ID.
+  assert.equal(lines(renderSendCall({ to: id, message: "hi" }, undefined, context)), "Message → 01a12c0e…: hi");
+  assert.equal(lines(renderSendCall({ to: id, message: "hi" }, undefined, context, () => "1")), "Message → 1: hi");
+  // The result names the session (also after a reload, when nothing was seen) and redraws the call line.
+  const delivered = { details: { status: "delivered", name: "1", to: id }, content: [{ type: "text", text: "x" }] };
+  assert.equal(lines(renderSendResult(delivered, { expanded: false }, undefined, context)), "Delivered to 1");
+  assert.equal(context.invalidated, true);
+  assert.equal(lines(renderSendCall({ to: id, message: "hi" }, undefined, context)), "Message → 1: hi");
+});
