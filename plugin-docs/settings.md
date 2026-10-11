@@ -73,15 +73,14 @@ How to read it:
 
 ## The footer
 
-Pi's footer shows one `freeflow:` line naming each capability that is on, in the order of the settings screen: `compaction`, `tools` (Tool Execution), `memory` (Task Memory), `messaging`, then routing's state.
+Pi's footer shows one `freeflow:` line with what changes while you work: Cognitive Routing's state. The other capabilities are settings, shown on the settings screen.
 
 | Footer | Means |
 | --- | --- |
-| `freeflow: compaction` | Freeflow on with its defaults |
-| `freeflow: compaction · tools · memory · messaging` | those four capabilities on |
-| `freeflow: compaction · coordinator · automatic · executor mode` | routing running: the profile working now, automatic or a manual hold, and the delegation mode |
-| `freeflow: compaction · routing blocked · <reason>` | routing on but not running, and why |
-| `freeflow: on` | Freeflow on, every capability off |
+| `freeflow: coordinator · automatic · executor mode` | routing running: the profile working now, automatic or a manual hold, and the delegation mode |
+| `freeflow: routing blocked · <reason>` | routing on but not running, and why |
+| `freeflow: on` | Freeflow on, routing off |
+| `freeflow: on (all capabilities off)` | Freeflow on, every capability off |
 | `freeflow: off` | Freeflow off |
 | `freeflow: setup needed`, `freeflow: config error` | no configuration file, or one Freeflow cannot read |
 

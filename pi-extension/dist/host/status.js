@@ -63,15 +63,15 @@ export function setFreeflowStatus(
       active.push(`routing blocked · ${reason}`);
     }
   }
-  // The footer names each capability that is on, in the settings screen's order; routing adds its state (Task 005).
-  const on = [
-    capabilityState?.compaction?.effective === true ? "compaction" : "",
-    capabilityState?.toolExecution?.effective === true ? "tools" : "",
-    capabilityState?.taskMemory?.effective === true ? "memory" : "",
-    capabilityState?.messaging?.effective === true ? "messaging" : "",
-  ].filter(Boolean);
-  const shown = [...on, ...active];
-  ctx.ui.setStatus("freeflow", `freeflow: ${shown.length > 0 ? shown.join(" · ") : "on"}`);
+  // The footer shows state that changes while you work, which only routing has; other capabilities are settings
+  // (Task 005). With every capability off it says so.
+  const anyOn = ["compaction", "toolExecution", "taskMemory", "messaging", "cognitiveRouting"].some(
+    (name) => capabilityState?.[name]?.effective === true || capabilityState?.[name]?.enabled === true,
+  );
+  ctx.ui.setStatus(
+    "freeflow",
+    `freeflow: ${active.length > 0 ? active.join(" · ") : anyOn || !capabilityState ? "on" : "on (all capabilities off)"}`,
+  );
 }
 /** The /freeflow status report: capability state and diagnostics, including prompt-cache health. */
 export function freeflowStatusText(state, cognitiveRoutingController, diagnostics) {

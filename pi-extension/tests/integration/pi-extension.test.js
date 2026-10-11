@@ -870,8 +870,8 @@ test("session delegation setting enables Helper in the same panel without writin
   }
 });
 
-test("the footer names each capability that is on, in the settings order, and routing's state", () => {
-  // Task 005: one compact line; routing alone adds detail.
+test("the footer shows routing's state, or that Freeflow is on and whether every capability is off", () => {
+  // Task 005: only routing's state changes while you work, so it alone is in the footer.
   const statuses = [];
   const ctx = { ui: { setStatus: (name, value) => statuses.push(value) } };
   const base = { configured: true, enabled: true, configSources: { enabled: "builtin" } };
@@ -899,9 +899,9 @@ test("the footer names each capability that is on, in the settings order, and ro
     readyFreeflowContext,
   );
   assert.deepEqual(statuses, [
+    "freeflow: on (all capabilities off)",
     "freeflow: on",
-    "freeflow: compaction · tools · messaging",
-    "freeflow: compaction · coordinator · automatic · executor mode",
+    "freeflow: coordinator · automatic · executor mode",
   ]);
 });
 
