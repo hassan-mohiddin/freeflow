@@ -86,7 +86,8 @@ test("re-entry recovery is stable and capability-neutral", async () => {
   assert.match(core, /Then continue the covered work toward the agreed end/);
   assert.match(core, /Context loss is not a reason to stop or to ask for permission again/);
   assert.match(core, /## Terms/);
-  assert.match(core, /## Cues/);
+  // Skills are cued by their descriptions, not by core (Task 003 audit B and D).
+  assert.doesNotMatch(core, /## Cues/);
   assert.match(cognitiveRouting, /Before relying on Automatic routing, read the complete cognitive-routing skill/);
   assert.match(cognitiveRouting, /This bootstrap read is the only environment call/);
   assert.match(cognitiveRouting, /If unavailable, stop and report the missing method/);
@@ -136,7 +137,6 @@ test("composes the mandatory core fragments, current capabilities, discovery, an
       "## Terms",
       "## Load The Selected Method",
       "## Recover After Context Loss",
-      "## Cues",
       "# Freeflow Interaction Contract",
     ].map((marker) => prompt.indexOf(marker));
     assert.ok(order.every((index) => index >= 0));

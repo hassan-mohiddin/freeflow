@@ -1,6 +1,6 @@
 ---
 name: "cognitive-routing"
-description: "Use when Cognitive Routing is active to place work across configured profiles, direct bounded assignments, assess evidence, and preserve workflow continuity."
+description: "Use when Cognitive Routing is active: the Coordinator plans and delegates work to Helper or Executor profiles, and workers carry out and report their assignments."
 ---
 
 # Cognitive Routing

@@ -90,7 +90,6 @@ for expected in \
   "## Terms" \
   "## Load The Selected Method" \
   "## Recover After Context Loss" \
-  "## Cues" \
   "# Freeflow Interaction Contract" \
   "Only a request to act authorizes action." \
   "# Freeflow Working Method" \

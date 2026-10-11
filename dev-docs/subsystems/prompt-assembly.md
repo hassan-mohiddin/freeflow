@@ -12,7 +12,6 @@ Freeflow’s model-facing behavior is delivered through coordinated core, capabi
 - shared terminology;
 - the Interaction Lifecycle, Feedback Loop, and Environment Interaction Loop;
 - compact readiness and recovery invariants;
-- Workflow, Action Selection, and Supported Exit cues.
 
 Core guidance is mandatory whenever Freeflow is enabled and also contains the guidance previously separated into `skills.md`. Detailed planning, execution, verification, and handback methods remain in skills rather than being duplicated into the standing prompt.
 

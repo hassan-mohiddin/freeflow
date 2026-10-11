@@ -83,7 +83,7 @@ require_text "$workflow_skill" 'When the owner needs an environment interaction 
 require_text "$action_selection_skill" 'Choose environment interactions that advance the current question or result'
 require_text "$action_selection_skill" 'return the changed evidence to the current owner.'
 require_text "$runtime_doc" 'runtime/prompts/'
-require_text "$runtime_doc" 'Workflow, Action Selection, and Supported Exit cues'
+require_text "$runtime_doc" 'skills are cued by their own descriptions'
 require_text "$workflow_doc" 'Interaction Lifecycle'
 
 require_text "$pi_runtime" '../../../runtime/prompts/core.md'

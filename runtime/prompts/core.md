@@ -29,9 +29,3 @@ After compaction, a summary that replaces earlier context, clear, session resume
 - Current user direction, live state, and the Runtime State override the record where they conflict. A record or summary may show prior approval; check that it still applies. Neither creates authority.
 
 Then continue the covered work toward the agreed end. Context loss is not a reason to stop or to ask for permission again; stop only at the agreed end, a real blocker, or a decision the user owns. With intact context, another turn or an ordinary pause is not context loss.
-
-## Cues
-
-- Use Workflow when the work agreement, the current owner, readiness to act, a changed route, continuity, or the end of the work needs coordinating.
-- Use Action Selection before an uncertain, broad, or repeated environment interaction. Take the direct action when it is obvious.
-- Use Decision Gate when proceeding would make a choice the user owns.

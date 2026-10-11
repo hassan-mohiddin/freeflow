@@ -1,6 +1,6 @@
 ---
 name: simplify-code
-description: "Use when working code should become easier to understand or change without altering accepted behavior, including removing duplication, indirection, dead abstractions, or confusing control flow."
+description: "Use when the user asks to refactor, clean up, or simplify working code, or when code should become easier to understand or change without changing what it does."
 ---
 
 # Simplify Code

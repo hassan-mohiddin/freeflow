@@ -1,6 +1,6 @@
 ---
 name: track-work
-description: "Use when work needs durable task memory: starting, updating, recovering, or closing a Working Record, or preparing for compaction, a pause, or a handoff."
+description: "Use when a task needs memory that outlasts the conversation: starting, updating, or recovering its Working Record, or before a compaction, pause, or handoff. It decides what the record says."
 ---
 
 # Track Work

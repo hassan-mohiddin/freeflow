@@ -1,6 +1,6 @@
 ---
 name: "workflow"
-description: "Use when authority, current ownership, readiness to act, route changes, continuity, selected checkpoints, or Supported Exit must be coordinated across Freeflow activities."
+description: "Use for any task that changes something or takes several steps: agreeing what the user asked for and where to stop, choosing which activity comes next, and continuing to the agreed end without going past it."
 ---
 
 # Workflow

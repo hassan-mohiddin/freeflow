@@ -1,6 +1,6 @@
 ---
 name: "task-memory"
-description: "Use when a Pi session has Freeflow task memory on and the work involves Working Records or their projects: the user asks to list, open, create, switch or split tasks or projects; the work needs a record created, recovered or updated; another task may hold what this one needs; or a record write is refused."
+description: "Use on Pi with Freeflow task memory on, when the user asks about tasks or projects (list, open, create, switch, split) or the work needs a Working Record attached, read from another task, or written after a refusal. Track Work decides what a record says."
 ---
 
 # Task Memory

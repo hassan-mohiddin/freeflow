@@ -1,6 +1,6 @@
 ---
 name: verify-work
-description: "Use when verifying work or a claim after implementation, tests, builds, runtime checks, failures, conflicting evidence, or incomplete evidence."
+description: "Use when checking whether work or a claim actually holds: running tests, builds, or the real path, and judging what the evidence shows, including failures and conflicting results."
 ---
 
 # Verify Work

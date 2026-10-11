@@ -1,6 +1,6 @@
 ---
 name: "action-selection"
-description: "Use when choosing or bounding an environment interaction, especially when the needed context, target, observer, or scope is uncertain, output may be broad, or recent actions have not advanced the current question."
+description: "Use before a search, read, or command whose target, scope, or output size is unclear, or when the last few actions have not moved the question forward; skip it when the next action is obvious."
 ---
 
 # Action Selection

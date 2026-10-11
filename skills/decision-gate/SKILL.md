@@ -1,6 +1,6 @@
 ---
 name: "decision-gate"
-description: "Use when proceeding would silently choose a consequential outcome for the user, or when accepted sources conflict in a way that leaves one material choice blocking the next action."
+description: "Use when continuing would decide something that is the user's to choose, or when sources the work relies on disagree and one choice blocks the next step."
 ---
 
 # Decision Gate

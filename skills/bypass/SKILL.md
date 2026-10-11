@@ -1,6 +1,6 @@
 ---
 name: bypass
-description: "Use when the user explicitly asks to skip or reduce optional workflow pressure for the next authorized activity or the current task."
+description: "Use when the user explicitly asks to skip or lighten Freeflow's optional steps, such as a plan, a review, or a record, for the next task or the current one."
 ---
 
 # Bypass

@@ -1,6 +1,6 @@
 ---
 name: write-spec
-description: "Use when writing or revising a spec, PRD, issue, API contract, technical design, migration contract, decision artifact, or similar durable document."
+description: "Use when writing or revising a document that defines what to build or decide: a spec, PRD, issue, API contract, technical design, or decision record."
 ---
 
 # Write Spec

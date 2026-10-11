@@ -1,6 +1,6 @@
 ---
 name: finish-branch
-description: Use when deciding how to integrate, preserve, or discard work on a branch or isolated checkout.
+description: "Use when deciding what to do with work on a branch or worktree: merge it, open a pull request, keep it for later, or delete it."
 ---
 
 # Finish Branch
