@@ -143,7 +143,7 @@ Assess your own direction too: did the contract leave a consequential decision i
 Before commissioning more work, ask whether it meets an accepted requirement, repairs a demonstrated defect, or only adds an optional guarantee; Workflow owns that test. Then choose from the gap:
 
 - **Supported result:** continue with the next covered work, or accept the outcome.
-- **Evidence omitted but it exists:** recover it (below) before investigating again; absence from your view does not mean the action never happened.
+- **Evidence omitted but it exists:** recover it (below) before investigating again; absence from your view does not mean the action never happened. Selected evidence is not omitted: it stays in your view where the worker produced it, so look there before recovering it.
 - **Missing or inadequate observation:** request the observation that decides it, without changing the required property.
 - **Supported defect:** assign the correction and affected checks to the owner its responsibility needs.
 - **Invalidated approach or unclear cause:** revise the direction or commission diagnosis rather than repeat the demand.

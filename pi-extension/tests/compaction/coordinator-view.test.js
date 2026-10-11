@@ -60,6 +60,11 @@ test(
         assert.match(JSON.stringify(assessing.input), /## Carried for the worker/);
         assert.doesNotMatch(JSON.stringify(assessing.input), /## Tool results/);
         assert.equal(occurrences(assessing, "BIG_EVIDENCE"), 1, "the selected result appears once");
+        // The Coordinator is told that the selected result is already in its view, not re-sent (Task 004 S-005).
+        assert.match(
+          JSON.stringify(assessing.input),
+          /Selected evidence is already in your view, in place in the worker's run/,
+        );
         // The evidence stays after the unit closes: the closing request extends the assessing one.
         assert.ok(extendsPrevious(assessing, closing), "the Coordinator's prefix is unchanged after the unit closes");
         assert.equal(occurrences(closing, "BIG_EVIDENCE"), 1);

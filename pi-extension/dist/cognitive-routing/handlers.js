@@ -341,8 +341,9 @@ export class ToolHandlers {
       warnings: prepared.warnings,
       stage: "completed-input preparation",
       finalExchangePending: true,
+      // The Coordinator reads this receipt too, after delivery; it must not read as "the evidence was not delivered".
       provisional:
-        "The finalized handoff exchange, target configuration and budget are revalidated at turn_end; this is not delivery evidence.",
+        "Saved. When this turn ends, Freeflow checks the handoff and delivers the report to Coordinator; selected evidence stays in place in the worker's run, where Coordinator sees it.",
       // The text is already in the call arguments; the hash identifies it without a second copy.
       ...(isSupplement ? { supplementSha256: bodyHash(h.text) } : { reportSha256: bodyHash(h.text) }),
       evidence: this.assembler.evidenceFacts(state),
