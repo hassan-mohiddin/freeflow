@@ -493,6 +493,11 @@ export default function freeflow(pi) {
     },
   });
   // /freeflow project: the user creates projects and links repositories to them; the model never does (D-015).
+  // Where the user can browse the project's records, when the project link was made (Task 004 D-003).
+  async function browseNote(cwd) {
+    const link = await taskMemory.registry.linkHere(cwd).catch(() => undefined);
+    return link && !link.error ? ` Browse its records in ${link.link}.` : "";
+  }
   async function projectCommand(rest, ctx) {
     if (!taskMemoryEffective()) {
       ctx.ui.notify("Task memory is off. Turn it on in /freeflow settings (Task Memory).", "warning");
@@ -506,10 +511,10 @@ export default function freeflow(pi) {
     try {
       if (sub === "new" && name) {
         const slug = await taskMemory.registry.createProject(name, ctx.cwd, worktrees);
-        ctx.ui.notify(`Project ${slug} created and linked to this repository.`, "info");
+        ctx.ui.notify(`Project ${slug} created and linked to this repository.${await browseNote(ctx.cwd)}`, "info");
       } else if (sub === "link" && name) {
         const slug = await taskMemory.registry.linkProject(name, ctx.cwd, worktrees);
-        ctx.ui.notify(`This repository is linked to project ${slug}.`, "info");
+        ctx.ui.notify(`This repository is linked to project ${slug}.${await browseNote(ctx.cwd)}`, "info");
       } else if (sub === "list") {
         const result = await taskMemory.projects(ctx.cwd);
         ctx.ui.notify(result.text, result.ok ? "info" : "warning");
@@ -517,7 +522,7 @@ export default function freeflow(pi) {
         const found = await taskMemory.registry.projectFor(ctx.cwd);
         ctx.ui.notify(
           found
-            ? `Project ${found.project.name} (${found.slug}), store ${found.project.store}.\n${await taskMemory.list(ctx.cwd)}`
+            ? `Project ${found.project.name} (${found.slug}), store ${found.project.store}.${await browseNote(ctx.cwd)}\n${await taskMemory.list(ctx.cwd)}`
             : "This repository is not linked to a project. Use /freeflow project new <name> or link <name>.",
           "info",
         );
@@ -642,6 +647,9 @@ export default function freeflow(pi) {
     taskMemory.rebuild(cachedBranch(ctx.sessionManager));
     if (taskMemoryEffective()) {
       await taskMemory.load();
+      // The project link for the user to browse records in the editor, made again if missing (Task 004 D-003). Not
+      // awaited: it runs Git, and nothing at startup reads it.
+      void taskMemory.registry.linkHere(ctx.cwd).catch(() => undefined);
       // A fork or clone copies the branch's attachments; they stay held until the user confirms them here.
       if (event?.reason === "fork") {
         const held = taskMemory.holdInherited();

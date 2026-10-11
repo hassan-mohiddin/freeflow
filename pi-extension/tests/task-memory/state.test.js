@@ -310,3 +310,39 @@ test("an auto-approved proposal runs without the dialog and says so; others stil
   const listed = await tool.execute("id", { action: "list" }, undefined, undefined, ctx(false));
   assert.equal(listed.content[0].text, "list ran");
 });
+
+test("a record named through the project link is the registered record to lookup and the gate", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { basename, dirname } = await import("node:path");
+  const { TaskMemory } = await import("../../dist/task-memory/runtime.js");
+  const { Registry } = await import("../../../skills/track-work/scripts/lib/registry.mjs");
+  const before = process.env.FREEFLOW_HOME;
+  process.env.FREEFLOW_HOME = await mkdtemp(join(tmpdir(), "freeflow-home-"));
+  try {
+    const repo = await mkdtemp(join(tmpdir(), "freeflow-repo-"));
+    execFileSync("git", ["-C", repo, "init", "-q"]);
+    const lib = new Registry(process.env.FREEFLOW_HOME);
+    const slug = await lib.createProject("Linked", repo);
+    const task = await lib.createTask(slug, "T", "Goal.");
+    const viaLink = join(repo, ".freeflow", "project", "tasks", basename(dirname(task.record)), "record.md");
+    const appended = [];
+    const memory = new TaskMemory({
+      effective: () => true,
+      append: (data) => appended.push(data),
+      send: () => {},
+      owner: () => ({ session: "this-session", since: "2026-10-11T00:00:00.000Z" }),
+      confirm: async () => false,
+      packageRoot: process.cwd(),
+    });
+    const attached = await memory.attach(viaLink, repo);
+    assert.equal(attached.ok, true, attached.text);
+    assert.deepEqual(memory.state().attached, [task.record], "attached as the registry's path, as by task ID");
+    assert.equal(await memory.gate("edit", { path: viaLink }, repo), undefined, "a write through the link is allowed");
+    const close = `node skills/track-work/scripts/working-record.mjs slice close --record ${viaLink} --input -`;
+    assert.equal(await memory.gate("bash", { command: close }, repo), undefined);
+    await memory.detach(slug + "/task-001", repo);
+    assert.match((await memory.gate("edit", { path: viaLink }, repo)).reason, /is not attached to this session/);
+  } finally {
+    process.env.FREEFLOW_HOME = before;
+  }
+});

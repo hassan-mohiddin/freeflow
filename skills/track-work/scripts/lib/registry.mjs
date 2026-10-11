@@ -1,5 +1,21 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { copyFile, cp, mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { realpathSync } from "node:fs";
+import {
+  appendFile,
+  copyFile,
+  cp,
+  lstat,
+  mkdir,
+  readdir,
+  readFile,
+  readlink,
+  rename,
+  rm,
+  stat,
+  symlink,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -54,6 +70,22 @@ export function startCommand(path, agent) {
 }
 
 const empty = () => ({ version: 1, projects: {}, tasks: {} });
+
+/** A path with its symlinks resolved, or as given when it does not exist. */
+function real(path) {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
+/**
+ * The project link (Task 004 D-003): a symlink in each repository linked to a project, and in its children's worktrees,
+ * to the project's store, so the user can browse and edit its records in the editor. Agents address records by task ID
+ * or real path.
+ */
+export const PROJECT_LINK = ".freeflow/project";
 
 export class Registry {
   constructor(home = freeflowHome()) {
@@ -151,13 +183,14 @@ export class Registry {
         if (project.repos.includes(root)) throw new RegistryError(`${root} is already linked to ${project.name}.`);
       data.projects[slug] = { name, store, repos: [root], ...(worktrees ? { worktrees: directory(worktrees) } : {}) };
     });
+    await this.linkStore(root, store);
     return slug;
   }
 
   async linkProject(name, cwd, worktrees) {
     const slug = projectSlug(name);
     const root = await this.repoRoot(cwd);
-    await this.update((data) => {
+    const store = await this.update((data) => {
       const project = data.projects[slug];
       if (!project) throw new RegistryError(`No project named ${name}.`);
       for (const [other, entry] of Object.entries(data.projects))
@@ -168,8 +201,62 @@ export class Registry {
         repos: project.repos.includes(root) ? project.repos : [...project.repos, root],
         ...(worktrees ? { worktrees: directory(worktrees) } : {}),
       };
+      return project.store;
     });
+    await this.linkStore(root, store);
     return slug;
+  }
+
+  /**
+   * Make the project link in a directory and keep it out of Git through the clone's info/exclude, not a shared
+   * .gitignore. A link to the store is kept, a link elsewhere replaced, and anything else at that path left alone.
+   * Where no link can be made (Windows without the right to make one), the result says why; the store's real path
+   * still works.
+   */
+  async linkStore(dir, store) {
+    const link = join(dir, PROJECT_LINK);
+    let existing;
+    try {
+      existing = await lstat(link);
+    } catch (error) {
+      if (error?.code !== "ENOENT") return { link, error: String(error?.message ?? error) };
+    }
+    if (existing && !existing.isSymbolicLink()) return { link, error: `${link} is not a link; it was left alone.` };
+    try {
+      if (existing && real(await readlink(link)) === real(store)) return { link };
+      if (existing) await unlink(link);
+      await mkdir(dirname(link), { recursive: true });
+      // A junction on Windows needs no extra right; other systems ignore the type.
+      await symlink(store, link, "junction");
+    } catch (error) {
+      return { link, error: `The project link was not made: ${error?.message ?? error}` };
+    }
+    try {
+      await execFile("git", ["-C", dir, "check-ignore", "-q", "--", PROJECT_LINK]);
+    } catch (error) {
+      // Exit 1: not ignored. Any other failure (not a Git repository, no Git) leaves nothing to ignore it from.
+      if (error?.code !== 1) return { link };
+      try {
+        const where = (await execFile("git", ["-C", dir, "rev-parse", "--git-path", "info/exclude"])).stdout.trim();
+        const exclude = resolve(dir, where);
+        await mkdir(dirname(exclude), { recursive: true });
+        const text = await readFile(exclude, "utf8").catch(() => "");
+        await appendFile(exclude, `${text && !text.endsWith("\n") ? "\n" : ""}/${PROJECT_LINK}\n`);
+      } catch (failure) {
+        return { link, error: `The project link is not ignored by Git: ${failure?.message ?? failure}` };
+      }
+    }
+    return { link };
+  }
+
+  /**
+   * The project link for the repository containing cwd, made if missing, when it belongs to a project: linked to it, or
+   * a registered task's directory (a child's worktree). Undefined when it belongs to none.
+   */
+  async linkHere(cwd) {
+    const data = await this.read();
+    const project = (await this.projectFor(cwd))?.project ?? data.projects[(await this.here(cwd))[0]?.task.project];
+    return project ? this.linkStore(await this.repoRoot(cwd), project.store) : undefined;
   }
 
   /** Create a record in the project's store with this script's init, then register it; primary is its directory. */
@@ -252,7 +339,11 @@ export class Registry {
   }
 
   async byRecord(record) {
-    const entry = Object.entries((await this.read()).tasks).find(([, task]) => task.record === record);
+    // The same file by another path (through the project link, or a symlinked home) is the same record.
+    const tasks = Object.entries((await this.read()).tasks);
+    const target = real(record);
+    const entry =
+      tasks.find(([, task]) => task.record === record) ?? tasks.find(([, task]) => real(task.record) === target);
     return entry ? { id: entry[0], task: entry[1] } : undefined;
   }
 
@@ -378,6 +469,7 @@ export class Registry {
       await copyFile(local, copied);
     }
     await this.setEnvironment(created.id, { primary: target });
+    await this.linkStore(target, project.store);
     return { ...created, path: target, branch, copiedConfig: hasLocal && !hasCopy };
   }
 

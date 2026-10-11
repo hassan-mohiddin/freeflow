@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { cwd } from "node:process";
 import { dirname, isAbsolute, resolve, sep } from "node:path";
@@ -16,7 +17,7 @@ import {
   writeInitialAtomically,
 } from "./lib/store.mjs";
 import { renderEntries, renderFull, renderResume } from "./lib/views.mjs";
-import { Registry, TASK_ID, startCommand } from "./lib/registry.mjs";
+import { PROJECT_LINK, Registry, TASK_ID, startCommand } from "./lib/registry.mjs";
 import { searchRecords } from "./lib/search.mjs";
 
 const ROOT_HELP =
@@ -370,10 +371,15 @@ async function readExisting(options) {
 async function runRegistry(command, operation, options) {
   const registry = new Registry();
   const where = options["--cwd"] ?? cwd();
+  // Where the user can browse the project's records, when the project link was made.
+  const browse = async () => {
+    const link = resolve(await registry.repoRoot(where), PROJECT_LINK);
+    return existsSync(link) ? ` The user can browse its records at ${link}.` : "";
+  };
   if (command === "project" && operation === "new")
-    return `Project ${await registry.createProject(requireOption(options, "--name"), where, options["--worktrees"])} created and linked to ${await registry.repoRoot(where)}.\n`;
+    return `Project ${await registry.createProject(requireOption(options, "--name"), where, options["--worktrees"])} created and linked to ${await registry.repoRoot(where)}.${await browse()}\n`;
   if (command === "project" && operation === "link")
-    return `${await registry.repoRoot(where)} linked to project ${await registry.linkProject(requireOption(options, "--name"), where, options["--worktrees"])}.\n`;
+    return `${await registry.repoRoot(where)} linked to project ${await registry.linkProject(requireOption(options, "--name"), where, options["--worktrees"])}.${await browse()}\n`;
   if (command === "project" && operation === "list") {
     const data = await registry.read();
     const projects = Object.entries(data.projects);

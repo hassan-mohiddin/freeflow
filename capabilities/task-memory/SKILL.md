@@ -7,6 +7,8 @@ description: "Use on Pi with Freeflow task memory on, when the user asks about t
 
 With task memory on, a Pi session holds the Working Records it works on. Attached records are the ones this session may write; one attached record is the focus, the one the conversation is about. A record may be registered in a project, with an ID such as `my-project/task-003` and one owning session; registered tasks can have child records, each worked in its own session. Freeflow lists attached records in the Runtime State under `Task Memory:`, delivers the focused record's resume view when it becomes the focus or context is rebuilt, and refuses writes to records the session has not attached. [Track Work](../../skills/track-work/SKILL.md) still decides whether a task needs a record and what a record says; this skill covers how the session holds records and how the user's requests about tasks and projects become `task_memory` actions.
 
+A repository linked to a project, and each child's worktree, has `.freeflow/project`: a link to the project's store, so the user can open and edit its records in the editor. A path under it names the same record as the task ID; reach records by task ID and `task_memory` actions, not by listing that folder.
+
 The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 
 ## Rules

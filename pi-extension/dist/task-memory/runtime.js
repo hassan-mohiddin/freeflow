@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -78,9 +78,31 @@ function option(command, name) {
   const match = new RegExp(`${name}(?:=|\\s+)(?:"([^"]+)"|'([^']+)'|(\\S+))`).exec(command);
   return match ? (match[1] ?? match[2] ?? match[3]) : undefined;
 }
-/** The Working Record files a tool call would write, resolved to absolute paths. */
+/** A path with its symlinks resolved; for a path that does not exist yet, its nearest existing ancestor's. */
+export function canonicalPath(path) {
+  const missing = [];
+  for (let current = resolve(path); ;) {
+    try {
+      return join(realpathSync(current), ...missing);
+    } catch {
+      const parent = dirname(current);
+      if (parent === current) return resolve(path);
+      missing.unshift(basename(current));
+      current = parent;
+    }
+  }
+}
+/**
+ * The Working Record files a tool call would write, resolved to absolute paths. A path to an attached record by another
+ * route (the project link, a symlinked home) is returned as the attached path, so the gate sees one file as one record.
+ */
 export function recordTargets(toolName, input, cwd, attached) {
-  const absolute = (path, base = cwd) => (isAbsolute(path) ? resolve(path) : resolve(base, path));
+  const asAttached = (path) => {
+    if (attached.includes(path)) return path;
+    const real = canonicalPath(path);
+    return attached.find((item) => canonicalPath(item) === real) ?? path;
+  };
+  const absolute = (path, base = cwd) => asAttached(isAbsolute(path) ? resolve(path) : resolve(base, path));
   const isTarget = (path) => isRecordPath(path) || attached.includes(path);
   if ((toolName === "edit" || toolName === "write") && typeof input?.path === "string") {
     const path = absolute(input.path);
@@ -322,8 +344,10 @@ export class TaskMemory {
       return { error: `${path} does not exist.` };
     }
     if (basename(path) !== "record.md") return { error: `${path} is not a Working Record (record.md).` };
-    await this.read(path);
+    // A registered record named through the project link is the registry's path, as a task ID would give.
     const found = await this.registered(path);
+    if (found) path = found.task.record;
+    await this.read(path);
     if (found) this.ids.set(path, found.id);
     return { path, id: found?.id };
   }
@@ -359,6 +383,10 @@ export class TaskMemory {
     const direct = resolve(cwd, record);
     const match = this.current.attached.find((item) => item === direct || item === join(direct, "record.md"));
     if (match) return match;
+    // The same record through the project link.
+    const real = canonicalPath(direct.endsWith("record.md") ? direct : join(direct, "record.md"));
+    const linked = this.current.attached.find((item) => canonicalPath(item) === real);
+    if (linked) return linked;
     if (TASK_ID.test(record.trim())) {
       const { path } = await this.locate(record, cwd);
       return path && this.current.attached.includes(path) ? path : undefined;
@@ -686,10 +714,12 @@ export class TaskMemory {
           ? await this.registry.createProject(name.trim(), cwd, where)
           : await this.registry.linkProject(name.trim(), cwd, where);
       const repo = await this.registry.repoRoot(cwd);
+      const link = join(repo, ".freeflow", "project");
+      const browse = existsSync(link) ? ` The user can browse its records at ${link}.` : "";
       const text =
         operation === "new"
-          ? `Project ${slug} created and linked to ${repo}.`
-          : `${repo} is linked to project ${slug}.`;
+          ? `Project ${slug} created and linked to ${repo}.${browse}`
+          : `${repo} is linked to project ${slug}.${browse}`;
       return { ok: true, headline: text, text };
     } catch (error) {
       return { ok: false, text: error?.message ?? String(error) };

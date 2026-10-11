@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { Registry, RegistryError } from "../../../skills/track-work/scripts/lib/registry.mjs";
 
@@ -274,4 +274,49 @@ test("paths typed with ~ mean the home directory; fan-out ends with a command to
   );
   assert.match(cli(home, ["project", "list"]), /- App \(app\): 2 task\(s\); repositories /);
   assert.match(cli(home, ["project", "show", "--name", "App"]), /Project App \(app\)[\s\S]*app\/task-002 — Parser/);
+});
+
+test("a linked repository and a child's worktree get .freeflow/project, a link to the store that Git ignores", async () => {
+  const { lstat, readlink, mkdir, rm, symlink } = await import("node:fs/promises");
+  const { home } = await fresh();
+  const repo = await gitRepo();
+  const registry = new Registry(home);
+  const slug = await registry.createProject("Linked", repo);
+  const store = join(home, "projects", slug);
+  const link = join(repo, ".freeflow", "project");
+  assert.equal(await readlink(link), store);
+  const git = (...args) => execFileSync("git", ["-C", repo, ...args]).toString();
+  assert.equal(git("status", "--porcelain"), "", "ignored through info/exclude; no tracked file changed");
+  assert.match(await readFile(join(repo, ".git", "info", "exclude"), "utf8"), /^\/\.freeflow\/project$/m);
+
+  // A record read or written through the link is the registered record.
+  const task = await registry.createTask(slug, "T", "Goal.");
+  const viaLink = join(link, "tasks", basename(dirname(task.record)), "record.md");
+  assert.equal((await registry.byRecord(viaLink)).id, task.id);
+  const script = resolve("skills/track-work/scripts/working-record.mjs");
+  assert.match(
+    execFileSync(process.execPath, [script, "validate", "--record", viaLink], { cwd: repo }).toString(),
+    /^valid/,
+  );
+
+  // Missing: made again, without a second exclude line. Pointing elsewhere: replaced. Not a link: left alone.
+  await rm(link);
+  assert.equal((await registry.linkHere(repo)).error, undefined);
+  assert.equal(await readlink(link), store);
+  assert.equal((await readFile(join(repo, ".git", "info", "exclude"), "utf8")).match(/\.freeflow\/project/g).length, 1);
+  await rm(link);
+  await symlink(tmpdir(), link);
+  await registry.linkHere(repo);
+  assert.equal(await readlink(link), store);
+  await rm(link);
+  await mkdir(link);
+  assert.match((await registry.linkHere(repo)).error, /not a link; it was left alone/);
+  assert.equal((await lstat(link)).isDirectory(), true);
+  await rm(link, { recursive: true });
+
+  // A child's worktree is linked too, and a directory in no project gets nothing.
+  const parent = await registry.createTask(slug, "Parent", "Goal.", undefined, repo);
+  const child = await registry.fanout(parent.id, "Child", "Goal.");
+  assert.equal(await readlink(join(child.path, ".freeflow", "project")), store);
+  assert.equal(await registry.linkHere(await mkdtemp(join(tmpdir(), "freeflow-none-"))), undefined);
 });

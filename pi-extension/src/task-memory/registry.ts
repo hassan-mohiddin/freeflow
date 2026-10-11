@@ -107,6 +107,10 @@ export class Registry {
   }> {
     return this.call("environment", id);
   }
+  /** The project link for cwd's repository, made if missing; undefined when it belongs to no project (Task 004 D-003). */
+  linkHere(cwd: string): Promise<{ link: string; error?: string } | undefined> {
+    return this.call("linkHere", cwd);
+  }
   here(cwd: string): Promise<Entry[]> {
     return this.call("here", cwd);
   }
