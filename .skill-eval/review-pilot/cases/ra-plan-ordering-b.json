@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "rp05-b",
+  "type": "body",
+  "input": {
+    "prompt": "Review `plan.md` for fitness to guide the work described in `requirements.md`; `verification.md` is the author's note. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the section or line it concerns, or write `No findings.`"
+  },
+  "fixture": ".skill-eval/review-pilot/fixtures/ra-plan-ordering/seeded",
+  "tools": ["read", "write"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": ["skills/review-artifact"],
+      "target": 0,
+      "context": []
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": ["skills/review-artifact"],
+      "target": 0,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-only-review",
+      "variant": "baseline",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "candidate-only-review",
+      "variant": "candidate",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "baseline-not-passed",
+      "variant": "baseline",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "candidate-not-passed",
+      "variant": "candidate",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "baseline-defect-located",
+      "variant": "baseline",
+      "comparison": "defect-located",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "Dynamic Pi skill exposure"
+    },
+    {
+      "id": "candidate-defect-located",
+      "variant": "candidate",
+      "comparison": "defect-located",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "Dynamic Pi skill exposure"
+    }
+  ],
+  "review_questions": [
+    "Did the review identify that the Dynamic Pi skill exposure step is placed before the Runtime state step that defines the state it uses, and support it with the file and line?",
+    "Did the review avoid unsupported findings beyond that defect?"
+  ],
+  "model": {
+    "model": "xai/grok-4.7",
+    "thinking": "medium"
+  }
+}

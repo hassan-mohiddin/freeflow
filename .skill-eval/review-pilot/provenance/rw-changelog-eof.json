@@ -1,0 +1,25 @@
+{
+  "case": "rw-changelog-eof",
+  "skill": "review-work",
+  "source": {
+    "commit": "3ddc979299bbc29c79cb58c1e87c9310c55f4096",
+    "subject": "fix(changelog): compare released sections at EOF",
+    "paths": ["scripts/changelog-utils.mjs", "scripts/validation/check-changelog.test.mjs"]
+  },
+  "seed": {
+    "description": "In sectionsByTitle, the document-level normalization changed from removing one terminal newline (replace(/\\r?\\n$/, \"\")) to slice(0, -1), which always drops the last character. A changelog with no final newline loses its last character of released text, so its released sections no longer match the base and the check reports a false immutability failure. This is an off-by-one at the end of the file.",
+    "location": ".skill-eval/review-pilot/fixtures/rw-changelog-eof/seeded/files/scripts/changelog-utils.mjs:46",
+    "locator": "sectionsByTitle"
+  },
+  "seed_verification": {
+    "method": "test-fails",
+    "command": "node --test scripts/validation/check-changelog.test.mjs",
+    "clean_result": "12 pass, 0 fail",
+    "seeded_result": "11 pass, 1 fail: preserves non-final separators while ignoring only the document terminal newline (AssertionError at check-changelog.test.mjs:132, deepStrictEqual reports 'Released changelog sections are immutable' for a current file with no terminal newline)",
+    "evidence": null
+  },
+  "groups": {
+    "clean": "rp02-a",
+    "seeded": "rp02-b"
+  }
+}

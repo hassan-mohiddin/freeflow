@@ -49,7 +49,7 @@ Every group contains exactly these fields, plus optional `model`, `runtime`, `co
   "expectations": [],
   "review_questions": [],
   "model": {
-    "model": "openai-codex/gpt-5.6-sol",
+    "model": "xai/grok-4.7",
     "thinking": "low"
   }
 }

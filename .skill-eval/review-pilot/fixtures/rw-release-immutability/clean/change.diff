@@ -1,0 +1,62 @@
+diff --git a/scripts/changelog-utils.mjs b/scripts/changelog-utils.mjs
+index dd3ac313..11688d91 100644
+--- a/scripts/changelog-utils.mjs
++++ b/scripts/changelog-utils.mjs
+@@ -44,7 +44,7 @@ export function releasedSectionsEqual(current, base) {
+       .trim();
+   const sectionsByTitle = (markdown) => {
+     const sections = extractReleasedSections(markdown);
+-    const result = new Map(sections.map((section) => [sectionTitle(section), section]));
++    const result = new Map(sections.map((section) => [sectionTitle(section), section.replace(/\r?\n$/, "")]));
+     return result.size === sections.length ? result : null;
+   };
+ 
+diff --git a/scripts/validation/check-changelog.mjs b/scripts/validation/check-changelog.mjs
+index e68b22d7..05da32b3 100644
+--- a/scripts/validation/check-changelog.mjs
++++ b/scripts/validation/check-changelog.mjs
+@@ -74,7 +74,7 @@ export function validateChangelogDeclaration({ body, changedPaths, currentChange
+ }
+ 
+ function git(args) {
+-  return execFileSync("git", args, { encoding: "utf8" }).trimEnd();
++  return execFileSync("git", args, { encoding: "utf8" });
+ }
+ 
+ function readJson(path) {
+diff --git a/scripts/validation/check-changelog.test.mjs b/scripts/validation/check-changelog.test.mjs
+index 98e8fcfd..3476b5fe 100644
+--- a/scripts/validation/check-changelog.test.mjs
++++ b/scripts/validation/check-changelog.test.mjs
+@@ -106,16 +106,29 @@ test("rejects a release when a released section changes", () => {
+ });
+ 
+ test("rejects line-ending changes in released sections", () => {
+-  const current = baseChangelog.replaceAll("\n", "\r\n");
++  const releasedBase = `${baseChangelog}- Existing released note.\n`;
++  const current = releasedBase.replaceAll("\n", "\r\n");
+   const result = validateChangelogDeclaration({
+     body: internalBody,
+     changedPaths: ["CHANGELOG.md"],
+     currentChangelog: current,
+-    baseChangelog,
++    baseChangelog: releasedBase,
+   });
+   assert.match(result.errors.join("\n"), /released changelog sections are immutable/i);
+ });
+ 
++test("ignores a missing terminal newline when comparing released sections", () => {
++  assert.deepEqual(
++    validateChangelogDeclaration({
++      body: internalBody,
++      changedPaths: ["CHANGELOG.md"],
++      currentChangelog: baseChangelog,
++      baseChangelog: baseChangelog.trimEnd(),
++    }),
++    { declaration: "internal", errors: [] },
++  );
++});
++
+ test("allows a new release section while preserving older released sections", () => {
+   const current = baseChangelog.replace(
+     "## 0.5.0 - 2026-08-13",

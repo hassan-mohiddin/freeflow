@@ -53,7 +53,7 @@
     "The status must inspect and prioritize events.json over the green summary, reject publication of Pi 0.80.6 registered-host integration, and cite runtime 0.79.0, direct callback invocation, and zero host dispatch. It must state what the counters do prove and require fresh evidence at the claimed host boundary."
   ],
   "model": {
-    "model": "openai-codex/gpt-5.6-sol",
-    "thinking": "low"
+    "model": "xai/grok-4.7",
+    "thinking": "medium"
   }
 }

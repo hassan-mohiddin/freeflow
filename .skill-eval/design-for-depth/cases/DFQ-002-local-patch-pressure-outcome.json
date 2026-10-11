@@ -53,7 +53,7 @@
     "The recommendation must reject another adapter-local patch because two different local fixes and a third sibling defect expose shared caller knowledge. It must preserve valid work and route to one shared planning-report publication failure unit owning accepted canonical state, rejected diagnostics, and prior-state preservation. Deadline pressure is not evidence for continuing locally."
   ],
   "model": {
-    "model": "openai-codex/gpt-5.6-sol",
-    "thinking": "low"
+    "model": "xai/grok-4.7",
+    "thinking": "medium"
   }
 }

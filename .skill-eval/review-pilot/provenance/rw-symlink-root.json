@@ -1,0 +1,25 @@
+{
+  "case": "rw-symlink-root",
+  "skill": "review-work",
+  "source": {
+    "commit": "45cebc101fcae57c0e9c49be3d7de3be3a1201f0",
+    "subject": "Let Track Work work in repositories reached through a symlink",
+    "paths": ["skills/track-work/scripts/lib/store.mjs", ".skill-eval/track-work/tests/working-record.test.mjs"]
+  },
+  "seed": {
+    "description": "In assertGitSafePath, the record-path side of the Git-safety comparison is no longer canonicalized: relative(repositoryRoot, canonicalPath(path)) became relative(repositoryRoot, resolve(path)), while the repository root stays canonical because Git reports canonical paths. createRecordPath passes the unresolved .freeflow/tasks path, which does not exist yet, so under a symlinked directory the relative path climbs out of the repository with ../ segments, check-ignore cannot match it, and init refuses it. This is a realistic simplification (dropping the helper on one side of a comparison) and it breaks the commit's own symlink test, which runs init first.",
+    "location": "skills/track-work/scripts/lib/store.mjs:37",
+    "locator": "assertGitSafePath"
+  },
+  "seed_verification": {
+    "method": "test-fails",
+    "command": "node --test .skill-eval/track-work/tests/working-record.test.mjs",
+    "clean_result": "30 pass, 0 fail",
+    "seeded_result": "29 pass, 1 fail: a repository reached through a symlinked directory works like any other",
+    "evidence": "The failing assertion is the init step (exitCode expected 0): the error is 'Record path is not ignored by Git' (unignored-path), with the .freeflow/tasks path reported as ../ segments relative to the canonical repository root."
+  },
+  "groups": {
+    "clean": "rp01-a",
+    "seeded": "rp01-b"
+  }
+}

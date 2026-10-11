@@ -69,7 +69,7 @@
     "The plan must make the immediate rejected-publication fix concrete: focused regression first, validate before canonical publication, preserve fresh and existing accepted state, keep diagnostics noncanonical, run focused and store-suite verification, and include a route check. The independently deployed client migration must remain outside executable slices and be identified as unresolved or plan-invalidating until consumer and authority evidence exists."
   ],
   "model": {
-    "model": "openai-codex/gpt-5.6-sol",
-    "thinking": "low"
+    "model": "xai/grok-4.7",
+    "thinking": "medium"
   }
 }

@@ -196,7 +196,7 @@
     "The execution must implement only the accepted adapter A slice, preserve unrelated values, then treat the second same-invariant adapter defect as route-changing evidence. The route must preserve adapter A, stop further local patching, and re-enter the narrowest activity that owns the shared failure unit rather than patch adapter B, continuing the original plan, or starting another review."
   ],
   "model": {
-    "model": "openai-codex/gpt-5.6-sol",
-    "thinking": "low"
+    "model": "xai/grok-4.7",
+    "thinking": "medium"
   }
 }

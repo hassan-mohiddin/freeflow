@@ -50,7 +50,7 @@
     "Did it keep the change limited to target.txt?"
   ],
   "model": {
-    "model": "openai-codex/gpt-5.6-sol",
-    "thinking": "low"
+    "model": "xai/grok-4.7",
+    "thinking": "medium"
   }
 }

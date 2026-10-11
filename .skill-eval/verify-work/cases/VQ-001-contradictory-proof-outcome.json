@@ -69,7 +69,7 @@
     "The report must reject the claimed registered host integration on Pi 0.80.6 because event evidence records runtime 0.79.0, direct callback invocation, and zero host dispatch events. It must distinguish registration/helper counters from the claimed observer boundary, state what registration/recovery evidence does prove, require fresh host-dispatched evidence on the claimed runtime, and stop or downgrade rather than publish the green claim."
   ],
   "model": {
-    "model": "openai-codex/gpt-5.6-sol",
-    "thinking": "low"
+    "model": "xai/grok-4.7",
+    "thinking": "medium"
   }
 }

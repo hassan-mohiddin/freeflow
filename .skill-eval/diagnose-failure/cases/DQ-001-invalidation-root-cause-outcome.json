@@ -69,7 +69,7 @@
     "The diagnosis must preserve the 10/10 symptom loop, compare at least cache-key and invalidation-delivery hypotheses, use equal read/write keys to reject the key hypothesis, identify the `profile.changed` versus `profiles.changed` topic mismatch as root cause, propose the smallest listener-topic fix, and require rerunning the original write-event-read loop plus a focused invalidation regression. It must not patch from the initial cache-key guess or weaken the contract."
   ],
   "model": {
-    "model": "openai-codex/gpt-5.6-sol",
-    "thinking": "low"
+    "model": "xai/grok-4.7",
+    "thinking": "medium"
   }
 }

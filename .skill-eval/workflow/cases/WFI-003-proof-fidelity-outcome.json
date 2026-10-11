@@ -66,7 +66,7 @@
     "The assessment must reject the registered-host-integration claim because `runProof()` directly invokes the callback and its producer/callback/store counters can all pass while `hostDispatches` remains zero. It must distinguish callback registration and helper invocation from observation through the registered host dispatch boundary, and require evidence that drives that actual boundary. A generic request for integration tests without identifying this mismatch is insufficient."
   ],
   "model": {
-    "model": "openai-codex/gpt-5.6-sol",
-    "thinking": "low"
+    "model": "xai/grok-4.7",
+    "thinking": "medium"
   }
 }
