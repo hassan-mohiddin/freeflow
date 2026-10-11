@@ -305,6 +305,7 @@ function createScopedDelegationItem(options) {
           valueDescriptions: descriptions,
           defaultValue: "executor",
           configScope: "repository",
+          repositoryUnset: repositoryValue === undefined,
           effectiveValue: options.effectiveValue,
           effectiveSource: options.effectiveSource,
           localOverrideValue: ["executor", "helper", "both"].includes(localValue) ? localValue : undefined,
@@ -438,7 +439,9 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
       routing.projection,
       true,
     );
-    projectionItem.inactive = routingInactive;
+    // Delegation, projection and the presets can be set while routing is not running: setting a missing preset is how
+    // it starts. Only Control needs routing running, since holding a profile switches the model at once.
+    projectionItem.inactive = freeflowInactive || routingUnavailable;
     projectionItem.runtimeInactive = routingUnavailable;
     const delegationOverride = cognitiveRoutingController?.sessionDelegationOverride() ?? LOCAL_INHERIT;
     const delegation = cognitiveRoutingState?.delegation ?? routing.delegation;
@@ -494,7 +497,7 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
           delegationOverride === LOCAL_INHERIT ? cognitiveRoutingSettingsSource(routing.delegationSource) : "session",
         inheritedValue: routing.delegation,
         inheritedSource: cognitiveRoutingSettingsSource(routing.delegationSource),
-        inactive: routingInactive,
+        inactive: freeflowInactive || routingUnavailable,
         runtimeInactive: routingUnavailable,
       },
       projectionItem,
@@ -511,7 +514,7 @@ function sessionFreeflowItems(state, cognitiveRoutingController, ctx, rawConfig,
           ctx,
           sessionProfiles,
         });
-        item.inactive ||= routingInactive;
+        item.inactive ||= freeflowInactive || routingUnavailable;
         item.runtimeInactive ||= routingUnavailable;
         routingItems.push(item);
       }
@@ -1298,7 +1301,9 @@ function displayParts(item) {
         ...tone(item.inheritedValue),
       };
     }
-    const value = effectiveItemValue(item);
+    // The value this tab sets, not the effective one: a session override or a switch above it does not change it.
+    const value =
+      item.configValues && String(item.value) in item.configValues ? item.configValues[String(item.value)] : item.value;
     return { value: formatSettingValue(item, value), ...tone(value) };
   }
   const value = item.value === undefined && isCognitiveRoutingProfileItem(item) ? undefined : item.value;
@@ -1354,13 +1359,12 @@ function refreshSettingsDerivedState(items) {
       item ? isCognitiveRoutingProfile(effectiveItemValue(item)) : false,
     );
     cognitiveRoutingGroup.value = enabled;
-    cognitiveRoutingGroup.displaySuffix = enabled
-      ? profilesConfigured
-        ? cognitiveRoutingGroup.displaySuffix === "active"
-          ? "active"
-          : "configured"
-        : "not configured"
-      : "disabled";
+    // A status the runtime reported (active with its control mode, a blocking reason, host unsupported) stays until
+    // the switch goes off; only the configuration statuses are worked out again here.
+    const current = cognitiveRoutingGroup.displaySuffix ?? "";
+    if (!enabled) cognitiveRoutingGroup.displaySuffix = "disabled";
+    else if (["", "disabled", "configured", "not configured"].includes(current))
+      cognitiveRoutingGroup.displaySuffix = profilesConfigured ? "configured" : "not configured";
     cognitiveRoutingGroup.inactive = freeflowInactive;
   }
   const contextGroup = findSettingsItem(items, "freeflow.context");
@@ -1553,8 +1557,12 @@ function settingEntry(item, rootItems, onChange, depth, lockedBy) {
       const outcome = await onChange(item, value);
       if (outcome.changed) {
         updateScopedItemState(item, value);
-        // The repository file now sets it.
-        if (item.configScope === "repository") item.repositoryUnset = false;
+        // The repository file now sets it, unless the value was its default, which setConfigValue leaves out of the file.
+        if (item.configScope === "repository")
+          item.repositoryUnset =
+            value === undefined ||
+            isEmptyValue(value) ||
+            (item.defaultValue !== undefined && valuesEqual(value, item.defaultValue));
         if (item.id === "freeflow.session.reset") resetSessionItemState(rootItems);
         else if (!item.transient) item.value = value;
         refreshSettingsDerivedState(rootItems);
@@ -1697,6 +1705,16 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiv
     }).find((candidate) => candidate.id === "freeflow.enabled");
     await updateConfig(ctx.cwd, item, enabled, "repository");
     await afterChange(true);
+    // The command writes the repository file; a personal file or a session override still wins over it.
+    const after = await readCapabilityState(ctx.cwd, ctx);
+    const winner = after?.configSources?.enabled;
+    if (after?.enabled !== enabled && (winner === "local" || winner === "session")) {
+      ctx.ui.notify(
+        `The repository now ${enabled ? "enables" : "disables"} Freeflow, but ${winner === "session" ? "this session's override" : "your .freeflow/local.json"} still turns it ${enabled ? "off" : "on"}. Change it in /freeflow settings.`,
+        "warning",
+      );
+      return { changed: true, reloaded: false };
+    }
     ctx.ui.notify(`Freeflow ${enabled ? "enabled" : "disabled"}. Reloading Freeflow runtime...`, "info");
     if (typeof ctx.reload === "function") {
       await ctx.reload();
