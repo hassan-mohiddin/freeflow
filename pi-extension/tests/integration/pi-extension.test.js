@@ -870,6 +870,41 @@ test("session delegation setting enables Helper in the same panel without writin
   }
 });
 
+test("the footer names each capability that is on, in the settings order, and routing's state", () => {
+  // Task 005: one compact line; routing alone adds detail.
+  const statuses = [];
+  const ctx = { ui: { setStatus: (name, value) => statuses.push(value) } };
+  const base = { configured: true, enabled: true, configSources: { enabled: "builtin" } };
+  setFreeflowStatus(ctx, base, undefined, readyFreeflowContext);
+  setFreeflowStatus(
+    ctx,
+    {
+      ...base,
+      messaging: { effective: true },
+      compaction: { effective: true },
+      taskMemory: { effective: false },
+      toolExecution: { effective: true },
+    },
+    undefined,
+    readyFreeflowContext,
+  );
+  setFreeflowStatus(
+    ctx,
+    {
+      ...base,
+      compaction: { effective: true },
+      cognitiveRouting: { enabled: true, effective: true, blockingReason: null },
+    },
+    { effective: true, activeProfile: "coordinator", controlMode: "automatic", delegation: "executor" },
+    readyFreeflowContext,
+  );
+  assert.deepEqual(statuses, [
+    "freeflow: on",
+    "freeflow: compaction · tools · messaging",
+    "freeflow: compaction · routing coordinator · automatic · executor mode",
+  ]);
+});
+
 test("Pi statusline reports Cognitive Routing without legacy context status", () => {
   const ctx = context();
   setFreeflowStatus(
@@ -883,7 +918,7 @@ test("Pi statusline reports Cognitive Routing without legacy context status", ()
     { effective: true, activeProfile: "executor", controlMode: "automatic", delegation: "both" },
     readyFreeflowContext,
   );
-  assert.equal(ctx.statuses.at(-1).value, "freeflow: executor · automatic · both mode");
+  assert.equal(ctx.statuses.at(-1).value, "freeflow: routing executor · automatic · both mode");
   assert.doesNotMatch(ctx.statuses.at(-1).value, /interaction|workflow|skills/i);
 });
 
@@ -905,7 +940,7 @@ test("Pi statusline defaults pending activation to the Coordinator profile", () 
     readyFreeflowContext,
     { cognitiveRoutingStartupPending: true },
   );
-  assert.equal(ctx.statuses.at(-1).value, "freeflow: coordinator · pending");
+  assert.equal(ctx.statuses.at(-1).value, "freeflow: routing coordinator · pending");
 });
 
 test("Pi statusline keeps an inactive Cognitive Routing runtime blocked", () => {
@@ -922,7 +957,7 @@ test("Pi statusline keeps an inactive Cognitive Routing runtime blocked", () => 
     readyFreeflowContext,
     { cognitiveRoutingStartupPending: true },
   );
-  assert.equal(ctx.statuses.at(-1).value, "freeflow: cognitive blocked · runtime_inactive");
+  assert.equal(ctx.statuses.at(-1).value, "freeflow: routing blocked · runtime_inactive");
 });
 
 test("Pi exposes bypass scope argument completions", () => {

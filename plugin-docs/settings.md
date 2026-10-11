@@ -71,6 +71,22 @@ How to read it:
 - **Changing a value**: `Enter` or `Space` moves to the next value in place; a preset opens a picker for the model and then the thinking level. In the Session and Personal tabs the last value, `inherit`, removes the setting from that tab so it follows the scope below.
 - **When it is saved**: each change is written at once, one at a time ("Saving…" while it writes). Closing the screen after changing a file setting reloads the session so the change applies; a session-only change applies from the next prompt.
 
+## The footer
+
+Pi's footer shows one `freeflow:` line naming each capability that is on, in the order of the settings screen: `compaction`, `tools` (Tool Execution), `tasks` (Task Memory), `messaging`, then routing with its state.
+
+| Footer | Means |
+| --- | --- |
+| `freeflow: compaction` | Freeflow on with its defaults |
+| `freeflow: compaction · tools · tasks · messaging` | those four capabilities on |
+| `freeflow: compaction · routing coordinator · automatic · executor mode` | routing running: the profile working now, automatic or a manual hold, and the delegation mode |
+| `freeflow: compaction · routing blocked · <reason>` | routing on but not running, and why |
+| `freeflow: on` | Freeflow on, every capability off |
+| `freeflow: off` | Freeflow off |
+| `freeflow: setup needed`, `freeflow: config error` | no configuration file, or one Freeflow cannot read |
+
+`/freeflow status` gives the full state, with prompt-cache diagnostics, running background commands and the compaction cycle.
+
 ## All settings
 
 Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes column says which tabs show the setting.

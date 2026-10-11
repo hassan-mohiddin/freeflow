@@ -40,36 +40,44 @@ export function setFreeflowStatus(
   const cognitiveRoutingActive = cognitiveRouting?.effective === true && cognitiveRoutingRuntime?.effective === true;
   const startupSelectionSuppressesCognitiveRouting = options.startupSelectionSuppressed === true;
   if (cognitiveRoutingInactive) {
-    active.push("cognitive inactive");
+    active.push("routing inactive");
   } else if (cognitiveRoutingBlocked) {
     active.push(
-      `cognitive blocked · ${cognitiveRoutingRuntime?.runtimeReason ?? "runtime_blocked"} · /freeflow profile auto`,
+      `routing blocked · ${cognitiveRoutingRuntime?.runtimeReason ?? "runtime_blocked"} · /freeflow profile auto`,
     );
   } else if (cognitiveRoutingActive) {
     const profile = cognitiveRoutingRuntime.activeProfile;
     const control = String(cognitiveRoutingRuntime.controlMode).startsWith("manual-") ? "manual hold" : "automatic";
     active.push(
-      `${profile} · ${control} · ${cognitiveRoutingRuntime.delegation ?? cognitiveRouting.delegation ?? "executor"} mode${cognitiveRoutingRuntime.pendingPair ? ` · ${cognitiveRoutingRuntime.pendingPair} on next prompt` : ""}${cognitiveRoutingRuntime.pairMismatch ? " · model differs" : ""}`,
+      `routing ${profile} · ${control} · ${cognitiveRoutingRuntime.delegation ?? cognitiveRouting.delegation ?? "executor"} mode${cognitiveRoutingRuntime.pendingPair ? ` · ${cognitiveRoutingRuntime.pendingPair} on next prompt` : ""}${cognitiveRoutingRuntime.pairMismatch ? " · model differs" : ""}`,
     );
   } else if (cognitiveRouting?.enabled === true) {
     if (cognitiveRouting.blockingReason?.code === "runtime_disabled") {
-      active.push("cognitive blocked · runtime_disabled");
+      active.push("routing blocked · runtime_disabled");
     } else if (
       cognitiveRouting.effective === true &&
       cognitiveRoutingRuntime === undefined &&
       options.cognitiveRoutingStartupPending === true &&
       !startupSelectionSuppressesCognitiveRouting
     ) {
-      active.push("coordinator · pending");
+      active.push("routing coordinator · pending");
     } else {
       const reason =
         cognitiveRouting.effective === true
           ? (cognitiveRoutingRuntime?.blockingReason?.code ?? "runtime_inactive")
           : (cognitiveRouting.blockingReason?.code ?? "unavailable");
-      active.push(`cognitive blocked · ${reason}`);
+      active.push(`routing blocked · ${reason}`);
     }
   }
-  ctx.ui.setStatus("freeflow", `freeflow: ${active.length > 0 ? active.join(" · ") : "active"}`);
+  // The footer names each capability that is on, in the settings screen's order; routing adds its state (Task 005).
+  const on = [
+    capabilityState?.compaction?.effective === true ? "compaction" : "",
+    capabilityState?.toolExecution?.effective === true ? "tools" : "",
+    capabilityState?.taskMemory?.effective === true ? "tasks" : "",
+    capabilityState?.messaging?.effective === true ? "messaging" : "",
+  ].filter(Boolean);
+  const shown = [...on, ...active];
+  ctx.ui.setStatus("freeflow", `freeflow: ${shown.length > 0 ? shown.join(" · ") : "on"}`);
 }
 
 /** The /freeflow status report: capability state and diagnostics, including prompt-cache health. */
