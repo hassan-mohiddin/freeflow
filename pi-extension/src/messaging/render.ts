@@ -12,12 +12,29 @@ const statusColor = (status: string) =>
         ? "error"
         : "muted";
 
+/** What the row adds under its head: the whole text when expanded, otherwise the lines after the first, if any. */
+function bodyAfterHead(text: string, expanded: boolean): string[] {
+  if (expanded) return text.length > 100 || text.includes("\n") ? [text] : [];
+  const lines = text.split("\n");
+  const first = lines.findIndex((line) => line.trim());
+  return lines
+    .slice(first + 1)
+    .join("\n")
+    .trim()
+    ? [
+        lines
+          .slice(first + 1)
+          .join("\n")
+          .trim(),
+      ]
+    : [];
+}
+
 export function renderSendCall(args: any, theme: any, context: any): Text {
   const to = String(args?.to ?? "");
   const message = String(args?.message ?? "");
   const head = `${paint(theme, "toolTitle", "Message")} ${paint(theme, "accent", `→ ${to}`)}${message ? `: ${paint(theme, "muted", firstLine(message))}` : ""}`;
-  const body = message.includes("\n") || message.length > 100 ? [message] : [];
-  return foldRow(head, body, context?.expanded === true, theme);
+  return foldRow(head, bodyAfterHead(message, context?.expanded === true), context?.expanded === true, theme);
 }
 
 export function renderSendResult(result: any, options: any, theme: any): Text {
@@ -64,6 +81,5 @@ export function renderMessage(message: any, options: { expanded?: boolean }, the
       0,
     );
   const head = `${label} ${paint(theme, "accent", `← ${details.name ?? details.from ?? "another session"}`)}: ${paint(theme, "muted", firstLine(inner))}`;
-  const body = inner.includes("\n") || inner.length > 100 ? [inner] : [];
-  return foldRow(head, body, options?.expanded === true, theme);
+  return foldRow(head, bodyAfterHead(inner, options?.expanded === true), options?.expanded === true, theme);
 }

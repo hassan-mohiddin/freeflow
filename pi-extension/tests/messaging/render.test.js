@@ -16,6 +16,13 @@ test("a sent message names its recipient and first line; a long message folds", 
     lines(renderSendCall({ to: "api", message: "hi" }, undefined, { expanded: false })),
     "Message → api: hi",
   );
+  // A long single line is cut in the head and shown whole only when expanded, never twice.
+  const single = "word ".repeat(40).trim();
+  assert.equal(
+    lines(renderSendCall({ to: "api", message: single }, undefined, { expanded: false })).split("\n").length,
+    1,
+  );
+  assert.match(lines(renderSendCall({ to: "api", message: single }, undefined, { expanded: true })), /\n {2}word word/);
   const long = `Line one\n${"more ".repeat(40)}\nLine three\nfour\nfive\nsix`;
   assert.match(
     lines(renderSendCall({ to: "api", message: long }, undefined, { expanded: false })),
