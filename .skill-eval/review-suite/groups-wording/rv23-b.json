@@ -1,0 +1,158 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "rv23-b",
+  "type": "body",
+  "input": {
+    "prompt": "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`"
+  },
+  "fixture": ".skill-eval/review-suite/fixtures/rs-aaf5e7cb/seeded/workspace",
+  "tools": ["read", "write", "ls", "find", "run_command"],
+  "commands": [
+    {
+      "id": "tests",
+      "argv": ["node", "../../../../../../../.skill-eval/review-suite/tools/run-tests.mjs", "rv23-b"],
+      "timeout_ms": 600000
+    }
+  ],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "266a160ddf7f96572a0b085c2780ec23ea64c7bd"
+        },
+        "context": [".skill-eval/review-suite/context/rv23-b/requirements.md"]
+      }
+    },
+    "candidate": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "5e1511fa6cff02d9fc4c563757ea9735b8c436a4"
+        },
+        "context": [".skill-eval/review-suite/context/rv23-b/requirements.md"]
+      }
+    }
+  },
+  "component": ["subject.source"],
+  "expectations": [
+    {
+      "id": "baseline-only-review",
+      "variant": "baseline",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "candidate-only-review",
+      "variant": "candidate",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "baseline-judgment-line",
+      "variant": "baseline",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "candidate-judgment-line",
+      "variant": "candidate",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "baseline-ran-tests",
+      "variant": "baseline",
+      "comparison": "ran-tests",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "called",
+      "argumentContains": ["tests"]
+    },
+    {
+      "id": "candidate-ran-tests",
+      "variant": "candidate",
+      "comparison": "ran-tests",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "called",
+      "argumentContains": ["tests"]
+    },
+    {
+      "id": "baseline-not-passed",
+      "variant": "baseline",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "candidate-not-passed",
+      "variant": "candidate",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "baseline-names-file-1",
+      "variant": "baseline",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "routes.ts"
+    },
+    {
+      "id": "candidate-names-file-1",
+      "variant": "candidate",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "routes.ts"
+    },
+    {
+      "id": "baseline-names-file-2",
+      "variant": "baseline",
+      "comparison": "names-file-2",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "routes.js"
+    },
+    {
+      "id": "candidate-names-file-2",
+      "variant": "candidate",
+      "comparison": "names-file-2",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "routes.js"
+    }
+  ],
+  "review_questions": [
+    "Did the review identify the defect at pi-extension/src/provider-support/routes.ts:12 and pi-extension/dist/provider-support/routes.js:11 (the expression `isUsingOAuth?.(model) !== false`): The OAuth check of the Sign in with ChatGPT route is inverted to undefined-as-true: `=== true` becomes `!== false`. A host whose model registry lacks the OAuth check (so the call yields undefined) is then treated as Sign in with ChatGPT, and its requests skip Freeflow's adaptations. The commit's rule is that only an OAuth answer qualifies a route; API-key and Codex routes are unchanged. The dist file is mirrored so the committed tests, which import dist, exercise the seed. Did it support the finding with the file and line?",
+    "Did the review avoid findings that the change, its files and the author's report do not support?"
+  ]
+}

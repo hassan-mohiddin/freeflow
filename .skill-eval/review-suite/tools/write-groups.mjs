@@ -1,8 +1,10 @@
 // Writes the suite's group definitions and suite.json from cases.json (run index-cases.mjs first).
 // Each variant of each case becomes one group with a neutral ID (rvNN-a / rvNN-b), so no ID, path or file name the
 // subject could see tells it the variant. Case numbers and letters come from a hash of the case name, not its order.
-// Each group compares requirements withheld (baseline) with requirements given as declared context (candidate).
-// Usage (repository root): node .skill-eval/review-suite/tools/write-groups.mjs
+// By default each group compares requirements withheld (baseline) with requirements given as declared context
+// (candidate), in groups/ and suite.json. With --compare-sources <name> <baseline-ref> <candidate-ref>, each group gives
+// the requirements in both arms and compares two commits of the reviewed skill, in groups-<name>/ and suite-<name>.json.
+// Usage (repository root): node .skill-eval/review-suite/tools/write-groups.mjs [--compare-sources <name> <ref> <ref>]
 import { createHash } from "node:crypto";
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -15,8 +17,21 @@ const hash = (value) => createHash("sha256").update(value).digest("hex");
 const PROMPT =
   "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`";
 
+const compareAt = process.argv.indexOf("--compare-sources");
+const sources =
+  compareAt < 0
+    ? null
+    : {
+        name: process.argv[compareAt + 1],
+        baseline: process.argv[compareAt + 2],
+        candidate: process.argv[compareAt + 3],
+      };
+if (sources && !(sources.name && sources.baseline && sources.candidate)) {
+  throw new Error("--compare-sources needs a name, a baseline ref and a candidate ref");
+}
+
 const ordered = [...cases].sort((left, right) => hash(left.case).localeCompare(hash(right.case)));
-const groupsDirectory = path.join(suite, "groups");
+const groupsDirectory = path.join(suite, sources ? `groups-${sources.name}` : "groups");
 const contextDirectory = path.join(suite, "context");
 for (const directory of [groupsDirectory, contextDirectory]) {
   rmSync(directory, { recursive: true, force: true });
@@ -144,11 +159,23 @@ ordered.forEach((entry, position) => {
           }
         : {}),
       configuration: { extends: "../configuration.json" },
-      arms: {
-        baseline: { subject: { context: [] } },
-        candidate: { subject: { context: [`${relativeSuite}/context/${id}/requirements.md`] } },
-      },
-      component: ["subject.context"],
+      arms: sources
+        ? Object.fromEntries(
+            ["baseline", "candidate"].map((arm) => [
+              arm,
+              {
+                subject: {
+                  source: { kind: "git", ref: sources[arm] },
+                  context: [`${relativeSuite}/context/${id}/requirements.md`],
+                },
+              },
+            ]),
+          )
+        : {
+            baseline: { subject: { context: [] } },
+            candidate: { subject: { context: [`${relativeSuite}/context/${id}/requirements.md`] } },
+          },
+      component: sources ? ["subject.source"] : ["subject.context"],
       expectations,
       review_questions: reviewQuestions,
     };
@@ -166,9 +193,10 @@ ordered.forEach((entry, position) => {
 });
 
 index.sort((left, right) => left.id.localeCompare(right.id));
+const groupsFolder = path.basename(groupsDirectory);
 writeFileSync(
-  path.join(suite, "suite.json"),
-  `${JSON.stringify({ schema_version: 2, kind: "suite", id: "review-suite", groups: index.map((row) => `groups/${row.id}.json`) }, null, 2)}\n`,
+  path.join(suite, sources ? `suite-${sources.name}.json` : "suite.json"),
+  `${JSON.stringify({ schema_version: 2, kind: "suite", id: sources ? `review-suite-${sources.name}` : "review-suite", groups: index.map((row) => `${groupsFolder}/${row.id}.json`) }, null, 2)}\n`,
 );
 writeFileSync(path.join(suite, "groups.json"), `${JSON.stringify({ groups: index }, null, 2)}\n`);
 console.log(`${index.length} groups written`);
