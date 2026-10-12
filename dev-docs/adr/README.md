@@ -3,7 +3,7 @@
 Durable decisions for the public Freeflow plugin behavior:
 
 - [ADR 0001: Three Workflow Modes](0001-three-modes.md) — superseded by [ADR 0011: Single Adaptive Workflow](0011-single-adaptive-workflow.md)
-- [ADR 0002: Evals Before Enforcement Hooks](0002-evals-before-hooks.md)
+- [ADR 0002: Evals Before Enforcement Hooks](0002-evals-before-hooks.md), amended 2026-10-13: measured gates
 - [ADR 0003: Release Boundary](0003-release-boundary.md)
 - [ADR 0004: Discover Replaces Shallow Discovery Skills](0004-discover-replaces-shallow-discovery-skills.md) — superseded
 - [ADR 0005: Discuss And Track Work Replace Discover](0005-discuss-and-track-work-replace-discover.md)
