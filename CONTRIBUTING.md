@@ -60,11 +60,16 @@ User docs live in `plugin-docs/` and developer docs in `dev-docs/`; developer do
 
 ## Pull requests
 
-Keep a pull request focused and explain:
+Keep a pull request small and focused: one slice of work, merged within days,
+that someone can review in about fifteen minutes. Fill in the template's
+sections:
 
-- the user-visible outcome;
-- the evidence run and what it proves;
-- any deferred documentation, evaluation, or compatibility work.
+- **What this does:** the user-visible outcome, then the changes by area;
+- **Evidence:** what was run and what it showed;
+- **Risk:** what else the change could affect, and the one fact that makes it
+  safe, with the check that shows it;
+- **Not checked:** what the pull request does not show, including deferred
+  documentation, evaluation, or compatibility work.
 
 Complete the changelog declaration in the pull request template. CI requires
 consumer-visible changes to update `CHANGELOG.md` under `## Unreleased` and
