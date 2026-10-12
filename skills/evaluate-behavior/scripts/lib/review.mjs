@@ -514,7 +514,11 @@ const RUBRIC_INPUTS = Object.freeze({
  * Judges every complete run of each selected group against the group's rubric, each run alone and blinded to its
  * arm, and writes `groups/<id>/<arm>/judged-grade.json` beside the run. Run and deterministic grade files are never
  * written. The judges are the group's declared `judges`; a group that declares none is judged by `--model` or the
- * configuration's model. A configuration also supplies host extensions and settings to every judge.
+ * command-line configuration's model.
+ *
+ * A judge's host setup (extensions and settings), most specific first: a declared judge's own `configuration`; else
+ * the group's (its reference arm's), so a judge runs on the same login the subjects did. `--configuration` applies
+ * only to groups without declared judges, and is refused when every group it would reach declares its judges.
  * An aggregate target judges every trial and then rebuilds the aggregate, so its `judged` section is current.
  *
  * @param {string} target a result or aggregate id or directory
@@ -541,8 +545,16 @@ export async function reviewRubric(
   const fallback = model ?? host.model?.model ?? null;
   const fallbackJudge =
     fallback === null ? null : { model: fallback, thinking: thinking ?? host.model?.thinking ?? null };
-  const extensions = await resolveHostExtensions(host.extensions);
   const { resultDirectory, aggregateFile, results: trialDirectories } = await targetResults(target, root, results);
+  // Each distinct declared extension list is resolved once, against the installed Pi packages.
+  const resolvedSetups = new Map();
+  const resolveSetup = async (declared, settings, setup) => {
+    const key = JSON.stringify(declared);
+    if (!resolvedSetups.has(key)) resolvedSetups.set(key, await resolveHostExtensions(declared));
+    return { extensions: resolvedSetups.get(key), settings, setup };
+  };
+  let commandLineUsed = false;
+  let declaredJudgesSeen = false;
 
   // Every group's judges are settled before any judge starts.
   const work = [];
@@ -554,19 +566,44 @@ export async function reviewRubric(
       const rubric = rubricOf(definition);
       let judges = null;
       if (rubric !== null) {
+        const groupSetup = groupHostSetup(definition);
+        const inherit = () => {
+          if (groupSetup.problem !== null) throw new Error(`group ${group.id}: ${groupSetup.problem}`);
+          return resolveSetup(groupSetup.extensions, groupSetup.settings, "group");
+        };
         if (Array.isArray(definition.judges) && definition.judges.length > 0) {
           if (model !== null || thinking !== null) {
             throw new Error(`group ${group.id} declares its judges; drop --model and --thinking`);
           }
-          judges = definition.judges.map((judge) => ({ model: judge.model, thinking: judge.thinking ?? null }));
+          declaredJudgesSeen = true;
+          judges = [];
+          for (const judge of definition.judges) {
+            const own = judge.configuration ?? null;
+            const setup =
+              own === null
+                ? await inherit()
+                : await resolveSetup(own.extensions ?? [], own.settings ?? {}, `own (${own.source ?? "inline"})`);
+            judges.push({ model: judge.model, thinking: judge.thinking ?? null, ...setup });
+          }
         } else if (fallbackJudge !== null) {
-          judges = [fallbackJudge];
+          // The command line names this judge; its configuration, when given, also gives its host setup.
+          const setup =
+            configuration === null
+              ? await inherit()
+              : await resolveSetup(host.extensions, host.settings, "command-line");
+          if (configuration !== null) commandLineUsed = true;
+          judges = [{ ...fallbackJudge, ...setup }];
         } else {
           throw new Error(`group ${group.id} declares no judges: pass --model or --configuration`);
         }
       }
       work.push({ groupDirectory, group, definition, rubric, judges });
     }
+  }
+  if (configuration !== null && !commandLineUsed && declaredJudgesSeen) {
+    throw new Error(
+      "every judged group declares its judges, whose host setup is their own configuration or the group's; --configuration would be ignored, so drop it",
+    );
   }
 
   const outcomes = [];
@@ -579,8 +616,6 @@ export async function reviewRubric(
     outcomes.push(
       ...(await judgeGroup(groupDirectory, group, definition, rubric, judges, {
         root,
-        extensions,
-        settings: host.settings,
         limits: effectiveLimits,
         signal,
       })),
@@ -588,6 +623,25 @@ export async function reviewRubric(
   }
   const aggregate = aggregateFile === null || signal?.aborted ? null : await rebuild(aggregateFile, root);
   return { resultDirectory, groups: outcomes, aggregate };
+}
+
+/**
+ * The host setup a judge inherits from its group: the reference arm's declared host extensions and settings, as the
+ * stored definition records them. Extensions built from source belong to the arm's run, so a judge cannot inherit
+ * them (`problem` says so).
+ */
+function groupHostSetup(definition) {
+  const reference = definition.variants?.[referenceArm(definition)] ?? {};
+  const extensions = Array.isArray(reference.hostExtensions) ? reference.hostExtensions : [];
+  const settings = reference.hostSettings ?? {};
+  const fromSource = extensions.some((extension) => !Object.hasOwn(extension, "package"));
+  return {
+    extensions,
+    settings,
+    problem: fromSource
+      ? "its host extensions are built from source, which a judge cannot inherit; give each judge its own configuration"
+      : null,
+  };
 }
 
 /** The result directories a target names: the result itself, or every trial of an aggregate. */
@@ -622,7 +676,7 @@ async function readJsonOrNull(file) {
 }
 
 async function judgeGroup(groupDirectory, group, definition, rubric, judges, options) {
-  const { root, extensions, settings, limits, signal } = options;
+  const { root, limits, signal } = options;
   const arms = storedArms(group, definition);
   const runs = {};
   const runText = {};
@@ -667,6 +721,7 @@ async function judgeGroup(groupDirectory, group, definition, rubric, judges, opt
     for (const [index, judge] of judges.entries()) {
       if (signal?.aborted) break;
       const directory = path.join(judgingDirectory, `judge-${index + 1}`);
+      const { extensions, settings, setup } = judge;
       const launched = await launchJudge(directory, prompt, {
         model: judge.model,
         thinking: judge.thinking,
@@ -679,13 +734,21 @@ async function judgeGroup(groupDirectory, group, definition, rubric, judges, opt
       const notes = { steering: [] };
       const answers = errors.length === 0 ? parseRubricAnswers(launched.response, rubric, errors, notes) : [];
       const provider = judge.model.includes("/") ? judge.model.split("/")[0] : null;
-      const configurationId = judgeConfiguration({ model: judge.model, thinking: judge.thinking, extensions, rubric });
+      const configurationId = judgeConfiguration({
+        model: judge.model,
+        thinking: judge.thinking,
+        extensions,
+        settings,
+        rubric,
+      });
       records.push({
         model: judge.model,
         provider,
         // Family is approximated by the provider, as in the pairwise review.
         family: provider,
         thinking: judge.thinking,
+        // Where the judge's host setup came from: its own configuration, the group's, or the command line.
+        setup,
         extensions,
         settings,
         isolation: launched.isolation,

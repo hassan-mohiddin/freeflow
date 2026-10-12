@@ -765,7 +765,7 @@ async function validateGroup(value, definitionPath, root) {
       ...(extendsFile === null ? [] : [extendsFile]),
       ...graderFiles,
       ...referenceFiles(group, root),
-      ...rubricFiles(group.rubric, root),
+      ...rubricFiles(group.rubric, root, group.judges),
       ...sourceExtensionInputs(
         names.map((arm) => variants[arm].hostExtensions),
         root,
@@ -848,7 +848,29 @@ async function readJsonFile(file, root) {
 export async function loadConfiguration(file, { root = process.cwd() } = {}) {
   const absolute = path.resolve(root, file);
   const configuration = await readConfigurationFile(path.basename(absolute), absolute, path.resolve(root));
-  const label = "configuration";
+  return hostSetup(configuration, "configuration", absolute);
+}
+
+/**
+ * A rubric judge's own configuration: inline `host` and `model`, or `{ "extends": "<path>" }` naming a configuration
+ * file relative to the group file. Validated as a configuration; `file` is the extended file, a run input.
+ *
+ * @returns {Promise<{model: {model: string, thinking?: string} | null, extensions: Array<any>, settings: Record<string, unknown>, file: string | null}>}
+ */
+export async function loadJudgeConfiguration(value, label, definitionPath, root) {
+  const object = requireObject(value, label, definitionPath);
+  if (Object.hasOwn(object, "extends")) {
+    requireExactKeys(object, ["extends"], [], label, definitionPath);
+    const configuration = await readConfigurationFile(object.extends, definitionPath, root);
+    const file = path.resolve(path.dirname(definitionPath), object.extends);
+    return { ...hostSetup(configuration, label, file), file };
+  }
+  requireExactKeys(object, [], ["host", "model"], label, definitionPath);
+  return { ...hostSetup(object, label, definitionPath), file: null };
+}
+
+/** The host setup a configuration gives a process that is not an arm: its model, host extensions and settings. */
+function hostSetup(configuration, label, absolute) {
   let extensions = [];
   let settings = {};
   if (Object.hasOwn(configuration, "host")) {

@@ -14,6 +14,7 @@ import {
   judgedSection,
 } from "../../../skills/evaluate-behavior/scripts/lib/judge.mjs";
 import { aggregateGroups } from "../../../skills/evaluate-behavior/scripts/lib/trials.mjs";
+import { judgingFailure } from "../../scripts/gate.mjs";
 
 const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-behavior/scripts/skill-eval.mjs", import.meta.url));
 const HAIKU = "anthropic/claude-haiku-5-5";
@@ -92,7 +93,8 @@ function visible(directory) {
 if (args.includes("--no-tools")) {
   const model = args[args.indexOf("--model") + 1];
   const prompt = args.at(-1);
-  appendFileSync(path.join(root, "judge.jsonl"), JSON.stringify({ model, prompt, cwd: process.cwd(), home: process.env.HOME ?? "" }) + "\\n");
+  const extensions = args.flatMap((arg, index) => (arg === "--extension" ? [args[index + 1]] : []));
+  appendFileSync(path.join(root, "judge.jsonl"), JSON.stringify({ model, prompt, extensions, cwd: process.cwd(), home: process.env.HOME ?? "" }) + "\\n");
   const replies = JSON.parse(readFileSync(path.join(root, "judges.json"), "utf8"))[model] ?? {};
   const marker = Object.keys(replies).find((candidate) => prompt.includes(candidate));
   reply(marker === undefined ? "no reply scripted" : replies[marker], "judge", model);
@@ -510,6 +512,137 @@ test("a malformed judge reply is a judge error, and run and grade files stay unt
     }
     const after = await hashes(groupDirectory);
     for (const [file, hash] of Object.entries(before)) assert.equal(after[file], hash, `${file} is unchanged`);
+  });
+});
+
+/** A Pi package installed where the tests' credentials directory points Pi. */
+async function installPackage(root, name, version) {
+  const directory = path.join(root, "no-credentials", "npm", "node_modules", name);
+  await mkdir(directory, { recursive: true });
+  await writeFile(path.join(directory, "package.json"), JSON.stringify({ name, version }));
+  return directory;
+}
+
+/** The group's configuration with a host extension, as a subscription login needs. */
+function withGroupExtension(changes = {}) {
+  const base = rubricGroup();
+  return rubricGroup({
+    configuration: {
+      ...base.configuration,
+      host: {
+        name: "pi",
+        extensions: [{ package: "group-auth", version: "1.0.0" }],
+        settings: { retry: { enabled: false } },
+      },
+    },
+    ...changes,
+  });
+}
+
+test("a judge without a configuration runs on the group's host setup; one with its own runs on that", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    const groupAuth = await installPackage(root, "group-auth", "1.0.0");
+    const judgeAuth = await installPackage(root, "judge-auth", "2.0.0");
+    await writeJson(path.join(root, "groups/judge-config.json"), {
+      schema_version: 2,
+      kind: "configuration",
+      id: "judge-setup",
+      configuration: { host: { name: "pi", extensions: [{ package: "judge-auth", version: "2.0.0" }] } },
+    });
+    const definition = withGroupExtension({
+      judges: [
+        { model: HAIKU, thinking: "high" },
+        { model: "fake/judge-two", configuration: { extends: "judge-config.json" } },
+        {
+          model: "other/judge-three",
+          configuration: { host: { name: "pi", extensions: [{ package: "judge-auth", version: "2.0.0" }] } },
+        },
+      ],
+    });
+    const loaded = await loadDefinition(await writeJson(path.join(root, "groups/judged-route.json"), definition), {
+      root,
+    });
+    assert.ok(
+      loaded.files.includes(path.join(root, "groups/judge-config.json")),
+      "a judge's configuration file is a run input",
+    );
+    const { resultPath, groupDirectory } = await runGroup(root, bin, definition);
+
+    const result = cli(root, bin, ["review", resultPath, "--rubric"]);
+
+    assert.equal(result.status, 0, result.stderr);
+    const calls = await readLog(path.join(root, "judge.jsonl"));
+    const byModel = (model) => calls.find((call) => call.model === model);
+    assert.deepEqual(byModel(HAIKU).extensions, [groupAuth], "the inheriting judge loads the group's extension");
+    assert.deepEqual(byModel("fake/judge-two").extensions, [judgeAuth], "its own configuration replaces the group's");
+    assert.deepEqual(byModel("other/judge-three").extensions, [judgeAuth]);
+
+    const grade = await readJson(path.join(groupDirectory, "candidate/judged-grade.json"));
+    const [inherited, extended, inline] = grade.judges;
+    assert.equal(inherited.setup, "group");
+    assert.deepEqual(inherited.extensions, [{ path: groupAuth, package: "group-auth@1.0.0" }]);
+    assert.deepEqual(inherited.settings, { retry: { enabled: false } });
+    assert.equal(extended.setup, "own (groups/judge-config.json)");
+    assert.deepEqual(extended.extensions, [{ path: judgeAuth, package: "judge-auth@2.0.0" }]);
+    assert.deepEqual(extended.settings, {});
+    assert.equal(inline.setup, "own (inline)");
+    // Each judge's family relation to the subject (provider fake) is its own.
+    assert.deepEqual(
+      grade.judges.map((judge) => [judge.model, judge.familyRelation]),
+      [
+        [HAIKU, "different"],
+        ["fake/judge-two", "same"],
+        ["other/judge-three", "different"],
+      ],
+    );
+    // The calibration key covers the effective setup.
+    assert.notEqual(inherited.configuration, extended.configuration);
+  });
+});
+
+test("--configuration with declared judges is refused when it would be ignored, and says what wins", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    await installPackage(root, "group-auth", "1.0.0");
+    const { resultPath } = await runGroup(root, bin, withGroupExtension());
+    await writeJson(path.join(root, "reviewer.json"), {
+      schema_version: 2,
+      kind: "configuration",
+      id: "reviewer",
+      configuration: { host: { name: "pi" }, model: { model: HAIKU } },
+    });
+
+    const result = cli(root, bin, ["review", resultPath, "--rubric", "--configuration", "reviewer.json"]);
+
+    assert.notEqual(result.status, 0);
+    assert.match(
+      result.stderr,
+      /declares its judges, whose host setup is their own configuration or the group's; --configuration would be ignored/,
+    );
+    await assert.rejects(readFile(path.join(root, "judge.jsonl")), { code: "ENOENT" });
+  });
+});
+
+test("the gate reports the judges' recorded errors when judging fails", async () => {
+  await withTempDirectory(async (root) => {
+    const trial = path.join(root, "runs/t1");
+    await writeJson(path.join(trial, "summary.json"), {
+      groups: [{ id: "rv01-b", variants: { base: "complete", head: "complete" } }],
+    });
+    await writeJson(path.join(trial, "groups/rv01-b/head/judged-grade.json"), {
+      state: "judge-error",
+      errors: ["judge did not complete: exit=1 settled=false error=out of extra usage"],
+    });
+    const outcome = { code: 1, stdout: "Judged rv01-b head: judge-error\n", stderr: "" };
+
+    const detail = await judgingFailure(outcome, { trials: [{ id: "t1" }] }, path.join(root, "runs"));
+
+    assert.equal(detail, "rv01-b/head: judge did not complete: exit=1 settled=false error=out of extra usage");
+    assert.equal(
+      await judgingFailure({ code: 2, stdout: "", stderr: "group x declares no judges\n" }, { trials: [] }, root),
+      "group x declares no judges",
+    );
   });
 });
 
