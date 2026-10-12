@@ -30,9 +30,9 @@ The active agent or user may judge:
 - recommendation quality;
 - semantic completeness.
 
-Keep semantic judgment, cited evidence, uncertainty, and limits outside canonical run and deterministic grade state.
+Keep semantic judgment, cited evidence, uncertainty, and limits outside canonical run and deterministic grade state. Judged evidence from `review` and `review --rubric` is already stored apart; read it with each judge's identity and calibration, and when it disagrees with deterministic facts, the facts stand and the disagreement is reported.
 
-Do not turn semantic judgment into evaluator-owned readiness or promotion status.
+Do not turn semantic or judged evidence into evaluator-owned readiness or promotion status.
 
 ## Diagnose The Failed Boundary
 
@@ -47,7 +47,8 @@ Classify before revising:
 - retained-use or multi-turn failure;
 - wording, placement, example, repetition, or stop-condition pressure;
 - a component that never reached the model;
-- fixture, environment, isolation, host, runner, or deterministic-check failure.
+- a stage, simulated user or judge rather than the subject: an earlier pipeline stage, a user that left its card, or a judge that misread the run;
+- fixture, environment, isolation, host, runner, grader-command, or deterministic-check failure.
 
 Do not add broad prose before identifying which boundary failed.
 
@@ -72,14 +73,14 @@ When evidence proves the group, fixture, or criterion is wrong, revise the evalu
 After a measured revision or resolved infrastructure cause:
 
 - rerun the complete fixed group;
-- run both baseline and candidate;
+- run every arm;
 - keep every result visible;
-- do not reuse an earlier baseline run as a fresh counterpart;
-- do not rerun only the preferred variant;
+- do not hand-pick an earlier reference run as a fresh counterpart; `--reuse` stands one in only when its inputs match exactly, and lists it as reused;
+- do not rerun only the preferred arm;
 - do not use partial evidence as a comparable full result;
 - do not rerun merely to erase failure.
 
-For variance, use `--trials` to run independent complete invocations rather than repeated preferred variants.
+For variance, use `--trials` to run independent complete invocations rather than repeated preferred arms.
 
 ## Report
 
@@ -89,7 +90,7 @@ Report:
 - exact revision or evaluation correction;
 - criteria that remained fixed;
 - old and new result paths;
-- deterministic transitions;
+- deterministic transitions, and the decision's verdict when the suite declares one;
 - remaining unsupported claims.
 
 The user decides whether to revise further, adopt, or reject the change.
