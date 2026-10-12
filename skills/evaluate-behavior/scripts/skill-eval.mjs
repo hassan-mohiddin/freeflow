@@ -5,6 +5,7 @@ import path from "node:path";
 import { createInterface } from "node:readline/promises";
 
 import { loadDefinition, selectDefinition } from "./lib/definitions.mjs";
+import "./lib/metrics.mjs";
 import { runEvaluation } from "./lib/runner.mjs";
 import { reviewResult } from "./lib/review.mjs";
 import { runTrials } from "./lib/trials.mjs";

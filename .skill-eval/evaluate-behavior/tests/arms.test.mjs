@@ -235,9 +235,17 @@ test("a three-arm A/A/B group runs every arm and keys runs, grades, comparisons 
       const run = await readJson(path.join(groupDirectory, arm, "run.json"));
       assert.equal(run.variant, arm);
       assert.equal(run.state, "complete");
-      // With no hook registered, a run keeps its shape.
+      // With no post-run hook registered, a run has no postRun; the CLI always registers tracked metrics.
       assert.equal(Object.hasOwn(run, "postRun"), false);
-      assert.equal(Object.hasOwn(run, "metrics"), false);
+      assert.deepEqual(Object.keys(run.metrics), [
+        "durationMs",
+        "turns",
+        "toolCalls",
+        "toolErrors",
+        "tokens",
+        "cost",
+        "cacheHitRate",
+      ]);
     }
     const grade = await readJson(path.join(groupDirectory, "deterministic-grade.json"));
     assert.deepEqual(Object.keys(grade.evidence), ARMS);
@@ -358,7 +366,13 @@ registerRunMetricsHook("dummy", ({ arm, observation, run }) => ({ dummyArm: arm,
         dummy: { arm, state: "complete", directory: path.join(groupDirectory, arm) },
         broken: { error: "hook failed" },
       });
-      assert.deepEqual(run.metrics, { dummyArm: arm, dummySettled: true, dummyVariant: arm });
+      // The CLI's tracked metrics come first; a registered hook's fields are merged after them.
+      const { dummyArm, dummySettled, dummyVariant } = run.metrics;
+      assert.deepEqual(
+        { dummyArm, dummySettled, dummyVariant },
+        { dummyArm: arm, dummySettled: true, dummyVariant: arm },
+      );
+      assert.equal(typeof run.metrics.durationMs, "number");
     }
   });
 });
