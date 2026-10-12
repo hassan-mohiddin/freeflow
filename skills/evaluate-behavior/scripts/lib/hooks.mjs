@@ -68,19 +68,18 @@ export async function aggregateSections(input) {
   return sections;
 }
 
-/** Each registered post-run hook's record for one run, by name; null when none is registered. */
+/** Each registered post-run hook's record for one run, by name; a hook that returns undefined records nothing, and null means nothing was recorded. */
 export async function postRunRecords(context) {
-  const entries = postRunHooks.entries();
-  if (entries.length === 0) return null;
   const records = {};
-  for (const [name, hook] of entries) {
+  for (const [name, hook] of postRunHooks.entries()) {
     try {
-      records[name] = await hook(context);
+      const record = await hook(context);
+      if (record !== undefined) records[name] = record;
     } catch (error) {
       records[name] = failure(error);
     }
   }
-  return records;
+  return Object.keys(records).length === 0 ? null : records;
 }
 
 /** The registered run-metrics hooks' fields merged in registration order; null when none is registered. */

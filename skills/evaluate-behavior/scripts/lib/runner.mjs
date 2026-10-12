@@ -192,9 +192,6 @@ function assertSupportedSelection(selection) {
     if (group.type !== "description" && group.type !== "body") {
       throw new Error("skill-eval run currently supports description and body groups only");
     }
-    if (group.expectations.some((expectation) => expectation.kind === "command")) {
-      throw new Error("command expectations are not supported");
-    }
     const supportedTools = group.type === "body" ? BODY_TOOLS : DESCRIPTION_TOOLS;
     const unsupportedNativeTools = group.tools.filter((tool) => NATIVE_TOOLS.has(tool) && !supportedTools.has(tool));
     if (unsupportedNativeTools.length > 0) {

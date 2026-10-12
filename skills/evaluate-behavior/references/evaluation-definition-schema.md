@@ -380,10 +380,36 @@ Without `turn`, response checks use the final response and workspace checks use 
 | `response-text` | string `value`, optional body `turn` | `contains`, `not-contains`, `equals` |
 | `tool-call` | string `tool`, optional body `turn`, optional `argumentContains`/`argumentNotContains` arrays | `called`, `succeeded`, `failed`, `not-called` |
 | `context-text` | string `value`, optional `surface` (`system-prompt` or `provider-context`), optional `request`, optional body `turn` | `contains`, `not-contains`, `equals` |
+| `command` | body only: `argv`, optional `files`, optional `timeout_seconds`, `pass`; no `turn` | none; see [Command graders](#command-graders) |
 
 With `line` (a positive integer, 1-based), a `file-text` expectation compares only that line, without its line ending. A line the file does not have fails every expectation, including `not-contains`, so an empty file cannot pass by having nothing to read. Use it to check one line, such as a review's first-line judgment, when the rest of the file may quote the same text.
 
 For `tool-call` with `expect: "not-called"`, omitted argument filters require zero calls to the named tool. Supplied filters scope the absence check to calls matching those argument predicates.
+
+### Command graders
+
+A `command` expectation grades a body run's final work by running a program on it, such as hidden tests or a linter:
+
+```json
+{
+  "id": "candidate-hidden-tests",
+  "kind": "command",
+  "variant": "candidate",
+  "comparison": "hidden-tests",
+  "argv": ["node", "--test", "--test-reporter=tap", "test/hidden.test.mjs"],
+  "files": { "test/hidden.test.mjs": "graders/calc/hidden.test.mjs" },
+  "timeout_seconds": 600,
+  "pass": { "tests": { "format": "node-test", "required": ["adds two numbers", "adds negatives"] } }
+}
+```
+
+- After the run, the final workspace is copied to `<arm>/commands/<id>/workspace`, each `files` entry is copied in (key: path in the copy; value: path under the definition root), and `argv` runs there without a shell, with the subject's isolated home, temp, XDG and Pi directories. The workspace itself is never changed, so file graders still verify its hashes.
+- `files` sources resolve from the definition root like `fixture`, may not lie inside the fixture (the subject sees the fixture), and are inputs of the run: an uncommitted grader file makes the run non-canonical. A destination may not pass through a symlink the subject left in the workspace.
+- `timeout_seconds` (1 to 3600, default 600) stops the command's whole process tree.
+- `pass` is exactly one rule. `{ "exit_code": 0 }` passes on that exit code. `{ "tests": { "format", "required", "report" } }` passes when every `required` test passed: `node-test` and `tap` read TAP from stdout (give Node `--test-reporter=tap`, since newer Node versions default to another reporter), and `junit` reads the JUnit XML file at `report` in the copy, or stdout without one. A required name matches a test's own name or its full name, parents joined by ` > ` (for JUnit, `<classname> > <name>`); skipped, missing and failed tests do not pass. The check records `score`, the passed share of `required`.
+- `run.json` records each command under `postRun.commands.<id>`: exit code, signal, timeout, duration, the last 20,000 characters of stdout and stderr, and parsed test results. A run that did not complete, or a command that could not start, grades `unavailable`; a timeout fails.
+
+Commands are trusted author input with the evaluator's host permissions; whatever the subject wrote runs with them too when the command executes it.
 
 ### Resource paths
 
@@ -442,9 +468,9 @@ A JSON Pointer is `""` for the complete value or begins with `/`; `~0` escapes `
 
 Expectations may share one comparison ID only when there is exactly one for each arm and all have the same kind and expected predicate. For each non-reference arm the report records a factual transition from the reference, such as `fail-to-pass`, never a quality verdict. A `baseline`/`candidate` group records it as `transition`; any other group records `reference`, each arm's check and state under `arms`, and each non-reference arm's transition under `transitions`.
 
-Definition loading validates common structure and unique IDs. Kind-specific expectation validation occurs during deterministic grading after run persistence. A malformed expectation therefore becomes separate `grade-error` evidence rather than changing the subject run. Use the documented shapes to avoid spending a subject run on an invalid check.
+Definition loading validates common structure and unique IDs, and every field of a `command` expectation, because it runs a program. Other kind-specific expectation validation occurs during deterministic grading after run persistence. A malformed expectation therefore becomes separate `grade-error` evidence rather than changing the subject run. Use the documented shapes to avoid spending a subject run on an invalid check.
 
-Definition-supplied commands run only through the subject's `run_command` tool. Grading never runs commands.
+Group `commands` run only through the subject's `run_command` tool. Grading runs only the `argv` of `command` expectations, after the subject has finished.
 
 ## Declared Commands
 

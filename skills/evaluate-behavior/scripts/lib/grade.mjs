@@ -1,4 +1,5 @@
 import { armNames, referenceArm } from "./arms.mjs";
+import { gradeCommand } from "./grade-command.mjs";
 import { gradeComparisons } from "./grade-comparison.mjs";
 import {
   gradeContextText,
@@ -19,6 +20,7 @@ const GRADERS = new Map([
   ["response-text", gradeResponseText],
   ["context-text", gradeContextText],
   ["tool-call", gradeToolCall],
+  ["command", gradeCommand],
 ]);
 
 /**

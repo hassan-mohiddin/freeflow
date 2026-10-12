@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { ARM_NAME, armNames, DEFAULT_REFERENCE } from "./arms.mjs";
 import { validateDecision } from "./decision.mjs";
+import { validateCommandExpectations } from "./grade-command.mjs";
 
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const EVALUATION_TYPES = new Set(["description", "body"]);
@@ -258,6 +259,7 @@ const EXPECTATION_FIELDS = new Map([
   ["response-text", ["value"]],
   ["context-text", ["value", "surface", "request"]],
   ["tool-call", ["tool", "argumentContains", "argumentNotContains"]],
+  ["command", ["argv", "files", "timeout_seconds", "pass"]],
 ]);
 
 function validateExpectations(value, definitionPath) {
@@ -631,6 +633,11 @@ async function validateGroup(value, definitionPath, root) {
     }
   }
   validateExpectations(group.expectations, definitionPath);
+  const graderFiles = validateCommandExpectations(group, {
+    arms: names,
+    root,
+    fail: (code, message) => fail(code, message, definitionPath),
+  });
   requireStringArray(group.review_questions, "group.review_questions", definitionPath);
   if (Object.hasOwn(group, "revision")) {
     if (group.revision !== "description-only") {
@@ -666,8 +673,8 @@ async function validateGroup(value, definitionPath, root) {
   const internal = {
     ...group,
     configurations: Object.fromEntries(names.map((arm) => [arm, resolved[arm].configuration])),
-    // The files this group was read from, so a run can check they are committed.
-    files: [definitionPath, ...(extendsFile === null ? [] : [extendsFile])],
+    // The files this group was read from and its command graders read, so a run can check they are committed.
+    files: [definitionPath, ...(extendsFile === null ? [] : [extendsFile]), ...graderFiles],
     component,
     variants,
   };
