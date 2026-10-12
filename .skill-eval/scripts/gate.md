@@ -20,6 +20,8 @@ npm run eval:gate -- --base origin/main --jobs 4 --max-cost 2
 
 Exit codes: 1 when any suite regressed, else 2 on a refusal or infrastructure failure, else 0.
 
+`--gate <file>` reads another gate configuration instead of `.skill-eval/gate.json`; the gate's tests use it.
+
 ## gate.json
 
 ```json
@@ -41,7 +43,9 @@ Exit codes: 1 when any suite regressed, else 2 on a refusal or infrastructure fa
 - `decision` (optional) is `"none"` to read comparisons even when the suite declares a decision, or a decision rule (the suite schema's shape, without `trials`) applied to the aggregate instead of the suite's.
 - `model` is the gate's default. A suite's own configuration keeps precedence; the plan notes a suite that uses another model. The evaluator takes models only from definitions, so an arm with no model is refused with the default to declare.
 
-- `arms` (optional) measures the change itself: `{ "baseline": "base", "candidate": "head" }` runs each named arm with every Git source ref it declares (subject source, Freeflow, source-built extensions) replaced by the base commit or HEAD, through the evaluator's `--source <arm>=<commit>`. The definitions are not edited; the commits are recorded in each run's `invocation.json`, on each run, and in its reuse key. An arm with no Git source is refused, so such a suite needs Git-sourced arms.
+- `arms` (optional) measures the change itself. It maps each arm name to a side: `{ "baseline": "base", "candidate": "head" }` runs each named arm with every Git source ref it declares (subject source, Freeflow, source-built extensions) replaced by the base commit or HEAD, through the evaluator's `--source <arm>=<commit>`. The definitions are not edited; the commits are recorded in each run's `invocation.json`, on each run, and in its reuse key. An arm with no Git source is refused, so such a suite needs Git-sourced arms.
+
+The gate suites name their arms after their sides, so their map is `{ "base": "base", "head": "head" }`.
 
 Without `arms`, a suite measures the arms it declares: skill-family, for example, compares two fixed refs and does not measure the change. A suite of one-arm groups is reported as **MEASURED** with how many checks passed in every trial (exit code as for a pass).
 
