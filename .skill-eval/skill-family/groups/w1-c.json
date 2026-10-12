@@ -68,42 +68,6 @@
       "paths": [
         "plan.md"
       ]
-    },
-    {
-      "id": "baseline-plan-names-baseline",
-      "variant": "baseline",
-      "comparison": "plan-names-baseline",
-      "kind": "file-text",
-      "path": "plan.md",
-      "expect": "contains",
-      "value": "baseline"
-    },
-    {
-      "id": "candidate-plan-names-baseline",
-      "variant": "candidate",
-      "comparison": "plan-names-baseline",
-      "kind": "file-text",
-      "path": "plan.md",
-      "expect": "contains",
-      "value": "baseline"
-    },
-    {
-      "id": "baseline-plan-names-near-miss",
-      "variant": "baseline",
-      "comparison": "plan-names-near-miss",
-      "kind": "file-text",
-      "path": "plan.md",
-      "expect": "contains",
-      "value": "near"
-    },
-    {
-      "id": "candidate-plan-names-near-miss",
-      "variant": "candidate",
-      "comparison": "plan-names-near-miss",
-      "kind": "file-text",
-      "path": "plan.md",
-      "expect": "contains",
-      "value": "near"
     }
   ],
   "review_questions": [

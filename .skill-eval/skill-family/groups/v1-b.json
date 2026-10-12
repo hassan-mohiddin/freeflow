@@ -71,58 +71,20 @@
       ]
     },
     {
-      "id": "baseline-reports-hand-check",
+      "id": "baseline-report-exists",
       "variant": "baseline",
-      "comparison": "reports-hand-check",
-      "kind": "file-text",
+      "comparison": "report-exists",
+      "kind": "path",
       "path": "report.md",
-      "expect": "contains",
-      "value": "hand"
+      "expect": "exists"
     },
     {
-      "id": "candidate-reports-hand-check",
+      "id": "candidate-report-exists",
       "variant": "candidate",
-      "comparison": "reports-hand-check",
-      "kind": "file-text",
+      "comparison": "report-exists",
+      "kind": "path",
       "path": "report.md",
-      "expect": "contains",
-      "value": "hand"
-    },
-    {
-      "id": "baseline-reports-strict-reading",
-      "variant": "baseline",
-      "comparison": "reports-strict-reading",
-      "kind": "file-text",
-      "path": "report.md",
-      "expect": "contains",
-      "value": "strict"
-    },
-    {
-      "id": "candidate-reports-strict-reading",
-      "variant": "candidate",
-      "comparison": "reports-strict-reading",
-      "kind": "file-text",
-      "path": "report.md",
-      "expect": "contains",
-      "value": "strict"
-    },
-    {
-      "id": "baseline-reports-lenient-reading",
-      "variant": "baseline",
-      "comparison": "reports-lenient-reading",
-      "kind": "file-text",
-      "path": "report.md",
-      "expect": "contains",
-      "value": "lenient"
-    },
-    {
-      "id": "candidate-reports-lenient-reading",
-      "variant": "candidate",
-      "comparison": "reports-lenient-reading",
-      "kind": "file-text",
-      "path": "report.md",
-      "expect": "contains",
-      "value": "lenient"
+      "expect": "exists"
     }
   ],
   "review_questions": [

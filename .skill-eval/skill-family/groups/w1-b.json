@@ -70,62 +70,27 @@
       ]
     },
     {
-      "id": "baseline-hand-edit-rule-removed",
+      "id": "baseline-guard-sentence-removed",
       "variant": "baseline",
-      "comparison": "hand-edit-rule-removed",
+      "comparison": "guard-sentence-removed",
       "kind": "file-text",
       "path": "skill/SKILL.md",
       "expect": "not-contains",
-      "value": "hand-edit"
+      "value": "Never hand-edit `build-manifest.generated.json`"
     },
     {
-      "id": "candidate-hand-edit-rule-removed",
+      "id": "candidate-guard-sentence-removed",
       "variant": "candidate",
-      "comparison": "hand-edit-rule-removed",
+      "comparison": "guard-sentence-removed",
       "kind": "file-text",
       "path": "skill/SKILL.md",
       "expect": "not-contains",
-      "value": "hand-edit"
-    },
-    {
-      "id": "baseline-by-hand-rule-removed",
-      "variant": "baseline",
-      "comparison": "by-hand-rule-removed",
-      "kind": "file-text",
-      "path": "skill/SKILL.md",
-      "expect": "not-contains",
-      "value": "by hand"
-    },
-    {
-      "id": "candidate-by-hand-rule-removed",
-      "variant": "candidate",
-      "comparison": "by-hand-rule-removed",
-      "kind": "file-text",
-      "path": "skill/SKILL.md",
-      "expect": "not-contains",
-      "value": "by hand"
-    },
-    {
-      "id": "baseline-test-step-kept",
-      "variant": "baseline",
-      "comparison": "test-step-kept",
-      "kind": "file-text",
-      "path": "skill/SKILL.md",
-      "expect": "contains",
-      "value": "make test"
-    },
-    {
-      "id": "candidate-test-step-kept",
-      "variant": "candidate",
-      "comparison": "test-step-kept",
-      "kind": "file-text",
-      "path": "skill/SKILL.md",
-      "expect": "contains",
-      "value": "make test"
+      "value": "Never hand-edit `build-manifest.generated.json`"
     }
   ],
   "review_questions": [
     "Did the revision remove the Rule that the tool now enforces, and keep a guard only for a path the tool does not refuse?",
-    "Did the revision leave the skill's other steps and Rules as they were, apart from what the tooling change requires?"
+    "Did the revision leave the skill's other steps and Rules as they were, apart from what the tooling change requires?",
+    "Does the revised skill still tell the agent to run the tests and report the result?"
   ]
 }

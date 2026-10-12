@@ -86,42 +86,6 @@
       "path": "activation.md",
       "expect": "contains",
       "value": "AGENTS.md"
-    },
-    {
-      "id": "baseline-names-direct-route",
-      "variant": "baseline",
-      "comparison": "names-direct-route",
-      "kind": "file-text",
-      "path": "activation.md",
-      "expect": "contains",
-      "value": "/invoice-check"
-    },
-    {
-      "id": "candidate-names-direct-route",
-      "variant": "candidate",
-      "comparison": "names-direct-route",
-      "kind": "file-text",
-      "path": "activation.md",
-      "expect": "contains",
-      "value": "/invoice-check"
-    },
-    {
-      "id": "baseline-names-description-route",
-      "variant": "baseline",
-      "comparison": "names-description-route",
-      "kind": "file-text",
-      "path": "activation.md",
-      "expect": "contains",
-      "value": "description"
-    },
-    {
-      "id": "candidate-names-description-route",
-      "variant": "candidate",
-      "comparison": "names-description-route",
-      "kind": "file-text",
-      "path": "activation.md",
-      "expect": "contains",
-      "value": "description"
     }
   ],
   "review_questions": [

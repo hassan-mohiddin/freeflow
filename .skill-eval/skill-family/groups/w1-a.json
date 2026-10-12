@@ -4,7 +4,7 @@
   "id": "w1-a-choose-changes",
   "type": "body",
   "input": {
-    "prompt": "Revise the `handoff-notes` skill in `skill/` using the evidence in `evidence/`. Five candidate changes follow. For each one, decide whether to make it, and give the reason. Write the decisions to `changes.md`. Write only `changes.md`; leave `skill/` unchanged.\n\n- C1: Add: name the branch exactly as `git branch --show-current` prints it.\n- C2: Add: check that every link in the handoff resolves before finishing.\n- C3: Add: leave out conversation details the next session does not need.\n- C4: Add: list each open decision with its owner and the option you recommend.\n- C5: Add: open with the current state; put the history of the session last."
+    "prompt": "Revise the `handoff-notes` skill in `skill/` using the evidence in `evidence/`. Five candidate changes follow. For each one, decide keep or drop. Keep means you make a change to the skill's text for it. Drop means you make no change to the skill's text for it. Write `changes.md` with exactly five lines, one per candidate in the order given. Each line starts with the candidate's ID, then `: keep` or `: drop`, then the reason, for example `X1: keep - reason`. Write only `changes.md`; leave `skill/` unchanged.\n\n- C1: Add: name the branch exactly as `git branch --show-current` prints it.\n- C2: Add: check that every link in the handoff resolves before finishing.\n- C3: Add: leave out conversation details the next session does not need.\n- C4: Add: list each open decision with its owner and the option you recommend.\n- C5: Add: open with the current state; put the history of the session last."
   },
   "fixture": ".skill-eval/skill-family/fixtures/w1-a",
   "tools": [
@@ -86,99 +86,109 @@
       ]
     },
     {
-      "id": "baseline-decides-c1",
+      "id": "baseline-line-1-c1-drop",
       "variant": "baseline",
-      "comparison": "decides-c1",
+      "comparison": "line-1-c1-drop",
       "kind": "file-text",
       "path": "changes.md",
+      "line": 1,
       "expect": "contains",
-      "value": "C1"
+      "value": "C1: drop"
     },
     {
-      "id": "candidate-decides-c1",
+      "id": "candidate-line-1-c1-drop",
       "variant": "candidate",
-      "comparison": "decides-c1",
+      "comparison": "line-1-c1-drop",
       "kind": "file-text",
       "path": "changes.md",
+      "line": 1,
       "expect": "contains",
-      "value": "C1"
+      "value": "C1: drop"
     },
     {
-      "id": "baseline-decides-c2",
+      "id": "baseline-line-2-c2-drop",
       "variant": "baseline",
-      "comparison": "decides-c2",
+      "comparison": "line-2-c2-drop",
       "kind": "file-text",
       "path": "changes.md",
+      "line": 2,
       "expect": "contains",
-      "value": "C2"
+      "value": "C2: drop"
     },
     {
-      "id": "candidate-decides-c2",
+      "id": "candidate-line-2-c2-drop",
       "variant": "candidate",
-      "comparison": "decides-c2",
+      "comparison": "line-2-c2-drop",
       "kind": "file-text",
       "path": "changes.md",
+      "line": 2,
       "expect": "contains",
-      "value": "C2"
+      "value": "C2: drop"
     },
     {
-      "id": "baseline-decides-c3",
+      "id": "baseline-line-3-c3-drop",
       "variant": "baseline",
-      "comparison": "decides-c3",
+      "comparison": "line-3-c3-drop",
       "kind": "file-text",
       "path": "changes.md",
+      "line": 3,
       "expect": "contains",
-      "value": "C3"
+      "value": "C3: drop"
     },
     {
-      "id": "candidate-decides-c3",
+      "id": "candidate-line-3-c3-drop",
       "variant": "candidate",
-      "comparison": "decides-c3",
+      "comparison": "line-3-c3-drop",
       "kind": "file-text",
       "path": "changes.md",
+      "line": 3,
       "expect": "contains",
-      "value": "C3"
+      "value": "C3: drop"
     },
     {
-      "id": "baseline-decides-c4",
+      "id": "baseline-line-4-c4-keep",
       "variant": "baseline",
-      "comparison": "decides-c4",
+      "comparison": "line-4-c4-keep",
       "kind": "file-text",
       "path": "changes.md",
+      "line": 4,
       "expect": "contains",
-      "value": "C4"
+      "value": "C4: keep"
     },
     {
-      "id": "candidate-decides-c4",
+      "id": "candidate-line-4-c4-keep",
       "variant": "candidate",
-      "comparison": "decides-c4",
+      "comparison": "line-4-c4-keep",
       "kind": "file-text",
       "path": "changes.md",
+      "line": 4,
       "expect": "contains",
-      "value": "C4"
+      "value": "C4: keep"
     },
     {
-      "id": "baseline-decides-c5",
+      "id": "baseline-line-5-c5-keep",
       "variant": "baseline",
-      "comparison": "decides-c5",
+      "comparison": "line-5-c5-keep",
       "kind": "file-text",
       "path": "changes.md",
+      "line": 5,
       "expect": "contains",
-      "value": "C5"
+      "value": "C5: keep"
     },
     {
-      "id": "candidate-decides-c5",
+      "id": "candidate-line-5-c5-keep",
       "variant": "candidate",
-      "comparison": "decides-c5",
+      "comparison": "line-5-c5-keep",
       "kind": "file-text",
       "path": "changes.md",
+      "line": 5,
       "expect": "contains",
-      "value": "C5"
+      "value": "C5: keep"
     }
   ],
   "review_questions": [
-    "Did each candidate get a decision with a reason that rests on the evidence in evidence/?",
-    "Did the decision keep only changes the evidence shows will recur, and say why each dropped candidate was dropped?",
-    "Where a tool or check could prevent a candidate's failure, did the decision route it to that tool or check instead of adding prose?"
+    "Does each drop reason match its candidate: a one-off explained by its situation (C1), a failure a tool or check could prevent (C2), or text the skill already states (C3)?",
+    "Do the kept changes (C4, C5) rest on the observed sessions, with each reason naming those sessions?",
+    "Where a check, script or tool would prevent a candidate's failure, does the decision route it there instead of leaving it as prose?"
   ]
 }

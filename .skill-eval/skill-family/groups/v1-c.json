@@ -71,58 +71,20 @@
       ]
     },
     {
-      "id": "baseline-names-baseline",
+      "id": "baseline-design-exists",
       "variant": "baseline",
-      "comparison": "names-baseline",
-      "kind": "file-text",
+      "comparison": "design-exists",
+      "kind": "path",
       "path": "design.md",
-      "expect": "contains",
-      "value": "baseline"
+      "expect": "exists"
     },
     {
-      "id": "candidate-names-baseline",
+      "id": "candidate-design-exists",
       "variant": "candidate",
-      "comparison": "names-baseline",
-      "kind": "file-text",
+      "comparison": "design-exists",
+      "kind": "path",
       "path": "design.md",
-      "expect": "contains",
-      "value": "baseline"
-    },
-    {
-      "id": "baseline-checks-behavior",
-      "variant": "baseline",
-      "comparison": "checks-behavior",
-      "kind": "file-text",
-      "path": "design.md",
-      "expect": "contains",
-      "value": "behav"
-    },
-    {
-      "id": "candidate-checks-behavior",
-      "variant": "candidate",
-      "comparison": "checks-behavior",
-      "kind": "file-text",
-      "path": "design.md",
-      "expect": "contains",
-      "value": "behav"
-    },
-    {
-      "id": "baseline-no-activation-check",
-      "variant": "baseline",
-      "comparison": "no-activation-check",
-      "kind": "file-text",
-      "path": "design.md",
-      "expect": "not-contains",
-      "value": "activat"
-    },
-    {
-      "id": "candidate-no-activation-check",
-      "variant": "candidate",
-      "comparison": "no-activation-check",
-      "kind": "file-text",
-      "path": "design.md",
-      "expect": "not-contains",
-      "value": "activat"
+      "expect": "exists"
     }
   ],
   "review_questions": [

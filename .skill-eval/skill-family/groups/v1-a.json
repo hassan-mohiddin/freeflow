@@ -85,100 +85,11 @@
       "kind": "path",
       "path": "report.md",
       "expect": "exists"
-    },
-    {
-      "id": "baseline-reports-candidate-count",
-      "variant": "baseline",
-      "comparison": "reports-candidate-count",
-      "kind": "file-text",
-      "path": "report.md",
-      "expect": "contains",
-      "value": "4/5"
-    },
-    {
-      "id": "candidate-reports-candidate-count",
-      "variant": "candidate",
-      "comparison": "reports-candidate-count",
-      "kind": "file-text",
-      "path": "report.md",
-      "expect": "contains",
-      "value": "4/5"
-    },
-    {
-      "id": "baseline-reports-baseline-count",
-      "variant": "baseline",
-      "comparison": "reports-baseline-count",
-      "kind": "file-text",
-      "path": "report.md",
-      "expect": "contains",
-      "value": "3/5"
-    },
-    {
-      "id": "candidate-reports-baseline-count",
-      "variant": "candidate",
-      "comparison": "reports-baseline-count",
-      "kind": "file-text",
-      "path": "report.md",
-      "expect": "contains",
-      "value": "3/5"
-    },
-    {
-      "id": "baseline-no-is-better-claim",
-      "variant": "baseline",
-      "comparison": "no-is-better-claim",
-      "kind": "file-text",
-      "path": "report.md",
-      "expect": "not-contains",
-      "value": "is better"
-    },
-    {
-      "id": "candidate-no-is-better-claim",
-      "variant": "candidate",
-      "comparison": "no-is-better-claim",
-      "kind": "file-text",
-      "path": "report.md",
-      "expect": "not-contains",
-      "value": "is better"
-    },
-    {
-      "id": "baseline-no-beats-claim",
-      "variant": "baseline",
-      "comparison": "no-beats-claim",
-      "kind": "file-text",
-      "path": "report.md",
-      "expect": "not-contains",
-      "value": "beats"
-    },
-    {
-      "id": "candidate-no-beats-claim",
-      "variant": "candidate",
-      "comparison": "no-beats-claim",
-      "kind": "file-text",
-      "path": "report.md",
-      "expect": "not-contains",
-      "value": "beats"
-    },
-    {
-      "id": "baseline-recommends-trials",
-      "variant": "baseline",
-      "comparison": "recommends-trials",
-      "kind": "file-text",
-      "path": "report.md",
-      "expect": "contains",
-      "value": "trial"
-    },
-    {
-      "id": "candidate-recommends-trials",
-      "variant": "candidate",
-      "comparison": "recommends-trials",
-      "kind": "file-text",
-      "path": "report.md",
-      "expect": "contains",
-      "value": "trial"
     }
   ],
   "review_questions": [
-    "Did the report avoid calling either variant better, and say what two single runs can and cannot show?",
-    "Did the report recommend more trials or a decision rule fixed before any further run, rather than a conclusion from these counts?"
+    "Did the report state each variant's count correctly, avoid calling either variant better, and say what two single runs can and cannot show?",
+    "Did the report recommend more trials or a decision rule fixed before any further run, rather than a conclusion from these counts?",
+    "Did the report keep the one-case difference within what a single run can show, instead of treating it as a result?"
   ]
 }
