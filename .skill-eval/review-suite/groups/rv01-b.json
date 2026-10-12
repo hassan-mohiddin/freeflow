@@ -1,0 +1,125 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "rv01-b",
+  "type": "body",
+  "input": {
+    "prompt": "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`"
+  },
+  "fixture": ".skill-eval/review-suite/fixtures/rs-97b149b0/seeded/workspace",
+  "tools": ["read", "write", "ls", "find"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "context": []
+      }
+    },
+    "candidate": {
+      "subject": {
+        "context": [".skill-eval/review-suite/context/rv01-b/requirements.md"]
+      }
+    }
+  },
+  "component": ["subject.context"],
+  "expectations": [
+    {
+      "id": "baseline-only-review",
+      "variant": "baseline",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "candidate-only-review",
+      "variant": "candidate",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "baseline-judgment-line",
+      "variant": "baseline",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "candidate-judgment-line",
+      "variant": "candidate",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "baseline-not-passed",
+      "variant": "baseline",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "candidate-not-passed",
+      "variant": "candidate",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "baseline-names-file-1",
+      "variant": "baseline",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "controller.ts"
+    },
+    {
+      "id": "candidate-names-file-1",
+      "variant": "candidate",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "controller.ts"
+    },
+    {
+      "id": "baseline-names-file-2",
+      "variant": "baseline",
+      "comparison": "names-file-2",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "controller.js"
+    },
+    {
+      "id": "candidate-names-file-2",
+      "variant": "candidate",
+      "comparison": "names-file-2",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "controller.js"
+    }
+  ],
+  "review_questions": [
+    "Did the review identify the defect at pi-extension/src/compaction/controller.ts:215 and pi-extension/dist/compaction/controller.js:151 (the expression `once the run ends`): The warning notice (Compaction is due soon) says Pi compacts on its own 'once the run ends', restating the claim the change removes from the notices. Requirement 6 is contradicted. Did it support the finding with the file and line?",
+    "Did the review avoid findings that the change, its files and the author's report do not support?"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "case": "rs-864df4cc",
+  "base_commit": "864df4cce17b4eedf819d63b03788adb6b7c748e",
+  "parent_commit": "ab509ff768e97dbd976ad4d09b28679edf7e74e2",
+  "subject": "Include runtime dependencies in dev snapshot",
+  "base_paths": ["scripts/freeflow-snapshot.mjs", "scripts/freeflow-snapshot.test.mjs"],
+  "excluded_from_case": "AGENTS.md, plugin-docs/architecture.md, plugin-docs/integrations/piflow.md (documentation of the same commit)",
+  "scratch": "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/864df4cc",
+  "variants": {
+    "clean": { "built_from": "git archive 864df4cc", "change_diff": "git diff ab509ff7 864df4cc for the two paths" },
+    "seeded": {
+      "class": "security",
+      "location": "scripts/freeflow-snapshot.mjs:127",
+      "locator": "\"ci\", \"--omit=dev\", \"--legacy-peer-deps\"",
+      "seed": "removed \"--ignore-scripts\" from the npm ci argument list in installRuntimeDependencies",
+      "consequence": "Lifecycle scripts (install, postinstall, prepare) of declared runtime dependencies run during a snapshot refresh, with the maintainer's user privileges and environment. Hostile input: a dependency entry in the committed package-lock.json whose package carries a postinstall script.",
+      "committed_test": "node --test scripts/freeflow-snapshot.test.mjs : clean 4 pass 0 fail; seeded 4 pass 0 fail (the committed fixture's dependency has no script, so the committed test cannot see the seed)",
+      "proof": {
+        "script": "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/tools/run-refresh.mjs and /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/864df4cc/proof/fixture (a git repo with file:vendor/snapshot-runtime-dep whose postinstall writes SNAPSHOT_PROOF_MARKER)",
+        "command": "cd /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/tools && npm_config_offline=true node run-refresh.mjs /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/864df4cc/<clean|seeded> /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/864df4cc/proof/fixture /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/864df4cc/proof/out-<clean|seeded>",
+        "clean_result": "refresh: published first-installation commit bfed26712415; lifecycle marker written: false",
+        "seeded_result": "refresh: published first-installation commit bfed26712415; lifecycle marker written: true (contents: lifecycle script ran)"
+      }
+    }
+  },
+  "unsure": [
+    "The proof used a file: directory dependency (npm links it). Behaviour for registry tarballs was not run here.",
+    "The proof fixture's package-lock.json was made with npm install --package-lock-only --offline, and the refresh ran npm ci offline (npm_config_offline=true). No package was downloaded; no network was used.",
+    "Only the npm ci flag is seeded. The npm pack --ignore-scripts call (line 167) is unchanged. The committed test passes on the seed, so the proof above is the only evidence it is real.",
+    "Builder ran npm install --package-lock-only --offline once to make the proof fixture lockfile, in scratch only. No package was downloaded; the committed test's own npm calls are file-only."
+  ],
+  "rerun": "Final re-run recorded in /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/final-run.log (all lines for this case)."
+}

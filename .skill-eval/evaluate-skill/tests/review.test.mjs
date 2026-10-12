@@ -180,6 +180,30 @@ test("review records variant-blind advisory answers without touching canonical g
   });
 });
 
+test("the reply shape shows one entry for each question", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installReviewerPi(root);
+    await writeResult(root, { reviewQuestions: [QUESTION, "Did the run avoid unsupported claims?"] });
+    const output = JSON.stringify({
+      answers: [
+        { question: 1, A: "yes", B: "no", rationale: "A names rollback." },
+        { question: 2, A: "yes", B: "yes", rationale: "Both cite the plan." },
+      ],
+    });
+
+    const result = review(root, bin, ["--model", "reviewer/model"], output);
+
+    assert.equal(result.status, 0, result.stderr);
+    const [call] = (await readFile(path.join(root, "review.jsonl"), "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.match(call.prompt, /one entry for each of the 2 questions/);
+    assert.ok(call.prompt.includes('{"question":1,'), "the shape shows question 1");
+    assert.ok(call.prompt.includes('{"question":2,'), "the shape shows question 2");
+  });
+});
+
 test("view shows the advisory review mapped back to variants", async () => {
   await withTempDirectory(async (root) => {
     const bin = await installReviewerPi(root);

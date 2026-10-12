@@ -1,0 +1,34 @@
+{
+  "case": "rs-12575cea",
+  "base_commit": "12575cea0c14289dbdc45332ee143809755eedbe",
+  "parent_commit": "1710c77548be099697c81e8fb4d94baff2780d2e",
+  "subject": "feat(evals): add CEV1 compact evidence core (compact-evidence module and test only)",
+  "base_paths": [
+    "skills/evaluate-skill/scripts/lib/compact-evidence.mjs",
+    ".skill-eval/evaluate-skill/tests/compact-evidence.test.mjs"
+  ],
+  "excluded_from_case": "skills/evaluate-skill/scripts/lib/plan.mjs (adds compact-evidence.mjs to the evaluator source identity lists), CHANGELOG.md, coverage-matrix.json, evals/registries/skill-evidence.json, v3-transition.md and the v3 plan note, all in the same commit",
+  "scratch": "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/12575cea",
+  "variants": {
+    "clean": { "built_from": "git archive 12575cea", "change_diff": "git diff 1710c775 12575cea for the two paths" },
+    "seeded": {
+      "class": "logic",
+      "location": "skills/evaluate-skill/scripts/lib/compact-evidence.mjs:172",
+      "locator": "canonicalText.length",
+      "seed": "canonicalBytes = Buffer.byteLength(canonicalText) changed to canonicalText.length (UTF-16 code units, not UTF-8 bytes)",
+      "consequence": "For non-ASCII evidence, bytes.canonical and bytes.omitted are wrong: the canonical size is reported in code units (a 17002-byte example reports 10602). The CEV1-versus-canonical choice compares a compact byte count with the code-unit count, so it can flip when the compact size falls between the two counts. The committed tests use ASCII only.",
+      "committed_test": "node --test .skill-eval/evaluate-skill/tests/compact-evidence.test.mjs : clean 5 pass 0 fail; seeded 5 pass 0 fail (not detected by the committed tests)",
+      "proof": {
+        "script": "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/12575cea/proof/byte-accounting.proof.test.mjs",
+        "command": "cd /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/12575cea/proof && EXPORT_ROOT=/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/12575cea/<clean|seeded> node --test byte-accounting.proof.test.mjs",
+        "clean_result": "2 pass 0 fail: CEV1 branch bytes.canonical equals Buffer.byteLength and omitted = canonical - compact; fallback bytes.canonical equals Buffer.byteLength",
+        "seeded_result": "0 pass 2 fail: CEV1 branch bytes.canonical 10602 where 17002 expected; fallback bytes.canonical 39 where 40 expected"
+      }
+    }
+  },
+  "unsure": [
+    "The reviewer workspace omits plan.mjs and the other files of the commit, as listed above. Requirements do not depend on them.",
+    "Whether the suite owner counts a non-ASCII-only defect as a logic defect the reviewer can reasonably find: the requirement states UTF-8 byte counts, so a careful reviewer has a basis."
+  ],
+  "rerun": "Final re-run recorded in /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/final-run.log (all lines for this case)."
+}

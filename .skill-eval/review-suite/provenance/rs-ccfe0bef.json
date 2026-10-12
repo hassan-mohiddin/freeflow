@@ -1,0 +1,64 @@
+{
+  "case": "rs-ccfe0bef",
+  "base_commit": "ccfe0befecd5e53ba4928c54df56d4e53cce4b4c",
+  "parent": "ca1cc9044cd9c94cc36abc1c6c59316416722890",
+  "subject": "Own Pi's generic prompt lines when Tool Execution is on",
+  "pinned_pi_at_commit": "^0.99.1",
+  "changed_paths": [
+    "M\tpi-extension/dist/index.js",
+    "A\tpi-extension/dist/tool-execution/prompt.js",
+    "M\tpi-extension/src/index.ts",
+    "A\tpi-extension/src/tool-execution/prompt.ts",
+    "A\tpi-extension/tests/tool-execution/prompt-native.test.js"
+  ],
+  "fixture": ".skill-eval/review-suite/fixtures/rs-ccfe0bef",
+  "variants": {
+    "clean": {
+      "defect": null,
+      "built_from": "the commit tree as merged",
+      "proof": {
+        "command": "cd /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/ccfe0bef/clean && node --test pi-extension/tests/tool-execution/prompt-native.test.js",
+        "result": "pass 3, fail 0, exit 0",
+        "logs": [
+          "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P4-ccfe0bef-clean.log"
+        ]
+      }
+    },
+    "seeded": {
+      "class": "convention",
+      "defect": "A fourth line of Pi's own rules, the guideline about keeping edits[].oldText small, is added to REMOVED_RULES, so Freeflow drops it from the rules section. The commit says exactly three lines are removed and that each tool's guidelines, including edit's, stay.",
+      "location": [
+        "pi-extension/src/tool-execution/prompt.ts:10",
+        "pi-extension/dist/tool-execution/prompt.js:9 (mirror of the same line)"
+      ],
+      "locator": "Keep edits[].oldText as small as possible",
+      "original_line": "(no such line; the set has three entries, lines 6-8 of prompt.ts)",
+      "seeded_line": "  \"- Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.\",",
+      "requirement_quoted": "1. With Tool Execution effective, Pi's `rules` section is Pi's own rendering with exactly three lines removed: \"- Use read to examine files instead of cat or sed.\", \"- Be concise in your responses\", and \"- Show file paths clearly when working with files\". Every other rule line stays as Pi renders it, including each tool's and extension's guidelines and edit's guidelines.",
+      "proof": {
+        "kind": "convention: requirement and seeded line quoted above; the committed native prompt test is run to show it does not check this line; the rendered system prompt is compared to show the effect",
+        "command": "cd /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/ccfe0bef/seeded && node --test pi-extension/tests/tool-execution/prompt-native.test.js",
+        "clean_result": "pass 3, fail 0",
+        "seeded_result": "pass 3, fail 0 (no committed test checks the line)",
+        "effect_command": "cd /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/ccfe0bef/seeded && DUMP_OUT=/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P4-ccfe0bef-seeded-system.txt node --test pi-extension/tests/tool-execution/zz-dump.test.js (scratch test that writes requests[0]'s system text; the clean run is the same with the clean export)",
+        "effect_result": "The seeded system text lacks the rule line '- Keep edits[].oldText as small as possible ...'. Counting lines that start with '- ' in the whole system text gives 43 on clean and 42 on seeded. Apart from temporary directory names and skill paths, that is the only difference between the two dumps.",
+        "logs": [
+          "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P4-ccfe0bef-clean.log",
+          "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P4-ccfe0bef-seeded.log",
+          "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P4-ccfe0bef-clean-system.txt",
+          "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P4-ccfe0bef-seeded-system.txt"
+        ]
+      }
+    }
+  },
+  "environment_notes": [
+    "node_modules: symlinked read-only from the worktree (no npm install). It holds @earendil-works/pi-coding-agent 1.0.1; this commit pins a different Pi version (see pinned_pi), so results were produced against 1.0.1.",
+    "Final proof run: a fresh git archive of the base commit per variant, with the fixture's workspace/files/ copied on top, then the command run from the export root.",
+    "Scratch exports and logs: /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final (logs in /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs).",
+    "Pinned Pi at this commit is 0.99.1; the worktree node_modules has 1.0.1."
+  ],
+  "unsure": [
+    "The commit message and tests are about three removed lines; the seeded fourth line is an edit guideline that the commit says stays. A reviewer needs requirement 1 to catch it; no test does.",
+    "The worktree HEAD copies of prompt.ts and prompt-native.test.js differ from the commit's. Every fact about this case was taken from the commit's export, not from the worktree."
+  ]
+}

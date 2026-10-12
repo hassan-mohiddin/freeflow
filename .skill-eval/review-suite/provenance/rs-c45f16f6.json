@@ -1,0 +1,62 @@
+{
+  "case": "rs-c45f16f6",
+  "builder": "suite build b3 (Haiku 5.5 subagent)",
+  "base": {
+    "commit": "c45f16f6e424d5ea13751423f1bed471a2a4dee1",
+    "parent": "e22912278f560f00b27b6d6c6d74b9d796751a40",
+    "subject": "Advise the longer cache tier and record the Codex cache findings",
+    "paths": [
+      "pi-extension/dist/cognitive-routing-v2/economics.js",
+      "pi-extension/dist/cognitive-routing-v2/runtime.js",
+      "pi-extension/dist/provider-support/cache/index.js",
+      "pi-extension/src/cognitive-routing-v2/economics.ts",
+      "pi-extension/src/cognitive-routing-v2/runtime.ts",
+      "pi-extension/src/provider-support/cache/index.ts",
+      "pi-extension/src/provider-support/cache/keepalive.ts",
+      "pi-extension/tests/cognitive-routing-v2/economics.test.js",
+      "pi-extension/tests/provider-support/cache-keepalive.test.js"
+    ]
+  },
+  "method": {
+    "exports": "git archive <commit> into <scratch>/c45f16f6/clean; seeded export is a second archive of the same commit with the seed applied by hand; node_modules symlinked read-only to the repository's installed node_modules.",
+    "compile": "node_modules/.bin/tsc -p pi-extension/tsconfig.json --noEmitOnError false, then node_modules/.bin/prettier --write pi-extension/dist, as the repository's build script does.",
+    "clean_reproduces_committed_dist": "yes: the rebuilt dist of the clean export is byte-identical to the committed dist (diff -r, no output).",
+    "tsc_exit": "tsc exits 2 for clean and seeded with two errors only, both in src/tool-runtime/program/quickjs.ts (quickjs packages absent from the installed node_modules; see rs-f0abfb11.json). Emit is complete.",
+    "diffs": "clean change.diff is git diff parent commit; seeded change.diff comes from a scratch git repository holding the parent files and then the seeded files. Each change.diff was applied to the parent's changed files and compared byte for byte with the variant's files (no mismatches)."
+  },
+  "variants": {
+    "clean": {
+      "class": null,
+      "change": "the commit as merged",
+      "proof": {
+        "command": "cd <scratch>/c45f16f6/clean && node --test pi-extension/tests/cognitive-routing-v2/economics.test.js pi-extension/tests/provider-support/cache-keepalive.test.js",
+        "result": "tests 18, pass 18, fail 0. Behaviour check: node <scratch>/suite-build/b3/check-retention.mjs <scratch>/c45f16f6/clean gives retention advice count {undefined: 1, long: 0, short: 1}.",
+        "whole_folder_note": "Folders cognitive-routing-v2 and provider-support together: tests 219, pass 218, fail 1 on clean and on seeded alike. The failure is stabilization.test.js 'explicit assistant text survives Pi custom-message conversion and the Codex SSE serializer', which cannot import @earendil-works/pi-ai/dist/api/openai-codex-responses.js from the installed node_modules. It is an environment fault unrelated to the seed and is not part of this proof."
+      }
+    },
+    "seeded": {
+      "class": "convention",
+      "location": "pi-extension/src/cognitive-routing-v2/runtime.ts:506",
+      "locator": "process.env.PI_CACHE_RETENTIONS",
+      "defect": "The routing runtime reads the misspelled variable PI_CACHE_RETENTIONS. With PI_CACHE_RETENTION=long set on the host, the runtime still passes the short tier to presetWarnings, so the advice is given on a host that already uses the long tier, and it tells the user to set the variable they have set. Unset and short behave as before.",
+      "change": "runtime.ts line 506 reads process.env.PI_CACHE_RETENTIONS where the commit has process.env.PI_CACHE_RETENTION. The two other readers (src/index.ts:272 and src/provider-support/cache/keepalive.ts:164) are unchanged.",
+      "proof": {
+        "method": "convention",
+        "rule_quoted": "requirements.md, requirement 2: \"The host's retention is read from the environment variable `PI_CACHE_RETENTION`. The value `long` selects the long tier. Any other value, or no value, selects the short tier. This is Pi's only retention control.\"",
+        "seeded_line": "pi-extension/src/cognitive-routing-v2/runtime.ts:506: process.env.PI_CACHE_RETENTIONS === \"long\" ? \"long\" : \"short\",",
+        "behaviour_check": "node <scratch>/suite-build/b3/check-retention.mjs <scratch>/c45f16f6/seeded gives {undefined: 1, long: 1, short: 1}; clean gives {undefined: 1, long: 0, short: 1}. The check builds a RoutingRuntime from the dist and calls presetWarnings with PI_CACHE_RETENTION set to each value.",
+        "tests": "node --test pi-extension/tests/cognitive-routing-v2/economics.test.js pi-extension/tests/provider-support/cache-keepalive.test.js on the seeded export: tests 18, pass 18, fail 0. No committed test reads this variable through the runtime (grep: only economics.test.js:133 checks the advice text), so the seed is test-invisible by design."
+      }
+    }
+  },
+  "final_rerun": {
+    "command": "bash <scratch>/suite-build/b3/final-rerun.sh focused, then ... area; node <scratch>/suite-build/b3/check-retention.mjs on clean and seeded",
+    "focused": "fixture files equal the exports; both change.diffs apply to the parent with 0 mismatches; clean rebuild equals committed dist; clean 18/18 and seeded 18/18 pass; check-retention: clean {undefined 1, long 0, short 1}, seeded {undefined 1, long 1, short 1}.",
+    "area": "clean 218/219 and seeded 218/219 (the same environment failure, stabilization.test.js:308, on both)."
+  },
+  "unsure": [
+    "Class: I labelled this convention because the rule is a documented contract (the environment variable name and the unset-means-short rule), and no test checks it. A reviewer could call it logic, since the effect is a wrong tier. The protocol's convention definition covers a documented contract, so I kept the label.",
+    "This is the only seed in this batch that no committed test can detect. Its proof is the quoted requirement plus the behaviour check, not a failing test.",
+    "The seeded variant is a typo in one of three readers of the same variable. A reviewer can find it by comparing the three readers with requirement 2."
+  ]
+}

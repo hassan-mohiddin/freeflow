@@ -217,7 +217,7 @@ A body group explicitly delivers each target on turn one and observes first-read
 }
 ```
 
-Description groups allow no tools or only built-in `read`. Body groups allow built-in `read`, `write`, and `edit`, the evaluator's `run_command` tool for declared commands, plus custom tools declared by a runtime extension bundle. Native `bash`, `powershell`, `grep`, `find`, and `ls` tools are unsupported. A no-target baseline or runtime-only group may use `skills: []` and `target: null`; a candidate that declares skills must identify its target.
+Description groups allow no tools or only built-in `read`. Body groups allow built-in `read`, `write`, `edit`, `ls`, `find` and `grep` (each confined to the evaluation environment), the evaluator's `run_command` tool for declared commands, plus custom tools declared by a runtime extension bundle. Native `bash` and `powershell` are unsupported. A no-target baseline or runtime-only group may use `skills: []` and `target: null`; a candidate that declares skills must identify its target.
 
 The examples are complete definition shapes. Replace fixture, resource, model, and Git-ref values with paths and identities that exist under your definition root.
 

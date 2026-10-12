@@ -1,0 +1,52 @@
+{
+  "case": "rs-9849a16c",
+  "base_commit": "9849a16c5e5a165e991d407d9abb79761533c518",
+  "parent": "257ee3284a3f07f43412524364d7cb915d0f5ee9",
+  "subject": "Keep the Coordinator's evidence in place through a recovery after a worker compacts",
+  "pinned_pi_at_commit": ">=0.99.1",
+  "changed_paths": [
+    "M\tpi-extension/dist/cognitive-routing/assembler.js",
+    "M\tpi-extension/src/cognitive-routing/assembler.ts",
+    "M\tpi-extension/tests/compaction/README.md",
+    "M\tpi-extension/tests/compaction/coordinator-view.test.js"
+  ],
+  "fixture": ".skill-eval/review-suite/fixtures/rs-9849a16c",
+  "variants": {
+    "clean": {
+      "defect": null,
+      "built_from": "the commit tree as merged",
+      "proof": {
+        "command": "cd /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/9849a16c/clean && node --test pi-extension/tests/compaction/coordinator-view.test.js",
+        "result": "pass 2, fail 0, exit 0",
+        "also_run": "cd /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/9849a16c/clean && node --test pi-extension/tests/compaction/carry.test.js pi-extension/tests/compaction/worker-warning.test.js: tests 4, pass 4, fail 0, exit 0 (final run; log /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P1b-9849a16c-clean-claims.log)"
+      }
+    },
+    "seeded": {
+      "class": "logic",
+      "defect": "The admissions scan recognises the recovery suspension by the supplement's status ('recovery-supplement-accepted') instead of the recovery request's status ('recovery-request-accepted'). The recovery is then not treated as a recovery suspension, so the resumed assessment moves recovery evidence to the resume point and the Coordinator's prefix is not extended.",
+      "location": [
+        "pi-extension/src/cognitive-routing/assembler.ts:182",
+        "pi-extension/dist/cognitive-routing/assembler.js:169 (mirror of the same line)"
+      ],
+      "locator": "data?.type === \"recovery-supplement-accepted\" &&",
+      "original_line": "          data?.type === \"recovery-request-accepted\" &&",
+      "seeded_line": "          data?.type === \"recovery-supplement-accepted\" &&",
+      "proof": {
+        "command": "cd /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/9849a16c/seeded && node --test pi-extension/tests/compaction/coordinator-view.test.js",
+        "clean_result": "pass 2, fail 0 (see clean row)",
+        "seeded_result": "pass 1, fail 1, exit 1. Failing: 'after a worker compacts, a recovery round keeps the Coordinator's prefix', assertion at coordinator-view.test.js:127 'the resumed view extends the assessing one' (expected true, actual false).",
+        "logs": [
+          "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P1-9849a16c-clean.log",
+          "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P1-9849a16c-seeded.log"
+        ]
+      },
+      "notes": "verification.md says the coordinator-view test passes (2 pass). That is the author's report for the merged change and is not true of the seeded tree; the protocol allows optimistic reports."
+    }
+  },
+  "environment_notes": [
+    "node_modules: symlinked read-only from the worktree (no npm install). It holds @earendil-works/pi-coding-agent 1.0.1; this commit pins a different Pi version (see pinned_pi), so results were produced against 1.0.1.",
+    "Final proof run: a fresh git archive of the base commit per variant, with the fixture's workspace/files/ copied on top, then the command run from the export root.",
+    "Scratch exports and logs: /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final (logs in /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs)."
+  ],
+  "unsure": []
+}

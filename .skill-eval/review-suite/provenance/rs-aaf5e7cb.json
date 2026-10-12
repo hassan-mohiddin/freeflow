@@ -1,0 +1,56 @@
+{
+  "case": "rs-aaf5e7cb",
+  "status": "built",
+  "base_commit": "aaf5e7cb8557d8ff0123987d16f4b85530499196",
+  "parent_commit": "e2ea7d38edb6f68c78f5b8f8c819078e33a1837f",
+  "subject": "Leave OpenAI's Sign in with ChatGPT route untouched until qualified",
+  "base_paths": [
+    "pi-extension/dist/provider-support/cache/index.js",
+    "pi-extension/dist/provider-support/cache/keepalive.js",
+    "pi-extension/dist/provider-support/openai/adapter.js",
+    "pi-extension/dist/provider-support/routes.js",
+    "pi-extension/src/provider-support/cache/index.ts",
+    "pi-extension/src/provider-support/cache/keepalive.ts",
+    "pi-extension/src/provider-support/openai/adapter.ts",
+    "pi-extension/src/provider-support/routes.ts",
+    "pi-extension/tests/provider-support/cache-keepalive.test.js",
+    "pi-extension/tests/provider-support/chatgpt-sign-in.test.js"
+  ],
+  "diff_check": "clean change.diff is the commit diff (git diff parent commit -- paths); the seeded change.diff replaces both added lines of the route check (src routes.ts and dist routes.js) and applies with patch -p1 to an archive of the parent, reproducing the seeded tree (checked)",
+  "requested_class": "security",
+  "class_note": "Requested class was security (credential reaching a non-qualified host). Not shown: isChatGPTSignIn only decides whether Freeflow rewrites or replays a payload; Pi sends the credential to the same base URL either way. Built as logic on the same check, at the lead's instruction.",
+  "variants": {
+    "clean": {
+      "class": null,
+      "description": "The change as committed. No defect is planted.",
+      "committed_suite": {
+        "command": "cd pi-extension && node --test tests/provider-support/chatgpt-sign-in.test.js tests/provider-support/cache-keepalive.test.js",
+        "result": "17 tests, 17 pass, 0 fail"
+      }
+    },
+    "seeded": {
+      "class": "logic",
+      "location": ["pi-extension/src/provider-support/routes.ts:12", "pi-extension/dist/provider-support/routes.js:11"],
+      "locator": "isUsingOAuth?.(model) !== false",
+      "description": "The OAuth check of the Sign in with ChatGPT route is inverted to undefined-as-true: `=== true` becomes `!== false`. A host whose model registry lacks the OAuth check (so the call yields undefined) is then treated as Sign in with ChatGPT, and its requests skip Freeflow's adaptations. The commit's rule is that only an OAuth answer qualifies a route; API-key and Codex routes are unchanged. The dist file is mirrored so the committed tests, which import dist, exercise the seed.",
+      "clean_line": "    return ctx?.modelRegistry?.isUsingOAuth?.(model) === true;",
+      "seeded_line": "    return ctx?.modelRegistry?.isUsingOAuth?.(model) !== false;",
+      "rule_quoted": "requirements.md item 5: \"Only an OAuth answer from the host's model registry qualifies a route. A host that does not provide the registry's OAuth check, or whose check fails, leaves the route unqualified.\"",
+      "proof": {
+        "method": "logic: the committed tests pass on clean and fail on seeded",
+        "command": "cd <export>/pi-extension && node --test tests/provider-support/chatgpt-sign-in.test.js tests/provider-support/cache-keepalive.test.js",
+        "clean_result": "17 tests, 17 pass, 0 fail",
+        "seeded_result": "17 tests, 15 pass, 2 fail: \"any provider that declares a lifetime and cache prices is warmed through its own output cap\" (cache-keepalive, test 8) and \"the sign-in route is the openai Responses API at api.openai.com with a ChatGPT credential\" (chatgpt-sign-in, test 15)",
+        "seed_applied_to": "pi-extension/src/provider-support/routes.ts (compiles: tsc -p pi-extension/tsconfig.json exit 0) and pi-extension/dist/provider-support/routes.js (the file the tests import)"
+      }
+    }
+  },
+  "unsure": [
+    "The seeded verification.md is identical to the clean one, so it reports 17 pass. On the seeded tree the same command gives 15 pass and 2 fail. The protocol allows an optimistic author report, but a reviewer who reruns the tests will see the mismatch. Tell me if you want the seeded report changed.",
+    "The defect is a mis-stated default, and the two failing tests are about an undefined registry answer, not about a credential. The security story from the candidate note does not reach a credential destination."
+  ],
+  "rerun": [
+    "cd pi-extension && node --test tests/provider-support/chatgpt-sign-in.test.js tests/provider-support/cache-keepalive.test.js (clean export): 17 pass, 0 fail",
+    "same command in the seeded export: 15 pass, 2 fail"
+  ]
+}

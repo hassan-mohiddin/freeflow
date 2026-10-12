@@ -1,0 +1,75 @@
+{
+  "case": "rr-9f311f68",
+  "built_by": "suite-build b6 (Claude Haiku 5.5)",
+  "held_out": false,
+  "base": {
+    "introducing_commit": "9f311f680923833349510057b7f59e6696f6609c",
+    "parent_commit": "07995e91f602b1d5b1636ef53080e985204fc955",
+    "fix_commit": "706201e4e5b362d6f15a3f989816a9e2778d0ae9",
+    "fix_parent_is_introducing_commit": false,
+    "paths": [
+      "pi-extension/src/index.ts",
+      "pi-extension/tests/cognitive-routing/extension-lifecycle.test.js",
+      "pi-extension/tests/integration/pi-extension.test.js"
+    ],
+    "scope": "The introducing commit's only source file is pi-extension/src/index.ts (73 changed lines), so no narrowing was needed. Generated pi-extension/dist files are omitted; the repository build reproduces the committed output, and the tests were run on that build. The fix also changes pi-extension/src/runtime/runtime-context.ts; that file is in the seeded variant only, because the introducing commit does not change it."
+  },
+  "variants": {
+    "real": {
+      "class": "logic",
+      "location": "pi-extension/src/index.ts:409",
+      "locator": "sessionHasConversationOrRoutingState(ctx)",
+      "defect": "In a configured session with no conversation or routing entries, the controller is left undefined. The status path then reports the routing runtime as 'cognitive blocked · runtime_inactive', although the runtime has not started yet. The fix shows 'cognitive standard · pending' for this state, and it also changes the setModeStatus signature in runtime-context.ts.",
+      "introduced_in": "9f311f68",
+      "fixed_in": "706201e4",
+      "contributing_location": "pi-extension/src/runtime/runtime-context.ts, setModeStatus: an effective routing config with no runtime reports 'runtime_inactive' as its fallback reason. The introducing commit does not change this function.",
+      "proof": {
+        "fix_test_on_introducing_state": {
+          "command": "node --test pi-extension/tests/integration/fix-pi-extension.test.js (706201e4's pi-extension.test.js, copied into the 9f311f68 export; build by npm run build:pi-extension)",
+          "result": "92 pass, 2 fail. Failing: test 7 'PiFlow empty configured sessions show standard pending before first prompt' (actual 'freeflow: interaction · workflow · cognitive blocked · runtime_inactive', expected 'freeflow: interaction · workflow · cognitive standard · pending'); test 4 'PiFlow statusline shows the configured standard profile pending first prompt activation' (the setModeStatus option is not handled at the introducing state)."
+        },
+        "fix_state": {
+          "command": "same test file in the 706201e4 export",
+          "result": "94 pass, 0 fail."
+        },
+        "own_tests_on_introducing_state": {
+          "command": "node --test pi-extension/tests/cognitive-routing/extension-lifecycle.test.js and node --test pi-extension/tests/integration/pi-extension.test.js in the 9f311f68 export",
+          "result": "lifecycle 16 pass, 0 fail; integration 91 pass, 0 fail. The committed tests do not check the status of an empty configured session."
+        }
+      }
+    },
+    "seeded": {
+      "class": "logic",
+      "location": "pi-extension/src/index.ts:82",
+      "locator": "cognitiveRoutingRuntime?.effective === true && startupSelectionSuppressesCognitiveRouting(ctx)",
+      "seed": "On top of the 706201e4 state, the negation in promptCapabilityState is dropped (diff against the fix state is the single line 82). When the routing runtime is effective, the prompt's capability state is now left unchanged exactly when a host-selected model or thinking level suppresses routing, and it is marked disabled otherwise. The result is inverted whenever a runtime is effective.",
+      "proof": {
+        "clean_state": {
+          "command": "npm run build:pi-extension, then node --test on the lifecycle and integration test files in the 706201e4 export (no seed)",
+          "result": "lifecycle 16 pass, 0 fail; integration 94 pass, 0 fail."
+        },
+        "seeded_state": {
+          "command": "same build and tests in the 706201e4 export with the fixture's seeded files",
+          "result": "lifecycle 12 pass, 4 fail: 'new empty sessions do not persist Cognitive Routing state until the first prompt', 'Pi delivers layered bootstrap once and the routing kernel on every turn', 'Pi keeps Cognitive Routing bootstrap independent of Workflow', 'Pi lifecycle prepares, activates, restores, and releases Cognitive Routing ownership'. Integration 94 pass, 0 fail (the integration file does not detect this seed)."
+        }
+      }
+    }
+  },
+  "final_run": {
+    "command": "bash /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b6/scripts/final-proofs.sh > /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b6/final-proofs.out 2>&1",
+    "script": "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b6/scripts/final-proofs.sh",
+    "output": "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b6/final-proofs.out",
+    "exports": "fresh git archive exports under /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b6/final (node_modules symlinked read-only from the repository)",
+    "date": "2026-10-12",
+    "script_exit_code": 0
+  },
+  "rejected_seeds": [
+    "runtime-context.ts setModeStatus: '||' changed to '&&' in startupSelectionSuppressesCognitiveRouting. Caught by one unit test (integration test 6, 93 pass, 1 fail), but index.ts already applies its own suppression check before passing the pending flag, so no end-to-end status changes. Latent only.",
+    "index.ts line 46 (the helper): '||' changed to '&&'. Neither committed test file detects it (94 pass, 16 pass)."
+  ],
+  "unsure": [
+    "The real defect's line (index.ts:409) is where the controller is left undefined. The reviewer may instead name setModeStatus in runtime-context.ts, which produces the 'runtime_inactive' text. The locator is on index.ts:409 only.",
+    "Requirement 2 says 'not reported as blocked or inactive' and excludes suppressed sessions. Those sessions keep the blocked status, as the fix's own test requires, so the requirement does not conflict with the fix.",
+    "The seeded variant's only detecting tests are the lifecycle tests, and its verification report names only the integration file. That matches what its author would have run, and it is not a false claim."
+  ]
+}

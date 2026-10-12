@@ -1,0 +1,504 @@
+{
+  "cases": [
+    {
+      "case": "rr-60a766a0",
+      "kind": "real",
+      "held_out": false,
+      "base_commit": "845c619086530765301e9746b5ff7f8246893cce",
+      "variants": {
+        "real": {
+          "defective": true,
+          "class": "security",
+          "location": ["skills/evaluate-skill/scripts/lib/fixture-oracle.mjs:15"],
+          "locator": "spawnSync(process.execPath, [script"
+        },
+        "seeded": {
+          "defective": true,
+          "class": "logic",
+          "location": ["skills/evaluate-skill/scripts/lib/fixture-oracle.mjs:45"],
+          "locator": "check.contains ?? []) if (content.includes(value))"
+        }
+      },
+      "requirements_identical": false
+    },
+    {
+      "case": "rr-7b5dfb09",
+      "kind": "real",
+      "held_out": true,
+      "base_commit": "7b5dfb095d2106af1db68320ad01ac099125fba5",
+      "variants": {
+        "real": {
+          "defective": true,
+          "class": "logic",
+          "location": ["pi-extension/src/cognitive-routing/tool.ts:170"],
+          "locator": "pendingLabel(target)"
+        },
+        "seeded": {
+          "defective": true,
+          "class": "logic",
+          "location": ["pi-extension/src/cognitive-routing/tool.ts:182"],
+          "locator": "outcome.changed === true && outcome.to"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rr-9f311f68",
+      "kind": "real",
+      "held_out": false,
+      "base_commit": "9f311f680923833349510057b7f59e6696f6609c",
+      "variants": {
+        "real": {
+          "defective": true,
+          "class": "logic",
+          "location": ["pi-extension/src/index.ts:409"],
+          "locator": "sessionHasConversationOrRoutingState(ctx)"
+        },
+        "seeded": {
+          "defective": true,
+          "class": "logic",
+          "location": ["pi-extension/src/index.ts:82"],
+          "locator": "cognitiveRoutingRuntime?.effective === true && startupSelectionSuppressesCognitiveRouting(ctx)"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rr-a276b963",
+      "kind": "real",
+      "held_out": true,
+      "base_commit": "5f20bd5cf6683bcc6de4506b0f6b6acbed7a01c6",
+      "variants": {
+        "real": {
+          "defective": true,
+          "class": "logic",
+          "location": ["skills/evaluate-skill/scripts/lib/process.mjs:45"],
+          "locator": "retainedOutputBytes += buffer.length;"
+        },
+        "seeded": {
+          "defective": true,
+          "class": "logic",
+          "location": ["skills/evaluate-skill/scripts/lib/process.mjs:71"],
+          "locator": "terminated ? \"\" : \"\\n\""
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rr-d9beef6d",
+      "kind": "real",
+      "held_out": false,
+      "base_commit": "e88e62a316fe9b1df8b396b822c993ac10c5df66",
+      "variants": {
+        "real": {
+          "defective": true,
+          "class": "security",
+          "location": ["pi-extension/src/runtime/runtime-context.ts:112"],
+          "locator": "SUBAGENT_AGENT_TAG.test(systemPrompt)"
+        },
+        "seeded": {
+          "defective": true,
+          "class": "logic",
+          "location": ["pi-extension/src/runtime/runtime-context.ts:116"],
+          "locator": "SUBAGENT_AGENT_TAG.test(systemPrompt) &&"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-0b8e9c15",
+      "kind": "base",
+      "held_out": false,
+      "base_commit": "0b8e9c1558acf85d06e70dee723628e4b27643ca",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "convention",
+          "location": ["skills/setup-freeflow/references/host-setup.md:49"],
+          "locator": "; prescribe Pi's `/reload`"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-12575cea",
+      "kind": "base",
+      "held_out": false,
+      "base_commit": "12575cea0c14289dbdc45332ee143809755eedbe",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "logic",
+          "location": ["skills/evaluate-skill/scripts/lib/compact-evidence.mjs:172"],
+          "locator": "canonicalText.length"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-24c53d4b",
+      "kind": "base",
+      "held_out": true,
+      "base_commit": "24c53d4b54f14a2b34fcd027e0ec1a54e0c6d4bb",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "logic",
+          "location": ["pi-extension/src/context-virtualization/runtime.ts:308"],
+          "locator": "isDuplicate(refs.filter((ref): ref is string => typeof ref === \"string\"))"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-25844ce3",
+      "kind": "base",
+      "held_out": false,
+      "base_commit": "25844ce3c94247118d4909b4336b9693ce6ca988",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "security",
+          "location": ["skills/evaluate-skill/scripts/lib/publication.mjs:15"],
+          "locator": "operations.lstat(path + \".tmp\")"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-2c00f6e3",
+      "kind": "base",
+      "held_out": false,
+      "base_commit": "2c00f6e369f40a68cc9adca19f8dd0e68ccd39e9",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "logic",
+          "location": ["skills/track-work/scripts/lib/operations.mjs:28"],
+          "locator": "/^D-\\d{3}/"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-355956c1",
+      "kind": "base",
+      "held_out": true,
+      "base_commit": "355956c13b94e40f903db0dd5990ba6008e51a5c",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "logic",
+          "location": ["skills/evaluate-skill/scripts/lib/process-outcome.mjs:29"],
+          "locator": "result.process.code > 0"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-4ab18f5b",
+      "kind": "base",
+      "held_out": false,
+      "base_commit": "4ab18f5ba1457e14189b3c2655a18798c112aa71",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "logic",
+          "location": [
+            "pi-extension/src/host/read-only-session.ts:201",
+            "pi-extension/dist/host/read-only-session.js:171"
+          ],
+          "locator": "if (reason) trustLoadedSession(reader);"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-6949f0d0",
+      "kind": "base",
+      "held_out": false,
+      "base_commit": "6949f0d01981f2917b89b6531c8cbde42b7d21c1",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "security",
+          "location": ["skills/evaluate-skill/scripts/lib/integrity.mjs:23"],
+          "locator": "stableJson(recorded) !== stableJson(recorded)"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-6cdbdfcf",
+      "kind": "base",
+      "held_out": true,
+      "base_commit": "6cdbdfcf61dedc71a170faaddf10b4b98ada2dce",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "logic",
+          "location": ["pi-extension/src/compaction/harness.ts:74", "pi-extension/dist/compaction/harness.js:49"],
+          "locator": "new Set([...cycle.read]"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-864df4cc",
+      "kind": "base",
+      "held_out": false,
+      "base_commit": "864df4cce17b4eedf819d63b03788adb6b7c748e",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "security",
+          "location": ["scripts/freeflow-snapshot.mjs:127"],
+          "locator": "\"ci\", \"--omit=dev\", \"--legacy-peer-deps\""
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-92d1d78d",
+      "kind": "base",
+      "held_out": false,
+      "base_commit": "92d1d78dc391a9411f84327c003aefceed555f24",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "logic",
+          "location": [
+            "pi-extension/src/cognitive-routing/gate.ts:225",
+            "pi-extension/dist/cognitive-routing/gate.js:210"
+          ],
+          "locator": "if (nested) return { block: true"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-97b149b0",
+      "kind": "base",
+      "held_out": true,
+      "base_commit": "97b149b03ff9c22bb4fb205764cdc23885af60d3",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "convention",
+          "location": [
+            "pi-extension/src/compaction/controller.ts:215",
+            "pi-extension/dist/compaction/controller.js:151"
+          ],
+          "locator": "once the run ends"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-9849a16c",
+      "kind": "base",
+      "held_out": false,
+      "base_commit": "9849a16c5e5a165e991d407d9abb79761533c518",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "logic",
+          "location": [
+            "pi-extension/src/cognitive-routing/assembler.ts:182",
+            "pi-extension/dist/cognitive-routing/assembler.js:169"
+          ],
+          "locator": "data?.type === \"recovery-supplement-accepted\" &&"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-a0b9cc37",
+      "kind": "base",
+      "held_out": false,
+      "base_commit": "a0b9cc37baca1b45b94154801e7ed3efd21d029b",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "convention",
+          "location": ["skills/evaluate-skill/scripts/lib/semantic.mjs:104"],
+          "locator": "objective_checks_passed: true"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-aaf5e7cb",
+      "kind": "base",
+      "held_out": true,
+      "base_commit": "aaf5e7cb8557d8ff0123987d16f4b85530499196",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "logic",
+          "location": [
+            "pi-extension/src/provider-support/routes.ts:12",
+            "pi-extension/dist/provider-support/routes.js:11"
+          ],
+          "locator": "isUsingOAuth?.(model) !== false"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-c45f16f6",
+      "kind": "base",
+      "held_out": false,
+      "base_commit": "c45f16f6e424d5ea13751423f1bed471a2a4dee1",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "convention",
+          "location": ["pi-extension/src/cognitive-routing-v2/runtime.ts:506"],
+          "locator": "process.env.PI_CACHE_RETENTIONS"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-ccfe0bef",
+      "kind": "base",
+      "held_out": false,
+      "base_commit": "ccfe0befecd5e53ba4928c54df56d4e53cce4b4c",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "convention",
+          "location": ["pi-extension/src/tool-execution/prompt.ts:10", "pi-extension/dist/tool-execution/prompt.js:9"],
+          "locator": "Keep edits[].oldText as small as possible"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-dcf82fce",
+      "kind": "base",
+      "held_out": true,
+      "base_commit": "dcf82fce8da1cf703ce311a87701b81cb55443f4",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "logic",
+          "location": ["pi-extension/src/compaction/carry.ts:25"],
+          "locator": "Math.floor(warning / 2)"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-e312562f",
+      "kind": "base",
+      "held_out": false,
+      "base_commit": "e312562fc63d114aa0efdd54776a9ca9251dfcc8",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "logic",
+          "location": ["pi-extension/src/provider-support/cache/keepalive.ts:238"],
+          "locator": "\"memory\", provider, model]"
+        }
+      },
+      "requirements_identical": true
+    },
+    {
+      "case": "rs-f0abfb11",
+      "kind": "base",
+      "held_out": false,
+      "base_commit": "f0abfb1149fbf219f9f05e8e3c35f0207b85cf60",
+      "variants": {
+        "clean": {
+          "defective": false,
+          "class": null
+        },
+        "seeded": {
+          "defective": true,
+          "class": "logic",
+          "location": ["pi-extension/src/cognitive-routing/state.ts:440"],
+          "locator": "workerRunning((x) => x.assignmentId === recovery.id)"
+        }
+      },
+      "requirements_identical": true
+    }
+  ]
+}

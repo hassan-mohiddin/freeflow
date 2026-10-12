@@ -1,0 +1,54 @@
+{
+  "case": "rs-f0abfb11",
+  "builder": "suite build b3 (Haiku 5.5 subagent)",
+  "base": {
+    "commit": "f0abfb1149fbf219f9f05e8e3c35f0207b85cf60",
+    "parent": "ac15437b9de6a26889e7cad781d3d2d0619e87ae",
+    "subject": "Enforce every routing transition rule in the state reducer",
+    "paths": [
+      "pi-extension/dist/cognitive-routing/state.js",
+      "pi-extension/src/cognitive-routing/state.ts",
+      "pi-extension/tests/cognitive-routing/state.test.js"
+    ]
+  },
+  "method": {
+    "exports": "git archive <commit> into <scratch>/f0abfb11/clean; seeded export is a second archive of the same commit with the seed applied by hand; node_modules symlinked read-only to the repository's installed node_modules.",
+    "compile": "node_modules/.bin/tsc -p pi-extension/tsconfig.json --noEmitOnError false, then node_modules/.bin/prettier --write pi-extension/dist, as the repository's build script does.",
+    "clean_reproduces_committed_dist": "yes: the rebuilt dist of the clean export is byte-identical to the committed dist (diff -r, no output).",
+    "tsc_exit": "tsc exits 2 for clean and seeded with two errors only: src/tool-runtime/program/quickjs.ts cannot find quickjs-emscripten-core and @jitl/quickjs-wasmfile-release-sync. The repository's installed node_modules is at HEAD and lacks those packages, which this commit's package.json declares. With emit enabled the output is still complete for this commit.",
+    "diffs": "clean change.diff is git diff parent commit; seeded change.diff comes from a scratch git repository holding the parent files and then the seeded files. Each change.diff was applied to the parent's changed files and compared byte for byte with the variant's files (no mismatches)."
+  },
+  "variants": {
+    "clean": {
+      "class": null,
+      "change": "the commit as merged",
+      "proof": {
+        "command": "cd <scratch>/f0abfb11/clean && node --test pi-extension/tests/cognitive-routing/state.test.js",
+        "result": "tests 19, pass 19, fail 0. Whole folder (pi-extension/tests/cognitive-routing/*.test.js): tests 194, pass 194, fail 0."
+      }
+    },
+    "seeded": {
+      "class": "logic",
+      "location": "pi-extension/src/cognitive-routing/state.ts:440",
+      "locator": "workerRunning((x) => x.assignmentId === recovery.id)",
+      "defect": "The unit-closed check for an open recovery looks up executions by assignment id instead of recovery id. A worker execution started for the recovery is therefore never seen as unresolved, so closing the unit goes through while that execution is still running. The adjacent checks (recovery cancellation, and the outstanding-assignment close) are unchanged.",
+      "change": "state.ts line 440 uses x.assignmentId === recovery.id where the commit has x.recoveryId === recovery.id.",
+      "proof": {
+        "method": "test",
+        "command": "cd <scratch>/f0abfb11/seeded && node_modules/.bin/tsc -p pi-extension/tsconfig.json --noEmitOnError false; node_modules/.bin/prettier --write pi-extension/dist; node --test pi-extension/tests/cognitive-routing/state.test.js",
+        "clean": "tests 19, pass 19, fail 0",
+        "seeded": "tests 19, pass 18, fail 1. Failing test: 'recovery cannot be cancelled or its unit closed while its worker execution is unresolved' (state.test.js:628): error 'Missing expected exception: unit-closed', meaning the close was accepted while the recovery's execution was unresolved.",
+        "whole_folder_seeded": "tests 194, pass 193, fail 1 (the same test)"
+      }
+    }
+  },
+  "final_rerun": {
+    "command": "bash <scratch>/suite-build/b3/final-rerun.sh focused, then ... area",
+    "focused": "fixture files equal the exports; both change.diffs apply to the parent with 0 mismatches; clean rebuild equals committed dist; clean 19/19 pass; seeded (recompiled) 18/19, failing the recovery test above.",
+    "area": "clean 194/194 pass; seeded 193/194, failing the same test."
+  },
+  "unsure": [
+    "The candidate note suggested removing one guard. I chose a field swap instead, because removing a whole check would read as deleted code and the swap is the copy-paste slip a careful author makes next to the adjacent line.",
+    "The seeded failure is a missing expected exception, not a different error code: the close is accepted. The test's first event (recovery cancellation) still throws as the commit intends, so only the unit-closed half of the test fails."
+  ]
+}

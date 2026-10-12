@@ -1,0 +1,67 @@
+{
+  "case": "rr-d9beef6d",
+  "status": "built",
+  "builder": "b5 (Haiku 5.5 subagent)",
+  "held_out": false,
+  "base": {
+    "commit": "e88e62a316fe9b1df8b396b822c993ac10c5df66",
+    "note": "first parent of the introducing commit"
+  },
+  "introducing_commit": {
+    "sha": "d9beef6d67a3e45237064d68ec480ecdd6f889cc",
+    "subject": "Fix subagent capability isolation",
+    "size": "source 41 lines in 2 files, plus 3 test files; under the 250-line limit, whole change used"
+  },
+  "fix_commit": {
+    "sha": "e060e7e9a89d08dc3ef2778c4dc4661f01b9590a",
+    "subject": "Fix configured subagent capability isolation"
+  },
+  "paths": [
+    "pi-extension/src/freeflow-context/tool.ts",
+    "pi-extension/src/runtime/runtime-context.ts",
+    "pi-extension/tests/cognitive-routing/profile-resolution.test.js",
+    "pi-extension/tests/context-virtualization/extension.test.js",
+    "pi-extension/tests/integration/prompt-architecture.test.js"
+  ],
+  "excluded_paths": ["pi-extension/dist/freeflow-context/tool.js", "pi-extension/dist/runtime/runtime-context.js"],
+  "exclusion_reason": "dist is generated from src by tsc; the exports compile src with tsc -p pi-extension/tsconfig.json before running the tests",
+  "variants": {
+    "real": {
+      "class": "security",
+      "location": "pi-extension/src/runtime/runtime-context.ts:112",
+      "locator": "SUBAGENT_AGENT_TAG.test(systemPrompt)",
+      "defect": "isSubagentContext recognises only the <active_agent name=\"...\"/> tag. Configured subagents (Explorer, Reviewer, general-purpose) that identify themselves with the capability-disable marker are treated as main sessions.",
+      "consequence": "Optional capabilities (Context Virtualization, Conversation History, Cognitive Routing) stay enabled inside subagent sessions: their prompts, skill directories, the freeflow_context tool and routing remain available to a child session that is meant to be isolated. Class note: this is a permission boundary, not a hostile input; the brief's security label is kept, and the owner may want to reclassify.",
+      "proof": {
+        "kind": "fix commit's tests failing on the introducing state",
+        "command": "node --test pi-extension/tests/cognitive-routing/profile-resolution.test.js pi-extension/tests/integration/prompt-architecture.test.js  (fix-state versions of the two test files, run on the introducing state after tsc)",
+        "result_introducing": "not ok 11 'subagent sessions keep Freeflow core enabled while disabling optional capabilities' (profile-resolution.test.js:190, contextVirtualization.enabled expected false, actual true); not ok 17 'subagents keep Freeflow core and base skills without optional capabilities' (Context Virtualization cue present in system prompt). 23 tests, 21 pass, 2 fail.",
+        "result_fixed": "35 pass, 0 fail on the fix commit with the same three test files",
+        "intro_suite": "real: node --test profile-resolution, prompt-architecture, context-virtualization/extension => 35 pass, 0 fail"
+      }
+    },
+    "seeded": {
+      "class": "logic",
+      "location": "pi-extension/src/runtime/runtime-context.ts:116",
+      "locator": "SUBAGENT_AGENT_TAG.test(systemPrompt) &&",
+      "defect": "Seed: the combined subagent test uses && where || was intended, so a session is detected only when both the host tag and the marker are present.",
+      "base_state": "Fix state for runtime-context.ts and the two fix test files (profile-resolution.test.js and prompt-architecture.test.js, as committed in e060e7e9); tool.ts and context-virtualization/extension.test.js as in d9beef6d. Seed applied on top.",
+      "proof": {
+        "kind": "committed tests that pass on control and fail on seeded",
+        "control": "base + seeded files with the seed reverted (runtime-context.ts line 116 back to ||)",
+        "command": "node --test pi-extension/tests/cognitive-routing/profile-resolution.test.js pi-extension/tests/integration/prompt-architecture.test.js pi-extension/tests/context-virtualization/extension.test.js (after tsc -p pi-extension/tsconfig.json)",
+        "result_control": "35 pass, 0 fail",
+        "result_seeded": "33 pass, 2 fail: 'not ok 11 subagent sessions keep Freeflow core enabled...' and 'not ok 29 subagents keep Freeflow core and base skills...'"
+      }
+    }
+  },
+  "reruns": {
+    "command": "bash /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b5/prove-rr.sh",
+    "note": "Rebuilds every proof directory from the shipped fixture files, compiles each with tsc, and reruns it; results in /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b5/proof/results.txt"
+  },
+  "unsure": [
+    "The Explorer, Reviewer and general-purpose prompts are not in this repository at any inspected commit. The capability-disable marker contract comes only from the fix commit message and its tests. Real requirement 1 names the marker so a reviewer can check the detection; that may be judged as too close to the defect.",
+    "Security label versus permission defect: the consequence is capability isolation for child sessions, not a hostile input. Kept as security per the brief; the owner may prefer logic.",
+    "Real verification.md reports the intro's own committed tests, which pass on the introducing state (the fix's replacement tests are what fail)."
+  ]
+}

@@ -1,0 +1,388 @@
+diff --git a/skills/evaluate-skill/scripts/lib/evaluate.mjs b/skills/evaluate-skill/scripts/lib/evaluate.mjs
+index f9b84ce..b1f3932 100644
+--- a/skills/evaluate-skill/scripts/lib/evaluate.mjs
++++ b/skills/evaluate-skill/scripts/lib/evaluate.mjs
+@@ -96,6 +96,7 @@ async function executeVariant(workspace, plan, variant, evidenceDir, id, depende
+         writeRoots: [fixtureRoot],
+         timeoutMs: plan.plan_inputs.limits.timeout_ms,
+         outputLimitBytes: plan.plan_inputs.limits.output_limit_bytes,
++        transportLimitBytes: plan.plan_inputs.limits.transport_limit_bytes,
+         maxTurns: plan.plan_inputs.limits.max_turns_per_process,
+       });
+       execution = {
+@@ -109,6 +110,9 @@ async function executeVariant(workspace, plan, variant, evidenceDir, id, depende
+           signal: subject.process.signal,
+           timed_out: subject.process.timed_out,
+           output_limit_exceeded: subject.process.output_limit_exceeded,
++          transport_limit_exceeded: subject.process.transport_limit_exceeded,
++          transport_bytes: subject.process.transport_bytes,
++          retained_output_bytes: subject.process.retained_output_bytes,
+           parse_errors: subject.parsed.parse_errors,
+         },
+       };
+@@ -151,9 +155,12 @@ async function executeVariant(workspace, plan, variant, evidenceDir, id, depende
+         signal: subject.process.signal,
+         timed_out: subject.process.timed_out,
+         output_limit_exceeded: subject.process.output_limit_exceeded,
++        transport_limit_exceeded: subject.process.transport_limit_exceeded,
++        transport_bytes: subject.process.transport_bytes,
++        retained_output_bytes: subject.process.retained_output_bytes,
+         hard_turn_limit_reached: counters.hard_turn_limit_reached,
+         parse_errors: subject.parsed.parse_errors,
+-      } : { exit_code: 0, signal: null, timed_out: false, output_limit_exceeded: false, hard_turn_limit_reached: false, parse_errors: [] },
++      } : { exit_code: 0, signal: null, timed_out: false, output_limit_exceeded: false, transport_limit_exceeded: false, transport_bytes: 0, retained_output_bytes: 0, hard_turn_limit_reached: false, parse_errors: [] },
+     };
+     if (dependencies.persistVariantEvidence) {
+       await dependencies.persistVariantEvidence({ evidenceDir, metadata, beforeManifest, afterManifest, subject, counters, git });
+@@ -281,6 +288,7 @@ export async function executeEvaluation(workspace, plan, dependencies = {}) {
+         max_turns_per_process: plan.plan_inputs.limits.max_turns_per_process,
+         timeout_ms: plan.plan_inputs.limits.timeout_ms,
+         output_limit_bytes: plan.plan_inputs.limits.output_limit_bytes,
++        transport_limit_bytes: plan.plan_inputs.limits.transport_limit_bytes,
+       });
+       const execution = semantic.execution ? {
+         id: `semantic-${role}`,
+diff --git a/skills/evaluate-skill/scripts/lib/pi-adapter.mjs b/skills/evaluate-skill/scripts/lib/pi-adapter.mjs
+index 713cc69..9b53c00 100644
+--- a/skills/evaluate-skill/scripts/lib/pi-adapter.mjs
++++ b/skills/evaluate-skill/scripts/lib/pi-adapter.mjs
+@@ -4,9 +4,10 @@ import { accessSync } from "node:fs";
+ import { homedir } from "node:os";
+ import { dirname, resolve } from "node:path";
+ import { fileURLToPath } from "node:url";
++import { DEFAULT_OUTPUT_LIMIT_BYTES } from "./constants.mjs";
+ import { runProcess } from "./process.mjs";
+ 
+-export const PI_ADAPTER_VERSION = "pi-bootstrap-v1";
++export const PI_ADAPTER_VERSION = "pi-bootstrap-v2";
+ const here = dirname(fileURLToPath(import.meta.url));
+ export const PI_ROOT_GUARD_PATH = resolve(here, "..", "pi-root-guard.mjs");
+ 
+@@ -59,6 +60,27 @@ export function buildPiInvocation({ prompt, provider, model, thinking, tools, sk
+   return { command: "pi", args };
+ }
+ 
++export function compactPiJsonLine(line) {
++  let event;
++  try {
++    event = JSON.parse(line);
++  } catch {
++    return line;
++  }
++  if (event.type === "message_update") {
++    const { partial: _partial, ...assistantMessageEvent } = event.assistantMessageEvent ?? {};
++    return JSON.stringify({ type: event.type, assistantMessageEvent });
++  }
++  if (event.type === "message_start") {
++    return JSON.stringify({ type: event.type, message: { id: event.message?.id, role: event.message?.role } });
++  }
++  if (event.type === "turn_end" || event.type === "agent_end") return JSON.stringify({ type: event.type });
++  if (event.type === "tool_execution_update") {
++    return JSON.stringify({ type: event.type, toolCallId: event.toolCallId, toolName: event.toolName });
++  }
++  return line;
++}
++
+ function textFromContent(content) {
+   if (typeof content === "string") return content;
+   if (!Array.isArray(content)) return "";
+@@ -127,7 +149,7 @@ export function parsePiJsonEvents(raw, { skillSnapshot } = {}) {
+   };
+ }
+ 
+-export async function runPiSubject({ prompt, provider, model, thinking, tools, skillSnapshot, workspace, configDir, readRoots, writeRoots, timeoutMs, outputLimitBytes, maxTurns, signal }) {
++export async function runPiSubject({ prompt, provider, model, thinking, tools, skillSnapshot, workspace, configDir, readRoots, writeRoots, timeoutMs, outputLimitBytes, transportLimitBytes, maxTurns, signal }) {
+   await prepareIsolatedPiConfig(configDir);
+   const invocation = buildPiInvocation({ prompt, provider, model, thinking, tools, skillSnapshot });
+   const counterPath = resolve(configDir, "runtime-counters.json");
+@@ -144,6 +166,8 @@ export async function runPiSubject({ prompt, provider, model, thinking, tools, s
+     env,
+     timeoutMs,
+     outputLimitBytes,
++    transportLimitBytes: transportLimitBytes ?? Math.max(outputLimitBytes, DEFAULT_OUTPUT_LIMIT_BYTES),
++    stdoutLineTransform: compactPiJsonLine,
+     signal,
+   });
+   const parsed = parsePiJsonEvents(processResult.stdout, { skillSnapshot });
+diff --git a/skills/evaluate-skill/scripts/lib/plan.mjs b/skills/evaluate-skill/scripts/lib/plan.mjs
+index 6b5cfa8..d15261a 100644
+--- a/skills/evaluate-skill/scripts/lib/plan.mjs
++++ b/skills/evaluate-skill/scripts/lib/plan.mjs
+@@ -4,6 +4,7 @@ import { constants } from "node:fs";
+ import { dirname, relative, resolve, sep } from "node:path";
+ import { fileURLToPath } from "node:url";
+ import { capabilitiesFor, supportedEvidenceClasses } from "./capabilities.mjs";
++import { DEFAULT_OUTPUT_LIMIT_BYTES } from "./constants.mjs";
+ import { hashDeclaredResources, hashDirectory, hashFile, hashGitResources, sha256, stableJson } from "./hash.mjs";
+ import { assertNoSymlinkTree, isWithin } from "./path-policy.mjs";
+ import { resolveInside } from "./workspace.mjs";
+@@ -172,7 +173,10 @@ export async function buildEvaluationPlan(workspace, options) {
+   const semanticProcesses = modelDriven ? variants.length * semanticPerVariant : 0;
+   const totalProcesses = subjectProcesses + semanticProcesses;
+   const limitations = modelDriven
+-    ? ["Provider requests are observed and reported; bootstrap does not claim an independent global provider-request hard cap."]
++    ? [
++        "Provider requests are observed and reported; bootstrap does not claim an independent global provider-request hard cap.",
++        "The output limit applies to retained canonical evidence after cumulative Pi JSON updates are compacted; raw transport has a separate internal safeguard.",
++      ]
+     : [];
+   if (evidence.unsupported_requested.length > 0 && evalCase.unsupported_evidence === "behavior-under-test") {
+     limitations.push(`Unsupported evidence is behavior under test: ${evidence.unsupported_requested.join(", ")}.`);
+@@ -199,7 +203,12 @@ export async function buildEvaluationPlan(workspace, options) {
+     variants: variants.map((variant) => ({ id: variant.id, role: variant.role, kind: variant.kind, revision: variant.revision ?? null, path: variant.path, resources: variant.resources, snapshot_hash: variant.snapshot_hash })),
+     host,
+     model: modelDriven ? { provider: options.provider ?? null, model: options.model ?? null, thinking: options.thinking ?? null } : null,
+-    limits: { timeout_ms: timeoutMs, output_limit_bytes: outputLimitBytes, max_turns_per_process: maxTurns },
++    limits: {
++      timeout_ms: timeoutMs,
++      output_limit_bytes: outputLimitBytes,
++      transport_limit_bytes: modelDriven ? Math.max(outputLimitBytes, DEFAULT_OUTPUT_LIMIT_BYTES) : 0,
++      max_turns_per_process: maxTurns,
++    },
+     max_usd: options.max_usd === undefined ? null : Number(options.max_usd),
+     evidence,
+   };
+diff --git a/skills/evaluate-skill/scripts/lib/process.mjs b/skills/evaluate-skill/scripts/lib/process.mjs
+index 03787db..a4eb630 100644
+--- a/skills/evaluate-skill/scripts/lib/process.mjs
++++ b/skills/evaluate-skill/scripts/lib/process.mjs
+@@ -1,7 +1,16 @@
+ import { spawn } from "node:child_process";
++import { StringDecoder } from "node:string_decoder";
+ import { DEFAULT_OUTPUT_LIMIT_BYTES } from "./constants.mjs";
+ 
+-export function runProcess(command, args, { cwd, env, timeoutMs = 180000, outputLimitBytes = DEFAULT_OUTPUT_LIMIT_BYTES, signal } = {}) {
++export function runProcess(command, args, {
++  cwd,
++  env,
++  timeoutMs = 180000,
++  outputLimitBytes = DEFAULT_OUTPUT_LIMIT_BYTES,
++  transportLimitBytes = outputLimitBytes,
++  stdoutLineTransform,
++  signal,
++} = {}) {
+   return new Promise((resolve, reject) => {
+     const startedAt = new Date();
+     const child = spawn(command, args, {
+@@ -12,10 +21,14 @@ export function runProcess(command, args, { cwd, env, timeoutMs = 180000, output
+     });
+     const stdout = [];
+     const stderr = [];
+-    let stdoutBytes = 0;
+-    let stderrBytes = 0;
++    const decoder = stdoutLineTransform ? new StringDecoder("utf8") : null;
++    let pendingLine = "";
++    let transportBytes = 0;
++    let retainedOutputBytes = 0;
+     let timedOut = false;
+     let outputLimitExceeded = false;
++    let transportLimitExceeded = false;
++    let transformError = null;
+ 
+     function terminate() {
+       if (!child.pid) return;
+@@ -27,20 +40,60 @@ export function runProcess(command, args, { cwd, env, timeoutMs = 180000, output
+       }
+     }
+ 
+-    function collect(target, chunk, stream) {
+-      const buffer = Buffer.from(chunk);
+-      if (stream === "stdout") stdoutBytes += buffer.length;
+-      else stderrBytes += buffer.length;
+-      if (stdoutBytes + stderrBytes > outputLimitBytes) {
++    function retain(target, value) {
++      const buffer = Buffer.isBuffer(value) ? value : Buffer.from(value);
++      if (retainedOutputBytes + buffer.length > outputLimitBytes) {
+         outputLimitExceeded = true;
+         terminate();
+-        return;
++        return false;
+       }
+       target.push(buffer);
++      retainedOutputBytes += buffer.length;
++      return true;
++    }
++
++    function observeTransport(chunk) {
++      transportBytes += Buffer.byteLength(chunk);
++      if (transportBytes > transportLimitBytes) {
++        transportLimitExceeded = true;
++        outputLimitExceeded = true;
++        terminate();
++        return false;
++      }
++      return true;
+     }
+ 
+-    child.stdout.on("data", (chunk) => collect(stdout, chunk, "stdout"));
+-    child.stderr.on("data", (chunk) => collect(stderr, chunk, "stderr"));
++    function transformLine(line, terminated = true) {
++      if (transformError || outputLimitExceeded) return;
++      try {
++        const transformed = stdoutLineTransform(line);
++        if (transformed === null || transformed === undefined) return;
++        retain(stdout, `${transformed}${terminated ? "" : "\n"}`);
++      } catch (error) {
++        transformError = error;
++        terminate();
++      }
++    }
++
++    child.stdout.on("data", (chunk) => {
++      if (!observeTransport(chunk)) return;
++      if (!stdoutLineTransform) {
++        retain(stdout, chunk);
++        return;
++      }
++      pendingLine += decoder.write(chunk);
++      for (;;) {
++        const newline = pendingLine.indexOf("\n");
++        if (newline < 0) break;
++        const line = pendingLine.slice(0, newline).replace(/\r$/, "");
++        pendingLine = pendingLine.slice(newline + 1);
++        transformLine(line);
++      }
++    });
++    child.stderr.on("data", (chunk) => {
++      if (!observeTransport(chunk)) return;
++      retain(stderr, chunk);
++    });
+     child.on("error", reject);
+ 
+     const timer = setTimeout(() => {
+@@ -55,6 +108,14 @@ export function runProcess(command, args, { cwd, env, timeoutMs = 180000, output
+     child.on("close", (code, exitSignal) => {
+       clearTimeout(timer);
+       signal?.removeEventListener("abort", onAbort);
++      if (stdoutLineTransform && !outputLimitExceeded) {
++        pendingLine += decoder.end();
++        if (pendingLine.length > 0) transformLine(pendingLine, false);
++      }
++      if (transformError) {
++        reject(transformError);
++        return;
++      }
+       const endedAt = new Date();
+       resolve({
+         command,
+@@ -63,6 +124,9 @@ export function runProcess(command, args, { cwd, env, timeoutMs = 180000, output
+         signal: exitSignal,
+         timed_out: timedOut,
+         output_limit_exceeded: outputLimitExceeded,
++        transport_limit_exceeded: transportLimitExceeded,
++        transport_bytes: transportBytes,
++        retained_output_bytes: retainedOutputBytes,
+         aborted: Boolean(signal?.aborted),
+         stdout: Buffer.concat(stdout).toString("utf8"),
+         stderr: Buffer.concat(stderr).toString("utf8"),
+diff --git a/skills/evaluate-skill/scripts/lib/semantic.mjs b/skills/evaluate-skill/scripts/lib/semantic.mjs
+index 7f2ad7d..8658709 100644
+--- a/skills/evaluate-skill/scripts/lib/semantic.mjs
++++ b/skills/evaluate-skill/scripts/lib/semantic.mjs
+@@ -141,6 +141,7 @@ export async function gradeSemanticRun(runDir, options, dependencies = {}) {
+       writeRoots: [workspace],
+       timeoutMs: Number(options.timeout_ms ?? 180000),
+       outputLimitBytes: Number(options.output_limit_bytes ?? DEFAULT_OUTPUT_LIMIT_BYTES),
++      transportLimitBytes: Number(options.transport_limit_bytes ?? DEFAULT_OUTPUT_LIMIT_BYTES),
+       maxTurns: Number(options.max_turns_per_process),
+     });
+     execution = {
+@@ -151,6 +152,9 @@ export async function gradeSemanticRun(runDir, options, dependencies = {}) {
+         signal: subject.process.signal,
+         timed_out: subject.process.timed_out,
+         output_limit_exceeded: subject.process.output_limit_exceeded,
++        transport_limit_exceeded: subject.process.transport_limit_exceeded,
++        transport_bytes: subject.process.transport_bytes,
++        retained_output_bytes: subject.process.retained_output_bytes,
+         parse_errors: subject.parsed.parse_errors,
+       },
+     };
+diff --git a/.skill-eval/evaluate-skill/tests/pi-adapter.test.mjs b/.skill-eval/evaluate-skill/tests/pi-adapter.test.mjs
+index 1d57e59..1cde6d1 100644
+--- a/.skill-eval/evaluate-skill/tests/pi-adapter.test.mjs
++++ b/.skill-eval/evaluate-skill/tests/pi-adapter.test.mjs
+@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
+ import { mkdtemp, readFile, rm } from "node:fs/promises";
+ import { tmpdir } from "node:os";
+ import { resolve } from "node:path";
+-import { buildPiInvocation, parsePiJsonEvents, prepareIsolatedPiConfig, redactedInvocation } from "../../../skills/evaluate-skill/scripts/lib/pi-adapter.mjs";
++import { buildPiInvocation, compactPiJsonLine, parsePiJsonEvents, prepareIsolatedPiConfig, redactedInvocation } from "../../../skills/evaluate-skill/scripts/lib/pi-adapter.mjs";
+ 
+ test("Pi invocation disables ambient resources and loads only explicit skill and guard", () => {
+   const invocation = buildPiInvocation({
+@@ -34,6 +34,25 @@ test("isolated Pi config disables automatic retries", async (t) => {
+   assert.equal(settings.retry.provider.maxRetries, 0);
+ });
+ 
++test("Pi JSON compaction removes cumulative update snapshots but preserves deltas", () => {
++  const cumulative = "x".repeat(10000);
++  const line = JSON.stringify({
++    type: "message_update",
++    message: { role: "assistant", content: [{ type: "thinking", thinking: cumulative }] },
++    assistantMessageEvent: { type: "thinking_delta", contentIndex: 0, delta: "next", partial: cumulative },
++  });
++  const compacted = compactPiJsonLine(line);
++  assert.ok(Buffer.byteLength(compacted) < 500);
++  assert.equal(compacted.includes(cumulative), false);
++  assert.deepEqual(JSON.parse(compacted), {
++    type: "message_update",
++    assistantMessageEvent: { type: "thinking_delta", contentIndex: 0, delta: "next" },
++  });
++  assert.equal(compactPiJsonLine("not-json"), "not-json");
++  const final = JSON.stringify({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "final" }] } });
++  assert.equal(compactPiJsonLine(final), final);
++});
++
+ test("Pi JSON parser captures final response, usage, cost, and skill read", () => {
+   const snapshot = resolve("/tmp/snapshot");
+   const lines = [
+diff --git a/.skill-eval/evaluate-skill/tests/plan.test.mjs b/.skill-eval/evaluate-skill/tests/plan.test.mjs
+index b9d554e..c9a1997 100644
+--- a/.skill-eval/evaluate-skill/tests/plan.test.mjs
++++ b/.skill-eval/evaluate-skill/tests/plan.test.mjs
+@@ -33,7 +33,9 @@ test("model case without approval returns needs_approval without execution", asy
+   assert.equal(result.summary.pi_processes.subject, 2);
+   assert.equal(result.summary.pi_processes.semantic_max, 2);
+   assert.equal(result.summary.worst_case_approved_turns, 16);
++  assert.equal(result.summary.limits.transport_limit_bytes, 128 * 1024 * 1024);
+   assert.match(result.summary.limitations.join("\n"), /provider requests.*observed/i);
++  assert.match(result.summary.limitations.join("\n"), /canonical evidence.*raw transport/i);
+ });
+ 
+ test("plan-only returns planned and owner-approved execution returns ready", async () => {
+diff --git a/.skill-eval/evaluate-skill/tests/process.test.mjs b/.skill-eval/evaluate-skill/tests/process.test.mjs
+new file mode 100644
+index 0000000..32d8541
+--- /dev/null
++++ b/.skill-eval/evaluate-skill/tests/process.test.mjs
+@@ -0,0 +1,30 @@
++import test from "node:test";
++import assert from "node:assert/strict";
++import { runProcess } from "../../../skills/evaluate-skill/scripts/lib/process.mjs";
++
++test("retained output limit ignores compacted cumulative transport bytes", async () => {
++  const script = `for (let i = 0; i < 100; i += 1) console.log(JSON.stringify({ type: "message_update", message: "${"x".repeat(10000)}", delta: i }))`;
++  const result = await runProcess(process.execPath, ["-e", script], {
++    outputLimitBytes: 4096,
++    transportLimitBytes: 2 * 1024 * 1024,
++    stdoutLineTransform: (line) => JSON.stringify({ delta: JSON.parse(line).delta }),
++  });
++  assert.equal(result.code, 0);
++  assert.equal(result.output_limit_exceeded, false);
++  assert.equal(result.transport_limit_exceeded, false);
++  assert.ok(result.transport_bytes > 1_000_000);
++  assert.ok(result.retained_output_bytes < 4096);
++  assert.equal(result.stdout.trim().split("\n").length, 100);
++});
++
++test("internal transport safeguard still terminates unbounded raw output", async () => {
++  const script = `for (let i = 0; i < 1000; i += 1) console.log("${"x".repeat(1000)}")`;
++  const result = await runProcess(process.execPath, ["-e", script], {
++    outputLimitBytes: 4096,
++    transportLimitBytes: 16 * 1024,
++    stdoutLineTransform: () => "x",
++  });
++  assert.equal(result.output_limit_exceeded, true);
++  assert.equal(result.transport_limit_exceeded, true);
++  assert.ok(result.transport_bytes > 16 * 1024);
++});

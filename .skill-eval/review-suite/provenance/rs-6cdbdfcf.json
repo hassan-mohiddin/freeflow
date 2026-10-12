@@ -1,0 +1,67 @@
+{
+  "case": "rs-6cdbdfcf",
+  "base_commit": "6cdbdfcf61dedc71a170faaddf10b4b98ada2dce",
+  "parent": "70702419bf2948aecb1e557606ba6555d2713276",
+  "subject": "Keep compaction file lists session-wide",
+  "pinned_pi_at_commit": ">=0.99.1",
+  "changed_paths": [
+    "M\tpi-extension/dist/compaction/controller.js",
+    "M\tpi-extension/dist/compaction/harness.js",
+    "M\tpi-extension/src/compaction/README.md",
+    "M\tpi-extension/src/compaction/controller.ts",
+    "M\tpi-extension/src/compaction/harness.ts",
+    "M\tpi-extension/tests/compaction/README.md",
+    "M\tpi-extension/tests/compaction/agent-path.test.js",
+    "M\tpi-extension/tests/compaction/fallback.test.js"
+  ],
+  "fixture": ".skill-eval/review-suite/fixtures/rs-6cdbdfcf",
+  "variants": {
+    "clean": {
+      "defect": null,
+      "built_from": "the commit tree as merged",
+      "proof": {
+        "command": "cd /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/6cdbdfcf/clean && node --test pi-extension/tests/compaction/zz-proof-two-cycles.test.js",
+        "result": "pass 1, fail 0, exit 0 (scratch proof, source below)",
+        "committed_suite": "cd /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/6cdbdfcf/clean && node --test $(find pi-extension/tests/compaction -name '*.test.js' ! -name 'zz-*' | sort): pass 18, fail 0",
+        "logs": [
+          "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P5-6cdbdfcf-clean.log",
+          "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P5b-6cdbdfcf-committed-clean.log"
+        ]
+      }
+    },
+    "seeded": {
+      "class": "logic",
+      "defect": "The session-wide read list keeps only the current cycle's reads: the spread of the previous compaction's readFiles is dropped. A second Freeflow compaction therefore forgets files read in the first cycle.",
+      "location": [
+        "pi-extension/src/compaction/harness.ts:74",
+        "pi-extension/dist/compaction/harness.js:49 (mirror of the same line)"
+      ],
+      "locator": "new Set([...cycle.read]",
+      "original_line": "  const read = new Set([...previous.readFiles, ...cycle.read].filter((path) => !modified.has(path)));",
+      "seeded_line": "  const read = new Set([...cycle.read].filter((path) => !modified.has(path)));",
+      "proof": {
+        "kind": "logic: scratch test (source below) run on clean and seeded. It is not a committed test: no committed test has two Freeflow compactions, and the committed suite passes on the seeded tree.",
+        "command": "cd /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/6cdbdfcf/seeded && node --test pi-extension/tests/compaction/zz-proof-two-cycles.test.js",
+        "clean_result": "pass 1, fail 0",
+        "seeded_result": "pass 0, fail 1, exit 1. Failing: 'two Freeflow compactions keep the session-wide read list', deepStrictEqual on compactions[1].details.readFiles: expected ['evidence.txt', 'recovery.txt'], actual ['recovery.txt'].",
+        "committed_suite_on_seeded": "cd /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/6cdbdfcf/seeded && node --test $(find pi-extension/tests/compaction -name '*.test.js' ! -name 'zz-*' | sort): pass 18, fail 0 (the seeded defect is not caught by committed tests)",
+        "logs": [
+          "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P5-6cdbdfcf-clean.log",
+          "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P5-6cdbdfcf-seeded.log",
+          "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P5b-6cdbdfcf-committed-seeded.log"
+        ],
+        "proof_test_source": "// Scratch proof for rs-6cdbdfcf (not part of the workspace). Two Freeflow compactions in one session: the second\n// compaction's session-wide read list must keep the first cycle's read and add the second cycle's.\nimport assert from \"node:assert/strict\";\nimport { writeFile } from \"node:fs/promises\";\nimport { join } from \"node:path\";\nimport test from \"node:test\";\nimport { fixture } from \"../fixtures/routing-native.js\";\n\nconst noRouting = () => ({\n  cognitiveRouting: { enabled: false },\n  freeflowConfig: { toolExecution: { enabled: true } },\n});\nconst compact = (args) => ({ name: \"freeflow_compact\", args });\nconst compactNow = async ({ session, requests }) => {\n  const before = requests.length;\n  await session.prompt(\"/freeflow compact\");\n  for (let i = 0; i < 200 && requests.length === before; i++) await new Promise((resolve) => setTimeout(resolve, 10));\n  await session.waitForIdle();\n};\n\ntest(\"two Freeflow compactions keep the session-wide read list\", { timeout: 30000 }, async () => {\n  await fixture(\n    async (n) => {\n      if (n === 2) return [{ name: \"read\", args: { path: \"evidence.txt\" } }];\n      if (n === 3) return [compact({ summary: \"S1\" })];\n      if (n === 5) return [{ name: \"read\", args: { path: \"recovery.txt\" } }];\n      if (n === 7) return [compact({ summary: \"S2\" })];\n      return [];\n    },\n    false,\n    async ({ manager }) => {\n      const compactions = manager.getBranch().filter((entry) => entry.type === \"compaction\");\n      assert.equal(compactions.length, 2, \"two Freeflow compactions\");\n      assert.deepEqual(compactions[0].details.readFiles, [\"evidence.txt\"], \"first cycle's list\");\n      assert.deepEqual(\n        compactions[1].details.readFiles,\n        [\"evidence.txt\", \"recovery.txt\"],\n        \"second cycle's list keeps the first cycle's read\",\n      );\n    },\n    true,\n    {\n      ...noRouting(),\n      beforePrompt: async (run) => {\n        await writeFile(join(run.cwd, \"evidence.txt\"), \"EVIDENCE_ONE\\n\");\n        await writeFile(join(run.cwd, \"recovery.txt\"), \"RECOVERY_TWO\\n\");\n        await run.session.prompt(\"FIRST_USER_MESSAGE\");\n        await run.session.waitForIdle();\n        await compactNow(run);\n        await run.session.prompt(\"SECOND_USER_MESSAGE\");\n        await run.session.waitForIdle();\n        await compactNow(run);\n      },\n    },\n  );\n});\n",
+        "proof_test_path_in_export": "pi-extension/tests/compaction/zz-proof-two-cycles.test.js (copied into both exports; not part of the workspace)"
+      }
+    }
+  },
+  "environment_notes": [
+    "node_modules: symlinked read-only from the worktree (no npm install). It holds @earendil-works/pi-coding-agent 1.0.1; this commit pins a different Pi version (see pinned_pi), so results were produced against 1.0.1.",
+    "Final proof run: a fresh git archive of the base commit per variant, with the fixture's workspace/files/ copied on top, then the command run from the export root.",
+    "Scratch exports and logs: /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final (logs in /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs)."
+  ],
+  "unsure": [
+    "Only a scratch test detects this seed. If the suite owner wants a committed-test proof, a different seed is needed: for example, in the Pi-compaction fallback, changing 'previousFiles.readFiles' to 'previousFiles.modifiedFiles' in the readFiles loop is caught by fallback.test.js (assertion at line 90). I did not switch, because the lead asked for the reset-per-cycle defect.",
+    "held out: this case is on the held-out list in .skill-eval/review-suite/README.md; it was not used for any tuning."
+  ]
+}

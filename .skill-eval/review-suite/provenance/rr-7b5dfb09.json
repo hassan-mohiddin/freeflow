@@ -1,0 +1,71 @@
+{
+  "case": "rr-7b5dfb09",
+  "built_by": "suite-build b6 (Claude Haiku 5.5)",
+  "held_out": true,
+  "held_out_source": "README.md Held-out split (real defects: 7b5dfb09)",
+  "base": {
+    "introducing_commit": "7b5dfb095d2106af1db68320ad01ac099125fba5",
+    "parent_commit": "9c5afa5cfd3f0a5b970b63d07e6f5bed84458da3",
+    "fix_commit": "3670442fa17508452fe73834fed5b68117ece58d",
+    "fix_parent_is_introducing_commit": true,
+    "paths": ["pi-extension/src/cognitive-routing/tool.ts", "pi-extension/tests/cognitive-routing/tool.test.js"],
+    "scope": "The introducing commit changes 15 files. The case holds the file the fix touched and its test. The commit's source changes in the four cognitive-routing and runtime sources total about 204 lines, under the 250-line limit, but the other three files hold no part of the defect and the requirements cover only the switch tool. Generated pi-extension/dist files are omitted; the repository's build (npm run build:pi-extension) reproduces the committed tool.js exactly, and the tests were run on that build output."
+  },
+  "variants": {
+    "real": {
+      "class": "logic",
+      "location": "pi-extension/src/cognitive-routing/tool.ts:170",
+      "locator": "pendingLabel(target)",
+      "defect": "renderCall draws a pending transition line for the switch call, and renderResult draws the outcome for the same switch. One switch therefore renders two Cognitive Routing lines in the transcript; the fix removes the call-side line.",
+      "introduced_in": "7b5dfb09",
+      "fixed_in": "3670442f",
+      "proof": {
+        "fix_test_on_introducing_state": {
+          "command": "node --test pi-extension/tests/cognitive-routing/fix-tool.test.js (3670442f's tool.test.js, copied into the 7b5dfb09 export; build by npm run build:pi-extension)",
+          "result": "6 pass, 1 fail. Failing test: 'hides the duplicate pending line without reading mutable controller state'; actual ['Cognitive Routing → reasoning'], expected []."
+        },
+        "same_test_on_fix_state": {
+          "command": "node --test pi-extension/tests/cognitive-routing/tool.test.js in the 3670442f export",
+          "result": "7 pass, 0 fail."
+        },
+        "direct_call": {
+          "command": "node /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b6/scripts/c1-transcript.mjs <export>: renders one switch (target reasoning, changed standard to reasoning) through renderCall and renderResult",
+          "result_introducing_state": "call lines ['Cognitive Routing → reasoning']; result lines ['Cognitive Routing: standard → reasoning'] (two lines for one switch)",
+          "result_fix_state": "call lines []; result lines ['Cognitive Routing: standard → reasoning']"
+        },
+        "own_tests_on_introducing_state": {
+          "command": "node --test pi-extension/tests/cognitive-routing/tool.test.js in the 7b5dfb09 export",
+          "result": "7 pass, 0 fail. The committed test 'renders pending targets without reading mutable controller state' asserts the pending line, so the defect passes the committed tests."
+        }
+      }
+    },
+    "seeded": {
+      "class": "logic",
+      "location": "pi-extension/src/cognitive-routing/tool.ts:182",
+      "locator": "outcome.changed === true && outcome.to",
+      "seed": "On top of the 3670442f state, the no-op branch of renderResult tests changed === true where it should test changed === false (the diff against the fix state is the single line 182). A switch that changed nothing is then rendered as 'Cognitive Routing: active · reasoning' instead of '(already active)'.",
+      "proof": {
+        "clean_state": {
+          "command": "npm run build:pi-extension, then node --test pi-extension/tests/cognitive-routing/tool.test.js in the 3670442f export (no seed)",
+          "result": "7 pass, 0 fail."
+        },
+        "seeded_state": {
+          "command": "same build and test in the 3670442f export with the fixture's seeded tool.ts",
+          "result": "6 pass, 1 fail. Failing test: 'renders no-op results as already active'; actual 'Cognitive Routing: active · reasoning', expected 'Cognitive Routing: reasoning (already active)'."
+        }
+      }
+    }
+  },
+  "final_run": {
+    "command": "bash /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b6/scripts/final-proofs.sh > /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b6/final-proofs.out 2>&1",
+    "script": "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b6/scripts/final-proofs.sh",
+    "output": "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b6/final-proofs.out",
+    "exports": "fresh git archive exports under /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b6/final (node_modules symlinked read-only from the repository)",
+    "date": "2026-10-12",
+    "script_exit_code": 0
+  },
+  "unsure": [
+    "The committed test file for the seeded variant is the fix commit's tool.test.js, which contains the test name 'hides the duplicate pending line without reading mutable controller state'. It names the real defect's category, not the seed. Per the protocol I did not edit committed tests; the suite owner should decide whether that name is a leak.",
+    "Requirement 8 is the only requirement that catches the real defect. It describes the transcript outcome, not the call code. A reviewer must reconcile it with the committed test that asserts the pending line."
+  ]
+}

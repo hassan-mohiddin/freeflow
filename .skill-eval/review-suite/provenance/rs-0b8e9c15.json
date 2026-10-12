@@ -1,0 +1,60 @@
+{
+  "case": "rs-0b8e9c15",
+  "status": "built",
+  "base_commit": "0b8e9c1558acf85d06e70dee723628e4b27643ca",
+  "parent_commit": "feec1bf934843f795b766ac986d2d8092467dc82",
+  "subject": "fix(runtime): strengthen mode guidance and Pi UX",
+  "base_paths": [
+    "hooks/freeflow-runtime-context.mjs",
+    "hooks/tests/check-runtime-context-hook.sh",
+    "pi-extension/dist/index.js",
+    "pi-extension/dist/runtime-context.js",
+    "pi-extension/src/index.ts",
+    "pi-extension/src/runtime-context.ts",
+    "pi-extension/tests/pi-extension.test.js",
+    "skills/setup-freeflow/SKILL.md",
+    "skills/setup-freeflow/references/host-setup.md"
+  ],
+  "diff_check": "clean change.diff is the commit diff (git diff parent commit -- paths); the seeded change.diff is the same diff with the one added line in host-setup.md changed; both apply with patch -p1 onto an archive of the parent and reproduce the variant trees (checked)",
+  "variants": {
+    "clean": {
+      "class": null,
+      "description": "The change as committed. No defect is planted.",
+      "committed_suite": {
+        "command": "cd <export of 0b8e9c15> && bash hooks/tests/check-runtime-context-hook.sh ; cd pi-extension && node --test tests/pi-extension.test.js",
+        "result": "runtime-context hook checks passed (exit 0); pi-extension tests: 76 tests, 76 pass, 0 fail"
+      }
+    },
+    "seeded": {
+      "class": "convention",
+      "location": "skills/setup-freeflow/references/host-setup.md:49",
+      "locator": "; prescribe Pi's `/reload`",
+      "description": "In the Codex and Claude setup section, the lifecycle step says \"prescribe Pi's /reload\" where the commit says \"do not prescribe Pi's /reload\". The Pi section still tells the user to run /reload, so the reference now prescribes Pi's reload in the host-neutral section too.",
+      "clean_line": "After first-time setup, tell the user to trigger the least disruptive supported host-native lifecycle boundary: resume, clear, compact, or a new session/startup as available. Name the exact control supported by the current host; do not prescribe Pi's `/reload`. Until that boundary runs, use same-turn direct reads without claiming automatic delivery.",
+      "seeded_line": "After first-time setup, tell the user to trigger the least disruptive supported host-native lifecycle boundary: resume, clear, compact, or a new session/startup as available. Name the exact control supported by the current host; prescribe Pi's `/reload`. Until that boundary runs, use same-turn direct reads without claiming automatic delivery.",
+      "rule_quoted": "requirements.md item 8: \"Setup guidance for Codex and Claude tells the user to trigger the least disruptive lifecycle boundary the host supports, names that host's own control, and does not claim automatic delivery before that boundary has run. Pi's /reload is a Pi control and appears only in the Pi section of the setup reference.\"",
+      "proof": {
+        "method": "convention: quote the rule and the seeded line; show by command that the seeded reference no longer contains the rule's wording; show that the existing tests that run on this change still pass",
+        "command": "grep -c \"do not prescribe Pi's `/reload`\" skills/setup-freeflow/references/host-setup.md   (clean and seeded exports)",
+        "clean_result": "1",
+        "seeded_result": "0 (the seeded line reads \"; prescribe Pi's `/reload`.\")",
+        "no_existing_test_detects_it": {
+          "command": "bash hooks/tests/check-runtime-context-hook.sh ; cd pi-extension && node --test tests/pi-extension.test.js   (clean and seeded exports)",
+          "clean_result": "hook checks passed; 76 pass, 0 fail",
+          "seeded_result": "hook checks passed; 76 pass, 0 fail",
+          "note": "No test file in the repository names host-setup.md or the lifecycle sentence."
+        }
+      }
+    }
+  },
+  "unsure": [
+    "The defect is a single word in a documentation sentence. Some reviewers may treat documentation as outside the code review; this is the case's convention test.",
+    "The rule is local to the Codex and Claude section, and the same section names the host's own control. The seed keeps that naming, so a reviewer must read the whole sentence to see the contradiction.",
+    "The seed is in one copy of the host-neutral guidance only. The mode overlay text is duplicated in the hook and in the Pi source, and the seed does not touch either copy."
+  ],
+  "rerun": [
+    "bash hooks/tests/check-runtime-context-hook.sh : exit 0 on clean and on seeded",
+    "cd pi-extension && node --test tests/pi-extension.test.js : 76/76 pass on clean and on seeded",
+    "grep -c \"do not prescribe Pi's `/reload`\" skills/setup-freeflow/references/host-setup.md : clean 1, seeded 0"
+  ]
+}

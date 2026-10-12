@@ -1,0 +1,34 @@
+{
+  "case": "rs-25844ce3",
+  "base_commit": "25844ce3c94247118d4909b4336b9693ce6ca988",
+  "parent_commit": "355956c13b94e40f903db0dd5990ba6008e51a5c",
+  "subject": "fix(evals): make publication transactional",
+  "base_paths": [
+    "skills/evaluate-skill/scripts/lib/publication.mjs",
+    ".skill-eval/evaluate-skill/tests/publication.test.mjs"
+  ],
+  "excluded_from_case": "none (both files are new in this commit)",
+  "scratch": "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/25844ce3",
+  "variants": {
+    "clean": { "built_from": "git archive 25844ce3", "change_diff": "git diff 355956c1 25844ce3 for the two paths" },
+    "seeded": {
+      "class": "security",
+      "location": "skills/evaluate-skill/scripts/lib/publication.mjs:15",
+      "locator": "operations.lstat(path + \".tmp\")",
+      "seed": "in destinationExists, lstat was pointed at path + \".tmp\" instead of path, so the existing-destination refusal checks a path that is normally absent",
+      "consequence": "publishResult and publishDiagnostic no longer refuse an existing destination. prepare and verify run against a destination the caller already holds, and rename then replaces an existing empty destination directory and reports published with that path. Limit: on POSIX rename(2) refuses a non-empty destination directory, so a populated destination still fails at rename (ENOTEMPTY) with its content intact, but only after prepare has run. The security effect is therefore bounded to empty pre-existing destinations; the suite owner should weigh this when classing the case.",
+      "committed_test": "node --test .skill-eval/evaluate-skill/tests/publication.test.mjs : clean 10 pass 0 fail; seeded 9 pass 1 fail (test 'result publication refuses overwrite before preparing': prepared flag true). The committed test detects this seed through the prepare side effect.",
+      "proof": {
+        "script": "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/25844ce3/proof/overwrite.proof.test.mjs",
+        "command": "cd /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/25844ce3/proof && EXPORT_ROOT=/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/25844ce3/<clean|seeded> PROOF_SCRATCH=/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/25844ce3/proof node --test overwrite.proof.test.mjs",
+        "clean_result": "2 pass 0 fail: empty existing destination -> publication-failed, prepared=false, inode unchanged; populated existing destination -> publication-failed, prepared=false, result.json kept",
+        "seeded_result": "0 pass 2 fail: empty existing destination -> published, prepared=true, replaced=true; populated existing destination -> publication-failed, prepared=true, result.json kept"
+      }
+    }
+  },
+  "unsure": [
+    "Security class was assigned by the brief. The realised harm is narrow (see consequence). Other one-token seeds in this file (for example, checking the wrong path in publishResult) either denied every publication or had the same bounded effect, so the seed kept is the one that matches the brief's overwrite framing.",
+    "Tuning list per the suite README (not held out)."
+  ],
+  "rerun": "Final re-run recorded in /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/final-run.log (all lines for this case)."
+}

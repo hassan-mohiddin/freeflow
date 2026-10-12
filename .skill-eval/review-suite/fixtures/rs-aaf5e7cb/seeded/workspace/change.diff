@@ -1,0 +1,286 @@
+diff --git a/pi-extension/dist/provider-support/cache/index.js b/pi-extension/dist/provider-support/cache/index.js
+index 74a3e021..e99806c4 100644
+--- a/pi-extension/dist/provider-support/cache/index.js
++++ b/pi-extension/dist/provider-support/cache/index.js
+@@ -1,3 +1,4 @@
++import { isChatGPTSignIn } from "../routes.js";
+ import { planAnchor } from "./anchor.js";
+ import { ANTHROPIC_LIMITS, anthropicLayout, applyAnthropicAnchor } from "./anthropic.js";
+ import {
+@@ -36,6 +37,7 @@ export class CacheAnchorAdapter {
+     const model = ctx?.model;
+     const protocol = model && PROTOCOLS[model.api];
+     if (!protocol || (protocol.applies && !protocol.applies(model)) || !this.enabled()) return payload;
++    if (isChatGPTSignIn(model, ctx)) return payload;
+     try {
+       const session = ctx.sessionManager?.getSessionId?.() ?? "memory";
+       const lane = JSON.stringify([session, model.provider, model.api, model.id, model.baseUrl ?? ""]);
+diff --git a/pi-extension/dist/provider-support/cache/keepalive.js b/pi-extension/dist/provider-support/cache/keepalive.js
+index 023d288a..2d17e056 100644
+--- a/pi-extension/dist/provider-support/cache/keepalive.js
++++ b/pi-extension/dist/provider-support/cache/keepalive.js
+@@ -1,3 +1,4 @@
++import { isChatGPTSignIn } from "../routes.js";
+ const responses = {
+   cap: (payload) => ({ ...payload, max_output_tokens: 16 }),
+   retention: (payload) =>
+@@ -70,7 +71,8 @@ export class CacheKeepAlive {
+   /** Remember the request just sent on its model; a hold keeps the latest one warm. */
+   record(payload, ctx) {
+     const key = laneKey(ctx, undefined, this.requester());
+-    const protocol = PROTOCOLS[ctx.model?.api];
++    // Sign in with ChatGPT rejects the output cap a replay needs, so its requests are never warmed.
++    const protocol = isChatGPTSignIn(ctx.model, ctx) ? undefined : PROTOCOLS[ctx.model?.api];
+     if (!key || !protocol) return;
+     if (protocol.replayable?.(payload) === false) {
+       this.lanes.delete(key);
+diff --git a/pi-extension/dist/provider-support/openai/adapter.js b/pi-extension/dist/provider-support/openai/adapter.js
+index 8e671443..fee65bf0 100644
+--- a/pi-extension/dist/provider-support/openai/adapter.js
++++ b/pi-extension/dist/provider-support/openai/adapter.js
+@@ -1,5 +1,6 @@
+ import { assemble, EFFORTS } from "./history.js";
+ import { SessionState } from "./session-state.js";
++import { isChatGPTSignIn } from "../routes.js";
+ // Only these qualified official routes receive effort-history adaptation; keys isolate models.
+ const SUPPORTED_MODELS = new Set(["gpt-6-astra", "gpt-6-luna", "gpt-6-sol"]);
+ /** The effort-history key for a qualified official GPT-6 route, or undefined when the route is not supported. */
+@@ -79,7 +80,8 @@ export class OpenAIEffortAdapter {
+   async adapt(payload, ctx) {
+     const generation = this.generation;
+     const operation = this.queue.then(async () => {
+-      const key = requestKey(payload, ctx.model);
++      // Sign in with ChatGPT is not a qualified effort-history route yet.
++      const key = isChatGPTSignIn(ctx.model, ctx) ? undefined : requestKey(payload, ctx.model);
+       if (generation !== this.generation || this.compacting || !key || !this.enabled()) {
+         this.status(ctx, undefined);
+         return payload;
+diff --git a/pi-extension/dist/provider-support/routes.js b/pi-extension/dist/provider-support/routes.js
+new file mode 100644
+index 00000000..7412b9a3
+--- /dev/null
++++ b/pi-extension/dist/provider-support/routes.js
+@@ -0,0 +1,15 @@
++const OPENAI_API = "https://api.openai.com/v1";
++/**
++ * OpenAI's Sign in with ChatGPT (Pi 0.99): the openai provider's Responses API at api.openai.com with a ChatGPT
++ * credential instead of an API key. It reaches the ChatGPT backend, which rejects request fields API keys accept, so
++ * Freeflow sends its requests as Pi built them until each adaptation is qualified on it.
++ */
++export function isChatGPTSignIn(model, ctx) {
++  if (model?.provider !== "openai" || model.api !== "openai-responses") return false;
++  if ((model.baseUrl ?? OPENAI_API).replace(/\/+$/, "") !== OPENAI_API) return false;
++  try {
++    return ctx?.modelRegistry?.isUsingOAuth?.(model) !== false;
++  } catch {
++    return false;
++  }
++}
+diff --git a/pi-extension/src/provider-support/cache/index.ts b/pi-extension/src/provider-support/cache/index.ts
+index b37c2d44..410322c5 100644
+--- a/pi-extension/src/provider-support/cache/index.ts
++++ b/pi-extension/src/provider-support/cache/index.ts
+@@ -1,3 +1,4 @@
++import { isChatGPTSignIn } from "../routes.js";
+ import { planAnchor, type AnchorPlan, type CacheLayout, type CacheLimits } from "./anchor.js";
+ import { ANTHROPIC_LIMITS, anthropicLayout, applyAnthropicAnchor } from "./anthropic.js";
+ import {
+@@ -49,6 +50,7 @@ export class CacheAnchorAdapter {
+     const model = ctx?.model;
+     const protocol = model && PROTOCOLS[model.api];
+     if (!protocol || (protocol.applies && !protocol.applies(model)) || !this.enabled()) return payload;
++    if (isChatGPTSignIn(model, ctx)) return payload;
+     try {
+       const session = ctx.sessionManager?.getSessionId?.() ?? "memory";
+       const lane = JSON.stringify([session, model.provider, model.api, model.id, model.baseUrl ?? ""]);
+diff --git a/pi-extension/src/provider-support/cache/keepalive.ts b/pi-extension/src/provider-support/cache/keepalive.ts
+index 2faed23c..884c5bc2 100644
+--- a/pi-extension/src/provider-support/cache/keepalive.ts
++++ b/pi-extension/src/provider-support/cache/keepalive.ts
+@@ -1,3 +1,5 @@
++import { isChatGPTSignIn } from "../routes.js";
++
+ /** A model whose cached prompt must stay warm because its requester is certain to resume. */
+ export interface KeepAliveHold {
+   provider: string;
+@@ -132,7 +134,8 @@ export class CacheKeepAlive {
+   /** Remember the request just sent on its model; a hold keeps the latest one warm. */
+   record(payload: any, ctx: any): void {
+     const key = laneKey(ctx, undefined, this.requester());
+-    const protocol = PROTOCOLS[ctx.model?.api];
++    // Sign in with ChatGPT rejects the output cap a replay needs, so its requests are never warmed.
++    const protocol = isChatGPTSignIn(ctx.model, ctx) ? undefined : PROTOCOLS[ctx.model?.api];
+     if (!key || !protocol) return;
+     if (protocol.replayable?.(payload) === false) {
+       this.lanes.delete(key);
+diff --git a/pi-extension/src/provider-support/openai/adapter.ts b/pi-extension/src/provider-support/openai/adapter.ts
+index cc75dc56..4b835a7b 100644
+--- a/pi-extension/src/provider-support/openai/adapter.ts
++++ b/pi-extension/src/provider-support/openai/adapter.ts
+@@ -1,6 +1,7 @@
+ import type { CacheMonitor } from "../cache/monitor.js";
+ import { assemble, EFFORTS } from "./history.js";
+ import { SessionState } from "./session-state.js";
++import { isChatGPTSignIn } from "../routes.js";
+ 
+ // Only these qualified official routes receive effort-history adaptation; keys isolate models.
+ const SUPPORTED_MODELS = new Set(["gpt-6-astra", "gpt-6-luna", "gpt-6-sol"]);
+@@ -76,7 +77,8 @@ export class OpenAIEffortAdapter {
+   async adapt(payload: any, ctx: any): Promise<any> {
+     const generation = this.generation;
+     const operation = this.queue.then(async () => {
+-      const key = requestKey(payload, ctx.model);
++      // Sign in with ChatGPT is not a qualified effort-history route yet.
++      const key = isChatGPTSignIn(ctx.model, ctx) ? undefined : requestKey(payload, ctx.model);
+       if (generation !== this.generation || this.compacting || !key || !this.enabled()) {
+         this.status(ctx, undefined);
+         return payload;
+diff --git a/pi-extension/src/provider-support/routes.ts b/pi-extension/src/provider-support/routes.ts
+new file mode 100644
+index 00000000..2ac648e9
+--- /dev/null
++++ b/pi-extension/src/provider-support/routes.ts
+@@ -0,0 +1,16 @@
++const OPENAI_API = "https://api.openai.com/v1";
++
++/**
++ * OpenAI's Sign in with ChatGPT (Pi 0.99): the openai provider's Responses API at api.openai.com with a ChatGPT
++ * credential instead of an API key. It reaches the ChatGPT backend, which rejects request fields API keys accept, so
++ * Freeflow sends its requests as Pi built them until each adaptation is qualified on it.
++ */
++export function isChatGPTSignIn(model: any, ctx: any): boolean {
++  if (model?.provider !== "openai" || model.api !== "openai-responses") return false;
++  if ((model.baseUrl ?? OPENAI_API).replace(/\/+$/, "") !== OPENAI_API) return false;
++  try {
++    return ctx?.modelRegistry?.isUsingOAuth?.(model) !== false;
++  } catch {
++    return false;
++  }
++}
+diff --git a/pi-extension/tests/provider-support/cache-keepalive.test.js b/pi-extension/tests/provider-support/cache-keepalive.test.js
+index 3c736b08..7dd1ea19 100644
+--- a/pi-extension/tests/provider-support/cache-keepalive.test.js
++++ b/pi-extension/tests/provider-support/cache-keepalive.test.js
+@@ -252,3 +252,14 @@ test("Claude requests with budget-based thinking are never replayed; adaptive th
+   assert.equal(adaptive.sent.length, 1);
+   assert.equal(adaptive.sent[0].payload.max_tokens, 1);
+ });
++
++test("Sign in with ChatGPT is never warmed: it rejects the output cap a replay needs", async () => {
++  const hold = { provider: gptWithLifetime.provider, modelId: gptWithLifetime.id };
++  const h = harness({ hold, model: gptWithLifetime });
++  const signIn = (m) => ({ ...h.ctx(m), modelRegistry: { isUsingOAuth: () => true } });
++  h.keepAlive.record({ model: gpt.id, input: [], max_output_tokens: 8000 }, signIn(gptWithLifetime));
++  h.keepAlive.observe(signIn(gptWithLifetime), { input: 4, output: 10, cacheRead: 2_000_000, cacheWrite: 0 });
++  h.keepAlive.evaluate(h.ctx(claude));
++  await h.advance(HOUR);
++  assert.deepEqual(h.sent, []);
++});
+diff --git a/pi-extension/tests/provider-support/chatgpt-sign-in.test.js b/pi-extension/tests/provider-support/chatgpt-sign-in.test.js
+new file mode 100644
+index 00000000..eee0de3f
+--- /dev/null
++++ b/pi-extension/tests/provider-support/chatgpt-sign-in.test.js
+@@ -0,0 +1,102 @@
++import assert from "node:assert/strict";
++import test from "node:test";
++import { SessionManager } from "@earendil-works/pi-coding-agent";
++import { CacheAnchorAdapter } from "../../dist/provider-support/cache/index.js";
++import { OpenAIEffortAdapter } from "../../dist/provider-support/openai/adapter.js";
++import { isChatGPTSignIn } from "../../dist/provider-support/routes.js";
++
++// Pi 0.99's Sign in with ChatGPT shares the openai provider, its Responses API and base URL with API keys; only the
++// credential differs. Until each adaptation is qualified on it, its requests go out as Pi built them.
++const luna = {
++  provider: "openai",
++  api: "openai-responses",
++  id: "gpt-6-luna",
++  baseUrl: "https://api.openai.com/v1",
++  compat: { supportsExplicitPromptCacheMode: true },
++};
++const registry = (oauth) => ({ isUsingOAuth: () => oauth });
++
++test("the sign-in route is the openai Responses API at api.openai.com with a ChatGPT credential", () => {
++  assert.equal(isChatGPTSignIn(luna, { modelRegistry: registry(true) }), true);
++  assert.equal(isChatGPTSignIn({ ...luna, baseUrl: undefined }, { modelRegistry: registry(true) }), true);
++  assert.equal(isChatGPTSignIn(luna, { modelRegistry: registry(false) }), false, "an API key");
++  assert.equal(
++    isChatGPTSignIn({ ...luna, baseUrl: "https://proxy.example/v1" }, { modelRegistry: registry(true) }),
++    false,
++  );
++  assert.equal(
++    isChatGPTSignIn(
++      { ...luna, provider: "openai-codex", api: "openai-codex-responses" },
++      { modelRegistry: registry(true) },
++    ),
++    false,
++  );
++  assert.equal(isChatGPTSignIn(luna, {}), false, "a host without the registry method");
++  assert.equal(
++    isChatGPTSignIn(luna, {
++      modelRegistry: {
++        isUsingOAuth: () => {
++          throw new Error("unavailable");
++        },
++      },
++    }),
++    false,
++  );
++});
++
++const user = (text) => ({ role: "user", content: [{ type: "input_text", text }] });
++const call = (id) => ({ type: "function_call", call_id: id, name: "read", arguments: "{}" });
++const output = (id) => ({ type: "function_call_output", call_id: id, output: `body ${id}` });
++const turns = (n) => Array.from({ length: n }, (_, i) => [call(`w${i}`), output(`w${i}`), user(`note ${i}`)]).flat();
++const marked = (payload) =>
++  payload.input.some((item) => Array.isArray(item.content) && item.content.some((b) => b.prompt_cache_breakpoint));
++
++test("no explicit cache breakpoint is added for Sign in with ChatGPT; API keys still get one", () => {
++  for (const [oauth, expected] of [
++    [true, false],
++    [false, true],
++  ]) {
++    const adapter = new CacheAnchorAdapter();
++    const ctx = { model: luna, modelRegistry: registry(oauth), sessionManager: { getSessionId: () => "s1" } };
++    const first = { model: luna.id, instructions: "stable", input: [user("task")], store: false };
++    adapter.adapt(first, ctx);
++    const later = { ...first, input: [user("task"), ...turns(12), user("returned")] };
++    const sent = adapter.adapt(later, ctx);
++    assert.equal(marked(sent), expected, `oauth=${oauth}`);
++    if (oauth) assert.equal(sent, later, "the payload is Pi's own object");
++  }
++});
++
++test("effort history leaves Sign in with ChatGPT requests unchanged; API keys are still adapted", async () => {
++  for (const [oauth, adapted] of [
++    [true, false],
++    [false, true],
++  ]) {
++    const manager = SessionManager.inMemory("/tmp/openai-sign-in-fixture");
++    const pi = { appendEntry: (type, data) => manager.appendCustomEntry(type, data) };
++    const ctx = { model: luna, modelRegistry: registry(oauth), sessionManager: manager };
++    const adapter = new OpenAIEffortAdapter(pi);
++    const request = (input, effort) => ({
++      model: luna.id,
++      store: false,
++      input,
++      instructions: "stable",
++      reasoning: { effort, summary: "auto" },
++      tools: [],
++    });
++    const history = [{ role: "user", content: "one" }];
++    await adapter.adapt(request(history, "low"), ctx);
++    history.push({ role: "assistant", content: "one" }, { role: "user", content: "two" });
++    const high = request(history, "high");
++    const sent = await adapter.adapt(high, ctx);
++    assert.equal(
++      sent.input.some((item) => item.type === "configuration_update"),
++      adapted,
++      `oauth=${oauth}`,
++    );
++    if (!adapted) {
++      assert.equal(sent, high);
++      assert.equal(manager.getEntries().length, 0, "nothing is recorded for the sign-in route");
++    }
++  }
++});

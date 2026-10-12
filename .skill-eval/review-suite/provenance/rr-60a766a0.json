@@ -1,0 +1,78 @@
+{
+  "case": "rr-60a766a0",
+  "status": "built",
+  "builder": "b5 (Haiku 5.5 subagent)",
+  "held_out": false,
+  "base": {
+    "commit": "845c619086530765301e9746b5ff7f8246893cce",
+    "note": "first parent of the introducing commit; export with git archive"
+  },
+  "introducing_commit": {
+    "sha": "60a766a0f16db05701e5364b742cdbb523c032b0",
+    "subject": "feat(evals): add provider-free feasibility preflight",
+    "size": "code files 228 lines (feasibility.mjs 94, fixture-oracle.mjs 30, plan.mjs 59, workspace.mjs 45); below the 250-line limit, so the whole code change is used"
+  },
+  "fix_commit": {
+    "sha": "ea11f6afc6513dc402d90d228434fc17fb7a201c",
+    "subject": "fix(evals): resolve phase 1 review blockers"
+  },
+  "paths": [
+    "skills/evaluate-skill/scripts/lib/feasibility.mjs",
+    "skills/evaluate-skill/scripts/lib/fixture-oracle.mjs",
+    "skills/evaluate-skill/scripts/lib/plan.mjs",
+    "skills/evaluate-skill/scripts/lib/workspace.mjs",
+    ".skill-eval/evaluate-skill/tests/cases.test.mjs",
+    ".skill-eval/evaluate-skill/tests/feasibility.test.mjs",
+    ".skill-eval/evaluate-skill/tests/plan.test.mjs"
+  ],
+  "excluded_paths": [
+    ".skill-eval/evaluate-skill/reports/v3-feasibility-contract.md",
+    ".skill-eval/evaluate-skill/reports/v3-feasibility-regressions.md",
+    "docs/plans/skills/2026-07-13-freeflow-evaluator-v3-plan.md"
+  ],
+  "exclusion_reason": "reports and plan documentation are not code or tests; the case is the code and its tests",
+  "variants": {
+    "real": {
+      "class": "security",
+      "location": "skills/evaluate-skill/scripts/lib/fixture-oracle.mjs:15",
+      "locator": "spawnSync(process.execPath, [script",
+      "defect": "runFixtureOracle runs the fixture's own script with node (spawnSync) during feasibility preflight, before any provider request. Code inside a fixture executes on the host.",
+      "consequence": "A third-party or hostile fixture can run arbitrary code with the evaluator user's privileges (reading files outside the fixture, network access). The restricted environment only hides environment variables; it does not confine the filesystem or network.",
+      "proof": {
+        "kind": "direct call on the introducing state (plus fix test context)",
+        "command": "node /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b5/probes/rr-60a766a0-real-probe.mjs <export of base + real files>",
+        "probe_source": "Writes a fixture oracle.mjs that writes a sentinel file, then calls runFixtureOracle (introducing state) or inspectFixtureOracle (fixed) and checks whether the sentinel exists.",
+        "result_introducing": "fixture_script_executed: true (runFixtureOracle, exit_code 0)",
+        "result_control_fixed": "fixture_script_executed: false (inspectFixtureOracle, passed: true)",
+        "intro_suite": "real: node --test feasibility, cases, plan => 27 pass, 0 fail",
+        "fix_test_note": "The fix's test 'fixture oracle is declarative and cannot execute fixture code' cannot run on the introducing state (no inspectFixtureOracle export); the direct call above is the proof."
+      }
+    },
+    "seeded": {
+      "class": "logic",
+      "location": "skills/evaluate-skill/scripts/lib/fixture-oracle.mjs:45",
+      "locator": "check.contains ?? []) if (content.includes(value))",
+      "defect": "Seed: the negation in the `contains` check is dropped. A file that contains a required literal fails, and a file that lacks it passes.",
+      "base_state": "Fixed state (the real defect corrected as ea11f6af corrected it) plus this seed. The feasibility.mjs, plan.mjs and workspace.mjs files are the ea11f6af versions; feasibility.test.mjs and cases.test.mjs are the ea11f6af committed tests, which need the declarative schema and the FEAS-EVIDENCE-READ check.",
+      "proof": {
+        "kind": "committed test that passes on control and fails on seeded",
+        "control": "base + seeded files with the seed reverted (fixture-oracle.mjs line 45 restored to !content.includes(value))",
+        "command": "node --test .skill-eval/evaluate-skill/tests/feasibility.test.mjs .skill-eval/evaluate-skill/tests/cases.test.mjs .skill-eval/evaluate-skill/tests/plan.test.mjs",
+        "result_control": "29 pass, 0 fail",
+        "result_seeded": "28 pass, 1 fail: 'not ok 12 - fixture oracle is declarative and cannot execute fixture code'",
+        "direct_call": "seed probe: contains literal present -> passed true on control, false on seeded; literal absent -> passed false on control (missing-literal), true on seeded"
+      }
+    }
+  },
+  "reruns": {
+    "command": "bash /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b5/prove-rr.sh",
+    "note": "Rebuilds every proof directory from the shipped fixture files and reruns it; results in /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b5/proof/results.txt"
+  },
+  "unsure": [
+    "Real requirement 6 (fixture contents are untrusted; no effect on the host beyond the declared observations) is a general security statement. It describes the property the defect breaks, not the line. The owner should decide whether that is too close to the defect.",
+    "The real variant's verification.md is the author's report of a passing run (27/27 in this export). It does not claim the full evaluate-skill suite: three unrelated tests in other files (portable Codex plan, doctor, frozen v1 compatibility) fail identically on the fix commit in this export.",
+    "The seeded variant's feasibility.mjs includes the ea11f6af FEAS-EVIDENCE-READ check, which is part of the same fix commit but not the oracle change. It is included because the committed fix test for it lives in the same test file as the oracle test.",
+    "plan.test.mjs needs git metadata; the export gets it with git init plus objects/info/alternates pointing at the repository object store (read-only use). No repository ref or index was touched.",
+    "The seeded variant's verification.md is incomplete on purpose: it reports the two test files that pass and omits feasibility.test.mjs, which fails on the seeded state. It does not mention the seed."
+  ]
+}

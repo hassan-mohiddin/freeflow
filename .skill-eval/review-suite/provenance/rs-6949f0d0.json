@@ -1,0 +1,34 @@
+{
+  "case": "rs-6949f0d0",
+  "base_commit": "6949f0d01981f2917b89b6531c8cbde42b7d21c1",
+  "parent_commit": "b35d2615709b09763efa1b1b8ec15b48304dc336",
+  "subject": "fix(evals): close review trust gaps (bundle integrity only)",
+  "base_paths": [
+    "skills/evaluate-skill/scripts/lib/integrity.mjs",
+    ".skill-eval/evaluate-skill/tests/integrity.test.mjs"
+  ],
+  "excluded_from_case": "evaluate.mjs, materialize.mjs, plan.mjs, publication.mjs and the evaluate, plan and publication tests of the same commit, as the case brief asked. integrity.test.mjs imports publication.mjs and the createManifest exclude option from materialize.mjs, so those are present in the export but not in the reviewer workspace.",
+  "scratch": "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/6949f0d0",
+  "variants": {
+    "clean": { "built_from": "git archive 6949f0d0", "change_diff": "git diff b35d2615 6949f0d0 for the two paths" },
+    "seeded": {
+      "class": "security",
+      "location": "skills/evaluate-skill/scripts/lib/integrity.mjs:23",
+      "locator": "stableJson(recorded) !== stableJson(recorded)",
+      "seed": "in verifyBundleIntegrity, the right operand of the mismatch check changed from actual to recorded, so the record is compared with itself",
+      "consequence": "A bundle changed after its integrity record is written (a changed file, an added file, a removed file) verifies and publishes. The integrity check then no longer protects evidence between preparation and publication. Hostile actor: any writer to the staging bundle in that window.",
+      "committed_test": "node --test .skill-eval/evaluate-skill/tests/integrity.test.mjs : clean 2 pass 0 fail; seeded 1 pass 1 fail (test 'rejects mutation between preparation and publication': expected publication-failed, actual published). The committed test does detect this seed.",
+      "proof": {
+        "script": "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/6949f0d0/proof/tamper.proof.test.mjs",
+        "command": "cd /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/6949f0d0/proof && EXPORT_ROOT=/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/6949f0d0/<clean|seeded> PROOF_SCRATCH=/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/6949f0d0/proof node --test tamper.proof.test.mjs",
+        "clean_result": "3 pass 0 fail: content change rejected; added file rejected; publication of tampered bundle status=publication-failed, destination_has_bundle=false",
+        "seeded_result": "0 pass 3 fail: content change accepted; added file accepted; publication of tampered bundle status=published, destination_has_bundle=true"
+      }
+    }
+  },
+  "unsure": [
+    "The integrity record is written by the same process that verifies it, and integrity.json is excluded from the inventory. Anyone who can rewrite integrity.json can also rewrite the record. That limit belongs to the clean design, not the seed, but a reviewer may flag it against clean. Not counted as a defect here.",
+    "The reviewer workspace does not contain materialize.mjs, where createManifest gained the exclude option. Requirement 1 names that call, so the reviewer must take it on trust."
+  ],
+  "rerun": "Final re-run recorded in /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/final-run.log (all lines for this case)."
+}

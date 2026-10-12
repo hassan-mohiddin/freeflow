@@ -1,0 +1,56 @@
+{
+  "case": "rs-2c00f6e3",
+  "status": "built",
+  "base_commit": "2c00f6e369f40a68cc9adca19f8dd0e68ccd39e9",
+  "parent_commit": "aa77bb83020b95e86e750db1eb660d4d9685b38d",
+  "subject": "fix(track-work): expose atomic decision supersession",
+  "base_paths": [
+    ".skill-eval/track-work/tests/working-record.test.mjs",
+    "skills/track-work/scripts/lib/operations.mjs",
+    "skills/track-work/scripts/lib/schema.mjs",
+    "skills/track-work/scripts/working-record.mjs"
+  ],
+  "diff_check": "patch -p1 of workspace/change.diff onto an archive of the parent reproduces the clean and seeded trees for these paths (checked)",
+  "variants": {
+    "clean": {
+      "class": null,
+      "description": "The change as committed. No defect is planted.",
+      "committed_suite": {
+        "command": "cd <export of 2c00f6e3> && node --test .skill-eval/track-work/tests/working-record.test.mjs",
+        "result": "30 tests, 30 pass, 0 fail (about 14 s)"
+      }
+    },
+    "seeded": {
+      "class": "logic",
+      "class_note": "Requested class was security. Not provable: validateModel (model.mjs:362-372, called from commands.mjs mutateExisting) rejects any supersedes or supersededBy that is not an existing decision ID, so trailing text never persists except as whitespace, and no value reaches the record that can inject content. Classified as logic, which the task allowed for this case.",
+      "location": "skills/track-work/scripts/lib/operations.mjs:28",
+      "locator": "/^D-\\d{3}/",
+      "description": "The decision reference check uses /^D-\\d{3}/ without the end anchor. It accepts a value that starts with a D-NNN reference and then has extra text, including a trailing newline. The commit's rule is that a malformed reference fails with invalid-decision-reference and nothing is written. With the seed, supersedes: \"D-001\\n\" is accepted and written as a Supersedes link to D-001. Values with trailing text fail later with candidate-validation-failure instead of invalid-decision-reference.",
+      "clean_line": "  if (typeof value !== \"string\" || !/^D-\\d{3}$/.test(value))",
+      "seeded_line": "  if (typeof value !== \"string\" || !/^D-\\d{3}/.test(value))",
+      "proof": {
+        "method": "test passes on clean and fails on seeded (logic)",
+        "proof_test_file": "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b2/proof/rs-2c00f6e3.proof.test.mjs",
+        "proof_test_text": "// Proof probe for rs-2c00f6e3: decision reference validation must reject malformed D-NNN values.\n// Run with EXPORT=<export root> node --test <this file>\nimport assert from \"node:assert/strict\";\nimport { execFile } from \"node:child_process\";\nimport { mkdtemp, rm, writeFile } from \"node:fs/promises\";\nimport { tmpdir } from \"node:os\";\nimport { join } from \"node:path\";\nimport test from \"node:test\";\nimport { promisify } from \"node:util\";\n\nconst run = promisify(execFile);\nconst exportRoot = process.env.EXPORT;\nconst script = join(exportRoot, \"skills/track-work/scripts/working-record.mjs\");\n\nasync function call(cwd, args) {\n  try {\n    const { stdout } = await run(process.execPath, [script, ...args], { cwd, maxBuffer: 1024 * 1024 });\n    return { exitCode: 0, json: JSON.parse(stdout) };\n  } catch (error) {\n    return { exitCode: error.code, json: JSON.parse(error.stdout) };\n  }\n}\n\nasync function setup(t) {\n  const root = await mkdtemp(join(tmpdir(), \"rs-2c00-proof-\"));\n  t.after(() => rm(root, { recursive: true, force: true }));\n  const write = async (name, value) => {\n    const path = join(root, name);\n    await writeFile(path, JSON.stringify(value));\n    return path;\n  };\n  const init = await call(root, [\"init\", \"--root\", root, \"--name\", \"proof\", \"--input\", await write(\"init.json\", { taskName: \"Proof\" })]);\n  assert.equal(init.exitCode, 0);\n  const record = init.json.record.path;\n  let sha = init.json.record.sha256;\n  for (const title of [\"Original\", \"Replacement\"]) {\n    const added = await call(root, [\"update\", \"--record\", record, \"--expected-sha\", sha, \"--input\", await write(`${title}.json`, { decision: { operation: \"add\", title, decision: title } })]);\n    assert.equal(added.exitCode, 0, JSON.stringify(added.json));\n    sha = added.json.record.sha256;\n  }\n  return { root, record, sha, write };\n}\n\ntest(\"a supersedes value with a trailing newline is rejected and nothing is written\", async (t) => {\n  const { root, record, sha, write } = await setup(t);\n  const result = await call(root, [\"update\", \"--record\", record, \"--expected-sha\", sha, \"--input\", await write(\"nl.json\", { decision: { operation: \"add\", title: \"Malformed\", supersedes: \"D-001\\n\" } })]);\n  assert.equal(result.exitCode, 1, `expected rejection, got exit ${result.exitCode}: ${JSON.stringify(result.json).slice(0, 300)}`);\n  assert.equal(result.json.errors[0].code, \"invalid-decision-reference\");\n  assert.equal(result.json.record.sha256, sha);\n});\n\ntest(\"a supersedes value with trailing text fails with invalid-decision-reference\", async (t) => {\n  const { root, record, sha, write } = await setup(t);\n  const result = await call(root, [\"update\", \"--record\", record, \"--expected-sha\", sha, \"--input\", await write(\"text.json\", { decision: { operation: \"add\", title: \"Malformed\", supersedes: \"D-001 extra\" } })]);\n  assert.equal(result.exitCode, 1);\n  assert.equal(result.json.errors[0].code, \"invalid-decision-reference\");\n});\n\ntest(\"a well-formed supersedes value is still accepted\", async (t) => {\n  const { root, record, sha, write } = await setup(t);\n  const result = await call(root, [\"update\", \"--record\", record, \"--expected-sha\", sha, \"--input\", await write(\"ok.json\", { decision: { operation: \"add\", title: \"Good\", supersedes: \"D-001\" } })]);\n  assert.equal(result.exitCode, 0, JSON.stringify(result.json).slice(0, 300));\n});\n",
+        "command": "EXPORT=<export root> node --test <proof_test_file>   (run once with the clean export and once with the seeded export)",
+        "clean_result": "3 tests, 3 pass, 0 fail (rejects trailing newline with invalid-decision-reference and leaves sha unchanged; rejects trailing text with invalid-decision-reference; accepts D-001)",
+        "seeded_result": "3 tests, 1 pass, 2 fail: trailing newline is accepted (exit 0, record written with Supersedes: D-001); trailing text gets candidate-validation-failure instead of invalid-decision-reference",
+        "observed_persisted_record_fragment_seeded": "#### D-003 — trailing-newline / - State: Active / - Supersedes: D-001"
+      },
+      "committed_suite": {
+        "command": "cd <export of 2c00f6e3 with seed applied> && node --test .skill-eval/track-work/tests/working-record.test.mjs",
+        "result": "30 tests, 30 pass, 0 fail: the committed tests do not detect the seed (their malformed-reference case uses a non-string value)"
+      }
+    }
+  },
+  "unsure": [
+    "The defect's observable effect is narrow: only a trailing newline gets through to a write. Trailing text is rejected later with a different error code. A reviewer who only reads the error codes may judge it minor.",
+    "The logic proof is a test I wrote (proof_test_text); it is not in the committed suite, and it is not in the fixture.",
+    "The requirement about malformed references is stated by behavior (\"a value that is not one fails with invalid-decision-reference\"). The reviewer has to read the regular expression to see the gap."
+  ],
+  "rerun": [
+    "node --test .skill-eval/track-work/tests/working-record.test.mjs  (in export of 2c00f6e3 and in export with the seed): clean 30/30 pass, seeded 30/30 pass",
+    "EXPORT=<clean export> node --test /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b2/proof/rs-2c00f6e3.proof.test.mjs : 3/3 pass",
+    "EXPORT=<seeded export> node --test /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b2/proof/rs-2c00f6e3.proof.test.mjs : 1 pass, 2 fail"
+  ]
+}

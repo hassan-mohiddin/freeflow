@@ -1,0 +1,107 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "rv09-a",
+  "type": "body",
+  "input": {
+    "prompt": "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`"
+  },
+  "fixture": ".skill-eval/review-suite/fixtures/rr-d9beef6d/seeded/workspace",
+  "tools": ["read", "write", "ls", "find"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "context": []
+      }
+    },
+    "candidate": {
+      "subject": {
+        "context": [".skill-eval/review-suite/context/rv09-a/requirements.md"]
+      }
+    }
+  },
+  "component": ["subject.context"],
+  "expectations": [
+    {
+      "id": "baseline-only-review",
+      "variant": "baseline",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "candidate-only-review",
+      "variant": "candidate",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "baseline-judgment-line",
+      "variant": "baseline",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "candidate-judgment-line",
+      "variant": "candidate",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "baseline-not-passed",
+      "variant": "baseline",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "candidate-not-passed",
+      "variant": "candidate",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "baseline-names-file-1",
+      "variant": "baseline",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "runtime-context.ts"
+    },
+    {
+      "id": "candidate-names-file-1",
+      "variant": "candidate",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "runtime-context.ts"
+    }
+  ],
+  "review_questions": [
+    "Did the review identify the defect at pi-extension/src/runtime/runtime-context.ts:116 (the expression `SUBAGENT_AGENT_TAG.test(systemPrompt) &&`): Seed: the combined subagent test uses && where || was intended, so a session is detected only when both the host tag and the marker are present. Did it support the finding with the file and line?",
+    "Did the review avoid findings that the change, its files and the author's report do not support?"
+  ]
+}

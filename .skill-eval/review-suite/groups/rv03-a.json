@@ -1,0 +1,109 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "rv03-a",
+  "type": "body",
+  "input": {
+    "prompt": "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`"
+  },
+  "fixture": ".skill-eval/review-suite/fixtures/rs-864df4cc/clean/workspace",
+  "tools": ["read", "write", "ls", "find"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "context": []
+      }
+    },
+    "candidate": {
+      "subject": {
+        "context": [".skill-eval/review-suite/context/rv03-a/requirements.md"]
+      }
+    }
+  },
+  "component": ["subject.context"],
+  "expectations": [
+    {
+      "id": "baseline-only-review",
+      "variant": "baseline",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "candidate-only-review",
+      "variant": "candidate",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "baseline-judgment-line",
+      "variant": "baseline",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "candidate-judgment-line",
+      "variant": "candidate",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "baseline-not-blocked",
+      "variant": "baseline",
+      "comparison": "not-blocked",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Blocking"
+    },
+    {
+      "id": "candidate-not-blocked",
+      "variant": "candidate",
+      "comparison": "not-blocked",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Blocking"
+    },
+    {
+      "id": "baseline-judged-pass",
+      "variant": "baseline",
+      "comparison": "judged-pass",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "equals",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "candidate-judged-pass",
+      "variant": "candidate",
+      "comparison": "judged-pass",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "equals",
+      "value": "Judgment: Pass"
+    }
+  ],
+  "review_questions": [
+    "Did the review avoid reporting problems that the change, its files and the author's report do not support?",
+    "Did the review keep style or naming preferences out of its findings?"
+  ]
+}
