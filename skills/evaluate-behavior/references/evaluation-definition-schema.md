@@ -78,7 +78,7 @@ A rubric asks what deterministic checks cannot. Each run is judged alone, blind 
       "question": "Did the review name the off-by-one in the pagination loop?",
       "reference": { "path": "references/known-defect.md" }
     },
-    { "id": "clarity", "question": "How actionable is the review?", "answers": "0-2", "weight": 2 }
+    { "id": "clarity", "question": "How actionable is the review?", "answers": "0-2" }
   ],
   "judges": [{ "model": "anthropic/claude-haiku-5-5", "thinking": "high" }],
   "combine": "majority"
@@ -88,7 +88,7 @@ A rubric asks what deterministic checks cannot. Each run is judged alone, blind 
 - `rubric` is a non-empty array of dimensions with unique `id`s (the group ID pattern) and a non-empty `question`. Dimensions are rendered only for judges and never sent to the subject.
 - `answers` is `["yes", "no", "unknown"]` (the default) or `"0-2"`. A judge may always answer `unknown`, and must cite the evidence for every answer.
 - `reference` is optional: inline text, or `{ "path": "<relative path>" }` to a file inside the definition root. It is shown to judges only. A path inside the fixture is refused, because the subject sees the fixture; keep the file out of the subject's declared `context` too, which the evaluator does not check. A file's text and hash are read in when the definition loads, so judging never depends on the working tree, and the file is a run input that must be committed like the definition.
-- `weight` is an optional positive number (default `1`). It is recorded with the dimension; no aggregate, view or decision rule uses it yet.
+- Dimensions have no weights: each is counted and decided on its own, and a dimension that declares `weight` is refused.
 - `judges` is optional: one or more `{ model, thinking? }`, each configuration once, because repeated calls to one configuration are one vote. Without `judges`, `review --rubric --model` names the single judge.
 - `combine` names how several judges' answers become one, before any verdict is seen; it is required with more than one judge. Taking yes as 1 and no as 0: `majority` gives the answer more than half the judges gave (otherwise `unknown`); `unanimous` gives the lowest answer, so yes only when every judge says yes; `any` gives the highest, so yes when any judge does; `mean` averages the known answers and needs every dimension to be `"0-2"`. An `unknown` answer makes the result `unknown` whenever it could change it.
 - `judges` and `combine` need a `rubric`.
