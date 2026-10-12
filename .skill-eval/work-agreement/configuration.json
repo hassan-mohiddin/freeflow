@@ -25,7 +25,7 @@
     "freeflow": {
       "source": {
         "kind": "git",
-        "ref": "68b2eb13"
+        "ref": "5a7db0e6"
       },
       "repository": {
         "compaction": {

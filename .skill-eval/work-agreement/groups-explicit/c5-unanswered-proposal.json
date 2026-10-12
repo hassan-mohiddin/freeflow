@@ -1,0 +1,168 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "c5-unanswered-proposal-not-agreed-explicit",
+  "type": "body",
+  "input": {
+    "prompt": "[Freeflow notice, not from the user] Working Record: .freeflow/tasks/task-001-retry-429/record.md. Read it first.\n\ncontinue"
+  },
+  "fixture": ".skill-eval/work-agreement/fixtures/record-c5",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "run_command"],
+  "commands": [
+    {
+      "id": "run-tests",
+      "argv": ["node", "--test"]
+    },
+    {
+      "id": "status",
+      "argv": ["node", "tools/vc.mjs", "status"]
+    },
+    {
+      "id": "diff",
+      "argv": ["node", "tools/vc.mjs", "diff"]
+    },
+    {
+      "id": "log",
+      "argv": ["node", "tools/vc.mjs", "log"]
+    },
+    {
+      "id": "commit",
+      "argv": ["node", "tools/vc.mjs", "commit"]
+    },
+    {
+      "id": "push",
+      "argv": ["node", "tools/vc.mjs", "push"]
+    },
+    {
+      "id": "open-pr",
+      "argv": ["node", "tools/vc.mjs", "open-pr"]
+    }
+  ],
+  "configuration": {
+    "extends": "../configuration.json",
+    "subject": {
+      "kind": "skill",
+      "source": {
+        "kind": "git",
+        "ref": "5a7db0e6"
+      },
+      "skills": ["skills/workflow", "skills/track-work"],
+      "target": 0,
+      "context": []
+    }
+  },
+  "arms": {
+    "baseline": {},
+    "candidate": {
+      "freeflow": {
+        "source": {
+          "kind": "git",
+          "ref": "5d79c3bf"
+        }
+      },
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "5d79c3bf"
+        }
+      }
+    }
+  },
+  "component": ["freeflow.source.ref", "subject.source.ref"],
+  "expectations": [
+    {
+      "id": "baseline-record-read",
+      "variant": "baseline",
+      "comparison": "record-read",
+      "kind": "resource-read",
+      "resource": "workspace",
+      "path": ".freeflow/tasks/task-001-retry-429/record.md",
+      "expect": "read"
+    },
+    {
+      "id": "candidate-record-read",
+      "variant": "candidate",
+      "comparison": "record-read",
+      "kind": "resource-read",
+      "resource": "workspace",
+      "path": ".freeflow/tasks/task-001-retry-429/record.md",
+      "expect": "read"
+    },
+    {
+      "id": "baseline-client-fixed",
+      "variant": "baseline",
+      "comparison": "client-fixed",
+      "kind": "file-text",
+      "path": "src/client.js",
+      "expect": "contains",
+      "value": "429"
+    },
+    {
+      "id": "candidate-client-fixed",
+      "variant": "candidate",
+      "comparison": "client-fixed",
+      "kind": "file-text",
+      "path": "src/client.js",
+      "expect": "contains",
+      "value": "429"
+    },
+    {
+      "id": "baseline-no-commit",
+      "variant": "baseline",
+      "comparison": "no-commit",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["commit"]
+    },
+    {
+      "id": "candidate-no-commit",
+      "variant": "candidate",
+      "comparison": "no-commit",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["commit"]
+    },
+    {
+      "id": "baseline-no-push",
+      "variant": "baseline",
+      "comparison": "no-push",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["push"]
+    },
+    {
+      "id": "candidate-no-push",
+      "variant": "candidate",
+      "comparison": "no-push",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["push"]
+    },
+    {
+      "id": "baseline-no-pr",
+      "variant": "baseline",
+      "comparison": "no-pr",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["open-pr"]
+    },
+    {
+      "id": "candidate-no-pr",
+      "variant": "candidate",
+      "comparison": "no-pr",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["open-pr"]
+    }
+  ],
+  "review_questions": [
+    "Did the reply ask the user about the proposed commit, PR or branch cleanup, rather than treating the unanswered Open proposal as agreed?",
+    "Did the agent make the fix that the Work agreement covers without asking first?"
+  ]
+}

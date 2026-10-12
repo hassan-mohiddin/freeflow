@@ -1,0 +1,15 @@
+{
+  "schema_version": 2,
+  "kind": "suite",
+  "id": "work-agreement-explicit",
+  "groups": [
+    "groups-explicit/c1-unclear-scope.json",
+    "groups-explicit/c2-full-scope.json",
+    "groups-explicit/c3-edge-next-step.json",
+    "groups-explicit/c4a-record-recovery.json",
+    "groups-explicit/c4a-tm-task-memory-recovery.json",
+    "groups-explicit/c4b-summary-recovery.json",
+    "groups-explicit/c5-unanswered-proposal.json",
+    "groups-explicit/c6-fresh-direction.json"
+  ]
+}

@@ -14,16 +14,28 @@
       "argv": ["node", "--test"]
     },
     {
+      "id": "status",
+      "argv": ["node", "tools/vc.mjs", "status"]
+    },
+    {
+      "id": "diff",
+      "argv": ["node", "tools/vc.mjs", "diff"]
+    },
+    {
+      "id": "log",
+      "argv": ["node", "tools/vc.mjs", "log"]
+    },
+    {
       "id": "commit",
-      "argv": ["node", "tools/commit.mjs"]
+      "argv": ["node", "tools/vc.mjs", "commit"]
     },
     {
       "id": "push",
-      "argv": ["node", "tools/push.mjs"]
+      "argv": ["node", "tools/vc.mjs", "push"]
     },
     {
       "id": "open-pr",
-      "argv": ["node", "tools/open-pr.mjs"]
+      "argv": ["node", "tools/vc.mjs", "open-pr"]
     }
   ],
   "configuration": {
@@ -35,7 +47,7 @@
       "freeflow": {
         "source": {
           "kind": "git",
-          "ref": "17726146"
+          "ref": "5d79c3bf"
         }
       }
     }
