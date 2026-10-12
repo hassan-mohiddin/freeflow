@@ -4,6 +4,7 @@ import type { ContextSourceIdentity } from "../freeflow-context/types.js";
 
 export type SourceRegistryExecutionProfile = "standard" | "reasoning";
 export type SourceRegistryProfile = SourceRegistryExecutionProfile | "unknown";
+export type SourceRegistryTurnOutcome = "complete" | "terminal-incomplete";
 
 export const COGNITIVE_ROUTING_BASELINE_ENTRY = "freeflow-cognitive-routing-baseline";
 
@@ -41,8 +42,10 @@ type TurnAttribution = {
   status: "attributed";
   blockId: string;
   profile: SourceRegistryExecutionProfile;
+  outcome: SourceRegistryTurnOutcome;
   assistant: ContextSourceIdentity;
   toolResults: ContextSourceIdentity[];
+  unresolvedCallIds: string[];
 };
 
 type TurnUnavailable = {
@@ -62,6 +65,7 @@ export type SourceRegistryAttribution = {
   blockId?: string;
   kind: "assistant" | "toolResult";
   message: any;
+  outcome: SourceRegistryTurnOutcome;
 };
 
 export type SourceRegistryAttributionsResult =
@@ -80,6 +84,15 @@ function toolCallIds(message: any): string[] {
   return message.content
     .filter((part: any) => part?.type === "toolCall" && typeof part.id === "string")
     .map((part: any) => part.id);
+}
+
+function terminalAssistantOutcome(message: any): SourceRegistryTurnOutcome {
+  if (message?.role !== "assistant") return "complete";
+  const stopReason = message.stopReason;
+  if (stopReason === undefined || stopReason === "stop" || stopReason === "toolUse" || stopReason === "length") {
+    return "complete";
+  }
+  return "terminal-incomplete";
 }
 
 function branchIndex(branchEntries: readonly SessionEntry[], entryId: string | null): number {
@@ -115,6 +128,7 @@ function cloneAttribution(attribution: SourceRegistryAttribution): SourceRegistr
     ...(attribution.blockId === undefined ? {} : { blockId: attribution.blockId }),
     kind: attribution.kind,
     message: structuredClone(attribution.message),
+    outcome: attribution.outcome,
   };
 }
 
@@ -123,6 +137,7 @@ function sameAttribution(a: SourceRegistryAttribution, b: SourceRegistryAttribut
     a.profile === b.profile &&
     a.blockId === b.blockId &&
     a.kind === b.kind &&
+    a.outcome === b.outcome &&
     isDeepStrictEqual(a.source, b.source) &&
     isDeepStrictEqual(a.message, b.message)
   );
@@ -140,6 +155,7 @@ function unknownAttributionForEntry(
     profile: "unknown",
     kind,
     message: immutableSnapshot(entry.message),
+    outcome: kind === "assistant" ? terminalAssistantOutcome(entry.message) : "complete",
   };
 }
 
@@ -180,14 +196,18 @@ export class CognitiveRoutingSourceRegistry {
       return { status: "unavailable", reason: "turn_branch_changed" };
     }
 
+    if (!input.assistantMessage || input.assistantMessage.role !== "assistant") {
+      return { status: "unavailable", reason: "assistant_entry_missing" };
+    }
     const appended = input.branchEntries.slice(baselineIndex + 1).filter(messageEntry);
     const expected = [input.assistantMessage, ...input.toolResults];
-    if (appended.length !== expected.length) {
-      return { status: "unavailable", reason: "finalized_entry_count_mismatch" };
-    }
-
     const matched = this.matchExpectedEntries(expected, appended);
     if (matched.status !== "matched") return matched;
+    const matchedIds = new Set(matched.entries.map((entry) => entry.id));
+    const unexpected = appended.filter((entry) => !matchedIds.has(entry.id) && entry.message?.role !== "user");
+    if (unexpected.length > 0) {
+      return { status: "unavailable", reason: "finalized_entry_count_mismatch" };
+    }
 
     if (turn.attributed) {
       if (
@@ -214,10 +234,8 @@ export class CognitiveRoutingSourceRegistry {
       return { status: "unavailable", reason: "assistant_tool_call_ids_ambiguous" };
     }
 
+    const outcome = terminalAssistantOutcome(assistantEntry.message);
     const toolEntries = matched.entries.slice(1);
-    if (toolEntries.length !== calls.length) {
-      return { status: "unavailable", reason: "tool_result_count_mismatch" };
-    }
     const callNames = new Map(
       (assistantEntry.message.content ?? [])
         .filter((part: any) => part?.type === "toolCall" && typeof part.id === "string")
@@ -236,13 +254,19 @@ export class CognitiveRoutingSourceRegistry {
       }
       seenResults.add(toolCallId);
     }
+    const unresolvedCallIds = calls.filter((callId) => !seenResults.has(callId));
+    if (outcome === "complete" && unresolvedCallIds.length > 0) {
+      return { status: "unavailable", reason: "tool_result_count_mismatch" };
+    }
 
     const attribution: TurnAttribution = {
       status: "attributed",
       blockId: turn.blockId,
       profile: turn.profile,
+      outcome,
       assistant: sourceFor(assistantEntry, turn.sessionId),
       toolResults: toolEntries.map((entry) => sourceFor(entry, turn.sessionId)),
+      unresolvedCallIds,
     };
     let completedObservation: { assistantMessage: any; toolResults: readonly any[] };
     let storedAttributions: SourceRegistryAttribution[];
@@ -258,6 +282,7 @@ export class CognitiveRoutingSourceRegistry {
           blockId: attribution.blockId,
           kind: "assistant",
           message: immutableSnapshot(assistantEntry.message),
+          outcome: attribution.outcome,
         },
         ...toolEntries.map((entry) => ({
           source: { ...sourceFor(entry, turn.sessionId) },
@@ -265,6 +290,7 @@ export class CognitiveRoutingSourceRegistry {
           blockId: attribution.blockId,
           kind: "toolResult" as const,
           message: immutableSnapshot(entry.message),
+          outcome: attribution.outcome,
         })),
       ];
     } catch {
@@ -291,8 +317,10 @@ export class CognitiveRoutingSourceRegistry {
       status: attribution.status,
       blockId: attribution.blockId,
       profile: attribution.profile,
+      outcome: attribution.outcome,
       assistant: { ...attribution.assistant },
       toolResults: attribution.toolResults.map((source) => ({ ...source })),
+      unresolvedCallIds: [...attribution.unresolvedCallIds],
     };
   }
 
@@ -354,7 +382,19 @@ export class CognitiveRoutingSourceRegistry {
     for (const entry of branchEntries) {
       if (entry.type !== "custom" || entry.customType !== "freeflow-cognitive-routing-source") continue;
       const data = entry.data;
-      if (data?.version !== 1) return { status: "unavailable", reason: "source_entry_unrecognized" };
+      if (data?.version !== 1 && data?.version !== 2) {
+        return { status: "unavailable", reason: "source_entry_unrecognized" };
+      }
+      const outcome: SourceRegistryTurnOutcome =
+        data.version === 2 && data.outcome === "terminal-incomplete" ? "terminal-incomplete" : "complete";
+      if (
+        data.version === 2 &&
+        (data.kind !== "turn" ||
+          (data.outcome !== "complete" && data.outcome !== "terminal-incomplete") ||
+          !Array.isArray(data.unresolvedCallIds))
+      ) {
+        return { status: "unavailable", reason: "source_entry_invalid" };
+      }
       if (typeof data.sessionId !== "string" || !acceptedSessionIds.has(data.sessionId)) {
         return {
           status: "unavailable",
@@ -404,9 +444,11 @@ export class CognitiveRoutingSourceRegistry {
           blockId: data.blockId,
           kind: "assistant",
           message: immutableSnapshot(assistantEntry.message),
+          outcome,
         },
       ];
       let previousResultIndex = assistantIndex;
+      let previousCallIndex = -1;
       const seenCalls = new Set<string>();
       for (let index = 0; index < data.toolResults.length; index += 1) {
         const source = data.toolResults[index];
@@ -416,7 +458,9 @@ export class CognitiveRoutingSourceRegistry {
           typeof source.entryId !== "string" ||
           source.entryId.length === 0 ||
           typeof source.toolCallId !== "string" ||
-          source.toolCallId !== callIds[index] ||
+          !callIds.includes(source.toolCallId) ||
+          (data.version === 1 && source.toolCallId !== callIds[index]) ||
+          callIds.indexOf(source.toolCallId) <= previousCallIndex ||
           seenCalls.has(source.toolCallId)
         ) {
           return { status: "unavailable", reason: "source_entry_tool_result_invalid" };
@@ -435,6 +479,7 @@ export class CognitiveRoutingSourceRegistry {
           return { status: "unavailable", reason: "source_entry_tool_result_mismatch" };
         }
         seenCalls.add(source.toolCallId);
+        previousCallIndex = callIds.indexOf(source.toolCallId);
         previousResultIndex = resultIndex;
         storedForJournal.push({
           source: { ...source, sessionId },
@@ -442,10 +487,23 @@ export class CognitiveRoutingSourceRegistry {
           blockId: data.blockId,
           kind: "toolResult",
           message: immutableSnapshot(resultEntry.message),
+          outcome,
         });
       }
-      if (data.toolResults.length !== callIds.length) {
+      const unresolvedCallIds = callIds.filter((callId) => !seenCalls.has(callId));
+      if (outcome === "complete" && unresolvedCallIds.length > 0) {
         return { status: "unavailable", reason: "source_entry_tool_result_count_mismatch" };
+      }
+      if (outcome === "terminal-incomplete") {
+        if (terminalAssistantOutcome(assistantEntry.message) !== "terminal-incomplete") {
+          return { status: "unavailable", reason: "source_entry_outcome_mismatch" };
+        }
+        if (
+          data.unresolvedCallIds.length !== unresolvedCallIds.length ||
+          data.unresolvedCallIds.some((callId: unknown, index: number) => callId !== unresolvedCallIds[index])
+        ) {
+          return { status: "unavailable", reason: "source_entry_unresolved_calls_mismatch" };
+        }
       }
       prepared.push(...storedForJournal);
     }

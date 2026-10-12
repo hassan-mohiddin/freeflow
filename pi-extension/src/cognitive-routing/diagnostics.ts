@@ -1,7 +1,15 @@
 export const COGNITIVE_ROUTING_DIAGNOSTIC_ENTRY = "freeflow-cognitive-routing-diagnostic";
 
 export type CognitiveRoutingDiagnosticStage =
-  "selection_validation" | "context_assembly" | "baseline_persistence" | "attribution" | "transition";
+  | "selection_validation"
+  | "context_normalization"
+  | "context_assembly"
+  | "baseline_persistence"
+  | "attribution"
+  | "transition";
+
+export type CognitiveRoutingDiagnosticScope = "message" | "turn" | "branch" | "operation";
+export type CognitiveRoutingDiagnosticDisposition = "quarantined" | "blocked";
 
 export type CognitiveRoutingDiagnosticModelState = "unchanged" | "changed" | "unknown";
 
@@ -12,6 +20,8 @@ export type CognitiveRoutingDiagnostic = {
   stage: CognitiveRoutingDiagnosticStage;
   message: string;
   modelState: CognitiveRoutingDiagnosticModelState;
+  scope?: CognitiveRoutingDiagnosticScope;
+  disposition?: CognitiveRoutingDiagnosticDisposition;
   operationId?: string;
   ref?: string;
   role?: string;
@@ -51,11 +61,12 @@ export function diagnosticNotification(report: CognitiveRoutingDiagnosticReport)
     : diagnostic.role
       ? ` (${diagnostic.role}${diagnostic.customType ? `:${diagnostic.customType}` : ""})`
       : "";
+  const disposition = diagnostic.disposition ? `${diagnostic.disposition}; ` : "";
   const persistence = delivery.persisted ? "diagnostic persisted" : "diagnostic persistence unavailable";
   const notification = delivery.notificationAvailable
     ? delivery.notificationAttempted
       ? "notification requested"
       : "notification not attempted"
     : "notification unavailable";
-  return `Cognitive Routing ${diagnostic.stage} blocked: ${diagnostic.code}${identity} — ${diagnostic.message}; ${persistence}; ${notification}.`;
+  return `Cognitive Routing ${diagnostic.stage}: ${disposition}${diagnostic.code}${identity} — ${diagnostic.message}; ${persistence}; ${notification}.`;
 }

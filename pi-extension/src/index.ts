@@ -79,6 +79,8 @@ function reportCognitiveRoutingDiagnostic(
     entry.data?.code === diagnostic.code &&
     entry.data?.stage === diagnostic.stage &&
     entry.data?.modelState === diagnostic.modelState &&
+    entry.data?.scope === diagnostic.scope &&
+    entry.data?.disposition === diagnostic.disposition &&
     entry.data?.message === diagnostic.message &&
     entry.data?.operationId === diagnostic.operationId &&
     entry.data?.ref === diagnostic.ref &&

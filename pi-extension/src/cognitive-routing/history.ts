@@ -1,7 +1,9 @@
 import { COGNITIVE_ROUTING_DIAGNOSTIC_ENTRY } from "./diagnostics.js";
 import type {
   CognitiveRoutingDiagnostic,
+  CognitiveRoutingDiagnosticDisposition,
   CognitiveRoutingDiagnosticModelState,
+  CognitiveRoutingDiagnosticScope,
   CognitiveRoutingDiagnosticStage,
 } from "./diagnostics.js";
 import { PI_SESSION_MODEL_STATE_ENTRY, parsePiSessionModelStateCommit } from "./pi-session-control.js";
@@ -488,6 +490,7 @@ function projectionDiagnosticFor(entry: unknown, position: number): ProjectionDi
     !code ||
     !message ||
     (stage !== "selection_validation" &&
+      stage !== "context_normalization" &&
       stage !== "context_assembly" &&
       stage !== "baseline_persistence" &&
       stage !== "attribution" &&
@@ -507,6 +510,12 @@ function projectionDiagnosticFor(entry: unknown, position: number): ProjectionDi
     stage: stage as CognitiveRoutingDiagnosticStage,
     message,
     modelState: modelState as CognitiveRoutingDiagnosticModelState,
+    ...(data.scope === "message" || data.scope === "turn" || data.scope === "branch" || data.scope === "operation"
+      ? { scope: data.scope as CognitiveRoutingDiagnosticScope }
+      : {}),
+    ...(data.disposition === "quarantined" || data.disposition === "blocked"
+      ? { disposition: data.disposition as CognitiveRoutingDiagnosticDisposition }
+      : {}),
     id: `projection:${metadata.id}`,
     jsonlPosition: position,
     entryId: metadata.id,

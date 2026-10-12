@@ -1,6 +1,9 @@
-import { isDeepStrictEqual } from "node:util";
-
 import { contextRefForEntry, entryIdFromContextRef, type ContextSourceIdentity } from "../freeflow-context/types.js";
+import {
+  contextMessageRole,
+  normalizeContextMessages,
+  type ContextMessageQuarantine,
+} from "./context-message-normalizer.js";
 
 export type ProjectionSourceProfile = "standard" | "reasoning" | "unknown" | "user" | "shared";
 
@@ -13,6 +16,8 @@ export type ProjectionSource = {
   legacyBaseline?: boolean;
   legacyRepairableCallIds?: readonly string[];
   legacyOutcomeUnavailableCallIds?: readonly string[];
+  replayability?: "eligible" | "quarantined";
+  quarantineReason?: string;
 };
 
 export type ProjectionInput = {
@@ -35,6 +40,7 @@ type ProjectedContext = {
   visibleRefs: string[];
   selectedRefs: string[];
   dependencyRefs: string[];
+  quarantines: ContextMessageQuarantine[];
 };
 
 export type ProjectionRejected = {
@@ -63,6 +69,7 @@ type MessageGroup = {
   danglingResults: MessageEntry[];
   legacyPlaceholders: MessageEntry[];
   legacyOutcomeUnavailableCallIds: readonly string[];
+  incompleteReason?: string;
 };
 
 type RequestedRefs = {
@@ -73,21 +80,6 @@ type RequestedRefs = {
   explicit: string[];
   all: string[];
 };
-
-function messageRole(message: any): string | undefined {
-  return typeof message?.role === "string" ? message.role : undefined;
-}
-
-function isAbortedAssistantArtifact(message: any): boolean {
-  // Pi persists an empty assistant error after ctx.abort(); it contains no evidence or tool dependency.
-  return (
-    messageRole(message) === "assistant" &&
-    (message.stopReason === "error" || message.stopReason === "aborted") &&
-    message.errorMessage === "This operation was aborted" &&
-    Array.isArray(message.content) &&
-    message.content.length === 0
-  );
-}
 
 function refFor(source: ProjectionSource): string | undefined {
   return typeof source.source.entryId === "string" ? contextRefForEntry(source.source.entryId) : undefined;
@@ -152,7 +144,7 @@ function requestedRefs(input: ProjectionInput): RequestedRefs | ProjectionReject
 
 function toolCalls(message: any): Map<string, string> | ProjectionRejected {
   const calls = new Map<string, string>();
-  if (messageRole(message) !== "assistant" || !Array.isArray(message.content)) return calls;
+  if (contextMessageRole(message) !== "assistant" || !Array.isArray(message.content)) return calls;
   for (const part of message.content) {
     if (part?.type !== "toolCall") continue;
     if (typeof part.id !== "string" || typeof part.name !== "string") {
@@ -184,32 +176,6 @@ function legacyUnknownToolResult(toolCallId: string, toolName: string): any {
   return message;
 }
 
-function customMessageShape(message: any): any {
-  if (!message || typeof message !== "object") return message;
-  const comparable = { ...message };
-  delete comparable.timestamp;
-  return comparable;
-}
-
-function customMessageTimestamp(value: unknown): boolean {
-  if (typeof value === "number") return Number.isFinite(value);
-  return typeof value === "string" && !Number.isNaN(Date.parse(value));
-}
-
-function sourceMatches(message: any, source: ProjectionSource): boolean {
-  if (source.message === undefined) return false;
-  if (source.kind === "custom" || message?.role === "custom" || source.message?.role === "custom") {
-    return (
-      source.message?.role === "custom" &&
-      message?.role === "custom" &&
-      customMessageTimestamp(source.message.timestamp) &&
-      customMessageTimestamp(message.timestamp) &&
-      isDeepStrictEqual(customMessageShape(source.message), customMessageShape(message))
-    );
-  }
-  return source.message === message || isDeepStrictEqual(source.message, message);
-}
-
 function rejected(
   reason: string,
   details: Pick<ProjectionRejected, "position" | "role" | "customType" | "ref"> = {},
@@ -222,7 +188,7 @@ function groupItems(items: MessageEntry[]): MessageGroup[] | ProjectionRejected 
 
   for (let index = 0; index < items.length; index += 1) {
     const assistant = items[index];
-    if (messageRole(assistant.message) !== "assistant") continue;
+    if (contextMessageRole(assistant.message) !== "assistant") continue;
     const calls = toolCalls(assistant.message);
     if (!(calls instanceof Map)) return calls;
     const group: MessageGroup = {
@@ -238,7 +204,7 @@ function groupItems(items: MessageEntry[]): MessageGroup[] | ProjectionRejected 
 
     for (let resultIndex = index + 1; resultIndex < items.length; resultIndex += 1) {
       const candidate = items[resultIndex];
-      if (messageRole(candidate.message) !== "toolResult") break;
+      if (contextMessageRole(candidate.message) !== "toolResult") break;
       if (calls.has(candidate.message.toolCallId)) {
         group.results.push(candidate);
       } else {
@@ -253,15 +219,14 @@ function groupItems(items: MessageEntry[]): MessageGroup[] | ProjectionRejected 
     }
     const matchedCallIds = new Set(group.results.map((result) => result.message.toolCallId));
     if (group.legacyOutcomeUnavailableCallIds.length > 0) {
-      return rejected(`legacy_tool_result_unavailable:${assistant.ref ?? "unknown"}`, {
-        ...(assistant.ref ? { ref: assistant.ref } : {}),
-        position: assistant.index,
-        role: "assistant",
-      });
+      group.incompleteReason = "legacy_tool_result_unavailable";
     }
     const missingCalls = [...calls.entries()]
       .map(([callId, toolName], callIndex) => ({ callId, toolName, callIndex }))
       .filter(({ callId }) => !matchedCallIds.has(callId));
+    if (group.danglingResults.length > 0 || missingCalls.length > 0) {
+      group.incompleteReason = group.danglingResults.length > 0 ? "dangling_tool_results" : "missing_tool_results";
+    }
     const repairableCallIds = new Set(assistant.source?.legacyRepairableCallIds ?? []);
     if (
       repairableCallIds.size > 0 &&
@@ -278,6 +243,7 @@ function groupItems(items: MessageEntry[]): MessageGroup[] | ProjectionRejected 
           legacyPlaceholder: true,
         });
       });
+      group.incompleteReason = undefined;
     }
   }
 
@@ -314,6 +280,9 @@ export function projectReasoningContext(input: ProjectionInput): ContextProjecti
   for (const ref of requested.all) {
     const source = sourcesByRef.get(ref);
     if (!source) return rejected(`requested_ref_not_found:${ref}`);
+    if (source.replayability === "quarantined") {
+      return rejected(`requested_ref_quarantined:${ref}`, { ref });
+    }
   }
   for (const ref of requested.include) {
     const source = sourcesByRef.get(ref);
@@ -323,33 +292,24 @@ export function projectReasoningContext(input: ProjectionInput): ContextProjecti
     }
   }
 
-  const usedSources = new Set<ProjectionSource>();
-  const ownedTransientMessages = new Set(input.ownedTransientMessages);
-  const usedTransients = new Set<any>();
-  let items: MessageEntry[] = [];
-  for (const [index, message] of input.messages.entries()) {
-    if (isAbortedAssistantArtifact(message)) continue;
-    if (ownedTransientMessages.has(message)) {
-      if (usedTransients.has(message)) return rejected("transient_reused");
-      usedTransients.add(message);
-      items.push({ index, message });
-      continue;
-    }
-    const matches = input.sources.filter((source) => sourceMatches(message, source));
-    const role = messageRole(message);
-    const details = {
-      position: index,
-      ...(role ? { role } : {}),
-      ...(typeof message?.customType === "string" ? { customType: message.customType } : {}),
-    };
-    if (matches.length === 0) return rejected(`source_not_found:${role ?? "message"}`, details);
-    if (matches.length > 1) return rejected(`ambiguous_source:${matches[0].kind}`, details);
-    const source = matches[0];
-    if (usedSources.has(source)) return rejected(`source_reused:${refFor(source) ?? source.kind}`, details);
-    usedSources.add(source);
-    const ref = refFor(source);
-    items.push({ index, message, source, ...(ref ? { ref } : {}) });
-  }
+  const normalized = normalizeContextMessages({
+    messages: input.messages,
+    sources: input.sources,
+    ownedTransientMessages: input.ownedTransientMessages,
+  });
+  const quarantines = [...normalized.quarantines];
+  let items: MessageEntry[] = normalized.items.flatMap((item) =>
+    item.disposition === "eligible"
+      ? [
+          {
+            index: item.position,
+            message: item.message,
+            ...(item.source ? { source: item.source } : {}),
+            ...(item.ref ? { ref: item.ref } : {}),
+          },
+        ]
+      : [],
+  );
 
   for (const ref of requested.all) {
     if (!itemForRef(items, ref)) return rejected(`requested_ref_not_visible:${ref}`, { ref });
@@ -380,7 +340,7 @@ export function projectReasoningContext(input: ProjectionInput): ContextProjecti
   for (const ref of requested.all) {
     const item = itemForRef(items, ref);
     if (!item) return rejected(`requested_ref_not_visible:${ref}`, { ref });
-    if (messageRole(item.message) === "toolResult" && !resultToGroup.has(item.index)) {
+    if (contextMessageRole(item.message) === "toolResult" && !resultToGroup.has(item.index)) {
       return rejected(`selected_tool_result_without_assistant:${ref}`, { ref, position: item.index });
     }
   }
@@ -412,15 +372,24 @@ export function projectReasoningContext(input: ProjectionInput): ContextProjecti
       (left, right) => sortOrder(left) - sortOrder(right),
     );
     if (
-      group.danglingResults.length > 0 ||
+      group.incompleteReason ||
       allResults.length !== group.calls.size ||
       (group.legacyPlaceholders.length > 0 && selectedGroups.has(group))
     ) {
-      return rejected(`selected_tool_group_incomplete:${group.assistant.ref ?? "unknown"}`, {
-        ...(group.assistant.ref ? { ref: group.assistant.ref } : {}),
+      if (selectedGroups.has(group)) {
+        return rejected(`selected_tool_group_incomplete:${group.assistant.ref ?? "unknown"}`, {
+          ...(group.assistant.ref ? { ref: group.assistant.ref } : {}),
+          position: group.assistant.index,
+          role: "assistant",
+        });
+      }
+      quarantines.push({
         position: group.assistant.index,
         role: "assistant",
+        reason: group.incompleteReason ?? "tool_group_incomplete",
+        ...(group.assistant.ref ? { ref: group.assistant.ref } : {}),
       });
+      continue;
     }
     const seenResults = new Set<string>();
     for (const result of allResults) {
@@ -460,12 +429,13 @@ export function projectReasoningContext(input: ProjectionInput): ContextProjecti
   for (const item of items) {
     const group = resultToGroup.get(item.index);
     if (group) continue;
-    if (messageRole(item.message) === "toolResult") {
+    if (contextMessageRole(item.message) === "toolResult") {
       if (!isStandardSource(item)) {
-        return rejected(`dangling_tool_result:${item.ref ?? "unknown"}`, {
-          ...(item.ref ? { ref: item.ref } : {}),
+        quarantines.push({
           position: item.index,
           role: "toolResult",
+          reason: "dangling_tool_result",
+          ...(item.ref ? { ref: item.ref } : {}),
         });
       }
       continue;
@@ -480,5 +450,6 @@ export function projectReasoningContext(input: ProjectionInput): ContextProjecti
     visibleRefs: outputItems.flatMap((item) => (kept.has(item.index) && item.ref ? [item.ref] : [])),
     selectedRefs: requested.all,
     dependencyRefs,
+    quarantines,
   };
 }

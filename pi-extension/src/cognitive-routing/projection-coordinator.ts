@@ -7,6 +7,10 @@ import { projectContextSource } from "../freeflow-context/source-projector.js";
 import { contextRefForEntry, entryIdFromContextRef, type ContextSourceIdentity } from "../freeflow-context/types.js";
 import { projectReasoningContext, type ProjectionRejected, type ProjectionSource } from "./context-projection.js";
 import {
+  contextMessageMatchesSource,
+  type ContextMessageQuarantine,
+} from "./context-message-normalizer.js";
+import {
   boundedDiagnosticMessage,
   type CognitiveRoutingDiagnostic,
   type CognitiveRoutingDiagnosticObserver,
@@ -19,6 +23,7 @@ import {
   type SourceRegistryAttribution,
   type SourceRegistryExecutionProfile,
   type SourceRegistryProfile,
+  type SourceRegistryTurnOutcome,
   type TurnReconciliationResult,
 } from "./source-registry.js";
 import { sessionLineageFor, type SessionLineage } from "./session-lineage.js";
@@ -59,12 +64,15 @@ type ProjectionCoordinatorOptions = {
 };
 
 export type SourceCaptureJournal = {
-  version: 1;
+  version: 2;
+  kind: "turn";
   sessionId: string;
   profile: SourceRegistryExecutionProfile;
   blockId: string;
+  outcome: SourceRegistryTurnOutcome;
   assistant: ContextSourceIdentity;
   toolResults: ContextSourceIdentity[];
+  unresolvedCallIds: string[];
 };
 
 export type ProjectionExposureSource = {
@@ -93,7 +101,13 @@ export type SourceCaptureResult =
 export type ProjectionContextResult = {
   messages: any[];
   changed: boolean;
+  quarantines?: ContextMessageQuarantine[];
   diagnostic?: CognitiveRoutingDiagnosticReport;
+};
+
+export type ProjectionHealth = {
+  status: "enabled" | "degraded" | "blocked";
+  reason?: string;
 };
 
 export type ProjectionOperationPhase = "pending" | "committed" | "failed";
@@ -152,6 +166,8 @@ type ProjectionCandidate = {
   legacyBaseline?: boolean;
   legacyRepairableCallIds?: readonly string[];
   legacyOutcomeUnavailableCallIds?: readonly string[];
+  replayability?: "eligible" | "quarantined";
+  quarantineReason?: string;
 };
 
 type SelectionState = {
@@ -179,7 +195,14 @@ type PersistedSelectionRecord = {
 
 type SupportedProjectionSource = Pick<
   ProjectionSource,
-  "source" | "message" | "blockId" | "legacyBaseline" | "legacyRepairableCallIds" | "legacyOutcomeUnavailableCallIds"
+  | "source"
+  | "message"
+  | "blockId"
+  | "legacyBaseline"
+  | "legacyRepairableCallIds"
+  | "legacyOutcomeUnavailableCallIds"
+  | "replayability"
+  | "quarantineReason"
 > & {
   profile: SourceRegistryProfile | "user" | "shared";
   kind: "user" | "assistant" | "toolResult" | "summary" | "custom";
@@ -326,35 +349,6 @@ function cloneOperation(operation: ProjectionOperationState): ProjectionOperatio
   };
 }
 
-function customMessageShape(message: any): any {
-  if (!message || typeof message !== "object") return message;
-  const comparable = { ...message };
-  delete comparable.timestamp;
-  return comparable;
-}
-
-function customMessageTimestamp(value: unknown): boolean {
-  if (typeof value === "number") return Number.isFinite(value);
-  return typeof value === "string" && !Number.isNaN(Date.parse(value));
-}
-
-function customMessagesMatch(left: any, right: any): boolean {
-  return (
-    left?.role === "custom" &&
-    right?.role === "custom" &&
-    customMessageTimestamp(left.timestamp) &&
-    customMessageTimestamp(right.timestamp) &&
-    isDeepStrictEqual(customMessageShape(left), customMessageShape(right))
-  );
-}
-
-function sourceMatches(message: any, source: { message: any; kind?: string }): boolean {
-  if (source.kind === "custom" || message?.role === "custom" || source.message?.role === "custom") {
-    return customMessagesMatch(source.message, message);
-  }
-  return source.message === message || isDeepStrictEqual(source.message, message);
-}
-
 type LegacyOutcomeStatus = {
   repairableCallIds: string[];
   unavailableCallIds: string[];
@@ -420,6 +414,8 @@ function projectionSourceForCandidate(candidate: ProjectionCandidate): Supported
     ...(candidate.legacyOutcomeUnavailableCallIds
       ? { legacyOutcomeUnavailableCallIds: [...candidate.legacyOutcomeUnavailableCallIds] }
       : {}),
+    ...(candidate.replayability ? { replayability: candidate.replayability } : {}),
+    ...(candidate.quarantineReason ? { quarantineReason: candidate.quarantineReason } : {}),
   };
 }
 
@@ -579,6 +575,7 @@ export class CognitiveRoutingProjectionCoordinator {
   private exposureGeneration = 0;
   private failure: string | undefined;
   private failureDiagnostic: CognitiveRoutingDiagnostic | undefined;
+  private projectionHealthState: ProjectionHealth = { status: "enabled" };
   private diagnosticOperationId: string | undefined;
   private readonly diagnosticReports = new Map<string, CognitiveRoutingDiagnosticReport>();
 
@@ -600,6 +597,44 @@ export class CognitiveRoutingProjectionCoordinator {
   private setFailure(reason: string, diagnostic?: CognitiveRoutingDiagnostic): void {
     this.failure = this.failure ?? reason;
     this.failureDiagnostic = this.failureDiagnostic ?? diagnostic;
+    this.projectionHealthState = { status: "blocked", reason: this.failure };
+  }
+
+  private clearTurnFailure(): void {
+    this.failure = undefined;
+    this.failureDiagnostic = undefined;
+    this.projectionHealthState =
+      this.operation?.phase === "failed"
+        ? { status: "degraded", reason: "projection_operation_failed" }
+        : { status: "enabled" };
+  }
+
+  private reportQuarantines(
+    ctx: any,
+    quarantines: readonly ContextMessageQuarantine[],
+  ): CognitiveRoutingDiagnosticReport | undefined {
+    if (quarantines.length === 0) return undefined;
+    this.projectionHealthState = { status: "degraded", reason: quarantines[0].reason };
+    let first: CognitiveRoutingDiagnosticReport | undefined;
+    for (const quarantine of quarantines) {
+      const report = this.reportDiagnostic(
+        ctx,
+        this.diagnostic({
+          code: quarantine.reason,
+          stage: "context_normalization",
+          message: `A context message was quarantined: ${quarantine.reason}.`,
+          modelState: "unchanged",
+          scope: "message",
+          disposition: "quarantined",
+          ...(quarantine.ref ? { ref: quarantine.ref } : {}),
+          ...(quarantine.role ? { role: quarantine.role } : {}),
+          ...(quarantine.customType ? { customType: quarantine.customType } : {}),
+          position: quarantine.position,
+        }),
+      );
+      first ??= report;
+    }
+    return first;
   }
 
   private reportDiagnostic(
@@ -614,6 +649,8 @@ export class CognitiveRoutingProjectionCoordinator {
       diagnostic.ref ?? "",
       diagnostic.role ?? "",
       diagnostic.position ?? "",
+      diagnostic.scope ?? "",
+      diagnostic.disposition ?? "",
     ].join("|");
     const existing = this.diagnosticReports.get(key);
     if (existing) return existing;
@@ -645,6 +682,8 @@ export class CognitiveRoutingProjectionCoordinator {
         stage: "context_assembly",
         message: this.failure,
         modelState: "unknown",
+        scope: "turn",
+        disposition: "blocked",
       });
     return this.reportDiagnostic(ctx, diagnostic);
   }
@@ -663,6 +702,8 @@ export class CognitiveRoutingProjectionCoordinator {
         stage,
         message: reason,
         modelState,
+        scope: "operation",
+        disposition: "blocked",
         ...((fields.operationId ?? this.diagnosticOperationId)
           ? { operationId: fields.operationId ?? this.diagnosticOperationId }
           : {}),
@@ -686,6 +727,7 @@ export class CognitiveRoutingProjectionCoordinator {
     this.exposureGeneration = 0;
     this.failure = undefined;
     this.failureDiagnostic = undefined;
+    this.projectionHealthState = { status: "enabled" };
     this.diagnosticOperationId = undefined;
     this.diagnosticReports.clear();
   }
@@ -718,6 +760,7 @@ export class CognitiveRoutingProjectionCoordinator {
   async turnStart(ctx: any): Promise<void> {
     this.exposureSnapshot = undefined;
     this.diagnosticOperationId = undefined;
+    this.clearTurnFailure();
     const state = routingState(this.options);
     const eligible = attributionEnabled(this.options) && state?.effective === true && state.activeProfile;
     if (!eligible) {
@@ -1163,6 +1206,10 @@ export class CognitiveRoutingProjectionCoordinator {
     return this.failure;
   }
 
+  projectionHealth(): ProjectionHealth {
+    return { ...this.projectionHealthState };
+  }
+
   operationState(): ProjectionOperationState | undefined {
     return this.operation ? cloneOperation(this.operation) : undefined;
   }
@@ -1378,12 +1425,15 @@ export class CognitiveRoutingProjectionCoordinator {
     reconciliation: Extract<TurnReconciliationResult, { status: "attributed" }>,
   ): Promise<void> {
     const journal: SourceCaptureJournal = {
-      version: 1,
+      version: 2,
+      kind: "turn",
       sessionId: turn.sessionId,
       profile: turn.profile,
       blockId: turn.blockId,
+      outcome: reconciliation.outcome,
       assistant: { ...reconciliation.assistant },
       toolResults: reconciliation.toolResults.map((source) => ({ ...source })),
+      unresolvedCallIds: [...reconciliation.unresolvedCallIds],
     };
     await this.persist(COGNITIVE_ROUTING_SOURCE_ENTRY, journal);
   }
@@ -1562,7 +1612,7 @@ export class CognitiveRoutingProjectionCoordinator {
     visibleRefs?: ReadonlySet<string>,
   ): any[] {
     return messages.map((message) => {
-      const matches = sources.filter((source) => sourceMatches(message, source));
+      const matches = sources.filter((source) => contextMessageMatchesSource(message, source));
       if (matches.length !== 1) return message;
       const candidate = matches[0];
       const ref = sourceRef(candidate.source.entryId);
@@ -1610,7 +1660,7 @@ export class CognitiveRoutingProjectionCoordinator {
     const usedSourceIds = new Set<string>();
     for (let index = 0; index < messages.length; index += 1) {
       const message = messages[index];
-      const matches = candidates.filter((candidate) => sourceMatches(message, candidate));
+      const matches = candidates.filter((candidate) => contextMessageMatchesSource(message, candidate));
       if (matches.length > 1) {
         this.setFailure(
           "visible_source_ambiguous",
@@ -1648,6 +1698,7 @@ export class CognitiveRoutingProjectionCoordinator {
         return { messages: [...messages], changed: false, ...(diagnostic ? { diagnostic } : {}) };
       }
       usedSourceIds.add(sourceKey);
+      if (candidate.replayability === "quarantined") continue;
       const outcome = projectContextSource({
         source: candidate.source,
         kind: candidate.kind,
@@ -1709,6 +1760,10 @@ export class CognitiveRoutingProjectionCoordinator {
             profile: attribution.profile,
             kind: attribution.kind,
             blockId: attribution.blockId,
+            replayability: attribution.outcome === "terminal-incomplete" ? "quarantined" : "eligible",
+            ...(attribution.outcome === "terminal-incomplete"
+              ? { quarantineReason: "assistant_terminal_incomplete" }
+              : {}),
             legacyBaseline: this.registry.isUnknownBaselineEntry(sessionId, entry.id),
             ...(this.registry.isUnknownBaselineEntry(sessionId, entry.id)
               ? (() => {
