@@ -515,11 +515,12 @@ test("rebuildAggregate rereads every trial and reproduces aggregate.json exactly
     assert.equal(await readFile(file, "utf8"), before);
 
     // A section registered after the run (as judging adds one) appears on rebuild, and the claim is recomputed.
-    const remove = registerAggregator("judged", ({ trials }) => ({ perTrial: [], trials: trials.length }));
+    // Named apart from the real `judged` and `metrics` aggregators, which register on import.
+    const remove = registerAggregator("lateSection", ({ trials }) => ({ perTrial: [], trials: trials.length }));
     try {
       const rebuilt = await rebuildAggregate(file, { root });
       assert.deepEqual(
-        rebuilt.groups.map((entry) => entry.judged),
+        rebuilt.groups.map((entry) => entry.lateSection),
         [
           { perTrial: [], trials: 2 },
           { perTrial: [], trials: 6 },

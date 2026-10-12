@@ -117,8 +117,12 @@ test("a patch reference that fixes the code is solvable", async () => {
     );
     const result = await checkOne(root, file);
     assert.equal(result.state, "solvable", result.reason);
-    assert.equal(result.checks.length, 2);
-    assert.ok(result.checks.every((check) => check.state === "pass"));
+    assert.deepEqual(
+      result.arms.map((arm) => arm.arm),
+      ["baseline"],
+    );
+    assert.equal(result.arms[0].checks.length, 2);
+    assert.ok(result.arms[0].checks.every((check) => check.state === "pass"));
   });
 });
 
@@ -134,7 +138,7 @@ test("a file-text expectation that the reference misses makes the task unsolvabl
     );
     const result = await checkOne(root, file);
     assert.equal(result.state, "unsolvable");
-    assert.match(result.reason, /baseline-source: failed/);
+    assert.match(result.reason, /baseline: baseline-source: failed/);
     assert.doesNotMatch(result.reason, /baseline-hidden/);
   });
 });
@@ -151,7 +155,71 @@ test("a files reference that leaves the hidden command failing is unsolvable", a
     );
     const result = await checkOne(root, file);
     assert.equal(result.state, "unsolvable");
-    assert.match(result.reason, /baseline-hidden: failed/);
+    assert.match(result.reason, /baseline: baseline-hidden: failed/);
+  });
+});
+
+test("every arm is graded by default, and one failing arm makes the task unsolvable", async () => {
+  await withRoot(async (root) => {
+    const file = await writeTask(
+      root,
+      calcGroup({
+        expectations: [
+          hiddenTestExpectation("baseline"),
+          sourceExpectation("a + b"),
+          { ...sourceExpectation("a * b"), id: "candidate-source", variant: "candidate" },
+        ],
+        reference_solution: { patch: "references/fix.patch" },
+      }),
+      { "references/fix.patch": FIX_PATCH },
+    );
+    const result = await checkOne(root, file);
+    assert.equal(result.state, "unsolvable");
+    assert.deepEqual(
+      result.arms.map((arm) => [arm.arm, arm.state]),
+      [
+        ["baseline", "solvable"],
+        ["candidate", "unsolvable"],
+      ],
+    );
+    assert.match(result.reason, /candidate: candidate-source: failed/);
+  });
+});
+
+test("an arm key restricts the check to that arm", async () => {
+  await withRoot(async (root) => {
+    const file = await writeTask(
+      root,
+      calcGroup({
+        expectations: [
+          hiddenTestExpectation("baseline"),
+          sourceExpectation("a + b"),
+          { ...sourceExpectation("a * b"), id: "candidate-source", variant: "candidate" },
+        ],
+        reference_solution: { patch: "references/fix.patch", arm: "baseline" },
+      }),
+      { "references/fix.patch": FIX_PATCH },
+    );
+    const result = await checkOne(root, file);
+    assert.equal(result.state, "solvable", result.reason);
+    assert.deepEqual(
+      result.arms.map((arm) => arm.arm),
+      ["baseline"],
+    );
+  });
+});
+
+test("an arm key must name one of the group's arms", async () => {
+  await withRoot(async (root) => {
+    const file = await writeTask(
+      root,
+      calcGroup({
+        expectations: [hiddenTestExpectation("baseline")],
+        reference_solution: { patch: "references/fix.patch", arm: "ghost" },
+      }),
+      { "references/fix.patch": FIX_PATCH },
+    );
+    await assert.rejects(loadDefinition(file, { root }), { message: /arm must name one of group.arms/ });
   });
 });
 
@@ -270,7 +338,8 @@ test("check-tasks reports each group and starts no subject or result", async () 
       encoding: "utf8",
     });
     assert.equal(run.status, 1, run.stderr);
-    assert.match(run.stdout, /^calc: unsolvable \(baseline-hidden: failed\)/m);
+    assert.match(run.stdout, /^calc: unsolvable \(baseline: baseline-hidden: failed\)/m);
+    assert.match(run.stdout, /^ {2}baseline: unsolvable/m);
     assert.equal(await exists(path.join(root, ".skill-eval")), false);
   });
 });
