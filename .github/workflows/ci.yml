@@ -60,3 +60,37 @@ jobs:
 
       - name: Verify worktree is clean
         run: test -z "$(git status --porcelain)"
+
+  # The suites with platform-specific code (paths, symlinks and Windows directory junctions in Task Memory) on the other
+  # two systems users run Freeflow on. Not a required check: "Deterministic checks" alone gates merging.
+  platforms:
+    name: Tests on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node
+        # actions/setup-node v7.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Use Git Bash for npm scripts on Windows
+        if: runner.os == 'Windows'
+        run: npm config set script-shell "C:\\Program Files\\Git\\bin\\bash.exe"
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Track Work tests
+        run: npm run test:track-work
+
+      - name: Pi extension tests
+        run: npm run test:pi-extension
