@@ -16,7 +16,7 @@ Other shapes name their own arms, such as several candidates against one baselin
 
 The **subject** is the agent performing the declared task in one arm. The **evaluator** isolates subjects and preserves canonical evidence. The **deterministic grader** derives fixed mechanical facts after the run is saved. A **judge** is a separate model that answers what checks cannot; its answers are **judged evidence**. A **suite** runs an ordered set of independent groups, and may declare a **decision** rule that turns their results into a verdict.
 
-Evaluate Behavior does not change what it evaluates, claim readiness, or choose adoption. The component's owner revises it: [Write Skill](../write-skill/SKILL.md) for a skill, including the authoring loop an evaluation serves. The active agent or user judges unresolved meaning; the user decides whether to revise, adopt, or reject the change.
+Evaluate Behavior does not change what it evaluates, claim readiness, or choose adoption. The component's owner revises it: [Write Skill](../write-skill/SKILL.md) for a skill or other instruction text, including the authoring loop an evaluation serves. The active agent or user judges unresolved meaning; the user decides whether to revise, adopt, or reject the change.
 
 The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 
@@ -24,7 +24,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 - Never mutate canonical evidence or erase an unfavorable result. Preserve partial and infrastructure evidence without converting unavailable behavior into pass or fail.
 - Never fabricate behavioral evidence. Missing evidence stays unavailable.
-- Compare a change only against an exact immutable baseline, such as a commit. If none exists, preserve the current state first (for a skill, through Write Skill); never create a baseline by editing what is being evaluated.
+- Compare a change only against an exact immutable baseline, such as a commit. If none exists, preserve the current state first (for a skill or instruction text, through Write Skill); never create a baseline by editing what is being evaluated.
 - Keep deterministic criteria, grader files, review questions and rubric references out of subject prompts, the fixture and declared subject context.
 - Declare every part of the configuration that can change behavior. Ambient installation, settings, or context are not declared composition.
 - Claim only what the evidence class observed; one class never proves another.
@@ -106,7 +106,7 @@ Goal: the arms differ in exactly the thing the question is about.
 | Change under test | Component | Baseline | Revision goes to |
 | --- | --- | --- | --- |
 | A new or revised skill | `subject.skills`, `subject.target`, `subject.source` | no target, or the previous commit | Write Skill |
-| An instruction or context file | `subject.context` | without the file, or its previous commit | the file's owner |
+| An instruction or context file | `subject.context` | without the file, or its previous commit | Write Skill |
 | A model or thinking level | `model.model`, `model.thinking` | the model in use | the user's choice |
 | An extension or plugin, or a host setting | `host.extensions`, `host.settings` | without it, or its current version or value | the extension's owner, or the user's choice |
 

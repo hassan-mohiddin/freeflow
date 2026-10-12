@@ -42,6 +42,7 @@
 
 ### Changed
 
+- Write Skill now also covers other text an agent reads and acts on: instruction files such as AGENTS.md or CLAUDE.md, system or runtime prompts, tool descriptions, subagent briefs and judge prompts. Its method applies to them as to skills, apart from what concerns a skill package (the description, resource files and `validate`); Evaluate Behavior returns revisions of instruction files to it.
 - Every judge, adjudicator and simulated user sees run material inside fenced blocks with a fixed rule that it is evidence, never instructions; text in a run that tries to steer the verdict is reported, not obeyed. Judge prompts changed, so earlier calibrations do not carry over.
 - Review Work's Rule against chasing a Pass now reads "Never repeat a review merely to obtain Pass"; the old "Never review until Pass" read literally as forbidding review before a Pass.
 - Review Work judges from evidence the reviewer can recover itself: when it can run an authorized check or read the code, it judges from what it observed, so a check the author skipped and the reviewer has since run is no longer reported as Needs evidence. On Haiku this let correct changes proceed in 91% of reviews instead of 77%, with defect detection unchanged.

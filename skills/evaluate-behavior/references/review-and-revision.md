@@ -62,7 +62,7 @@ When evidence supports changing the component:
 4. preserve unrelated instructions and fixed criteria;
 5. return the revision target to the component's owner.
 
-[Write Skill](../../write-skill/SKILL.md) owns skill revision. An instruction file or extension code goes to its owner; a choice of model, setting or extension goes to the user.
+[Write Skill](../../write-skill/SKILL.md) owns revision of a skill or other instruction text, such as an instruction file. Extension code goes to its owner; a choice of model, setting or extension goes to the user.
 
 Evaluate Behavior does not change the component or replace its baseline while evaluating it.
 

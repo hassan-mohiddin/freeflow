@@ -1,11 +1,13 @@
 ---
 name: write-skill
-description: Use when creating or revising an agent skill.
+description: "Use when creating or revising an agent skill, or other text an agent reads and acts on: instruction files such as AGENTS.md or CLAUDE.md, system or runtime prompts, tool descriptions, subagent briefs, or judge prompts."
 ---
 
 # Write Skill
 
-Write the smallest agent-first skill package that changes one coherent behavioral policy.
+Write the smallest agent-first skill package that changes one coherent behavioral policy, or the smallest change to other instruction text an agent acts on.
+
+**Other instruction text** is anything an agent reads and acts on that is not a skill package: an instruction file such as AGENTS.md or CLAUDE.md, a system or runtime prompt, a tool description, a subagent brief, or a judge prompt. For it, everything below applies except what concerns the package itself: the description, resource files and their read conditions, the dependency graph, and `validate`. Read "the skill" as "the text", and its first read as the point the agent receives it: every request for an always-loaded file or prompt, the tool call for a tool description, dispatch for a brief or a judge prompt.
 
 A skill is a prompt intervention, not merely a document. A host may read its body once and retain it across later messages and tool interactions until context projection or loss. Design the first useful read, retained influence, dependencies, and recovery paths; do not assume the body will be reread before every use.
 
@@ -15,14 +17,14 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 ## Rules
 
-- Before substantially revising an existing skill, preserve the complete current package (`SKILL.md`, references, scripts, assets) in a recoverable Git ref or in task evidence outside the package. A small correction needs no new snapshot when the exact previous state is already recoverable and behavior, activation, dependencies, and resources are unchanged. A baseline supports recovery and comparison; it does not show that either version behaves correctly.
+- Before substantially revising an existing skill, preserve the complete current package (`SKILL.md`, references, scripts, assets) in a recoverable Git ref or in task evidence outside the package; for other instruction text, preserve the current text in a recoverable Git ref. A small correction needs no new snapshot when the exact previous state is already recoverable and behavior, activation, dependencies, and resources are unchanged. A baseline supports recovery and comparison; it does not show that either version behaves correctly.
 - If accepted behavior, public dependencies, safety, compatibility, or another user-owned boundary is unsettled, stop and resolve it before encoding it.
 - Never rely on an unread skill or reference to cause its own read. The first read must come from context the agent already has: a description, guaranteed base guidance, an already-loaded skill, a capability cue, or another declared route.
 - Rely only on context guaranteed on every valid activation path, never on an optional sibling, a common but unguaranteed route, or an accidental earlier read.
-- Link every agent-facing reference, asset, script, and package dependency from the body, with the condition that requires it. The body and the resource state the same read condition.
-- Keep authoring status, evaluation summaries, evidence gaps, changelog notes, readiness claims, and author debate out of the executing package; they belong in the evaluation artifact, task record, or delivery report.
+- In a skill package, link every agent-facing reference, asset, script, and package dependency from the body, with the condition that requires it. The body and the resource state the same read condition.
+- Keep authoring status, evaluation summaries, evidence gaps, changelog notes, readiness claims, and author debate out of the executing package or text; they belong in the evaluation artifact, task record, or delivery report.
 - Claim only what the evidence observed. Structural checks prove structure. Explicit body delivery does not prove activation, one turn does not prove retained use, ambient context does not prove dependency behavior, prose review does not prove unchanged behavior, and one favorable example does not prove readiness.
-- Run `validate` after any structural or dependency change and before claiming the package is valid. Never use deprecated authoring tooling.
+- For a skill package, run `validate` after any structural or dependency change and before claiming the package is valid. Never use deprecated authoring tooling.
 
 ## Choose What To Change
 
