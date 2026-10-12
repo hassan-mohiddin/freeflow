@@ -2,6 +2,7 @@ import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 
 import { ARM_NAME, armNames, DEFAULT_REFERENCE } from "./arms.mjs";
+import { validateJudging } from "./judge.mjs";
 
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const EVALUATION_TYPES = new Set(["description", "body"]);
@@ -603,7 +604,7 @@ async function validateGroup(value, definitionPath, root) {
       "expectations",
       "review_questions",
     ],
-    ["commands", "revision", "reference"],
+    ["commands", "revision", "reference", "rubric", "judges", "combine"],
     "group",
     definitionPath,
   );
@@ -631,6 +632,7 @@ async function validateGroup(value, definitionPath, root) {
   }
   validateExpectations(group.expectations, definitionPath);
   requireStringArray(group.review_questions, "group.review_questions", definitionPath);
+  Object.assign(group, await validateJudging(group, definitionPath, root));
   if (Object.hasOwn(group, "revision")) {
     if (group.revision !== "description-only") {
       fail("invalid-definition", "group.revision must be description-only when declared", definitionPath);
@@ -646,10 +648,10 @@ async function validateGroup(value, definitionPath, root) {
       fail("invalid-definition", "a description-only revision compares exactly two arms", definitionPath);
     }
   }
-  if (group.expectations.length === 0 && group.review_questions.length === 0) {
+  if (group.expectations.length === 0 && group.review_questions.length === 0 && group.rubric === undefined) {
     fail(
       "invalid-definition",
-      "group must declare at least one expectation or review question; otherwise a run would observe nothing",
+      "group must declare at least one expectation or review question, or a rubric; otherwise a run would observe nothing",
       definitionPath,
     );
   }

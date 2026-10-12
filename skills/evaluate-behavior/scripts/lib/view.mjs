@@ -2,6 +2,7 @@ import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { ARM_NAME, comparisonArms, storedArms } from "./arms.mjs";
+import { judgedAggregateLines, judgedLines } from "./judge.mjs";
 
 const DEFAULT_SELECTORS = /** @type {{group: string | null, variant: string | null}} */ ({
   group: null,
@@ -69,6 +70,7 @@ async function renderGroup(resultDirectory, group, selectedVariant) {
   appendSharedEvidence(lines, definition);
   appendGradeEvidence(lines, grade, group, definition, selectedVariant);
   await appendAdvisoryReview(lines, groupDirectory, variants);
+  lines.push(...(await judgedLines(groupDirectory, variants)));
   for (const variant of variants) {
     await appendVariantEvidence(lines, resultDirectory, groupDirectory, group.id, variant);
   }
@@ -263,6 +265,7 @@ function renderAggregate(resultDirectory, aggregate) {
           : [`pass=${passRate(check)}`];
       lines.push(compactRow("check", [check.id, check.variant, check.kind, ...counts]));
     }
+    lines.push(...judgedAggregateLines(group.judged));
   }
   return `${lines.join("\n")}\n`;
 }

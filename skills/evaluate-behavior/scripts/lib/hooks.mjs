@@ -42,7 +42,7 @@ const aggregators = createRegistry("aggregator", AGGREGATE_GROUP_FIELDS);
 const postRunHooks = createRegistry("post-run hook");
 const runMetricsHooks = createRegistry("run-metrics hook");
 
-/** Aggregator: `hook({ id, arms, reference, trials: [{ id, state, grade, runs }] })`; its result is stored on the aggregate group entry under `<name>`. */
+/** Aggregator: `hook({ id, arms, reference, trials: [{ id, directory, state, grade, runs }] })`, where `directory` is the trial's group directory; its result is stored on the aggregate group entry under `<name>`. */
 export const registerAggregator = aggregators.register;
 
 /** Post-run hook: `hook({ group, arm, run, root, directory, signal })` for each executed run, before run.json is written; its result is stored in run.json under `postRun.<name>`. */

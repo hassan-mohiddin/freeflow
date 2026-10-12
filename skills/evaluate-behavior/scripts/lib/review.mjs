@@ -6,9 +6,23 @@ import path from "node:path";
 import { isClassicPair, referenceArm, storedArms } from "./arms.mjs";
 import { sha256, writeJson, writeText } from "./evidence.mjs";
 import { loadConfiguration } from "./definitions.mjs";
+import {
+  calibrationFromLabels,
+  combineJudges,
+  combineOf,
+  judgeConfiguration,
+  JUDGED_GRADE,
+  judgedContractGaps,
+  parseRubricAnswers,
+  rubricHash,
+  rubricOf,
+  rubricPrompt,
+  withCalibration,
+} from "./judge.mjs";
 import { resolveHostExtensions } from "./pi-host.mjs";
 import { prepareIsolation, removeCopiedCredentials } from "./isolation.mjs";
 import { baseProcessEnvironment, runPiProcess } from "./pi.mjs";
+import * as trialsModule from "./trials.mjs";
 import { resolveResult } from "./view.mjs";
 
 const ANSWERS = new Set(["yes", "no", "unclear"]);
@@ -33,18 +47,32 @@ export const REVIEW_LIMITS = Object.freeze({ response: 8000, argument: 300, file
  *
  * @param {string} target
  * @param {{group: string | null}} selectors
- * @param {{root?: string, signal?: AbortSignal, model?: string | null, thinking?: string | null, configuration?: string | null, swap?: boolean}} options
+ * `swapSample` (a fraction in (0, 1]) swaps the order on a random sample of the selected groups instead of all of
+ * them: the sample is the fraction of groups rounded up, and each group records whether it was sampled.
+ *
+ * @param {{root?: string, signal?: AbortSignal, model?: string | null, thinking?: string | null, configuration?: string | null, swap?: boolean, swapSample?: number | null}} options
  */
 export async function reviewResult(
   target,
   selectors,
-  { root = process.cwd(), signal, model = null, thinking = null, configuration = null, swap = false, limits = {} },
+  {
+    root = process.cwd(),
+    signal,
+    model = null,
+    thinking = null,
+    configuration = null,
+    swap = false,
+    swapSample = null,
+    limits = {},
+  },
 ) {
-  for (const [name, value] of Object.entries(limits)) {
-    if (!Object.hasOwn(REVIEW_LIMITS, name)) throw new Error(`unknown review limit: ${name}`);
-    if (!Number.isInteger(value) || value < 1) throw new Error(`review limit ${name} must be a positive integer`);
+  const effectiveLimits = reviewLimits(limits);
+  if (swapSample !== null) {
+    if (swap) throw new Error("--swap and --swap-sample cannot be combined");
+    if (typeof swapSample !== "number" || !(swapSample > 0 && swapSample <= 1)) {
+      throw new Error("--swap-sample must be a fraction greater than 0 and at most 1");
+    }
   }
-  const effectiveLimits = { ...REVIEW_LIMITS, ...limits };
   const judge =
     configuration === null
       ? { model: null, extensions: [], settings: {} }
@@ -57,6 +85,10 @@ export async function reviewResult(
   const resultDirectory = await resolveResult(target, root);
   const summary = JSON.parse(await readFile(path.join(resultDirectory, "summary.json"), "utf8"));
   const groups = selectGroups(summary, selectors.group);
+  const sampled =
+    swapSample === null
+      ? null
+      : new Set(shuffle(groups.map((group) => group.id)).slice(0, Math.ceil(swapSample * groups.length)));
   const outcomes = [];
   for (const group of groups) {
     if (signal?.aborted) break;
@@ -67,13 +99,22 @@ export async function reviewResult(
         thinking,
         extensions: loaded,
         settings,
-        swap,
+        swap: sampled === null ? swap : sampled.has(group.id),
+        swapSample: sampled === null ? null : { fraction: swapSample, sampled: sampled.has(group.id) },
         limits: effectiveLimits,
         signal,
       }),
     );
   }
   return { resultDirectory, groups: outcomes };
+}
+
+function reviewLimits(limits) {
+  for (const [name, value] of Object.entries(limits)) {
+    if (!Object.hasOwn(REVIEW_LIMITS, name)) throw new Error(`unknown review limit: ${name}`);
+    if (!Number.isInteger(value) || value < 1) throw new Error(`review limit ${name} must be a positive integer`);
+  }
+  return { ...REVIEW_LIMITS, ...limits };
 }
 
 function selectGroups(summary, selector) {
@@ -89,7 +130,7 @@ function selectGroups(summary, selector) {
 async function reviewGroup(
   groupDirectory,
   group,
-  { root, model, thinking, extensions, settings, swap, limits, signal },
+  { root, model, thinking, extensions, settings, swap, swapSample = null, limits, signal },
 ) {
   const { id } = group;
   const definition = JSON.parse(await readFile(path.join(groupDirectory, "definition.json"), "utf8"));
@@ -104,17 +145,7 @@ async function reviewGroup(
   }
 
   const neutral = neutralizer(groupDirectory, runs, arms, root);
-  // Counts every cut the judge's view takes: a truncated text or an omitted task file.
-  const cut = {
-    count: 0,
-    text(value, chars) {
-      if (value.length > chars) this.count += 1;
-      return truncate(value, chars);
-    },
-    omit() {
-      this.count += 1;
-    },
-  };
+  const cut = createCut();
   const evidence = {
     materials: await taskMaterials(path.join(groupDirectory, "resources", "fixture"), limits, cut),
     runs: {},
@@ -161,6 +192,7 @@ async function reviewGroup(
     judge: { model, provider, family: provider, thinking, extensions, settings, isolation: first.isolation },
     subject: { providers: subjectProviders, familyRelation: familyRelation(provider, subjectProviders) },
     labels,
+    ...(swapSample === null ? {} : { swapSample }),
     prompt: { file: "review/prompt.md", sha256: first.promptSha256 },
     limits,
     truncated: cut.count,
@@ -189,9 +221,26 @@ async function reviewGroup(
 }
 
 async function runJudge(groupDirectory, name, definition, questions, labels, evidence, options) {
-  const { model, thinking, extensions, settings, signal } = options;
   const prompt = reviewPrompt(definition, questions, evidence, labels);
-  const reviewDirectory = path.join(groupDirectory, name);
+  const launched = await launchJudge(path.join(groupDirectory, name), prompt, options);
+  const { errors } = launched;
+  const answers = errors.length === 0 ? parseAnswers(launched.response, questions, labels, errors) : [];
+  return {
+    labels,
+    answers,
+    errors,
+    usage: launched.usage,
+    promptSha256: sha256(prompt),
+    isolation: launched.isolation,
+  };
+}
+
+/**
+ * Starts one judge on a prompt in its own directory: no tools, skills, context files or session, in an isolated
+ * home and agent directory like a subject. The directory keeps the prompt, events, final response and stderr.
+ */
+async function launchJudge(reviewDirectory, prompt, options) {
+  const { model, thinking, extensions, settings, signal, role = "reviewer" } = options;
   await rm(reviewDirectory, { recursive: true, force: true });
   await mkdir(reviewDirectory, { recursive: true });
   await writeText(path.join(reviewDirectory, "prompt.md"), prompt);
@@ -220,7 +269,7 @@ async function runJudge(groupDirectory, name, definition, questions, labels, evi
     isolation = await prepareIsolation(reviewDirectory, model, { settings });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return { labels, answers: [], errors: [message], usage: null, promptSha256: sha256(prompt), isolation: null };
+    return { response: null, errors: [message], usage: null, isolation: null };
   }
   const observation = await runPiProcess({
     command: "pi",
@@ -243,18 +292,10 @@ async function runJudge(groupDirectory, name, definition, questions, labels, evi
   const errors = [];
   if (observation.exitCode !== 0 || !observation.settled || observation.assistantError !== null) {
     errors.push(
-      `reviewer did not complete: exit=${observation.exitCode} settled=${observation.settled} error=${observation.assistantError}`,
+      `${role} did not complete: exit=${observation.exitCode} settled=${observation.settled} error=${observation.assistantError}`,
     );
   }
-  const answers = errors.length === 0 ? parseAnswers(observation.response, questions, labels, errors) : [];
-  return {
-    labels,
-    answers,
-    errors,
-    usage: observation.usage,
-    promptSha256: sha256(prompt),
-    isolation: isolation.evidence,
-  };
+  return { response: observation.response, errors, usage: observation.usage, isolation: isolation.evidence };
 }
 
 function subjectProvider(run) {
@@ -283,6 +324,20 @@ function agreement(first, second, arms, byArm) {
     if (held.length === arms.length) agreed += 1;
   }
   return byArm ? { agreed, questions: first.length, arms: perArm } : { agreed, questions: first.length };
+}
+
+/** Counts every cut the judge's view takes: a truncated text or an omitted task file. */
+function createCut() {
+  return {
+    count: 0,
+    text(value, chars) {
+      if (value.length > chars) this.count += 1;
+      return truncate(value, chars);
+    },
+    omit() {
+      this.count += 1;
+    },
+  };
 }
 
 /** A uniformly random order of the arms. */
@@ -474,4 +529,296 @@ function parseAnswers(response, questions, labels, errors) {
     });
   }
   return errors.length === 0 ? mapped : [];
+}
+
+// Rubric judging -------------------------------------------------------------------------------------------------
+
+/** What every rubric judge is shown and what is withheld from it (Review Work's judge contract, item 3). */
+const RUBRIC_INPUTS = Object.freeze({
+  shown: [
+    "task turns",
+    "task materials",
+    "the run's responses",
+    "the run's tool calls",
+    "files the run wrote",
+    "rubric",
+    "references",
+  ],
+  withheld: ["arm name", "other arms' runs", "deterministic grades", "the subject's reasoning", "run paths"],
+});
+
+/**
+ * Judges every complete run of each selected group against the group's rubric, each run alone and blinded to its
+ * arm, and writes `groups/<id>/<arm>/judged-grade.json` beside the run. Run and deterministic grade files are never
+ * written. The judges are the group's declared `judges`; a group that declares none is judged by `--model` or the
+ * configuration's model. A configuration also supplies host extensions and settings to every judge.
+ * An aggregate target judges every trial and then rebuilds the aggregate, so its `judged` section is current.
+ *
+ * @param {string} target a result or aggregate id or directory
+ * @param {{group: string | null}} selectors
+ */
+export async function reviewRubric(
+  target,
+  selectors,
+  { root = process.cwd(), signal, model = null, thinking = null, configuration = null, limits = {} } = {},
+) {
+  const effectiveLimits = reviewLimits(limits);
+  const host =
+    configuration === null
+      ? { model: null, extensions: [], settings: {} }
+      : await loadConfiguration(configuration, { root });
+  const fallback = model ?? host.model?.model ?? null;
+  const fallbackJudge =
+    fallback === null ? null : { model: fallback, thinking: thinking ?? host.model?.thinking ?? null };
+  const extensions = await resolveHostExtensions(host.extensions);
+  const { resultDirectory, aggregateFile, results } = await targetResults(target, root);
+
+  // Every group's judges are settled before any judge starts.
+  const work = [];
+  for (const directory of results) {
+    const summary = JSON.parse(await readFile(path.join(directory, "summary.json"), "utf8"));
+    for (const group of selectGroups(summary, selectors.group)) {
+      const groupDirectory = path.join(directory, "groups", group.id);
+      const definition = JSON.parse(await readFile(path.join(groupDirectory, "definition.json"), "utf8"));
+      const rubric = rubricOf(definition);
+      let judges = null;
+      if (rubric !== null) {
+        if (Array.isArray(definition.judges) && definition.judges.length > 0) {
+          if (model !== null || thinking !== null) {
+            throw new Error(`group ${group.id} declares its judges; drop --model and --thinking`);
+          }
+          judges = definition.judges.map((judge) => ({ model: judge.model, thinking: judge.thinking ?? null }));
+        } else if (fallbackJudge !== null) {
+          judges = [fallbackJudge];
+        } else {
+          throw new Error(`group ${group.id} declares no judges: pass --model or --configuration`);
+        }
+      }
+      work.push({ groupDirectory, group, definition, rubric, judges });
+    }
+  }
+
+  const outcomes = [];
+  for (const { groupDirectory, group, definition, rubric, judges } of work) {
+    if (signal?.aborted) break;
+    if (rubric === null) {
+      outcomes.push({ id: group.id, state: "skipped", reason: "no rubric" });
+      continue;
+    }
+    outcomes.push(
+      ...(await judgeGroup(groupDirectory, group, definition, rubric, judges, {
+        root,
+        extensions,
+        settings: host.settings,
+        limits: effectiveLimits,
+        signal,
+      })),
+    );
+  }
+  const aggregate = aggregateFile === null || signal?.aborted ? null : await rebuild(aggregateFile, root);
+  return { resultDirectory, groups: outcomes, aggregate };
+}
+
+/** The result directories a target names: the result itself, or every trial of an aggregate. */
+async function targetResults(target, root) {
+  const resultDirectory = await resolveResult(target, root);
+  const aggregateFile = path.join(resultDirectory, "aggregate.json");
+  const aggregate = await readJsonOrNull(aggregateFile);
+  if (aggregate === null) return { resultDirectory, aggregateFile: null, results: [resultDirectory] };
+  const results = [];
+  for (const trial of aggregate.trials ?? []) results.push(await resolveResult(trial.id, root));
+  return { resultDirectory, aggregateFile, results };
+}
+
+/** Rebuilds an aggregate from its trials, so its sections, `judged` included, reflect the judged grades. */
+async function rebuild(aggregateFile, root) {
+  // TODO(A1): import { rebuildAggregate } from "./trials.mjs" directly once builder-1's A1 is merged.
+  if (typeof trialsModule.rebuildAggregate !== "function") {
+    return { rebuilt: false, reason: "rebuildAggregate is not available yet" };
+  }
+  await trialsModule.rebuildAggregate(aggregateFile, { root });
+  return { rebuilt: true };
+}
+
+async function readJsonOrNull(file) {
+  try {
+    return JSON.parse(await readFile(file, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+async function judgeGroup(groupDirectory, group, definition, rubric, judges, options) {
+  const { root, extensions, settings, limits, signal } = options;
+  const arms = storedArms(group, definition);
+  const runs = {};
+  const runText = {};
+  for (const arm of arms) {
+    runText[arm] = await readFile(path.join(groupDirectory, arm, "run.json"), "utf8").catch(() => null);
+    runs[arm] = runText[arm] === null ? null : JSON.parse(runText[arm]);
+  }
+  // Every arm's paths are neutralized, so no run's workspace or arm name reaches any judge.
+  const neutral = neutralizer(
+    groupDirectory,
+    Object.fromEntries(arms.map((arm) => [arm, runs[arm] ?? {}])),
+    arms,
+    root,
+  );
+  const rule = combineOf(definition);
+  const outcomes = [];
+  for (const arm of arms) {
+    if (signal?.aborted) break;
+    if (runs[arm]?.state !== "complete") {
+      outcomes.push({ id: group.id, arm, state: "skipped", reason: `run is ${runs[arm]?.state ?? "missing"}` });
+      continue;
+    }
+    const cut = createCut();
+    const evidence = {
+      materials: await taskMaterials(path.join(groupDirectory, "resources", "fixture"), limits, cut),
+      run: await runEvidence(runs[arm], neutral, limits, cut),
+    };
+    const references = Object.fromEntries(
+      rubric
+        .filter((dimension) => typeof dimension.reference?.text === "string")
+        .map((dimension) => [dimension.id, cut.text(dimension.reference.text, limits.file)]),
+    );
+    const prompt = rubricPrompt(definition, rubric, evidence, references);
+    const gradeFile = path.join(groupDirectory, arm, JUDGED_GRADE);
+    const previous = await readJsonOrNull(gradeFile);
+    // The judge's directory is its working directory and home, so it is named by a hash, never by the arm.
+    const token = sha256(`${groupDirectory}\n${arm}`).slice(0, 12);
+    const judgingDirectory = path.join(groupDirectory, "judging", token);
+    await rm(judgingDirectory, { recursive: true, force: true });
+    const relative = (file) => path.relative(groupDirectory, file).split(path.sep).join("/");
+    const records = [];
+    for (const [index, judge] of judges.entries()) {
+      if (signal?.aborted) break;
+      const directory = path.join(judgingDirectory, `judge-${index + 1}`);
+      const launched = await launchJudge(directory, prompt, {
+        model: judge.model,
+        thinking: judge.thinking,
+        extensions,
+        settings,
+        signal,
+        role: "judge",
+      });
+      const { errors } = launched;
+      const answers = errors.length === 0 ? parseRubricAnswers(launched.response, rubric, errors) : [];
+      const provider = judge.model.includes("/") ? judge.model.split("/")[0] : null;
+      const configurationId = judgeConfiguration({ model: judge.model, thinking: judge.thinking, extensions, rubric });
+      records.push({
+        model: judge.model,
+        provider,
+        // Family is approximated by the provider, as in the pairwise review.
+        family: provider,
+        thinking: judge.thinking,
+        extensions,
+        settings,
+        isolation: launched.isolation,
+        configuration: configurationId,
+        familyRelation: familyRelation(provider, [subjectProvider(runs[arm])]),
+        prompt: { file: relative(path.join(directory, "prompt.md")), sha256: sha256(prompt) },
+        judgedAt: new Date().toISOString(),
+        state: errors.length === 0 ? "complete" : "judge-error",
+        answers,
+        errors,
+        usage: launched.usage,
+        // A configuration's calibration holds until the configuration changes.
+        calibration: previous?.judges?.find((entry) => entry.configuration === configurationId)?.calibration ?? null,
+        artifacts: {
+          events: relative(path.join(directory, "events.jsonl")),
+          final: relative(path.join(directory, "final.md")),
+          stderr: relative(path.join(directory, "stderr.log")),
+        },
+      });
+    }
+    const complete = records.length === judges.length && records.every((record) => record.state === "complete");
+    const grade = {
+      schema_version: 1,
+      kind: "judged-grade",
+      judged: true,
+      state: complete ? "complete" : "judge-error",
+      group: group.id,
+      arm,
+      run: { file: "run.json", sha256: sha256(runText[arm]) },
+      rubric: {
+        sha256: rubricHash(rubric),
+        dimensions: rubric.map(({ id, question, answers, weight }) => ({ id, question, answers, weight })),
+      },
+      combine: rule,
+      judges: records,
+      answers: complete ? combineJudges(rubric, records, rule) : [],
+      inputs: RUBRIC_INPUTS,
+      limits,
+      truncated: cut.count,
+      errors: records.flatMap((record) => record.errors),
+      completedAt: new Date().toISOString(),
+    };
+    grade.contractGaps = judgedContractGaps(grade);
+    await writeJson(gradeFile, grade);
+    outcomes.push({ id: group.id, arm, state: grade.state, artifact: `${arm}/${JUDGED_GRADE}`, grade });
+  }
+  return outcomes;
+}
+
+/**
+ * Scores judge verdicts against hand labels. The labels file maps run paths (an arm's directory or its run.json,
+ * relative to the root) to `{ <dimension id>: <answer> }`. Each judge configuration's agreement with the labels,
+ * per dimension, is recorded as its calibration status in every judged grade it gave, under the labelled runs and
+ * under the target; an aggregate target is then rebuilt.
+ */
+export async function calibrateJudges(target, labelsFile, { root = process.cwd() } = {}) {
+  const labelsPath = path.resolve(root, labelsFile);
+  const text = await readFile(labelsPath, "utf8").catch(() => {
+    throw new Error(`cannot read labels file: ${labelsFile}`);
+  });
+  let labels;
+  try {
+    labels = JSON.parse(text);
+  } catch {
+    throw new Error(`labels file is not valid JSON: ${labelsFile}`);
+  }
+  if (labels === null || typeof labels !== "object" || Array.isArray(labels) || Object.keys(labels).length === 0) {
+    throw new Error("labels must map run paths to { <dimension id>: <answer> }");
+  }
+  const entries = [];
+  const files = new Set();
+  for (const [run, answers] of Object.entries(labels)) {
+    let directory = path.resolve(root, run);
+    if (["run.json", JUDGED_GRADE].includes(path.basename(directory))) directory = path.dirname(directory);
+    const file = path.join(directory, JUDGED_GRADE);
+    const grade = await readJsonOrNull(file);
+    if (grade === null) throw new Error(`${run} has no judged grade; judge it first with review --rubric`);
+    if (answers === null || typeof answers !== "object" || Array.isArray(answers)) {
+      throw new Error(`labels for ${run} must be { <dimension id>: <answer> }`);
+    }
+    entries.push({ run, grade, labels: answers });
+    files.add(file);
+  }
+  const source = { file: path.relative(root, labelsPath).split(path.sep).join("/"), sha256: sha256(text) };
+  const calibrations = calibrationFromLabels(entries, source);
+  const { aggregateFile, results } = await targetResults(target, root);
+  for (const directory of results) {
+    const summary = JSON.parse(await readFile(path.join(directory, "summary.json"), "utf8"));
+    for (const group of summary.groups ?? []) {
+      const groupDirectory = path.join(directory, "groups", group.id);
+      const definition = await readJsonOrNull(path.join(groupDirectory, "definition.json"));
+      for (const arm of storedArms(group, definition)) files.add(path.join(groupDirectory, arm, JUDGED_GRADE));
+    }
+  }
+  let updated = 0;
+  for (const file of files) {
+    const grade = await readJsonOrNull(file);
+    if (grade === null) continue;
+    const calibrated = withCalibration(grade, calibrations);
+    if (calibrated === null) continue;
+    await writeJson(file, calibrated);
+    updated += 1;
+  }
+  const aggregate = aggregateFile === null ? null : await rebuild(aggregateFile, root);
+  return {
+    calibrations: [...calibrations.entries()].map(([configuration, status]) => ({ configuration, ...status })),
+    updated,
+    aggregate,
+  };
 }

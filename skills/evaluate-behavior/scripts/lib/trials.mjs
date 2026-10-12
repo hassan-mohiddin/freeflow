@@ -117,6 +117,7 @@ export async function aggregateGroups(results) {
       if (collectTrials) {
         entry.perTrial.push({
           id: result.id ?? null,
+          directory: groupDirectory,
           state: group.state ?? null,
           grade,
           runs: Object.fromEntries(

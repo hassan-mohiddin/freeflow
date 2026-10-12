@@ -11,7 +11,9 @@ Run commands from the repository or fixture root that owns the definitions:
 ```text
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs run <suite-or-group-path> [--group <id-or-position>] [--variant baseline|candidate] [--trials <n>] [--max-cost <total>] [--yes] [--dry-run]
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs view <result-id-or-directory> [--group <id-or-position>] [--variant baseline|candidate]
-node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-id-or-directory> (--model <provider/model> | --configuration <file>) [--group <id-or-position>] [--thinking <level>] [--swap] [--limit <name>=<chars>]
+node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-id-or-directory> (--model <provider/model> | --configuration <file>) [--group <id-or-position>] [--thinking <level>] [--swap | --swap-sample <fraction>] [--limit <name>=<chars>]
+node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-or-aggregate-id> --rubric [--model <provider/model>] [--configuration <file>] [--group <id-or-position>] [--thinking <level>] [--limit <name>=<chars>]
+node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-or-aggregate-id> --calibrate <labels.json>
 ```
 
 - The current working directory is the definition root and result root.
@@ -112,10 +114,26 @@ Normal completion follows settlement. Path guards, no-progress detection, cancel
 - the reviewer sees the task turns, the group's fixture files as shared task materials, and for each run its responses, tool calls, changed paths and the full text of every file it created or modified (by default each response up to 8,000 characters, each tool call's arguments up to 300, each file up to 20,000 and the materials up to 60,000, with any cut stated; `--limit <name>=<chars>` changes any of them), as Run A and Run B in random order;
 - run workspaces, the group and run directories, the repository root and the user's home are replaced by neutral tokens, so absolute paths and the variant names inside them never reach it; it never sees deterministic grades;
 - it runs without tools, skills, context files, or session, in its own isolation root, with extensions off except the `host.extensions` of the configuration file given with `--configuration`, whose `host.settings` and model it also uses (`--model` and `--thinking` override the model);
-- `--swap` reviews again with Run A and Run B exchanged and records agreement per question; without it, the unchecked order is recorded as a contract gap;
+- `--swap` reviews again with Run A and Run B exchanged and records agreement per question; without it, the unchecked order is recorded as a contract gap; `--swap-sample <fraction>` swaps only on a random sample of the selected groups (the fraction of them, rounded up), and each group records `swapSample: { fraction, sampled }`;
 - `groups/<id>/semantic-grade.json` records the judge's model, provider, family (approximated by provider), thinking, extensions and isolation; the subject's providers and the family relation (`same`, `different` or `unknown`); the label mapping, prompt hash, answers mapped back to variants, swap results, the effective `limits` and how many cuts the view took (`truncated`), `contractGaps` (at least `calibration not checked`, and `materials truncated` when anything was cut), and errors; `groups/<id>/review/` keeps the prompt, events, final response, and stderr;
 - malformed or incomplete reviewer output becomes `review-error` with the raw response preserved.
 
 A review is advisory. It never changes run or deterministic grade evidence, and rerunning it replaces only the previous advisory review.
+
+## Judged Evidence
+
+`review --rubric` judges each complete run of every selected group that declares a [rubric](evaluation-definition-schema.md#rubric-and-judges), under the same Judge Contract:
+
+- each run is judged alone: the judge sees the task turns, the fixture files, that run's responses, tool calls, changed paths and written files, the rubric and its references, with the same limits and neutral path tokens as the advisory review; it never sees the arm name, other arms' runs, or deterministic grades, and its working directory and home are named by a hash, not the arm;
+- the group's `judges` answer, each in its own isolation root; a group without `judges` is judged by `--model` (or the configuration's model), and `--model` with declared judges is refused before any judge starts; `--configuration` supplies host extensions and settings to every judge;
+- `groups/<id>/<arm>/judged-grade.json` records each judge's identity (model, provider, family, thinking, extensions, settings, isolation, a configuration hash, prompt hash and date), the family relation to the subject, its answers with evidence, errors and usage; the combined answer per dimension with every vote, by the group's `combine`; what was shown and withheld; the run file's hash; and `contractGaps` (`calibration not checked` until every judge is calibrated, `materials truncated` when anything was cut). `groups/<id>/judging/<hash>/judge-<n>/` keeps each judge's prompt, events, final response and stderr;
+- a judge that fails or replies malformed makes the grade `judge-error` with no combined answers, and the command exits nonzero;
+- an aggregate target judges every trial, then rebuilds the aggregate.
+
+`review <target> --calibrate <labels.json>` scores judges against hand labels. The file maps run paths (an arm's directory or its `run.json`, from the working directory) to `{ "<dimension id>": <answer> }`. Each judge configuration's agreement with the labels, per dimension (the share matched and Cohen's kappa), becomes its `calibration` in every judged grade it gave under the labelled runs and the target, and judging again with the same configuration keeps it. A configuration is its model, thinking, host extensions and rubric; a different one is uncalibrated.
+
+An aggregate's `judged` section gives, per arm and dimension, counts of each combined answer (`notJudged` for a trial that was not judged or failed), pass^k for yes/no dimensions, the mean for `0-2` dimensions, agreement between judges per dimension (Cohen's kappa for two, Krippendorff's alpha for more), the judges with their calibration, and `perTrial` values for a decision rule: `true` for yes, `false` for no, `null` for unknown, or the number. `view` shows judged evidence apart from deterministic grades.
+
+Judged evidence never changes run or deterministic grade files.
 
 When an unsupported operation changes the question, reject it or run a clearly separate direct comparison with explicit limits. Never invoke archived evaluators as a fallback.
