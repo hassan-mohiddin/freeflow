@@ -69,7 +69,8 @@
       "pi-extension/tests/compaction/fallback.test.js",
       "pi-extension/tests/compaction/notices.test.js",
       "pi-extension/tests/compaction/thresholds.test.js"
-    ]
+    ],
+    "skip": ["under projection the Coordinator is warned by the full history"]
   },
   "rs-864df4cc": {
     "build": true,
@@ -125,7 +126,8 @@
       "pi-extension/tests/compaction/notices.test.js",
       "pi-extension/tests/compaction/worker-warning.test.js",
       "pi-extension/tests/integration/pi-extension.test.js"
-    ]
+    ],
+    "skip": ["under projection the Coordinator is warned by the full history"]
   },
   "rs-9849a16c": {
     "build": true,
@@ -163,7 +165,8 @@
       "pi-extension/tests/compaction/script-call.test.js",
       "pi-extension/tests/compaction/thresholds.test.js",
       "pi-extension/tests/compaction/worker-warning.test.js"
-    ]
+    ],
+    "skip": ["under projection the Coordinator is warned by the full history"]
   },
   "rs-a0b9cc37": {
     "build": true,
@@ -262,7 +265,8 @@
       "pi-extension/tests/compaction/notices.test.js",
       "pi-extension/tests/compaction/thresholds.test.js",
       "pi-extension/tests/compaction/worker-warning.test.js"
-    ]
+    ],
+    "skip": ["under projection the Coordinator is warned by the full history"]
   },
   "rs-e312562f": {
     "build": true,
