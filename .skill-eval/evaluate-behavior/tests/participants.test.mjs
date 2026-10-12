@@ -43,7 +43,7 @@ async function readLog(file) {
 /**
  * One fake Pi. A subject (RPC mode) logs its working directory, readable roots, declared context and workspace files,
  * writes `notes-<stage>.md` with a write tool call, and answers `REPLY-<stage>-<turn>`. The stage is read from its
- * working directory (`stages/<id>/workspace`, or the arm's own workspace for the graded stage). A simulated user
+ * working directory (`<arm>.<id>/workspace`, or the arm's own workspace for the graded stage). A simulated user
  * (JSON mode, no tools) logs its prompt and answers from user.json: the reply for the number of assistant turns.
  */
 async function installFakePi(root) {
@@ -68,7 +68,7 @@ if (args.includes("--no-tools") && args.includes("-p")) {
   process.exit(0);
 }
 const cwd = process.cwd();
-const stage = path.basename(path.dirname(path.dirname(cwd))) === "stages" ? path.basename(path.dirname(cwd)) : "graded";
+const stage = path.basename(path.dirname(cwd)).split(".")[1] ?? "graded";
 const manifestPath = process.env.SKILL_EVAL_CONTEXT_MANIFEST;
 const manifest = manifestPath ? JSON.parse(readFileSync(manifestPath, "utf8")) : { entries: [] };
 appendFileSync(path.join(root, "subject.jsonl"), JSON.stringify({
@@ -287,7 +287,14 @@ test("a pipeline runs each stage separately, gives each exactly what it declares
       "three separate subject processes per arm",
     );
     for (const arm of ["baseline", "candidate"]) {
-      const [review1, review2, adjudicator] = subjects.filter((entry) => entry.cwd.includes(`/${arm}/`));
+      const [review1, review2, adjudicator] = subjects.filter((entry) =>
+        path.basename(path.dirname(entry.cwd)).startsWith(arm),
+      );
+      // Every stage's workspace is as deep as a single subject's, so relative command paths work in each.
+      assert.deepEqual(
+        [review1, review2, adjudicator].map((entry) => path.relative(groupDirectory, entry.cwd)),
+        [`${arm}.review1/workspace`, `${arm}.review2/workspace`, `${arm}/workspace`],
+      );
       // The fixture reaches only the stages that declare it.
       assert.ok(review1.workspace.includes("plan.md"));
       assert.ok(review2.workspace.includes("plan.md"));
@@ -321,9 +328,7 @@ test("a pipeline runs each stage separately, gives each exactly what it declares
       } finally {
         restore();
       }
-      assert.ok(
-        !adjudicator.roots.some((entry) => entry.startsWith(path.join(groupDirectory, arm, "stages", "review1"))),
-      );
+      assert.ok(!adjudicator.roots.some((entry) => entry.startsWith(path.join(groupDirectory, `${arm}.review1`))));
 
       const run = await readJson(path.join(groupDirectory, arm, "run.json"));
       assert.equal(run.state, "complete");
@@ -332,15 +337,15 @@ test("a pipeline runs each stage separately, gives each exactly what it declares
       assert.deepEqual(
         run.participants.stages.map(({ id, state, run: file, graded }) => [id, state, file, graded]),
         [
-          ["review1", "complete", "stages/review1/run.json", false],
-          ["review2", "complete", "stages/review2/run.json", false],
-          ["adjudicator", "complete", "run.json", true],
+          ["review1", "complete", `${arm}.review1/run.json`, false],
+          ["review2", "complete", `${arm}.review2/run.json`, false],
+          ["adjudicator", "complete", `${arm}/run.json`, true],
         ],
       );
       assert.deepEqual(run.participants.stages[0].files, ["notes-review1.md"]);
       // The arm's usage covers all three stages.
       assert.equal(run.usage.cost.total, 0.03);
-      const stageRun = await readJson(path.join(groupDirectory, arm, "stages/review1/run.json"));
+      const stageRun = await readJson(path.join(groupDirectory, `${arm}.review1/run.json`));
       assert.equal(stageRun.response, "REPLY-review1-1");
       assert.equal(stageRun.artifacts.events, "events.jsonl");
     }
@@ -359,13 +364,76 @@ test("a pipeline runs each stage separately, gives each exactly what it declares
     const viewed = cli(root, bin, ["view", result.stdout.match(/^Result: (.+)$/m)[1]]);
     assert.equal(viewed.status, 0, viewed.stderr);
     assert.ok(
-      viewed.stdout.includes("stage\tbaseline\treview2\tcomplete\tsees=fixture\tfresh\trun=stages/review2/run.json"),
+      viewed.stdout.includes("stage\tbaseline\treview2\tcomplete\tsees=fixture\tfresh\trun=baseline.review2/run.json"),
     );
     assert.ok(
       viewed.stdout.includes(
-        "stage\tcandidate\tadjudicator\tcomplete\tsees=review1.response,review1.files,review2.response\tgraded\trun=run.json",
+        "stage\tcandidate\tadjudicator\tcomplete\tsees=review1.response,review1.files,review2.response\tgraded\trun=candidate/run.json",
       ),
       viewed.stdout,
+    );
+  });
+});
+
+test("arms may differ in participants: one subject against a pipeline, declared as the component", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    const differing = baseGroup({
+      arms: { baseline: {}, candidate: { participants: PIPELINE } },
+      component: ["participants"],
+    });
+    const file = await writeTask(root, differing);
+    const loaded = await loadDefinition(file, { root });
+    assert.equal(loaded.variants.baseline.participants, undefined, "the baseline arm is one ordinary subject");
+    assert.equal(loaded.variants.candidate.participants.graded, "adjudicator");
+
+    const result = cli(root, bin, ["run", file]);
+
+    assert.equal(result.status, 0, result.stderr);
+    const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)[1], "groups/multi");
+    const subjects = await readLog(path.join(root, "subject.jsonl"));
+    assert.deepEqual(
+      subjects.map((entry) => path.relative(groupDirectory, entry.cwd)),
+      ["baseline/workspace", "candidate.review1/workspace", "candidate.review2/workspace", "candidate/workspace"],
+    );
+    const baseline = await readJson(path.join(groupDirectory, "baseline/run.json"));
+    assert.equal(baseline.participants, undefined);
+    const candidate = await readJson(path.join(groupDirectory, "candidate/run.json"));
+    assert.equal(candidate.participants.stages.length, 3);
+    // Both arms are graded on their graded subject: the single subject, and the adjudicator.
+    const grade = await readJson(path.join(groupDirectory, "deterministic-grade.json"));
+    assert.deepEqual(
+      grade.checks.map(({ id, state }) => [id, state]),
+      [
+        ["baseline-notes", "pass"],
+        ["candidate-notes", "pass"],
+      ],
+    );
+
+    // A shared default may be cleared in one arm with null.
+    const cleared = baseGroup({
+      configuration: { ...differing.configuration, participants: PIPELINE },
+      arms: { baseline: { participants: null }, candidate: {} },
+      component: ["participants"],
+    });
+    const clearedLoaded = await loadDefinition(await writeTask(root, cleared), { root });
+    assert.equal(clearedLoaded.variants.baseline.participants, undefined);
+    assert.equal(clearedLoaded.variants.candidate.participants.protocol, "pipeline");
+
+    await writeTask(root, { ...differing, component: [] });
+    await assert.rejects(loadDefinition(file, { root }), {
+      code: "undeclared-difference",
+      message: /the arms differ in participants, which group.component does not declare/,
+    });
+    await writeTask(root, { ...differing, participants: PIPELINE });
+    await assert.rejects(loadDefinition(file, { root }), /either on the group or in the configuration, not both/);
+    await writeTask(root, {
+      ...differing,
+      arms: { baseline: {}, candidate: { participants: { protocol: "pipeline", stages: [] } } },
+    });
+    await assert.rejects(
+      loadDefinition(file, { root }),
+      /group.arms.candidate.participants.stages must be a non-empty/,
     );
   });
 });

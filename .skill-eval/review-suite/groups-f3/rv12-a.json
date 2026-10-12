@@ -1,0 +1,152 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "rv12-a",
+  "type": "body",
+  "input": {
+    "prompt": "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`"
+  },
+  "fixture": ".skill-eval/review-suite/fixtures/rs-6949f0d0/clean/workspace",
+  "tools": ["read", "write", "ls", "find", "run_command"],
+  "commands": [
+    {
+      "id": "tests",
+      "argv": ["node", "../../../../../../../.skill-eval/review-suite/tools/run-tests.mjs", "rv12-a"],
+      "timeout_ms": 600000
+    }
+  ],
+  "configuration": {
+    "extends": "../configuration.json",
+    "subject": {
+      "context": [".skill-eval/review-suite/context/rv12-a/requirements.md"]
+    }
+  },
+  "arms": {
+    "baseline": {},
+    "candidate": {
+      "participants": {
+        "protocol": "pipeline",
+        "stages": [
+          {
+            "id": "review1",
+            "sees": ["fixture"]
+          },
+          {
+            "id": "review2",
+            "sees": ["fixture"],
+            "fresh": true
+          },
+          {
+            "id": "adjudicator",
+            "input": "Two independent reviews of the completed change in this workspace are in your declared context: `review1.response` and `review1.files` (Review 1's report and the `review.md` it wrote), and `review2.response` and `review2.files` (Review 2's). Adjudicate them as Review Work's adjudication says: test every material item against the change (`change.diff`, the changed files in `files/`, the author's report in `verification.md`) and the requirements, and dispose of each as Accepted, Rejected or Open, with its reason. Then derive the adjudicated judgment yourself; do not adopt either reviewer's judgment. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each accepted finding with the file and line it concerns, then each rejected or open item with its reason, or write `No findings.`",
+            "sees": ["fixture", "review1.response", "review1.files", "review2.response", "review2.files"]
+          }
+        ],
+        "graded": "adjudicator"
+      }
+    }
+  },
+  "component": ["participants"],
+  "expectations": [
+    {
+      "id": "baseline-only-review",
+      "variant": "baseline",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "candidate-only-review",
+      "variant": "candidate",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "baseline-judgment-line",
+      "variant": "baseline",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "candidate-judgment-line",
+      "variant": "candidate",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "baseline-not-blocked",
+      "variant": "baseline",
+      "comparison": "not-blocked",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Blocking"
+    },
+    {
+      "id": "candidate-not-blocked",
+      "variant": "candidate",
+      "comparison": "not-blocked",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Blocking"
+    },
+    {
+      "id": "baseline-not-inconclusive",
+      "variant": "baseline",
+      "comparison": "not-inconclusive",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Inconclusive"
+    },
+    {
+      "id": "candidate-not-inconclusive",
+      "variant": "candidate",
+      "comparison": "not-inconclusive",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Inconclusive"
+    },
+    {
+      "id": "baseline-judged-pass",
+      "variant": "baseline",
+      "comparison": "judged-pass",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "equals",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "candidate-judged-pass",
+      "variant": "candidate",
+      "comparison": "judged-pass",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "equals",
+      "value": "Judgment: Pass"
+    }
+  ],
+  "review_questions": [
+    "Did the review avoid reporting problems that the change, its files and the author's report do not support?",
+    "Did the review keep style or naming preferences out of its findings?"
+  ]
+}

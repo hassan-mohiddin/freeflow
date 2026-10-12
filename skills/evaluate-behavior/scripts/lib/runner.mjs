@@ -10,7 +10,7 @@ import { postRunRecords } from "./hooks.mjs";
 import { identityRefusal, inputIdentity, installedHostVersion } from "./identity.mjs";
 import { removeCopiedCredentials, TARGET_MINUTES } from "./isolation.mjs";
 import { prepareSourceExtensions } from "./build-source.mjs";
-import { runParticipants } from "./participants.mjs";
+import { armParticipants, runParticipants } from "./participants.mjs";
 import { prepareShell } from "./shell.mjs";
 import { ensureLogin, resolveHostExtensions } from "./pi-host.mjs";
 import { enforceReferenceChecks } from "./reference.mjs";
@@ -427,7 +427,8 @@ async function executeVariant({
   signal,
 }) {
   try {
-    const run = group.participants !== undefined ? runParticipants : group.type === "body" ? runBody : runDescription;
+    const run =
+      armParticipants(group, variant) !== null ? runParticipants : group.type === "body" ? runBody : runDescription;
     return await run({ group, variant, root, variantDirectory, fixture, runtime, freeflow, hostExtensions, signal });
   } catch (error) {
     if (error instanceof VariantSetupError) return invalidRun(group, variant, error.message);

@@ -61,6 +61,26 @@ Each group compares requirements withheld (`baseline`) with requirements given a
 
 Reviewers have `read`, `write`, `ls` and `find`, each confined to the run, and for a base change a `tests` command that runs its declared tests on the full tree. A clean variant counts as rejected when the review ends Inconclusive or Blocking; Pass and Non-blocking both let it proceed. The F5 run of 2026-10-12 used `read` and `write` only, so many of its reviewers could not list `files/`; results from runs before and after the change do not compare directly.
 
+## F3: one review against Review 1, an independent Review 2 and an adjudicator
+
+`suite-f3.json` and `groups-f3/` (`tools/write-groups-f3.mjs`, from `groups/`) compare one review with an adjudicated pair of reviews. Both arms get the requirements as declared context, the suite's tools and, for a base change, its `tests` command; they differ only in `participants`:
+
+- `baseline`: one review, as the suite's subject.
+- `candidate`: a pipeline. Review 1 is that same review. Review 2 is fresh: it sees the change and the requirements, never Review 1. The adjudicator sees the change, the requirements, and both reviews' responses and `review.md` files, adjudicates them per Review Work's adjudication, and writes the final `review.md`. The adjudicator is the graded stage.
+
+It holds every defective variant (30) and the 15 clean variants the clean audit keeps, with the suite's group IDs, so `groups.json` gives each one's case, class and held-out flag.
+
+Measures:
+
+- **Detection** (the decision): each defective group has a rubric dimension `identified` (the suite's question: the defect's location, expression and effect, supported with file and line), judged by `anthropic/claude-haiku-5-5` at high thinking. The suite's decision is a sign test over the defective cases on that judged measure, candidate against baseline. Clean groups have no judged measure and are left out of the decision.
+- **False rejection**, counted separately on the clean groups: the `not-blocked` and `not-inconclusive` comparisons on the first line of `review.md`. A clean trial is falsely rejected when either fails.
+- The suite's other deterministic checks on `review.md` (only `review.md` written, a judgment line, no Pass and the defective file named on a defective variant, Pass on a clean one). `ran-tests` is left out, because the graded adjudicator need not run the tests itself.
+- Cost and turns per arm (tracked metrics). The candidate arm's usage covers all three stages.
+
+Expected cost per trial: 45 groups × (1 baseline + 3 candidate) = 180 subject runs, then `review --rubric` on the aggregate: 30 defective groups × 2 arms = 60 judge calls. Judging must run before the decision exists, so the suite declares no adaptive trials: no judged value exists while the trials run.
+
+Results are measured by the coordinator in wave 4; nothing here has been run.
+
 ## Measured with
 
 Subject model `anthropic/claude-haiku-5-5` (the user's instruction, 2026-10-12), with the subscription's auth extension declared in each configuration. Results are Haiku's and do not compare directly with the earlier pilot, which ran on `xai/grok-4.7`.

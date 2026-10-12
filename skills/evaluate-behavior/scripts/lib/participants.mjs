@@ -35,22 +35,50 @@ function contained(parent, child) {
 // Validation ------------------------------------------------------------------------------------------------------
 
 /**
- * Validates a group's `participants` and returns it normalized: a conversation's card read in as
- * `{ path, text, sha256 }` with `max_turns` defaulted, or a pipeline's stages with `sees` and `fresh` defaulted and
+ * Validates participants and returns them normalized, for the group and for each arm: a conversation's card read in
+ * as `{ path, text, sha256 }` with `max_turns` defaulted, or a pipeline's stages with `sees` and `fresh` defaulted and
  * `graded` naming the stage the group's expectations and review questions apply to (by default the last).
  *
- * @returns {Promise<{participants?: any}>}
+ * Participants are declared either on the group, shared by every arm, or in the configuration, where they may differ
+ * between arms like any other configuration path (`component: ["participants"]`); an arm whose effective
+ * `participants` is absent or null runs one ordinary subject.
+ *
+ * @param {Record<string, {configuration: any}>} resolved each arm's resolved configuration
+ * @returns {Promise<{group: {participants?: any}, arms: Record<string, any>}>}
  */
-export async function validateParticipants(group, definitionPath, root) {
-  if (!Object.hasOwn(group, "participants")) return {};
+export async function validateParticipants(group, resolved, definitionPath, root) {
   const fail = (message, code = "invalid-definition") => {
     throw new DefinitionError(code, message, definitionPath);
   };
-  const value = group.participants;
-  if (!isPlainObject(value)) fail("group.participants must be an object");
-  if (value.protocol === "conversation") return { participants: await validateConversation(group, root, fail) };
-  if (value.protocol === "pipeline") return { participants: validatePipeline(group, fail) };
-  return fail("group.participants.protocol must be conversation or pipeline");
+  const configured = Object.entries(resolved).filter(([, arm]) => Object.hasOwn(arm.configuration, "participants"));
+  const result = { group: {}, arms: {} };
+  if (Object.hasOwn(group, "participants")) {
+    if (configured.length > 0) {
+      fail("declare participants either on the group or in the configuration, not both");
+    }
+    const participants = await normalize(group.participants, "group.participants", group, root, fail);
+    result.group.participants = participants;
+    for (const arm of Object.keys(resolved)) result.arms[arm] = participants;
+    return result;
+  }
+  const normalized = new Map();
+  for (const [arm, { configuration }] of configured) {
+    const value = configuration.participants;
+    if (value === null) continue;
+    const key = JSON.stringify(value);
+    if (!normalized.has(key)) {
+      normalized.set(key, await normalize(value, `group.arms.${arm}.participants`, group, root, fail));
+    }
+    result.arms[arm] = normalized.get(key);
+  }
+  return result;
+}
+
+async function normalize(value, label, group, root, fail) {
+  if (!isPlainObject(value)) fail(`${label} must be an object`);
+  if (value.protocol === "conversation") return validateConversation(value, label, group, root, fail);
+  if (value.protocol === "pipeline") return validatePipeline(value, label, group, fail);
+  return fail(`${label}.protocol must be conversation or pipeline`);
 }
 
 function exactKeys(value, required, optional, label, fail) {
@@ -61,10 +89,10 @@ function exactKeys(value, required, optional, label, fail) {
   }
 }
 
-async function validateConversation(group, root, fail) {
-  exactKeys(group.participants, ["protocol", "user"], [], "group.participants", fail);
-  const user = group.participants.user;
-  const label = "group.participants.user";
+async function validateConversation(value, participantsLabel, group, root, fail) {
+  exactKeys(value, ["protocol", "user"], [], participantsLabel, fail);
+  const user = value.user;
+  const label = `${participantsLabel}.user`;
   exactKeys(user, ["model", "card", "stop"], ["thinking", "max_turns"], label, fail);
   if (group.type !== "body") fail("a conversation needs a body group, whose subject runs one persistent session");
   if (typeof group.input?.prompt !== "string")
@@ -108,18 +136,18 @@ async function readCard(value, label, group, root, fail) {
   return { path: value, text, sha256: sha256(text) };
 }
 
-function validatePipeline(group, fail) {
-  exactKeys(group.participants, ["protocol", "stages"], ["graded"], "group.participants", fail);
-  const { stages } = group.participants;
-  if (!Array.isArray(stages) || stages.length === 0) fail("group.participants.stages must be a non-empty array");
+function validatePipeline(value, participantsLabel, group, fail) {
+  exactKeys(value, ["protocol", "stages"], ["graded"], participantsLabel, fail);
+  const { stages } = value;
+  if (!Array.isArray(stages) || stages.length === 0) fail(`${participantsLabel}.stages must be a non-empty array`);
   const ids = [];
   const normalized = stages.map((stage, index) => {
-    const label = `group.participants.stages[${index}]`;
+    const label = `${participantsLabel}.stages[${index}]`;
     exactKeys(stage, ["id"], ["input", "sees", "fresh"], label, fail);
     if (typeof stage.id !== "string" || stage.id.length > 64 || !ID.test(stage.id)) {
       fail(`${label}.id must start with a lowercase letter and use lowercase letters, numbers, or single hyphens`);
     }
-    if (ids.includes(stage.id)) fail(`group.participants.stages contains duplicate id ${stage.id}`);
+    if (ids.includes(stage.id)) fail(`${participantsLabel}.stages contains duplicate id ${stage.id}`);
     let input = null;
     if (Object.hasOwn(stage, "input")) {
       if (nonEmpty(stage.input)) input = { prompt: stage.input };
@@ -149,23 +177,31 @@ function validatePipeline(group, fail) {
     ids.push(stage.id);
     return { id: stage.id, input, sees: [...sees], fresh };
   });
-  const graded = group.participants.graded ?? ids.at(-1);
-  if (!ids.includes(graded)) fail(`group.participants.graded must name a stage: ${ids.join(", ")}`);
+  const graded = value.graded ?? ids.at(-1);
+  if (!ids.includes(graded)) fail(`${participantsLabel}.graded must name a stage: ${ids.join(", ")}`);
   return { protocol: "pipeline", stages: normalized, graded };
 }
 
-/** The files a group's participants read: a conversation's card. They are run inputs, like the definition. */
-export function participantFiles(participants, root) {
-  if (participants?.protocol !== "conversation") return [];
-  return [path.resolve(root, participants.user.card.path)];
+/** The files the arms' participants read: each conversation's card. They are run inputs, like the definition. */
+export function participantFiles(participantsList, root) {
+  const files = participantsList
+    .filter((participants) => participants?.protocol === "conversation")
+    .map((participants) => path.resolve(root, participants.user.card.path));
+  return [...new Set(files)];
 }
 
 // Execution -------------------------------------------------------------------------------------------------------
 
-/** Runs one arm of a group with participants; the returned run is the arm's run.json. */
+/** The participants an arm runs, or null for one ordinary subject. */
+export function armParticipants(group, arm) {
+  return group.variants?.[arm]?.participants ?? null;
+}
+
+/** Runs one arm with participants; the returned run is the arm's run.json. */
 export async function runParticipants(options) {
-  if (options.group.participants.protocol === "conversation") return runConversation(options);
-  return runPipeline(options);
+  const participants = armParticipants(options.group, options.variant);
+  if (participants.protocol === "conversation") return runConversation(options, participants);
+  return runPipeline(options, participants);
 }
 
 /**
@@ -173,9 +209,9 @@ export async function runParticipants(options) {
  * user reads its card and the visible conversation (messages only: never the subject's tool calls or files) and
  * writes the next message, until it says the stop phrase or the subject has had `max_turns` turns.
  */
-async function runConversation(options) {
+async function runConversation(options, participants) {
   const { group, variant, variantDirectory, hostExtensions = [], signal } = options;
-  const { user } = group.participants;
+  const { user } = participants;
   const groupDirectory = path.dirname(variantDirectory);
   // The user's directory is its working directory and home, so it is named by a hash, never by the arm.
   const userDirectory = path.join(groupDirectory, "participants", sha256(`${groupDirectory}\n${variant}`).slice(0, 12));
@@ -283,11 +319,14 @@ function userPrompt(user, opening, messages, turns, neutral) {
  * Runs the stages in order, each a separate subject process with its own isolation and workspace. A stage sees the
  * fixture (a fresh copy) only when it declares it, and an earlier stage's response or written files only as
  * declared context copied into its own resources. The graded stage runs in the arm's directory, so its evidence is
- * the arm's run; every other stage keeps its evidence under `<arm>/stages/<id>/`.
+ * the arm's run; every other stage keeps its evidence beside it in `<arm>.<id>/`. Every stage's workspace is then at
+ * the same depth as a single subject's, so a declared command that reaches the repository by a relative path works
+ * in every stage. (Arm names and stage IDs contain no dot, so these names cannot collide with an arm.)
  */
-async function runPipeline(options) {
+async function runPipeline(options, participants) {
   const { group, variant, variantDirectory, fixture, signal } = options;
-  const { stages, graded } = group.participants;
+  const { stages, graded } = participants;
+  const groupDirectory = path.dirname(variantDirectory);
   const outputs = new Map();
   const records = [];
   let gradedRun = null;
@@ -299,8 +338,8 @@ async function runPipeline(options) {
       break;
     }
     const isGraded = stage.id === graded;
-    const directory = isGraded ? variantDirectory : path.join(variantDirectory, "stages", stage.id);
-    await rm(path.join(variantDirectory, "stages", stage.id), { recursive: true, force: true });
+    const directory = isGraded ? variantDirectory : path.join(groupDirectory, `${variant}.${stage.id}`);
+    await rm(isGraded ? path.join(directory, "outputs") : directory, { recursive: true, force: true });
     await mkdir(directory, { recursive: true });
     const deliveries = stage.sees
       .filter((entry) => entry !== "fixture")
@@ -336,7 +375,7 @@ async function runPipeline(options) {
       if (!isGraded) await removeCopiedCredentials(directory);
     }
     usage = mergeUsage(usage, run.usage);
-    const stageOutputs = await recordOutputs(path.join(variantDirectory, "stages", stage.id, "outputs"), run);
+    const stageOutputs = await recordOutputs(path.join(directory, "outputs"), run);
     outputs.set(stage.id, stageOutputs);
     if (isGraded) gradedRun = run;
     else await persistStage(directory, run);
@@ -346,7 +385,8 @@ async function runPipeline(options) {
       sees: stage.sees,
       fresh: stage.fresh,
       graded: isGraded,
-      run: isGraded ? "run.json" : `stages/${stage.id}/run.json`,
+      // Relative to the group directory.
+      run: `${path.basename(directory)}/run.json`,
       response: { sha256: sha256(run.response ?? "") },
       files: stageOutputs.written,
       usage: run.usage ?? null,
@@ -360,14 +400,14 @@ async function runPipeline(options) {
       break;
     }
   }
-  const participants = { protocol: "pipeline", graded, stages: records };
+  const record = { protocol: "pipeline", graded, stages: records };
   if (gradedRun === null) {
     const state =
       failure?.state === "cancelled" ? "cancelled" : failure?.state === "invalid" ? "invalid" : "infrastructure-failed";
     const run = failedStageRun(group, variant, state, `stage ${failure?.stage} did not complete: ${failure?.message}`);
-    return { ...run, usage, participants };
+    return { ...run, usage, participants: record };
   }
-  gradedRun.participants = participants;
+  gradedRun.participants = record;
   // The arm's usage covers every stage, so a spend ceiling counts them all.
   gradedRun.usage = usage;
   if (failure !== null && gradedRun.state === "complete") {
