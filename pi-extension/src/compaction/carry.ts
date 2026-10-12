@@ -115,14 +115,17 @@ export function latestUserMessages(branch: readonly any[]): string[] {
 
 /**
  * Text with each line's number in front, as `nl -ba` prints it, so a copy can be cited by file line without being read
- * again. Pi's note after a partial read ("[Showing lines …]", "[N more lines in file …]") stays unnumbered.
+ * again. A final newline ends the last line rather than starting another. Pi's note after a partial read ("[Showing
+ * lines …]", "[N more lines in file …]") stays unnumbered; a whole file has no such note (`readNote: false`).
  */
-export function numberLines(text: string, first: number): string {
-  const note = /\n\n\[(?:Showing lines \d+-\d+ of \d+|\d+ more lines in file)[^\n]*\]$/.exec(text);
-  const body = note ? text.slice(0, note.index) : text;
-  const lines = body.split("\n");
+export function numberLines(text: string, first: number, { readNote = true }: { readNote?: boolean } = {}): string {
+  const note = readNote ? /\n\n\[(?:Showing lines \d+-\d+ of \d+|\d+ more lines in file)[^\n]*\]$/.exec(text) : null;
+  const whole = note ? text.slice(0, note.index) : text;
+  const ending = whole.endsWith("\n") ? "\n" : "";
+  const lines = (ending ? whole.slice(0, -1) : whole).split("\n");
   const width = String(first + lines.length - 1).length;
-  return lines.map((line, i) => `${String(first + i).padStart(width)}\t${line}`).join("\n") + (note ? note[0] : "");
+  const numbered = lines.map((line, i) => `${String(first + i).padStart(width)}\t${line}`).join("\n");
+  return numbered + ending + (note ? note[0] : "");
 }
 
 function fenced(body: string): string {
@@ -172,7 +175,7 @@ export function renderCarried(
             const range = "lines" in file && file.lines ? ` (lines ${file.lines[0]}-${file.lines[1]})` : "";
             return "error" in file
               ? `### ${file.path}\n\nNot carried: ${file.error}.`
-              : `### ${file.path}${range}\n\n${fenced(numberLines(withoutUserMessageTags(file.text), "lines" in file && file.lines ? file.lines[0] : 1))}`;
+              : `### ${file.path}${range}\n\n${fenced(numberLines(withoutUserMessageTags(file.text), "lines" in file && file.lines ? file.lines[0] : 1, { readNote: false }))}`;
           })
           .join("\n\n"),
     );
