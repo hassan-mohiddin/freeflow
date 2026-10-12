@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { findRoutingSkill } from "./bootstrap.js";
 import { ContextAssembler } from "./assembler.js";
 import type { CognitiveRoutingCapabilityState } from "./config.js";
 import { EventStore, type SessionReader } from "./event-store.js";
@@ -42,6 +43,7 @@ export class RoutingRuntime {
     private readonly pi: any,
     private readonly packageRoots: readonly string[] = [],
   ) {
+    this.session.routingSkill = findRoutingSkill(this.packageRoots);
     this.models = new ModelControl(this.session, this.pi);
     this.status = new RoutingStatus(this.session, this.models);
     this.gate = new ToolGate(this.session, this.packageRoots);

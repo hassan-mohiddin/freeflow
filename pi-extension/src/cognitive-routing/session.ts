@@ -19,6 +19,7 @@ import {
   type NativeEntry,
   type EventData,
 } from "./types.js";
+import type { RoutingSkill } from "./bootstrap.js";
 import { cachedBranch } from "../host/branch.js";
 const STAGED_CONTROL = new Set(["control", "profile-overrides", "delegation-override"]);
 
@@ -34,6 +35,8 @@ export interface Turn {
   sourceFingerprint?: string;
   opened?: boolean;
   pair: Pair;
+  /** Whether this turn's prepared view holds a complete read of the routing skill (`bootstrap.ts`). */
+  skillInView?: boolean;
 }
 export interface Subject {
   token: string;
@@ -56,6 +59,8 @@ export class RoutingSession {
   capability?: CognitiveRoutingCapabilityState;
   token = randomUUID();
   turn?: Turn;
+  /** The packaged routing skill the bootstrap read must cover; undefined when it cannot be read. */
+  routingSkill?: RoutingSkill;
   messages: any[] = [];
   error?: string;
   projectionError?: string;

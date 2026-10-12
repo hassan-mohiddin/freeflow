@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { findRoutingSkill } from "./bootstrap.js";
 import { ContextAssembler } from "./assembler.js";
 import { EventStore } from "./event-store.js";
 import { ToolGate } from "./gate.js";
@@ -29,6 +30,7 @@ export class RoutingRuntime {
   constructor(pi, packageRoots = []) {
     this.pi = pi;
     this.packageRoots = packageRoots;
+    this.session.routingSkill = findRoutingSkill(this.packageRoots);
     this.models = new ModelControl(this.session, this.pi);
     this.status = new RoutingStatus(this.session, this.models);
     this.gate = new ToolGate(this.session, this.packageRoots);
