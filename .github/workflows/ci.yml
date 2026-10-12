@@ -93,4 +93,6 @@ jobs:
         run: npm run test:track-work
 
       - name: Pi extension tests
+        # Runs even when Track Work's tests fail, so one run shows every platform failure.
+        if: success() || failure()
         run: npm run test:pi-extension
