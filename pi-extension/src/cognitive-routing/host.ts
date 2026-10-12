@@ -93,7 +93,7 @@ export function supportsCognitiveRoutingModelRegistry(host: unknown): boolean {
   return modelRegistry(host) !== undefined;
 }
 
-function supportedThinkingLevels(model: CognitiveRoutingModel): CognitiveRoutingThinkingLevel[] {
+export function supportedThinkingLevels(model: CognitiveRoutingModel): CognitiveRoutingThinkingLevel[] {
   if (!model.reasoning) return ["off"];
 
   return THINKING_LEVEL_ORDER.filter((level) => {

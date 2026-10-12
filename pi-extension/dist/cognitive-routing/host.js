@@ -50,7 +50,7 @@ function modelRegistry(host) {
 export function supportsCognitiveRoutingModelRegistry(host) {
   return modelRegistry(host) !== undefined;
 }
-function supportedThinkingLevels(model) {
+export function supportedThinkingLevels(model) {
   if (!model.reasoning) return ["off"];
   return THINKING_LEVEL_ORDER.filter((level) => {
     const mapped = model.thinkingLevelMap?.[level];

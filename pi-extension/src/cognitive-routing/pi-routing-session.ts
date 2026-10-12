@@ -380,6 +380,9 @@ export class PiRoutingSession {
       liveStateAuthoritative: !isPiFlowHost(this.pi?.host),
       ...(initialSessionStart ? { initialSessionStart } : {}),
     });
+    // Publish the candidate before recovery or activation so Pi events emitted by internal transitions
+    // reach the controller's transition-in-flight guard instead of being treated as native overrides.
+    this.controllerState = controller;
     const recovered = await controller.recover();
     let nextController: CognitiveRoutingController | undefined;
     if (recovered.status === "pending" || (recovered.status === "inactive" && recovered.reason === "native_override")) {

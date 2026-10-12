@@ -14,6 +14,7 @@ import {
   VALID_MODES,
 } from "../runtime/runtime-context.js";
 import { PiSettingsComponent } from "./settings-tui.js";
+import { supportedThinkingLevels } from "../cognitive-routing/host.js";
 import { supportsPiSessionModelStateApi } from "../cognitive-routing/pi-session-control.js";
 import { isPiFlowHost } from "../runtime/runtime-identity.js";
 const DEFAULT_FREEFLOW_ENABLED = true;
@@ -506,7 +507,7 @@ function isCognitiveRoutingProfile(value) {
 }
 function cognitiveRoutingThinkingLevels(model, registry) {
   if (typeof registry?.clampThinkingLevel !== "function") {
-    return model?.reasoning === true ? [...COGNITIVE_ROUTING_THINKING_LEVELS] : ["off"];
+    return supportedThinkingLevels(model);
   }
   return COGNITIVE_ROUTING_THINKING_LEVELS.filter((level) => {
     try {

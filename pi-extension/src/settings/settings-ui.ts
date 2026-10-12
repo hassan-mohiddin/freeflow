@@ -22,6 +22,7 @@ import {
   type SettingsWizard,
   type SettingsWizardStep,
 } from "./settings-tui.js";
+import { supportedThinkingLevels } from "../cognitive-routing/host.js";
 import { supportsPiSessionModelStateApi } from "../cognitive-routing/pi-session-control.js";
 import { isPiFlowHost } from "../runtime/runtime-identity.js";
 import type {
@@ -688,7 +689,7 @@ function isCognitiveRoutingProfile(value: unknown): value is CognitiveRoutingPro
 
 function cognitiveRoutingThinkingLevels(model: any, registry: any): CognitiveRoutingThinkingLevel[] {
   if (typeof registry?.clampThinkingLevel !== "function") {
-    return model?.reasoning === true ? [...COGNITIVE_ROUTING_THINKING_LEVELS] : ["off"];
+    return supportedThinkingLevels(model);
   }
   return COGNITIVE_ROUTING_THINKING_LEVELS.filter((level) => {
     try {
