@@ -35,6 +35,37 @@ function capture(root, bodies) {
   );
 }
 
+/**
+ * Call/result pairing problems in a provider request body. Anthropic Messages requires each tool result in the
+ * message right after its call; OpenAI Responses requires each output after its call, once. Real providers reject
+ * a broken pairing with a 400, so every fixture request is checked (Task 008 S-005).
+ */
+export function pairingProblems(body) {
+  const problems = [];
+  if (Array.isArray(body.messages)) {
+    let open = new Set();
+    for (const [i, message] of body.messages.entries()) {
+      const blocks = Array.isArray(message.content) ? message.content : [];
+      const results = blocks.filter((b) => b.type === "tool_result");
+      for (const r of results)
+        if (!open.delete(r.tool_use_id)) problems.push(`messages.${i}: tool_result ${r.tool_use_id} without its call`);
+      if (open.size) problems.push(`messages.${i}: calls ${[...open]} without results`);
+      open = new Set(message.role === "assistant" ? blocks.filter((b) => b.type === "tool_use").map((b) => b.id) : []);
+    }
+  } else if (Array.isArray(body.input)) {
+    const calls = new Set(),
+      answered = new Set();
+    for (const [i, item] of body.input.entries()) {
+      if (item.type === "function_call") calls.add(item.call_id);
+      if (item.type !== "function_call_output") continue;
+      if (!calls.has(item.call_id) || answered.has(item.call_id))
+        problems.push(`input.${i}: function_call_output ${item.call_id} without its call, or repeated`);
+      answered.add(item.call_id);
+    }
+  }
+  return problems;
+}
+
 export function response(
   n,
   calls = [],
@@ -250,6 +281,7 @@ export async function fixture(script, projection = true, after, withUI = true, o
     requests.push(body);
     assert.ok(requests.length <= (options.maxRequests ?? 15), "bounded fixture request count");
     try {
+      assert.deepEqual(pairingProblems(body), [], `request ${requests.length} pairs every tool call with its results`);
       const calls = await script(requests.length, body, manager, requests);
       if (options.response) return options.response(requests.length, calls, body);
       return Array.isArray(body.messages)

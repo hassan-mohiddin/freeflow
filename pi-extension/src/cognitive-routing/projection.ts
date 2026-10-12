@@ -325,6 +325,13 @@ export function prepareView(options: {
   const shared = sources.nonWorkerBefore;
   const activeRefs = new Set(associated.flatMap((i) => (i.source ? [i.source.ref] : [])));
   const deferredAt = new Map<string, number>();
+  // Deferred evidence is delivered between call groups: providers such as Anthropic reject anything between a call
+  // and its results. A selection is recorded before Pi stores the select_evidence result, so its admission point is
+  // that result.
+  const afterResults = (at: number) => {
+    while ((sources.entries[at] as any)?.message?.role === "toolResult") at++;
+    return at;
+  };
   if (selective && (options.admissions || options.resumedAt !== undefined))
     for (const source of full.values()) {
       // An attention view omitted required evidence that is no longer in the active context, so after a
@@ -334,7 +341,8 @@ export function prepareView(options: {
           ? options.resumedAt
           : undefined;
       const admitted = options.admissions?.get(source.ref);
-      const at = admitted === undefined ? resumed : Math.max(admitted, resumed ?? 0),
+      const latest = admitted === undefined ? resumed : Math.max(admitted, resumed ?? 0),
+        at = latest === undefined ? undefined : afterResults(latest),
         own = rank.get(source.entry.id) ?? 0;
       if (at === undefined || at <= own || !isWorkerProfile(source.producer) || shared[at] <= shared[own + 1]) continue;
       const group = sources.exchange(source).sources;
