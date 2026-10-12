@@ -292,7 +292,12 @@ export async function persistedBranchMatches(
   const matches =
     snapshot.sessionId === reader.getSessionId() &&
     JSON.stringify(activeReadOnlySessionBranch(snapshot, leaf)) === JSON.stringify(branch);
-  if (matches) trustLoadedSession(reader);
+  // The trust point covers every entry Pi holds, so it is set only when the file holds them all: a match on this
+  // branch says nothing of an entry on another branch that was never written.
+  const onDisk = new Set(snapshot.entries.slice(1).map((entry) => entry.id));
+  const inMemory = reader.getEntries();
+  const complete = inMemory.length === onDisk.size && inMemory.every((entry: any) => onDisk.has(entry.id));
+  if (matches && complete) trustLoadedSession(reader);
   else verified.delete(path);
   return matches;
 }

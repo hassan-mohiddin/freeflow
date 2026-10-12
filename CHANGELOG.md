@@ -44,6 +44,7 @@
 
 ### Fixed
 
+- Cognitive Routing no longer trusts an entry Pi holds in memory but never wrote to the session file just because the current branch matches the file; after such a match, moving to that entry's branch is blocked until the history can be verified, instead of proceeding as if it were saved.
 - After Pi compacts on its own, Freeflow's next compaction keeps the files read or changed in the part of the history Pi kept unsummarized in its session-wide file lists; before, those files dropped out of every later list.
 - Track Work works in a repository reached through a symlinked directory (such as macOS `/tmp` or `/var`). Before, it refused every command there because its Git ignore check compared a symlinked path with Git's resolved one.
 - Claude Code now receives Freeflow's whole session-start context. Claude Code caps each hook's context at 10,000 characters and shows longer output only as a short preview, so Freeflow now delivers each prompt through its own hook, and also at the start of forked sessions.
