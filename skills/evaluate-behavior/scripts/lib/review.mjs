@@ -3,6 +3,7 @@ import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { isClassicPair, referenceArm, storedArms } from "./arms.mjs";
 import { sha256, writeJson, writeText } from "./evidence.mjs";
 import { loadConfiguration } from "./definitions.mjs";
 import { resolveHostExtensions } from "./pi-host.mjs";
@@ -19,7 +20,8 @@ const ANSWERS = new Set(["yes", "no", "unclear"]);
 export const REVIEW_LIMITS = Object.freeze({ response: 8000, argument: 300, file: 20000, materials: 60000 });
 
 /**
- * Answers each group's review questions with a separate model that sees two unlabeled runs.
+ * Answers each group's review questions with a separate model that sees every arm's run, unlabeled: N runs get the
+ * labels A, B, C, ... in a random order.
  * The result is advisory: it is written beside, never into, canonical run and grade evidence.
  * The reviewer is a judge under Review Work's judge contract: it sees each run's written files in full
  * (up to a stated limit) and the shared task materials, with run paths and arm names replaced by
@@ -59,7 +61,7 @@ export async function reviewResult(
   for (const group of groups) {
     if (signal?.aborted) break;
     outcomes.push(
-      await reviewGroup(path.join(resultDirectory, "groups", group.id), group.id, {
+      await reviewGroup(path.join(resultDirectory, "groups", group.id), group, {
         root,
         model,
         thinking,
@@ -84,18 +86,24 @@ function selectGroups(summary, selector) {
   return selected;
 }
 
-async function reviewGroup(groupDirectory, id, { root, model, thinking, extensions, settings, swap, limits, signal }) {
+async function reviewGroup(
+  groupDirectory,
+  group,
+  { root, model, thinking, extensions, settings, swap, limits, signal },
+) {
+  const { id } = group;
   const definition = JSON.parse(await readFile(path.join(groupDirectory, "definition.json"), "utf8"));
   const questions = Array.isArray(definition.review_questions) ? definition.review_questions : [];
   if (questions.length === 0) return { id, state: "skipped", reason: "no review questions" };
+  const arms = storedArms(group, definition);
   const runs = {};
-  for (const variant of ["baseline", "candidate"]) {
+  for (const variant of arms) {
     runs[variant] = JSON.parse(await readFile(path.join(groupDirectory, variant, "run.json"), "utf8"));
     if (runs[variant].state !== "complete")
       return { id, state: "skipped", reason: `${variant} run is ${runs[variant].state}` };
   }
 
-  const neutral = neutralizer(groupDirectory, runs, root);
+  const neutral = neutralizer(groupDirectory, runs, arms, root);
   // Counts every cut the judge's view takes: a truncated text or an omitted task file.
   const cut = {
     count: 0,
@@ -109,10 +117,11 @@ async function reviewGroup(groupDirectory, id, { root, model, thinking, extensio
   };
   const evidence = {
     materials: await taskMaterials(path.join(groupDirectory, "resources", "fixture"), limits, cut),
-    baseline: await runEvidence(runs.baseline, neutral, limits, cut),
-    candidate: await runEvidence(runs.candidate, neutral, limits, cut),
+    runs: {},
   };
-  const labels = randomInt(2) === 0 ? { A: "baseline", B: "candidate" } : { A: "candidate", B: "baseline" };
+  for (const arm of arms) evidence.runs[arm] = await runEvidence(runs[arm], neutral, limits, cut);
+  const order = shuffle(arms);
+  const labels = labelled(order);
   const first = await runJudge(groupDirectory, "review", definition, questions, labels, evidence, {
     model,
     thinking,
@@ -122,7 +131,7 @@ async function reviewGroup(groupDirectory, id, { root, model, thinking, extensio
   });
   let second = null;
   if (swap && first.errors.length === 0 && !signal?.aborted) {
-    const swapped = { A: labels.B, B: labels.A };
+    const swapped = labelled([...order].reverse());
     second = await runJudge(groupDirectory, "review-swap", definition, questions, swapped, evidence, {
       model,
       thinking,
@@ -135,7 +144,7 @@ async function reviewGroup(groupDirectory, id, { root, model, thinking, extensio
   const errors = [...first.errors, ...(second?.errors ?? [])];
   const state = errors.length === 0 ? "complete" : "review-error";
   const provider = model.includes("/") ? model.split("/")[0] : null;
-  const subjectProviders = [...new Set(["baseline", "candidate"].map((variant) => subjectProvider(runs[variant])))];
+  const subjectProviders = [...new Set(arms.map((variant) => subjectProvider(runs[variant])))];
   const contractGaps = [];
   if (second === null) contractGaps.push("order not swapped");
   if (cut.count > 0) contractGaps.push("materials truncated");
@@ -163,7 +172,10 @@ async function reviewGroup(groupDirectory, id, { root, model, thinking, extensio
             labels: second.labels,
             prompt: { file: "review-swap/prompt.md", sha256: second.promptSha256 },
             answers: errors.length === 0 ? second.answers : [],
-            agreement: errors.length === 0 ? agreement(first.answers, second.answers) : null,
+            agreement:
+              errors.length === 0
+                ? agreement(first.answers, second.answers, arms, !isClassicPair(arms, referenceArm(definition)))
+                : null,
           },
         }),
     contractGaps,
@@ -257,14 +269,43 @@ function familyRelation(judgeProvider, subjectProviders) {
   return subjectProviders.includes(judgeProvider) ? "same" : "different";
 }
 
-/** Questions on which both orders gave the same answer for each run. */
-function agreement(first, second) {
+/**
+ * Questions on which both orders gave the same answer for every run. With `byArm`, also each arm's count of
+ * questions on which its own answer held in both orders.
+ */
+function agreement(first, second, arms, byArm) {
   let agreed = 0;
+  const perArm = Object.fromEntries(arms.map((arm) => [arm, { agreed: 0, questions: first.length }]));
   for (const answer of first) {
     const other = second.find((entry) => entry.question === answer.question);
-    if (other && other.baseline === answer.baseline && other.candidate === answer.candidate) agreed += 1;
+    const held = arms.filter((arm) => other !== undefined && other[arm] === answer[arm]);
+    for (const arm of held) perArm[arm].agreed += 1;
+    if (held.length === arms.length) agreed += 1;
   }
-  return { agreed, questions: first.length };
+  return byArm ? { agreed, questions: first.length, arms: perArm } : { agreed, questions: first.length };
+}
+
+/** A uniformly random order of the arms. */
+function shuffle(arms) {
+  const order = [...arms];
+  for (let index = order.length - 1; index > 0; index -= 1) {
+    const other = randomInt(index + 1);
+    [order[index], order[other]] = [order[other], order[index]];
+  }
+  return order;
+}
+
+/** Labels A, B, C, ... (then AA, AB, ...) for runs in the given order. */
+function labelled(order) {
+  return Object.fromEntries(order.map((arm, index) => [labelFor(index), arm]));
+}
+
+function labelFor(index) {
+  let label = "";
+  for (let rest = index + 1; rest > 0; rest = Math.floor((rest - 1) / 26)) {
+    label = String.fromCharCode(65 + ((rest - 1) % 26)) + label;
+  }
+  return label;
 }
 
 /**
@@ -272,9 +313,9 @@ function agreement(first, second) {
  * tokens, so neither absolute paths nor the arm names inside them reach the judge. A subject can name paths
  * outside its sandbox (a blocked read, for example), so the outer roots are replaced too.
  */
-function neutralizer(groupDirectory, runs, root) {
+function neutralizer(groupDirectory, runs, arms, root) {
   const replacements = [];
-  for (const variant of ["baseline", "candidate"]) {
+  for (const variant of arms) {
     if (typeof runs[variant].workspace === "string") replacements.push([runs[variant].workspace, "<workspace>"]);
     replacements.push([path.join(groupDirectory, variant), "<run>"]);
   }
@@ -339,12 +380,20 @@ async function runEvidence(run, neutral, limits, cut) {
   return lines;
 }
 
+const COUNTS = ["two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+
 function reviewPrompt(definition, questions, evidence, labels) {
   const task =
     typeof definition.input?.prompt === "string" ? [definition.input.prompt] : (definition.input?.turns ?? []);
+  const names = Object.keys(labels);
+  const runList = names.map((label) => `Run ${label}`);
+  const listed = `${runList.slice(0, -1).join(", ")} and ${runList.at(-1)}`;
+  const count = COUNTS[names.length - 2] ?? String(names.length);
+  // Two runs keep the original wording; more runs are "every run".
+  const each = names.length === 2 ? "both runs" : "every run";
   const lines = [
-    "You are reviewing two anonymous runs, Run A and Run B, of the same agent task.",
-    "Judge only the evidence below. Answer every question for both runs with yes, no, or unclear.",
+    `You are reviewing ${count} anonymous runs, ${listed}, of the same agent task.`,
+    `Judge only the evidence below. Answer every question for ${each} with yes, no, or unclear.`,
     "",
     "Task turns:",
     ...task.map((turn, index) => `${index + 1}. ${turn}`),
@@ -352,12 +401,15 @@ function reviewPrompt(definition, questions, evidence, labels) {
     "Questions:",
     ...questions.map((question, index) => `${index + 1}. ${question}`),
   ];
-  if (evidence.materials.length > 0)
-    lines.push("", "## Task materials (the same for both runs)", ...evidence.materials);
-  for (const label of ["A", "B"]) lines.push("", `## Run ${label}`, ...evidence[labels[label]]);
+  if (evidence.materials.length > 0) lines.push("", `## Task materials (the same for ${each})`, ...evidence.materials);
+  for (const label of names) lines.push("", `## Run ${label}`, ...evidence.runs[labels[label]]);
   // One example entry per question: a single-entry example is sometimes copied literally, answering only question 1.
   const shape = questions.map((_, index) =>
-    JSON.stringify({ question: index + 1, A: "yes|no|unclear", B: "yes|no|unclear", rationale: "one sentence" }),
+    JSON.stringify({
+      question: index + 1,
+      ...Object.fromEntries(names.map((label) => [label, "yes|no|unclear"])),
+      rationale: "one sentence",
+    }),
   );
   lines.push(
     "",
@@ -406,17 +458,18 @@ function parseAnswers(response, questions, labels, errors) {
     errors.push(`reviewer must answer exactly ${questions.length} question(s)`);
     return [];
   }
+  // Every question needs one answer for every label; each answer is mapped back to its arm.
+  const names = Object.keys(labels);
   const mapped = [];
   for (const [index, question] of questions.entries()) {
     const answer = answers.find((entry) => entry?.question === index + 1);
-    if (!answer || !ANSWERS.has(answer.A) || !ANSWERS.has(answer.B) || typeof answer.rationale !== "string") {
+    if (!answer || !names.every((label) => ANSWERS.has(answer[label])) || typeof answer.rationale !== "string") {
       errors.push(`reviewer answer for question ${index + 1} is missing or invalid`);
       continue;
     }
     mapped.push({
       question,
-      [labels.A]: answer.A,
-      [labels.B]: answer.B,
+      ...Object.fromEntries(names.map((label) => [labels[label], answer[label]])),
       rationale: answer.rationale,
     });
   }

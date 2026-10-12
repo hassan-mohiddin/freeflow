@@ -2,15 +2,21 @@ import { createHash } from "node:crypto";
 import { lstat, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 
-export const VARIANTS = ["baseline", "candidate"];
+import { armNames } from "./arms.mjs";
+
 export const RESPONSE_EXPECTATIONS = new Set(["contains", "not-contains", "equals"]);
 
 export function hasOwn(value, key) {
   return Object.getOwnPropertyDescriptor(value, key) !== undefined;
 }
 
+/** Whether an expectation's `variant` names one of the group's arms. */
+export function isArm(group, name) {
+  return typeof name === "string" && armNames(group).includes(name);
+}
+
 export function validBodyExpectation(group, expectation, turn) {
-  return group.type === "body" && VARIANTS.includes(expectation.variant) && validTurn(group, turn);
+  return group.type === "body" && isArm(group, expectation.variant) && validTurn(group, turn);
 }
 
 export function validTurn(group, turn) {

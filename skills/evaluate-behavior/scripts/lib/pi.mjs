@@ -18,6 +18,7 @@ import {
   writeStream,
 } from "./process.mjs";
 import { writeFreeflowSettings } from "./freeflow.mjs";
+import { runMetrics } from "./hooks.mjs";
 import { prepareIsolation } from "./isolation.mjs";
 import { effectivePiSettings } from "./pi-host.mjs";
 import { runRpcBodySession, runRpcDescriptionSession } from "./rpc.mjs";
@@ -186,7 +187,7 @@ function bodyRun(options, subject, observation, input, effects) {
 }
 
 function subjectRun({ group, variant }, subject, observation) {
-  return {
+  const run = {
     schema_version: 1,
     variant,
     state: subjectRunState(observation),
@@ -229,6 +230,10 @@ function subjectRun({ group, variant }, subject, observation) {
       stderr: subject.stderrFile,
     },
   };
+  // Run-metrics hooks derive their fields from what this run already recorded.
+  const metrics = runMetrics({ group, arm: variant, subject, observation, run });
+  if (metrics !== null) run.metrics = metrics;
+  return run;
 }
 
 async function runOneShotDescription(options) {

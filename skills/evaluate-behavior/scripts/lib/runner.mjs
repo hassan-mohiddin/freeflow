@@ -1,17 +1,18 @@
 import { mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 
+import { armNames } from "./arms.mjs";
 import { COMMAND_TOOL, loadDefinition, selectDefinition } from "./definitions.mjs";
 import { createInvocationId, fileIdentity, writeJson, writeText } from "./evidence.mjs";
 import { gradeDeterministic } from "./grade.mjs";
 import { prepareFreeflow } from "./freeflow.mjs";
+import { postRunRecords } from "./hooks.mjs";
 import { identityRefusal, inputIdentity, installedHostVersion } from "./identity.mjs";
 import { removeCopiedCredentials, TARGET_MINUTES } from "./isolation.mjs";
 import { ensureLogin, resolveHostExtensions } from "./pi-host.mjs";
 import { baseProcessEnvironment, runBody, runDescription, VariantSetupError } from "./pi.mjs";
 import { prepareFixture, prepareRuntime, verifyDescriptionOnlyRevision } from "./sandbox.mjs";
 
-const VARIANTS = ["baseline", "candidate"];
 const DESCRIPTION_TOOLS = new Set(["read"]);
 const BODY_TOOLS = new Set(["read", "write", "edit", "ls", "find", "grep"]);
 // Native tools must be separated from extension tools before CLI tool selection is built.
@@ -142,7 +143,7 @@ function workingTreeInputs(selection, definitionPath, root) {
 async function resolveSelectedExtensions(selection) {
   const resolved = new Map();
   for (const { group, variants } of selection.groups) {
-    const arms = { baseline: [], candidate: [] };
+    const arms = Object.fromEntries(armNames(group).map((arm) => [arm, []]));
     for (const [arm, state] of Object.entries(variants)) {
       if (state === "selected") arms[arm] = await resolveHostExtensions(group.variants[arm].hostExtensions ?? []);
     }
@@ -220,23 +221,16 @@ export function budgetEvidence(budget) {
   return { maxCost: budget.maxCost, spent: Number(budget.spent.toFixed(10)), exhausted: budget.exhausted };
 }
 
-async function runGroup({
-  selected,
-  root,
-  resultDirectory,
-  signal,
-  charge,
-  sourceCommit = null,
-  hostExtensions = { baseline: [], candidate: [] },
-}) {
+async function runGroup({ selected, root, resultDirectory, signal, charge, sourceCommit = null, hostExtensions = {} }) {
   const { group } = selected;
+  const arms = armNames(group);
   const groupDirectory = path.join(resultDirectory, "groups", group.id);
   await mkdir(groupDirectory, { recursive: true });
   await writeJson(path.join(groupDirectory, "definition.json"), group);
 
   let fixture = null;
   let runtime = null;
-  let freeflow = { baseline: null, candidate: null };
+  let freeflow = Object.fromEntries(arms.map((arm) => [arm, null]));
   let resourceError = null;
   if (!signal?.aborted) {
     try {
@@ -261,7 +255,7 @@ async function runGroup({
 
   const runs = {};
   const runFiles = {};
-  for (const variant of VARIANTS) {
+  for (const variant of arms) {
     const variantDirectory = path.join(groupDirectory, variant);
     await mkdir(variantDirectory, { recursive: true });
     if (selected.variants[variant] === "not-selected") {
@@ -277,13 +271,23 @@ async function runGroup({
         fixture,
         runtime,
         freeflow: freeflow[variant],
-        hostExtensions: hostExtensions[variant],
+        hostExtensions: hostExtensions[variant] ?? [],
         signal,
       });
       charge(runs[variant]);
       if (sourceCommit !== null && runs[variant].resources?.source?.kind === "working-tree") {
         runs[variant].resources.source.commit = sourceCommit;
       }
+      // Post-run hooks see the finished run before it is persisted; their records land in run.json.
+      const records = await postRunRecords({
+        group,
+        arm: variant,
+        run: runs[variant],
+        root,
+        directory: variantDirectory,
+        signal,
+      });
+      if (records !== null) runs[variant].postRun = records;
     } else {
       runs[variant] = invalidRun(group, variant, resourceError);
     }
@@ -292,15 +296,13 @@ async function runGroup({
     runFiles[variant] = persisted.file;
   }
 
-  const evidence = {
-    baseline: await runFileIdentity(runFiles.baseline),
-    candidate: await runFileIdentity(runFiles.candidate),
-  };
+  const evidence = {};
+  for (const arm of arms) evidence[arm] = await runFileIdentity(runFiles[arm]);
   const grade = await createGrade(group, runs, evidence);
   const persistedGrade = await persistGrade(groupDirectory, grade);
-  const selectedRuns = VARIANTS.filter((variant) => selected.variants[variant] === "selected").map(
-    (variant) => runs[variant],
-  );
+  const selectedRuns = arms
+    .filter((variant) => selected.variants[variant] === "selected")
+    .map((variant) => runs[variant]);
   const selectedState = selectedGroupState(selectedRuns, persistedGrade.grade);
   let groupState = selectedState;
   if (selectedState !== "cancelled" && resourceError !== null) groupState = "invalid";
@@ -308,7 +310,7 @@ async function runGroup({
     id: group.id,
     position: selected.position,
     state: groupState,
-    variants: Object.fromEntries(VARIANTS.map((variant) => [variant, runs[variant].state])),
+    variants: Object.fromEntries(arms.map((variant) => [variant, runs[variant].state])),
     grade: persistedGrade.grade.state,
     artifacts: { grade: persistedGrade.artifact, group: "group.json" },
     errors: persistedGrade.errors,

@@ -28,11 +28,11 @@ function printUsage() {
 Commands:
   run     Execute selected evaluation groups
   view    Render selected stored evidence or a trial aggregate
-  review  Record an advisory, variant-blind model answer to each group's review questions
+  review  Record an advisory, arm-blind model answer to each group's review questions
 
 Selectors:
   --group <id-or-position>
-  --variant <baseline|candidate>        (run, view)
+  --variant <baseline|candidate>        (run, view) or any other arm the selected groups declare
 
 Run options:
   --trials <n>        Run n independent complete invocations and record an aggregate
@@ -44,7 +44,7 @@ Review options:
   --model <provider/model>   Required reviewer model
   --thinking <level>         Optional reviewer thinking level
   --configuration <file>     A schema 2 configuration file for the reviewer: its model, host extensions and settings
-  --swap                     Review again with Run A and Run B swapped, and record agreement
+  --swap                     Review again with the run labels in reverse order, and record agreement
   --limit <name>=<chars>     Show the reviewer more or less: response, argument, file or materials (repeatable;
                              defaults 8000, 300, 20000, 60000). Anything cut is recorded as a contract gap.
 
@@ -55,7 +55,7 @@ Paths:
   view accepts a stored result or aggregate ID or an explicit directory.
 
 Selection:
-  No selectors choose every suite group and both variants.
+  No selectors choose every suite group and every arm.
   --group is invalid for a direct group definition or result.
 
 Current run support:

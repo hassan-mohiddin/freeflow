@@ -1,9 +1,10 @@
 import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 
+import { ARM_NAME, armNames, DEFAULT_REFERENCE } from "./arms.mjs";
+
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const EVALUATION_TYPES = new Set(["description", "body"]);
-const VARIANTS = ["baseline", "candidate"];
 const EVALUATION_HOSTS = new Set(["pi"]);
 const PROMPT_MODES = new Set(["isolated", "host"]);
 export const COMMAND_TOOL = "run_command";
@@ -327,8 +328,9 @@ function validateModel(value, label, definitionPath) {
   if (Object.hasOwn(model, "thinking")) requireString(model.thinking, `${label}.thinking`, definitionPath);
 }
 
-// Schema 2: a group is a task plus a configuration. Each arm overlays the shared configuration, and
-// `component` names the only paths where the two effective configurations may differ.
+// Schema 2: a group is a task plus a configuration. Each of two or more named arms overlays the shared
+// configuration, and `component` names the only paths where an arm's effective configuration may differ from the
+// reference arm's.
 const SCHEMA_1_MESSAGE =
   "schema 1 definitions are no longer supported; rewrite it as schema 2 (see the evaluation definition schema reference)";
 const CONFIGURATION_FIELDS = ["host", "model", "subject", "freeflow", "runtime"];
@@ -506,10 +508,10 @@ async function resolveArms(group, definitionPath, root) {
   const base = reference === null ? {} : await readConfigurationFile(reference, definitionPath, root);
   const shared = merge(base, fields);
 
-  const arms = requireExactKeys(group.arms, VARIANTS, [], "group.arms", definitionPath);
+  const { names, reference: referenceName } = validateArmNames(group, definitionPath);
   const resolved = {};
-  for (const arm of VARIANTS) {
-    const overlay = requireObject(arms[arm], `group.arms.${arm}`, definitionPath);
+  for (const arm of names) {
+    const overlay = requireObject(group.arms[arm], `group.arms.${arm}`, definitionPath);
     for (const key of Object.keys(overlay)) {
       if (!CONFIGURATION_FIELDS.includes(key)) {
         fail("invalid-definition", `group.arms.${arm} contains unsupported field ${key}`, definitionPath);
@@ -524,31 +526,63 @@ async function resolveArms(group, definitionPath, root) {
       fail("invalid-definition", `group.component[${index}] must be a path inside the configuration`, definitionPath);
     }
   }
-  const differing = differences(resolved.baseline.configuration, resolved.candidate.configuration);
+  // Every arm is compared with the reference, so arms that each match it on a path also match each other there.
   const declares = (entry, difference) => difference === entry || difference.startsWith(`${entry}.`);
-  for (const difference of differing) {
-    if (SHARED_ONLY.some((entry) => difference === entry || difference.startsWith(`${entry}.`))) {
-      fail("unsupported-difference", `the arms differ in ${difference}, which both arms must share`, definitionPath);
-    }
-    if (!component.some((entry) => declares(entry, difference))) {
-      fail(
-        "undeclared-difference",
-        `the arms differ in ${difference}, which group.component does not declare`,
-        definitionPath,
-      );
+  const where = (arm) => (names.length === 2 ? "the arms differ" : `arm ${arm} differs from ${referenceName}`);
+  const differing = new Set();
+  for (const arm of names.slice(1)) {
+    for (const difference of differences(resolved[referenceName].configuration, resolved[arm].configuration)) {
+      if (SHARED_ONLY.some((entry) => declares(entry, difference))) {
+        const shared = names.length === 2 ? "both arms" : "every arm";
+        fail("unsupported-difference", `${where(arm)} in ${difference}, which ${shared} must share`, definitionPath);
+      }
+      if (!component.some((entry) => declares(entry, difference))) {
+        fail(
+          "undeclared-difference",
+          `${where(arm)} in ${difference}, which group.component does not declare`,
+          definitionPath,
+        );
+      }
+      differing.add(difference);
     }
   }
   for (const entry of component) {
-    if (!differing.some((difference) => declares(entry, difference))) {
+    if (![...differing].some((difference) => declares(entry, difference))) {
       fail(
         "undeclared-difference",
-        `group.component declares ${entry}, but the arms do not differ there`,
+        `group.component declares ${entry}, but ${names.length === 2 ? "the arms do not differ" : `no arm differs from ${referenceName}`} there`,
         definitionPath,
       );
     }
   }
   const extendsFile = reference === null ? null : path.resolve(path.dirname(definitionPath), reference);
-  return { resolved, component, extendsFile };
+  return { resolved, names, reference: referenceName, component, extendsFile };
+}
+
+/** The declared arm names, reference first and then in declaration order, and the reference arm. */
+function validateArmNames(group, definitionPath) {
+  const declared = Object.keys(requireObject(group.arms, "group.arms", definitionPath));
+  if (declared.length < 2) fail("invalid-definition", "group.arms must declare at least two arms", definitionPath);
+  for (const name of declared) {
+    if (!ARM_NAME.test(name)) {
+      fail(
+        "invalid-definition",
+        `group.arms.${name} must be named with a lowercase letter, then up to 31 lowercase letters, numbers or hyphens`,
+        definitionPath,
+      );
+    }
+  }
+  const reference = Object.hasOwn(group, "reference") ? group.reference : DEFAULT_REFERENCE;
+  if (typeof reference !== "string" || !declared.includes(reference)) {
+    fail(
+      "invalid-definition",
+      Object.hasOwn(group, "reference")
+        ? `group.reference must name one of group.arms: ${declared.join(", ")}`
+        : `group.arms must include ${DEFAULT_REFERENCE}, or group.reference must name the arm the others are compared with`,
+      definitionPath,
+    );
+  }
+  return { names: [reference, ...declared.filter((name) => name !== reference)], reference };
 }
 
 async function validateGroup(value, definitionPath, root) {
@@ -569,7 +603,7 @@ async function validateGroup(value, definitionPath, root) {
       "expectations",
       "review_questions",
     ],
-    ["commands", "revision"],
+    ["commands", "revision", "reference"],
     "group",
     definitionPath,
   );
@@ -583,17 +617,17 @@ async function validateGroup(value, definitionPath, root) {
   if (group.fixture !== null) requireSafeRelativePath(group.fixture, "group.fixture", definitionPath);
   requireStringArray(group.tools, "group.tools", definitionPath, { unique: true });
   validateCommands(group, definitionPath);
-  const { resolved, component, extendsFile } = await resolveArms(group, definitionPath, root);
-  const variants = {
-    baseline: { ...resolved.baseline.environment },
-    candidate: { ...resolved.candidate.environment },
-  };
-  if (variants.candidate.target === null && variants.candidate.skills.length > 0) {
-    fail(
-      "invalid-definition",
-      "group.arms.candidate.subject.target must identify the candidate target skill when candidate skills are declared",
-      definitionPath,
-    );
+  const { resolved, names, reference, component, extendsFile } = await resolveArms(group, definitionPath, root);
+  // Arms are kept reference first, so every reader lists them in the same order.
+  const variants = Object.fromEntries(names.map((arm) => [arm, { ...resolved[arm].environment }]));
+  for (const arm of names.slice(1)) {
+    if (variants[arm].target === null && variants[arm].skills.length > 0) {
+      fail(
+        "invalid-definition",
+        `group.arms.${arm}.subject.target must identify the ${arm} target skill when ${arm} skills are declared`,
+        definitionPath,
+      );
+    }
   }
   validateExpectations(group.expectations, definitionPath);
   requireStringArray(group.review_questions, "group.review_questions", definitionPath);
@@ -601,12 +635,15 @@ async function validateGroup(value, definitionPath, root) {
     if (group.revision !== "description-only") {
       fail("invalid-definition", "group.revision must be description-only when declared", definitionPath);
     }
-    if (group.type !== "description" || variants.baseline.target === null || variants.candidate.target === null) {
+    if (group.type !== "description" || names.some((arm) => variants[arm].target === null)) {
       fail(
         "invalid-definition",
         "a description-only revision needs a description group with a target skill in both arms",
         definitionPath,
       );
+    }
+    if (names.length !== 2) {
+      fail("invalid-definition", "a description-only revision compares exactly two arms", definitionPath);
     }
   }
   if (group.expectations.length === 0 && group.review_questions.length === 0) {
@@ -619,7 +656,7 @@ async function validateGroup(value, definitionPath, root) {
 
   // The runner works on the resolved arms: each variant carries its subject and model, and the shared
   // runtime (which may not differ between arms) is the group's.
-  for (const arm of VARIANTS) {
+  for (const arm of names) {
     if (resolved[arm].configuration.model !== undefined) variants[arm].model = resolved[arm].configuration.model;
     if (resolved[arm].freeflow !== undefined) variants[arm].freeflow = resolved[arm].freeflow;
     variants[arm].hostExtensions = resolved[arm].configuration.host.extensions ?? [];
@@ -627,16 +664,17 @@ async function validateGroup(value, definitionPath, root) {
   }
   const internal = {
     ...group,
-    configurations: { baseline: resolved.baseline.configuration, candidate: resolved.candidate.configuration },
+    configurations: Object.fromEntries(names.map((arm) => [arm, resolved[arm].configuration])),
     // The files this group was read from, so a run can check they are committed.
     files: [definitionPath, ...(extendsFile === null ? [] : [extendsFile])],
     component,
     variants,
   };
-  if (JSON.stringify(variants.baseline.model) === JSON.stringify(variants.candidate.model) && variants.baseline.model) {
-    internal.model = variants.baseline.model;
+  const referenceModel = variants[reference].model;
+  if (referenceModel && names.every((arm) => JSON.stringify(variants[arm].model) === JSON.stringify(referenceModel))) {
+    internal.model = referenceModel;
   }
-  if (resolved.baseline.runtime !== undefined) internal.runtime = resolved.baseline.runtime;
+  if (resolved[reference].runtime !== undefined) internal.runtime = resolved[reference].runtime;
   return internal;
 }
 
@@ -752,16 +790,15 @@ export async function loadDefinition(file, { root = process.cwd() } = {}) {
   return { ...suite, groups };
 }
 
-function variantSelection(selected) {
-  return {
-    baseline: selected === null || selected === "baseline" ? "selected" : "not-selected",
-    candidate: selected === null || selected === "candidate" ? "selected" : "not-selected",
-  };
+function variantSelection(group, selected) {
+  return Object.fromEntries(
+    armNames(group).map((arm) => [arm, selected === null || selected === arm ? "selected" : "not-selected"]),
+  );
 }
 
 export function selectDefinition(definition, { group = null, variant = null } = {}) {
-  if (variant !== null && !VARIANTS.includes(variant)) {
-    fail("invalid-selector", "variant must be baseline or candidate", null);
+  if (variant !== null && (typeof variant !== "string" || !ARM_NAME.test(variant))) {
+    fail("invalid-selector", "variant must be an arm name, such as baseline or candidate", null);
   }
   if (definition.kind === "group" && group !== null) {
     fail("invalid-selector", "--group cannot be used with a direct group definition", null);
@@ -775,6 +812,12 @@ export function selectDefinition(definition, { group = null, variant = null } = 
       position === null ? available.filter((entry) => entry.id === group) : [available[position - 1]].filter(Boolean);
     if (selected.length === 0) fail("unknown-group", `Unknown group selector: ${group}`, null);
   }
+  // A selected arm applies across the selected groups, so each of them must have it.
+  for (const entry of selected) {
+    if (variant !== null && !armNames(entry).includes(variant)) {
+      fail("invalid-selector", `variant ${variant} is not an arm of group ${entry.id}`, null);
+    }
+  }
 
   return {
     kind: "selection",
@@ -783,7 +826,7 @@ export function selectDefinition(definition, { group = null, variant = null } = 
     groups: selected.map((entry) => ({
       position: available.indexOf(entry) + 1,
       group: entry,
-      variants: variantSelection(variant),
+      variants: variantSelection(entry, variant),
     })),
   };
 }
