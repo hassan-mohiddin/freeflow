@@ -1,7 +1,9 @@
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 
 import { comparisonArms, referenceArm, storedArms } from "./arms.mjs";
+import { decide, decisionClaim, undecidedCases } from "./decision.mjs";
+import { loadDefinition, selectDefinition } from "./definitions.mjs";
 import { createInvocationId, writeJson } from "./evidence.mjs";
 import { aggregateSections, hasAggregators } from "./hooks.mjs";
 import { budgetEvidence, runEvaluation } from "./runner.mjs";
@@ -12,22 +14,66 @@ const CHECK_STATES = ["pass", "fail", "unavailable"];
  * Runs the selection as independent complete invocations and records an aggregate beside them.
  * Each trial remains an ordinary result; the aggregate only counts their deterministic grades.
  *
+ * When the suite declares a `decision`, the aggregate records it and its claim is the decision's verdict. When
+ * the decision also declares `trials`, that schedule sets the trial count: `trials.initial` complete invocations,
+ * then rounds in which each case whose sign is not yet stable runs up to `trials.step` more trials, that group
+ * alone, until `trials.max`. A `trials` option that differs from `trials.initial` is refused.
+ *
  * @param {string} definitionFile
  * @param {any} selectors
- * @param {{root?: string, signal?: AbortSignal, trials: number, maxCost: number | null, onTrial?: (result: any) => void}} options
+ * @param {{root?: string, signal?: AbortSignal, trials?: number | null, maxCost: number | null, onTrial?: (result: any) => void, dryRun?: boolean, evaluate?: typeof runEvaluation}} options
  */
 export async function runTrials(
   definitionFile,
   selectors,
-  { root = process.cwd(), signal, trials, maxCost, onTrial, dryRun = false },
+  { root = process.cwd(), signal, trials = null, maxCost, onTrial, dryRun = false, evaluate = runEvaluation },
 ) {
-  const budget = maxCost === null ? null : { maxCost, spent: 0, exhausted: false };
+  const rule = await suiteDecision(definitionFile, selectors, root);
+  const schedule = rule?.trials ?? null;
+  if (schedule !== null && trials !== null && trials !== schedule.initial) {
+    throw new Error(
+      `the suite's decision schedules ${schedule.initial} initial trials; omit --trials or set it to ${schedule.initial}`,
+    );
+  }
+  const initial = schedule?.initial ?? trials;
+  if (!Number.isInteger(initial) || initial < 1) throw new Error("trials must be a positive integer");
+
+  const budget = maxCost === null || maxCost === undefined ? null : { maxCost, spent: 0, exhausted: false };
+  const stopped = () => signal?.aborted || budget?.exhausted;
   const results = [];
-  for (let trial = 0; trial < trials; trial += 1) {
-    if (signal?.aborted || budget?.exhausted) break;
-    const result = await runEvaluation(definitionFile, selectors, { root, signal, budget, dryRun });
+  const entries = [];
+  const run = async (runSelectors, entry) => {
+    const result = await evaluate(definitionFile, runSelectors, { root, signal, budget, dryRun });
     results.push(result);
+    entries.push({ id: result.id, state: result.state, ...entry });
     onTrial?.(result);
+  };
+  for (let trial = 0; trial < initial; trial += 1) {
+    if (stopped()) break;
+    await run(selectors, {});
+  }
+  let planned = initial;
+  let groups = await aggregateGroups(results);
+
+  // Adaptive trials: only the declared schedule adds trials, and only to cases whose sign could still change.
+  const rounds = [];
+  const maxRounds = schedule === null ? 0 : Math.ceil((schedule.max - schedule.initial) / schedule.step);
+  while (rounds.length < maxRounds && results.length === planned && !stopped()) {
+    const undecided = undecidedCases(rule, groups);
+    if (undecided.length === 0) break;
+    const round = { round: rounds.length + 1, groups: undecided.map(({ id }) => id), trials: 0 };
+    rounds.push(round);
+    const extra = undecided.map(({ id, trials: done }) => ({ id, add: Math.min(schedule.step, schedule.max - done) }));
+    planned += extra.reduce((sum, { add }) => sum + add, 0);
+    // Interleaved by step, so a budget that runs out leaves the cases evenly extended.
+    for (let step = 0; step < schedule.step; step += 1) {
+      for (const { id, add } of extra) {
+        if (step >= add || stopped()) continue;
+        await run({ ...selectors, group: id }, { round: round.round, group: id });
+        round.trials += 1;
+      }
+    }
+    groups = await aggregateGroups(results);
   }
 
   const id = createInvocationId();
@@ -37,30 +83,83 @@ export async function runTrials(
     schema_version: 1,
     kind: "aggregate",
     id,
-    state: aggregateState(results, trials),
-    requestedTrials: trials,
-    trials: results.map((result) => ({ id: result.id, state: result.state })),
-    groups: await aggregateGroups(results),
+    state: aggregateState(results, planned),
+    requestedTrials: planned,
+    trials: entries,
+    groups,
     dryRun,
-    claim: claimFor(results, trials, dryRun),
+    claim: null,
     completedAt: new Date().toISOString(),
   };
+  if (schedule !== null) aggregate.schedule = { ...schedule, rounds };
+  if (rule !== null) aggregate.decision = decide(rule, groups);
+  aggregate.claim = claimFor(results, initial, dryRun, aggregate.decision);
   if (budget !== null) aggregate.budget = budgetEvidence(budget);
   await writeJson(path.join(directory, "aggregate.json"), aggregate);
   return { id, path: directory, state: aggregate.state, aggregate };
 }
 
 /**
- * The strongest claim the aggregate supports. Counts over complete trials support a rate on this suite;
- * a "beats" claim needs a decision rule and size declared by the suite, which no definition declares yet.
+ * Rereads every trial an aggregate lists and rewrites its aggregate.json: groups, aggregator sections, decision
+ * and claim. Everything else (its ID, trials, schedule, budget, times) is kept, so rebuilding an unchanged
+ * aggregate reproduces it exactly. A trial whose summary cannot be read is refused rather than dropped.
+ *
+ * @param {string} aggregatePath the aggregate's directory or its aggregate.json
+ * @param {{root?: string}} [options]
  */
-function claimFor(results, requested, dryRun) {
+export async function rebuildAggregate(aggregatePath, { root = process.cwd() } = {}) {
+  const file = aggregatePath.endsWith(".json") ? aggregatePath : path.join(aggregatePath, "aggregate.json");
+  const aggregate = await readJson(file);
+  if (aggregate === null || aggregate.kind !== "aggregate" || !Array.isArray(aggregate.trials)) {
+    throw new Error(`not a readable aggregate: ${file}`);
+  }
+  const results = [];
+  for (const trial of aggregate.trials) {
+    const directory = path.join(root, ".skill-eval", "runs", trial.id);
+    const summary = await readJson(path.join(directory, "summary.json"));
+    if (summary === null) throw new Error(`trial ${trial.id} has no readable summary.json`);
+    results.push({ id: trial.id, path: directory, state: summary.state, summary });
+  }
+  const groups = await aggregateGroups(results);
+  const rebuilt = { ...aggregate, groups };
+  if (aggregate.decision !== undefined) rebuilt.decision = decide(aggregate.decision.rule, groups);
+  const k = aggregate.schedule?.initial ?? aggregate.requestedTrials;
+  rebuilt.claim = claimFor(results, k, aggregate.dryRun === true, rebuilt.decision);
+  await writeJson(file, rebuilt);
+  return rebuilt;
+}
+
+/** The suite's validated decision rule, or null. A decision run must select both of its arms in every group. */
+async function suiteDecision(definitionFile, selectors, root) {
+  const definitionPath = await realpath(path.resolve(root, definitionFile));
+  const definition = await loadDefinition(definitionPath, { root });
+  const rule = definition.kind === "suite" ? (definition.decision ?? null) : null;
+  if (rule === null) return null;
+  if (selectors?.variant !== null && selectors?.variant !== undefined) {
+    throw new Error("the suite's decision compares two arms; --variant would run only one");
+  }
+  for (const { group } of selectDefinition(definition, selectors).groups) {
+    const missing = rule.arms.filter((arm) => !Object.hasOwn(group.variants ?? {}, arm));
+    if (missing.length > 0) throw new Error(`decision arm ${missing.join(", ")} is not an arm of group ${group.id}`);
+  }
+  return rule;
+}
+
+/**
+ * The strongest claim the aggregate supports. Without a decision rule, counts over complete trials support a rate
+ * on this suite. With one, the claim is the rule's verdict ("beats", "worse" or "no-difference-shown") with its
+ * split, p and rule hash. A dry run read inputs no commit identifies, so it supports no claim either way.
+ */
+function claimFor(results, k, dryRun, decision) {
   const complete = results.filter((result) => result.state === "complete").length;
-  // A dry run read inputs no commit identifies, so its counts support no claim.
+  if (decision !== undefined) {
+    const reason = dryRun ? "dry run" : complete === 0 ? "no complete trial" : null;
+    return decisionClaim(decision, { k, supported: reason === null, reason });
+  }
   return {
     class: complete > 0 && !dryRun ? "rate-on-suite" : "none",
     ...(dryRun ? { reason: "dry run" } : {}),
-    k: requested,
+    k,
     beats: "not supported: the suite declares no decision rule",
   };
 }

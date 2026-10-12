@@ -2,6 +2,7 @@ import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { ARM_NAME, comparisonArms, storedArms } from "./arms.mjs";
+import { renderClaim } from "./decision.mjs";
 
 const DEFAULT_SELECTORS = /** @type {{group: string | null, variant: string | null}} */ ({
   group: null,
@@ -208,13 +209,7 @@ function renderAggregate(resultDirectory, aggregate) {
     );
   }
   for (const trial of aggregate.trials) lines.push(compactRow("trial", [trial.id, trial.state]));
-  if (aggregate.claim) {
-    const supported =
-      aggregate.claim.class === "rate-on-suite"
-        ? `rate on this suite, k=${aggregate.claim.k}`
-        : `none${aggregate.claim.reason ? ` (${aggregate.claim.reason})` : ""}`;
-    lines.push(`Claim: ${supported}; no "beats" claim: ${aggregate.claim.beats.replace(/^not supported: /, "")}`);
-  }
+  lines.push(...renderClaim(aggregate));
   for (const group of aggregate.groups) {
     const unreadable = group.unreadableGrades ? ` unreadable-grades=${group.unreadableGrades}` : "";
     const gradeErrors = group.gradeErrors ? ` grade-errors=${group.gradeErrors}` : "";

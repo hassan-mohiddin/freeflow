@@ -482,7 +482,32 @@ Commands are trusted author input with the evaluator's host permissions, like ex
 }
 ```
 
-A suite has only `schema_version`, `kind`, `id`, and ordered unique `groups`. Group references resolve from the suite directory; their resolved definition paths must remain inside the definition root. Referenced group IDs must also be unique.
+A suite has `schema_version`, `kind`, `id`, ordered unique `groups`, and an optional `decision`. Group references resolve from the suite directory; their resolved definition paths must remain inside the definition root. Referenced group IDs must also be unique.
+
+### Decision
+
+A suite may declare the rule its trials are judged by, before any run. Without one, an aggregate supports only a rate on the suite. A direct group run is one case and never yields "beats".
+
+```json
+"decision": {
+  "measure": { "comparison": "target-read" },
+  "arms": ["baseline", "candidate"],
+  "direction": "higher",
+  "method": "sign-test",
+  "alpha": 0.05,
+  "min_cases": 10,
+  "trials": { "initial": 3, "max": 9, "step": 3 }
+}
+```
+
+- `measure` names exactly one of: `comparison`, a comparison ID from the groups' expectations (a pass counts 1, a fail 0); `metric`, a name in the aggregate's `metrics` section; or `judged`, a dimension ID in its `judged` section. Section values are read from `perTrial` (`true` counts 1, `false` 0, numbers as given). Null and unavailable values are excluded and counted.
+- `arms` names two arms, the reference first; every selected group must have both, and `--variant` is refused.
+- `direction` says whether `higher` or `lower` is better. `measure`, `arms` and `direction` are required.
+- `method` is `sign-test` (default), `alpha` is between 0 and 1 (default 0.05), and `min_cases` is a positive integer (default 10).
+- The unit is the case. Each arm's values over a case's trials are averaged, and the second arm is better, worse or equal. An exact two-sided sign test over the better and worse cases (ties and excluded cases are counted, not tested) gives `beats` only with at least `min_cases` decided cases, p below `alpha`, and the split in the declared direction; the same evidence the other way gives `worse`; anything else is `no-difference-shown`.
+- `trials` is optional. With it, `--trials` may be omitted or must equal `initial`. After `initial` trials, each case whose sign is not yet stable (the arms tie, or differ by less than one trial's worth: the observed range divided by the fewer values) runs up to `step` more trials of that group alone, until `max`. A case with an arm that has no usable value is not extended.
+
+The aggregate records `decision` (the rule with defaults applied, its `ruleSha256`, the split, ties, excluded cases and values, p, the verdict, and each case's per-arm mean and count), `schedule` (each adaptive round's cases and trial count) and, on each added trial, its `round` and `group`. Its `claim` is the verdict reached, with the split, p and rule hash; a dry run's claim class stays `none`.
 
 ## Selection
 
