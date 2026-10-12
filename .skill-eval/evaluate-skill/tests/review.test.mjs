@@ -236,6 +236,54 @@ test("review skips groups without questions or complete runs", async () => {
   });
 });
 
+test("review loads only the named extensions and records each one", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installReviewerPi(root);
+    const { groupDirectory } = await writeResult(root);
+    const packageDirectory = path.join(root, "auth-plugin");
+    await mkdir(packageDirectory);
+    await writeFile(
+      path.join(packageDirectory, "package.json"),
+      JSON.stringify({ name: "auth-plugin", version: "1.2.3" }),
+    );
+    const fileExtension = path.join(root, "shape.mjs");
+    await writeFile(fileExtension, "export default () => {};\n");
+    const output = JSON.stringify({ answers: [{ question: 1, A: "yes", B: "no", rationale: "A names rollback." }] });
+
+    const result = review(
+      root,
+      bin,
+      ["--model", "reviewer/model", "--extension", "auth-plugin", "--extension", "shape.mjs"],
+      output,
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    const [call] = (await readFile(path.join(root, "review.jsonl"), "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    const loaded = call.args.flatMap((arg, index) => (arg === "--extension" ? [call.args[index + 1]] : []));
+    assert.deepEqual(loaded, [packageDirectory, fileExtension]);
+    assert.ok(call.args.indexOf("--no-extensions") < call.args.indexOf("--extension"));
+    const semantic = JSON.parse(await readFile(path.join(groupDirectory, "semantic-grade.json"), "utf8"));
+    assert.deepEqual(semantic.extensions, [
+      { path: packageDirectory, package: "auth-plugin@1.2.3" },
+      { path: fileExtension, sha256: sha256("export default () => {};\n") },
+    ]);
+  });
+});
+
+test("review refuses a missing extension before starting the reviewer", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installReviewerPi(root);
+    await writeResult(root);
+    const result = review(root, bin, ["--model", "reviewer/model", "--extension", "missing"], "{}");
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Extension not found: .*missing/);
+    await assert.rejects(readFile(path.join(root, "review.jsonl")), { code: "ENOENT" });
+  });
+});
+
 test("review requires an explicit reviewer model", async () => {
   await withTempDirectory(async (root) => {
     const bin = await installReviewerPi(root);

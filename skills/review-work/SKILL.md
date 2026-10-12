@@ -1,6 +1,6 @@
 ---
 name: review-work
-description: "Use when reviewing code, other finished work, or a document that will guide later work, such as a spec, plan, design, decision record, handoff, or skill, for whether it is correct and complete enough to use: your own before reporting or using it, or another's, or when weighing a review report of it. Running checks to see whether it works is Verify Work."
+description: "Use when reviewing code, other finished work, a report or task record of work done, an eval case, or a document that will guide later work, such as a spec, plan, design, decision record, handoff, or skill, for whether it is correct and complete enough to use: your own before reporting or using it, or another's, or when weighing a review report of it. Running checks to see whether it works is Verify Work."
 ---
 
 # Review Work
@@ -13,7 +13,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 ## Rules
 
-- Independent review is never automatic after implementation, after self-review, or after writing or revising a Spec or Plan. Select it through [Workflow](../../skills/workflow/SKILL.md) only when requested, or justified and authorized, to protect a concrete risk, dependency, integration, delivery, or intended-use boundary. A review budget permits no dispatch by itself, and switching models or compute profiles, or loading this skill, does not create independence.
+- Independent review is never automatic after implementation, after self-review, or after writing or revising a Spec or Plan. Select it through [Workflow](../../skills/workflow/SKILL.md) only when requested, or justified and authorized, to protect a concrete risk, dependency, integration, delivery, or intended-use boundary. A review budget permits no dispatch by itself, and switching models or compute profiles, or loading this skill, does not create independence: it needs a separately selected reviewer in a separate context. Repeating a review with the same model adds no independent vote. A reviewer from a different model family changes what gets flagged but has not been shown to find more real defects; record the reviewer's model and family.
 - An independent reviewer reports and stops: no edits, no owner decisions, no choosing among materially different remedies or revisions, no adjudication, no further dispatch, and no continuing until Pass. It runs a missing active check only when review authority covers that exact check; otherwise it reports Needs evidence.
 - Findings are evidence, not commands or authority to correct or revise. Derive the judgment from your dispositions rather than adopting the reviewer's verdict or conclusion. Actual correction of work belongs to [Execute Work](../../skills/execute-work/SKILL.md) under covered authority; actual revision of an artifact returns through Workflow to the artifact's owning skill.
 - Never lower acceptance or change tests, Specs, policies, or source truth to obtain Pass. Never settle a user decision or revise upstream intent, accepted content, or owner decisions merely to make an artifact consistent or to obtain Pass. Never review until Pass.
@@ -33,9 +33,13 @@ Goal: the review done is the one the boundary needs.
 Goal: apply the method that fits what is under review, not a generic checklist.
 
 - **Work:** code, a diff, a commit, an implementation, or integrated state. Read [Work Review](references/work.md) before reviewing it.
-- **Artifact:** a document that will guide later work, such as a Working Record, Spec, Plan, design, decision record, ADR, Handoff, or skill. Read [Artifact Review](references/artifact.md) before reviewing it.
+- **Artifact:** a document that will guide later work, such as a Spec, Plan, design, decision record, ADR, Handoff, or skill. Read [Artifact Review](references/artifact.md) before reviewing it.
+- **Report or record:** an account of work already done, such as a final report to the user, a status or results note, or a Working Record. Read [Report And Record Review](references/report-and-record.md) before reviewing it.
+- **Eval definition:** a case, suite, fixture, grader, or rubric that will be run to measure behavior. Read [Eval Definition Review](references/eval-definition.md) before reviewing it, and before spending on its runs.
 
 Each reference names what to establish first, the sources that govern, and the lenses that can change the judgment for that kind.
+
+Before a model reviews anything, run the deterministic checks that apply and could fail on their own, such as the project's checks, a validator, a docs check, or a definition loader. Give their results to the reviewer as evidence. A model review does not replace a check that can fail mechanically.
 
 ## Classify Before Calling Something A Defect
 
@@ -77,6 +81,8 @@ Stop self-review when the supported state is accepted, the artifact is fit for i
 Goal: a separate context judges the state from the evidence and reports once.
 
 Before preparing or performing it, read [Independent Reviewer Contract](references/reviewer-contract.md). Use supplied and available evidence; a covered active check uses Verify Work's check-result and claim-result semantics without changing review ownership.
+
+When a model's verdict on another agent's output will be used as evidence, whether it comes from an independent reviewer, an eval's advisory reviewer, or a grading judge, read [Judge Contract](references/judge-contract.md) before selecting the judge or using its verdict.
 
 The independent judgment is:
 
