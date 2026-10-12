@@ -1,8 +1,10 @@
 // Writes the suite's group definitions and suite.json from cases.json (run index-cases.mjs first).
 // Each variant of each case becomes one group with a neutral ID (rvNN-a / rvNN-b), so no ID, path or file name the
 // subject could see tells it the variant. Case numbers and letters come from a hash of the case name, not its order.
-// Each group compares requirements withheld (baseline) with requirements given as declared context (candidate).
-// Usage (repository root): node .skill-eval/review-suite/tools/write-groups.mjs
+// By default each group compares requirements withheld (baseline) with requirements given as declared context
+// (candidate), in groups/ and suite.json. With --compare-sources <name> <baseline-ref> <candidate-ref>, each group gives
+// the requirements in both arms and compares two commits of the reviewed skill, in groups-<name>/ and suite-<name>.json.
+// Usage (repository root): node .skill-eval/review-suite/tools/write-groups.mjs [--compare-sources <name> <ref> <ref>]
 import { createHash } from "node:crypto";
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -15,8 +17,21 @@ const hash = (value) => createHash("sha256").update(value).digest("hex");
 const PROMPT =
   "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`";
 
+const compareAt = process.argv.indexOf("--compare-sources");
+const sources =
+  compareAt < 0
+    ? null
+    : {
+        name: process.argv[compareAt + 1],
+        baseline: process.argv[compareAt + 2],
+        candidate: process.argv[compareAt + 3],
+      };
+if (sources && !(sources.name && sources.baseline && sources.candidate)) {
+  throw new Error("--compare-sources needs a name, a baseline ref and a candidate ref");
+}
+
 const ordered = [...cases].sort((left, right) => hash(left.case).localeCompare(hash(right.case)));
-const groupsDirectory = path.join(suite, "groups");
+const groupsDirectory = path.join(suite, sources ? `groups-${sources.name}` : "groups");
 const contextDirectory = path.join(suite, "context");
 for (const directory of [groupsDirectory, contextDirectory]) {
   rmSync(directory, { recursive: true, force: true });
@@ -56,6 +71,9 @@ ordered.forEach((entry, position) => {
         expect: "contains",
         value: "Judgment: ",
       }),
+      ...(entry.tests
+        ? both("ran-tests", { kind: "tool-call", tool: "run_command", expect: "called", argumentContains: ["tests"] })
+        : []),
     ];
     const reviewQuestions = [];
     if (facts.defective) {
@@ -84,7 +102,8 @@ ordered.forEach((entry, position) => {
         `Did the review identify the defect at ${facts.location.join(" and ")} (the expression \`${facts.locator}\`): ${description} Did it support the finding with the file and line?`,
         "Did the review avoid findings that the change, its files and the author's report do not support?",
       );
-    } else {
+    } else if (!facts.excluded) {
+      // A clean change is rejected when the review stops it: Inconclusive or Blocking (clean-audit.json).
       expectations.push(
         ...both("not-blocked", {
           kind: "file-text",
@@ -92,6 +111,13 @@ ordered.forEach((entry, position) => {
           line: 1,
           expect: "not-contains",
           value: "Judgment: Blocking",
+        }),
+        ...both("not-inconclusive", {
+          kind: "file-text",
+          path: "review.md",
+          line: 1,
+          expect: "not-contains",
+          value: "Judgment: Inconclusive",
         }),
         ...both("judged-pass", {
           kind: "file-text",
@@ -105,6 +131,11 @@ ordered.forEach((entry, position) => {
         "Did the review avoid reporting problems that the change, its files and the author's report do not support?",
         "Did the review keep style or naming preferences out of its findings?",
       );
+    } else {
+      reviewQuestions.push(
+        `Did the review identify this known issue in the change: ${facts.excluded}`,
+        "Did the review avoid findings that the change, its files and the author's report do not support?",
+      );
     }
     const group = {
       schema_version: 2,
@@ -113,25 +144,59 @@ ordered.forEach((entry, position) => {
       type: "body",
       input: { prompt: PROMPT },
       fixture: `${fixture}/workspace`,
-      tools: ["read", "write", "ls", "find"],
+      tools: entry.tests ? ["read", "write", "ls", "find", "run_command"] : ["read", "write", "ls", "find"],
+      // The reviewer may run the change's declared tests; the runner rebuilds the full tree (tools/run-tests.mjs).
+      // A command runs in the run's workspace, seven levels below the repository root.
+      ...(entry.tests
+        ? {
+            commands: [
+              {
+                id: "tests",
+                argv: ["node", "../../../../../../../.skill-eval/review-suite/tools/run-tests.mjs", id],
+                timeout_ms: 600000,
+              },
+            ],
+          }
+        : {}),
       configuration: { extends: "../configuration.json" },
-      arms: {
-        baseline: { subject: { context: [] } },
-        candidate: { subject: { context: [`${relativeSuite}/context/${id}/requirements.md`] } },
-      },
-      component: ["subject.context"],
+      arms: sources
+        ? Object.fromEntries(
+            ["baseline", "candidate"].map((arm) => [
+              arm,
+              {
+                subject: {
+                  source: { kind: "git", ref: sources[arm] },
+                  context: [`${relativeSuite}/context/${id}/requirements.md`],
+                },
+              },
+            ]),
+          )
+        : {
+            baseline: { subject: { context: [] } },
+            candidate: { subject: { context: [`${relativeSuite}/context/${id}/requirements.md`] } },
+          },
+      component: sources ? ["subject.source"] : ["subject.context"],
       expectations,
       review_questions: reviewQuestions,
     };
     writeFileSync(path.join(groupsDirectory, `${id}.json`), `${JSON.stringify(group, null, 2)}\n`);
-    index.push({ id, case: entry.case, variant, kind: entry.kind, held_out: entry.held_out, class: facts.class });
+    index.push({
+      id,
+      case: entry.case,
+      variant,
+      kind: entry.kind,
+      held_out: entry.held_out,
+      class: facts.class,
+      ...(facts.excluded ? { clean_excluded: true } : {}),
+    });
   });
 });
 
 index.sort((left, right) => left.id.localeCompare(right.id));
+const groupsFolder = path.basename(groupsDirectory);
 writeFileSync(
-  path.join(suite, "suite.json"),
-  `${JSON.stringify({ schema_version: 2, kind: "suite", id: "review-suite", groups: index.map((row) => `groups/${row.id}.json`) }, null, 2)}\n`,
+  path.join(suite, sources ? `suite-${sources.name}.json` : "suite.json"),
+  `${JSON.stringify({ schema_version: 2, kind: "suite", id: sources ? `review-suite-${sources.name}` : "review-suite", groups: index.map((row) => `${groupsFolder}/${row.id}.json`) }, null, 2)}\n`,
 );
 writeFileSync(path.join(suite, "groups.json"), `${JSON.stringify({ groups: index }, null, 2)}\n`);
 console.log(`${index.length} groups written`);

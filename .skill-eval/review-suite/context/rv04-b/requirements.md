@@ -1,6 +1,6 @@
 # Requirements: transactional result publication
 
-`publication.mjs` publishes an evaluation's staging directory to its destination as one atomic rename. It reports each outcome as a value, and it never throws to its caller for a publication failure.
+`publication.mjs` publishes an evaluation's staging directory to its destination as one atomic rename. It reports each outcome as a value, and it never throws to its caller for a publication failure that carries an error message.
 
 1. `createStagingDirectory(path)` creates the staging directory with a non-recursive `mkdir`. It returns a complete outcome carrying the path, or an incomplete outcome carrying the primary failure message.
 2. `publishResult` refuses a destination that already exists, before `prepare` runs. The refusal returns `publication-failed` with a failure message that says the destination already exists, returns no `path`, and leaves the existing destination unchanged.

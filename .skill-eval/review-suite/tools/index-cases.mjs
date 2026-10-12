@@ -9,6 +9,11 @@ import path from "node:path";
 const suite = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const readme = readFileSync(path.join(suite, "README.md"), "utf8");
 const heldOut = new Set((readme.match(/\*\*Held out \(\d+\):\*\*([^\n]*)/)?.[1] ?? "").match(/[0-9a-f]{8}/g) ?? []);
+// Each case's declared tests (tools/run-tests.mjs runs them for a reviewer): { "<case>": { "build": bool, "files": [...] } }.
+const testsFile = path.join(suite, "tests.json");
+const testsByCase = existsSync(testsFile) ? JSON.parse(readFileSync(testsFile, "utf8")) : {};
+// Clean variants excluded from false-rejection measures by the clean audit, with the reason.
+const cleanAudit = JSON.parse(readFileSync(path.join(suite, "clean-audit.json"), "utf8"));
 
 const baseCommit = (p) =>
   p.base_commit ??
@@ -29,12 +34,14 @@ for (const file of readdirSync(path.join(suite, "provenance")).sort()) {
   const kind = name.startsWith("rr-") ? "real" : "base";
   const commit = name.slice(3);
   const entry = { case: name, kind, held_out: heldOut.has(commit), base_commit: baseCommit(provenance), variants: {} };
+  if (testsByCase[name]) entry.tests = testsByCase[name];
   if (typeof entry.base_commit !== "string") problems.push(`${name}: no base commit`);
   for (const variant of readdirSync(fixtures).sort()) {
     const record = provenance.variants?.[variant] ?? {};
     const defective = variant !== "clean";
     const locations = [record.location ?? []].flat().map((value) => String(value).replace(/ \(.*\)$/, ""));
     const facts = { defective, class: defective ? (record.class ?? null) : null };
+    if (!defective && cleanAudit.excluded[name]) facts.excluded = cleanAudit.excluded[name];
     if (defective) {
       facts.location = locations;
       facts.locator = record.locator ?? null;

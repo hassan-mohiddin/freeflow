@@ -7,7 +7,14 @@
     "prompt": "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`"
   },
   "fixture": ".skill-eval/review-suite/fixtures/rs-c45f16f6/seeded/workspace",
-  "tools": ["read", "write", "ls", "find"],
+  "tools": ["read", "write", "ls", "find", "run_command"],
+  "commands": [
+    {
+      "id": "tests",
+      "argv": ["node", "../../../../../../../.skill-eval/review-suite/tools/run-tests.mjs", "rv15-a"],
+      "timeout_ms": 600000
+    }
+  ],
   "configuration": {
     "extends": "../configuration.json"
   },
@@ -60,6 +67,24 @@
       "line": 1,
       "expect": "contains",
       "value": "Judgment: "
+    },
+    {
+      "id": "baseline-ran-tests",
+      "variant": "baseline",
+      "comparison": "ran-tests",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "called",
+      "argumentContains": ["tests"]
+    },
+    {
+      "id": "candidate-ran-tests",
+      "variant": "candidate",
+      "comparison": "ran-tests",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "called",
+      "argumentContains": ["tests"]
     },
     {
       "id": "baseline-not-passed",

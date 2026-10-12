@@ -290,3 +290,24 @@ index 00000000..0a0522b1
 +    recovery: { class: "exact", canonical_sha256: canonicalSha256 },
 +  };
 +}
+diff --git a/skills/evaluate-skill/scripts/lib/plan.mjs b/skills/evaluate-skill/scripts/lib/plan.mjs
+index 257be8dd..59e6487d 100644
+--- a/skills/evaluate-skill/scripts/lib/plan.mjs
++++ b/skills/evaluate-skill/scripts/lib/plan.mjs
+@@ -26,6 +26,7 @@ const EVALUATOR_SOURCE_FILES = [
+   "pi-root-guard.mjs",
+   "lib/args.mjs",
+   "lib/capabilities.mjs",
++  "lib/compact-evidence.mjs",
+   "lib/coordinator.mjs",
+   "lib/codex-adapter.mjs",
+   "lib/decision.mjs",
+@@ -44,7 +45,7 @@ const EVALUATOR_SOURCE_FILES = [
+   "lib/publication.mjs",
+   "lib/workspace.mjs",
+ ];
+-const SEMANTIC_SOURCE_FILES = ["pi-root-guard.mjs", "lib/outcome.mjs", "lib/pi-adapter.mjs", "lib/process-outcome.mjs", "lib/process.mjs", "lib/semantic.mjs"];
++const SEMANTIC_SOURCE_FILES = ["pi-root-guard.mjs", "lib/compact-evidence.mjs", "lib/outcome.mjs", "lib/pi-adapter.mjs", "lib/process-outcome.mjs", "lib/process.mjs", "lib/semantic.mjs"];
+ 
+ async function sourceIdentity(files) {
+   const entries = [];
