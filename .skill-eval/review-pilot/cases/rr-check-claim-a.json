@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "group",
   "id": "rp07-a",
   "type": "body",
@@ -8,26 +8,40 @@
   },
   "fixture": ".skill-eval/review-pilot/fixtures/rr-check-claim/clean",
   "tools": ["read", "write"],
-  "variants": {
-    "baseline": {
-      "source": {
-        "kind": "git",
-        "ref": "6214858769e226369c061eb9bb157aa444455a07"
-      },
-      "skills": ["skills/review-work"],
-      "target": 0,
-      "context": []
+  "configuration": {
+    "host": {
+      "name": "pi"
     },
-    "candidate": {
-      "source": {
-        "kind": "git",
-        "ref": "967c212661fbdb4389a0dc6497b6ea181527fa81"
-      },
+    "model": {
+      "model": "xai/grok-4.7",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "skill",
       "skills": ["skills/review-work"],
       "target": 0,
       "context": []
     }
   },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "6214858769e226369c061eb9bb157aa444455a07"
+        }
+      }
+    },
+    "candidate": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "967c212661fbdb4389a0dc6497b6ea181527fa81"
+        }
+      }
+    }
+  },
+  "component": ["subject.source"],
   "expectations": [
     {
       "id": "baseline-only-review",
@@ -67,9 +81,5 @@
   "review_questions": [
     "Did the review avoid reporting problems that the reviewed material and its evidence do not support?",
     "Did the review keep style or naming preferences out of its findings?"
-  ],
-  "model": {
-    "model": "xai/grok-4.7",
-    "thinking": "medium"
-  }
+  ]
 }

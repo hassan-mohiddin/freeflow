@@ -4,6 +4,8 @@ import path from "node:path";
 import { COMMAND_TOOL, loadDefinition, selectDefinition } from "./definitions.mjs";
 import { createInvocationId, fileIdentity, writeJson, writeText } from "./evidence.mjs";
 import { gradeDeterministic } from "./grade.mjs";
+import { prepareFreeflow } from "./freeflow.mjs";
+import { removeCopiedCredentials } from "./isolation.mjs";
 import { runBody, runDescription, VariantSetupError } from "./pi.mjs";
 import { prepareFixture, prepareRuntime, verifyDescriptionOnlyRevision } from "./sandbox.mjs";
 
@@ -112,7 +114,9 @@ function assertSupportedSelection(selection) {
     if (group.type === "description" && customTools.length > 0) {
       throw new Error(`${group.type} execution does not support custom tools: ${customTools.join(", ")}`);
     }
-    if (customTools.length > 0 && (group.runtime?.extensions?.length ?? 0) === 0) {
+    // Freeflow registers its own tools, so a Freeflow configuration also allows custom tool names.
+    const freeflowLoaded = Object.values(group.variants).some((variant) => variant.freeflow);
+    if (customTools.length > 0 && (group.runtime?.extensions?.length ?? 0) === 0 && !freeflowLoaded) {
       throw new Error(
         `${group.type} execution requires declared extensions for custom tools: ${customTools.join(", ")}`,
       );
@@ -132,6 +136,7 @@ async function runGroup({ selected, root, resultDirectory, signal, charge }) {
 
   let fixture = null;
   let runtime = null;
+  let freeflow = { baseline: null, candidate: null };
   let resourceError = null;
   if (!signal?.aborted) {
     try {
@@ -141,6 +146,7 @@ async function runGroup({ selected, root, resultDirectory, signal, charge }) {
         root,
         groupDirectory,
       });
+      freeflow = await prepareFreeflow({ variants: group.variants, root, groupDirectory });
       if (group.revision === "description-only") {
         await verifyDescriptionOnlyRevision({
           variants: group.variants,
@@ -163,7 +169,16 @@ async function runGroup({ selected, root, resultDirectory, signal, charge }) {
     } else if (signal?.aborted) {
       runs[variant] = cancelledRun(group, variant);
     } else if (resourceError === null) {
-      runs[variant] = await executeVariant({ group, variant, root, variantDirectory, fixture, runtime, signal });
+      runs[variant] = await executeVariant({
+        group,
+        variant,
+        root,
+        variantDirectory,
+        fixture,
+        runtime,
+        freeflow: freeflow[variant],
+        signal,
+      });
       charge(runs[variant]);
     } else {
       runs[variant] = invalidRun(group, variant, resourceError);
@@ -270,13 +285,15 @@ function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function executeVariant({ group, variant, root, variantDirectory, fixture, runtime, signal }) {
+async function executeVariant({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal }) {
   try {
     const run = group.type === "body" ? runBody : runDescription;
-    return await run({ group, variant, root, variantDirectory, fixture, runtime, signal });
+    return await run({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal });
   } catch (error) {
     if (error instanceof VariantSetupError) return invalidRun(group, variant, error.message);
     return infrastructureFailedRun(group, variant, error);
+  } finally {
+    await removeCopiedCredentials(variantDirectory);
   }
 }
 

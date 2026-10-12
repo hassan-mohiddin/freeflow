@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { loadDefinition, selectDefinition } from "../../../skills/evaluate-skill/scripts/lib/definitions.mjs";
+import { toV2 } from "./helpers/to-v2.mjs";
 
 async function withTempDirectory(run) {
   const directory = await mkdtemp(path.join(tmpdir(), "skill-eval-definitions-test-"));
@@ -18,7 +19,7 @@ async function withTempDirectory(run) {
 async function writeJson(root, relativePath, value) {
   const file = path.join(root, relativePath);
   await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, `${JSON.stringify(value, null, 2)}\n`);
+  await writeFile(file, `${JSON.stringify(toV2(value), null, 2)}\n`);
   return file;
 }
 
@@ -105,7 +106,77 @@ test("group definitions preserve turns, fixtures, environments, expectations, re
 
     const loaded = await loadDefinition(groupFile, { root });
 
-    assert.deepEqual(loaded, definition);
+    // The task is kept as written; each arm resolves to its subject plus the shared model and runtime.
+    for (const field of ["id", "type", "input", "fixture", "tools", "expectations", "review_questions"]) {
+      assert.deepEqual(loaded[field], definition[field], field);
+    }
+    for (const arm of ["baseline", "candidate"]) {
+      assert.deepEqual(loaded.variants[arm], { ...definition.variants[arm], model: definition.model }, arm);
+    }
+    assert.deepEqual(loaded.model, definition.model);
+    assert.deepEqual(loaded.runtime, definition.runtime);
+    assert.deepEqual(loaded.component, toV2(definition).component);
+    assert.deepEqual(loaded.configurations.baseline.model, definition.model);
+  });
+});
+
+test("schema 2 resolves arms from a shared configuration and refuses undeclared differences", async () => {
+  await withTempDirectory(async (root) => {
+    const base = toV2(group("declared", "description"));
+    await writeJson(root, "configurations/grok.json", {
+      schema_version: 2,
+      kind: "configuration",
+      id: "grok",
+      configuration: { host: { name: "pi" }, model: { model: "xai/grok-4.7", thinking: "medium" } },
+    });
+
+    // extends supplies the model; an arm overlay can change only what component declares.
+    const declared = structuredClone(base);
+    declared.configuration = { extends: "configurations/grok.json", subject: declared.configuration.subject };
+    const loaded = await loadDefinition(await writeJson(root, "declared.json", declared), { root });
+    assert.deepEqual(loaded.model, { model: "xai/grok-4.7", thinking: "medium" });
+
+    // A model switch in one arm that component does not name is refused before anything runs.
+    const undeclared = structuredClone(declared);
+    undeclared.arms.candidate.model = { model: "xai/grok-4.7", thinking: "high" };
+    await assert.rejects(loadDefinition(await writeJson(root, "undeclared.json", undeclared), { root }), {
+      code: "undeclared-difference",
+      message: "the arms differ in model.thinking, which group.component does not declare",
+    });
+
+    // Declaring it makes it the comparison; each arm then carries its own model.
+    undeclared.component = [...undeclared.component, "model.thinking"];
+    const byModel = await loadDefinition(await writeJson(root, "by-model.json", undeclared), { root });
+    assert.equal(byModel.variants.baseline.model.thinking, "medium");
+    assert.equal(byModel.variants.candidate.model.thinking, "high");
+    assert.equal(byModel.model, undefined);
+
+    // A declared component where the arms are identical is refused too, and an A/A run declares none.
+    const empty = structuredClone(base);
+    empty.arms = { baseline: {}, candidate: {} };
+    empty.configuration.subject = base.configuration.subject;
+    empty.configuration.subject.source = { kind: "working-tree" };
+    empty.configuration.subject.skills = [];
+    empty.configuration.subject.target = null;
+    empty.component = ["subject.source"];
+    await assert.rejects(loadDefinition(await writeJson(root, "empty.json", empty), { root }), {
+      code: "undeclared-difference",
+      message: "group.component declares subject.source, but the arms do not differ there",
+    });
+    empty.component = [];
+    const aa = await loadDefinition(await writeJson(root, "aa.json", empty), { root });
+    assert.deepEqual(aa.variants.baseline, aa.variants.candidate);
+  });
+});
+
+test("schema 1 definitions fail with a pointer to schema 2", async () => {
+  await withTempDirectory(async (root) => {
+    const file = path.join(root, "old.json");
+    await writeFile(file, JSON.stringify(group("old", "description")));
+    await assert.rejects(loadDefinition(file, { root }), {
+      code: "unsupported-schema",
+      message: /group: schema 1 definitions are no longer supported; rewrite it as schema 2/,
+    });
   });
 });
 
@@ -434,7 +505,7 @@ test("definitions reject PiFlow as a removed runtime host", async () => {
 
     await assert.rejects(loadDefinition(groupFile, { root }), {
       code: "invalid-definition",
-      message: "group.runtime.host must be pi",
+      message: "group.configuration.host.name must be pi",
     });
   });
 });

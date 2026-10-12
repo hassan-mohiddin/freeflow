@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "group",
   "id": "wfc2-001-activation",
   "type": "description",
@@ -8,34 +8,45 @@
   },
   "fixture": ".skill-eval/workflow/fixtures/composition-one-shot",
   "tools": ["read"],
-  "variants": {
-    "baseline": {
-      "source": {
-        "kind": "git",
-        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
-      },
-      "skills": [
-        "skills/workflow",
-        ".skill-eval/workflow/subjects/composition-base",
-        ".skill-eval/workflow/subjects/marker-reference"
-      ],
-      "target": 2,
-      "context": ["runtime/prompts/interaction-contract.md"]
+  "configuration": {
+    "host": {
+      "name": "pi"
     },
-    "candidate": {
+    "model": {
+      "model": "xai/grok-4.7",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "skill",
       "source": {
         "kind": "git",
         "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
       },
-      "skills": [
-        "skills/workflow",
-        ".skill-eval/workflow/subjects/composition-base",
-        ".skill-eval/workflow/subjects/marker-candidate"
-      ],
       "target": 2,
       "context": ["runtime/prompts/interaction-contract.md"]
     }
   },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "skills": [
+          "skills/workflow",
+          ".skill-eval/workflow/subjects/composition-base",
+          ".skill-eval/workflow/subjects/marker-reference"
+        ]
+      }
+    },
+    "candidate": {
+      "subject": {
+        "skills": [
+          "skills/workflow",
+          ".skill-eval/workflow/subjects/composition-base",
+          ".skill-eval/workflow/subjects/marker-candidate"
+        ]
+      }
+    }
+  },
+  "component": ["subject.skills"],
   "expectations": [
     {
       "id": "baseline-base-read",
@@ -74,9 +85,5 @@
       "turn": 1
     }
   ],
-  "review_questions": [],
-  "model": {
-    "model": "xai/grok-4.7",
-    "thinking": "medium"
-  }
+  "review_questions": []
 }

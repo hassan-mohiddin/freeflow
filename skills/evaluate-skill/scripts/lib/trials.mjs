@@ -35,11 +35,25 @@ export async function runTrials(definitionFile, selectors, { root = process.cwd(
     requestedTrials: trials,
     trials: results.map((result) => ({ id: result.id, state: result.state })),
     groups: await aggregateGroups(results),
+    claim: claimFor(results, trials),
     completedAt: new Date().toISOString(),
   };
   if (budget !== null) aggregate.budget = budgetEvidence(budget);
   await writeJson(path.join(directory, "aggregate.json"), aggregate);
   return { id, path: directory, state: aggregate.state, aggregate };
+}
+
+/**
+ * The strongest claim the aggregate supports. Counts over complete trials support a rate on this suite;
+ * a "beats" claim needs a decision rule and size declared by the suite, which no definition declares yet.
+ */
+function claimFor(results, requested) {
+  const complete = results.filter((result) => result.state === "complete").length;
+  return {
+    class: complete > 0 ? "rate-on-suite" : "none",
+    k: requested,
+    beats: "not supported: the suite declares no decision rule",
+  };
 }
 
 function aggregateState(results, requested) {
@@ -57,11 +71,17 @@ export async function aggregateGroups(results) {
         id: group.id,
         trials: 0,
         unreadableGrades: 0,
+        gradeErrors: 0,
+        runStates: { baseline: {}, candidate: {} },
         comparisons: new Map(),
         checks: new Map(),
       };
       groups.set(group.id, entry);
       entry.trials += 1;
+      for (const variant of ["baseline", "candidate"]) {
+        const state = group.variants?.[variant];
+        if (typeof state === "string") entry.runStates[variant][state] = (entry.runStates[variant][state] ?? 0) + 1;
+      }
       const gradeFile = path.join(
         result.path,
         "groups",
@@ -76,6 +96,8 @@ export async function aggregateGroups(results) {
         entry.unreadableGrades += 1;
         continue;
       }
+      // A check that could not be graded is counted, so it cannot silently leave every denominator.
+      entry.gradeErrors += Array.isArray(grade.errors) ? grade.errors.length : 0;
       for (const check of grade.checks ?? []) {
         const counts = entry.checks.get(check.id) ?? {
           id: check.id,
@@ -93,6 +115,7 @@ export async function aggregateGroups(results) {
           baseline: zeroCounts(),
           candidate: zeroCounts(),
           transitions: {},
+          pairs: { "both-pass": 0, "both-fail": 0, "baseline-only": 0, "candidate-only": 0, incomplete: 0 },
         };
         entry.comparisons.set(comparison.id, counts);
         for (const variant of ["baseline", "candidate"]) {
@@ -100,6 +123,7 @@ export async function aggregateGroups(results) {
           if (CHECK_STATES.includes(state)) counts[variant][state] += 1;
         }
         counts.transitions[comparison.transition] = (counts.transitions[comparison.transition] ?? 0) + 1;
+        counts.pairs[pairOf(comparison.baseline?.state, comparison.candidate?.state)] += 1;
       }
     }
   }
@@ -107,9 +131,23 @@ export async function aggregateGroups(results) {
     id: entry.id,
     trials: entry.trials,
     unreadableGrades: entry.unreadableGrades,
+    gradeErrors: entry.gradeErrors,
+    runStates: entry.runStates,
     comparisons: [...entry.comparisons.values()],
-    checks: [...entry.checks.values()],
+    // pass^k: the check passed in every one of the k trials that graded it.
+    checks: [...entry.checks.values()].map((check) => {
+      const graded = check.pass + check.fail + check.unavailable;
+      return { ...check, trials: graded, passAll: graded > 0 && check.pass === graded };
+    }),
   }));
+}
+
+/** One trial's pair of outcomes for a comparison; anything but pass or fail on either side is incomplete. */
+function pairOf(baseline, candidate) {
+  const graded = (state) => state === "pass" || state === "fail";
+  if (!graded(baseline) || !graded(candidate)) return "incomplete";
+  if (baseline === "pass") return candidate === "pass" ? "both-pass" : "baseline-only";
+  return candidate === "pass" ? "candidate-only" : "both-fail";
 }
 
 function zeroCounts() {

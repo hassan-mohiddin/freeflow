@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "group",
   "id": "recover-ignores-wrong-record-pointer",
   "type": "body",
@@ -8,25 +8,39 @@
   },
   "fixture": ".skill-eval/track-work/fixtures/recover-wrong-pointer",
   "tools": ["read", "edit", "write"],
-  "variants": {
-    "baseline": {
-      "source": {
-        "kind": "git",
-        "ref": "942057d"
-      },
-      "skills": ["skills/track-work"],
-      "target": 0,
-      "context": []
+  "configuration": {
+    "host": {
+      "name": "pi"
     },
-    "candidate": {
-      "source": {
-        "kind": "working-tree"
-      },
+    "model": {
+      "model": "xai/grok-4.7",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "skill",
       "skills": ["skills/track-work"],
       "target": 0,
       "context": []
     }
   },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "942057d"
+        }
+      }
+    },
+    "candidate": {
+      "subject": {
+        "source": {
+          "kind": "working-tree"
+        }
+      }
+    }
+  },
+  "component": ["subject.source"],
   "expectations": [
     {
       "id": "baseline-wrong-recovery-source-not-read",
@@ -65,9 +79,5 @@
   ],
   "review_questions": [
     "Did the agent treat the docs-cleanup record as the record of its current work, or did it notice that the record's task differs from the HTTP retry work in the summary and say so instead of recovering it?"
-  ],
-  "model": {
-    "model": "xai/grok-4.7",
-    "thinking": "medium"
-  }
+  ]
 }

@@ -17,6 +17,8 @@ import {
   waitForForcedKill,
   writeStream,
 } from "./process.mjs";
+import { writeFreeflowSettings } from "./freeflow.mjs";
+import { prepareIsolation } from "./isolation.mjs";
 import { runRpcBodySession, runRpcDescriptionSession } from "./rpc.mjs";
 import {
   fingerprintDirectory,
@@ -56,15 +58,15 @@ export class VariantSetupError extends Error {
   }
 }
 
-export async function runDescription({ group, variant, root, variantDirectory, fixture, runtime, signal }) {
+export async function runDescription({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal }) {
   if (group.input.turns !== undefined) {
-    return runPersistentDescription({ group, variant, root, variantDirectory, fixture, runtime, signal });
+    return runPersistentDescription({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal });
   }
-  return runOneShotDescription({ group, variant, root, variantDirectory, fixture, runtime, signal });
+  return runOneShotDescription({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal });
 }
 
-export async function runBody({ group, variant, root, variantDirectory, fixture, runtime, signal }) {
-  const options = { group, variant, root, variantDirectory, fixture, runtime, signal };
+export async function runBody({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal }) {
+  const options = { group, variant, root, variantDirectory, fixture, runtime, freeflow, signal };
   const subject = await prepareSubject(options, "rpc");
   const before = await fingerprintDirectory(subject.workspace);
   const declaredPrompts = group.input.prompt === undefined ? [...group.input.turns] : [group.input.prompt];
@@ -152,7 +154,7 @@ function subjectRun({ group, variant }, subject, observation) {
     tools: [...group.tools],
     commands: group.commands ?? [],
     model: {
-      declared: group.model ?? null,
+      declared: group.variants[variant].model ?? null,
       observed: observation.model,
     },
     resources: {
@@ -161,9 +163,11 @@ function subjectRun({ group, variant }, subject, observation) {
       skills: subject.environment.skills,
       context: subject.environment.context,
       runtime: subject.runtime,
+      freeflow: subject.freeflow,
       contextDelivery: subject.environment.contextDelivery,
       targetPath: subject.environment.targetPath,
     },
+    isolation: subject.isolation,
     contextObservationArtifact: observation.contextObservationArtifact ?? null,
     response: observation.response,
     transcript: observation.transcript,
@@ -268,12 +272,16 @@ async function runPersistentDescription(options) {
   });
 }
 
-async function prepareSubject({ group, variant, root, variantDirectory, fixture: fixtureSnapshot, runtime }, mode) {
+async function prepareSubject(
+  { group, variant, root, variantDirectory, fixture: fixtureSnapshot, runtime, freeflow = null },
+  mode,
+) {
   const workspace = path.join(variantDirectory, "workspace");
 
   let environment;
   let fixture;
   let materializedRuntime;
+  let isolation;
   try {
     environment = await materializeEnvironment({
       environment: group.variants[variant],
@@ -282,6 +290,9 @@ async function prepareSubject({ group, variant, root, variantDirectory, fixture:
     });
     materializedRuntime = await materializeRuntime({ runtime, variantDirectory });
     fixture = await materializeFixture({ fixture: fixtureSnapshot, workspace });
+    // Written before the workspace's starting state is taken, so they never count as the subject's changes.
+    if (freeflow !== null) await writeFreeflowSettings(workspace, freeflow);
+    isolation = await prepareIsolation(variantDirectory, group.variants[variant].model?.model ?? null);
   } catch (error) {
     if (error instanceof VariantSetupError) throw error;
     throw new VariantSetupError(error instanceof Error ? error.message : String(error));
@@ -292,16 +303,39 @@ async function prepareSubject({ group, variant, root, variantDirectory, fixture:
   const requiresContextObservation = group.expectations.some((expectation) => expectation.kind === "context-text");
   const sessionDirectory = path.join(variantDirectory, "session");
   if (materializedRuntime.session) await mkdir(sessionDirectory, { recursive: true });
-  const args = piArguments(group, environment, materializedRuntime, mode, requiresContextObservation, sessionDirectory);
+  const args = piArguments(
+    group,
+    environment,
+    materializedRuntime,
+    mode,
+    requiresContextObservation,
+    sessionDirectory,
+    group.variants[variant].model,
+    freeflow?.entry ?? null,
+  );
   const allowedRoots = [
     await realpath(workspace),
     ...environment.skills.map((skill) => skill.path),
     ...environment.context.map((entry) => entry.path),
     ...materializedRuntime.extensions.flatMap((bundle) => bundle.resources.map((resource) => resource.path)),
+    // Freeflow points the subject at its own skills and references inside the package.
+    ...(freeflow === null ? [] : [freeflow.packageRoot]),
   ];
   return {
     args,
     environment,
+    freeflow:
+      freeflow === null
+        ? null
+        : {
+            ref: freeflow.ref,
+            commit: freeflow.commit,
+            package: freeflow.package,
+            tarballSha256: freeflow.tarballSha256,
+            metadata: freeflow.metadata,
+            repository: freeflow.repository,
+            personal: freeflow.personal,
+          },
     runtime: materializedRuntime,
     host,
     fixture,
@@ -312,15 +346,20 @@ async function prepareSubject({ group, variant, root, variantDirectory, fixture:
     eventsFile: path.join(variantDirectory, "events.jsonl"),
     stderrFile: path.join(variantDirectory, "stderr.log"),
     startedAt: new Date().toISOString(),
-    processEnvironment: createProcessEnvironment({
-      runtime: materializedRuntime,
-      group,
-      workspace,
-      allowedRoots,
-      contextManifestPath: environment.contextDelivery.manifestPath,
-      contextObservationPath,
-      requiresContextObservation,
-    }),
+    isolation: isolation.evidence,
+    processEnvironment: {
+      ...createProcessEnvironment({
+        runtime: materializedRuntime,
+        group,
+        workspace,
+        allowedRoots,
+        contextManifestPath: environment.contextDelivery.manifestPath,
+        contextObservationPath,
+        requiresContextObservation,
+      }),
+      // Last, so nothing inherited or declared can point the subject back at the parent's home or Pi settings.
+      ...isolation.environment,
+    },
   };
 }
 
@@ -446,21 +485,22 @@ function subjectRunState(observation) {
   return "infrastructure-failed";
 }
 
-function piArguments(group, environment, runtime, mode, observeContext, sessionDirectory) {
+function piArguments(group, environment, runtime, mode, observeContext, sessionDirectory, model, freeflowEntry) {
   const args = ["--mode", mode];
   if (mode === "json") args.push("-p");
   if (runtime.session) args.push("--session-dir", sessionDirectory);
   else args.push("--no-session");
   args.push("--no-extensions", "--extension", guardExtension);
   if (group.commands !== undefined) args.push("--extension", commandToolExtension);
+  if (freeflowEntry !== null) args.push("--extension", freeflowEntry);
   for (const bundle of runtime.extensions) args.push("--extension", bundle.entry);
   if (observeContext) args.push("--extension", observerExtension);
   args.push("--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files", "--no-approve");
   if (group.tools.length === 0) args.push("--no-tools");
   else args.push("--tools", group.tools.join(","));
   for (const skill of environment.skills) args.push("--skill", skill.path);
-  if (group.model?.model) args.push("--model", group.model.model);
-  if (group.model?.thinking) args.push("--thinking", group.model.thinking);
+  if (model?.model) args.push("--model", model.model);
+  if (model?.thinking) args.push("--thinking", model.thinking);
   if (mode === "json") args.push(group.input.prompt);
   return args;
 }

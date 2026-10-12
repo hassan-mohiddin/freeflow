@@ -703,6 +703,69 @@ test("grading reports exact reads, paths, changes, text, responses, and factual 
   });
 });
 
+test("file-text with a line checks only that line, and a missing line fails", async () => {
+  await withTempDirectory(async (root) => {
+    const workspace = path.join(root, "candidate");
+    await mkdir(workspace);
+    // A Blocking review that quotes the text the whole-file check looks for.
+    const review = "Judgment: Blocking\r\n\r\n- case.json:7 allows `Judgment: Pass` as a first line.\n";
+    await writeFile(path.join(workspace, "review.md"), review);
+    await writeFile(path.join(workspace, "empty.md"), "");
+    const candidate = completeRun(workspace, [{ path: "review.md", sha256: sha256(review) }]);
+    const check = (id, expect, value, line, file = "review.md") => ({
+      id,
+      kind: "file-text",
+      variant: "candidate",
+      path: file,
+      line,
+      expect,
+      value,
+    });
+    const expectations = [
+      check("first-not-pass", "not-contains", "Judgment: Pass", 1),
+      check("first-equals", "equals", "Judgment: Blocking", 1),
+      check("first-pass", "contains", "Judgment: Pass", 1),
+      check("third-mentions", "contains", "Judgment: Pass", 3),
+      check("missing-line", "not-contains", "Judgment: Pass", 9),
+      check("empty-file", "not-contains", "Judgment: Pass", 1, "empty.md"),
+    ];
+
+    const grade = await gradeDeterministic(bodyGroup(expectations), { baseline: absentRun, candidate }, evidence);
+
+    assert.deepEqual(Object.fromEntries(grade.checks.map(({ id, state }) => [id, state])), {
+      "first-not-pass": "pass",
+      "first-equals": "pass",
+      "first-pass": "fail",
+      "third-mentions": "pass",
+      "missing-line": "fail",
+      "empty-file": "fail",
+    });
+    const first = grade.checks.find((entry) => entry.id === "first-equals");
+    assert.equal(first.expected.line, 1);
+    assert.equal(first.observed.line, "present");
+    assert.equal(grade.checks.find((entry) => entry.id === "missing-line").observed.line, "missing");
+  });
+});
+
+test("file-text rejects a line that is not a positive integer", async () => {
+  await withTempDirectory(async (root) => {
+    const candidate = completeRun(root, []);
+    for (const line of [0, -1, 1.5, "1"]) {
+      const expectation = {
+        id: "bad-line",
+        kind: "file-text",
+        variant: "candidate",
+        path: "review.md",
+        line,
+        expect: "contains",
+        value: "x",
+      };
+      const grade = await gradeDeterministic(bodyGroup([expectation]), { baseline: absentRun, candidate }, evidence);
+      assert.equal(grade.state, "grade-error", String(line));
+    }
+  });
+});
+
 test("a report is unavailable when every valid check lacks required run evidence", async () => {
   const group = bodyGroup([
     {

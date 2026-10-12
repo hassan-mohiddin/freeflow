@@ -153,7 +153,7 @@ function validateRuntime(value, definitionPath) {
     definitionPath,
   );
   if (!EVALUATION_HOSTS.has(runtime.host)) {
-    fail("invalid-definition", "group.runtime.host must be pi", definitionPath);
+    fail("invalid-definition", "group.configuration.host.name must be pi", definitionPath);
   }
   if (Object.hasOwn(runtime, "prompt") && !PROMPT_MODES.has(runtime.prompt)) {
     fail("invalid-definition", "group.runtime.prompt must be isolated or host", definitionPath);
@@ -251,7 +251,7 @@ const EXPECTATION_FIELDS = new Map([
   ["resource-read", ["resource", "index", "path"]],
   ["path", ["path"]],
   ["changed-paths", ["paths"]],
-  ["file-text", ["path", "value"]],
+  ["file-text", ["path", "value", "line"]],
   ["json", ["path", "pointer", "value"]],
   ["response-text", ["value"]],
   ["context-text", ["value", "surface", "request"]],
@@ -321,13 +321,203 @@ function validateCommands(group, definitionPath) {
   }
 }
 
-function validateModel(value, definitionPath) {
-  const model = requireExactKeys(value, ["model"], ["thinking"], "group.model", definitionPath);
-  requireString(model.model, "group.model.model", definitionPath);
-  if (Object.hasOwn(model, "thinking")) requireString(model.thinking, "group.model.thinking", definitionPath);
+function validateModel(value, label, definitionPath) {
+  const model = requireExactKeys(value, ["model"], ["thinking"], label, definitionPath);
+  requireString(model.model, `${label}.model`, definitionPath);
+  if (Object.hasOwn(model, "thinking")) requireString(model.thinking, `${label}.thinking`, definitionPath);
 }
 
-function validateGroup(value, definitionPath) {
+// Schema 2: a group is a task plus a configuration. Each arm overlays the shared configuration, and
+// `component` names the only paths where the two effective configurations may differ.
+const SCHEMA_1_MESSAGE =
+  "schema 1 definitions are no longer supported; rewrite it as schema 2 (see the evaluation definition schema reference)";
+const CONFIGURATION_FIELDS = ["host", "model", "subject", "freeflow", "runtime"];
+// Arms may not differ here yet: runtime bundles are prepared once per group, and Pi is the only host.
+const SHARED_ONLY = ["host", "runtime"];
+const COMPONENT_PATH = /^[a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9_-]+)*$/;
+
+function rejectSchema1(value, label, definitionPath) {
+  if (isPlainObject(value) && value.schema_version === 1)
+    fail("unsupported-schema", `${label}: ${SCHEMA_1_MESSAGE}`, definitionPath);
+}
+
+/** Objects merge key by key; arrays, scalars and null replace. */
+function merge(base, overlay) {
+  if (!isPlainObject(base) || !isPlainObject(overlay)) return structuredClone(overlay);
+  const result = structuredClone(base);
+  for (const [key, value] of Object.entries(overlay)) {
+    result[key] = Object.hasOwn(result, key) ? merge(result[key], value) : structuredClone(value);
+  }
+  return result;
+}
+
+/** Leaf paths where two values differ; arrays and scalars are leaves. */
+function differences(left, right, prefix = "") {
+  if (isPlainObject(left) && isPlainObject(right)) {
+    return [...new Set([...Object.keys(left), ...Object.keys(right)])]
+      .sort()
+      .flatMap((key) => differences(left[key], right[key], prefix === "" ? key : `${prefix}.${key}`));
+  }
+  return JSON.stringify(left) === JSON.stringify(right) ? [] : [prefix];
+}
+
+function validateSubject(value, label, definitionPath) {
+  const subject = requireObject(value, label, definitionPath);
+  if (subject.kind === "none") {
+    requireExactKeys(subject, ["kind"], [], label, definitionPath);
+    return { source: { kind: "working-tree" }, skills: [], target: null, context: [] };
+  }
+  if (subject.kind !== "skill") fail("invalid-definition", `${label}.kind must be skill or none`, definitionPath);
+  const { kind: _kind, ...environment } = requireExactKeys(
+    subject,
+    ["kind", "source", "skills", "target", "context"],
+    [],
+    label,
+    definitionPath,
+  );
+  validateEnvironment(environment, label, definitionPath);
+  return environment;
+}
+
+function validateEffectiveConfiguration(value, label, definitionPath) {
+  const configuration = requireExactKeys(
+    value,
+    ["host", "subject"],
+    ["model", "freeflow", "runtime"],
+    label,
+    definitionPath,
+  );
+  const host = requireExactKeys(configuration.host, ["name"], ["version"], `${label}.host`, definitionPath);
+  if (!EVALUATION_HOSTS.has(host.name))
+    fail("invalid-definition", "group.configuration.host.name must be pi", definitionPath);
+  if (Object.hasOwn(host, "version")) requireString(host.version, `${label}.host.version`, definitionPath);
+  if (Object.hasOwn(configuration, "model")) validateModel(configuration.model, `${label}.model`, definitionPath);
+  const environment = validateSubject(configuration.subject, `${label}.subject`, definitionPath);
+  let runtime;
+  if (Object.hasOwn(configuration, "runtime") && configuration.runtime !== null) {
+    // Undeclared runtime fields take their defaults, so a definition states only what it changes.
+    runtime = {
+      host: host.name,
+      session: false,
+      extensions: [],
+      environment: { literal: {}, inherit: [] },
+      ...requireObject(configuration.runtime, `${label}.runtime`, definitionPath),
+    };
+    validateRuntime(runtime, definitionPath);
+  }
+  let freeflow;
+  if (Object.hasOwn(configuration, "freeflow") && configuration.freeflow !== null) {
+    freeflow = validateFreeflow(configuration.freeflow, `${label}.freeflow`, definitionPath);
+    // The isolated prompt replaces the host's system prompt, which would remove Freeflow's own instructions.
+    if (runtime?.prompt !== "host") {
+      fail(
+        "invalid-definition",
+        `${label}.freeflow needs configuration.runtime.prompt "host", so Freeflow's own instructions reach the subject`,
+        definitionPath,
+      );
+    }
+  }
+  return { configuration, environment, runtime, freeflow };
+}
+
+/**
+ * Freeflow as part of the configuration: the package built from an exact commit, and the settings written to
+ * the workspace's `.freeflow/config.json` (repository) and `.freeflow/local.json` (personal). The settings are
+ * checked later with the validator from that same build, so the check matches the version under test.
+ */
+function validateFreeflow(value, label, definitionPath) {
+  const freeflow = requireExactKeys(value, ["source"], ["repository", "personal"], label, definitionPath);
+  const source = requireExactKeys(freeflow.source, ["kind", "ref"], [], `${label}.source`, definitionPath);
+  if (source.kind !== "git") fail("invalid-definition", `${label}.source.kind must be git`, definitionPath);
+  requireString(source.ref, `${label}.source.ref`, definitionPath);
+  return {
+    source: { kind: "git", ref: source.ref },
+    repository: requireObject(freeflow.repository ?? {}, `${label}.repository`, definitionPath),
+    personal: requireObject(freeflow.personal ?? {}, `${label}.personal`, definitionPath),
+  };
+}
+
+async function readConfigurationFile(reference, definitionPath, root) {
+  requireSuiteReference(reference, "group.configuration.extends", definitionPath);
+  const loaded = await readJsonFile(path.resolve(path.dirname(definitionPath), reference), root);
+  rejectSchema1(loaded.value, "configuration", loaded.file);
+  const shared = requireExactKeys(
+    loaded.value,
+    ["schema_version", "kind", "id", "configuration"],
+    [],
+    "configuration file",
+    loaded.file,
+  );
+  if (shared.schema_version !== 2) fail("unsupported-schema", "configuration.schema_version must be 2", loaded.file);
+  if (shared.kind !== "configuration")
+    fail("invalid-definition", "configuration file kind must be configuration", loaded.file);
+  requireId(shared.id, "configuration.id", loaded.file);
+  const configuration = requireObject(shared.configuration, "configuration.configuration", loaded.file);
+  for (const key of Object.keys(configuration)) {
+    if (!CONFIGURATION_FIELDS.includes(key)) {
+      fail("invalid-definition", `configuration.configuration contains unsupported field ${key}`, loaded.file);
+    }
+  }
+  return configuration;
+}
+
+async function resolveArms(group, definitionPath, root) {
+  const own = requireObject(group.configuration, "group.configuration", definitionPath);
+  for (const key of Object.keys(own)) {
+    if (key !== "extends" && !CONFIGURATION_FIELDS.includes(key)) {
+      fail("invalid-definition", `group.configuration contains unsupported field ${key}`, definitionPath);
+    }
+  }
+  const { extends: reference = null, ...fields } = own;
+  const base = reference === null ? {} : await readConfigurationFile(reference, definitionPath, root);
+  const shared = merge(base, fields);
+
+  const arms = requireExactKeys(group.arms, VARIANTS, [], "group.arms", definitionPath);
+  const resolved = {};
+  for (const arm of VARIANTS) {
+    const overlay = requireObject(arms[arm], `group.arms.${arm}`, definitionPath);
+    for (const key of Object.keys(overlay)) {
+      if (!CONFIGURATION_FIELDS.includes(key)) {
+        fail("invalid-definition", `group.arms.${arm} contains unsupported field ${key}`, definitionPath);
+      }
+    }
+    resolved[arm] = validateEffectiveConfiguration(merge(shared, overlay), `group.arms.${arm}`, definitionPath);
+  }
+
+  const component = requireStringArray(group.component, "group.component", definitionPath, { unique: true });
+  for (const [index, entry] of component.entries()) {
+    if (!COMPONENT_PATH.test(entry) || !CONFIGURATION_FIELDS.includes(entry.split(".")[0])) {
+      fail("invalid-definition", `group.component[${index}] must be a path inside the configuration`, definitionPath);
+    }
+  }
+  const differing = differences(resolved.baseline.configuration, resolved.candidate.configuration);
+  const declares = (entry, difference) => difference === entry || difference.startsWith(`${entry}.`);
+  for (const difference of differing) {
+    if (SHARED_ONLY.includes(difference.split(".")[0])) {
+      fail("unsupported-difference", `the arms differ in ${difference}, which both arms must share`, definitionPath);
+    }
+    if (!component.some((entry) => declares(entry, difference))) {
+      fail(
+        "undeclared-difference",
+        `the arms differ in ${difference}, which group.component does not declare`,
+        definitionPath,
+      );
+    }
+  }
+  for (const entry of component) {
+    if (!differing.some((difference) => declares(entry, difference))) {
+      fail(
+        "undeclared-difference",
+        `group.component declares ${entry}, but the arms do not differ there`,
+        definitionPath,
+      );
+    }
+  }
+  return { resolved, component };
+}
+
+async function validateGroup(value, definitionPath, root) {
+  rejectSchema1(value, "group", definitionPath);
   const group = requireExactKeys(
     value,
     [
@@ -338,15 +528,17 @@ function validateGroup(value, definitionPath) {
       "input",
       "fixture",
       "tools",
-      "variants",
+      "configuration",
+      "arms",
+      "component",
       "expectations",
       "review_questions",
     ],
-    ["model", "runtime", "commands", "revision"],
+    ["commands", "revision"],
     "group",
     definitionPath,
   );
-  if (group.schema_version !== 1) fail("unsupported-schema", "group.schema_version must be 1", definitionPath);
+  if (group.schema_version !== 2) fail("unsupported-schema", "group.schema_version must be 2", definitionPath);
   if (group.kind !== "group") fail("invalid-definition", "group.kind must be group", definitionPath);
   requireId(group.id, "group.id", definitionPath);
   if (!EVALUATION_TYPES.has(group.type)) {
@@ -356,13 +548,15 @@ function validateGroup(value, definitionPath) {
   if (group.fixture !== null) requireSafeRelativePath(group.fixture, "group.fixture", definitionPath);
   requireStringArray(group.tools, "group.tools", definitionPath, { unique: true });
   validateCommands(group, definitionPath);
-  if (Object.hasOwn(group, "runtime")) validateRuntime(group.runtime, definitionPath);
-  const variants = requireExactKeys(group.variants, VARIANTS, [], "group.variants", definitionPath);
-  for (const variant of VARIANTS) validateEnvironment(variants[variant], `group.variants.${variant}`, definitionPath);
+  const { resolved, component } = await resolveArms(group, definitionPath, root);
+  const variants = {
+    baseline: { ...resolved.baseline.environment },
+    candidate: { ...resolved.candidate.environment },
+  };
   if (variants.candidate.target === null && variants.candidate.skills.length > 0) {
     fail(
       "invalid-definition",
-      "group.variants.candidate.target must identify the candidate target skill when candidate skills are declared",
+      "group.arms.candidate.subject.target must identify the candidate target skill when candidate skills are declared",
       definitionPath,
     );
   }
@@ -375,7 +569,7 @@ function validateGroup(value, definitionPath) {
     if (group.type !== "description" || variants.baseline.target === null || variants.candidate.target === null) {
       fail(
         "invalid-definition",
-        "a description-only revision needs a description group with a target skill in both variants",
+        "a description-only revision needs a description group with a target skill in both arms",
         definitionPath,
       );
     }
@@ -387,13 +581,30 @@ function validateGroup(value, definitionPath) {
       definitionPath,
     );
   }
-  if (Object.hasOwn(group, "model")) validateModel(group.model, definitionPath);
-  return group;
+
+  // The runner works on the resolved arms: each variant carries its subject and model, and the shared
+  // runtime (which may not differ between arms) is the group's.
+  for (const arm of VARIANTS) {
+    if (resolved[arm].configuration.model !== undefined) variants[arm].model = resolved[arm].configuration.model;
+    if (resolved[arm].freeflow !== undefined) variants[arm].freeflow = resolved[arm].freeflow;
+  }
+  const internal = {
+    ...group,
+    configurations: { baseline: resolved.baseline.configuration, candidate: resolved.candidate.configuration },
+    component,
+    variants,
+  };
+  if (JSON.stringify(variants.baseline.model) === JSON.stringify(variants.candidate.model) && variants.baseline.model) {
+    internal.model = variants.baseline.model;
+  }
+  if (resolved.baseline.runtime !== undefined) internal.runtime = resolved.baseline.runtime;
+  return internal;
 }
 
 function validateSuite(value, definitionPath) {
+  rejectSchema1(value, "suite", definitionPath);
   const suite = requireExactKeys(value, ["schema_version", "kind", "id", "groups"], [], "suite", definitionPath);
-  if (suite.schema_version !== 1) fail("unsupported-schema", "suite.schema_version must be 1", definitionPath);
+  if (suite.schema_version !== 2) fail("unsupported-schema", "suite.schema_version must be 2", definitionPath);
   if (suite.kind !== "suite") fail("invalid-definition", "suite.kind must be suite", definitionPath);
   requireId(suite.id, "suite.id", definitionPath);
   const groups = requireStringArray(suite.groups, "suite.groups", definitionPath, { unique: true });
@@ -441,7 +652,7 @@ export async function loadDefinition(file, { root = process.cwd() } = {}) {
   const definitionRoot = path.resolve(root);
   const loaded = await readJsonFile(file, definitionRoot);
   const object = requireObject(loaded.value, "definition", loaded.file);
-  if (object.kind === "group") return validateGroup(object, loaded.file);
+  if (object.kind === "group") return validateGroup(object, loaded.file, definitionRoot);
   if (object.kind !== "suite") fail("invalid-definition", "definition.kind must be group or suite", loaded.file);
 
   const suite = validateSuite(object, loaded.file);
@@ -450,7 +661,7 @@ export async function loadDefinition(file, { root = process.cwd() } = {}) {
   for (const reference of suite.groups) {
     const groupFile = path.resolve(path.dirname(loaded.file), reference);
     const groupLoaded = await readJsonFile(groupFile, definitionRoot);
-    const group = validateGroup(groupLoaded.value, groupLoaded.file);
+    const group = await validateGroup(groupLoaded.value, groupLoaded.file, definitionRoot);
     if (ids.has(group.id)) fail("invalid-definition", `suite contains duplicate group ID ${group.id}`, loaded.file);
     ids.add(group.id);
     groups.push(group);

@@ -6,6 +6,7 @@ import { spawnSync as rawSpawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { toV2 } from "./helpers/to-v2.mjs";
 
 const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-skill/scripts/skill-eval.mjs", import.meta.url));
 const FAKE_RPC_ENVIRONMENT_KEYS = [
@@ -61,7 +62,7 @@ async function withTempDirectory(run) {
 async function writeJson(root, relativePath, value) {
   const file = path.join(root, relativePath);
   await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, `${JSON.stringify(value, null, 2)}\n`);
+  await writeFile(file, `${JSON.stringify(toV2(value), null, 2)}\n`);
   return file;
 }
 
@@ -347,6 +348,7 @@ test("body evaluation explicitly delivers only the selected target body and pres
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -419,6 +421,7 @@ test("body evaluation preserves ordered multi-skill and declared-context materia
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -478,6 +481,7 @@ test("multi-skill body evaluation fails before prompting when the target command
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -512,6 +516,7 @@ test("body delivery remains unavailable when RPC fails before prompt acceptance"
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -546,6 +551,7 @@ test("body evaluation fails closed before prompting when the guard extension err
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -582,6 +588,7 @@ test("body evaluation fails before prompting when Pi cannot identify the exact t
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -657,6 +664,7 @@ test("multi-turn body evaluation explicitly loads each previous and updated snap
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -794,6 +802,7 @@ test("multi-turn body grading preserves intermediate workspace evidence by turn"
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -852,6 +861,7 @@ test("body evaluation preserves declared tool activity and exact workspace effec
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -907,6 +917,7 @@ test("declared commands load the evaluator command tool immediately after the gu
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -944,6 +955,7 @@ test("groups without declared commands do not load the command tool", async () =
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -976,6 +988,7 @@ test("the host prompt mode reaches the guard and is recorded in run evidence", a
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -1020,6 +1033,7 @@ test("command expectations are rejected before any subject starts", async () => 
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -1073,6 +1087,7 @@ test("public body execution persists runs before broader deterministic grading",
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -1143,6 +1158,7 @@ test("a failed body response check remains separate from the completed subject r
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -1206,6 +1222,7 @@ test("a body response check outside the declared turn range becomes a grade erro
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -1241,6 +1258,7 @@ test("persistent description evaluation sends declared turns through one Pi RPC 
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -1395,6 +1413,7 @@ test("split UTF-8 code points remain exact across RPC stdout chunks", async () =
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -1432,6 +1451,7 @@ test("RPC framing and response-correlation failures preserve inspectable subject
         cwd: root,
         encoding: "utf8",
         env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
           ...process.env,
           PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
           FAKE_PI_LOG: fakeLog,
@@ -1467,6 +1487,7 @@ test("an interrupted active turn preserves only its directly observed evidence",
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -1538,6 +1559,7 @@ test("an oversized incomplete RPC frame triggers the emergency transport safegua
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -1571,6 +1593,7 @@ test("an RPC process that exits before accepting commands becomes persisted infr
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -1602,6 +1625,7 @@ test("a settled provider error stops later declared turns and remains infrastruc
       cwd: root,
       encoding: "utf8",
       env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
         ...process.env,
         PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PI_LOG: fakeLog,
@@ -1654,6 +1678,7 @@ test(
         cwd: root,
         encoding: "utf8",
         env: {
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
           ...process.env,
           PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
           FAKE_PI_LOG: fakeLog,

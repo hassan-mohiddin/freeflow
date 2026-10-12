@@ -6,6 +6,7 @@ import path from "node:path";
 import { spawnSync as rawSpawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { toV2 } from "./helpers/to-v2.mjs";
 
 const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-skill/scripts/skill-eval.mjs", import.meta.url));
 const FAKE_PI_ENVIRONMENT_KEYS = [
@@ -35,6 +36,8 @@ function spawnSync(command, args, options) {
   if (command === process.execPath && args?.includes(entrypoint)) {
     const env = { ...(options?.env ?? process.env) };
     for (const key of FAKE_PI_ENVIRONMENT_KEYS) env[key] ??= "";
+    // Never copy the developer's real Pi logins into test runs.
+    env.SKILL_EVAL_CREDENTIALS_DIR ??= path.join(tmpdir(), "skill-eval-no-credentials");
     return rawSpawnSync(command, args, { ...options, env });
   }
   return rawSpawnSync(command, args, options);
@@ -64,7 +67,7 @@ async function withTempDirectory(run) {
 async function writeJson(root, relativePath, value) {
   const file = path.join(root, relativePath);
   await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, `${JSON.stringify(value, null, 2)}\n`);
+  await writeFile(file, `${JSON.stringify(toV2(value), null, 2)}\n`);
   return file;
 }
 
@@ -292,7 +295,7 @@ printf invoked > ${JSON.stringify(marker)}
     });
 
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /group.runtime.host must be pi/);
+    assert.match(result.stderr, /group.configuration.host.name must be pi/);
     await assert.rejects(readFile(marker), { code: "ENOENT" });
   });
 });
@@ -1929,7 +1932,10 @@ test("run persists isolated one-shot description evidence before deterministic a
     });
 
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /^Result: .+\nPath: .+\nState: complete\n$/);
+    assert.match(
+      result.stdout,
+      /^Plan: 2 subjects \(1 group, 2 arms, 1 trial\); models: fake\/model \(low\)\nResult: .+\nPath: .+\nState: complete\n$/,
+    );
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
     assert.ok(resultDirectory);
 

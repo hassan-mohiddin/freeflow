@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "group",
   "id": "dgq-001-activation",
   "type": "description",
@@ -11,29 +11,40 @@
   },
   "fixture": ".skill-eval/decision-gate/fixtures/qualification",
   "tools": ["read"],
-  "variants": {
-    "baseline": {
-      "source": {
-        "kind": "git",
-        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
-      },
-      "skills": [
-        ".skill-eval/qualification/subjects/qualification-base",
-        ".skill-eval/qualification/subjects/neutral/decision-gate"
-      ],
-      "target": 1,
-      "context": []
+  "configuration": {
+    "host": {
+      "name": "pi"
     },
-    "candidate": {
+    "model": {
+      "model": "xai/grok-4.7",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "skill",
       "source": {
         "kind": "git",
         "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
       },
-      "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/decision-gate"],
       "target": 1,
       "context": []
     }
   },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "skills": [
+          ".skill-eval/qualification/subjects/qualification-base",
+          ".skill-eval/qualification/subjects/neutral/decision-gate"
+        ]
+      }
+    },
+    "candidate": {
+      "subject": {
+        "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/decision-gate"]
+      }
+    }
+  },
+  "component": ["subject.skills"],
   "expectations": [
     {
       "id": "baseline-near-miss-not-read",
@@ -84,9 +95,5 @@
       "turn": 2
     }
   ],
-  "review_questions": [],
-  "model": {
-    "model": "xai/grok-4.7",
-    "thinking": "medium"
-  }
+  "review_questions": []
 }

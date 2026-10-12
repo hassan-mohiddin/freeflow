@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "group",
   "id": "dfq-002-outcome",
   "type": "body",
@@ -8,29 +8,40 @@
   },
   "fixture": ".skill-eval/design-for-depth/fixtures/qualification",
   "tools": ["read", "write"],
-  "variants": {
-    "baseline": {
-      "source": {
-        "kind": "git",
-        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
-      },
-      "skills": [
-        ".skill-eval/qualification/subjects/qualification-base",
-        ".skill-eval/qualification/subjects/neutral/design-for-depth"
-      ],
-      "target": 1,
-      "context": []
+  "configuration": {
+    "host": {
+      "name": "pi"
     },
-    "candidate": {
+    "model": {
+      "model": "xai/grok-4.7",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "skill",
       "source": {
         "kind": "git",
         "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
       },
-      "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/design-for-depth"],
       "target": 1,
       "context": []
     }
   },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "skills": [
+          ".skill-eval/qualification/subjects/qualification-base",
+          ".skill-eval/qualification/subjects/neutral/design-for-depth"
+        ]
+      }
+    },
+    "candidate": {
+      "subject": {
+        "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/design-for-depth"]
+      }
+    }
+  },
+  "component": ["subject.skills"],
   "expectations": [
     {
       "id": "baseline-next-step-only",
@@ -51,9 +62,5 @@
   ],
   "review_questions": [
     "The recommendation must reject another adapter-local patch because two different local fixes and a third sibling defect expose shared caller knowledge. It must preserve valid work and route to one shared planning-report publication failure unit owning accepted canonical state, rejected diagnostics, and prior-state preservation. Deadline pressure is not evidence for continuing locally."
-  ],
-  "model": {
-    "model": "xai/grok-4.7",
-    "thinking": "medium"
-  }
+  ]
 }

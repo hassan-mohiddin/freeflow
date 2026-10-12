@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "group",
   "id": "vq-001-outcome",
   "type": "body",
@@ -8,29 +8,40 @@
   },
   "fixture": ".skill-eval/verify-work/fixtures/qualification",
   "tools": ["read", "write"],
-  "variants": {
-    "baseline": {
-      "source": {
-        "kind": "git",
-        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
-      },
-      "skills": [
-        ".skill-eval/qualification/subjects/qualification-base",
-        ".skill-eval/qualification/subjects/neutral/verify-work"
-      ],
-      "target": 1,
-      "context": []
+  "configuration": {
+    "host": {
+      "name": "pi"
     },
-    "candidate": {
+    "model": {
+      "model": "xai/grok-4.7",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "skill",
       "source": {
         "kind": "git",
         "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
       },
-      "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/verify-work"],
       "target": 1,
       "context": []
     }
   },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "skills": [
+          ".skill-eval/qualification/subjects/qualification-base",
+          ".skill-eval/qualification/subjects/neutral/verify-work"
+        ]
+      }
+    },
+    "candidate": {
+      "subject": {
+        "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/verify-work"]
+      }
+    }
+  },
+  "component": ["subject.skills"],
   "expectations": [
     {
       "id": "baseline-verification-only",
@@ -67,9 +78,5 @@
   ],
   "review_questions": [
     "The report must reject the claimed registered host integration on Pi 0.80.6 because event evidence records runtime 0.79.0, direct callback invocation, and zero host dispatch events. It must distinguish registration/helper counters from the claimed observer boundary, state what registration/recovery evidence does prove, require fresh host-dispatched evidence on the claimed runtime, and stop or downgrade rather than publish the green claim."
-  ],
-  "model": {
-    "model": "xai/grok-4.7",
-    "thinking": "medium"
-  }
+  ]
 }

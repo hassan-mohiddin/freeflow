@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "group",
   "id": "wfi-004-activation",
   "type": "description",
@@ -13,26 +13,40 @@
   },
   "fixture": ".skill-eval/workflow/fixtures/incidents/sibling-adapters",
   "tools": ["read"],
-  "variants": {
-    "baseline": {
-      "source": {
-        "kind": "git",
-        "ref": "87f83cb4e7b2c082c88d49c22d2bb167eaf5684a"
-      },
-      "skills": ["skills/workflow", "skills/execute-work", "skills/review-work", "skills/design-for-depth"],
-      "target": 3,
-      "context": ["runtime/prompts/interaction-contract.md"]
+  "configuration": {
+    "host": {
+      "name": "pi"
     },
-    "candidate": {
-      "source": {
-        "kind": "git",
-        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
-      },
+    "model": {
+      "model": "xai/grok-4.7",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "skill",
       "skills": ["skills/workflow", "skills/execute-work", "skills/review-work", "skills/design-for-depth"],
       "target": 3,
       "context": ["runtime/prompts/interaction-contract.md"]
     }
   },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "87f83cb4e7b2c082c88d49c22d2bb167eaf5684a"
+        }
+      }
+    },
+    "candidate": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+        }
+      }
+    }
+  },
+  "component": ["subject.source"],
   "expectations": [
     {
       "id": "baseline-execute-work-read",
@@ -91,9 +105,5 @@
       "turn": 1
     }
   ],
-  "review_questions": [],
-  "model": {
-    "model": "xai/grok-4.7",
-    "thinking": "medium"
-  }
+  "review_questions": []
 }

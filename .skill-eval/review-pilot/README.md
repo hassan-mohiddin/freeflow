@@ -41,7 +41,7 @@ Clean, seeded and real results are reported separately, and each case says only 
 
 ## Arms
 
-The baseline arm pins 62148587, the merge of Review Artifact into Review Work. The candidate arm pins 967c2126, which adds the judge contract and the report-and-record and eval-definition references. The first comparison, baseline e09b99d3 against the merge, is in its results note. To measure a later change, point `candidate.source.ref` at the commit that contains it. Pointing both arms at one commit gives an A/A comparison that measures run-to-run noise.
+The baseline arm pins 62148587, the merge of Review Artifact into Review Work. The candidate arm pins 967c2126, which adds the judge contract and the report-and-record and eval-definition references. The first comparison, baseline e09b99d3 against the merge, is in its results note. To measure a later change, point `arms.candidate.subject.source.ref` at the commit that contains it. Pointing both arms at one commit gives an A/A comparison that measures run-to-run noise.
 
 ## Limits
 

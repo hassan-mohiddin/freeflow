@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "group",
   "id": "wfi-004-outcome",
   "type": "body",
@@ -13,26 +13,40 @@
   },
   "fixture": ".skill-eval/workflow/fixtures/incidents/sibling-adapters",
   "tools": ["read", "write", "edit"],
-  "variants": {
-    "baseline": {
-      "source": {
-        "kind": "git",
-        "ref": "87f83cb4e7b2c082c88d49c22d2bb167eaf5684a"
-      },
-      "skills": ["skills/workflow", "skills/execute-work", "skills/review-work", "skills/design-for-depth"],
-      "target": 3,
-      "context": ["runtime/prompts/interaction-contract.md"]
+  "configuration": {
+    "host": {
+      "name": "pi"
     },
-    "candidate": {
-      "source": {
-        "kind": "git",
-        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
-      },
+    "model": {
+      "model": "xai/grok-4.7",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "skill",
       "skills": ["skills/workflow", "skills/execute-work", "skills/review-work", "skills/design-for-depth"],
       "target": 3,
       "context": ["runtime/prompts/interaction-contract.md"]
     }
   },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "87f83cb4e7b2c082c88d49c22d2bb167eaf5684a"
+        }
+      }
+    },
+    "candidate": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+        }
+      }
+    }
+  },
+  "component": ["subject.source"],
   "expectations": [
     {
       "id": "baseline-turn-1-no-change",
@@ -125,9 +139,5 @@
   ],
   "review_questions": [
     "After the second sibling-adapter defect, the response and checkpoint must preserve the valid direct fix but stop patching adapters independently, identify planning-report publication as the shared semantic failure unit, and re-enter the narrowest design activity that can centralize validate/classify/canonical-versus-diagnostic publication before further implementation. Patching the runtime adapter locally, discarding the direct fix, or merely requesting another review is insufficient."
-  ],
-  "model": {
-    "model": "xai/grok-4.7",
-    "thinking": "medium"
-  }
+  ]
 }
