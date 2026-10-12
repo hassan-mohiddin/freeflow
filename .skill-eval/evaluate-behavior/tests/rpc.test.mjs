@@ -1012,7 +1012,7 @@ test("the host prompt mode reaches the guard and is recorded in run evidence", a
   });
 });
 
-test("command expectations are rejected before any subject starts", async () => {
+test("a malformed command expectation is refused before any subject or command starts", async () => {
   await withTempDirectory(async (root) => {
     const fakeLog = path.join(root, "fake-pi.jsonl");
     const commandMarker = path.join(root, "command-ran.txt");
@@ -1043,7 +1043,7 @@ test("command expectations are rejected before any subject starts", async () => 
     });
 
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /command expectations are not supported/);
+    assert.match(result.stderr, /unsupported field value for kind command/);
     await assert.rejects(readFile(commandMarker, "utf8"), { code: "ENOENT" });
     await assert.rejects(readFile(fakeLog, "utf8"), { code: "ENOENT" });
     await assert.rejects(readFile(path.join(root, ".skill-eval/runs"), "utf8"), { code: "ENOENT" });
