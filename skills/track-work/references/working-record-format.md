@@ -108,13 +108,16 @@ Present understanding, as bullets under these seven headings, plus an optional W
 | Current direction | The remaining approach and why; not a history of completed work. |
 | Boundaries | Scope exclusions, constraints, evidence limits, user-facing return conditions, and separately controlled actions. When the record has a Work agreement, return conditions and separately controlled actions belong there, and Boundaries keeps the rest. |
 
-Each Work agreement line that rests on the user's reply quotes it, beside what it answered:
+Start each line with the lead words for the part it states: `Done when`, `Without asking:`, `Ask first:`, `Back`, `Holds until`. Write only the parts that are known; one line is often enough, and `validate` does not check the lead words. Each line that rests on the user's reply quotes it, beside what it answered:
 
 ```markdown
 ### Work agreement
 
-- Fix the reported bug, commit on a branch and open a PR. You said "yeah, do that" to that route (2026-10-12).
-- Back at the PR. Merging is yours.
+- Done when the reported bug is fixed and its PR is open.
+- Without asking: fix it, commit on a branch, open the PR. You said "yeah, do that" to that route (2026-10-12).
+- Ask first: merging, anything outside the bug.
+- Back at the PR.
+- Holds until the PR merges.
 ```
 
 The heading is never empty: omit it until something is agreed. `validate` rejects it when it is empty or anywhere but directly after Goal.
