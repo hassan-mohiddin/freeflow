@@ -125,6 +125,11 @@ test("refreshes committed content only and records exact provenance", async () =
     assert.equal(snapshot.metadata.packageName, FREEFLOW_PACKAGE_NAME);
     assert.equal(snapshot.metadata.packageVersion, "0.5.0");
     assert.match(snapshot.metadata.npmPackIntegrity, /^sha512-/);
+    assert.match(
+      snapshot.metadata.construction,
+      /npm ci --omit=dev --ignore-scripts --legacy-peer-deps --no-audit --no-fund /,
+      "the recorded construction names the install command that ran",
+    );
     assert.match(snapshot.metadata.tarballSha256, /^[0-9a-f]{64}$/);
     assert.equal(snapshot.metadata.sourceWorktreeDirty, true);
     assert.equal(snapshot.metadata.committedContentOnly, true);
