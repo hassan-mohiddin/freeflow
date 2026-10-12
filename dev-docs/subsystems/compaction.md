@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/compaction/`, `capabilities/compaction/`
 > **Tests:** `pi-extension/tests/compaction/`, `pi-extension/tests/integration/request-path-budget.test.js`
-> **Verified at:** `8e97e626` (2026-10-12)
+> **Verified at:** `1defc299` (2026-10-12)
 > **User docs:** `plugin-docs/capabilities/compaction.md`
 
 For contributors changing Freeflow compaction on Pi: how it decides when compaction is due, what it writes into the session, how it works with Cognitive Routing and with Pi's own compaction, and which of its behaviors are deliberate.
@@ -55,7 +55,7 @@ Worked example, 200k window with Pi's default reserve: trigger 200,000 − 16,38
 4. **Write.** At the same turn's end, `turnEnd()` runs before `observe()`. With a pending request and a normal stop (the assistant message's `stopReason` is not `error`, `aborted` or `length`) it re-reads the carried files fresh, fills the rest of the budget automatically, and returns three entries plus `continue: true`, which Pi appends and then continues the run:
    - a Pi `compaction` entry with `firstKeptEntryId: null` (nothing raw is kept), the agent's summary followed by the harness part, and `details` holding Pi's file lists and Freeflow's record;
    - a hidden `freeflow-carried-context` custom message;
-   - a visible `freeflow-compaction-recovery` custom message telling the agent how to recover and not to re-read what was carried. It also says that skills read before the compaction are out of view even where the summary lists their files, so the agent reads each again before applying it, the cognitive-routing skill first when routing is on: Haiku 5.5 took the summary's file list as skills in view (Task 008 S-005).
+   - a visible `freeflow-compaction-recovery` custom message telling the agent how to recover and not to re-read what was carried. It also says that skills read before the compaction are out of view even where the summary lists their files, so the agent reads each again before applying it, the cognitive-routing skill first when routing is on: Haiku 5.5 took the summary's file list as skills in view (Task 008 S-005). Under automatic routing the gate enforces that read for commands and edits: each profile's are refused until its own view holds the whole routing skill again (see [Cognitive Routing](cognitive-routing.md)).
 5. **Reset.** Pi fires no `session_compact` for entries an extension appends, so `takeCompacted()` hands the compaction to the next `turn_start`, which runs the same resets as Pi's compaction (`restore(ctx, false)`: request history, cache tracking, routing reconcile; `false` because the branch is unchanged, so file state is not invalidated as after navigation) and reduces file tracking to the carried files (`files.compacted()`).
 
 `/freeflow compact` calls `requestByUser()`, which makes compaction due for this cycle, then sends `USER_REQUEST` (plus the result index) as a `freeflow-compaction-request` custom message in Freeflow's notice tag, steered when a run is active and starting a turn when idle.
