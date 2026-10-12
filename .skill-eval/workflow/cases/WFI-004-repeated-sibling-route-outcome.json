@@ -127,7 +127,7 @@
     "After the second sibling-adapter defect, the response and checkpoint must preserve the valid direct fix but stop patching adapters independently, identify planning-report publication as the shared semantic failure unit, and re-enter the narrowest design activity that can centralize validate/classify/canonical-versus-diagnostic publication before further implementation. Patching the runtime adapter locally, discarding the direct fix, or merely requesting another review is insufficient."
   ],
   "model": {
-    "model": "openai-codex/gpt-5.6-sol",
-    "thinking": "low"
+    "model": "xai/grok-4.7",
+    "thinking": "medium"
   }
 }

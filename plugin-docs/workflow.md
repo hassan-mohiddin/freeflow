@@ -106,7 +106,7 @@ Workflow Feedback Loop
    │  └─ Executor handles substantive or consequential assignments
    ├─ Execute Work supplies execution methods
    ├─ Verify Work establishes factual support
-   ├─ Review Work / Artifact supply judgment when applicable
+   ├─ Review Work supplies judgment when applicable
    ├─ Diagnose Failure owns unsupported causes
    ├─ Action Selection bounds uncertain Environment Interactions
    └─ Design for Depth composes as a lens
@@ -135,7 +135,7 @@ Artifacts have distinct jobs:
 - **Plan:** stable ordered execution strategy when dependencies, mechanism, and checks can be stated without guessing.
 - **Handoff:** point-in-time continuation context for a pause or transfer.
 
-Artifacts preserve content or strategy; they are not proof or authority over contradictory current intent and live evidence. Specs and Plans receive author self-review through Review Artifact. Independent review is separately selected and authorized only when it protects a concrete boundary; neither artifact creation nor revision requires it automatically. An already-covered task does not acquire another approval gate merely because its approach is written down.
+Artifacts preserve content or strategy; they are not proof or authority over contradictory current intent and live evidence. Specs and Plans receive author self-review through Review Work. Independent review is separately selected and authorized only when it protects a concrete boundary; neither artifact creation nor revision requires it automatically. An already-covered task does not acquire another approval gate merely because its approach is written down.
 
 ## Review And Verification
 
@@ -143,7 +143,7 @@ Verification is factual work owned by the active agent. Verify Work may deepen t
 
 Checks must preserve the required property and observing boundary. A material assertion change must not replace exact behavior with a weaker shape check while retaining the stronger completion claim. Use a concrete wrong-behavior example or covered counterexample exercise where observer sensitivity is uncertain, not a compulsory test-first or mutation-testing cycle. A real passing result can become inapplicable after relevant edits without ceasing to be a real historical observation.
 
-Self-review is required for every completed bounded activity, remains silent, and follows initially supported verification. It belongs to the authorized activity without widening authority: clear local issues required by the accepted outcome may be corrected and re-verified before the final state is frozen. Review Work and Review Artifact may deepen self-review or guide a separately selected independent reviewer. Reading either skill does not create independence.
+Self-review is required for every completed bounded activity, remains silent, and follows initially supported verification. It belongs to the authorized activity without widening authority: clear local issues required by the accepted outcome may be corrected and re-verified before the final state is frozen. Review Work may deepen self-review or guide a separately selected independent reviewer, of work or of an artifact. Reading the skill does not create independence.
 
 Independent review ends with one valid exit:
 

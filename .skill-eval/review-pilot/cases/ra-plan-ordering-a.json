@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "rp05-a",
+  "type": "body",
+  "input": {
+    "prompt": "Review `plan.md` for fitness to guide the work described in `requirements.md`; `verification.md` is the author's note. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the section or line it concerns, or write `No findings.`"
+  },
+  "fixture": ".skill-eval/review-pilot/fixtures/ra-plan-ordering/clean",
+  "tools": ["read", "write"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": ["skills/review-artifact"],
+      "target": 0,
+      "context": []
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "6214858769e226369c061eb9bb157aa444455a07"
+      },
+      "skills": ["skills/review-work"],
+      "target": 0,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-only-review",
+      "variant": "baseline",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "candidate-only-review",
+      "variant": "candidate",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "baseline-judged-pass",
+      "variant": "baseline",
+      "comparison": "judged-pass",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "candidate-judged-pass",
+      "variant": "candidate",
+      "comparison": "judged-pass",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "Judgment: Pass"
+    }
+  ],
+  "review_questions": [
+    "Did the review avoid reporting problems that the change, its requirements and its files do not support?",
+    "Did the review keep style or naming preferences out of its findings?"
+  ],
+  "model": {
+    "model": "xai/grok-4.7",
+    "thinking": "medium"
+  }
+}

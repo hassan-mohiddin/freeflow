@@ -66,7 +66,7 @@
     "The review must block or revise Phase 2 before implementation because it defers proving the real registered host boundary while treating helper/dispatcher counters as completion evidence. It must recommend a smaller learning slice that establishes the host seam first and separate later storage, recovery, packaging, and publication work rather than accepting the oversized one-slice proof. Generic requests for more tests without identifying the evidence boundary are insufficient."
   ],
   "model": {
-    "model": "openai-codex/gpt-5.6-sol",
-    "thinking": "low"
+    "model": "xai/grok-4.7",
+    "thinking": "medium"
   }
 }

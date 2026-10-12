@@ -17,6 +17,7 @@ import {
   setSessionCoreOverride,
 } from "../../dist/host/config.js";
 import { setFreeflowStatus } from "../../dist/host/status.js";
+import { FREEFLOW_MODEL_SKILL_NAMES } from "../../dist/host/catalog.js";
 import { matches } from "../../dist/cognitive-routing/schemas.js";
 import { contextHandler, beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
@@ -1104,7 +1105,7 @@ test("Pi describes the mode-free Freeflow argument surface and manual profile co
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("context "), []);
 });
 
-test("Pi exposes 25 base skills without TDD, a mode skill, or compatibility aliases", async () => {
+test("Pi exposes the canonical base skills without TDD, a mode skill, or compatibility aliases", async () => {
   const cwd = await configuredRepo();
   try {
     const { handlers, commands, sentMessages, sentMessageOptions } = loadExtension();
@@ -1116,7 +1117,7 @@ test("Pi exposes 25 base skills without TDD, a mode skill, or compatibility alia
         assert.ok(match, `unexpected skill path: ${path}`);
         return match[1];
       });
-    assert.equal(skillNames.length, 25);
+    assert.deepEqual([...skillNames].sort(), [...FREEFLOW_MODEL_SKILL_NAMES].sort());
     assert.ok(skillNames.includes("workflow"));
     assert.ok(!skillNames.includes("tdd"));
     assert.ok(!skillNames.includes("mode-contract"));

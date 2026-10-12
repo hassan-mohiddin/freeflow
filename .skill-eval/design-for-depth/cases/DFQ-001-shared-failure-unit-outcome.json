@@ -69,7 +69,7 @@
     "The artifact must identify repeated caller knowledge around accepted/rejected canonical publication, reject a third adapter-local patch, and make one shared publication operation own validation, canonical accepted-state update, separate rejected diagnostics, and prior-state preservation. It must preserve valid local work, compare at least one alternative or bounded experiment, and re-enter the narrowest design activity before implementation rather than broadening product behavior."
   ],
   "model": {
-    "model": "openai-codex/gpt-5.6-sol",
-    "thinking": "low"
+    "model": "xai/grok-4.7",
+    "thinking": "medium"
   }
 }

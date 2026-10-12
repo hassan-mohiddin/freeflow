@@ -7,7 +7,7 @@ import { AGENT_PLUGINS_SCHEMA, validateAgentPluginManifest, validateHostManifest
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
-test("live host manifests share one package identity and the 25-skill kernel", () => {
+test("live host manifests share one package identity and the canonical skill kernel", () => {
   assert.deepEqual(validateHostManifests(repoRoot).errors, []);
 });
 

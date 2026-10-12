@@ -1,0 +1,25 @@
+{
+  "case": "ra-plan-ordering",
+  "skill": "review-artifact",
+  "source": {
+    "commit": "3580da96ac46410a8164c4506af1033da4c4b866",
+    "subject": "feat(release): complete v0.6 groundwork",
+    "paths": [".deprecated/project-docs/plans/workflow/2026-07-09-freeflow-toggle-implementation-plan.md"]
+  },
+  "seed": {
+    "description": "Swapped the Runtime state slice and the Dynamic Pi skill exposure slice, so Dynamic Pi skill exposure is step 1. Its resources_discover handler gates on config existing, Freeflow being enabled and skills being enabled, which is the state the Runtime state reader defines; that reader is now step 2. The first step therefore uses a result that a later step produces. This contradicts requirement 14 in requirements.md (each slice uses only state, readers and handlers that existing code or an earlier slice provides). Clean order: Runtime state at plan.md lines 24-29 with its defining bullet at line 25; Dynamic Pi skill exposure at lines 30-35 with its consuming bullet at line 32.",
+    "location": "plan.md:26",
+    "locator": "Dynamic Pi skill exposure"
+  },
+  "seed_verification": {
+    "method": "contradicts-requirement",
+    "command": null,
+    "clean_result": "Requirement 14 holds: Runtime state (plan.md line 24) defines the reader before Dynamic Pi skill exposure (plan.md line 30) uses it.",
+    "seeded_result": "Requirement 14 is contradicted: Dynamic Pi skill exposure is step 1 (plan.md line 24) and its resources_discover bullet (plan.md line 26) uses configured/enabled state that Runtime state, now step 2 (plan.md line 30), defines at plan.md line 31.",
+    "evidence": "requirements.md item 14 is contradicted by plan.md line 26 (resources_discover gates on config exists, Freeflow enabled and skills enabled) and plan.md line 31 (the reader that defines configured/enabled/effective state, placed after it as step 2)."
+  },
+  "groups": {
+    "clean": "rp05-a",
+    "seeded": "rp05-b"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "case": "ra-spec-contradiction",
+  "skill": "review-artifact",
+  "source": {
+    "commit": "3580da96ac46410a8164c4506af1033da4c4b866",
+    "subject": "feat(release): complete v0.6 groundwork",
+    "paths": [".deprecated/project-docs/specs/automation/freeflow-ci-cd-automation-spec.md"]
+  },
+  "seed": {
+    "description": "Release Workflow Hardening step 4 changed from running npm run check to running only npm run check:json and npm run check:shell, on the reasoning that CI already runs the rest. It is a defect because the release must run the same checks before npm publish, so a metadata, command-surface, runtime-hook or pack failure no longer blocks publishing. It contradicts requirement 7 in requirements.md (release runs npm run check before npm publish), and the acceptance criterion at spec.md line 110 (release.yml runs npm run check before publishing).",
+    "location": ".skill-eval/review-pilot/fixtures/ra-spec-contradiction/seeded/spec.md:82",
+    "locator": "npm run check"
+  },
+  "seed_verification": {
+    "method": "contradicts-requirement",
+    "command": "diff -u clean/spec.md seeded/spec.md; grep -n 'npm run check' seeded/spec.md (run from .skill-eval/review-pilot/fixtures/ra-spec-contradiction)",
+    "clean_result": "spec.md: step 4 (line 82) runs npm run check; acceptance criterion line 110 agrees with requirements.md point 7; no conflicting lines found by reading both sections; 113 lines",
+    "seeded_result": "spec.md: step 4 (line 82) runs only npm run check:json and npm run check:shell; the line-110 acceptance criterion and requirements.md point 7 still require npm run check before publishing; diff shows exactly one changed line (82); 113 lines",
+    "evidence": "requirements.md line 13 (point 7): '`.github/workflows/release.yml` runs `npm run check` before `npm publish`.' vs seeded spec.md line 82 (under '### 3. Release Workflow Hardening', line 75): '4. Run `npm run check:json` and `npm run check:shell`, since CI already runs the rest.' Also spec.md line 110 (Acceptance Criteria): '`.github/workflows/release.yml` runs `npm run check` before publishing.'"
+  },
+  "groups": {
+    "clean": "rp06-a",
+    "seeded": "rp06-b"
+  }
+}

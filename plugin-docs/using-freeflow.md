@@ -186,7 +186,7 @@ Freeflow skills are focused methods. Workflow chooses the current owner accordin
 | Implement approved work | `/execute-work` | Preparation, production, focused evidence, correction, and continuation |
 | Establish an unsupported cause | `/diagnose-failure` | Reproduction, hypotheses, discriminating evidence, and cause |
 | Establish what a check proves | `/verify-work` | Factual support at the required observer boundary |
-| Judge implementation or artifacts | `/review-work`, `/review-artifact` | Suitability and correctness judgment; independent review only when selected |
+| Judge implementation or artifacts | `/review-work` | Suitability and correctness judgment; independent review only when selected |
 | Preserve long-running task state | `/track-work` | Working Record creation, recovery, Slices, decisions, and checkpoints |
 | Create a local commit | `/commit-work` | Exact staging, commit creation, and checkpoint verification |
 | Prepare or publish a release | `/release-work` | Version, artifact, destination, publication, and consumer verification boundaries |
@@ -250,7 +250,7 @@ The current owner is the method responsible for the next result. Examples:
 - Execute Work owns concrete implementation.
 - Diagnose Failure owns an unsupported cause.
 - Verify Work owns a factual claim.
-- Review Work or Review Artifact owns judgment.
+- Review Work owns judgment, of work and of guiding artifacts.
 - Track Work owns durable task-memory operations.
 - Release Work owns release preparation and publication boundaries.
 

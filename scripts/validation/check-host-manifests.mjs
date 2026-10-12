@@ -2,6 +2,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { skillSetDifferences } from "./canonical-skills.mjs";
 import { fileURLToPath } from "node:url";
 
 export const AGENT_PLUGINS_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json";
@@ -315,9 +316,7 @@ function validateSkillSurface(root, errors) {
     .filter((entry) => entry.isDirectory() && existsSync(join(skillsRoot, entry.name, "SKILL.md")))
     .map((entry) => entry.name)
     .sort();
-  if (skillDirectories.length !== 25) {
-    errors.push(`portable skills directory must contain exactly 25 skills, found ${skillDirectories.length}`);
-  }
+  errors.push(...skillSetDifferences(skillDirectories, "portable skills directory"));
   if (skillDirectories.includes("tdd")) {
     errors.push("portable skills directory must not expose retired standalone TDD");
   }

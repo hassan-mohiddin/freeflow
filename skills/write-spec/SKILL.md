@@ -72,9 +72,9 @@ Experimental learning does not automatically enter the production contract: dist
 
 Goal: the artifact is fit for its use before anyone relies on it.
 
-After checking source-backed factual claims, use [Review Artifact](../review-artifact/SKILL.md) for silent author self-review of the complete artifact and its intended use. Check that it preserves accepted intent and amendments, separates requirements from proposals, has sufficient evidence and acceptance conditions, and keeps affected dependencies coherent. Correct clear covered defects and recheck affected facts and lenses; return unresolved owner decisions instead of inventing an answer to make the document consistent.
+After checking source-backed factual claims, use [Review Work](../review-work/SKILL.md) for silent author self-review of the complete artifact and its intended use. Check that it preserves accepted intent and amendments, separates requirements from proposals, has sufficient evidence and acceptance conditions, and keeps affected dependencies coherent. Correct clear covered defects and recheck affected facts and lenses; return unresolved owner decisions instead of inventing an answer to make the document consistent.
 
-Independent review applies only when selected and authorized to protect a concrete boundary: supply the complete artifact, source basis, dependencies, and evidence limits through Review Artifact's independent route, and adjudicate its report before revision or use. Respect an explicitly selected approval checkpoint, but do not create one for every artifact.
+Independent review applies only when selected and authorized to protect a concrete boundary: supply the complete artifact, source basis, dependencies, and evidence limits through Review Work's independent route, and adjudicate its report before revision or use. Respect an explicitly selected approval checkpoint, but do not create one for every artifact.
 
 ## Report And Stop
 

@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "rp02-b",
+  "type": "body",
+  "input": {
+    "prompt": "Review the completed change: `requirements.md` says what it must do, `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`"
+  },
+  "fixture": ".skill-eval/review-pilot/fixtures/rw-changelog-eof/seeded",
+  "tools": ["read", "write"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+      },
+      "skills": ["skills/review-work"],
+      "target": 0,
+      "context": []
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "6214858769e226369c061eb9bb157aa444455a07"
+      },
+      "skills": ["skills/review-work"],
+      "target": 0,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-only-review",
+      "variant": "baseline",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "candidate-only-review",
+      "variant": "candidate",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "baseline-not-passed",
+      "variant": "baseline",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "candidate-not-passed",
+      "variant": "candidate",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "baseline-defect-located",
+      "variant": "baseline",
+      "comparison": "defect-located",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "sectionsByTitle"
+    },
+    {
+      "id": "candidate-defect-located",
+      "variant": "candidate",
+      "comparison": "defect-located",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "sectionsByTitle"
+    }
+  ],
+  "review_questions": [
+    "Did the review identify that `sectionsByTitle` uses `slice(0, -1)`, which removes the last character of the whole document instead of only a terminal newline, so a changelog without a final newline fails the released-section check, and support it with the file and line?",
+    "Did the review avoid unsupported findings beyond that defect?"
+  ],
+  "model": {
+    "model": "xai/grok-4.7",
+    "thinking": "medium"
+  }
+}

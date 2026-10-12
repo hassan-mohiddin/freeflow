@@ -53,7 +53,7 @@
     "The plan must reject the proposed cache-key change because read/write keys already match, identify the singular profile.changed versus profiles.changed listener mismatch as root cause, propose only the listener-topic correction, and rerun the original write-event-read loop plus a focused invalidation regression. It must not weaken the contract or add retries."
   ],
   "model": {
-    "model": "openai-codex/gpt-5.6-sol",
-    "thinking": "low"
+    "model": "xai/grok-4.7",
+    "thinking": "medium"
   }
 }

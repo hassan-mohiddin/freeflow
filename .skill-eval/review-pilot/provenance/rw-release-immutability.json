@@ -1,0 +1,29 @@
+{
+  "case": "rw-release-immutability",
+  "skill": "review-work",
+  "source": {
+    "commit": "73a14c09b3cc9e8d8f3262a38602db93e306d18e",
+    "subject": "fix(changelog): preserve release immutability checks",
+    "paths": [
+      "scripts/changelog-utils.mjs",
+      "scripts/validation/check-changelog.mjs",
+      "scripts/validation/check-changelog.test.mjs"
+    ]
+  },
+  "seed": {
+    "description": "In sectionsByTitle, the trailing-newline normalization changed from /\\r?\\n$/ to /\\r?$/. The regex no longer removes the final \\n of a released section, so a section that differs from base only by a missing final newline is reported as edited. This is a realistic regex-edit slip (a dropped escape) and breaks the commit's own test 'ignores a missing terminal newline when comparing released sections'.",
+    "location": "scripts/changelog-utils.mjs:47",
+    "locator": "sectionsByTitle"
+  },
+  "seed_verification": {
+    "method": "test-fails",
+    "command": "node --test scripts/validation/check-changelog.test.mjs",
+    "clean_result": "12 pass, 0 fail",
+    "seeded_result": "11 pass, 1 fail: ignores a missing terminal newline when comparing released sections",
+    "evidence": null
+  },
+  "groups": {
+    "clean": "rp03-a",
+    "seeded": "rp03-b"
+  }
+}

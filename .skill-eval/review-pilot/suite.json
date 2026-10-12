@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "kind": "suite",
+  "id": "review-pilot",
+  "groups": [
+    "cases/rw-symlink-root-a.json",
+    "cases/rw-symlink-root-b.json",
+    "cases/rw-changelog-eof-a.json",
+    "cases/rw-changelog-eof-b.json",
+    "cases/rw-release-immutability-a.json",
+    "cases/rw-release-immutability-b.json",
+    "cases/rw-unavailable-exit-a.json",
+    "cases/rw-unavailable-exit-b.json",
+    "cases/ra-plan-ordering-a.json",
+    "cases/ra-plan-ordering-b.json",
+    "cases/ra-spec-contradiction-a.json",
+    "cases/ra-spec-contradiction-b.json"
+  ]
+}
