@@ -216,7 +216,7 @@ test("task numbers continue after the highest existing task and support more tha
     const first = await init(workspace, "first");
     await init(workspace, "second");
     await rm(join(first, ".."), { recursive: true });
-    assert.match(await init(workspace, "third"), /task-003-third\/record\.md$/);
+    assert.match(await init(workspace, "third"), /task-003-third[\\/]record\.md$/);
 
     await mkdir(join(workspace, ".freeflow/tasks/task-1000-large"));
     const large = await init(workspace, "after-large");

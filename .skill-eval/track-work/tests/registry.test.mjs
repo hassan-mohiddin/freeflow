@@ -115,7 +115,7 @@ test("import moves an unregistered record's task directory into the store", asyn
     .trim();
   const moved = await registry.importRecord("P", record);
   assert.equal(moved.id, "p/task-002");
-  assert.match(moved.record, /task-002-old-task\/record\.md$/);
+  assert.match(moved.record, /task-002-old-task[\\/]record\.md$/);
   await assert.rejects(stat(record), /ENOENT/);
   assert.match(await readFile(moved.record, "utf8"), /# Working Record: Old task/);
   assert.equal((await registry.task(moved.id)).title, "Old task");
@@ -206,7 +206,8 @@ test("a task records where its work happens; here maps a directory back to its t
   assert.equal(env.worktree, false);
   assert.ok(env.branch, "branch read live from Git");
   await registry.setEnvironment(outer.id, { add: "/data", remove: "/none" });
-  assert.deepEqual((await registry.environment(outer.id)).directories, ["/data"]);
+  // Directories are stored resolved, as the code receives them: /data on POSIX, D:\data on Windows.
+  assert.deepEqual((await registry.environment(outer.id)).directories, [resolve("/data")]);
   await registry.setEnvironment(outer.id, { remove: "/data" });
   assert.deepEqual((await registry.environment(outer.id)).directories, []);
 });
@@ -247,7 +248,7 @@ test("paths typed with ~ mean the home directory; fan-out ends with a command to
   const { directory, startCommand } = await import("../../../skills/track-work/scripts/lib/registry.mjs");
   assert.equal(directory("~/Worktrees"), join(homedir(), "Worktrees"));
   assert.equal(directory("~"), homedir());
-  assert.equal(directory("/abs/path"), "/abs/path");
+  assert.equal(directory("/abs/path"), resolve("/abs/path"));
   const { home } = await fresh();
   const saved = process.env.FREEFLOW_HOME;
   process.env.FREEFLOW_HOME = home;
@@ -416,5 +417,5 @@ test("task numbers stay retired across import and a project removed and made aga
   })
     .toString()
     .trim();
-  assert.match(made, /\.freeflow\/tasks\/task-001-here\/record\.md$/);
+  assert.match(made, /\.freeflow[\\/]tasks[\\/]task-001-here[\\/]record\.md$/);
 });
