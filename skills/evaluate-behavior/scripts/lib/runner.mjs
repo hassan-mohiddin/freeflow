@@ -11,6 +11,7 @@ import { identityRefusal, inputIdentity, installedHostVersion } from "./identity
 import { removeCopiedCredentials, TARGET_MINUTES } from "./isolation.mjs";
 import { prepareSourceExtensions } from "./build-source.mjs";
 import { runParticipants } from "./participants.mjs";
+import { prepareShell } from "./shell.mjs";
 import { ensureLogin, resolveHostExtensions } from "./pi-host.mjs";
 import { enforceReferenceChecks } from "./reference.mjs";
 import { baseProcessEnvironment, runBody, runDescription, VariantSetupError } from "./pi.mjs";
@@ -200,10 +201,19 @@ function assertSupportedSelection(selection) {
     if (group.type !== "description" && group.type !== "body") {
       throw new Error("skill-eval run currently supports description and body groups only");
     }
-    const supportedTools = group.type === "body" ? BODY_TOOLS : DESCRIPTION_TOOLS;
+    const supportedTools = new Set(group.type === "body" ? BODY_TOOLS : DESCRIPTION_TOOLS);
+    // bash only through a declared, verified shell isolation (definitions.mjs and shell.mjs).
+    if (group.type === "body" && Object.values(group.variants).every((variant) => variant.shell)) {
+      supportedTools.add("bash");
+    }
     const unsupportedNativeTools = group.tools.filter((tool) => NATIVE_TOOLS.has(tool) && !supportedTools.has(tool));
     if (unsupportedNativeTools.length > 0) {
-      throw new Error(`${group.type} execution does not support native tools: ${unsupportedNativeTools.join(", ")}`);
+      const hint = unsupportedNativeTools.includes("bash")
+        ? "; bash runs only in a body group whose every arm declares a shell isolation (configuration.shell)"
+        : "";
+      throw new Error(
+        `${group.type} execution does not support native tools: ${unsupportedNativeTools.join(", ")}${hint}`,
+      );
     }
     // The evaluator supplies run_command itself when the definition declares commands.
     const customTools = group.tools.filter(
@@ -237,6 +247,8 @@ async function runGroup({ selected, root, resultDirectory, signal, charge, sourc
   let runtime = null;
   let freeflow = Object.fromEntries(arms.map((arm) => [arm, null]));
   let resourceError = null;
+  let resourceDetails = null;
+  let confinement = {};
   if (!signal?.aborted) {
     try {
       fixture = await prepareFixture({ declaredPath: group.fixture, root, groupDirectory });
@@ -247,6 +259,7 @@ async function runGroup({ selected, root, resultDirectory, signal, charge, sourc
       });
       freeflow = await prepareFreeflow({ variants: group.variants, root, groupDirectory });
       hostExtensions = await prepareSourceExtensions({ extensions: hostExtensions, root, groupDirectory, signal });
+      confinement = await prepareShell({ group, variants: selected.variants, hostExtensions, groupDirectory, signal });
       if (group.revision === "description-only") {
         await verifyDescriptionOnlyRevision({
           variants: group.variants,
@@ -256,6 +269,8 @@ async function runGroup({ selected, root, resultDirectory, signal, charge, sourc
       }
     } catch (error) {
       resourceError = error instanceof Error ? error.message : String(error);
+      resourceDetails = error?.details ?? null;
+      if (resourceDetails?.confinement) confinement = resourceDetails.confinement;
     }
   }
 
@@ -281,6 +296,7 @@ async function runGroup({ selected, root, resultDirectory, signal, charge, sourc
         signal,
       });
       charge(runs[variant]);
+      if (confinement[variant] !== undefined) runs[variant].confinement = confinement[variant];
       if (sourceCommit !== null && runs[variant].resources?.source?.kind === "working-tree") {
         runs[variant].resources.source.commit = sourceCommit;
       }
@@ -296,6 +312,8 @@ async function runGroup({ selected, root, resultDirectory, signal, charge, sourc
       if (records !== null) runs[variant].postRun = records;
     } else {
       runs[variant] = invalidRun(group, variant, resourceError);
+      if (resourceDetails !== null) runs[variant].error.details = resourceDetails;
+      if (confinement[variant] !== undefined) runs[variant].confinement = confinement[variant];
     }
     const persisted = await persistRunOrFailure(variantDirectory, runs[variant]);
     runs[variant] = persisted.run;
