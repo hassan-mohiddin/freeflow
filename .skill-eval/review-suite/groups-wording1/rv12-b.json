@@ -1,0 +1,140 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "rv12-b",
+  "type": "body",
+  "input": {
+    "prompt": "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`"
+  },
+  "fixture": ".skill-eval/review-suite/fixtures/rs-6949f0d0/seeded/workspace",
+  "tools": ["read", "write", "ls", "find", "run_command"],
+  "commands": [
+    {
+      "id": "tests",
+      "argv": ["node", "../../../../../../../.skill-eval/review-suite/tools/run-tests.mjs", "rv12-b"],
+      "timeout_ms": 600000
+    }
+  ],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "266a160ddf7f96572a0b085c2780ec23ea64c7bd"
+        },
+        "context": [".skill-eval/review-suite/context/rv12-b/requirements.md"]
+      }
+    },
+    "candidate": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "e6470fafaeb2008a4a93baaf03ef218d8cfc98f4"
+        },
+        "context": [".skill-eval/review-suite/context/rv12-b/requirements.md"]
+      }
+    }
+  },
+  "component": ["subject.source"],
+  "expectations": [
+    {
+      "id": "baseline-only-review",
+      "variant": "baseline",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "candidate-only-review",
+      "variant": "candidate",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "baseline-judgment-line",
+      "variant": "baseline",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "candidate-judgment-line",
+      "variant": "candidate",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "baseline-ran-tests",
+      "variant": "baseline",
+      "comparison": "ran-tests",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "called",
+      "argumentContains": ["tests"]
+    },
+    {
+      "id": "candidate-ran-tests",
+      "variant": "candidate",
+      "comparison": "ran-tests",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "called",
+      "argumentContains": ["tests"]
+    },
+    {
+      "id": "baseline-not-passed",
+      "variant": "baseline",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "candidate-not-passed",
+      "variant": "candidate",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "baseline-names-file-1",
+      "variant": "baseline",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "integrity.mjs"
+    },
+    {
+      "id": "candidate-names-file-1",
+      "variant": "candidate",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "integrity.mjs"
+    }
+  ],
+  "review_questions": [
+    "Did the review identify the defect at skills/evaluate-skill/scripts/lib/integrity.mjs:23 (the expression `stableJson(recorded) !== stableJson(recorded)`): in verifyBundleIntegrity, the right operand of the mismatch check changed from actual to recorded, so the record is compared with itself Did it support the finding with the file and line?",
+    "Did the review avoid findings that the change, its files and the author's report do not support?"
+  ]
+}

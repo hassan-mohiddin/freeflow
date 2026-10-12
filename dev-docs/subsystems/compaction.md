@@ -156,7 +156,7 @@ Pi settings read, never written: `compaction.reserveTokens` and `compaction.mode
 - Nothing is written before the turn ends; a refused or pending call changes no session state. Guarded by `agent-path.test.js`.
 - Carried files are read from disk at compaction, never copied from an earlier read. Guarded by `agent-path.test.js`.
 - Carried content is copied into the session; no later lookup is needed to rebuild a reopened session. No test reopens a session for this.
-- File lists stay session-wide across any mix of Freeflow and Pi compactions (Pi skips merging lists from an extension's compaction, so `fallback()` adds them back). Guarded by `fallback.test.js`.
+- File lists stay session-wide across any mix of Freeflow and Pi compactions (Pi skips merging lists from an extension's compaction, so `fallback()` adds them back). Pi lists only what it summarized, and keeps raw the entries from its `firstKeptEntryId`, which sit before its compaction entry; a Freeflow compaction after it scans that kept tail as well as its own cycle. Guarded by `fallback.test.js`.
 - Freeflow's code never names a Working Record path. No test; the strings in `harness.ts` and `controller.ts` show it.
 - `observe()` asks Pi for the branch at most once per leaf (`cachedBranch()`) and does not call `getContextUsage()` when the turn reports usage. Guarded by `request-path-budget.test.js`.
 - The next cycle's requests extend each other, including the Coordinator's after a worker compacts. Guarded by `agent-path.test.js` and `coordinator-view.test.js`.

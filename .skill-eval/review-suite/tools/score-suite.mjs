@@ -87,6 +87,7 @@ for (const id of ids) {
           kind: group.kind,
           held_out: group.held_out,
           class: facts.class ?? "clean",
+          clean_excluded: Boolean(group.clean_excluded),
           arm,
           judgment,
           located: facts.defective && review ? locates(review, facts.location) : null,
@@ -102,10 +103,14 @@ function summarize(label, selected) {
   const out = [];
   for (const arm of ["baseline", "candidate"]) {
     const armRows = selected.filter((row) => row.arm === arm);
-    const clean = armRows.filter((row) => row.class === "clean");
+    // Clean rows count only the variants the clean audit kept (clean-audit.json); a review accepts a change with
+    // Pass or Non-blocking, and rejects it with Inconclusive, Blocking, or no review.
+    const clean = armRows.filter((row) => row.class === "clean" && !row.clean_excluded);
+    const accepted = (row) => row.judgment === "Pass" || row.judgment === "Non-blocking";
     const defective = armRows.filter((row) => row.class !== "clean");
     out.push(
-      `${label}\t${arm}\tclean pass ${rate(clean.filter((row) => row.judgment === "Pass").length, clean.length)}` +
+      `${label}\t${arm}\tclean accepted ${rate(clean.filter(accepted).length, clean.length)}` +
+        `\tclean pass ${rate(clean.filter((row) => row.judgment === "Pass").length, clean.length)}` +
         `\tclean blocking ${rate(clean.filter((row) => row.judgment === "Blocking").length, clean.length)}` +
         `\tdefect not passed ${rate(defective.filter((row) => row.judgment !== "Pass").length, defective.length)}` +
         `\tdefect blocking ${rate(defective.filter((row) => row.judgment === "Blocking").length, defective.length)}` +

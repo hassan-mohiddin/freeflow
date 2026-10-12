@@ -41,6 +41,8 @@ Changed from the selection, with the reasons recorded in each provenance file:
 
 Every defect was proven by its builder and then reproduced independently on fresh exports (`git archive <base>` plus the fixture's files): a test or probe that passes on the sound state and fails on the defective one, or for a convention defect the quoted requirement and the seeded line that contradicts it. Every `real` variant's files match the introducing commit byte for byte.
 
+A later audit of the clean variants (`clean-audit.json`) traced every requirement to its commit: requirements that claimed more than the commit evidences were narrowed, two fixtures gained changed files their requirements depend on, and five clean variants with a genuine blocking-level issue are excluded from false-rejection measures (their seeded variants stay).
+
 ## Layout
 
 - `fixtures/<case>/<variant>/`: `requirements.md`, and `workspace/` (`change.diff`, `files/`, `verification.md`), which becomes the reviewer's workspace.
@@ -49,13 +51,15 @@ Every defect was proven by its builder and then reproduced independently on fres
 - `cases.json`: one index over the provenance records (`tools/index-cases.mjs`, which also checks every locator against its fixture).
 - `groups/`, `context/`, `suite.json`, `groups.json`: the eval definitions (`tools/write-groups.mjs`). Group IDs are neutral (`rvNN-a`/`rvNN-b`, ordered by hash) and `groups.json` maps them back to cases. Requirements are declared from `context/<group>/requirements.md`, because the subject sees a declared context path.
 - `configuration.json`: the subject configuration every group extends.
+- `tests.json`: each base change's test files, all passing on its clean variant; `tools/run-tests.mjs` runs them for a reviewer through the `tests` command.
+- `clean-audit.json`: the clean audit's exclusions and repairs.
 - `tools/verify-case.mjs`: rebuilds a case's variants from the base commit and runs committed tests (`--test`), the fix's tests on a real variant (`--fix-test`), or proof tests, after an optional `--build`.
 
 ## Groups
 
 Each group compares requirements withheld (`baseline`) with requirements given as declared context (`candidate`); the component is `subject.context` (the F5 comparison). Deterministic checks: only `review.md` written; a judgment on the first line; for a defective variant, no `Judgment: Pass` and the defective file named; for a clean variant, no `Judgment: Blocking`, and `Judgment: Pass`. Whether the review located the defect itself is the advisory reviewer's question, which names the location and expression.
 
-Reviewers have `read`, `write`, `ls` and `find`, each confined to the run. The F5 run of 2026-10-12 used `read` and `write` only, so many of its reviewers could not list `files/`; results from runs before and after the change do not compare directly.
+Reviewers have `read`, `write`, `ls` and `find`, each confined to the run, and for a base change a `tests` command that runs its declared tests on the full tree. A clean variant counts as rejected when the review ends Inconclusive or Blocking; Pass and Non-blocking both let it proceed. The F5 run of 2026-10-12 used `read` and `write` only, so many of its reviewers could not list `files/`; results from runs before and after the change do not compare directly.
 
 ## Measured with
 

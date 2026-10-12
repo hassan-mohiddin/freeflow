@@ -29,6 +29,7 @@
 
 ### Changed
 
+- Review Work judges from evidence the reviewer can recover itself: when it can run an authorized check or read the code, it judges from what it observed, so a check the author skipped and the reviewer has since run is no longer reported as Needs evidence. On Haiku this let correct changes proceed in 91% of reviews instead of 77%, with defect detection unchanged.
 - Track Work recovers a Working Record after context loss from its `resume` view, which now ends with a one-line index of closed History, and opens only the History entries the next action needs, instead of reading the whole record. On a long task this loads a fraction of the record.
 - Codex, Claude Code, Gemini CLI, Cursor, and GitHub Copilot now receive Freeflow's Working Method (how to read a request, check evidence, and report a finished change) at session start, as Pi already did. It adds about 1,500 words to the session-start context.
 - On Pi, Freeflow's tools drop the `freeflow_` prefix, which models confused with `/freeflow` commands: Cognitive Routing's `freeflow_delegate`, `freeflow_return`, `freeflow_unit` and `freeflow_project` are now `delegate_work`, `return_work`, `routing_unit` and `select_evidence`, and `freeflow_compact` is `compact_context`. Sessions saved earlier keep working: their history keeps the old names, and routing and compaction still read it.
@@ -42,6 +43,7 @@
 
 ### Fixed
 
+- After Pi compacts on its own, Freeflow's next compaction keeps the files read or changed in the part of the history Pi kept unsummarized in its session-wide file lists; before, those files dropped out of every later list.
 - Compaction notices and carried files: a Coordinator under projection is told at compact now that Pi also compacts when a request overflows the model's window, as other agents are; a carried file that ends with a newline no longer gets an extra empty numbered line, and a carried file whose last line looks like Pi's partial-read note is numbered like the rest.
 - Track Work works in a repository reached through a symlinked directory (such as macOS `/tmp` or `/var`). Before, it refused every command there because its Git ignore check compared a symlinked path with Git's resolved one.
 - Claude Code now receives Freeflow's whole session-start context. Claude Code caps each hook's context at 10,000 characters and shows longer output only as a short preview, so Freeflow now delivers each prompt through its own hook, and also at the start of forked sessions.

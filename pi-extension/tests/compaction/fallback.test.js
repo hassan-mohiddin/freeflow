@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
+import { cycleFiles, sessionFileLists } from "../../dist/compaction/harness.js";
 import { fixture, response } from "../fixtures/routing-native.js";
 
 // Pi compacting on its own (here /compact) keeps Pi's summarizer and kept tail, with Freeflow's instructions added
@@ -105,6 +106,38 @@ test("file lists cover the whole session across a Freeflow compaction and then P
         await session.waitForIdle();
       },
     },
+  );
+});
+
+test("file lists keep the reads in Pi's kept tail at the next Freeflow compaction", () => {
+  // Pi's own compaction lists only what it summarized; the entries it keeps raw (from firstKeptEntryId) sit before its
+  // compaction entry on the branch and are in no list yet, so Freeflow's next compaction must scan them.
+  let id = 0;
+  const entry = (message) => ({ type: "message", id: `e${++id}`, message });
+  const read = (path) => {
+    const callId = `call-${path}`;
+    return [
+      entry({ role: "assistant", content: [{ type: "toolCall", id: callId, name: "read", arguments: { path } }] }),
+      entry({ role: "toolResult", toolCallId: callId, content: [{ type: "text", text: path }] }),
+    ];
+  };
+  const summarized = [entry({ role: "user", content: "first" }), ...read("old.txt")];
+  const kept = [entry({ role: "user", content: "second" }), ...read("recent.txt")];
+  const piCompaction = {
+    type: "compaction",
+    id: "pi-compaction",
+    firstKeptEntryId: kept[0].id,
+    details: { readFiles: ["old.txt"], modifiedFiles: [] },
+  };
+  const branch = [...summarized, ...kept, piCompaction, ...read("later.txt")];
+
+  assert.deepEqual(sessionFileLists(branch).readFiles, ["later.txt", "old.txt", "recent.txt"]);
+  assert.deepEqual(cycleFiles(branch).read, ["recent.txt", "later.txt"], "this cycle's scan starts at the kept tail");
+  const freeflowCompaction = { ...piCompaction, firstKeptEntryId: null };
+  assert.deepEqual(
+    cycleFiles([...summarized, ...kept, freeflowCompaction, ...read("later.txt")]).read,
+    ["later.txt"],
+    "a Freeflow compaction keeps nothing raw, so its cycle starts after it",
   );
 });
 
