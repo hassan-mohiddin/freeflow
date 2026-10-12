@@ -5,6 +5,7 @@ import { ARM_NAME, armNames, DEFAULT_REFERENCE } from "./arms.mjs";
 import { validateDecision } from "./decision.mjs";
 import { isSourceExtension, sourceExtensionInputs, validateSourceExtension } from "./build-source.mjs";
 import { validateCommandExpectations } from "./grade-command.mjs";
+import { referenceFiles, validateReferenceSolution } from "./reference.mjs";
 import { rubricFiles, validateJudging } from "./judge.mjs";
 
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
@@ -617,7 +618,7 @@ async function validateGroup(value, definitionPath, root) {
       "expectations",
       "review_questions",
     ],
-    ["commands", "revision", "reference", "rubric", "judges", "combine"],
+    ["commands", "revision", "reference", "rubric", "judges", "combine", "reference_solution"],
     "group",
     definitionPath,
   );
@@ -644,6 +645,12 @@ async function validateGroup(value, definitionPath, root) {
     }
   }
   validateExpectations(group.expectations, definitionPath);
+  const referenceProblem = validateReferenceSolution(group.reference_solution, {
+    root,
+    arms: names,
+    fixture: group.fixture === null ? null : path.resolve(root, group.fixture),
+  });
+  if (referenceProblem !== null) fail(referenceProblem.code, referenceProblem.message, definitionPath);
   const graderFiles = validateCommandExpectations(group, {
     arms: names,
     root,
@@ -690,12 +697,13 @@ async function validateGroup(value, definitionPath, root) {
   const internal = {
     ...group,
     configurations: Object.fromEntries(names.map((arm) => [arm, resolved[arm].configuration])),
-    // The files this group was read from, and those its command graders, rubric references and path-sourced
-    // extensions read, so a run can check they are committed.
+    // The files this group was read from, and those its command graders, rubric references, reference solution
+    // and path-sourced extensions read, so a run can check they are committed.
     files: [
       definitionPath,
       ...(extendsFile === null ? [] : [extendsFile]),
       ...graderFiles,
+      ...referenceFiles(group, root),
       ...rubricFiles(group.rubric, root),
       ...sourceExtensionInputs(
         names.map((arm) => variants[arm].hostExtensions),

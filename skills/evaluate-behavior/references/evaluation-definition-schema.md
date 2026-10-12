@@ -22,7 +22,7 @@ Definition files and declared paths are checked for lexical and canonical contai
 
 ## Common Group Shape
 
-A group is a **task** (what the agent is asked to do and how it is graded) and a **configuration** (the agent environment that does it). Two or more named arms, usually `baseline` and `candidate`, each overlay the shared configuration, and `component` names the only places where an arm may differ from the reference arm. Every group contains exactly these fields, plus optional `reference`, `commands`, `revision`, and the judged-evidence fields `rubric`, `judges` and `combine` ([Rubric And Judges](#rubric-and-judges)):
+A group is a **task** (what the agent is asked to do and how it is graded) and a **configuration** (the agent environment that does it). Two or more named arms, usually `baseline` and `candidate`, each overlay the shared configuration, and `component` names the only places where an arm may differ from the reference arm. Every group contains exactly these fields, plus optional `reference`, `commands`, `revision`, `reference_solution`, and the judged-evidence fields `rubric`, `judges` and `combine` ([Rubric And Judges](#rubric-and-judges)):
 
 ```json
 {
@@ -513,6 +513,7 @@ Expectations may share one comparison ID only when there is exactly one for each
 
 Definition loading validates common structure and unique IDs, and every field of a `command` expectation, because it runs a program. Other kind-specific expectation validation occurs during deterministic grading after run persistence. A malformed expectation therefore becomes separate `grade-error` evidence rather than changing the subject run. Use the documented shapes to avoid spending a subject run on an invalid check.
 
+- `reference_solution` is optional and has exactly one key: `{ "patch": "<file>" }`, a unified diff applied to the fixture copy with `git apply`, or `{ "files": "<dir>" }`, whose regular files overlay the fixture copy. Both paths are relative, stay inside the definition root, may not lie inside the fixture, and are inputs of the run. The reference is one workspace shared by every arm, so `skill-eval check-tasks` grades each arm's workspace and command expectations with no model, reporting per arm: `solvable` only when every arm's applicable expectations pass, `unsolvable` with the failing graders named per arm, or `not-checkable` when a check cannot run (interaction expectations need a transcript). An optional `"arm": "<name>"` inside `reference_solution` restricts the check to one arm. `run` refuses an unsolvable group before any subject starts unless `--skip-reference-check` is given; the result records the check in `groups/<id>/reference-check.json`.
 Group `commands` run only through the subject's `run_command` tool. Grading runs only the `argv` of `command` expectations, after the subject has finished.
 
 ## Declared Commands
