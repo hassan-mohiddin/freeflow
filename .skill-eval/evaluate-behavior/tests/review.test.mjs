@@ -311,6 +311,39 @@ test("review takes its model, extensions and settings from a configuration file 
     const semantic = JSON.parse(await readFile(path.join(groupDirectory, "semantic-grade.json"), "utf8"));
     assert.deepEqual(semantic.extensions, [{ path: plugin, package: "auth-plugin@1.2.3" }]);
     assert.deepEqual(semantic.judge.settings, { retry: { enabled: false } });
+    assert.equal(semantic.judge.setup, "command-line");
+  });
+});
+
+test("without --configuration, the reviewer runs on the group's host setup and records it", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installReviewerPi(root);
+    const { groupDirectory } = await writeResult(root);
+    const plugin = await installJudgePackage(root, "group-auth", "1.0.0");
+    // A stored definition records each arm's declared host setup; the reference arm's is the group's.
+    const definitionFile = path.join(groupDirectory, "definition.json");
+    const definition = JSON.parse(await readFile(definitionFile, "utf8"));
+    const host = {
+      hostExtensions: [{ package: "group-auth", version: "1.0.0" }],
+      hostSettings: { retry: { enabled: false } },
+    };
+    definition.variants = { baseline: { ...host }, candidate: { ...host } };
+    await writeFile(definitionFile, `${JSON.stringify(definition, null, 2)}\n`);
+    const output = JSON.stringify({ answers: [{ question: 1, A: "yes", B: "no", rationale: "A names rollback." }] });
+
+    const result = review(root, bin, ["--model", "reviewer/model"], output);
+
+    assert.equal(result.status, 0, result.stderr);
+    const [call] = (await readFile(path.join(root, "review.jsonl"), "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    const loaded = call.args.flatMap((arg, index) => (arg === "--extension" ? [call.args[index + 1]] : []));
+    assert.deepEqual(loaded, [plugin], "the reviewer loads the group's auth extension");
+    const semantic = JSON.parse(await readFile(path.join(groupDirectory, "semantic-grade.json"), "utf8"));
+    assert.equal(semantic.judge.setup, "group");
+    assert.deepEqual(semantic.judge.extensions, [{ path: plugin, package: "group-auth@1.0.0" }]);
+    assert.deepEqual(semantic.judge.settings, { retry: { enabled: false } });
   });
 });
 
@@ -433,6 +466,7 @@ test("the judge's identity, family relation and contract gaps are recorded", asy
       provider: "reviewer",
       family: "reviewer",
       thinking: "low",
+      setup: "group",
       extensions: [],
       settings: {},
     });
