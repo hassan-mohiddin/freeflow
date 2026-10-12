@@ -45,6 +45,7 @@
 
 ### Fixed
 
+- Cognitive Routing no longer trusts an entry Pi holds in memory but never wrote to the session file just because the current branch matches the file; after such a match, moving to that entry's branch is blocked until the history can be verified, instead of proceeding as if it were saved.
 - After Pi compacts on its own, Freeflow's next compaction keeps the files read or changed in the part of the history Pi kept unsummarized in its session-wide file lists; before, those files dropped out of every later list.
 - Compaction notices and carried files: a Coordinator under projection is told at compact now that Pi also compacts when a request overflows the model's window, as other agents are; a carried file that ends with a newline no longer gets an extra empty numbered line, and a carried file whose last line looks like Pi's partial-read note is numbered like the rest.
 - The prompt-cache keep-alive no longer replays a request on Sign in with ChatGPT after you switch to it from an API key on the same model during a hold; the route rejects replays, so the hold now stops instead of sending one.
