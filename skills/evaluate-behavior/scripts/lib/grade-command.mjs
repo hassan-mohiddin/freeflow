@@ -193,8 +193,10 @@ export async function runCommandExpectations({ group, arm, run, root, directory,
   );
   if (expectations.length === 0) return undefined;
   const records = {};
+  // A container environment runs its graders in the same image, on the graded copy.
+  const container = group.variants?.[arm]?.shell?.container;
   for (const expectation of expectations) {
-    records[expectation.id] = await runCommandExpectation({ expectation, run, root, directory, signal });
+    records[expectation.id] = await runCommandExpectation({ expectation, run, root, directory, signal, container });
   }
   return records;
 }
@@ -203,7 +205,7 @@ export async function runCommandExpectations({ group, arm, run, root, directory,
  * Runs one command expectation and returns its record: `{ started: false, error }` when it could not start,
  * otherwise exit code, signal, timeout, duration, output tails and parsed test results.
  */
-export async function runCommandExpectation({ expectation, run, root, directory, signal }) {
+export async function runCommandExpectation({ expectation, run, root, directory, signal, container }) {
   const notStarted = (error) => ({ started: false, error });
   if (run?.state !== "complete") return notStarted("the run did not complete");
   if (signal?.aborted) return notStarted("cancelled");
@@ -226,15 +228,31 @@ export async function runCommandExpectation({ expectation, run, root, directory,
     typeof run.isolation?.root === "string" ? run.isolation.root : path.join(directory, "isolation");
   const environment = await commandEnvironment(isolationRoot, copy);
   const timeoutMs = (expectation.timeout_seconds ?? DEFAULT_TIMEOUT_SECONDS) * 1000;
+  let argv = expectation.argv;
+  let containerName = null;
+  if (container) {
+    const { containerName: nameFor, graderArgv } = await import("./container.mjs");
+    containerName = nameFor("grader");
+    argv = graderArgv({ container, copy, argv, name: containerName });
+  }
   let result;
   try {
-    result = await runProcess(expectation.argv, { cwd: copy, environment, timeoutMs, signal });
+    // The docker CLI needs the user's own configuration to find its engine; the command itself runs in the image.
+    result = await runProcess(argv, {
+      cwd: copy,
+      environment: container ? process.env : environment,
+      timeoutMs,
+      signal,
+    });
   } catch (error) {
     return notStarted(`the command could not start: ${messageOf(error)}`);
+  } finally {
+    if (containerName !== null) await (await import("./container.mjs")).removeContainer(containerName);
   }
   const record = {
     started: true,
     argv: expectation.argv,
+    ...(container ? { container: { image: container.image, workdir: container.workdir, name: containerName } } : {}),
     directory: path.relative(directory, copy).split(path.sep).join("/"),
     files: Object.keys(expectation.files ?? {}),
     exitCode: result.exitCode,

@@ -39,6 +39,26 @@ function mapGuestPath(requested, shell, writableRoot) {
   return path.join(writableRoot, ...normalized.slice(mount.length + 1).split("/"));
 }
 
+// The running container a container environment's bash is routed into: { name, host, workdir }.
+function parseContainer(value) {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return typeof parsed?.name === "string" && typeof parsed.workdir === "string" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function shellQuote(value) {
+  return `'${String(value).replaceAll("'", `'\\''`)}'`;
+}
+
+function containerCommand(target, command) {
+  const host = typeof target.host === "string" && target.host !== "" ? `--host ${shellQuote(target.host)} ` : "";
+  return `docker ${host}exec --workdir ${shellQuote(target.workdir)} ${shellQuote(target.name)} sh -c ${shellQuote(command)}`;
+}
+
 function isContained(root, target) {
   const relative = path.relative(root, target);
   return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
@@ -183,6 +203,14 @@ export default function registerSkillEvalGuard(pi) {
     }
     if (event.toolName === "bash" && shell === null) {
       return { block: true, reason: "bash runs only in a declared shell isolation for this evaluation" };
+    }
+    if (event.toolName === "bash" && shell.container) {
+      const target = parseContainer(process.env.SKILL_EVAL_CONTAINER);
+      if (target === null) return { block: true, reason: "the container for this evaluation is not running" };
+      if (typeof event.input?.command !== "string") return { block: true, reason: "bash needs a command" };
+      // Pi's bash then runs only the docker client; the command itself runs in the subject's container.
+      event.input.command = containerCommand(target, event.input.command);
+      return undefined;
     }
     const listing = LISTING_TOOLS.has(event.toolName);
     if (!PATH_TOOLS.has(event.toolName) && !listing) return undefined;
