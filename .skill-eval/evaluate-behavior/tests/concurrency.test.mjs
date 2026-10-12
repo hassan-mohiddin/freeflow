@@ -501,18 +501,27 @@ test("--pilot continues on a healthy group, and the pilot counts as the first tr
   });
 });
 
-test("--pilot before a single run does not count the pilot", async () => {
+test("--pilot with one trial aggregates, so the pilot is part of that trial and nothing runs twice", async () => {
   await withTempDirectory(async (root) => {
     const bin = await installFakePi(root);
     const suite = await writeSuite(root, [group("first"), group("second")]);
     const result = runCli(root, bin, ["run", suite, "--pilot", "1"]);
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /^Pilot: .+ passed$/m);
-    assert.equal((await events(root)).filter((entry) => entry.kind === "start").length, 6);
-    const summary = await readJson(path.join(result.stdout.match(/^Path: (.+)$/m)[1], "summary.json"));
+    assert.equal((await events(root)).filter((entry) => entry.kind === "start").length, 4);
+    const aggregate = await readJson(
+      path.join(root, ".skill-eval/runs", result.stdout.match(/^Aggregate: (.+)$/m)[1], "aggregate.json"),
+    );
     assert.deepEqual(
-      summary.groups.map((entry) => entry.id),
-      ["first", "second"],
+      aggregate.trials.map((trial) => trial.part),
+      ["pilot", "rest"],
+    );
+    assert.deepEqual(
+      aggregate.groups.map((entry) => [entry.id, entry.trials]),
+      [
+        ["first", 1],
+        ["second", 1],
+      ],
     );
   });
 });
