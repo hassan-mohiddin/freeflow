@@ -5,6 +5,7 @@ import { ARM_NAME, armNames, DEFAULT_REFERENCE } from "./arms.mjs";
 import { validateDecision } from "./decision.mjs";
 import { isSourceExtension, sourceExtensionInputs, validateSourceExtension } from "./build-source.mjs";
 import { validateCommandExpectations } from "./grade-command.mjs";
+import { containerShell, validateContainerEnvironment } from "./container.mjs";
 import { validateShell, validateShellGroup } from "./shell.mjs";
 import { referenceFiles, validateReferenceSolution } from "./reference.mjs";
 import { rubricFiles, validateJudging } from "./judge.mjs";
@@ -342,7 +343,16 @@ function validateModel(value, label, definitionPath) {
 const SCHEMA_1_MESSAGE =
   "schema 1 definitions are no longer supported; rewrite it as schema 2 (see the evaluation definition schema reference)";
 // `participants` may be shared or differ between arms (one review against a pipeline of reviews); see participants.mjs.
-const CONFIGURATION_FIELDS = ["host", "model", "subject", "freeflow", "runtime", "shell", "participants"];
+const CONFIGURATION_FIELDS = [
+  "host",
+  "model",
+  "subject",
+  "freeflow",
+  "runtime",
+  "shell",
+  "environment",
+  "participants",
+];
 // Arms may not differ here: runtime bundles are prepared once per group, and Pi is the only host. Host extensions
 // and settings may differ, like the rest of the configuration, and so may runtime environment literals, which each
 // arm's subject receives as its own.
@@ -397,7 +407,7 @@ function validateEffectiveConfiguration(value, label, definitionPath) {
   const configuration = requireExactKeys(
     value,
     ["host", "subject"],
-    ["model", "freeflow", "runtime", "shell", "participants"],
+    ["model", "freeflow", "runtime", "shell", "environment", "participants"],
     label,
     definitionPath,
   );
@@ -452,6 +462,11 @@ function validateEffectiveConfiguration(value, label, definitionPath) {
   }
   if (Object.hasOwn(configuration, "shell")) {
     validateShell(configuration.shell, `${label}.shell`, (code, message) => fail(code, message, definitionPath));
+  }
+  if (Object.hasOwn(configuration, "environment")) {
+    validateContainerEnvironment(configuration.environment, `${label}.environment`, (code, message) =>
+      fail(code, message, definitionPath),
+    );
   }
   return { configuration, environment, runtime, freeflow };
 }
@@ -703,7 +718,8 @@ async function validateGroup(value, definitionPath, root) {
     if (resolved[arm].freeflow !== undefined) variants[arm].freeflow = resolved[arm].freeflow;
     variants[arm].hostExtensions = resolved[arm].configuration.host.extensions ?? [];
     variants[arm].hostSettings = resolved[arm].configuration.host.settings ?? {};
-    if (resolved[arm].configuration.shell !== undefined) variants[arm].shell = resolved[arm].configuration.shell;
+    const shell = resolved[arm].configuration.shell ?? containerShell(resolved[arm].configuration.environment);
+    if (shell !== undefined) variants[arm].shell = shell;
     // The group runtime is the reference's; an arm whose environment literals differ carries its own.
     const literal = resolved[arm].runtime?.environment.literal;
     if (JSON.stringify(literal) !== JSON.stringify(resolved[reference].runtime?.environment.literal)) {

@@ -11,6 +11,8 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
+import { containerShell, containerTarget, missingContainerPrerequisites, startContainer } from "./container.mjs";
+
 const run = promisify(execFile);
 const PROBE_PROVIDER = "skill-eval-probe";
 const PROBE_MODEL = "confinement";
@@ -153,20 +155,33 @@ export function isolationLabel(entry) {
  * @param {{ group: any, names: string[], configurations: Record<string, any>, fail: (code: string, message: string) => never }} options
  */
 export function validateShellGroup({ group, names, configurations, fail }) {
+  for (const arm of names) {
+    if (configurations[arm].shell !== undefined && configurations[arm].environment !== undefined) {
+      fail(
+        "invalid-definition",
+        `arm ${arm} declares both shell and a container environment, which provides the shell`,
+      );
+    }
+  }
+  const containers = names.filter((arm) => configurations[arm].environment !== undefined);
+  if (containers.length > 0 && group.type !== "body") {
+    fail("invalid-definition", "a container environment is supported only in body groups");
+  }
   const declared = names.filter((arm) => configurations[arm].shell !== undefined);
-  if (declared.length === 0) return;
+  if (declared.length === 0 && !(group.tools.includes("bash") && containers.length > 0)) return;
   if (!group.tools.includes("bash")) {
     fail("invalid-definition", `arm ${declared[0]} declares shell, so group.tools must include bash`);
   }
   if (group.type !== "body") fail("invalid-definition", "bash is supported only in body groups");
   for (const arm of names) {
-    const shell = configurations[arm].shell;
+    const shell = configurations[arm].shell ?? containerShell(configurations[arm].environment);
     if (shell === undefined) {
       fail(
         "invalid-definition",
-        `bash needs a confined shell: arm ${arm} must declare configuration.shell with an isolation extension`,
+        `bash needs a confined shell: arm ${arm} must declare configuration.shell with an isolation extension, or a container environment`,
       );
     }
+    if (shell.container !== undefined) continue;
     const labels = (configurations[arm].host.extensions ?? []).map(isolationLabel);
     if (!labels.includes(shell.isolation)) {
       fail(
@@ -233,9 +248,11 @@ export async function missingPrerequisites(shell, { environment = process.env } 
 
 /** The refusal the agent relays to the user: what is missing, why, how to install it, and that it should ask first. */
 export function prerequisiteRefusal(groupId, arm, shell, missing) {
-  const lines = [
-    `group ${groupId} cannot run: arm ${arm} declares a shell isolated by ${shell.isolation}, and this machine is missing:`,
-  ];
+  const what =
+    shell.container === undefined
+      ? `declares a shell isolated by ${shell.isolation}`
+      : `runs in the container image ${shell.container.image}`;
+  const lines = [`group ${groupId} cannot run: arm ${arm} ${what}, and this machine is missing:`];
   for (const entry of missing) {
     lines.push(`- ${entry.name}: needs ${entry.need}${entry.found ? ` (found ${entry.found})` : " (not found)"}.`);
     if (entry.reason) lines.push(`  Why: ${entry.reason}.`);
@@ -307,7 +324,10 @@ export async function prepareShell({ group, variants, hostExtensions, groupDirec
   for (const [arm, state] of Object.entries(variants)) {
     const shell = group.variants[arm]?.shell;
     if (state !== "selected" || shell === undefined) continue;
-    const missing = await missingPrerequisites(shell);
+    const missing =
+      shell.container === undefined
+        ? await missingPrerequisites(shell)
+        : await missingContainerPrerequisites(shell.container, await packageManager(process.env));
     if (missing.length > 0) {
       throw new ShellError(prerequisiteRefusal(group.id, arm, shell, missing), {
         kind: "shell-prerequisites",
@@ -316,6 +336,8 @@ export async function prepareShell({ group, variants, hostExtensions, groupDirec
         missing,
       });
     }
+    // A container that only hosts the command graders gives the subject no shell to probe.
+    if (shell.container !== undefined && !group.tools.includes("bash")) continue;
     confinement[arm] = await verifyConfinement({
       arm,
       shell,
@@ -393,6 +415,16 @@ export async function verifyConfinement({ arm, shell, extensions, directory, gro
     `${JSON.stringify({ providers: { [PROBE_PROVIDER]: { baseUrl: model.baseUrl, api: "openai-completions", apiKey: "probe", models: [{ id: PROBE_MODEL }] } } }, null, 2)}\n`,
   );
 
+  // A container shell is probed in its own container, started on the probe workspace like a subject's.
+  let container = null;
+  if (shell.container !== undefined) {
+    try {
+      container = await startContainer({ container: shell.container, workspace, purpose: "probe" });
+    } catch (error) {
+      await Promise.all([model.close(), listener.close()]);
+      throw error;
+    }
+  }
   const { baseProcessEnvironment, guardExtensionPath, runPiProcess } = await import("./pi.mjs");
   const environment = {
     ...baseProcessEnvironment(),
@@ -407,6 +439,7 @@ export async function verifyConfinement({ arm, shell, extensions, directory, gro
     SKILL_EVAL_PROMPT_MODE: "isolated",
     SKILL_EVAL_SHELL: JSON.stringify(shell),
     [PROBE_VARIABLE]: nonce,
+    ...(container === null ? {} : { SKILL_EVAL_CONTAINER: containerTarget(container, shell.container) }),
     ...isolation.environment,
   };
   const args = ["--mode", "json", "-p", "--no-session", "--no-extensions", "--extension", guardExtensionPath()];
@@ -441,7 +474,7 @@ export async function verifyConfinement({ arm, shell, extensions, directory, gro
   } catch (error) {
     launchError = error instanceof Error ? error.message : String(error);
   } finally {
-    await Promise.all([model.close(), listener.close()]);
+    await Promise.all([model.close(), listener.close(), container?.remove()]);
   }
 
   const results = await toolResults(eventsFile);
