@@ -31,6 +31,8 @@ const FAKE_RPC_ENVIRONMENT_KEYS = [
 
 function spawnSync(command, args, options) {
   if (command === process.execPath && args?.includes(entrypoint)) {
+    // Test inputs live in temporary directories outside Git, so every test run is a dry run.
+    if (args[1] === "run" && !args.includes("--dry-run")) args = [...args, "--dry-run"];
     const env = { ...(options?.env ?? process.env) };
     for (const key of FAKE_RPC_ENVIRONMENT_KEYS) env[key] ??= "";
     return rawSpawnSync(command, args, { ...options, env });

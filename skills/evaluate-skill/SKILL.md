@@ -26,6 +26,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Keep deterministic criteria and review questions out of subject prompts and declared subject context.
 - Declare every subject resource. Ambient installation or context is not declared composition.
 - Claim only what the evidence class observed; one class never proves another.
+- Never cite a dry run as evidence. When a run is refused for uncommitted inputs, commit the candidate and the definition, or keep the run as a dry run for your own checking only.
 - Never edit the skill from Evaluate Skill. Return one measured revision target to Write Skill.
 - After a behavioral change, rerun the complete fixed group with both variants. Never reuse an earlier run as the fresh counterpart or rerun only the preferred variant.
 - Advisory review and semantic judgment never enter canonical run or grade state, and neither establishes readiness.
@@ -122,7 +123,7 @@ Before operating the evaluator, resolving paths, interpreting states, or reasoni
 Use the canonical [skill evaluator](scripts/skill-eval.mjs) from the definition root:
 
 ```text
-node <evaluate-skill-directory>/scripts/skill-eval.mjs run <suite-or-group-path> [--group <id-or-position>] [--variant baseline|candidate] [--trials <n>] [--max-cost <total>] [--yes]
+node <evaluate-skill-directory>/scripts/skill-eval.mjs run <suite-or-group-path> [--group <id-or-position>] [--variant baseline|candidate] [--trials <n>] [--max-cost <total>] [--yes] [--dry-run]
 node <evaluate-skill-directory>/scripts/skill-eval.mjs view <result-id-or-directory> [--group <id-or-position>] [--variant baseline|candidate]
 node <evaluate-skill-directory>/scripts/skill-eval.mjs review <result-id-or-directory> --model <provider/model> [--group <id-or-position>] [--thinking <level>] [--extension <path>]... [--swap]
 ```

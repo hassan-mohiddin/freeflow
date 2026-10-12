@@ -97,7 +97,11 @@ test("each subject gets its own home, temp and agent directory with only its pro
       other: { type: "api_key", key: "other-secret-key" },
     });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition], { cwd: root, encoding: "utf8", env });
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--dry-run"], {
+      cwd: root,
+      encoding: "utf8",
+      env,
+    });
 
     assert.equal(result.status, 0, result.stderr + result.stdout);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -136,7 +140,11 @@ test("an OAuth login that could expire during the run is refused before the subj
       fake: { type: "oauth", access: "a", refresh: "r", expires: Date.now() + 10 * 60 * 1000 },
     });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition], { cwd: root, encoding: "utf8", env });
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--dry-run"], {
+      cwd: root,
+      encoding: "utf8",
+      env,
+    });
 
     assert.notEqual(result.status, 0);
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
@@ -151,7 +159,11 @@ test("a provider with no stored login still runs, with nothing copied", async ()
   await withTempDirectory(async (root) => {
     const { log, definition, env } = await setUp(root, { other: { type: "api_key", key: "k" } });
 
-    const result = spawnSync(process.execPath, [entrypoint, "run", definition], { cwd: root, encoding: "utf8", env });
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--dry-run"], {
+      cwd: root,
+      encoding: "utf8",
+      env,
+    });
 
     assert.equal(result.status, 0, result.stderr + result.stdout);
     const [call] = (await readFile(log, "utf8"))

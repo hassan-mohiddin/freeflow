@@ -72,7 +72,7 @@ A configuration has these fields; each arm's effective configuration is the shar
 
 | Field | Required in the effective configuration | Meaning |
 | --- | --- | --- |
-| `host` | yes | `{ "name": "pi" }`, with an optional `version` string. |
+| `host` | yes | `{ "name": "pi" }`, with an optional `version` string; a declared version must match `pi --version` or the run is refused. |
 | `subject` | yes | What is under test: `{ "kind": "skill", "source", "skills", "target", "context" }` (see [Subject](#subject)) or `{ "kind": "none" }` when the comparison is about the environment, not a skill. |
 | `model` | no | `model` names the provider/model; optional `thinking` selects its thinking level. The CLI has no model override, and a subject run without a model gets Pi's default and no copied login. |
 | `runtime` | no | Host session, prompt mode, extension bundles and environment; see [Runtime Profile](#runtime-profile). |

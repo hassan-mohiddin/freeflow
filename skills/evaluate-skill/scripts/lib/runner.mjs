@@ -5,8 +5,9 @@ import { COMMAND_TOOL, loadDefinition, selectDefinition } from "./definitions.mj
 import { createInvocationId, fileIdentity, writeJson, writeText } from "./evidence.mjs";
 import { gradeDeterministic } from "./grade.mjs";
 import { prepareFreeflow } from "./freeflow.mjs";
+import { identityRefusal, inputIdentity, installedHostVersion } from "./identity.mjs";
 import { removeCopiedCredentials } from "./isolation.mjs";
-import { runBody, runDescription, VariantSetupError } from "./pi.mjs";
+import { baseProcessEnvironment, runBody, runDescription, VariantSetupError } from "./pi.mjs";
 import { prepareFixture, prepareRuntime, verifyDescriptionOnlyRevision } from "./sandbox.mjs";
 
 const VARIANTS = ["baseline", "candidate"];
@@ -30,12 +31,18 @@ const DEFAULT_RUNTIME = {
 export async function runEvaluation(
   definitionFile,
   selectors = {},
-  { root = process.cwd(), signal, budget = null } = {},
+  { root = process.cwd(), signal, budget = null, dryRun = false } = {},
 ) {
   const definitionPath = await realpath(path.resolve(root, definitionFile));
   const definition = await loadDefinition(definitionPath, { root });
   const selection = selectDefinition(definition, selectors);
   assertSupportedSelection(selection);
+
+  // Canonical evidence needs every working-tree input recoverable from one commit; anything else is a dry run.
+  const identity = await inputIdentity(root, workingTreeInputs(selection, definitionPath, root));
+  const refusal = identityRefusal(identity);
+  if (refusal !== null && !dryRun) throw new Error(refusal);
+  const hostVersion = await checkHostVersion(selection);
   const invocationId = createInvocationId();
   const runsDirectory = path.join(root, ".skill-eval", "runs");
   const resultDirectory = path.join(runsDirectory, invocationId);
@@ -73,8 +80,10 @@ export async function runEvaluation(
 
   const groups = [];
   try {
+    // A clean working tree is identified by its commit, recorded on each working-tree source.
+    const sourceCommit = refusal === null ? identity.commit : null;
     for (const selected of selection.groups) {
-      groups.push(await runGroup({ selected, root, resultDirectory, signal: controller.signal, charge }));
+      groups.push(await runGroup({ selected, root, resultDirectory, signal: controller.signal, charge, sourceCommit }));
     }
   } finally {
     signal?.removeEventListener("abort", onParentAbort);
@@ -85,12 +94,54 @@ export async function runEvaluation(
     id: invocationId,
     state,
     definitionKind: selection.definitionKind,
+    dryRun,
+    inputs: identity.repository
+      ? { commit: identity.commit, uncommitted: identity.uncommitted }
+      : { commit: null, uncommitted: [], repository: false },
     groups,
     completedAt: new Date().toISOString(),
   };
+  if (hostVersion !== null) summary.hostVersion = hostVersion;
   if (budget !== null) summary.budget = budgetEvidence(budget);
   await writeJson(path.join(resultDirectory, "summary.json"), summary);
   return { id: invocationId, path: resultDirectory, state, summary };
+}
+
+/** Every path a run reads from the working tree: definition files, fixtures, runtime bundles, working-tree subjects. */
+function workingTreeInputs(selection, definitionPath, root) {
+  const inputs = new Set([definitionPath]);
+  for (const { group, variants } of selection.groups) {
+    for (const file of group.files ?? []) inputs.add(file);
+    if (group.fixture !== null) inputs.add(path.resolve(root, group.fixture));
+    for (const bundle of group.runtime?.extensions ?? []) {
+      for (const resource of bundle.resources) inputs.add(path.resolve(root, resource));
+    }
+    for (const [arm, state] of Object.entries(variants)) {
+      const variant = group.variants[arm];
+      if (state !== "selected" || variant.source.kind !== "working-tree") continue;
+      for (const entry of [...variant.skills, ...variant.context]) inputs.add(path.resolve(root, entry));
+    }
+  }
+  return [...inputs];
+}
+
+/** A declared host version must match the installed host before anything starts. */
+async function checkHostVersion(selection) {
+  const declared = new Set();
+  for (const { group, variants } of selection.groups) {
+    for (const [arm, state] of Object.entries(variants)) {
+      const version = group.configurations?.[arm]?.host?.version;
+      if (state === "selected" && version !== undefined) declared.add(version);
+    }
+  }
+  if (declared.size === 0) return null;
+  const installed = await installedHostVersion("pi", baseProcessEnvironment());
+  for (const version of declared) {
+    if (version !== installed) {
+      throw new Error(`the definition declares pi ${version}, but the installed pi is ${installed}`);
+    }
+  }
+  return installed;
 }
 
 function assertSupportedSelection(selection) {
@@ -128,7 +179,7 @@ export function budgetEvidence(budget) {
   return { maxCost: budget.maxCost, spent: Number(budget.spent.toFixed(10)), exhausted: budget.exhausted };
 }
 
-async function runGroup({ selected, root, resultDirectory, signal, charge }) {
+async function runGroup({ selected, root, resultDirectory, signal, charge, sourceCommit = null }) {
   const { group } = selected;
   const groupDirectory = path.join(resultDirectory, "groups", group.id);
   await mkdir(groupDirectory, { recursive: true });
@@ -180,6 +231,9 @@ async function runGroup({ selected, root, resultDirectory, signal, charge }) {
         signal,
       });
       charge(runs[variant]);
+      if (sourceCommit !== null && runs[variant].resources?.source?.kind === "working-tree") {
+        runs[variant].resources.source.commit = sourceCommit;
+      }
     } else {
       runs[variant] = invalidRun(group, variant, resourceError);
     }
