@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/hassan-mohiddin/freeflow/tree/main/plugin-docs
+    about: How to install, configure and use Freeflow.
