@@ -15,7 +15,9 @@ Identify the behavior and boundary under test, the arms and the one component me
 Goal: a correct subject passes, a wrong one fails, and the result means what its name says.
 
 - **A correct answer can pass:** for each expectation, write or imagine the answer a sound subject would give and check that it passes. Text checks fail correct answers when they require one exact phrase, such as a function name, where a correct answer may quote the line or describe it instead.
-- **A wrong answer cannot pass:** an expectation that holds for an empty, generic, or opposite answer measures nothing.
+- **A wrong answer cannot pass:** an expectation that holds for an empty, generic, or opposite answer measures nothing. Nor can a shortcut: editing the tests, hard-coding the expected output, or text addressed to a judge.
+- **The outcome, not the path:** checks grade what the subject produced; a required order of tool calls fails valid approaches. A tool-call check is right only when the call itself is the behavior.
+- **Both sides are tested:** cases where the behavior should occur sit beside cases where it should not, and a coding task's graders cover the new behavior and the existing behavior it must not break.
 - **Names match checks:** each expectation's name and comparison say what it actually tests.
 - **Defects are real and present:** each seeded defect is shown by a check that fails with it and passes without it, or by a direct contradiction of a stated requirement. The case author is not the model being measured.
 - **Clean is clean:** a clean variant taken from history may hold a defect found later. Check it against its own requirements before trusting a clean-variant fail; a variant with a known defect is real, not clean, and is scored as such.
