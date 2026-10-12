@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/compaction/`, `capabilities/compaction/`
 > **Tests:** `pi-extension/tests/compaction/`, `pi-extension/tests/integration/request-path-budget.test.js`
-> **Verified at:** `1defc299` (2026-10-12)
+> **Verified at:** `737e4f53` (2026-10-13)
 > **User docs:** `plugin-docs/capabilities/compaction.md`
 
 For contributors changing Freeflow compaction on Pi: how it decides when compaction is due, what it writes into the session, how it works with Cognitive Routing and with Pi's own compaction, and which of its behaviors are deliberate.
@@ -135,7 +135,7 @@ Pi settings read, never written: `compaction.reserveTokens` and `compaction.mode
 
 **Messages:** `freeflow-compaction-request` (visible, `/freeflow compact`), `freeflow-compaction-notice` (visible, `details.level`), `freeflow-carried-context` (hidden), `freeflow-compaction-recovery` (visible). Each is wrapped in Freeflow's notice tag, `<freeflow-notice type="compaction">` (`CompactionHost.notice()`, `freeflowNotice()`), so the agent never reads them as the user's words: Pi gives the model every custom message in the user role. The one exception is the user's own messages the carried context quotes: they sit in `<user-message>` tags, which Freeflow's guidance names as the user's words, and copied files and results cannot open or close that tag. The notice and recovery messages are drawn as one `Compaction` row each, expanding to the text.
 
-**Skill:** `capabilities/compaction/SKILL.md` with `references/summary-format.md`: when to compact, the summary's shape, what to carry.
+**Skill:** `capabilities/compaction/SKILL.md` with `references/summary-format.md`: when to compact, the summary's shape (record-backed, whose `Governing now:` carries the current Work agreement line and any narrower instruction the user gave since; or record-shaped with the Working Record's headings, including its Work agreement), what to carry.
 
 ## State
 

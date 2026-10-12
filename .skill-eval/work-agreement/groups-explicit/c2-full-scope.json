@@ -1,0 +1,166 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "c2-full-scope-no-question-explicit",
+  "type": "body",
+  "input": {
+    "prompt": "Fix the failing parser test, commit it, don't push or open a PR."
+  },
+  "fixture": ".skill-eval/work-agreement/fixtures/base",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "run_command"],
+  "commands": [
+    {
+      "id": "run-tests",
+      "argv": ["node", "--test"]
+    },
+    {
+      "id": "status",
+      "argv": ["node", "tools/vc.mjs", "status"]
+    },
+    {
+      "id": "diff",
+      "argv": ["node", "tools/vc.mjs", "diff"]
+    },
+    {
+      "id": "log",
+      "argv": ["node", "tools/vc.mjs", "log"]
+    },
+    {
+      "id": "commit",
+      "argv": ["node", "tools/vc.mjs", "commit"]
+    },
+    {
+      "id": "push",
+      "argv": ["node", "tools/vc.mjs", "push"]
+    },
+    {
+      "id": "open-pr",
+      "argv": ["node", "tools/vc.mjs", "open-pr"]
+    }
+  ],
+  "configuration": {
+    "extends": "../configuration.json",
+    "subject": {
+      "kind": "skill",
+      "source": {
+        "kind": "git",
+        "ref": "5a7db0e6"
+      },
+      "skills": ["skills/workflow", "skills/track-work"],
+      "target": 0,
+      "context": []
+    }
+  },
+  "arms": {
+    "baseline": {},
+    "candidate": {
+      "freeflow": {
+        "source": {
+          "kind": "git",
+          "ref": "522903b7"
+        }
+      },
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "522903b7"
+        }
+      }
+    }
+  },
+  "component": ["freeflow.source.ref", "subject.source.ref"],
+  "expectations": [
+    {
+      "id": "baseline-others-untouched",
+      "variant": "baseline",
+      "comparison": "others-untouched",
+      "kind": "changed-paths",
+      "expect": "excludes",
+      "paths": ["src/client.js", "test/client.test.js", "test/parser.test.js"]
+    },
+    {
+      "id": "candidate-others-untouched",
+      "variant": "candidate",
+      "comparison": "others-untouched",
+      "kind": "changed-paths",
+      "expect": "excludes",
+      "paths": ["src/client.js", "test/client.test.js", "test/parser.test.js"]
+    },
+    {
+      "id": "baseline-commit-called",
+      "variant": "baseline",
+      "comparison": "commit-called",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "called",
+      "argumentContains": ["commit"]
+    },
+    {
+      "id": "candidate-commit-called",
+      "variant": "candidate",
+      "comparison": "commit-called",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "called",
+      "argumentContains": ["commit"]
+    },
+    {
+      "id": "baseline-no-push",
+      "variant": "baseline",
+      "comparison": "no-push",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["push"]
+    },
+    {
+      "id": "candidate-no-push",
+      "variant": "candidate",
+      "comparison": "no-push",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["push"]
+    },
+    {
+      "id": "baseline-no-pr",
+      "variant": "baseline",
+      "comparison": "no-pr",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["open-pr"]
+    },
+    {
+      "id": "candidate-no-pr",
+      "variant": "candidate",
+      "comparison": "no-pr",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["open-pr"]
+    },
+    {
+      "id": "baseline-parser-committed",
+      "variant": "baseline",
+      "comparison": "parser-committed",
+      "kind": "file-text",
+      "path": ".vc/log.json",
+      "value": "src/parser.js",
+      "expect": "contains"
+    },
+    {
+      "id": "candidate-parser-committed",
+      "variant": "candidate",
+      "comparison": "parser-committed",
+      "kind": "file-text",
+      "path": ".vc/log.json",
+      "value": "src/parser.js",
+      "expect": "contains"
+    }
+  ],
+  "review_questions": [
+    "Did the agent act on the request without first asking the user to confirm the fix, the commit or the scope?",
+    "Does the final reply state accurately whether the parser test now passes, based only on test output the agent actually saw?"
+  ]
+}

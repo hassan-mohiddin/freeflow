@@ -11,7 +11,7 @@ The record is not authority, a Spec, a Plan, or a transcript. It works for any k
 
 The record has five sections:
 
-- **Current Context:** present understanding, including `What defines this task`, which points to the task's defining artifacts such as its Spec and Plan.
+- **Current Context:** present understanding, including the optional `Work agreement` (what the user agreed you may do, and until when) and `What defines this task`, which points to the task's defining artifacts such as its Spec and Plan.
 - **Current Work:** the Current Slice (the unit of work in progress, with its `Material updates` log), `Recovery sources` to read when resuming, and one Next useful action.
 - **Future Work:** the rough route ahead, as proposed Slices and Checkpoints.
 - **History:** accepted Decisions, closed Checkpoints, and closed Slices.
@@ -40,6 +40,7 @@ Ask: **if context were lost now, what would the next context need that it could 
 | --- | --- |
 | Understanding changes: a fact is settled, a hypothesis forms, a question opens | Current Context |
 | The user accepts a choice | a Decision |
+| The user agrees to a route or part of one, or changes it | the Work agreement |
 | Work with partial state is about to begin | a Slice |
 | You learn something needed to resume: a file, attachment, message, or section | Recovery sources |
 | A Spec, Plan, or other defining artifact is created or accepted for the task | What defines this task |
@@ -63,16 +64,27 @@ The record serves both halves of the work; update it at meaningful boundaries, n
 - Start a record, with the understanding gathered so far, once the task is likely to outlast the current context or span sessions.
 - When the user makes a choice, record a Decision. Put options under consideration in Tentative and unanswered questions in Open.
 - Use Open to choose what to ask next, and check Settled and Decisions before asking the user something again.
+- When you propose a route and the user has not answered, put it under Open as a bullet starting `Proposed:` with its date. An unanswered proposal is not agreed.
 - When the user supplies material that governs the work, point to it from Recovery sources, or from `What defines this task` if it defines the task.
 - When what and how are settled, propose the route in Future Work.
 
 **Executing:** the record is bookkeeping.
 
-- Record the Slice before its first effect.
+- Record the Slice before its first effect. Its Authority source names the Work agreement line, or the user's reply, it rests on.
 - Add Material updates at boundaries: evidence, identities such as commit SHAs or document versions, scope extensions, and contradictions.
 - Add Recovery sources as the work reveals what a resume would need.
 - Close Checkpoints as their boundaries happen, then close the Slice with a distilled result.
 - Keep temporary files for the task, such as throwaway scripts, saved command output, and downloads, in the task directory's `scratch/`. They stay with the task and out of version control; nothing in them is memory unless the record points to it.
+
+## Keep The Work Agreement
+
+Goal: after context loss, the next context knows what the user agreed it may do, and until when, in the user's words.
+
+Write the Work agreement section when something is agreed, at `init` if it is known then; never as a placeholder, and never ask the user for it just because a record is being created. Write only what is known: what done looks like, what you do without asking, what needs the user's yes first, where you come back, and how long it holds. Quote the user's reply beside what it answered. A one-line agreement is often enough.
+
+When the agreement grows or changes, replace the lines it changes, as a direct edit: the user's message that changed it covers the edit, so do not ask first or wait for a command. When the user narrows it for now ("just diagnose first", "don't edit yet"), add that line at once, in their words: it governs over the rest of the section until the user lifts it, and a later context sees only what is written. When a `Proposed:` item is answered, move it into the Work agreement, record it as a Decision if it decided something about the work, or drop it. A change to the agreement is not a Decision; a choice about the work is.
+
+For a long or unattended run, or once the agreement has changed several times, also keep `sources/work-agreement-log.md`: one dated, numbered entry per exchange that set or changed the agreement, the proposal in one line and the user's reply verbatim, append-only. It holds only those exchanges, not discussion. List it under Recovery sources with the trigger "read when changing the Work agreement or when its wording is in question".
 
 ## Use Slices For Work With Partial State
 
@@ -134,7 +146,7 @@ Context loss includes compaction, summarization that replaces context, clear, se
 3. Every entry under `Recovery sources`, except one whose stated trigger ("read when …") does not apply yet; read that one when it does.
 4. The History entries the next action depends on, through `view entry <ID>`: closed work on the same result or area, a blocked or abandoned attempt at what you are about to do, a superseded Decision behind a current one, and any entry the record or a source names by ID. Do not read entries just because they exist.
 
-Then reconcile before acting. Establish the task and Slice state, the agreed outcome and return condition, active Decisions, pending Checkpoints, completed and partial effects, whether the next action's prerequisites hold, and what authorizes it.
+Then reconcile before acting. Establish the task and Slice state, the Work agreement (or, without one, the agreed outcome and return condition) and whether the user's latest direction has changed it, active Decisions, pending Checkpoints, completed and partial effects, whether the next action's prerequisites hold, and what authorizes it.
 
 - Current user direction supersedes older instructions in the record, including a record written on another conversation branch.
 - Compare the record with the live state the next action depends on. If they disagree, resolve it from sources; do not follow whichever version lets work continue.

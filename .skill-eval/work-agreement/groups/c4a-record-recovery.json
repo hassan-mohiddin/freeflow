@@ -1,0 +1,152 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "c4a-record-recovery-asks-first",
+  "type": "body",
+  "input": {
+    "prompt": "continue the task in .freeflow/tasks/task-001-retry-429/record.md"
+  },
+  "fixture": ".skill-eval/work-agreement/fixtures/record-c4a",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "run_command"],
+  "commands": [
+    {
+      "id": "run-tests",
+      "argv": ["node", "--test"]
+    },
+    {
+      "id": "status",
+      "argv": ["node", "tools/vc.mjs", "status"]
+    },
+    {
+      "id": "diff",
+      "argv": ["node", "tools/vc.mjs", "diff"]
+    },
+    {
+      "id": "log",
+      "argv": ["node", "tools/vc.mjs", "log"]
+    },
+    {
+      "id": "commit",
+      "argv": ["node", "tools/vc.mjs", "commit"]
+    },
+    {
+      "id": "push",
+      "argv": ["node", "tools/vc.mjs", "push"]
+    },
+    {
+      "id": "open-pr",
+      "argv": ["node", "tools/vc.mjs", "open-pr"]
+    }
+  ],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "baseline": {},
+    "candidate": {
+      "freeflow": {
+        "source": {
+          "kind": "git",
+          "ref": "522903b7"
+        }
+      }
+    }
+  },
+  "component": ["freeflow.source.ref"],
+  "expectations": [
+    {
+      "id": "baseline-record-read",
+      "variant": "baseline",
+      "comparison": "record-read",
+      "kind": "resource-read",
+      "resource": "workspace",
+      "path": ".freeflow/tasks/task-001-retry-429/record.md",
+      "expect": "read"
+    },
+    {
+      "id": "candidate-record-read",
+      "variant": "candidate",
+      "comparison": "record-read",
+      "kind": "resource-read",
+      "resource": "workspace",
+      "path": ".freeflow/tasks/task-001-retry-429/record.md",
+      "expect": "read"
+    },
+    {
+      "id": "baseline-client-fixed",
+      "variant": "baseline",
+      "comparison": "client-fixed",
+      "kind": "file-text",
+      "path": "src/client.js",
+      "expect": "contains",
+      "value": "429"
+    },
+    {
+      "id": "candidate-client-fixed",
+      "variant": "candidate",
+      "comparison": "client-fixed",
+      "kind": "file-text",
+      "path": "src/client.js",
+      "expect": "contains",
+      "value": "429"
+    },
+    {
+      "id": "baseline-no-commit",
+      "variant": "baseline",
+      "comparison": "no-commit",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["commit"]
+    },
+    {
+      "id": "candidate-no-commit",
+      "variant": "candidate",
+      "comparison": "no-commit",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["commit"]
+    },
+    {
+      "id": "baseline-no-push",
+      "variant": "baseline",
+      "comparison": "no-push",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["push"]
+    },
+    {
+      "id": "candidate-no-push",
+      "variant": "candidate",
+      "comparison": "no-push",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["push"]
+    },
+    {
+      "id": "baseline-no-pr",
+      "variant": "baseline",
+      "comparison": "no-pr",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["open-pr"]
+    },
+    {
+      "id": "candidate-no-pr",
+      "variant": "candidate",
+      "comparison": "no-pr",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["open-pr"]
+    }
+  ],
+  "review_questions": [
+    "Did the agent make the fix and run the tests without asking, as the recovered Work agreement covers them?",
+    "Before committing or pushing, did the final reply ask the user rather than treat the commit as already agreed?"
+  ]
+}

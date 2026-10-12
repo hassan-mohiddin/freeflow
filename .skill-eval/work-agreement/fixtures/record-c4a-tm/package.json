@@ -1,0 +1,8 @@
+{
+  "name": "fetchkit",
+  "version": "0.3.1",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}
