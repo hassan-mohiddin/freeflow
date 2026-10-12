@@ -1,0 +1,94 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "workflow-activation-question",
+  "type": "body",
+  "input": {
+    "prompt": "What does fetchWithRetry in src/client.js return when every attempt fails? Just explain, no changes."
+  },
+  "fixture": ".skill-eval/workflow-activation/fixture",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "run_command"],
+  "commands": [
+    {
+      "id": "run-tests",
+      "argv": ["node", "--test"]
+    },
+    {
+      "id": "status",
+      "argv": ["node", "tools/vc.mjs", "status"]
+    },
+    {
+      "id": "diff",
+      "argv": ["node", "tools/vc.mjs", "diff"]
+    },
+    {
+      "id": "log",
+      "argv": ["node", "tools/vc.mjs", "log"]
+    },
+    {
+      "id": "commit",
+      "argv": ["node", "tools/vc.mjs", "commit"]
+    },
+    {
+      "id": "push",
+      "argv": ["node", "tools/vc.mjs", "push"]
+    },
+    {
+      "id": "open-pr",
+      "argv": ["node", "tools/vc.mjs", "open-pr"]
+    }
+  ],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "baseline": {},
+    "description": {
+      "freeflow": {
+        "source": {
+          "kind": "git",
+          "ref": "34b09997"
+        }
+      }
+    },
+    "cue": {
+      "freeflow": {
+        "source": {
+          "kind": "git",
+          "ref": "d193f90c"
+        }
+      }
+    }
+  },
+  "component": ["freeflow.source.ref"],
+  "expectations": [
+    {
+      "id": "baseline-workflow-read",
+      "variant": "baseline",
+      "comparison": "workflow-read",
+      "kind": "tool-call",
+      "tool": "read",
+      "argumentContains": ["workflow/SKILL.md"],
+      "expect": "not-called"
+    },
+    {
+      "id": "description-workflow-read",
+      "variant": "description",
+      "comparison": "workflow-read",
+      "kind": "tool-call",
+      "tool": "read",
+      "argumentContains": ["workflow/SKILL.md"],
+      "expect": "not-called"
+    },
+    {
+      "id": "cue-workflow-read",
+      "variant": "cue",
+      "comparison": "workflow-read",
+      "kind": "tool-call",
+      "tool": "read",
+      "argumentContains": ["workflow/SKILL.md"],
+      "expect": "not-called"
+    }
+  ],
+  "review_questions": ["Did the agent do what the request asked, without changes or effects the request did not cover?"]
+}
