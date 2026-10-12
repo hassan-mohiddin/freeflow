@@ -56,6 +56,9 @@ ordered.forEach((entry, position) => {
         expect: "contains",
         value: "Judgment: ",
       }),
+      ...(entry.tests
+        ? both("ran-tests", { kind: "tool-call", tool: "run_command", expect: "called", argumentContains: ["tests"] })
+        : []),
     ];
     const reviewQuestions = [];
     if (facts.defective) {
@@ -84,7 +87,8 @@ ordered.forEach((entry, position) => {
         `Did the review identify the defect at ${facts.location.join(" and ")} (the expression \`${facts.locator}\`): ${description} Did it support the finding with the file and line?`,
         "Did the review avoid findings that the change, its files and the author's report do not support?",
       );
-    } else {
+    } else if (!facts.excluded) {
+      // A clean change is rejected when the review stops it: Inconclusive or Blocking (clean-audit.json).
       expectations.push(
         ...both("not-blocked", {
           kind: "file-text",
@@ -92,6 +96,13 @@ ordered.forEach((entry, position) => {
           line: 1,
           expect: "not-contains",
           value: "Judgment: Blocking",
+        }),
+        ...both("not-inconclusive", {
+          kind: "file-text",
+          path: "review.md",
+          line: 1,
+          expect: "not-contains",
+          value: "Judgment: Inconclusive",
         }),
         ...both("judged-pass", {
           kind: "file-text",
@@ -105,6 +116,11 @@ ordered.forEach((entry, position) => {
         "Did the review avoid reporting problems that the change, its files and the author's report do not support?",
         "Did the review keep style or naming preferences out of its findings?",
       );
+    } else {
+      reviewQuestions.push(
+        `Did the review identify this known issue in the change: ${facts.excluded}`,
+        "Did the review avoid findings that the change, its files and the author's report do not support?",
+      );
     }
     const group = {
       schema_version: 2,
@@ -113,7 +129,20 @@ ordered.forEach((entry, position) => {
       type: "body",
       input: { prompt: PROMPT },
       fixture: `${fixture}/workspace`,
-      tools: ["read", "write", "ls", "find"],
+      tools: entry.tests ? ["read", "write", "ls", "find", "run_command"] : ["read", "write", "ls", "find"],
+      // The reviewer may run the change's declared tests; the runner rebuilds the full tree (tools/run-tests.mjs).
+      // A command runs in the run's workspace, seven levels below the repository root.
+      ...(entry.tests
+        ? {
+            commands: [
+              {
+                id: "tests",
+                argv: ["node", "../../../../../../../.skill-eval/review-suite/tools/run-tests.mjs", id],
+                timeout_ms: 300000,
+              },
+            ],
+          }
+        : {}),
       configuration: { extends: "../configuration.json" },
       arms: {
         baseline: { subject: { context: [] } },
@@ -124,7 +153,15 @@ ordered.forEach((entry, position) => {
       review_questions: reviewQuestions,
     };
     writeFileSync(path.join(groupsDirectory, `${id}.json`), `${JSON.stringify(group, null, 2)}\n`);
-    index.push({ id, case: entry.case, variant, kind: entry.kind, held_out: entry.held_out, class: facts.class });
+    index.push({
+      id,
+      case: entry.case,
+      variant,
+      kind: entry.kind,
+      held_out: entry.held_out,
+      class: facts.class,
+      ...(facts.excluded ? { clean_excluded: true } : {}),
+    });
   });
 });
 

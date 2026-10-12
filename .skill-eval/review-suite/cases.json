@@ -122,6 +122,10 @@
           "locator": "; prescribe Pi's `/reload`"
         }
       },
+      "tests": {
+        "build": true,
+        "files": ["pi-extension/tests/pi-extension-search.test.js", "pi-extension/tests/pi-extension.test.js"]
+      },
       "requirements_identical": true
     },
     {
@@ -140,6 +144,14 @@
           "location": ["skills/evaluate-skill/scripts/lib/compact-evidence.mjs:172"],
           "locator": "canonicalText.length"
         }
+      },
+      "tests": {
+        "build": false,
+        "files": [
+          ".skill-eval/evaluate-skill/tests/compact-evidence.test.mjs",
+          ".skill-eval/evaluate-skill/tests/evaluate.test.mjs",
+          ".skill-eval/evaluate-skill/tests/plan.test.mjs"
+        ]
       },
       "requirements_identical": true
     },
@@ -160,6 +172,15 @@
           "locator": "isDuplicate(refs.filter((ref): ref is string => typeof ref === \"string\"))"
         }
       },
+      "tests": {
+        "build": true,
+        "files": [
+          "pi-extension/tests/context-virtualization/extension.test.js",
+          "pi-extension/tests/context-virtualization/projector.test.js",
+          "pi-extension/tests/context-virtualization/runtime.test.js",
+          "pi-extension/tests/integration/prompt-architecture.test.js"
+        ]
+      },
       "requirements_identical": true
     },
     {
@@ -179,6 +200,13 @@
           "locator": "operations.lstat(path + \".tmp\")"
         }
       },
+      "tests": {
+        "build": false,
+        "files": [
+          ".skill-eval/evaluate-skill/tests/outcome.test.mjs",
+          ".skill-eval/evaluate-skill/tests/publication.test.mjs"
+        ]
+      },
       "requirements_identical": true
     },
     {
@@ -189,7 +217,8 @@
       "variants": {
         "clean": {
           "defective": false,
-          "class": null
+          "class": null,
+          "excluded": "A precise replaceText edit can rewrite supersededBy (replacePreciseText checks no forbidden field), against the commit's own statement that supersession links cannot be set through precise edits. Pre-existing in the parent; the commit's test covers only set."
         },
         "seeded": {
           "defective": true,
@@ -197,6 +226,10 @@
           "location": ["skills/track-work/scripts/lib/operations.mjs:28"],
           "locator": "/^D-\\d{3}/"
         }
+      },
+      "tests": {
+        "build": false,
+        "files": [".skill-eval/track-work/tests/working-record.test.mjs"]
       },
       "requirements_identical": true
     },
@@ -217,6 +250,10 @@
           "locator": "result.process.code > 0"
         }
       },
+      "tests": {
+        "build": true,
+        "files": [".skill-eval/evaluate-skill/tests/process-outcome.test.mjs"]
+      },
       "requirements_identical": true
     },
     {
@@ -227,7 +264,8 @@
       "variants": {
         "clean": {
           "defective": false,
-          "class": null
+          "class": null,
+          "excluded": "persistedBranchMatches compares only the live branch, then trusts every in-memory entry, so an unwritten entry on another branch passes reconcile() unblocked (requirement 3). Reproduced: the control blocks with ancestry_unavailable, the off-branch case does not."
         },
         "seeded": {
           "defective": true,
@@ -238,6 +276,24 @@
           ],
           "locator": "if (reason) trustLoadedSession(reader);"
         }
+      },
+      "tests": {
+        "build": true,
+        "files": [
+          "pi-extension/tests/cognitive-routing/control-staging.test.js",
+          "pi-extension/tests/cognitive-routing/performance.test.js",
+          "pi-extension/tests/cognitive-routing/persistence.test.js",
+          "pi-extension/tests/cognitive-routing/runtime.test.js",
+          "pi-extension/tests/cognitive-routing/startup-verification.test.js",
+          "pi-extension/tests/host/persisted-branch.test.js",
+          "pi-extension/tests/integration/pi-extension.test.js",
+          "pi-extension/tests/integration/request-path-budget.test.js",
+          "pi-extension/tests/integration/unaffected-regressions.test.js",
+          "pi-extension/tests/provider-support/chatgpt-sign-in.test.js",
+          "pi-extension/tests/provider-support/native.test.js",
+          "pi-extension/tests/provider-support/openai-effort-boundaries.test.js",
+          "pi-extension/tests/provider-support/openai-effort.test.js"
+        ]
       },
       "requirements_identical": true
     },
@@ -258,6 +314,15 @@
           "locator": "stableJson(recorded) !== stableJson(recorded)"
         }
       },
+      "tests": {
+        "build": true,
+        "files": [
+          ".skill-eval/evaluate-skill/tests/evaluate.test.mjs",
+          ".skill-eval/evaluate-skill/tests/integrity.test.mjs",
+          ".skill-eval/evaluate-skill/tests/plan.test.mjs",
+          ".skill-eval/evaluate-skill/tests/publication.test.mjs"
+        ]
+      },
       "requirements_identical": true
     },
     {
@@ -268,7 +333,8 @@
       "variants": {
         "clean": {
           "defective": false,
-          "class": null
+          "class": null,
+          "excluded": "Reads in Pi's kept raw tail drop out of every later session-wide file list after Pi compacts, against the commit's own README ('across any mix of Freeflow and Pi compactions'). Reproduced with Pi 1.0.1's prepareCompaction and the commit's harness. Still on main."
         },
         "seeded": {
           "defective": true,
@@ -276,6 +342,15 @@
           "location": ["pi-extension/src/compaction/harness.ts:74", "pi-extension/dist/compaction/harness.js:49"],
           "locator": "new Set([...cycle.read]"
         }
+      },
+      "tests": {
+        "build": true,
+        "files": [
+          "pi-extension/tests/compaction/agent-path.test.js",
+          "pi-extension/tests/compaction/fallback.test.js",
+          "pi-extension/tests/compaction/notices.test.js",
+          "pi-extension/tests/compaction/thresholds.test.js"
+        ]
       },
       "requirements_identical": true
     },
@@ -295,6 +370,10 @@
           "location": ["scripts/freeflow-snapshot.mjs:127"],
           "locator": "\"ci\", \"--omit=dev\", \"--legacy-peer-deps\""
         }
+      },
+      "tests": {
+        "build": true,
+        "files": ["scripts/freeflow-snapshot.test.mjs"]
       },
       "requirements_identical": true
     },
@@ -316,6 +395,47 @@
             "pi-extension/dist/cognitive-routing/gate.js:210"
           ],
           "locator": "if (nested) return { block: true"
+        }
+      },
+      "tests": {
+        "build": true,
+        "files": [
+          "pi-extension/tests/cache-reuse/claude-native.test.js",
+          "pi-extension/tests/cache-reuse/native.test.js",
+          "pi-extension/tests/cognitive-routing/assembler.test.js",
+          "pi-extension/tests/cognitive-routing/communication.test.js",
+          "pi-extension/tests/cognitive-routing/compaction-input.test.js",
+          "pi-extension/tests/cognitive-routing/control-staging.test.js",
+          "pi-extension/tests/cognitive-routing/crash-resume.test.js",
+          "pi-extension/tests/cognitive-routing/delegation.test.js",
+          "pi-extension/tests/cognitive-routing/economics.test.js",
+          "pi-extension/tests/cognitive-routing/handoffs.test.js",
+          "pi-extension/tests/cognitive-routing/native.test.js",
+          "pi-extension/tests/cognitive-routing/nested-calls.test.js",
+          "pi-extension/tests/cognitive-routing/performance.test.js",
+          "pi-extension/tests/cognitive-routing/persistence.test.js",
+          "pi-extension/tests/cognitive-routing/projected-association.test.js",
+          "pi-extension/tests/cognitive-routing/projection.test.js",
+          "pi-extension/tests/cognitive-routing/recovery.test.js",
+          "pi-extension/tests/cognitive-routing/render.test.js",
+          "pi-extension/tests/cognitive-routing/review-fixes.test.js",
+          "pi-extension/tests/cognitive-routing/runtime.test.js",
+          "pi-extension/tests/cognitive-routing/shortcut-control.test.js",
+          "pi-extension/tests/cognitive-routing/stabilization.test.js",
+          "pi-extension/tests/cognitive-routing/state.test.js",
+          "pi-extension/tests/cognitive-routing/status.test.js",
+          "pi-extension/tests/cognitive-routing/transitions.test.js",
+          "pi-extension/tests/integration/pi-extension.test.js",
+          "pi-extension/tests/integration/prompt-architecture.test.js",
+          "pi-extension/tests/provider-support/cache-keepalive-native.test.js",
+          "pi-extension/tests/tool-runtime/results-native.test.js"
+        ],
+        "dropped": {
+          "files": [
+            "pi-extension/tests/tool-runtime/accounting/native.test.js",
+            "pi-extension/tests/tool-runtime/p4-native-routing.test.js"
+          ],
+          "reason": "fail on the clean tree and on its parent in this environment"
         }
       },
       "requirements_identical": true
@@ -340,6 +460,17 @@
           "locator": "once the run ends"
         }
       },
+      "tests": {
+        "build": true,
+        "files": [
+          "pi-extension/tests/compaction/agent-path.test.js",
+          "pi-extension/tests/compaction/automatic-carry.test.js",
+          "pi-extension/tests/compaction/carry.test.js",
+          "pi-extension/tests/compaction/notices.test.js",
+          "pi-extension/tests/compaction/worker-warning.test.js",
+          "pi-extension/tests/integration/pi-extension.test.js"
+        ]
+      },
       "requirements_identical": true
     },
     {
@@ -362,6 +493,44 @@
           "locator": "data?.type === \"recovery-supplement-accepted\" &&"
         }
       },
+      "tests": {
+        "build": true,
+        "files": [
+          "pi-extension/tests/cognitive-routing/assembler.test.js",
+          "pi-extension/tests/cognitive-routing/communication.test.js",
+          "pi-extension/tests/cognitive-routing/compaction-input.test.js",
+          "pi-extension/tests/cognitive-routing/control-staging.test.js",
+          "pi-extension/tests/cognitive-routing/crash-resume.test.js",
+          "pi-extension/tests/cognitive-routing/delegation.test.js",
+          "pi-extension/tests/cognitive-routing/economics.test.js",
+          "pi-extension/tests/cognitive-routing/handoffs.test.js",
+          "pi-extension/tests/cognitive-routing/native.test.js",
+          "pi-extension/tests/cognitive-routing/nested-calls.test.js",
+          "pi-extension/tests/cognitive-routing/performance.test.js",
+          "pi-extension/tests/cognitive-routing/persistence.test.js",
+          "pi-extension/tests/cognitive-routing/pi-099.test.js",
+          "pi-extension/tests/cognitive-routing/projected-association.test.js",
+          "pi-extension/tests/cognitive-routing/projection.test.js",
+          "pi-extension/tests/cognitive-routing/recovery.test.js",
+          "pi-extension/tests/cognitive-routing/render.test.js",
+          "pi-extension/tests/cognitive-routing/review-fixes.test.js",
+          "pi-extension/tests/cognitive-routing/runtime.test.js",
+          "pi-extension/tests/cognitive-routing/shortcut-control.test.js",
+          "pi-extension/tests/cognitive-routing/stabilization.test.js",
+          "pi-extension/tests/cognitive-routing/state.test.js",
+          "pi-extension/tests/cognitive-routing/status.test.js",
+          "pi-extension/tests/cognitive-routing/transitions.test.js",
+          "pi-extension/tests/compaction/agent-path.test.js",
+          "pi-extension/tests/compaction/automatic-carry.test.js",
+          "pi-extension/tests/compaction/carry.test.js",
+          "pi-extension/tests/compaction/coordinator-view.test.js",
+          "pi-extension/tests/compaction/fallback.test.js",
+          "pi-extension/tests/compaction/notices.test.js",
+          "pi-extension/tests/compaction/script-call.test.js",
+          "pi-extension/tests/compaction/thresholds.test.js",
+          "pi-extension/tests/compaction/worker-warning.test.js"
+        ]
+      },
       "requirements_identical": true
     },
     {
@@ -372,13 +541,49 @@
       "variants": {
         "clean": {
           "defective": false,
-          "class": null
+          "class": null,
+          "excluded": "The semantic step now runs after an objective failure (the parent guarded it), so a legacy single-case run that failed objectively becomes incomplete and makes a second provider request, against the plan's rule that legacy status and exit stay unchanged."
         },
         "seeded": {
           "defective": true,
           "class": "convention",
           "location": ["skills/evaluate-skill/scripts/lib/semantic.mjs:104"],
           "locator": "objective_checks_passed: true"
+        }
+      },
+      "tests": {
+        "build": true,
+        "files": [
+          ".skill-eval/evaluate-skill/tests/cases.test.mjs",
+          ".skill-eval/evaluate-skill/tests/codex-adapter.test.mjs",
+          ".skill-eval/evaluate-skill/tests/compact-evidence.test.mjs",
+          ".skill-eval/evaluate-skill/tests/composition-runtime.test.mjs",
+          ".skill-eval/evaluate-skill/tests/coordinator.test.mjs",
+          ".skill-eval/evaluate-skill/tests/decision.test.mjs",
+          ".skill-eval/evaluate-skill/tests/evaluate.test.mjs",
+          ".skill-eval/evaluate-skill/tests/feasibility.test.mjs",
+          ".skill-eval/evaluate-skill/tests/grading.test.mjs",
+          ".skill-eval/evaluate-skill/tests/guard-runtime.test.mjs",
+          ".skill-eval/evaluate-skill/tests/integrity.test.mjs",
+          ".skill-eval/evaluate-skill/tests/materialize.test.mjs",
+          ".skill-eval/evaluate-skill/tests/outcome.test.mjs",
+          ".skill-eval/evaluate-skill/tests/path-policy.test.mjs",
+          ".skill-eval/evaluate-skill/tests/pi-adapter.test.mjs",
+          ".skill-eval/evaluate-skill/tests/plan.test.mjs",
+          ".skill-eval/evaluate-skill/tests/process-outcome.test.mjs",
+          ".skill-eval/evaluate-skill/tests/process.test.mjs",
+          ".skill-eval/evaluate-skill/tests/publication.test.mjs",
+          ".skill-eval/evaluate-skill/tests/semantic-evidence.test.mjs",
+          ".skill-eval/evaluate-skill/tests/semantic.test.mjs"
+        ],
+        "dropped": {
+          "files": [
+            ".skill-eval/evaluate-skill/tests/cli.test.mjs",
+            ".skill-eval/evaluate-skill/tests/init-and-doctor.test.mjs",
+            ".skill-eval/evaluate-skill/tests/rpc-client.test.mjs",
+            ".skill-eval/evaluate-skill/tests/v3-baseline.test.mjs"
+          ],
+          "reason": "fail on the clean tree in this environment (Codex host, process-group timing, frozen host-free output)"
         }
       },
       "requirements_identical": true
@@ -391,7 +596,8 @@
       "variants": {
         "clean": {
           "defective": false,
-          "class": null
+          "class": null,
+          "excluded": "Keep-alive lanes are keyed without the credential, so a request recorded on another route is still replayed after a switch to Sign in with ChatGPT during a hold, against requirement 2 as written. Pre-existing mechanism; small harm."
         },
         "seeded": {
           "defective": true,
@@ -402,6 +608,31 @@
           ],
           "locator": "isUsingOAuth?.(model) !== false"
         }
+      },
+      "tests": {
+        "build": true,
+        "files": [
+          "pi-extension/tests/cache-reuse/claude-native.test.js",
+          "pi-extension/tests/cache-reuse/history.test.js",
+          "pi-extension/tests/cache-reuse/native.test.js",
+          "pi-extension/tests/integration/mode-free-core.test.js",
+          "pi-extension/tests/integration/pi-extension.test.js",
+          "pi-extension/tests/integration/pi087-system-timeline.test.js",
+          "pi-extension/tests/integration/prompt-architecture.test.js",
+          "pi-extension/tests/integration/unaffected-regressions.test.js",
+          "pi-extension/tests/provider-support/cache-anchor-native.test.js",
+          "pi-extension/tests/provider-support/cache-anchor-openai.test.js",
+          "pi-extension/tests/provider-support/cache-anchor.test.js",
+          "pi-extension/tests/provider-support/cache-health.test.js",
+          "pi-extension/tests/provider-support/cache-keepalive-native.test.js",
+          "pi-extension/tests/provider-support/cache-keepalive.test.js",
+          "pi-extension/tests/provider-support/cache-monitor.test.js",
+          "pi-extension/tests/provider-support/chatgpt-sign-in.test.js",
+          "pi-extension/tests/provider-support/cli.test.js",
+          "pi-extension/tests/provider-support/native.test.js",
+          "pi-extension/tests/provider-support/openai-effort-boundaries.test.js",
+          "pi-extension/tests/provider-support/openai-effort.test.js"
+        ]
       },
       "requirements_identical": true
     },
@@ -420,6 +651,22 @@
           "class": "convention",
           "location": ["pi-extension/src/cognitive-routing-v2/runtime.ts:506"],
           "locator": "process.env.PI_CACHE_RETENTIONS"
+        }
+      },
+      "tests": {
+        "build": true,
+        "files": [
+          "pi-extension/tests/cognitive-routing-v2/economics.test.js",
+          "pi-extension/tests/cognitive-routing-v2/runtime.test.js",
+          "pi-extension/tests/provider-support/cache-anchor-native.test.js",
+          "pi-extension/tests/provider-support/cache-anchor-openai.test.js",
+          "pi-extension/tests/provider-support/cache-anchor.test.js",
+          "pi-extension/tests/provider-support/cache-keepalive-native.test.js",
+          "pi-extension/tests/provider-support/cache-keepalive.test.js"
+        ],
+        "dropped": {
+          "files": ["pi-extension/tests/cognitive-routing-v2/stabilization.test.js"],
+          "reason": "imports a Pi module the installed Pi 1.0.1 lacks"
         }
       },
       "requirements_identical": true
@@ -441,6 +688,17 @@
           "locator": "Keep edits[].oldText as small as possible"
         }
       },
+      "tests": {
+        "build": true,
+        "files": [
+          "pi-extension/tests/integration/mode-free-core.test.js",
+          "pi-extension/tests/integration/pi-extension.test.js",
+          "pi-extension/tests/integration/pi087-system-timeline.test.js",
+          "pi-extension/tests/integration/prompt-architecture.test.js",
+          "pi-extension/tests/integration/unaffected-regressions.test.js",
+          "pi-extension/tests/tool-execution/prompt-native.test.js"
+        ]
+      },
       "requirements_identical": true
     },
     {
@@ -459,6 +717,18 @@
           "location": ["pi-extension/src/compaction/carry.ts:25"],
           "locator": "Math.floor(warning / 2)"
         }
+      },
+      "tests": {
+        "build": true,
+        "files": [
+          "pi-extension/tests/cognitive-routing/compaction-input.test.js",
+          "pi-extension/tests/compaction/agent-path.test.js",
+          "pi-extension/tests/compaction/carry.test.js",
+          "pi-extension/tests/compaction/fallback.test.js",
+          "pi-extension/tests/compaction/notices.test.js",
+          "pi-extension/tests/compaction/thresholds.test.js",
+          "pi-extension/tests/compaction/worker-warning.test.js"
+        ]
       },
       "requirements_identical": true
     },
@@ -479,6 +749,23 @@
           "locator": "\"memory\", provider, model]"
         }
       },
+      "tests": {
+        "build": true,
+        "files": [
+          "pi-extension/tests/cognitive-routing-v2/native.test.js",
+          "pi-extension/tests/cognitive-routing-v2/runtime.test.js",
+          "pi-extension/tests/provider-support/cache-anchor-native.test.js",
+          "pi-extension/tests/provider-support/cache-anchor-openai.test.js",
+          "pi-extension/tests/provider-support/cache-anchor.test.js",
+          "pi-extension/tests/provider-support/cache-keepalive-native.test.js",
+          "pi-extension/tests/provider-support/cache-keepalive.test.js",
+          "pi-extension/tests/provider-support/cache-monitor.test.js",
+          "pi-extension/tests/provider-support/cli.test.js",
+          "pi-extension/tests/provider-support/native.test.js",
+          "pi-extension/tests/provider-support/openai-effort-boundaries.test.js",
+          "pi-extension/tests/provider-support/openai-effort.test.js"
+        ]
+      },
       "requirements_identical": true
     },
     {
@@ -497,6 +784,33 @@
           "location": ["pi-extension/src/cognitive-routing/state.ts:440"],
           "locator": "workerRunning((x) => x.assignmentId === recovery.id)"
         }
+      },
+      "tests": {
+        "build": true,
+        "files": [
+          "pi-extension/tests/cognitive-routing/assembler.test.js",
+          "pi-extension/tests/cognitive-routing/communication.test.js",
+          "pi-extension/tests/cognitive-routing/compaction-input.test.js",
+          "pi-extension/tests/cognitive-routing/control-staging.test.js",
+          "pi-extension/tests/cognitive-routing/crash-resume.test.js",
+          "pi-extension/tests/cognitive-routing/delegation.test.js",
+          "pi-extension/tests/cognitive-routing/economics.test.js",
+          "pi-extension/tests/cognitive-routing/handoffs.test.js",
+          "pi-extension/tests/cognitive-routing/native.test.js",
+          "pi-extension/tests/cognitive-routing/performance.test.js",
+          "pi-extension/tests/cognitive-routing/persistence.test.js",
+          "pi-extension/tests/cognitive-routing/projected-association.test.js",
+          "pi-extension/tests/cognitive-routing/projection.test.js",
+          "pi-extension/tests/cognitive-routing/recovery.test.js",
+          "pi-extension/tests/cognitive-routing/render.test.js",
+          "pi-extension/tests/cognitive-routing/review-fixes.test.js",
+          "pi-extension/tests/cognitive-routing/runtime.test.js",
+          "pi-extension/tests/cognitive-routing/shortcut-control.test.js",
+          "pi-extension/tests/cognitive-routing/stabilization.test.js",
+          "pi-extension/tests/cognitive-routing/state.test.js",
+          "pi-extension/tests/cognitive-routing/status.test.js",
+          "pi-extension/tests/cognitive-routing/transitions.test.js"
+        ]
       },
       "requirements_identical": true
     }
