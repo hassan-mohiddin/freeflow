@@ -56,6 +56,7 @@ export async function runTrials(definitionFile, selectors, options = {}) {
     reuse: createRunReuse(runsDirectory, options.reuse === true),
     loginsRefreshed: true,
     skipReferenceCheck: options.skipReferenceCheck === true,
+    sources: options.sources ?? null,
   };
   await refreshSelectedLogins(selection);
   const stopped = () => Boolean(signal?.aborted || budget?.exhausted);
