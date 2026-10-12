@@ -24,6 +24,22 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Claim only what the evidence observed. Structural checks prove structure. Explicit body delivery does not prove activation, one turn does not prove retained use, ambient context does not prove dependency behavior, prose review does not prove unchanged behavior, and one favorable example does not prove readiness.
 - Run `validate` after any structural or dependency change and before claiming the package is valid. Never use deprecated authoring tooling.
 
+## Choose What To Change
+
+Goal: change a skill only for behavior that will recur, and only where prose is the right fix.
+
+When revising from evidence, such as observed failures, transcripts, review findings or eval results, list each candidate change with the evidence behind it. Drop a candidate that is:
+
+- **not durable:** a one-off slip that the situation, not the guidance, explains;
+- **too specific:** it fits one task or fixture, not the class of situations the skill serves;
+- **a duplicate:** another candidate, or another skill, already owns it;
+- **already covered:** the skill says it, and the failure lies elsewhere, such as activation or placement; fix that boundary instead;
+- **structural:** a tool, script, check or runtime change prevents it more reliably than an instruction.
+
+Keep dropped candidates and their reasons with the evidence, outside the package.
+
+When the same workflow is rebuilt by hand across several tasks and no skill owns it, propose a new skill to the user, naming the tasks it recurred in.
+
 ## Establish The Behavioral Claim
 
 Goal: know what the skill must change before deciding how it reads.
@@ -150,6 +166,8 @@ If yes, remove or merge it.
 
 Keep an instruction because it protects measured behavior or prevents a specific failure you can name, not because it might help. An instruction with neither is a candidate for removal: remove it, or test whether it changes behavior, rather than keeping it by default. Skills otherwise only grow, as each incident adds instructions and none is ever shown safe to remove.
 
+Remove an instruction once the mistake it guards against can no longer happen, for example because a tool now refuses the action or the capability it guarded is gone. Keep a local guard only for a path that still bypasses the enforcement.
+
 Compaction goes wrong when it:
 
 - deletes the positive route while keeping only prohibitions;
@@ -189,15 +207,21 @@ Start with one `SKILL.md` and remove accidental complexity before splitting file
 
 There is no universal body template, line limit, reference count, or requirement that a script follow an earlier failure.
 
-## Evaluate The Behavioral Claim
+## Evaluate In One Loop
 
-Goal: evidence that the skill changes behavior as intended, at the boundary being claimed.
+Goal: every revision answers observed evidence and is checked against it.
 
-Name the exact claim: description activation, first-read body behavior, nearby behavior, dependency composition, retained use, artifact outcome, or cross-host behavior. Use [Evaluate Skill](../evaluate-skill/SKILL.md) to compare exact baseline and candidate environments under fixed declared inputs.
+1. Start from the source: the evidence a change answers (Choose What To Change), or for a new skill, its behavioral claim.
+2. Name the exact claim: description activation, first-read body behavior, nearby behavior, dependency composition, retained use, artifact outcome, or cross-host behavior.
+3. Fix the cases before the draft is final: one that should use the guidance, a near miss that should not, and for judgment, one where following the default literally is the worse choice.
+4. Run baseline and candidate with [Evaluate Skill](../evaluate-skill/SKILL.md), under fixed declared inputs.
+5. Read the transcripts and results, with the user when they review, before trusting a count.
+6. Revise one measured pressure point.
+7. Rerun the complete fixed group with both variants.
+
+Stop when the evidence supports the claim, or when the next revision would only tune against the same cases; judge it on held-out cases instead. Preserve adequate existing evidence rather than rerunning it.
 
 Evaluate the two kinds differently. A Rule passes when it is never broken, including under pressure to break it. Judgment passes on outcome, and its evidence should include a case where following the default literally is the worse choice, so a candidate that only obeys cannot pass.
-
-Preserve adequate existing evidence. Revise one measured pressure point at a time, and after a behavior-sensitive change rerun the complete fixed group with both variants.
 
 Small wording, ordering, vocabulary, repetition, and structural changes can alter model behavior. Human review establishes intended meaning; behavioral evidence establishes observed effect.
 

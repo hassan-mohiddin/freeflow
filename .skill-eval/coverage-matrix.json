@@ -186,9 +186,9 @@
       "neighbours": ["write-skill", "verify-work"],
       "evidence_class": ["native-activation", "artifact-outcome", "multi-turn"],
       "case_concept": "Compare baseline and candidate while preserving failures and leaving behavioral meaning to agent or user review.",
-      "current_result": "Fresh hard-cut contract has not been behaviorally evaluated; no current group or suite evidence exists.",
+      "current_result": "The evaluator scripts have their own tests (.skill-eval/evaluate-skill/tests). The skill text, including its measurement and defect-suite guidance, has no behavioral group or suite evidence.",
       "source_path": "skills/evaluate-skill/SKILL.md",
-      "source_sha256": "69ec274185020fe1126f5d5b0eaabdf0e3961528bc48cdf680a8cbb5520d23e8",
+      "source_sha256": "9145b119f63ecdc4080cd82d3cc2e223eacb054d18fbd9bafc58f67453a76b09",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -548,9 +548,9 @@
       "neighbours": ["evaluate-skill", "decision-gate"],
       "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Create a minimal skill whose description and body work without a prescribed section template.",
-      "current_result": "Fresh hard-cut contract has not been behaviorally evaluated; no current group or suite evidence exists.",
+      "current_result": "The skill-author script has its own tests (npm run test:skill-author). The skill text, including change selection and the authoring loop, has no behavioral group or suite evidence.",
       "source_path": "skills/write-skill/SKILL.md",
-      "source_sha256": "34450deeb0ef11e51bda0157cc05c4081fd6b9cb9e7f6c77b44f3f41a4d29ab5",
+      "source_sha256": "4da2ca057832118bfb52ba3b4e5ef16ca2b3238159de83196e82abcd42826094",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

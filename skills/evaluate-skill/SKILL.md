@@ -14,7 +14,7 @@ A **group** asks one behavioral question through exactly two variants:
 
 The **subject** performs the declared task under one variant. The **evaluator** isolates subjects and preserves canonical evidence. The **deterministic grader** derives fixed mechanical facts after the run is saved. A **suite** runs an ordered set of independent groups.
 
-Evaluate Skill does not author or revise skills, decide semantic quality, claim readiness, or choose publication. [Write Skill](../write-skill/SKILL.md) owns package preservation and revision. The active agent or user judges unresolved meaning; the user decides whether to revise, use, publish, or reject the skill.
+Evaluate Skill does not author or revise skills, decide semantic quality, claim readiness, or choose publication. [Write Skill](../write-skill/SKILL.md) owns package preservation, revision, and the authoring loop an evaluation serves. The active agent or user judges unresolved meaning; the user decides whether to revise, use, publish, or reject the skill.
 
 The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 
@@ -26,6 +26,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Keep deterministic criteria and review questions out of subject prompts and declared subject context.
 - Declare every subject resource. Ambient installation or context is not declared composition.
 - Claim only what the evidence class observed; one class never proves another.
+- Never write that one variant beats another without paired runs on the same cases and a decision rule fixed before the run. Below that, report counts.
 - Never cite a dry run as evidence. When a run is refused for uncommitted inputs, commit the candidate and the definition, or keep the run as a dry run for your own checking only.
 - Never edit the skill from Evaluate Skill. Return one measured revision target to Write Skill.
 - After a behavioral change, rerun the complete fixed group with both variants. Never reuse an earlier run as the fresh counterpart or rerun only the preferred variant.
@@ -79,6 +80,19 @@ Test a skill's Rules and its judgment differently. A Rule needs pressure to brea
 
 Read [Evaluation Design](references/evaluation-design.md) before choosing or materially changing the question, evidence class, group shape, pressure, or baseline/candidate boundary.
 
+## Decide What The Result Must Support
+
+Goal: the claim sets the size of the run, not the other way round.
+
+Before building cases, name the strongest claim the result must support:
+
+- **can do X:** one complete run that shows it;
+- **does X at a rate on this suite:** counts per check, case and trial, and pass^k for behavior relied on every time;
+- **A beats B:** paired runs on the same cases, with a decision rule and size fixed before the run;
+- **ready:** beyond Evaluate Skill; it needs held-out cases and evidence at the claim's own boundary.
+
+Read [Measurement](references/measurement.md) before a run that must support a rate or a comparison. Read [Defect Suites](references/defect-suites.md) before measuring a reviewer, checker or other detector.
+
 ## Design The Smallest Valid Comparison
 
 Goal: the only difference between variants is the target, and the pressure is strong enough to show it.
@@ -128,7 +142,7 @@ node <evaluate-skill-directory>/scripts/skill-eval.mjs view <result-id-or-direct
 node <evaluate-skill-directory>/scripts/skill-eval.mjs review <result-id-or-directory> (--model <provider/model> | --configuration <file>) [--group <id-or-position>] [--thinking <level>] [--swap] [--limit <name>=<chars>]
 ```
 
-One run per variant cannot separate a behavioral difference from sampling noise. Use `--trials <n>` before claiming a difference; each trial is an independent complete result, and the aggregate only counts their deterministic grades. Use `--max-cost` when trials or suites could spend more than intended.
+One run per variant cannot separate a behavioral difference from sampling noise. Use `--trials <n>` before claiming a difference; each trial is an independent complete result, and the aggregate counts their deterministic grades with pass^k. Use `--max-cost` when trials or suites could spend more than intended; it bounds the host's list-price estimate, not a subscription's plan limit, so state the subject count before a large batch.
 
 With no selectors, run or view every suite group and both variants. Selectors narrow execution or viewing scope; they do not modify definitions.
 
@@ -155,7 +169,7 @@ A transition such as `fail-to-pass` is a factual comparison. It does not mean ba
 
 After canonical evidence and deterministic grades exist, read [Review and Revision](references/review-and-revision.md) when evidence conflicts, semantic meaning remains unresolved, the failed boundary must be classified, a revision target must be selected, or rerun scope is uncertain.
 
-The evaluator never grades meaning automatically. `review` records an optional advisory answer to each review question from a separate model that sees the two runs unlabeled, in `semantic-grade.json`. That model is a judge: before choosing it or relying on its answers, read Review Work's [Judge Contract](../review-work/references/judge-contract.md). It sees the fixture and each run's written files in full, up to a stated limit, with run paths and variant names replaced; its identity, family relation and unmet contract items are recorded with the answers. Pass `--swap` to check that the order of the runs did not decide the answers, and `--configuration` with a configuration file when the reviewer needs host extensions or settings, such as a subscription's auth extension.
+The evaluator never grades meaning automatically. `review` records an optional advisory answer to each review question from a separate model that sees the two runs unlabeled, in `semantic-grade.json`. That model is a judge: before choosing it or relying on its answers, read Review Work's [Judge Contract](../review-work/references/judge-contract.md). It sees the fixture and each run's written files in full, up to a stated limit, with run paths and variant names replaced; its identity, family relation and unmet contract items are recorded with the answers. Pass `--swap` to check that the order of the runs did not decide the answers, and `--configuration` with a configuration file when the reviewer needs host extensions or settings, such as a subscription's auth extension. Before counting a judge's answers, hand-check a sample of them against the evidence ([Measurement](references/measurement.md)).
 
 The active agent or user may judge reasoning quality, authority preservation, architectural fitness, recommendation quality, or semantic completeness. Keep that judgment, cited evidence, uncertainty, and limits outside canonical run and grade state.
 
@@ -178,7 +192,9 @@ Report:
 - what ran;
 - exact baseline and candidate identities;
 - selected groups and variants;
-- deterministic results;
+- deterministic results, with case and trial counts and pass^k;
+- the claim class reached;
+- the judge's identity and calibration, when a review was used;
 - infrastructure failures, cancellation, or unavailable evidence;
 - viewed scope;
 - canonical result paths;

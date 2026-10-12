@@ -107,6 +107,8 @@ One run per cell cannot separate a difference of one or two items from run-to-ru
 
 Freeze the candidate before a batch runs. Items used to develop a revision are not evidence for it: judge it on held-out items, and stop iterating on the items it was tuned against.
 
+[Measurement](measurement.md) sizes cases and trials to the claim, and covers noise between runs, held-out splits and controls for checks.
+
 ## Keep Separate Conclusions Separate
 
 An explicitly delivered body may support first-read behavior while a natural prompt still fails activation. Preserve both conclusions; one does not repair the other.
