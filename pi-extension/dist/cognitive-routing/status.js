@@ -19,7 +19,9 @@ export class RoutingStatus {
     } catch {
       state = initialState();
     }
-    const blocked = this.session.error ?? this.session.store?.blocked;
+    // A model or effort named on Pi's command line holds routing at startup (`startup_selection`). Its store is not
+    // reconciled then, so the store's own reason would hide why (Task 008 S-005).
+    const blocked = this.session.error ?? (this.session.suppressed ? "startup_selection" : this.session.store?.blocked);
     return {
       effective: this.session.supported() && state.control !== "inactive" && !blocked,
       activeProfile: state.profile,
@@ -30,8 +32,7 @@ export class RoutingStatus {
         : this.session.supported() && state.control !== "inactive"
           ? "active"
           : "inactive",
-      runtimeReason:
-        blocked ?? (this.session.suppressed ? "startup_selection" : this.session.capability?.blockingReason.message),
+      runtimeReason: blocked ?? this.session.capability?.blockingReason.message,
       projectionFailure: this.session.projectionError,
       ...((pending) => (pending ? { pendingPair: `${pending.modelId}/${pending.thinking}` } : {}))(
         this.models.pending(),
