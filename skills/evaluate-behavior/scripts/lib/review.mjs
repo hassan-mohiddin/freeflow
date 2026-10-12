@@ -44,9 +44,10 @@ export const REVIEW_LIMITS = Object.freeze({ response: 8000, argument: 300, file
  * (up to a stated limit) and the shared task materials, with run paths and arm names replaced by
  * neutral tokens, and its identity, family relation and unmet contract items are recorded.
  *
- * The reviewer's own configuration (model, host extensions such as a provider's auth extension, host settings) can come
- * from a schema 2 configuration file; `model` and `thinking` override its model. Extensions are recorded, because
- * an extension can change what the reviewer is sent.
+ * The reviewer runs on each group's host setup (its reference arm's host extensions, such as a provider's auth
+ * extension, and settings), so it uses the login the subjects used. A schema 2 configuration file given as
+ * `configuration` replaces that setup and may name the model; `model` and `thinking` override its model. The setup and
+ * its extensions are recorded, because an extension can change what the reviewer is sent.
  *
  * @param {string} target
  * @param {{group: string | null}} selectors
@@ -84,8 +85,6 @@ export async function reviewResult(
   model = model ?? judge.model?.model ?? null;
   thinking = thinking ?? judge.model?.thinking ?? null;
   if (model === null) throw new Error("the reviewer needs a model: pass --model or declare one in its configuration");
-  const loaded = await resolveHostExtensions(judge.extensions);
-  const settings = judge.settings;
   const resultDirectory = await resolveResult(target, root, results);
   const summary = JSON.parse(await readFile(path.join(resultDirectory, "summary.json"), "utf8"));
   const groups = selectGroups(summary, selectors.group);
@@ -93,6 +92,30 @@ export async function reviewResult(
   const single = (group) => Object.keys(group.variants ?? {}).length === 1;
   if (groups.length > 0 && groups.every(single)) {
     throw new Error("a pairwise review compares two or more runs; one-arm groups are judged with review --rubric");
+  }
+  // The reviewer's host setup: --configuration's when given, else each group's (its reference arm's host
+  // extensions and settings), so the reviewer uses the login the subjects used. Settled before any reviewer starts.
+  const setups = new Map();
+  const resolved = new Map();
+  for (const group of groups) {
+    let declared;
+    let settings;
+    let setup;
+    if (configuration !== null) {
+      [declared, settings, setup] = [judge.extensions, judge.settings, "command-line"];
+    } else {
+      const definition = await readJsonOrNull(path.join(resultDirectory, "groups", group.id, "definition.json"));
+      const inherited = groupHostSetup(definition ?? {});
+      if (inherited.problem !== null) {
+        throw new Error(
+          `group ${group.id}: its host extensions are built from source, which the reviewer cannot inherit; pass --configuration`,
+        );
+      }
+      [declared, settings, setup] = [inherited.extensions, inherited.settings, "group"];
+    }
+    const key = JSON.stringify(declared);
+    if (!resolved.has(key)) resolved.set(key, await resolveHostExtensions(declared));
+    setups.set(group.id, { extensions: resolved.get(key), settings, setup });
   }
   const sampled =
     swapSample === null
@@ -106,8 +129,7 @@ export async function reviewResult(
         root,
         model,
         thinking,
-        extensions: loaded,
-        settings,
+        ...setups.get(group.id),
         swap: sampled === null ? swap : sampled.has(group.id),
         swapSample: sampled === null ? null : { fraction: swapSample, sampled: sampled.has(group.id) },
         limits: effectiveLimits,
@@ -139,7 +161,7 @@ function selectGroups(summary, selector) {
 async function reviewGroup(
   groupDirectory,
   group,
-  { root, model, thinking, extensions, settings, swap, swapSample = null, limits, signal },
+  { root, model, thinking, extensions, settings, setup = "command-line", swap, swapSample = null, limits, signal },
 ) {
   const { id } = group;
   const definition = JSON.parse(await readFile(path.join(groupDirectory, "definition.json"), "utf8"));
@@ -202,7 +224,8 @@ async function reviewGroup(
     thinking,
     extensions,
     // Family is approximated by the provider: it says whether the judge and the subject come from one maker.
-    judge: { model, provider, family: provider, thinking, extensions, settings, isolation: first.isolation },
+    // `setup` says where the host extensions and settings came from: the group's, or --configuration.
+    judge: { model, provider, family: provider, thinking, setup, extensions, settings, isolation: first.isolation },
     subject: { providers: subjectProviders, familyRelation: familyRelation(provider, subjectProviders) },
     labels,
     ...(swapSample === null ? {} : { swapSample }),
