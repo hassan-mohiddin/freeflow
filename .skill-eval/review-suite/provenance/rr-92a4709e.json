@@ -1,0 +1,26 @@
+{
+  "case": "rr-92a4709e",
+  "status": "dropped",
+  "builder": "b5 (Haiku 5.5 subagent)",
+  "reason": "No real defect could be shown. The brief's label ('failed delivery rows not kept inspectable') does not match the fix. Nothing was built.",
+  "base": {
+    "commit": "9adcc75faebd03fdde6a289dfa9d6a5651808596"
+  },
+  "introducing_commit": {
+    "sha": "92a4709e3726e2c13db885a28a99e2a573e45810",
+    "subject": "fix(cognitive-routing): preserve provenance and complete handoff context"
+  },
+  "fix_commit": {
+    "sha": "f01a8b9b6c124b1a88b91d912884c5ae5750c13e",
+    "subject": "fix(cognitive-routing): keep evidence inspection usable and concise"
+  },
+  "evidence": {
+    "selected_rows_kept_inspectable_on_introducing_state": "Probe: after add, selected inspection returns the failed-delivery row ctx:760a7560 with targetReady false and limitations [target_representation]. The introducing code has no target-readiness filter on any scope. Failed rows are inspectable in selected scope.",
+    "what_the_fix_changes": "Normal assignment/active/history scopes now drop candidates with target gaps (runtime.ts .filter(scope === 'selected' || row.targetReady)), drop source previews from rows and receipts, add assignment to the rendered metadata, and count otherAssignments by target readiness.",
+    "intro_docs_describe_the_intro_behaviour": "plugin-docs/capabilities/cognitive-routing.md at 92a4709e: 'Expanded output shows scope, returned/total counts, source eligibility, known target limits, previews and the next cursor.' capabilities/cognitive-routing/SKILL.md: 'Preserve source and target-representation gaps.' The introducing behaviour (gap rows listed with explicit limits, previews shown) matches these lines, and the fix's plugin-docs diff replaces them.",
+    "fix_tests_on_introducing_state": "communication.test.js 'normal inspection hides delivery gaps while selected inspection preserves their diagnostics' fails at the discovery assertion (actual false: a candidate with targetReady false is listed). render.test.js 'evidence inspection renders metadata and gaps without source previews' fails (the preview text appears; assignment is not rendered)."
+  },
+  "rationale": "These failures show a design change (discovery shows only usable candidates; no previews), not a defect against the introducing commit's documented intent. The protocol drops a defect that cannot be shown real rather than softening it. If the owner decides discovery offering whole-message rows with target gaps is a defect, a case could be built with requirements taken from the fix's tests; that is a decision for the owner.",
+  "environment_note": "On the introducing state, stabilization.test.js 'explicit assistant text survives Pi custom-message conversion and the Codex SSE serializer' fails with a missing module in the installed Pi package. It also fails on the parent. Unrelated to this case.",
+  "variants_built": []
+}

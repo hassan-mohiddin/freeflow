@@ -1,0 +1,76 @@
+{
+  "case": "rr-a276b963",
+  "status": "built",
+  "builder": "b5 (Haiku 5.5 subagent)",
+  "held_out": true,
+  "held_out_note": "Listed as held out in .skill-eval/review-suite/README.md (real defects: 7b5dfb09, a276b963). Measured only.",
+  "base": {
+    "commit": "5f20bd5cf6683bcc6de4506b0f6b6acbed7a01c6",
+    "note": "first parent of the introducing commit"
+  },
+  "introducing_commit": {
+    "sha": "a276b963a500eeac1ce178c811eda50d052f4ed7",
+    "subject": "fix(evals): compact Pi JSON transport",
+    "size": "code 141 lines in 5 files (evaluate.mjs 10, pi-adapter.mjs 28, plan.mjs 13, process.mjs 86, semantic.mjs 4) plus 3 test files; under the 250-line limit, whole change used"
+  },
+  "fix_commit": {
+    "sha": "7e6767e5ce12c297097c46680873b994bab11e21",
+    "subject": "fix(evals): separate transport failures"
+  },
+  "paths": [
+    "skills/evaluate-skill/scripts/lib/evaluate.mjs",
+    "skills/evaluate-skill/scripts/lib/pi-adapter.mjs",
+    "skills/evaluate-skill/scripts/lib/plan.mjs",
+    "skills/evaluate-skill/scripts/lib/process.mjs",
+    "skills/evaluate-skill/scripts/lib/semantic.mjs",
+    ".skill-eval/evaluate-skill/tests/pi-adapter.test.mjs",
+    ".skill-eval/evaluate-skill/tests/plan.test.mjs",
+    ".skill-eval/evaluate-skill/tests/process.test.mjs"
+  ],
+  "excluded_paths": [
+    "docs/plans/skills/2026-07-10-skill-authoring-and-evaluation-v2-bootstrap-plan.md",
+    "docs/specs/skills/skill-authoring-and-evaluation-v2.md",
+    "skills/evaluate-skill/references/token-efficient-execution.md"
+  ],
+  "exclusion_reason": "documentation and references are not code or tests",
+  "variants": {
+    "real": {
+      "class": "logic",
+      "location": "skills/evaluate-skill/scripts/lib/process.mjs:45",
+      "locator": "retainedOutputBytes += buffer.length;",
+      "defect": "retain() increases retainedOutputBytes before checking it against outputLimitBytes (the check is on line 46). A chunk that is rejected is still counted, so retained_output_bytes overstates what was kept and can exceed the limit.",
+      "consequence": "The evidence's retained_output_bytes is inexact. In the probe, 10 bytes were kept but 20 were reported against a limit of 15.",
+      "proof": {
+        "kind": "fix commit's test failing on the introducing state",
+        "command": "node --test --test-name-pattern=\"retained byte accounting\" .skill-eval/evaluate-skill/tests/process.test.mjs (fix-state process.test.mjs, run on the introducing state)",
+        "result_introducing": "not ok 1 'retained byte accounting includes only evidence actually appended': expected 10, actual 20",
+        "result_fixed": "pass (fix commit and the control state)",
+        "intro_suite": "real: node --test process, pi-adapter, plan => 14 pass, 0 fail"
+      },
+      "second_real_behaviour_not_used": "The same fix also stops observeTransport from setting output_limit_exceeded when raw transport overflows. The introducing commit's own test asserts the old behaviour, so this is treated as a design change and not as part of this defect. The fix's process test file also fails on the introducing state for that reason, and it is not used here."
+    },
+    "seeded": {
+      "class": "logic",
+      "location": "skills/evaluate-skill/scripts/lib/process.mjs:71",
+      "locator": "terminated ? \"\" : \"\\n\"",
+      "defect": "Seed: the newline condition is inverted in the transformed-line retain call. Lines that were terminated lose their newline, and the final unterminated line gains one.",
+      "base_state": "Introducing change with the counter corrected as the fix corrected it (process.mjs retain: check first, then add, then count) and the seed applied. Other files and the committed tests are the introducing commit's versions.",
+      "proof": {
+        "kind": "committed test that passes on control and fails on seeded",
+        "control": "base + seeded files with the seed reverted (process.mjs line 71 back to terminated ? \"\\n\" : \"\")",
+        "command": "node --test .skill-eval/evaluate-skill/tests/process.test.mjs .skill-eval/evaluate-skill/tests/pi-adapter.test.mjs .skill-eval/evaluate-skill/tests/plan.test.mjs",
+        "result_control": "14 pass, 0 fail",
+        "result_seeded": "13 pass, 1 fail: 'not ok 13 retained output limit ignores compacted cumulative transport bytes' (line count 100 expected)"
+      }
+    }
+  },
+  "reruns": {
+    "command": "bash /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b5/prove-rr.sh",
+    "note": "Rebuilds every proof directory from the shipped fixture files and reruns it; results in /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b5/proof/results.txt"
+  },
+  "unsure": [
+    "Two behaviours changed in the fix; only the counter (process.mjs:45) is the defect used. A reviewer may name the observeTransport output-flag issue instead; that finding would not match the defect-located locator.",
+    "The seeded variant's process.test.mjs is the introducing commit's version; the fix's version cannot run on that state without the observeTransport change.",
+    "Seeded verification.md is incomplete on purpose: it reports pi-adapter and plan tests and omits process.test.mjs, which fails on the seeded state. It does not mention the seed."
+  ]
+}

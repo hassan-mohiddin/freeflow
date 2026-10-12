@@ -1,0 +1,60 @@
+{
+  "case": "rs-dcf82fce",
+  "builder": "suite build b3 (Haiku 5.5 subagent)",
+  "base": {
+    "commit": "dcf82fce8da1cf703ce311a87701b81cb55443f4",
+    "parent": "305f20b6a709c40bba6756c49fa65f13ff6d07fa",
+    "subject": "Fit the carry budget to the room, repeat compact now, and redirect after Pi compacts",
+    "paths": [
+      "pi-extension/dist/compaction/carry.js",
+      "pi-extension/dist/compaction/controller.js",
+      "pi-extension/src/compaction/README.md",
+      "pi-extension/src/compaction/carry.ts",
+      "pi-extension/src/compaction/controller.ts",
+      "pi-extension/tests/compaction/README.md",
+      "pi-extension/tests/compaction/fallback.test.js",
+      "pi-extension/tests/compaction/notices.test.js",
+      "pi-extension/tests/compaction/thresholds.test.js"
+    ]
+  },
+  "method": {
+    "exports": "git archive <commit> into <scratch>/dcf82fce/clean; seeded export is a second archive of the same commit with the seed applied by hand; node_modules symlinked read-only to the repository's installed node_modules.",
+    "compile": "node_modules/.bin/tsc -p pi-extension/tsconfig.json --noEmitOnError false, then node_modules/.bin/prettier --write pi-extension/dist, as the repository's build script does.",
+    "clean_reproduces_committed_dist": "yes: the rebuilt dist of the clean export is byte-identical to the committed dist (diff -r, no output).",
+    "tsc_exit": "clean and seeded exit 0 for this commit.",
+    "diffs": "clean change.diff is git diff parent commit; seeded change.diff comes from a scratch git repository holding the parent files and then the seeded files. Each change.diff was applied to the parent's changed files and compared byte for byte with the variant's files (no mismatches)."
+  },
+  "variants": {
+    "clean": {
+      "class": null,
+      "change": "the commit as merged",
+      "proof": {
+        "command": "cd <scratch>/dcf82fce/clean && node --test pi-extension/tests/compaction/fallback.test.js pi-extension/tests/compaction/notices.test.js pi-extension/tests/compaction/thresholds.test.js",
+        "result": "tests 13, pass 13, fail 0. Whole folder (pi-extension/tests/compaction/*.test.js): tests 25, pass 25, fail 0."
+      }
+    },
+    "seeded": {
+      "class": "logic",
+      "location": "pi-extension/src/compaction/carry.ts:25",
+      "locator": "Math.floor(warning / 2)",
+      "defect": "The carry budget's cap at the warning point divides by two instead of four, so the budget is twice the stated quarter of the warning point. A large Pi reserve then lets the next cycle refill to the warning again, the failure the commit fixes.",
+      "change": "carry.ts line 25 (and its compiled copy in dist/compaction/carry.js) uses warning / 2 where the commit has warning / 4.",
+      "proof": {
+        "method": "test",
+        "command": "cd <scratch>/dcf82fce/seeded && node_modules/.bin/tsc -p pi-extension/tsconfig.json --noEmitOnError false; node_modules/.bin/prettier --write pi-extension/dist; node --test pi-extension/tests/compaction/thresholds.test.js",
+        "clean": "fallback, notices and thresholds together: tests 13, pass 13, fail 0",
+        "seeded": "fallback, notices and thresholds together: tests 13, pass 12, fail 1. Failing test: 'the carry budget is 15% of the window, at most 40k, and at most a quarter of the warning point' (thresholds.test.js:84): expected 15500, actual 31000.",
+        "whole_folder_seeded": "tests 25, pass 24, fail 1 (the same test)"
+      }
+    }
+  },
+  "final_rerun": {
+    "command": "bash <scratch>/suite-build/b3/final-rerun.sh focused, then ... area",
+    "focused": "fixture files equal the exports; both change.diffs apply to the parent with 0 mismatches; clean rebuild equals committed dist; clean 13/13 pass; seeded (recompiled) 12/13, failing the budget test above.",
+    "area": "clean 25/25 pass; seeded 24/25, failing the same test."
+  },
+  "unsure": [
+    "The candidate note suggested a less-than versus less-than-or-equal boundary. No committed test reaches an exact boundary (carried equal to budget, or a compact-now repeat at exactly 10,000 tokens above the last), so such a seed could not be shown real. I used the warning divisor instead, which the thresholds test pins exactly.",
+    "The seeded variant's verification.md says the thresholds test passes, which the seeded code does not satisfy. That is the protocol's optimistic-report allowance; the reports are kept identical across variants so they do not hint."
+  ]
+}

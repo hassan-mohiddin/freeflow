@@ -1,0 +1,60 @@
+{
+  "case": "rs-92d1d78d",
+  "base_commit": "92d1d78dc391a9411f84327c003aefceed555f24",
+  "parent": "85e2310968041a881239a8f203fcbf504c589109",
+  "subject": "Require Pi 0.99.1 and admit codemode's nested calls under routing",
+  "pinned_pi_at_commit": "^0.99.1",
+  "changed_paths": [
+    "M\tpackage-lock.json",
+    "M\tpackage.json",
+    "M\tpi-extension/dist/cognitive-routing/gate.js",
+    "M\tpi-extension/dist/cognitive-routing/tools.js",
+    "M\tpi-extension/src/cognitive-routing/gate.ts",
+    "M\tpi-extension/src/cognitive-routing/tools.ts",
+    "A\tpi-extension/tests/cognitive-routing/nested-calls.test.js"
+  ],
+  "fixture": ".skill-eval/review-suite/fixtures/rs-92d1d78d",
+  "variants": {
+    "clean": {
+      "defect": null,
+      "built_from": "the commit tree as merged",
+      "proof": {
+        "command": "cd /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/92d1d78d/clean && node --test pi-extension/tests/cognitive-routing/nested-calls.test.js",
+        "result": "pass 3, fail 0, exit 0",
+        "logs": [
+          "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P3-92d1d78d-clean.log"
+        ]
+      }
+    },
+    "seeded": {
+      "class": "logic",
+      "defect": "The gate's first nested-call check drops its isRouting operand, so every nested call is refused with 'Call <name> directly, not from a script.', including ordinary tools such as read that scripts may call under routing.",
+      "location": [
+        "pi-extension/src/cognitive-routing/gate.ts:225",
+        "pi-extension/dist/cognitive-routing/gate.js:210 (mirror of the same line)"
+      ],
+      "locator": "if (nested) return { block: true",
+      "original_line": "    if (isRouting && nested) return { block: true, reason: `Call ${name} directly, not from a script.` };",
+      "seeded_line": "    if (nested) return { block: true, reason: `Call ${name} directly, not from a script.` };",
+      "proof": {
+        "command": "cd /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/92d1d78d/seeded && node --test pi-extension/tests/cognitive-routing/nested-calls.test.js",
+        "clean_result": "pass 3, fail 0",
+        "seeded_result": "pass 1, fail 2, exit 1. Failing: 'under automatic routing a nested call is admitted with its issuing call' and 'a worker's nested read is admitted while its assignment is outstanding', both at the nested read's isError assertion (true !== false) with text 'Call read directly, not from a script.'",
+        "logs": [
+          "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P3-92d1d78d-clean.log",
+          "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P3-92d1d78d-seeded.log"
+        ]
+      },
+      "notes": "The candidate note proposed a lexical Pi version comparison (0.99.10 sorting before 0.99.1). This commit has no runtime version comparison: its only version change is package.json (peerDependencies and devDependencies moved to 0.99.1). A version-compare seed would have to add new code, so the seed is this routing-guard condition instead. Class is still logic."
+    }
+  },
+  "environment_notes": [
+    "node_modules: symlinked read-only from the worktree (no npm install). It holds @earendil-works/pi-coding-agent 1.0.1; this commit pins a different Pi version (see pinned_pi), so results were produced against 1.0.1.",
+    "Final proof run: a fresh git archive of the base commit per variant, with the fixture's workspace/files/ copied on top, then the command run from the export root.",
+    "Scratch exports and logs: /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final (logs in /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs).",
+    "tsc (node_modules/.bin/tsc -p pi-extension/tsconfig.json --noEmit) reports two errors on clean and identically on seeded: quickjs-emscripten-core and @jitl/quickjs-wasmfile-release-sync are missing from the worktree's node_modules. This is environment, not the change. The seeded src was also compiled with --noEmitOnError false and the seeded line appears in the compiled output."
+  ],
+  "unsure": [
+    "No version-compare defect exists in this commit (see notes). If the suite owner wants a version-comparison case, it needs a different base change."
+  ]
+}

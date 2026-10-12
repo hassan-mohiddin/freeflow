@@ -1,0 +1,59 @@
+{
+  "case": "rs-4ab18f5b",
+  "status": "built",
+  "base_commit": "4ab18f5ba1457e14189b3c2655a18798c112aa71",
+  "parent_commit": "25ec4b041cdf07901accd393b34c01efcc83f746",
+  "subject": "Verify routing's startup by the session file's tail, and never trust a reload",
+  "base_paths": [
+    "dev-docs/guides/performance.md",
+    "dev-docs/subsystems/cognitive-routing.md",
+    "dev-docs/subsystems/request-history-and-cache.md",
+    "pi-extension/dist/cognitive-routing/event-store.js",
+    "pi-extension/dist/host/read-only-session.js",
+    "pi-extension/dist/index.js",
+    "pi-extension/dist/provider-support/openai/index.js",
+    "pi-extension/src/cognitive-routing/event-store.ts",
+    "pi-extension/src/host/read-only-session.ts",
+    "pi-extension/src/index.ts",
+    "pi-extension/src/provider-support/openai/index.ts",
+    "pi-extension/tests/cognitive-routing/README.md",
+    "pi-extension/tests/cognitive-routing/startup-verification.test.js"
+  ],
+  "diff_check": "clean change.diff is the commit diff (git diff parent commit -- paths); the seeded change.diff replaces both added lines of trustStartedSession (src read-only-session.ts and dist read-only-session.js) and applies with patch -p1 to an archive of the parent, reproducing the seeded tree (checked)",
+  "requested_class": "security",
+  "class_note": "Requested class was security (startup verification skipped or misread). Not shown: routing state is built from Pi's in-memory branch, not from file bytes, so a wrong check lets an in-memory-only entry count as persisted after a failed write. That is an integrity error with no hostile actor and no trust boundary crossed. Built as logic at the lead's instruction.",
+  "variants": {
+    "clean": {
+      "class": null,
+      "description": "The change as committed. No defect is planted.",
+      "committed_suite": {
+        "command": "cd pi-extension && node --test tests/cognitive-routing/startup-verification.test.js",
+        "result": "4 tests, 4 pass, 0 fail"
+      }
+    },
+    "seeded": {
+      "class": "logic",
+      "location": ["pi-extension/src/host/read-only-session.ts:201", "pi-extension/dist/host/read-only-session.js:171"],
+      "locator": "if (reason) trustLoadedSession(reader);",
+      "description": "The reload guard in trustStartedSession is inverted to a truthiness test: `reason !== \"reload\"` becomes `reason`. A reload (reason \"reload\", which is truthy) now sets a trust point although Pi did not re-read the file. After a failed write, memory can hold an entry the file lacks and routing would treat it as persisted. The commit's rule is that a reload establishes no trust point. The dist file is mirrored so the committed tests, which import dist, exercise the seed.",
+      "clean_line": "  if (reason !== \"reload\") trustLoadedSession(reader);",
+      "seeded_line": "  if (reason) trustLoadedSession(reader);",
+      "rule_quoted": "requirements.md item 4: \"A session start that Pi reports as a reload establishes no trust point, because the session stays in memory and the file is not re-read. A trust point from before the reload still applies after it.\"",
+      "proof": {
+        "method": "logic: the committed startup-verification test passes on clean and fails on seeded",
+        "command": "cd <export>/pi-extension && node --test tests/cognitive-routing/startup-verification.test.js",
+        "clean_result": "4 tests, 4 pass, 0 fail",
+        "seeded_result": "4 tests, 3 pass, 1 fail: \"a reload does not trust a file it did not re-read\"",
+        "seed_applied_to": "pi-extension/src/host/read-only-session.ts (compiles: tsc -p pi-extension/tsconfig.json exit 0) and pi-extension/dist/host/read-only-session.js (the file the tests import)"
+      }
+    }
+  },
+  "unsure": [
+    "The seeded verification.md is identical to the clean one, so it reports 4 pass. On the seeded tree the same command gives 3 pass and 1 fail. Same optimistic-report question as rs-aaf5e7cb.",
+    "The seed is a one-token change in a guard that the commit's own test exercises. It is the most direct logic defect of the set."
+  ],
+  "rerun": [
+    "cd pi-extension && node --test tests/cognitive-routing/startup-verification.test.js (clean export): 4 pass, 0 fail",
+    "same command in the seeded export: 3 pass, 1 fail"
+  ]
+}

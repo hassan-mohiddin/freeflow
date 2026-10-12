@@ -1,0 +1,67 @@
+{
+  "case": "rs-97b149b0",
+  "base_commit": "97b149b03ff9c22bb4fb205764cdc23885af60d3",
+  "parent": "9849a16c5e5a165e991d407d9abb79761533c518",
+  "subject": "Number carried files by line, and ask a worker to compact before returning only at compact now",
+  "pinned_pi_at_commit": ">=0.99.1",
+  "changed_paths": [
+    "M\tcapabilities/compaction/SKILL.md",
+    "M\tcapabilities/compaction/references/summary-format.md",
+    "M\tpi-extension/dist/compaction/carry.js",
+    "M\tpi-extension/dist/compaction/controller.js",
+    "M\tpi-extension/dist/compaction/results.js",
+    "M\tpi-extension/src/compaction/README.md",
+    "M\tpi-extension/src/compaction/carry.ts",
+    "M\tpi-extension/src/compaction/controller.ts",
+    "M\tpi-extension/src/compaction/results.ts",
+    "M\tpi-extension/tests/compaction/agent-path.test.js",
+    "M\tpi-extension/tests/compaction/carry.test.js",
+    "M\tpi-extension/tests/compaction/notices.test.js",
+    "M\tpi-extension/tests/compaction/worker-warning.test.js"
+  ],
+  "fixture": ".skill-eval/review-suite/fixtures/rs-97b149b0",
+  "variants": {
+    "clean": {
+      "defect": null,
+      "built_from": "the commit tree as merged",
+      "proof": {
+        "command": "cd /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/97b149b0/clean && node --test $(find pi-extension/tests/compaction -name '*.test.js' | sort)",
+        "result": "pass 35, fail 1, exit 1. The one failure, 'under projection the Coordinator is warned by the full history, not its own small view' (notices.test.js:83), also fails at the parent 9849a16c in this environment (checked on an export of the parent), so it is not caused by this change; it measures a token estimate that moved with the installed Pi 1.0.1 (the commit pins 1.0.0).",
+        "logs": [
+          "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P2-97b149b0-clean.log"
+        ]
+      }
+    },
+    "seeded": {
+      "class": "convention",
+      "defect": "The warning notice (Compaction is due soon) says Pi compacts on its own 'once the run ends', restating the claim the change removes from the notices. Requirement 6 is contradicted.",
+      "location": [
+        "pi-extension/src/compaction/controller.ts:215",
+        "pi-extension/dist/compaction/controller.js:151 (mirror of the same line)"
+      ],
+      "locator": "once the run ends",
+      "original_line": "clean line, for comparison: '...and Pi compacts on its own past about ${trigger}. Keep working until a safe point...' (the commit removed 'once this run ends' here)",
+      "seeded_line": "    return `${prefix} Compaction is due soon: context is at about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger}, once the run ends. Keep working until a safe point: ...",
+      "requirement_quoted": "6. The notices do not say that Pi compacts only once a run ends. Pi also checks its own threshold before each response, so each notice describes Pi's threshold without tying it to the end of a run.",
+      "proof": {
+        "kind": "convention: requirement and seeded line quoted above; plus the committed compaction suite, to show no existing test checks the sentence",
+        "command": "cd /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/97b149b0/seeded && node --test $(find pi-extension/tests/compaction -name '*.test.js' | sort)",
+        "clean_result": "pass 35, fail 1 (the environment failure above)",
+        "seeded_result": "pass 35, fail 1, the same test fails with the same message; no committed test fails because of the seeded sentence",
+        "logs": [
+          "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P2-97b149b0-clean.log",
+          "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs/P2-97b149b0-seeded.log"
+        ]
+      }
+    }
+  },
+  "environment_notes": [
+    "node_modules: symlinked read-only from the worktree (no npm install). It holds @earendil-works/pi-coding-agent 1.0.1; this commit pins a different Pi version (see pinned_pi), so results were produced against 1.0.1.",
+    "Final proof run: a fresh git archive of the base commit per variant, with the fixture's workspace/files/ copied on top, then the command run from the export root.",
+    "Scratch exports and logs: /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final (logs in /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b4/final/logs)."
+  ],
+  "unsure": [
+    "The projection test that fails in this environment fails the same way on the parent commit, and it does not touch the warning sentence. If the suite owner's environment passes it, the convention result is unchanged.",
+    "held out: this case is on the held-out list in .skill-eval/review-suite/README.md; it was not used for any tuning."
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "schema_version": 2,
+  "kind": "configuration",
+  "id": "review-suite-haiku",
+  "configuration": {
+    "host": {
+      "name": "pi",
+      "extensions": [{ "package": "@gotgenes/pi-anthropic-auth", "version": "3.4.2" }]
+    },
+    "model": { "model": "anthropic/claude-haiku-5-5", "thinking": "medium" },
+    "subject": {
+      "kind": "skill",
+      "source": { "kind": "working-tree" },
+      "skills": ["skills/review-work"],
+      "target": 0,
+      "context": []
+    }
+  }
+}

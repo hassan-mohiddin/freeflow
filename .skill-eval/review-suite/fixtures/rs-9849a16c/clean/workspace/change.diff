@@ -1,0 +1,155 @@
+diff --git a/pi-extension/dist/cognitive-routing/assembler.js b/pi-extension/dist/cognitive-routing/assembler.js
+index ccbaefb2..13d0b7d1 100644
+--- a/pi-extension/dist/cognitive-routing/assembler.js
++++ b/pi-extension/dist/cognitive-routing/assembler.js
+@@ -156,13 +156,28 @@ export class ContextAssembler {
+     const admissions = new Map();
+     const assessedSinceCompaction = new Set();
+     let rank = 0,
+-      resumedAt;
++      resumedAt,
++      suspension;
+     for (const entry of reader.getBranch()) {
+       if (entry.type === "compaction") assessedSinceCompaction.clear();
+       if (["message", "custom_message", "compaction", "branch_summary"].includes(entry.type)) rank++;
+       else if (entry.type === "custom" && entry.customType === ROUTING_ENTRY) {
+         const data = entry.data?.data;
+-        if (data?.type === "assessment-resumed" && data.handoffId === state.assessment?.handoffId) resumedAt = rank;
++        if (data?.type === "assessment-suspended" && data.handoffId === state.assessment?.handoffId)
++          suspension = data.reason;
++        if (
++          data?.type === "recovery-request-accepted" &&
++          data.recovery?.assessmentHandoffId === state.assessment?.handoffId
++        )
++          suspension = "recovery";
++        // After a recovery the Coordinator resumes the view it last saw, since it made no requests while suspended:
++        // only a suspension it kept working through (user attention) leaves evidence new to it at the resume.
++        if (
++          data?.type === "assessment-resumed" &&
++          data.handoffId === state.assessment?.handoffId &&
++          suspension !== "recovery"
++        )
++          resumedAt = rank;
+         if (data?.type === "return-accepted" || data?.type === "recovery-supplement-accepted")
+           assessedSinceCompaction.add(data.handoff.assignmentId);
+         if (data?.type !== "selection-changed") continue;
+diff --git a/pi-extension/src/cognitive-routing/assembler.ts b/pi-extension/src/cognitive-routing/assembler.ts
+index d40c081b..8a3254ed 100644
+--- a/pi-extension/src/cognitive-routing/assembler.ts
++++ b/pi-extension/src/cognitive-routing/assembler.ts
+@@ -169,13 +169,28 @@ export class ContextAssembler {
+     const admissions = new Map<string, number>();
+     const assessedSinceCompaction = new Set<string>();
+     let rank = 0,
+-      resumedAt: number | undefined;
++      resumedAt: number | undefined,
++      suspension: string | undefined;
+     for (const entry of reader.getBranch() as NativeEntry[]) {
+       if (entry.type === "compaction") assessedSinceCompaction.clear();
+       if (["message", "custom_message", "compaction", "branch_summary"].includes(entry.type)) rank++;
+       else if (entry.type === "custom" && entry.customType === ROUTING_ENTRY) {
+         const data = (entry as any).data?.data;
+-        if (data?.type === "assessment-resumed" && data.handoffId === state.assessment?.handoffId) resumedAt = rank;
++        if (data?.type === "assessment-suspended" && data.handoffId === state.assessment?.handoffId)
++          suspension = data.reason;
++        if (
++          data?.type === "recovery-request-accepted" &&
++          data.recovery?.assessmentHandoffId === state.assessment?.handoffId
++        )
++          suspension = "recovery";
++        // After a recovery the Coordinator resumes the view it last saw, since it made no requests while suspended:
++        // only a suspension it kept working through (user attention) leaves evidence new to it at the resume.
++        if (
++          data?.type === "assessment-resumed" &&
++          data.handoffId === state.assessment?.handoffId &&
++          suspension !== "recovery"
++        )
++          resumedAt = rank;
+         if (data?.type === "return-accepted" || data?.type === "recovery-supplement-accepted")
+           assessedSinceCompaction.add(data.handoff.assignmentId);
+         if (data?.type !== "selection-changed") continue;
+diff --git a/pi-extension/tests/compaction/README.md b/pi-extension/tests/compaction/README.md
+index 659ff243..f763375a 100644
+--- a/pi-extension/tests/compaction/README.md
++++ b/pi-extension/tests/compaction/README.md
+@@ -9,7 +9,7 @@ Tests for [`src/compaction/`](../../src/compaction/README.md). `thresholds.test.
+ | `carry.test.js` | Context reuse: no list under routing and a worker carrying a result by routing ref; context reuse off refusing carry items with no list; a list moving the warning point earlier by its size. |
+ | `worker-warning.test.js` | The warning reaching a worker mid-assignment under projection: the worker's notice (not the Coordinator's) in its next request, the worker keeping its run, compacting, continuing its re-sent contract, and returning. |
+ | `script-call.test.js` | `freeflow_compact` called from a script (as Pi's codemode calls tools) compacting at the end of the turn, with the run continuing from the new cycle. |
+-| `coordinator-view.test.js` | The Coordinator's view after a worker compacts, selects evidence, and returns under projection: the carried context names the worker's copies instead of repeating them, the selected result appears once, and the request after the unit closes extends the assessing one. |
++| `coordinator-view.test.js` | The Coordinator's view after a worker compacts, selects evidence, and returns under projection: the carried context names the worker's copies instead of repeating them, the selected result appears once, and the request after the unit closes extends the assessing one; an evidence recovery round after the compaction keeping the Coordinator's prefix through the supplement and the close. |
+ | `automatic-carry.test.js` | The four carry cases: routing off or on, context reuse on or off; the newest results filling the budget, the rest listed by `r` id or routing ref, and nothing copied or listed where the case says so. |
+ | `fallback.test.js` | Pi's own compaction with Freeflow's instructions reaching Pi's summarizer, Freeflow's state and recovery appended, and Pi's kept tail; Pi compacting exactly as alone when Freeflow's summarizer fails; file lists covering the whole session across a Freeflow compaction and then Pi's; after Pi's own compaction, a `freeflow_compact` call refused with where to go next. |
+ | `agent-path.test.js` | `freeflow_compact` refused until compaction is due; `/freeflow compact` leading to one compaction in the same run, with the next request holding summary, carried context and recovery, files carried as they are at compaction time, and the next cycle extending its own requests; limit and budget refusals; file tracking reduced to carried files; the tool declared only while compaction is on; a worker compacting mid-assignment under Cognitive Routing, with the re-sent contract followed by the fact that it compacted and a second call refused with where to go next; a Coordinator under projection refused and told to delegate; the compaction skill listed to the model. |
+diff --git a/pi-extension/tests/compaction/coordinator-view.test.js b/pi-extension/tests/compaction/coordinator-view.test.js
+index ff4e89f5..277d413a 100644
+--- a/pi-extension/tests/compaction/coordinator-view.test.js
++++ b/pi-extension/tests/compaction/coordinator-view.test.js
+@@ -78,3 +78,67 @@ test(
+     );
+   },
+ );
++
++// An evidence recovery after the compaction: the Coordinator suspends its assessment by asking for recovery and makes
++// no requests until the supplement, so the evidence it had already received keeps its place when it resumes.
++test("after a worker compacts, a recovery round keeps the Coordinator's prefix", { timeout: 30000 }, async () => {
++  const usage = [5_000, 50_000, 100_000, 100_000];
++  const refOf = (manager, marker) => {
++    const entry = [...manager.getBranch()]
++      .reverse()
++      .find(
++        (e) =>
++          e.type === "message" && e.message.role === "toolResult" && JSON.stringify(e.message.content).includes(marker),
++      );
++    return `ctx:${entry.id.slice(0, 8)}`;
++  };
++  await fixture(
++    async (n, body, manager) =>
++      [
++        () => [
++          {
++            name: "freeflow_delegate",
++            args: { operation: "assign", contract: "Read big.txt and return it as evidence." },
++          },
++        ],
++        () => [{ name: "read", args: { path: "big.txt" } }],
++        () => [{ name: "read", args: { path: "evidence.txt" } }],
++        () => [{ name: "freeflow_compact", args: { summary: "WORKER_SUMMARY" } }],
++        () => [{ name: "freeflow_project", args: { operation: "add", refs: [refOf(manager, "BIG_EVIDENCE")] } }],
++        () => [{ name: "freeflow_return", args: { operation: "submit", report: "Done.", outcome: "completed" } }],
++        () => [
++          {
++            name: "freeflow_unit",
++            args: { operation: "recover", request: "Read the recovery file.", paths: ["recovery.txt"] },
++          },
++        ],
++        () => [{ name: "read", args: { path: "recovery.txt" } }],
++        () => [{ name: "freeflow_project", args: { operation: "add", refs: [refOf(manager, "FRESH_RECOVERY")] } }],
++        () => [
++          { name: "freeflow_return", args: { operation: "supplement", report: "Recovered.", outcome: "completed" } },
++        ],
++        () => [{ name: "freeflow_unit", args: { operation: "close", outcome: "accepted", assessment: "Enough." } }],
++      ][n - 1]?.() ?? [],
++    true,
++    async ({ requests }) => {
++      const [, assessing, resumed, closing] = requests.filter((body) => body.model === "gpt-4o");
++      assert.ok(assessing && resumed && closing, "assess, resume after the supplement, answer after closing");
++      assert.match(JSON.stringify(resumed.input), /FRESH_RECOVERY/, "the supplement's evidence reaches it");
++      assert.ok(extendsPrevious(assessing, resumed), "the resumed view extends the assessing one");
++      assert.ok(extendsPrevious(resumed, closing), "the view after closing extends the resumed one");
++      assert.equal(occurrences(closing, "BIG_EVIDENCE"), 1);
++    },
++    true,
++    {
++      freeflowConfig: { toolExecution: { enabled: true } },
++      maxRequests: 20,
++      beforePrompt: async ({ cwd }) => writeFile(join(cwd, "big.txt"), BIG),
++      response: (n, calls) =>
++        response(n, calls, "fixture response", {
++          input_tokens: usage[n - 1] ?? 2_000,
++          output_tokens: 10,
++          total_tokens: (usage[n - 1] ?? 2_000) + 10,
++        }),
++    },
++  );
++});

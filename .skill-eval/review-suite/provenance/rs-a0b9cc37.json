@@ -1,0 +1,62 @@
+{
+  "case": "rs-a0b9cc37",
+  "status": "built",
+  "base_commit": "a0b9cc37baca1b45b94154801e7ed3efd21d029b",
+  "parent_commit": "60a766a0f16db05701e5364b742cdbb523c032b0",
+  "subject": "feat(evals): separate objective and semantic result axes",
+  "base_paths": [
+    ".skill-eval/evaluate-skill/reports/v3-phase1.md",
+    ".skill-eval/evaluate-skill/tests/coordinator.test.mjs",
+    ".skill-eval/evaluate-skill/tests/semantic.test.mjs",
+    "docs/plans/skills/2026-07-13-freeflow-evaluator-v3-plan.md",
+    "skills/evaluate-skill/scripts/lib/coordinator.mjs",
+    "skills/evaluate-skill/scripts/lib/evaluate.mjs",
+    "skills/evaluate-skill/scripts/lib/semantic.mjs"
+  ],
+  "diff_check": "clean change.diff is byte-identical to git diff of the parent and commit (abbrev 8); patch -p1 of both change.diff files onto an archive of the parent reproduces the variant trees (checked)",
+  "variants": {
+    "clean": {
+      "class": null,
+      "description": "The change as committed. No defect is planted.",
+      "committed_suite": {
+        "command": "cd <export of a0b9cc37> && node --test .skill-eval/evaluate-skill/tests/coordinator.test.mjs .skill-eval/evaluate-skill/tests/semantic.test.mjs",
+        "result": "16 tests, 16 pass, 0 fail"
+      }
+    },
+    "seeded": {
+      "class": "convention",
+      "location": "skills/evaluate-skill/scripts/lib/semantic.mjs:104",
+      "locator": "objective_checks_passed: true",
+      "description": "One of two parallel sites that the commit updated is reverted. In buildSemanticPrompt's multi-turn (rpc-scripted) branch, the grader's evidence sets objective_checks_passed to true, a constant, instead of the objective result. The single-run branch keeps the commit's objective.objective_pass.",
+      "clean_line": "      objective_checks_passed: objective.objective_pass,",
+      "seeded_line": "      objective_checks_passed: true,",
+      "rule_quoted": "requirements.md item 7: \"The grader's evidence reports the objective axis as it stands: objective_checks_passed is true exactly when the run's objective checks passed, for every kind of run the grader can receive.\"",
+      "proof": {
+        "method": "convention: quote the rule and the seeded line, plus a direct call showing the wrong value, and show that no existing test notices",
+        "proof_test_file": "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b2/proof/rs-a0b9cc37.proof.test.mjs",
+        "proof_test_text": "// Proof probe for rs-a0b9cc37: the grader's evidence must report the objective result (objective_checks_passed)\n// for every run shape, including multi-turn (rpc-scripted) runs. Run with EXPORT=<export root> node --test <file>\nimport test from \"node:test\";\nimport assert from \"node:assert/strict\";\nimport { mkdir, mkdtemp, rm, writeFile } from \"node:fs/promises\";\nimport { tmpdir } from \"node:os\";\nimport { resolve } from \"node:path\";\n\nconst exportRoot = process.env.EXPORT;\nconst { buildSemanticPrompt } = await import(resolve(exportRoot, \"skills/evaluate-skill/scripts/lib/semantic.mjs\"));\n\nasync function multiTurnRun(t, objectivePass) {\n  const run = await mkdtemp(resolve(tmpdir(), \"rs-a0b9-proof-\"));\n  t.after(() => rm(run, { recursive: true, force: true }));\n  await mkdir(resolve(run, \"inputs\"), { recursive: true });\n  await writeFile(resolve(run, \"metadata.json\"), JSON.stringify({ variant: \"candidate\", execution_mode: \"rpc-scripted\", changed_paths: [] }));\n  await writeFile(resolve(run, \"inputs\", \"case.json\"), JSON.stringify({\n    turns: [{ id: \"turn-1\", prompt: \"first prompt\" }],\n    assertions: [{ id: \"quality\", type: \"semantic\", rubric: \"criterion\", turn_ids: [\"turn-1\"] }],\n  }));\n  await writeFile(resolve(run, \"objective-grade.json\"), JSON.stringify({ objective_pass: objectivePass, assertions: [] }));\n  await writeFile(resolve(run, \"transcript.json\"), JSON.stringify({\n    turns: [{ id: \"turn-1\", final_text: \"first answer\", workspace: { changed_paths: [], diff: \"\" } }],\n  }));\n  return run;\n}\n\ntest(\"multi-turn diagnostic evidence reports a failed objective result as false\", async (t) => {\n  const run = await multiTurnRun(t, false);\n  const built = await buildSemanticPrompt(run, { diagnostic: true });\n  assert.equal(built.evidence.objective_checks_passed, false);\n});\n\ntest(\"multi-turn evidence for a passing objective run reports true\", async (t) => {\n  const run = await multiTurnRun(t, true);\n  const built = await buildSemanticPrompt(run);\n  assert.equal(built.evidence.objective_checks_passed, true);\n});\n",
+        "command": "EXPORT=<export root> node --test <proof_test_file>   (once with the clean export, once with the seeded export)",
+        "clean_result": "2 tests, 2 pass, 0 fail (failed objective run, multi-turn: objective_checks_passed false; passing run: true)",
+        "seeded_result": "2 tests, 1 pass, 1 fail: the failed-objective multi-turn run reports objective_checks_passed true (expected false)",
+        "no_existing_test_detects_it": {
+          "command": "find .skill-eval/evaluate-skill/tests -name '*.test.mjs' | sort | xargs node --test   (run in the clean export and in the seeded export, per-test ok/not ok lines compared)",
+          "clean_result": "163 tests, 149 pass, 14 fail",
+          "seeded_result": "163 tests, 149 pass, 14 fail; per-test outcomes identical",
+          "note": "The 14 failures are the same in both trees. They are git-backed tests (\"Unable to inspect git subject resource ...: not a git repository\") that fail in an archive export without .git. They are not part of the proof."
+        },
+        "committed_coordinator_semantic_seeded": "16 tests, 16 pass, 0 fail"
+      }
+    }
+  },
+  "unsure": [
+    "The seed is an absence: in the seeded change.diff, the multi-turn hunk has no change, because the seeded line equals the parent's line. A reviewer has to notice that the file still says true at line 104 after the commit updated line 126.",
+    "The rule in item 7 is general (every kind of run). The grader's evidence is a convention rule under this protocol; it is not a test-visible contract, so the class depends on reading the requirement.",
+    "verification.md claims only the coordinator and semantic test files (16 pass). The v3-phase1 report claims 163 evaluator tests passed; in an archive export 14 of those fail for lack of git history, so that claim was not reproduced here."
+  ],
+  "rerun": [
+    "EXPORT=<clean export> node --test /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b2/proof/rs-a0b9cc37.proof.test.mjs : 2/2 pass",
+    "EXPORT=<seeded export> node --test /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b2/proof/rs-a0b9cc37.proof.test.mjs : 1 pass, 1 fail",
+    "node --test .skill-eval/evaluate-skill/tests/coordinator.test.mjs .skill-eval/evaluate-skill/tests/semantic.test.mjs : 16/16 pass on clean and on seeded",
+    "find .skill-eval/evaluate-skill/tests -name '*.test.mjs' | sort | xargs node --test : 163 tests, 149 pass, 14 fail on both; per-test outcomes identical"
+  ]
+}

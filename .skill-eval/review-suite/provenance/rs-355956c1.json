@@ -1,0 +1,35 @@
+{
+  "case": "rs-355956c1",
+  "base_commit": "355956c13b94e40f903db0dd5990ba6008e51a5c",
+  "parent_commit": "9426e7cc3588ad4e9f460f7ec1b5fa4d1a7b0bde",
+  "subject": "refactor(evals): return settled process outcomes",
+  "base_paths": [
+    "skills/evaluate-skill/scripts/lib/process-outcome.mjs",
+    ".skill-eval/evaluate-skill/tests/process-outcome.test.mjs"
+  ],
+  "excluded_from_case": "none (both files are new in this commit)",
+  "held_out": true,
+  "scratch": "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/355956c1",
+  "variants": {
+    "clean": { "built_from": "git archive 355956c1", "change_diff": "git diff 9426e7cc 355956c1 for the two paths" },
+    "seeded": {
+      "class": "logic",
+      "location": "skills/evaluate-skill/scripts/lib/process-outcome.mjs:29",
+      "locator": "result.process.code > 0",
+      "seed": "failedProcess: result.process.code !== 0 changed to result.process.code > 0",
+      "consequence": "A Pi process that is ended by a signal has exit code null. With the seed, null > 0 is false, so a process killed by SIGTERM (for example by an abort or an external kill) with no timeout, output-limit or turn-limit flag is not failed. finish() then grades its partial output and the outcome is complete. The committed test does not check signal termination.",
+      "committed_test": "node --test .skill-eval/evaluate-skill/tests/process-outcome.test.mjs : clean 5 pass 0 fail; seeded 5 pass 0 fail (not detected by the committed tests)",
+      "proof": {
+        "script": "/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/355956c1/proof/signal-outcome.proof.test.mjs",
+        "command": "cd /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/355956c1/proof && EXPORT_ROOT=/private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/355956c1/<clean|seeded> node --test signal-outcome.proof.test.mjs",
+        "clean_result": "2 pass 0 fail (control: code 0 completes; SIGTERM with code null is incomplete, finish not called)",
+        "seeded_result": "1 pass 1 fail: SIGTERM with code null -> expected incomplete, actual complete"
+      }
+    }
+  },
+  "unsure": [
+    "Held out per the suite README (every third entry of the sorted base-change list). Built as assigned; it is measured only.",
+    "Node reports a null exit code when a child is killed by a signal (process.mjs close handler). The proof relies on that Node behaviour, which is what the adapter records."
+  ],
+  "rerun": "Final re-run recorded in /private/tmp/claude-501/-Users-mohammedhassanmohiddin-Developer-Worktrees-freeflow-routing-redesign/8eab53c0-a2e7-4743-a4d9-aa3cc130d9c8/scratchpad/suite-build/b1/final-run.log (all lines for this case)."
+}

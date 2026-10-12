@@ -1,0 +1,404 @@
+{
+  "groups": [
+    {
+      "id": "rv01-a",
+      "case": "rs-97b149b0",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": true,
+      "class": null
+    },
+    {
+      "id": "rv01-b",
+      "case": "rs-97b149b0",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": true,
+      "class": "convention"
+    },
+    {
+      "id": "rv02-a",
+      "case": "rs-4ab18f5b",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": false,
+      "class": null
+    },
+    {
+      "id": "rv02-b",
+      "case": "rs-4ab18f5b",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": false,
+      "class": "logic"
+    },
+    {
+      "id": "rv03-a",
+      "case": "rs-864df4cc",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": false,
+      "class": null
+    },
+    {
+      "id": "rv03-b",
+      "case": "rs-864df4cc",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": false,
+      "class": "security"
+    },
+    {
+      "id": "rv04-a",
+      "case": "rs-25844ce3",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": false,
+      "class": null
+    },
+    {
+      "id": "rv04-b",
+      "case": "rs-25844ce3",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": false,
+      "class": "security"
+    },
+    {
+      "id": "rv05-a",
+      "case": "rr-9f311f68",
+      "variant": "real",
+      "kind": "real",
+      "held_out": false,
+      "class": "logic"
+    },
+    {
+      "id": "rv05-b",
+      "case": "rr-9f311f68",
+      "variant": "seeded",
+      "kind": "real",
+      "held_out": false,
+      "class": "logic"
+    },
+    {
+      "id": "rv06-a",
+      "case": "rr-a276b963",
+      "variant": "seeded",
+      "kind": "real",
+      "held_out": true,
+      "class": "logic"
+    },
+    {
+      "id": "rv06-b",
+      "case": "rr-a276b963",
+      "variant": "real",
+      "kind": "real",
+      "held_out": true,
+      "class": "logic"
+    },
+    {
+      "id": "rv07-a",
+      "case": "rs-355956c1",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": true,
+      "class": null
+    },
+    {
+      "id": "rv07-b",
+      "case": "rs-355956c1",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": true,
+      "class": "logic"
+    },
+    {
+      "id": "rv08-a",
+      "case": "rs-f0abfb11",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": false,
+      "class": null
+    },
+    {
+      "id": "rv08-b",
+      "case": "rs-f0abfb11",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": false,
+      "class": "logic"
+    },
+    {
+      "id": "rv09-a",
+      "case": "rr-d9beef6d",
+      "variant": "seeded",
+      "kind": "real",
+      "held_out": false,
+      "class": "logic"
+    },
+    {
+      "id": "rv09-b",
+      "case": "rr-d9beef6d",
+      "variant": "real",
+      "kind": "real",
+      "held_out": false,
+      "class": "security"
+    },
+    {
+      "id": "rv10-a",
+      "case": "rs-12575cea",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": false,
+      "class": "logic"
+    },
+    {
+      "id": "rv10-b",
+      "case": "rs-12575cea",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": false,
+      "class": null
+    },
+    {
+      "id": "rv11-a",
+      "case": "rs-a0b9cc37",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": false,
+      "class": "convention"
+    },
+    {
+      "id": "rv11-b",
+      "case": "rs-a0b9cc37",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": false,
+      "class": null
+    },
+    {
+      "id": "rv12-a",
+      "case": "rs-6949f0d0",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": false,
+      "class": null
+    },
+    {
+      "id": "rv12-b",
+      "case": "rs-6949f0d0",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": false,
+      "class": "security"
+    },
+    {
+      "id": "rv13-a",
+      "case": "rs-e312562f",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": false,
+      "class": null
+    },
+    {
+      "id": "rv13-b",
+      "case": "rs-e312562f",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": false,
+      "class": "logic"
+    },
+    {
+      "id": "rv14-a",
+      "case": "rs-24c53d4b",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": true,
+      "class": "logic"
+    },
+    {
+      "id": "rv14-b",
+      "case": "rs-24c53d4b",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": true,
+      "class": null
+    },
+    {
+      "id": "rv15-a",
+      "case": "rs-c45f16f6",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": false,
+      "class": "convention"
+    },
+    {
+      "id": "rv15-b",
+      "case": "rs-c45f16f6",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": false,
+      "class": null
+    },
+    {
+      "id": "rv16-a",
+      "case": "rs-9849a16c",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": false,
+      "class": null
+    },
+    {
+      "id": "rv16-b",
+      "case": "rs-9849a16c",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": false,
+      "class": "logic"
+    },
+    {
+      "id": "rv17-a",
+      "case": "rr-60a766a0",
+      "variant": "seeded",
+      "kind": "real",
+      "held_out": false,
+      "class": "logic"
+    },
+    {
+      "id": "rv17-b",
+      "case": "rr-60a766a0",
+      "variant": "real",
+      "kind": "real",
+      "held_out": false,
+      "class": "security"
+    },
+    {
+      "id": "rv18-a",
+      "case": "rs-92d1d78d",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": false,
+      "class": "logic"
+    },
+    {
+      "id": "rv18-b",
+      "case": "rs-92d1d78d",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": false,
+      "class": null
+    },
+    {
+      "id": "rv19-a",
+      "case": "rs-dcf82fce",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": true,
+      "class": "logic"
+    },
+    {
+      "id": "rv19-b",
+      "case": "rs-dcf82fce",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": true,
+      "class": null
+    },
+    {
+      "id": "rv20-a",
+      "case": "rs-ccfe0bef",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": false,
+      "class": "convention"
+    },
+    {
+      "id": "rv20-b",
+      "case": "rs-ccfe0bef",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": false,
+      "class": null
+    },
+    {
+      "id": "rv21-a",
+      "case": "rs-2c00f6e3",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": false,
+      "class": null
+    },
+    {
+      "id": "rv21-b",
+      "case": "rs-2c00f6e3",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": false,
+      "class": "logic"
+    },
+    {
+      "id": "rv22-a",
+      "case": "rr-7b5dfb09",
+      "variant": "real",
+      "kind": "real",
+      "held_out": true,
+      "class": "logic"
+    },
+    {
+      "id": "rv22-b",
+      "case": "rr-7b5dfb09",
+      "variant": "seeded",
+      "kind": "real",
+      "held_out": true,
+      "class": "logic"
+    },
+    {
+      "id": "rv23-a",
+      "case": "rs-aaf5e7cb",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": true,
+      "class": null
+    },
+    {
+      "id": "rv23-b",
+      "case": "rs-aaf5e7cb",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": true,
+      "class": "logic"
+    },
+    {
+      "id": "rv24-a",
+      "case": "rs-0b8e9c15",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": false,
+      "class": "convention"
+    },
+    {
+      "id": "rv24-b",
+      "case": "rs-0b8e9c15",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": false,
+      "class": null
+    },
+    {
+      "id": "rv25-a",
+      "case": "rs-6cdbdfcf",
+      "variant": "seeded",
+      "kind": "base",
+      "held_out": true,
+      "class": "logic"
+    },
+    {
+      "id": "rv25-b",
+      "case": "rs-6cdbdfcf",
+      "variant": "clean",
+      "kind": "base",
+      "held_out": true,
+      "class": null
+    }
+  ]
+}

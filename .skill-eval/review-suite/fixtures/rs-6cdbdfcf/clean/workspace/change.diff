@@ -1,0 +1,381 @@
+diff --git a/pi-extension/dist/compaction/controller.js b/pi-extension/dist/compaction/controller.js
+index f16b8bf1..e1873631 100644
+--- a/pi-extension/dist/compaction/controller.js
++++ b/pi-extension/dist/compaction/controller.js
+@@ -9,7 +9,15 @@ import {
+   renderCarried,
+   SUMMARY_LIMIT_TOKENS,
+ } from "./carry.js";
+-import { cycleFiles, cycleStart, harnessPart, nextCycle, recentWorkingRecord } from "./harness.js";
++import {
++  cycleFiles,
++  cycleStart,
++  harnessPart,
++  nextCycle,
++  previousFileLists,
++  recentWorkingRecord,
++  sessionFileLists,
++} from "./harness.js";
+ import { renderIndex, resolveResult, resultIndex } from "./results.js";
+ /**
+  * Freeflow compaction's agent path. After each turn Freeflow measures the context and, once per cycle each, says
+@@ -151,7 +159,7 @@ export class CompactionController {
+       recordPath,
+       routingProfile: this.host.routingProfile(),
+       background: this.host.background(),
+-      files: cycleFiles(branch),
++      files: sessionFileLists(branch),
+     })}`;
+     const carriedText = renderCarried(cycle, latestUserMessages(branch), files, results);
+     const recovery = recoveryText(cycle, recordPath, "The carried context is above. ");
+@@ -164,6 +172,8 @@ export class CompactionController {
+           summary,
+           firstKeptEntryId: null,
+           details: {
++            // Pi's own details shape, so later compactions (Pi's or Freeflow's) carry the lists forward.
++            ...sessionFileLists(branch),
+             freeflow: {
+               version: 1,
+               cycle,
+@@ -197,6 +207,13 @@ export class CompactionController {
+       const cycle = nextCycle(branch);
+       const recordPath = await recentWorkingRecord(ctx.cwd, cycleStart(branch));
+       const instructions = [FALLBACK_INSTRUCTIONS, event.customInstructions].filter(Boolean).join("\n\n");
++      // Pi merges the previous compaction's file lists only when Pi wrote it; add them back for Freeflow's.
++      const previousFiles = previousFileLists(branch);
++      const fileOps = event.preparation?.fileOps;
++      if (fileOps?.read && fileOps?.edited) {
++        for (const path of previousFiles.readFiles) fileOps.read.add(path);
++        for (const path of previousFiles.modifiedFiles) fileOps.edited.add(path);
++      }
+       const result = await this.host.summarize(event.preparation, instructions, event.signal, ctx);
+       if (!result?.summary) return undefined;
+       const summary = `${result.summary}\n\n${harnessPart({
+@@ -204,7 +221,7 @@ export class CompactionController {
+         recordPath,
+         routingProfile: this.host.routingProfile(),
+         background: this.host.background(),
+-        files: { read: [], changed: [] },
++        files: { readFiles: [], modifiedFiles: [] },
+         includeFiles: false,
+         recovery: recoveryText(cycle, recordPath),
+       })}`;
+diff --git a/pi-extension/dist/compaction/harness.js b/pi-extension/dist/compaction/harness.js
+index a1a28578..05bfa895 100644
+--- a/pi-extension/dist/compaction/harness.js
++++ b/pi-extension/dist/compaction/harness.js
+@@ -11,24 +11,53 @@ export function currentCycle(branch) {
+ }
+ /** The cycle number the next compaction starts. Cycle 1 runs from session start to the first compaction. */
+ export const nextCycle = (branch) => branch.filter((entry) => entry?.type === "compaction").length + 2;
+-/** Files successful calls in this cycle read or changed, in first-touched order. */
++/**
++ * Files successful calls in this cycle read or changed, in first-touched order. Calls a codemode script made count
++ * too: Pi records them on the script's result as nested calls.
++ */
+ export function cycleFiles(branch) {
+   const calls = new Map();
+   const read = new Set(),
+     changed = new Set();
++  const touch = (name, input) => {
++    for (const path of touchedPaths(name, input)) (name === "read" ? read : changed).add(path);
++  };
+   for (const entry of currentCycle(branch)) {
+     const message = entry?.type === "message" ? entry.message : undefined;
+     if (message?.role === "assistant")
+       for (const block of message.content ?? [])
+         if (block?.type === "toolCall") calls.set(block.id, { name: block.name, input: block.arguments });
+-    if (message?.role === "toolResult" && message.isError !== true) {
+-      const call = calls.get(message.toolCallId);
+-      if (!call) continue;
+-      for (const path of touchedPaths(call.name, call.input)) (call.name === "read" ? read : changed).add(path);
+-    }
++    if (message?.role !== "toolResult") continue;
++    for (const nested of message.nestedCalls?.calls ?? [])
++      if (nested?.status === "ok") touch(nested.name, nested.arguments);
++    const call = calls.get(message.toolCallId);
++    if (call && message.isError !== true) touch(call.name, call.input);
+   }
+   return { read: [...read].filter((path) => !changed.has(path)), changed: [...changed] };
+ }
++/** The file lists the latest compaction stored in Pi's details format, whoever wrote it. */
++export function previousFileLists(branch) {
++  const latest = [...branch].reverse().find((entry) => entry?.type === "compaction");
++  const strings = (value) => (Array.isArray(value) ? value.filter((v) => typeof v === "string") : []);
++  return { readFiles: strings(latest?.details?.readFiles), modifiedFiles: strings(latest?.details?.modifiedFiles) };
++}
++/** Session-wide lists in Pi's format: earlier compactions' lists plus this cycle; a modified file is not "read". */
++export function sessionFileLists(branch) {
++  const previous = previousFileLists(branch);
++  const cycle = cycleFiles(branch);
++  const modified = new Set([...previous.modifiedFiles, ...cycle.changed]);
++  const read = new Set([...previous.readFiles, ...cycle.read].filter((path) => !modified.has(path)));
++  return { readFiles: [...read].sort(), modifiedFiles: [...modified].sort() };
++}
++/** Pi's own file-list form, so summaries read alike whichever path wrote them. */
++export function formatFileLists(lists) {
++  return [
++    lists.readFiles.length ? `<read-files>\n${lists.readFiles.join("\n")}\n</read-files>` : "",
++    lists.modifiedFiles.length ? `<modified-files>\n${lists.modifiedFiles.join("\n")}\n</modified-files>` : "",
++  ]
++    .filter(Boolean)
++    .join("\n\n");
++}
+ /** The cycle's start time: the latest compaction entry, else the session's first entry. */
+ export function cycleStart(branch) {
+   const marker = [...branch].reverse().find((entry) => entry?.type === "compaction") ?? branch[0];
+@@ -61,10 +90,8 @@ export function harnessPart(facts) {
+     lines.push(
+       `Background commands still running: ${facts.background.map((job) => `${job.id} (${job.label}), output ${job.outputPath}`).join("; ")}.`,
+     );
+-  if (facts.includeFiles !== false) {
+-    if (facts.files.read.length) lines.push(`Files read this cycle: ${facts.files.read.join(", ")}.`);
+-    if (facts.files.changed.length) lines.push(`Files changed this cycle: ${facts.files.changed.join(", ")}.`);
+-  }
++  const files = facts.includeFiles === false ? "" : formatFileLists(facts.files);
++  if (files) lines.push("", "Files read and modified in this session:", "", files);
+   if (facts.recovery) lines.push("", facts.recovery);
+   return lines.join("\n");
+ }
+diff --git a/pi-extension/src/compaction/README.md b/pi-extension/src/compaction/README.md
+index 56fe1faa..f1332310 100644
+--- a/pi-extension/src/compaction/README.md
++++ b/pi-extension/src/compaction/README.md
+@@ -12,7 +12,7 @@ Compaction is on by default whenever Freeflow is on (`compaction.enabled` in Fre
+ | [`thresholds.ts`](thresholds.ts) | When compaction is due: the warning at 80% of the window or 30k tokens before Pi's trigger, whichever is first, and "compact now" 10k before it, using Pi's effective reserve and the smallest window that may receive the full history. |
+ | [`results.ts`](results.ts) | The result index: this cycle's larger tool results with ids (`r12`) the agent carries by; ids stay stable across compactions. |
+ | [`carry.ts`](carry.ts) | The carried context: the latest user messages verbatim, selected files read fresh at compaction, selected tool results copied by id, the carry budget, and the summary limit. |
+-| [`harness.ts`](harness.ts) | The part of the summary Freeflow writes itself: cycle, Working Record to read first, routing profile, running background commands, and files read and changed this cycle. |
++| [`harness.ts`](harness.ts) | The part of the summary Freeflow writes itself: cycle, Working Record to read first, routing profile, running background commands, and the session-wide file lists in Pi's `<read-files>`/`<modified-files>` form (codemode nested calls included). |
+ 
+ `/freeflow compact` (in `src/index.ts`) makes compaction due and sends the request as the user's message.
+ 
+@@ -27,6 +27,7 @@ Compaction is on by default whenever Freeflow is on (`compaction.enabled` in Fre
+ - Carried content is copied into the session, never resolved later, so a reopened session needs no Freeflow lookup.
+ - A turn that errors, aborts or hits its length limit writes no compaction; compaction stays due.
+ - Pi's own compaction (its threshold, an overflow, or `/compact`) keeps Pi's summarizer and kept tail. Freeflow adds its summary instructions (Pi appends them as "Additional focus") and its own state with recovery steps, and drops any scheduled Freeflow compaction. When Pi summarizes only a split turn's prefix, its prompt takes no extra instructions, so only the appended state applies. If anything fails, Freeflow steps aside and Pi compacts as it would alone.
++- File lists stay session-wide across any mix of Freeflow and Pi compactions: Freeflow stores them in Pi's details shape (`readFiles`, `modifiedFiles`), and before Pi's summarizer runs it adds back the previous compaction's lists, which Pi skips when an extension wrote that compaction.
+ - Never cancel or change Pi's own compaction.
+ 
+ Tests: [`tests/compaction/`](../../tests/compaction/README.md).
+diff --git a/pi-extension/src/compaction/controller.ts b/pi-extension/src/compaction/controller.ts
+index a8935356..5ef5715e 100644
+--- a/pi-extension/src/compaction/controller.ts
++++ b/pi-extension/src/compaction/controller.ts
+@@ -12,7 +12,15 @@ import {
+   type CarryFile,
+   type CarryItem,
+ } from "./carry.js";
+-import { cycleFiles, cycleStart, harnessPart, nextCycle, recentWorkingRecord } from "./harness.js";
++import {
++  cycleFiles,
++  cycleStart,
++  harnessPart,
++  nextCycle,
++  previousFileLists,
++  recentWorkingRecord,
++  sessionFileLists,
++} from "./harness.js";
+ import { renderIndex, resolveResult, resultIndex, type Result } from "./results.js";
+ import type { Thresholds } from "./thresholds.js";
+ 
+@@ -189,7 +197,7 @@ export class CompactionController {
+       recordPath,
+       routingProfile: this.host.routingProfile(),
+       background: this.host.background(),
+-      files: cycleFiles(branch),
++      files: sessionFileLists(branch),
+     })}`;
+     const carriedText = renderCarried(cycle, latestUserMessages(branch), files, results);
+     const recovery = recoveryText(cycle, recordPath, "The carried context is above. ");
+@@ -203,6 +211,8 @@ export class CompactionController {
+           summary,
+           firstKeptEntryId: null,
+           details: {
++            // Pi's own details shape, so later compactions (Pi's or Freeflow's) carry the lists forward.
++            ...sessionFileLists(branch),
+             freeflow: {
+               version: 1,
+               cycle,
+@@ -237,6 +247,13 @@ export class CompactionController {
+       const cycle = nextCycle(branch);
+       const recordPath = await recentWorkingRecord(ctx.cwd, cycleStart(branch));
+       const instructions = [FALLBACK_INSTRUCTIONS, event.customInstructions].filter(Boolean).join("\n\n");
++      // Pi merges the previous compaction's file lists only when Pi wrote it; add them back for Freeflow's.
++      const previousFiles = previousFileLists(branch);
++      const fileOps = event.preparation?.fileOps;
++      if (fileOps?.read && fileOps?.edited) {
++        for (const path of previousFiles.readFiles) fileOps.read.add(path);
++        for (const path of previousFiles.modifiedFiles) fileOps.edited.add(path);
++      }
+       const result = await this.host.summarize(event.preparation, instructions, event.signal, ctx);
+       if (!result?.summary) return undefined;
+       const summary = `${result.summary}\n\n${harnessPart({
+@@ -244,7 +261,7 @@ export class CompactionController {
+         recordPath,
+         routingProfile: this.host.routingProfile(),
+         background: this.host.background(),
+-        files: { read: [], changed: [] },
++        files: { readFiles: [], modifiedFiles: [] },
+         includeFiles: false,
+         recovery: recoveryText(cycle, recordPath),
+       })}`;
+diff --git a/pi-extension/src/compaction/harness.ts b/pi-extension/src/compaction/harness.ts
+index 56105a67..18a63d66 100644
+--- a/pi-extension/src/compaction/harness.ts
++++ b/pi-extension/src/compaction/harness.ts
+@@ -17,7 +17,8 @@ export interface HarnessFacts {
+   recordPath?: string;
+   routingProfile?: string;
+   background: readonly { id: string; label: string; outputPath: string }[];
+-  files: { read: string[]; changed: string[] };
++  /** Session-wide lists in Pi's details format. */
++  files: { readFiles: string[]; modifiedFiles: string[] };
+ }
+ 
+ /** Entries after the latest compaction on the branch: the current cycle. */
+@@ -33,25 +34,57 @@ export function currentCycle(branch: readonly any[]): any[] {
+ export const nextCycle = (branch: readonly any[]): number =>
+   branch.filter((entry) => entry?.type === "compaction").length + 2;
+ 
+-/** Files successful calls in this cycle read or changed, in first-touched order. */
++/**
++ * Files successful calls in this cycle read or changed, in first-touched order. Calls a codemode script made count
++ * too: Pi records them on the script's result as nested calls.
++ */
+ export function cycleFiles(branch: readonly any[]): { read: string[]; changed: string[] } {
+   const calls = new Map<string, { name: string; input: any }>();
+   const read = new Set<string>(),
+     changed = new Set<string>();
++  const touch = (name: string, input: any) => {
++    for (const path of touchedPaths(name, input)) (name === "read" ? read : changed).add(path);
++  };
+   for (const entry of currentCycle(branch)) {
+     const message = entry?.type === "message" ? entry.message : undefined;
+     if (message?.role === "assistant")
+       for (const block of message.content ?? [])
+         if (block?.type === "toolCall") calls.set(block.id, { name: block.name, input: block.arguments });
+-    if (message?.role === "toolResult" && message.isError !== true) {
+-      const call = calls.get(message.toolCallId);
+-      if (!call) continue;
+-      for (const path of touchedPaths(call.name, call.input)) (call.name === "read" ? read : changed).add(path);
+-    }
++    if (message?.role !== "toolResult") continue;
++    for (const nested of message.nestedCalls?.calls ?? [])
++      if (nested?.status === "ok") touch(nested.name, nested.arguments);
++    const call = calls.get(message.toolCallId);
++    if (call && message.isError !== true) touch(call.name, call.input);
+   }
+   return { read: [...read].filter((path) => !changed.has(path)), changed: [...changed] };
+ }
+ 
++/** The file lists the latest compaction stored in Pi's details format, whoever wrote it. */
++export function previousFileLists(branch: readonly any[]): { readFiles: string[]; modifiedFiles: string[] } {
++  const latest = [...branch].reverse().find((entry) => entry?.type === "compaction");
++  const strings = (value: unknown) => (Array.isArray(value) ? value.filter((v) => typeof v === "string") : []);
++  return { readFiles: strings(latest?.details?.readFiles), modifiedFiles: strings(latest?.details?.modifiedFiles) };
++}
++
++/** Session-wide lists in Pi's format: earlier compactions' lists plus this cycle; a modified file is not "read". */
++export function sessionFileLists(branch: readonly any[]): { readFiles: string[]; modifiedFiles: string[] } {
++  const previous = previousFileLists(branch);
++  const cycle = cycleFiles(branch);
++  const modified = new Set([...previous.modifiedFiles, ...cycle.changed]);
++  const read = new Set([...previous.readFiles, ...cycle.read].filter((path) => !modified.has(path)));
++  return { readFiles: [...read].sort(), modifiedFiles: [...modified].sort() };
++}
++
++/** Pi's own file-list form, so summaries read alike whichever path wrote them. */
++export function formatFileLists(lists: { readFiles: string[]; modifiedFiles: string[] }): string {
++  return [
++    lists.readFiles.length ? `<read-files>\n${lists.readFiles.join("\n")}\n</read-files>` : "",
++    lists.modifiedFiles.length ? `<modified-files>\n${lists.modifiedFiles.join("\n")}\n</modified-files>` : "",
++  ]
++    .filter(Boolean)
++    .join("\n\n");
++}
++
+ /** The cycle's start time: the latest compaction entry, else the session's first entry. */
+ export function cycleStart(branch: readonly any[]): number {
+   const marker = [...branch].reverse().find((entry) => entry?.type === "compaction") ?? branch[0];
+@@ -86,10 +119,8 @@ export function harnessPart(facts: HarnessFacts): string {
+     lines.push(
+       `Background commands still running: ${facts.background.map((job) => `${job.id} (${job.label}), output ${job.outputPath}`).join("; ")}.`,
+     );
+-  if (facts.includeFiles !== false) {
+-    if (facts.files.read.length) lines.push(`Files read this cycle: ${facts.files.read.join(", ")}.`);
+-    if (facts.files.changed.length) lines.push(`Files changed this cycle: ${facts.files.changed.join(", ")}.`);
+-  }
++  const files = facts.includeFiles === false ? "" : formatFileLists(facts.files);
++  if (files) lines.push("", "Files read and modified in this session:", "", files);
+   if (facts.recovery) lines.push("", facts.recovery);
+   return lines.join("\n");
+ }
+diff --git a/pi-extension/tests/compaction/README.md b/pi-extension/tests/compaction/README.md
+index f4f41026..c5b142b2 100644
+--- a/pi-extension/tests/compaction/README.md
++++ b/pi-extension/tests/compaction/README.md
+@@ -6,7 +6,7 @@ Tests for [`src/compaction/`](../../src/compaction/README.md). `thresholds.test.
+ |---|---|
+ | `thresholds.test.js` | Warning and compact-now points for several windows, Pi's reserve lookup, the strictest window, and the result index (ordering, size floor, ids stable across compaction, previously carried results). |
+ | `notices.test.js` | The warning once mid-run, then compact now, either making compaction acceptable and carrying a result by id; a warning at the end of a run waiting for the next prompt; the Coordinator warned through the full-history estimate under projection. |
+-| `fallback.test.js` | Pi's own compaction with Freeflow's instructions reaching Pi's summarizer, Freeflow's state and recovery appended, and Pi's kept tail; Pi compacting exactly as alone when Freeflow's summarizer fails. |
++| `fallback.test.js` | Pi's own compaction with Freeflow's instructions reaching Pi's summarizer, Freeflow's state and recovery appended, and Pi's kept tail; Pi compacting exactly as alone when Freeflow's summarizer fails; file lists covering the whole session across a Freeflow compaction and then Pi's. |
+ | `agent-path.test.js` | `freeflow_compact` refused until compaction is due; `/freeflow compact` leading to one compaction in the same run, with the next request holding summary, carried context and recovery, files carried as they are at compaction time, and the next cycle extending its own requests; limit and budget refusals; file tracking reduced to carried files; the tool declared only while compaction is on; a worker compacting mid-assignment under Cognitive Routing; a Coordinator under projection refused and told to delegate; the compaction skill listed to the model. |
+ 
+ `/freeflow compact` starts its run after the command returns, so the tests wait for the run's first request before waiting for idle.
+diff --git a/pi-extension/tests/compaction/agent-path.test.js b/pi-extension/tests/compaction/agent-path.test.js
+index 66620e06..4227c021 100644
+--- a/pi-extension/tests/compaction/agent-path.test.js
++++ b/pi-extension/tests/compaction/agent-path.test.js
+@@ -65,7 +65,7 @@ test("/freeflow compact leads to one compaction and the same run continues from
+       assert.match(after[0], /compacted into the following summary/);
+       assert.match(after[0], /AGENT_SUMMARY_MARKER/);
+       assert.match(after[0], /This compaction starts cycle 2\./);
+-      assert.match(after[0], /Files read this cycle: evidence\.txt\./);
++      assert.match(after[0], /<read-files>\nevidence\.txt\n<\/read-files>/);
+       assert.match(after[1], /# Carried context/);
+       assert.match(after[1], /FIRST_USER_MESSAGE/);
+       assert.match(
+diff --git a/pi-extension/tests/compaction/fallback.test.js b/pi-extension/tests/compaction/fallback.test.js
+index e14d3755..a7efb07b 100644
+--- a/pi-extension/tests/compaction/fallback.test.js
++++ b/pi-extension/tests/compaction/fallback.test.js
+@@ -68,3 +68,37 @@ test("when Freeflow's summarizer fails, Pi compacts exactly as it would alone",
+     },
+   );
+ });
++
++test("file lists cover the whole session across a Freeflow compaction and then Pi's", { timeout: 30000 }, async () => {
++  await fixture(
++    async (n) =>
++      [
++        [{ name: "read", args: { path: "evidence.txt" } }],
++        [{ name: "freeflow_compact", args: { summary: "S" } }],
++        [],
++        [{ name: "read", args: { path: "recovery.txt" } }],
++      ][n - 1] ?? [],
++    false,
++    async ({ session, manager }) => {
++      const [freeflow] = manager.getBranch().filter((entry) => entry.type === "compaction");
++      assert.deepEqual(freeflow.details.readFiles, ["evidence.txt"]);
++      await session.compact();
++      const pi = manager
++        .getBranch()
++        .filter((entry) => entry.type === "compaction")
++        .at(-1);
++      assert.deepEqual(pi.details.readFiles, ["evidence.txt", "recovery.txt"], "Pi's lists include the earlier cycle");
++      assert.match(pi.summary, /<read-files>\nevidence\.txt\nrecovery\.txt\n<\/read-files>/);
++    },
++    true,
++    {
++      ...options,
++      beforePrompt: async ({ session, requests }) => {
++        const before = requests.length;
++        await session.prompt("/freeflow compact");
++        for (let i = 0; i < 200 && requests.length === before; i++) await new Promise((r) => setTimeout(r, 10));
++        await session.waitForIdle();
++      },
++    },
++  );
++});

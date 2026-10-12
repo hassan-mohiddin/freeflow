@@ -1,0 +1,57 @@
+{
+  "case": "rs-e312562f",
+  "builder": "suite build b3 (Haiku 5.5 subagent)",
+  "base": {
+    "commit": "e312562fc63d114aa0efdd54776a9ca9251dfcc8",
+    "parent": "6191f2a2f433ac0ea967d49f54e3acc1d52b941e",
+    "subject": "Keep each routing profile's warmed request separate on a shared model",
+    "paths": [
+      "pi-extension/dist/cognitive-routing-v2/runtime.js",
+      "pi-extension/dist/index.js",
+      "pi-extension/dist/provider-support/cache/keepalive.js",
+      "pi-extension/src/cognitive-routing-v2/runtime.ts",
+      "pi-extension/src/index.ts",
+      "pi-extension/src/provider-support/cache/keepalive.ts",
+      "pi-extension/tests/provider-support/cache-keepalive.test.js"
+    ]
+  },
+  "method": {
+    "exports": "git archive <commit> into <scratch>/e312562f/clean; seeded export is a second archive of the same commit with the seed applied by hand; node_modules symlinked read-only to the repository's installed node_modules.",
+    "compile": "node_modules/.bin/tsc -p pi-extension/tsconfig.json --noEmitOnError false, then node_modules/.bin/prettier --write pi-extension/dist, as the repository's build script does.",
+    "clean_reproduces_committed_dist": "yes: the rebuilt dist of the clean export is byte-identical to the committed dist (diff -r, no output).",
+    "tsc_exit": "tsc exits 2 for clean and seeded with two errors only, both in src/tool-runtime/program/quickjs.ts (quickjs packages absent from the installed node_modules; see the note in rs-f0abfb11.json). Emit is complete.",
+    "diffs": "clean change.diff is git diff parent commit; seeded change.diff comes from a scratch git repository holding the parent files and then the seeded files. Each change.diff was applied to the parent's changed files and compared byte for byte with the variant's files (no mismatches)."
+  },
+  "variants": {
+    "clean": {
+      "class": null,
+      "change": "the commit as merged",
+      "proof": {
+        "command": "cd <scratch>/e312562f/clean && node --test pi-extension/tests/provider-support/cache-keepalive.test.js",
+        "result": "tests 12, pass 12, fail 0. Whole folder (pi-extension/tests/provider-support/*.test.js): tests 59, pass 59, fail 0."
+      }
+    },
+    "seeded": {
+      "class": "logic",
+      "location": "pi-extension/src/provider-support/cache/keepalive.ts:238",
+      "locator": "\"memory\", provider, model]",
+      "defect": "laneKey drops the requester from the warm-request key, so a worker's request on the Coordinator's model shares the Coordinator's lane and replaces its remembered request. The requester parameter is then unused in laneKey.",
+      "change": "keepalive.ts line 238 builds the key from session, provider and model only, where the commit adds the requester (requester ?? \"\") as a fourth element.",
+      "proof": {
+        "method": "test",
+        "command": "cd <scratch>/e312562f/seeded && node_modules/.bin/tsc -p pi-extension/tsconfig.json --noEmitOnError false; node_modules/.bin/prettier --write pi-extension/dist; node --test pi-extension/tests/provider-support/cache-keepalive.test.js",
+        "clean": "tests 12, pass 12, fail 0",
+        "seeded": "tests 12, pass 11, fail 1. Failing test: 'a worker on the Coordinator's own model does not replace the Coordinator's warmed request' (cache-keepalive.test.js:149): deep-equal failure on the sent payload messages (the worker's brief was sent instead of the Coordinator's).",
+        "whole_folder_seeded": "tests 59, pass 58, fail 1 (the same test)"
+      }
+    }
+  },
+  "final_rerun": {
+    "command": "bash <scratch>/suite-build/b3/final-rerun.sh focused, then ... area",
+    "focused": "fixture files equal the exports; both change.diffs apply to the parent with 0 mismatches; clean rebuild equals committed dist; clean 12/12 pass; seeded (recompiled) 11/12, failing the keep-alive test above.",
+    "area": "clean 59/59 pass; seeded 58/59, failing the same test."
+  },
+  "unsure": [
+    "The seed leaves the requester parameter unused in laneKey. tsconfig.json sets noUnusedLocals but not noUnusedParameters, so tsc does not flag it. A reviewer may see the unused parameter as a clue; that is intended to be discoverable by reading."
+  ]
+}

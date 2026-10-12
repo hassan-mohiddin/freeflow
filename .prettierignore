@@ -3,3 +3,4 @@
 .skill-eval/runs/
 .skill-eval/*/runs/
 .deprecated/skill-tooling-pre-rewrite/
+.skill-eval/review-suite/fixtures/

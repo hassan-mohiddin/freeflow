@@ -1,0 +1,315 @@
+diff --git a/.skill-eval/track-work/tests/working-record.test.mjs b/.skill-eval/track-work/tests/working-record.test.mjs
+index 1c2425ab..01336161 100644
+--- a/.skill-eval/track-work/tests/working-record.test.mjs
++++ b/.skill-eval/track-work/tests/working-record.test.mjs
+@@ -1474,6 +1474,146 @@ test("precise update edits one proposal without replacing siblings", async (t) =
+   assert.doesNotMatch(entity.stdout, /Updated first evidence/);
+ });
+ 
++test("decision supersession is atomic and rejects malformed references", async (t) => {
++  const root = await makeWorkspace();
++  t.after(() => rm(root, { recursive: true, force: true }));
++  const initialized = await runScript(
++    root,
++    "init",
++    "--root",
++    root,
++    "--name",
++    "decision-supersession",
++    "--input",
++    await writeJson(root, "init.json", { taskName: "Decision supersession" }),
++  );
++  const recordPath = initialized.json.record.path;
++  let sha = initialized.json.record.sha256;
++
++  for (const title of ["Original decision", "Replacement decision"]) {
++    const added = await runScript(
++      root,
++      "update",
++      "--record",
++      recordPath,
++      "--expected-sha",
++      sha,
++      "--input",
++      await writeJson(root, `${title}.json`, {
++        decision: { operation: "add", title, decision: title },
++      }),
++    );
++    assert.equal(added.exitCode, 0, added.stderr);
++    sha = added.json.record.sha256;
++  }
++
++  const malformed = await runScript(
++    root,
++    "update",
++    "--record",
++    recordPath,
++    "--expected-sha",
++    sha,
++    "--input",
++    await writeJson(root, "malformed.json", {
++      decision: { operation: "add", title: "Malformed", supersedes: ["D-001"] },
++    }),
++  );
++  assert.equal(malformed.exitCode, 1);
++  assert.equal(malformed.json.errors[0].code, "invalid-decision-reference");
++  assert.equal(malformed.json.record.sha256, sha);
++
++  const directLink = await runScript(
++    root,
++    "update",
++    "--record",
++    recordPath,
++    "--expected-sha",
++    sha,
++    "--input",
++    await writeJson(root, "direct-link.json", {
++      edits: [{ target: { kind: "decision", id: "D-001" }, set: { supersededBy: "D-002" } }],
++    }),
++  );
++  assert.equal(directLink.exitCode, 1);
++  assert.equal(directLink.json.errors[0].code, "immutable-edit-field");
++  assert.equal(directLink.json.record.sha256, sha);
++
++  const superseded = await runScript(
++    root,
++    "update",
++    "--record",
++    recordPath,
++    "--expected-sha",
++    sha,
++    "--input",
++    await writeJson(root, "supersede.json", {
++      decision: { operation: "supersede", id: "D-001", supersededBy: "D-002" },
++    }),
++  );
++  assert.equal(superseded.exitCode, 0, superseded.stderr);
++
++  const original = await runRawScript(root, "view", "--record", recordPath, "--view", "entity", "--entity", "D-001");
++  assert.equal(original.exitCode, 0, original.stderr);
++  assert.match(original.stdout, /State: Superseded/);
++  assert.match(original.stdout, /Superseded by: D-002/);
++
++  const replacement = await runRawScript(root, "view", "--record", recordPath, "--view", "entity", "--entity", "D-002");
++  assert.equal(replacement.exitCode, 0, replacement.stderr);
++  assert.match(replacement.stdout, /Supersedes: D-001/);
++});
++
++test("schema and help expose initialization, supersession, and scalar context edits", async (t) => {
++  const root = await makeWorkspace();
++  t.after(() => rm(root, { recursive: true, force: true }));
++  const initSchema = await runRawScript(root, "schema", "--command", "init");
++  assert.equal(initSchema.exitCode, 0, initSchema.stderr);
++  assert.match(initSchema.stdout, /taskName/);
++  assert.match(initSchema.stdout, /whatDefinesTask/);
++  assert.match(initSchema.stdout, /settled/);
++
++  const updateSchema = await runRawScript(root, "schema", "--command", "update");
++  assert.equal(updateSchema.exitCode, 0, updateSchema.stderr);
++  assert.match(updateSchema.stdout, /supersede/);
++  assert.match(updateSchema.stdout, /supersededBy/);
++  assert.match(updateSchema.stdout, /scalar string/);
++
++  const help = await runRawScript(root, "schema", "--help");
++  assert.equal(help.exitCode, 0, help.stderr);
++  assert.match(help.stdout, /Usage:/);
++});
++
++test("scalar context fields support direct replacement", async (t) => {
++  const root = await makeWorkspace();
++  t.after(() => rm(root, { recursive: true, force: true }));
++  const initialized = await runScript(
++    root,
++    "init",
++    "--root",
++    root,
++    "--name",
++    "scalar-context",
++    "--input",
++    await writeJson(root, "init.json", { taskName: "Scalar context", settled: "old settled" }),
++  );
++  const edited = await runScript(
++    root,
++    "update",
++    "--record",
++    initialized.json.record.path,
++    "--expected-sha",
++    initialized.json.record.sha256,
++    "--input",
++    await writeJson(root, "edit.json", {
++      edits: [{ target: "currentContext.settled", set: "new settled" }],
++    }),
++  );
++  assert.equal(edited.exitCode, 0, edited.stderr);
++  const full = await runRawScript(root, "view", "--record", initialized.json.record.path, "--view", "full");
++  assert.equal(full.exitCode, 0, full.stderr);
++  assert.match(full.stdout, /### Settled\nnew settled/);
++});
++
+ test("schema exposes update input without implementation inspection", async (t) => {
+   const root = await makeWorkspace();
+   t.after(() => rm(root, { recursive: true, force: true }));
+diff --git a/skills/track-work/scripts/lib/operations.mjs b/skills/track-work/scripts/lib/operations.mjs
+index fb4e0c8a..d0251f6c 100644
+--- a/skills/track-work/scripts/lib/operations.mjs
++++ b/skills/track-work/scripts/lib/operations.mjs
+@@ -23,6 +23,21 @@ function findById(entities, id) {
+   return entities.find((entity) => entity.id === id);
+ }
+ 
++function assertDecisionReference(value, field, path) {
++  if (value === undefined || value === "") return;
++  if (typeof value !== "string" || !/^D-\d{3}/.test(value))
++    fail("invalid-decision-reference", `Decision ${field} requires a D-NNN string`, { path });
++}
++
++function assertDecisionReferences(change, path) {
++  assertDecisionReference(change.supersedes, "supersedes", `${path}.supersedes`);
++  assertDecisionReference(change.supersededBy, "supersededBy", `${path}.supersededBy`);
++  if (change.replacement) {
++    assertDecisionReference(change.replacement.supersedes, "supersedes", `${path}.replacement.supersedes`);
++    assertDecisionReference(change.replacement.supersededBy, "supersededBy", `${path}.replacement.supersededBy`);
++  }
++}
++
+ function patchObject(target, patch) {
+   for (const [key, value] of Object.entries(patch ?? {})) {
+     if (value !== undefined && key !== "currentSlice" && key !== "taskState") target[key] = clone(value);
+@@ -84,6 +99,7 @@ function applyDecisionChange(data, input) {
+   const change = input.decision ?? (input.decisions && !Array.isArray(input.decisions) ? input.decisions : null);
+   if (!change) return;
+   const operation = change.operation ?? change.op ?? "add";
++  assertDecisionReferences(change, "decision");
+   if (operation === "add") {
+     if (change.id !== undefined) fail("caller-supplied-id", "The script assigns decision IDs");
+     const decision = normalizeDecision(change, nextId(data, "D"));
+@@ -96,12 +112,20 @@ function applyDecisionChange(data, input) {
+     if (operation === "remove" || operation === "retire") {
+       existing.state = "Retired";
+     } else if (operation === "supersede") {
+-      existing.state = "Superseded";
+-      existing.supersededBy = change.supersededBy ?? change.replacement?.id ?? "";
++      let replacementId = change.supersededBy;
++      let replacement = replacementId ? findById(data.history.decisions, replacementId) : null;
+       if (change.replacement) {
+         if (change.replacement.id !== undefined) fail("caller-supplied-id", "The script assigns decision IDs");
+-        data.history.decisions.push(normalizeDecision(change.replacement, nextId(data, "D")));
++        replacement = normalizeDecision(change.replacement, nextId(data, "D"));
++        replacementId = replacement.id;
++        data.history.decisions.push(replacement);
+       }
++      if (!replacementId) fail("missing-superseded-by", "Supersede requires supersededBy or replacement");
++      if (replacementId === existing.id) fail("invalid-supersession", "A decision cannot supersede itself");
++      if (!replacement) fail("missing-entity", `Replacement decision does not exist: ${replacementId}`);
++      existing.state = "Superseded";
++      existing.supersededBy = replacementId;
++      replacement.supersedes = existing.id;
+     } else {
+       Object.assign(existing, normalizeDecision({ ...existing, ...change }, existing.id));
+     }
+@@ -211,7 +235,7 @@ const PRECISE_LIST_FIELDS = new Set([
+   "blockers",
+   "upcomingCheckpoints",
+ ]);
+-const PRECISE_FORBIDDEN_FIELDS = new Set(["id", "state", "currentSlice"]);
++const PRECISE_FORBIDDEN_FIELDS = new Set(["id", "state", "supersedes", "supersededBy", "currentSlice"]);
+ 
+ function preciseFieldType(field) {
+   if (PRECISE_LIST_FIELDS.has(field)) return "array";
+@@ -450,6 +474,7 @@ function applyPreciseCollectionEdit(data, edit, path) {
+     } else if (collectionName === "decisions") {
+       if (typeof value.title !== "string" || !value.title.trim())
+         fail("missing-decision-title", "Decision title is required", { path });
++      assertDecisionReferences(value, `${path}.addEntity`);
+       collection.push(normalizeDecision(value, nextId(data, "D")));
+     } else {
+       if (typeof value.title !== "string" || !value.title.trim())
+diff --git a/skills/track-work/scripts/lib/schema.mjs b/skills/track-work/scripts/lib/schema.mjs
+index b7debd6a..851a95c5 100644
+--- a/skills/track-work/scripts/lib/schema.mjs
++++ b/skills/track-work/scripts/lib/schema.mjs
+@@ -4,8 +4,30 @@ const COMMON = `All existing-record mutations require --expected-sha from a conf
+ Semantic JSON is supplied with --input <json-file|->. Unknown fields and incompatible types fail before persistence.`;
+ 
+ const SCHEMAS = {
++  init: {
++    purpose: "Create a new ignored schema-v2 Working Record.",
++    input: `{
++  "taskName": "...",
++  "goal": "...",
++  "whatDefinesTask": "...",
++  "settled": "...",
++  "tentative": "...",
++  "open": "...",
++  "currentDirection": "...",
++  "boundaries": "...",
++  "route": "...",
++  "nextAction": "...",
++  "blockers": ["..."],
++  "upcomingCheckpoints": ["..."]
++}`,
++    rules: [
++      "The CLI supplies --root and --name; JSON supplies optional task context.",
++      "Context fields are scalar strings; blockers and upcomingCheckpoints are arrays of strings.",
++      "Use the dedicated start path for an explicitly authorized Current Slice.",
++    ],
++  },
+   update: {
+-    purpose: "Apply precise current-state edits without starting or settling a slice.",
++    purpose: "Apply precise current-state edits and atomic decision changes without starting or settling a slice.",
+     input: `{
+   "edits": [
+     {
+@@ -25,11 +47,17 @@ const SCHEMAS = {
+       "removeEntity": { "id|title": "..." }
+     }
+   ]
+-}`,
++}
++
++or for a decision lifecycle transition:
++
++{ "decision": { "operation": "supersede", "id": "D-NNN", "supersededBy": "D-NNN" } }`,
+     rules: [
+       "Use one edit per affected field or entity; unspecified values are preserved.",
+-      "For a direct field target use replaceText {old, new}; for an entity target use {field: {old, new}}.",
++      "For a direct context field target use a scalar set value or replaceText {old, new}; context fields are scalar strings.",
++      "For an entity target use {field: {old, new}}; list add/remove operations apply only to editable list fields.",
+       "replaceText requires one exact match; ambiguous or missing matches fail.",
++      "Decision state and supersession links are controlled by the atomic decision operation, not precise field edits.",
+       "Whole-object or whole-collection replacement requires an explicit set operation.",
+       "Batch related edits in one command for one atomic write.",
+     ],
+diff --git a/skills/track-work/scripts/working-record.mjs b/skills/track-work/scripts/working-record.mjs
+index 7a547984..801508ca 100755
+--- a/skills/track-work/scripts/working-record.mjs
++++ b/skills/track-work/scripts/working-record.mjs
+@@ -10,7 +10,7 @@ import { executeCommand, readJsonInput } from "./lib/commands.mjs";
+ function parseCliArgs(args) {
+   const positionals = [];
+   const options = {};
+-  const flags = new Set(["--dry-run"]);
++  const flags = new Set(["--dry-run", "--help"]);
+   for (let index = 0; index < args.length; index += 1) {
+     const argument = args[index];
+     if (!argument.startsWith("--")) {
+@@ -37,7 +37,7 @@ function usage() {
+ Commands:
+   init     --root <repo> --name <short-name> [--input <json-file|->] [--dry-run]
+   view     --record <record.md> --view <resume|discuss|execute|recent|entity|full> [--entity <id-or-title>]
+-  schema   --command <update|start|block|resume|reopen|close|migrate|compress|all>
++  schema   --command <init|update|start|block|resume|reopen|close|migrate|compress|all> [--help]
+   update   --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
+   start    --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
+   block    --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
+@@ -62,6 +62,10 @@ async function main() {
+     return;
+   }
+   const { positionals, options } = parseCliArgs(args);
++  if (options["--help"]) {
++    process.stdout.write(usage());
++    return;
++  }
+   const root = options["--root"] ? resolve(options["--root"]) : process.cwd();
+   if (positionals.length > 1) fail("invalid-arguments", "Only one positional record or task path is supported");
+   if (positionals.length === 1 && !options["--record"] && !options["--task"]) options["--record"] = positionals[0];

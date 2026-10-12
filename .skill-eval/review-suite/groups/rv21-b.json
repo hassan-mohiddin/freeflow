@@ -1,0 +1,107 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "rv21-b",
+  "type": "body",
+  "input": {
+    "prompt": "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`"
+  },
+  "fixture": ".skill-eval/review-suite/fixtures/rs-2c00f6e3/seeded/workspace",
+  "tools": ["read", "write"],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "context": []
+      }
+    },
+    "candidate": {
+      "subject": {
+        "context": [".skill-eval/review-suite/context/rv21-b/requirements.md"]
+      }
+    }
+  },
+  "component": ["subject.context"],
+  "expectations": [
+    {
+      "id": "baseline-only-review",
+      "variant": "baseline",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "candidate-only-review",
+      "variant": "candidate",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "baseline-judgment-line",
+      "variant": "baseline",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "candidate-judgment-line",
+      "variant": "candidate",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "baseline-not-passed",
+      "variant": "baseline",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "candidate-not-passed",
+      "variant": "candidate",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "baseline-names-file-1",
+      "variant": "baseline",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "operations.mjs"
+    },
+    {
+      "id": "candidate-names-file-1",
+      "variant": "candidate",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "operations.mjs"
+    }
+  ],
+  "review_questions": [
+    "Did the review identify the defect at skills/track-work/scripts/lib/operations.mjs:28 (the expression `/^D-\\d{3}/`): The decision reference check uses /^D-\\d{3}/ without the end anchor. It accepts a value that starts with a D-NNN reference and then has extra text, including a trailing newline. The commit's rule is that a malformed reference fails with invalid-decision-reference and nothing is written. With the seed, supersedes: \"D-001\\n\" is accepted and written as a Supersedes link to D-001. Values with trailing text fail later with candidate-validation-failure instead of invalid-decision-reference. Did it support the finding with the file and line?",
+    "Did the review avoid findings that the change, its files and the author's report do not support?"
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "case": "rs-24c53d4b",
+  "builder": "suite build b3 (Haiku 5.5 subagent)",
+  "base": {
+    "commit": "24c53d4b54f14a2b34fcd027e0ec1a54e0c6d4bb",
+    "parent": "d22d0837bf387051b8f106d38e2d91861521e0ef",
+    "subject": "fix(context): reject normalized duplicate refs",
+    "paths": [
+      "pi-extension/dist/context-virtualization/runtime.js",
+      "pi-extension/src/context-virtualization/runtime.ts",
+      "pi-extension/tests/context-virtualization/runtime.test.js"
+    ]
+  },
+  "method": {
+    "exports": "git archive <commit> into <scratch>/24c53d4b/clean; seeded export is a second archive of the same commit with the seed applied by hand; node_modules symlinked read-only to the repository's installed node_modules.",
+    "compile": "node_modules/.bin/tsc -p pi-extension/tsconfig.json --noEmitOnError false, then node_modules/.bin/prettier --write pi-extension/dist, as the repository's build script does.",
+    "clean_reproduces_committed_dist": "yes: the rebuilt dist of the clean export is byte-identical to the committed dist (diff -r, no output).",
+    "tsc_exit": "clean and seeded exit 0 for this commit.",
+    "diffs": "clean change.diff is git diff parent commit; seeded change.diff comes from a scratch git repository holding the parent files and then the seeded files. Each change.diff was applied to the parent's changed files and compared byte for byte with the variant's files (no mismatches)."
+  },
+  "variants": {
+    "clean": {
+      "class": null,
+      "change": "the commit as merged",
+      "proof": {
+        "command": "cd <scratch>/24c53d4b/clean && node --test pi-extension/tests/context-virtualization/runtime.test.js",
+        "result": "tests 10, pass 10, fail 0. Whole folder (pi-extension/tests/context-virtualization/*.test.js): tests 25, pass 25, fail 0."
+      }
+    },
+    "seeded": {
+      "class": "logic",
+      "location": "pi-extension/src/context-virtualization/runtime.ts:308",
+      "locator": "isDuplicate(refs.filter((ref): ref is string => typeof ref === \"string\"))",
+      "defect": "restoreNow's duplicate check compares the raw references again, the statement the commit replaced. The references \"ctx:tool-1\" and \"ctx:tool-1 \" then pass the check as distinct; the loop still uses the normalized list, so the batch is applied twice instead of being rejected. archiveNow is unchanged.",
+      "change": "runtime.ts lines 308-310 (the three-line duplicate statement in restoreNow) become the single pre-commit statement.",
+      "proof": {
+        "method": "test",
+        "command": "cd <scratch>/24c53d4b/seeded && node_modules/.bin/tsc -p pi-extension/tsconfig.json --noEmitOnError false; node_modules/.bin/prettier --write pi-extension/dist; node --test pi-extension/tests/context-virtualization/runtime.test.js",
+        "clean": "tests 10, pass 10, fail 0",
+        "seeded": "tests 10, pass 9, fail 1. Failing test: 'restore rejects duplicate normalized references atomically' (runtime.test.js:165): AssertionError, 'ok' !== 'rejected'.",
+        "whole_folder_seeded": "tests 25, pass 24, fail 1 (the same test)"
+      }
+    }
+  },
+  "final_rerun": {
+    "command": "bash <scratch>/suite-build/b3/final-rerun.sh focused, then ... area",
+    "focused": "fixture files equal the exports (0 mismatches); both change.diffs apply to the parent with 0 mismatches; clean rebuild equals committed dist; clean 10/10 pass; seeded (recompiled) 9/10, failing 'restore rejects duplicate normalized references atomically'.",
+    "area": "clean 25/25 pass; seeded 24/25, failing the same test."
+  },
+  "unsure": [
+    "The seed reverts the restore check to the pre-commit statement, so in the seeded change.diff that line is unchanged context rather than an added line. A reviewer has to notice that restore still compares raw references, not the normalized list.",
+    "README.md marks this case as held out; nothing in the fixture was tuned against Review Work."
+  ]
+}
