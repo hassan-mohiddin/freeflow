@@ -155,11 +155,7 @@ Use Track Work when losing decisions, the current result, dependencies, evidence
 
 Before a known context boundary, preserve material changed understanding, partial effects, relevant failed approaches, remaining dependencies, and the next useful action through Track Work. Keep the intended outcome and user-facing return condition distinct from the current implementation approach. Do not wait for artificial completion or write a command log.
 
-After recovery, reconcile the record's current sections and relevant History with current user direction, defining artifacts, and live state; confirm that the recovered agreement (the record's Work agreement, or the summary's) still matches the user's latest direction and authorizes the next action, and that its prerequisites hold. Reload the owner's exact method if absent. Inspect additional sources only where they change the next action, rather than replaying the investigation.
-
-With intact context, use `resume` or targeted record reads when current-state readback is useful. Do not trigger full reconstruction merely because another turn or ordinary pause occurred.
-
-A record, summary, or other conversation branch can preserve approval evidence but cannot create current authority or settle compute-routing state.
+After recovery, which `core.md` and Track Work order, confirm that the recovered agreement (the record's Work agreement, or the summary's) still matches the user's latest direction and authorizes the next action, and that its prerequisites hold. A record, summary, or other conversation branch can show earlier approval but never creates current authority or settles compute-routing state.
 
 ## Continue To The Agreed Return Boundary
 
