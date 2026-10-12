@@ -19,7 +19,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { parseArgs } from "node:util";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   createAgentSession,
   DefaultResourceLoader,
@@ -28,7 +28,7 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 
-const root = resolve(new URL("../..", import.meta.url).pathname);
+const root = fileURLToPath(new URL("../..", import.meta.url));
 const { values } = parseArgs({
   options: {
     session: { type: "string" },

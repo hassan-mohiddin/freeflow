@@ -11,8 +11,7 @@ workflow_skill="$repo_root/skills/workflow/SKILL.md"
 action_selection_skill="$repo_root/skills/action-selection/SKILL.md"
 cognitive_routing_prompt="$repo_root/runtime/prompts/cognitive-routing.md"
 agents_file="$repo_root/AGENTS.md"
-runtime_doc="$repo_root/dev-docs/README.md"
-architecture_doc="$repo_root/dev-docs/README.md"
+dev_docs_index="$repo_root/dev-docs/README.md"
 workflow_doc="$repo_root/plugin-docs/workflow.md"
 pi_runtime="$repo_root/pi-extension/src/host/prompts.ts"
 shared_hook="$repo_root/hooks/freeflow-runtime-context.mjs"
@@ -49,8 +48,7 @@ for file in \
 	"$action_selection_skill" \
 	"$cognitive_routing_prompt" \
 	"$agents_file" \
-	"$runtime_doc" \
-	"$architecture_doc" \
+	"$dev_docs_index" \
 	"$pi_runtime" \
 	"$shared_hook" \
 	"$shared_renderer" \
@@ -82,8 +80,8 @@ require_text "$workflow_skill" "Own the whole interaction, from the user's reque
 require_text "$workflow_skill" 'When the owner needs an environment interaction and the action or tool choice is not already obvious'
 require_text "$action_selection_skill" 'Choose environment interactions that advance the current question or result'
 require_text "$action_selection_skill" 'return the changed evidence to the current owner.'
-require_text "$runtime_doc" 'runtime/prompts/'
-require_text "$runtime_doc" 'skills are cued by their own descriptions'
+require_text "$dev_docs_index" 'runtime/prompts/'
+require_text "$dev_docs_index" 'skills are cued by their own descriptions'
 require_text "$workflow_doc" 'Interaction Lifecycle'
 
 require_text "$pi_runtime" '../../../runtime/prompts/core.md'
@@ -102,7 +100,7 @@ for file in \
 	"$workflow_doc" \
 	"$repo_root/dev-docs/guides/release.md" \
 	"$repo_root/plugin-docs/integrations/pi.md" \
-	"$architecture_doc" \
+	"$dev_docs_index" \
 	"$repo_root/plugin-docs/release-evidence/README.md"; do
 	reject_text "$file" 'runtime kernel'
 done

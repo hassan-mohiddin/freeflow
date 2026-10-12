@@ -7,7 +7,6 @@ import { fileURLToPath } from "node:url";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const skillsRoot = resolve(repoRoot, "skills");
 const mapPath = resolve(repoRoot, "dev-docs/subsystems/skill-routing.md");
-const optionalCapabilityPaths = new Map();
 
 const markdownLinks = (text) => [...text.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map((match) => match[1].split("#", 1)[0]);
 
@@ -95,12 +94,6 @@ for (const skillName of activeSkills) {
 for (const rowName of rows.keys()) {
   if (!activeSkills.includes(rowName)) {
     failures.push(`unexpected active routing row: ${rowName}`);
-  }
-}
-
-for (const [capabilityName, capabilityPath] of optionalCapabilityPaths) {
-  if (!mapText.includes(`../${capabilityPath}`)) {
-    failures.push(`missing optional capability package: ${capabilityName}`);
   }
 }
 
