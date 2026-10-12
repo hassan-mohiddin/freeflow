@@ -2,5 +2,14 @@
   "schema_version": 2,
   "kind": "suite",
   "id": "review-suite-f7",
-  "groups": ["groups-f7/f7-01.json", "groups-f7/f7-04.json"]
+  "groups": [
+    "groups-f7/f7-01.json",
+    "groups-f7/f7-02.json",
+    "groups-f7/f7-03.json",
+    "groups-f7/f7-04.json",
+    "groups-f7/f7-05.json",
+    "groups-f7/f7-06.json",
+    "groups-f7/f7c-02.json",
+    "groups-f7/f7c-06.json"
+  ]
 }

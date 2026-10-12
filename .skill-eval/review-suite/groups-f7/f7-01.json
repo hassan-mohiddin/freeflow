@@ -30,6 +30,21 @@
     }
   },
   "component": ["subject.context"],
+  "rubric": [
+    {
+      "id": "found-defect",
+      "question": "Did the review identify the planted defect by its location (the file and line, or the defective expression) and its effect? A paraphrase of the defect is fine. A finding about another line or another concern does not count.",
+      "reference": {
+        "path": ".skill-eval/review-suite/references-f7/f7-01/defect.md"
+      }
+    }
+  ],
+  "judges": [
+    {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "high"
+    }
+  ],
   "expectations": [
     {
       "id": "baseline-only-review",
@@ -86,28 +101,10 @@
       "line": 1,
       "expect": "not-contains",
       "value": "Judgment: Pass"
-    },
-    {
-      "id": "baseline-defect-located",
-      "variant": "baseline",
-      "comparison": "defect-located",
-      "kind": "file-text",
-      "path": "review.md",
-      "expect": "contains",
-      "value": "if (rel === \"..\")"
-    },
-    {
-      "id": "candidate-defect-located",
-      "variant": "candidate",
-      "comparison": "defect-located",
-      "kind": "file-text",
-      "path": "review.md",
-      "expect": "contains",
-      "value": "if (rel === \"..\")"
     }
   ],
   "review_questions": [
-    "Did the review locate the defect at its file and line, and say what it does wrong?",
-    "Did the review avoid findings that the change, its files and the requirements do not support?"
+    "Did the review keep to the requested lens, and avoid findings the change, its files and the requirements do not support?",
+    "Did the review raise the planted defect at its location, or did it spend its findings on other issues?"
   ]
 }

@@ -1,0 +1,24 @@
+{
+  "case": "f7-06",
+  "base_commit": "25844ce3c94247118d4909b4336b9693ce6ca988",
+  "parent_commit": "355956c13b94e40f903db0dd5990ba6008e51a5c",
+  "subject": "fix(evals): make publication transactional",
+  "base_source": "rs-25844ce3: the clean variant is copied from it; the seeded variant adds one defect",
+  "review_lens": "security",
+  "variants": {
+    "clean": {
+      "class": null,
+      "description": "The change as committed. No defect is planted."
+    },
+    "seeded": {
+      "class": "logic",
+      "location": "skills/evaluate-skill/scripts/lib/publication.mjs:1",
+      "locator": "Diagnostic destination already exists",
+      "seed": "in publishDiagnostic, the destination-exists refusal was removed",
+      "description": "publishDiagnostic refuses to publish when the destination already exists. The seed removes that check. Renaming onto an existing empty directory then succeeds, so an earlier diagnostic placeholder is replaced and reported as published.",
+      "consequence": "A diagnostic is reported as published over an existing destination directory. The earlier record at that path is replaced without a failure.",
+      "proof": "proofs/f7-06/overwrite.proof.test.mjs"
+    }
+  },
+  "diff_check": "seeded change.diff = the clean change.diff with the seeded file's section replaced by git diff --no-index of parent against the seeded file"
+}
