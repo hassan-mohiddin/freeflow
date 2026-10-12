@@ -77,7 +77,7 @@ test("validateDecision applies defaults and refuses unknown or malformed fields"
   const base = { measure: { judged: "found-defect" }, arms: ["baseline", "candidate"], direction: "higher" };
   const refusals = [
     [{ ...base, extra: 1 }, /unsupported field extra/],
-    [{ ...base, measure: { check: "x" } }, /exactly one of comparison, metric or judged/],
+    [{ ...base, measure: { check: "x" } }, /exactly one of comparison, metric, judged or score/],
     [{ ...base, measure: { metric: "a", judged: "b" } }, /exactly one/],
     [{ ...base, arms: ["baseline"] }, /two arm names/],
     [{ ...base, arms: ["baseline", "baseline"] }, /two different arms/],

@@ -8,7 +8,8 @@ import { spawn } from "node:child_process";
 import { cp, lstat, mkdir, readFile, realpath, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
-import { registerPostRunHook } from "./hooks.mjs";
+import { comparisonArms } from "./arms.mjs";
+import { registerAggregator, registerPostRunHook } from "./hooks.mjs";
 import { processGroupExists, signalProcessTree, TERMINATION_GRACE_MS } from "./process.mjs";
 import { completedCheck, isArm, isContained, isSafeRelativePath, unavailableCheck } from "./grade-support.mjs";
 
@@ -230,17 +231,19 @@ export async function runCommandExpectation({ expectation, run, root, directory,
   const timeoutMs = (expectation.timeout_seconds ?? DEFAULT_TIMEOUT_SECONDS) * 1000;
   let argv = expectation.argv;
   let containerName = null;
+  let clientEnvironment = null;
   if (container) {
-    const { containerName: nameFor, graderArgv } = await import("./container.mjs");
+    const { containerName: nameFor, dockerClientEnvironment, graderArgv } = await import("./container.mjs");
     containerName = nameFor("grader");
     argv = graderArgv({ container, copy, argv, name: containerName });
+    clientEnvironment = dockerClientEnvironment();
   }
   let result;
   try {
     // The docker CLI needs the user's own configuration to find its engine; the command itself runs in the image.
     result = await runProcess(argv, {
       cwd: copy,
-      environment: container ? process.env : environment,
+      environment: clientEnvironment ?? environment,
       timeoutMs,
       signal,
     });
@@ -523,4 +526,65 @@ function messageOf(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * The `scores` aggregate section: each test-graded command check's score (passed required tests over required)
+ * per arm (count, mean, median over the trials that scored it) and per trial as the measure `score.<expectation id>`,
+ * and also as `score.<comparison id>` when the expectation belongs to a comparison, so a suite decision can name one
+ * measure that every arm reports. A missing or unavailable score is null. Nothing is recorded for a group without
+ * test-graded command checks.
+ */
+export function aggregateScores({ arms, trials }) {
+  const scored = new Map();
+  for (const trial of trials) {
+    for (const check of trial.grade?.checks ?? []) {
+      if (check.kind === COMMAND_KIND && check.expected?.pass?.tests !== undefined) scored.set(check.id, check.variant);
+    }
+  }
+  if (scored.size === 0) return undefined;
+  const perTrial = [];
+  const byArm = Object.fromEntries(arms.map((arm) => [arm, {}]));
+  for (const trial of trials) {
+    const checks = new Map((trial.grade?.checks ?? []).map((check) => [check.id, check]));
+    const comparisonOf = new Map();
+    for (const comparison of trial.grade?.comparisons ?? []) {
+      for (const outcome of Object.values(comparisonArms(comparison).arms ?? {})) {
+        if (typeof outcome?.check === "string") comparisonOf.set(outcome.check, comparison.id);
+      }
+    }
+    for (const arm of arms) {
+      const values = {};
+      for (const [id, variant] of scored) {
+        if (variant !== arm) continue;
+        const score = checks.get(id)?.observed?.score;
+        const value = typeof score === "number" && Number.isFinite(score) ? score : null;
+        values[`score.${id}`] = value;
+        if (comparisonOf.has(id)) values[`score.${comparisonOf.get(id)}`] = value;
+        (byArm[arm][id] ??= []).push(value);
+      }
+      perTrial.push({ trial: trial.id, arm, values });
+    }
+  }
+  const summaries = Object.fromEntries(
+    Object.entries(byArm).map(([arm, ids]) => [
+      arm,
+      Object.fromEntries(Object.entries(ids).map(([id, values]) => [id, summarizeScores(values)])),
+    ]),
+  );
+  return { arms: summaries, perTrial };
+}
+
+function summarizeScores(values) {
+  const measured = values.filter((value) => value !== null).sort((left, right) => left - right);
+  const count = measured.length;
+  if (count === 0) return { count: 0, unavailable: values.length, mean: null, median: null };
+  const middle = Math.floor(count / 2);
+  return {
+    count,
+    unavailable: values.length - count,
+    mean: measured.reduce((total, value) => total + value, 0) / count,
+    median: count % 2 === 1 ? measured[middle] : (measured[middle - 1] + measured[middle]) / 2,
+  };
+}
+
 registerPostRunHook("commands", runCommandExpectations);
+registerAggregator("scores", aggregateScores);

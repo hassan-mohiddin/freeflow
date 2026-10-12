@@ -175,6 +175,28 @@ function firstLine(value) {
   return line?.trim() ?? null;
 }
 
+// What the docker client needs from the user's environment to reach its engine, and nothing else.
+const DOCKER_CLIENT_KEYS = [
+  "PATH",
+  "HOME",
+  "USER",
+  "LANG",
+  "TMPDIR",
+  "XDG_RUNTIME_DIR",
+  "DOCKER_HOST",
+  "DOCKER_CONTEXT",
+  "DOCKER_CONFIG",
+  "DOCKER_CERT_PATH",
+  "DOCKER_TLS_VERIFY",
+];
+
+/** The environment for a docker client the evaluator runs itself (a grader's `docker run`). */
+export function dockerClientEnvironment() {
+  return Object.fromEntries(
+    DOCKER_CLIENT_KEYS.flatMap((key) => (process.env[key] === undefined ? [] : [[key, process.env[key]]])),
+  );
+}
+
 export function containerName(purpose) {
   return `skill-eval-${purpose}-${randomBytes(6).toString("hex")}`;
 }

@@ -8,7 +8,9 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { loadDefinition } from "../../../skills/evaluate-behavior/scripts/lib/definitions.mjs";
+import { decide, validateDecision } from "../../../skills/evaluate-behavior/scripts/lib/decision.mjs";
 import {
+  aggregateScores,
   gradeCommand,
   parseJunit,
   parseTap,
@@ -484,4 +486,77 @@ ok 2 - top
     { name: "a", fullName: "a", status: "pass" },
     { name: "b", fullName: "b", status: "fail" },
   ]);
+});
+
+function scoredCheck(arm, state, score) {
+  return {
+    id: `${arm}-hidden`,
+    kind: "command",
+    variant: arm,
+    state,
+    expected: { pass: { tests: { format: "node-test", required: ["a", "b"] } } },
+    observed: state === "unavailable" ? null : { score },
+  };
+}
+
+function scoredTrial(id, baseline, candidate) {
+  return {
+    id,
+    grade: {
+      checks: [scoredCheck("baseline", ...baseline), scoredCheck("candidate", ...candidate)],
+      comparisons: [
+        {
+          id: "hidden-tests",
+          kind: "command",
+          baseline: { check: "baseline-hidden", state: baseline[0] },
+          candidate: { check: "candidate-hidden", state: candidate[0] },
+          transition: `${baseline[0]}-to-${candidate[0]}`,
+        },
+      ],
+    },
+  };
+}
+
+test("command scores aggregate per arm and per trial, and a suite decision reads them as a score measure", () => {
+  const trials = [
+    scoredTrial("t1", ["fail", 0.5], ["pass", 1]),
+    scoredTrial("t2", ["fail", 0], ["fail", 0.5]),
+    scoredTrial("t3", ["unavailable"], ["pass", 1]),
+  ];
+
+  const section = aggregateScores({ arms: ["baseline", "candidate"], reference: "baseline", trials });
+
+  assert.deepEqual(section.arms, {
+    baseline: { "baseline-hidden": { count: 2, unavailable: 1, mean: 0.25, median: 0.25 } },
+    candidate: { "candidate-hidden": { count: 3, unavailable: 0, mean: 2.5 / 3, median: 1 } },
+  });
+  assert.deepEqual(section.perTrial[0], {
+    trial: "t1",
+    arm: "baseline",
+    values: { "score.baseline-hidden": 0.5, "score.hidden-tests": 0.5 },
+  });
+  assert.deepEqual(section.perTrial[5], {
+    trial: "t3",
+    arm: "candidate",
+    values: { "score.candidate-hidden": 1, "score.hidden-tests": 1 },
+  });
+  assert.equal(section.perTrial[4].values["score.hidden-tests"], null);
+  // A group with no test-graded command check records no section.
+  assert.equal(
+    aggregateScores({ arms: ["baseline"], reference: "baseline", trials: [{ id: "t", grade: { checks: [] } }] }),
+    undefined,
+  );
+
+  const rule = validateDecision(
+    { measure: { score: "hidden-tests" }, arms: ["baseline", "candidate"], direction: "higher", min_cases: 1 },
+    (message) => {
+      throw new Error(message);
+    },
+  );
+  const decision = decide(rule, [{ id: "calc", trials: 3, scores: section }]);
+  assert.deepEqual(decision.cases[0].arms, {
+    baseline: { n: 2, mean: 0.25, excluded: 1 },
+    candidate: { n: 3, mean: 2.5 / 3, excluded: 0 },
+  });
+  assert.equal(decision.better, 1);
 });
