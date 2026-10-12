@@ -283,6 +283,80 @@ test("a later Coordinator view extends an earlier one, including a run the Coord
   assert.deepEqual(later.messages.slice(0, sent.length), sent);
 });
 
+test("evidence deferred past a notice that arrived mid-run is delivered after the return's call group", () => {
+  // Live run (Task 008 S-005): a monitor notice arrived while Executor worked; the selection is recorded before
+  // Pi stores the select_evidence result, so the evidence was delivered between the return's calls and results.
+  const named = (id, name) => ({ type: "toolCall", id, name, arguments: {} });
+  const answer = (id, name, text) => ({
+    role: "toolResult",
+    toolCallId: id,
+    toolName: name,
+    content: [{ type: "text", text }],
+    timestamp: 2,
+  });
+  const notice = { role: "user", content: [{ type: "text", text: "monitor notice" }], timestamp: 3 };
+  const receipt = JSON.stringify({ status: "accepted", reportSaved: true, reportSha256: "x", handoff: "h" });
+  const entries = [];
+  let parent = null;
+  for (const [id, message] of [
+    ["d", assistant([named("cd", "delegate_work")])],
+    ["dr", answer("cd", "delegate_work", "{}")],
+    ["w", assistant([named("cb", "bash")])],
+    ["wr", answer("cb", "bash", "# pass 5")],
+    ["n", notice],
+    ["ret", assistant([named("cs", "select_evidence"), named("ct", "return_work")])],
+    ["rs", answer("cs", "select_evidence", "{}")],
+    ["rt", answer("ct", "return_work", receipt)],
+  ]) {
+    entries.push(entry(id, parent, message));
+    parent = id;
+  }
+  const state = initialState();
+  state.assignmentId = "a";
+  state.handoffs.set("h", { id: "h", kind: "return", assignmentId: "a" });
+  state.selections.set("a", { revision: 1, selected: ["ctx:wr"], unresolved: [], withdrawals: [] });
+  const producers = { d: "coordinator", dr: "coordinator", n: "common" };
+  for (const e of entries)
+    state.authors.set(e.id, { profile: producers[e.id] ?? "executor", executionId: "x", assignmentId: "a" });
+  const sources = new Sources(entries, state);
+  for (const s of sources.byRef.values()) state.exposure.set(s.ref, s.hash);
+  const prepared = prepareView({
+    messages: entries.map((e) => e.message),
+    sources,
+    state,
+    view: "coordinator",
+    projection: true,
+    model,
+    pair: { provider: "fixture", modelId: "receiver", thinking: "off" },
+    systemPrompt: "",
+    tools: [],
+    runtimeMessage: { role: "custom", content: "state" },
+    instance: "test",
+    admissions: new Map([["ctx:wr", sources.rank.get("rs")]]),
+  });
+  const order = prepared.messages.flatMap((m) =>
+    m.role === "assistant"
+      ? m.content.filter((b) => b.type === "toolCall").map((b) => `call:${b.id}`)
+      : m.role === "toolResult"
+        ? [`result:${m.toolCallId}`]
+        : [],
+  );
+  assert.deepEqual(order, [
+    "call:cd",
+    "result:cd",
+    "call:cs",
+    "call:ct",
+    "result:cs",
+    "result:ct",
+    "call:cb",
+    "result:cb",
+  ]);
+  // Each results message follows its call message directly.
+  for (const [i, m] of prepared.messages.entries())
+    if (m.role === "toolResult")
+      assert.ok(["assistant", "toolResult"].includes(prepared.messages[i - 1]?.role), `result ${m.toolCallId} follows`);
+});
+
 test("resuming an assessment after an attention view extends the Coordinator's sent prefix", () => {
   // Selected worker evidence was compacted out of the active context before the Coordinator's attention turn.
   const later = (text, t) => ({ role: "user", content: [{ type: "text", text }], timestamp: t });
