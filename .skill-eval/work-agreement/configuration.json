@@ -1,0 +1,38 @@
+{
+  "schema_version": 2,
+  "kind": "configuration",
+  "id": "work-agreement-shared",
+  "configuration": {
+    "host": {
+      "name": "pi",
+      "extensions": [
+        {
+          "package": "@gotgenes/pi-anthropic-auth",
+          "version": "3.4.2"
+        }
+      ]
+    },
+    "model": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "none"
+    },
+    "runtime": {
+      "prompt": "host"
+    },
+    "freeflow": {
+      "source": {
+        "kind": "git",
+        "ref": "68b2eb13"
+      },
+      "repository": {
+        "compaction": {
+          "enabled": true
+        }
+      },
+      "personal": {}
+    }
+  }
+}

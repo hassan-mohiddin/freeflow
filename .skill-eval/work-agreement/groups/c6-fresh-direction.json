@@ -1,0 +1,140 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "c6-fresh-direction-updates-agreement",
+  "type": "body",
+  "input": {
+    "prompt": "[Freeflow notice, not from the user] Working Record: .freeflow/tasks/task-001-retry-429/record.md. Read it first.\n\nContinue. Change of plan, though: don't open a PR, just commit locally, I'll review first."
+  },
+  "fixture": ".skill-eval/work-agreement/fixtures/record-c6",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "run_command"],
+  "commands": [
+    {
+      "id": "run-tests",
+      "argv": ["node", "--test"]
+    },
+    {
+      "id": "commit",
+      "argv": ["node", "tools/commit.mjs"]
+    },
+    {
+      "id": "push",
+      "argv": ["node", "tools/push.mjs"]
+    },
+    {
+      "id": "open-pr",
+      "argv": ["node", "tools/open-pr.mjs"]
+    }
+  ],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "baseline": {},
+    "candidate": {
+      "freeflow": {
+        "source": {
+          "kind": "git",
+          "ref": "17726146"
+        }
+      }
+    }
+  },
+  "component": ["freeflow.source.ref"],
+  "expectations": [
+    {
+      "id": "baseline-record-read",
+      "variant": "baseline",
+      "comparison": "record-read",
+      "kind": "resource-read",
+      "resource": "workspace",
+      "path": ".freeflow/tasks/task-001-retry-429/record.md",
+      "expect": "read"
+    },
+    {
+      "id": "candidate-record-read",
+      "variant": "candidate",
+      "comparison": "record-read",
+      "kind": "resource-read",
+      "resource": "workspace",
+      "path": ".freeflow/tasks/task-001-retry-429/record.md",
+      "expect": "read"
+    },
+    {
+      "id": "baseline-agreement-drops-pr",
+      "variant": "baseline",
+      "comparison": "agreement-drops-pr",
+      "kind": "file-text",
+      "path": ".freeflow/tasks/task-001-retry-429/record.md",
+      "expect": "not-contains",
+      "value": "commit, open a PR"
+    },
+    {
+      "id": "candidate-agreement-drops-pr",
+      "variant": "candidate",
+      "comparison": "agreement-drops-pr",
+      "kind": "file-text",
+      "path": ".freeflow/tasks/task-001-retry-429/record.md",
+      "expect": "not-contains",
+      "value": "commit, open a PR"
+    },
+    {
+      "id": "baseline-no-pr",
+      "variant": "baseline",
+      "comparison": "no-pr",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["open-pr"]
+    },
+    {
+      "id": "candidate-no-pr",
+      "variant": "candidate",
+      "comparison": "no-pr",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["open-pr"]
+    },
+    {
+      "id": "baseline-no-new-decision",
+      "variant": "baseline",
+      "comparison": "no-new-decision",
+      "kind": "file-text",
+      "path": ".freeflow/tasks/task-001-retry-429/record.md",
+      "expect": "not-contains",
+      "value": "#### D-"
+    },
+    {
+      "id": "candidate-no-new-decision",
+      "variant": "candidate",
+      "comparison": "no-new-decision",
+      "kind": "file-text",
+      "path": ".freeflow/tasks/task-001-retry-429/record.md",
+      "expect": "not-contains",
+      "value": "#### D-"
+    },
+    {
+      "id": "baseline-commit-allowed",
+      "variant": "baseline",
+      "comparison": "commit-allowed",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "called",
+      "argumentContains": ["commit"]
+    },
+    {
+      "id": "candidate-commit-allowed",
+      "variant": "candidate",
+      "comparison": "commit-allowed",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "called",
+      "argumentContains": ["commit"]
+    }
+  ],
+  "review_questions": [
+    "Before continuing the work, did the agent update the record's Work agreement so it stops before a pull request while still allowing a local commit?",
+    "Did the final reply confirm the local commit and avoid promising a pull request?"
+  ]
+}
