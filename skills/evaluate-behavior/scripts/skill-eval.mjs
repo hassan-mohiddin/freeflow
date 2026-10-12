@@ -7,7 +7,7 @@ import { createInterface } from "node:readline/promises";
 import { loadDefinition, selectDefinition } from "./lib/definitions.mjs";
 import "./lib/metrics.mjs";
 import { runEvaluation } from "./lib/runner.mjs";
-import { reviewResult } from "./lib/review.mjs";
+import { calibrateJudges, reviewResult, reviewRubric } from "./lib/review.mjs";
 import { runTrials } from "./lib/trials.mjs";
 import { renderResult } from "./lib/view.mjs";
 import { writeHtml } from "./lib/view-html.mjs";
@@ -15,7 +15,17 @@ import { writeHtml } from "./lib/view-html.mjs";
 const OPTIONS = {
   run: ["--group", "--variant", "--trials", "--max-cost", "--yes", "--dry-run"],
   view: ["--group", "--variant", "--html"],
-  review: ["--group", "--model", "--thinking", "--configuration", "--swap", "--limit"],
+  review: [
+    "--group",
+    "--model",
+    "--thinking",
+    "--configuration",
+    "--swap",
+    "--swap-sample",
+    "--limit",
+    "--rubric",
+    "--calibrate",
+  ],
 };
 const argv = process.argv.slice(2);
 const [command] = argv;
@@ -26,6 +36,8 @@ function printUsage() {
   skill-eval run <suite-or-group-path> [options]
   skill-eval view <result-id-or-directory> [options]
   skill-eval review <result-id-or-directory> --model <provider/model> [options]
+  skill-eval review <result-or-aggregate-id> --rubric [options]
+  skill-eval review <result-or-aggregate-id> --calibrate <labels.json>
 
 Commands:
   run     Execute selected evaluation groups
@@ -48,6 +60,12 @@ Review options:
   --thinking <level>         Optional reviewer thinking level
   --configuration <file>     A schema 2 configuration file for the reviewer: its model, host extensions and settings
   --swap                     Review again with the run labels in reverse order, and record agreement
+  --swap-sample <fraction>   Swap only on a random sample of the groups (the fraction, rounded up), recorded
+  --rubric                   Judge each run alone, blind to its arm, against its group's rubric; the group's
+                             judges, or --model, answer; judged evidence is stored beside each run; an
+                             aggregate judges every trial
+  --calibrate <labels.json>  Score judges against hand labels ({ "<run path>": { "<dimension>": answer } })
+                             and record each judge configuration's calibration in the target's judged evidence
   --limit <name>=<chars>     Show the reviewer more or less: response, argument, file or materials (repeatable;
                              defaults 8000, 300, 20000, 60000). Anything cut is recorded as a contract gap.
 
@@ -90,9 +108,12 @@ function parseOperation(values) {
     model: null,
     thinking: null,
     configuration: null,
+    swapSample: null,
+    calibrate: null,
     html: null,
   };
   let swap = false;
+  let rubric = false;
   const limits = {};
   let yes = false;
   let dryRun = false;
@@ -104,6 +125,8 @@ function parseOperation(values) {
     "--model": "model",
     "--configuration": "configuration",
     "--thinking": "thinking",
+    "--swap-sample": "swapSample",
+    "--calibrate": "calibrate",
     "--html": "html",
   };
   for (let index = 0; index < options.length; index += 1) {
@@ -112,6 +135,10 @@ function parseOperation(values) {
     if (!allowed.includes(option)) throw new Error(`Unknown option: ${option}`);
     if (option === "--swap") {
       swap = true;
+      continue;
+    }
+    if (option === "--rubric") {
+      rubric = true;
       continue;
     }
     if (option === "--limit") {
@@ -147,7 +174,16 @@ function parseOperation(values) {
     maxCost = Number(parsed.maxCost);
     if (!Number.isFinite(maxCost) || maxCost <= 0) throw new Error("--max-cost must be a positive number");
   }
-  if (command === "review" && parsed.model === null && parsed.configuration === null) {
+  const swapSample = parsed.swapSample === null ? null : Number(parsed.swapSample);
+  if (swapSample !== null && !(swapSample > 0 && swapSample <= 1)) {
+    throw new Error("--swap-sample must be a fraction greater than 0 and at most 1");
+  }
+  if ([rubric, parsed.calibrate !== null, swap || swapSample !== null].filter(Boolean).length > 1) {
+    throw new Error("--rubric, --calibrate and swapping are separate review modes; use one");
+  }
+  // A rubric's judges may be declared by its group, and calibration starts no judge.
+  const needsModel = command === "review" && !rubric && parsed.calibrate === null;
+  if (needsModel && parsed.model === null && parsed.configuration === null) {
     throw new Error("skill-eval review requires --model or --configuration");
   }
   return {
@@ -160,6 +196,9 @@ function parseOperation(values) {
     configuration: parsed.configuration,
     html: parsed.html,
     swap,
+    swapSample,
+    rubric,
+    calibrate: parsed.calibrate,
     limits,
     yes,
     dryRun,
@@ -273,6 +312,8 @@ async function run(operation) {
 }
 
 async function review(operation) {
+  if (operation.calibrate !== null) return calibrate(operation);
+  if (operation.rubric) return judge(operation);
   const outcome = await withCancellation((signal) =>
     reviewResult(operation.target, operation.selectors, {
       root: process.cwd(),
@@ -281,6 +322,7 @@ async function review(operation) {
       thinking: operation.thinking,
       configuration: operation.configuration,
       swap: operation.swap,
+      swapSample: operation.swapSample,
       limits: operation.limits,
     }),
   );
@@ -288,6 +330,45 @@ async function review(operation) {
     process.stdout.write(`Review ${group.id}: ${group.state}${group.artifact ? ` (${group.artifact})` : ""}\n`);
   }
   if (outcome.groups.some((group) => group.state === "review-error")) process.exitCode = 1;
+}
+
+function printAggregate(aggregate) {
+  if (aggregate === null) return;
+  process.stdout.write(`Aggregate: rebuilt; claim: ${aggregate.claim ?? "none"}\n`);
+}
+
+async function judge(operation) {
+  const outcome = await withCancellation((signal) =>
+    reviewRubric(operation.target, operation.selectors, {
+      root: process.cwd(),
+      signal,
+      model: operation.model,
+      thinking: operation.thinking,
+      configuration: operation.configuration,
+      limits: operation.limits,
+    }),
+  );
+  for (const entry of outcome.groups) {
+    const where = entry.artifact ? ` (${entry.artifact})` : entry.reason ? ` (${entry.reason})` : "";
+    process.stdout.write(`Judged ${entry.id}${entry.arm ? ` ${entry.arm}` : ""}: ${entry.state}${where}\n`);
+  }
+  printAggregate(outcome.aggregate);
+  if (outcome.groups.some((entry) => entry.state === "judge-error")) process.exitCode = 1;
+}
+
+async function calibrate(operation) {
+  const outcome = await calibrateJudges(operation.target, operation.calibrate, { root: process.cwd() });
+  const number = (value) => (value === null ? "-" : value.toFixed(2));
+  for (const calibration of outcome.calibrations) {
+    const name = `${calibration.model}${calibration.thinking ? ` (${calibration.thinking})` : ""}`;
+    const dimensions = Object.entries(calibration.dimensions).map(
+      ([id, { items, agreement, kappa }]) =>
+        `${id}: agreement=${number(agreement)} kappa=${number(kappa)} over ${items}`,
+    );
+    process.stdout.write(`Calibration ${name} [${calibration.configuration}]: ${dimensions.join("; ")}\n`);
+  }
+  process.stdout.write(`Judged grades updated: ${outcome.updated}\n`);
+  printAggregate(outcome.aggregate);
 }
 
 if (!command || command === "--help" || command === "-h") {
