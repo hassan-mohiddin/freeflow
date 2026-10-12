@@ -54,7 +54,7 @@ Each mode is a group shape; modes combine, such as a coding task judged by a rub
 ## Judged Evaluation
 
 - **Answers:** what deterministic checks cannot decide, such as whether a review named the defect by location and effect, whether a report's claims rest on its sources, or how actionable an answer is.
-- **Declare:** a `rubric` of dimensions, each with a question, its answers (yes, no or unknown, or a 0 to 2 score), and an optional `reference` that only judges see (keep it outside the fixture and the subject's declared context); a dimension's `weight` is recorded but no score uses it yet. Then `judges`, each model and thinking configuration once; and `combine` when there are several, declared before any verdict. A decision may name a dimension as its measure.
+- **Declare:** a `rubric` of dimensions, each with a question, its answers (yes, no or unknown, or a 0 to 2 score), and an optional `reference` that only judges see (keep it outside the fixture and the subject's declared context); dimensions are not weighted. Then `judges`, each model and thinking configuration once; and `combine` when there are several, declared before any verdict. A decision may name a dimension as its measure.
 - **Yields:** for each run, every judge's answers with evidence, the combined answer, what the judge saw and what was withheld, and contract gaps such as an unchecked calibration; per arm in an aggregate, answer counts, pass^k, means, agreement between judges, and each judge's calibration.
 - **Write the rubric:**
   - One dimension per thing to judge, each with a concrete yes and no, and the evidence a yes needs. "Is the answer good?" is too vague to agree on; an exact phrase is too brittle to be fair.
