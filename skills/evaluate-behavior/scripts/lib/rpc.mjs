@@ -37,9 +37,13 @@ class RpcSession {
     signal,
     environment,
     afterTurn = null,
+    nextPrompt = null,
     settings = {},
   }) {
     this.settings = settings;
+    // After the last declared prompt settles, `nextPrompt(turns)` may return one more prompt (a simulated user's
+    // reply), or null to end the session.
+    this.nextPrompt = nextPrompt;
     this.child = spawn(command, args, {
       cwd,
       detached: process.platform !== "win32",
@@ -88,7 +92,7 @@ class RpcSession {
   }
 
   async run(prompts, targetPath = null) {
-    let deliveredPrompts = prompts;
+    let deliveredPrompts = [...prompts];
     /** @type {any} */
     let delivery = { kind: "unavailable", turn: 1, targetPath };
     try {
@@ -105,6 +109,12 @@ class RpcSession {
         this.turns.push(turn);
         if (this.afterTurn !== null) turn.workspace = await this.afterTurn(turn.turn);
         if (turn.assistantError !== null) break;
+        if (this.nextPrompt !== null && index === deliveredPrompts.length - 1 && this.terminationReason === null) {
+          const next = await this.nextPrompt(this.turns);
+          // The simulated user's time is not the subject's lack of progress.
+          this.resetWatchdog();
+          if (typeof next === "string") deliveredPrompts.push(next);
+        }
       }
     } catch (error) {
       this.operationError = error;

@@ -22,7 +22,7 @@ Definition files and declared paths are checked for lexical and canonical contai
 
 ## Common Group Shape
 
-A group is a **task** (what the agent is asked to do and how it is graded) and a **configuration** (the agent environment that does it). Two or more named arms, usually `baseline` and `candidate`, each overlay the shared configuration, and `component` names the only places where an arm may differ from the reference arm. Every group contains exactly these fields, plus optional `reference`, `commands`, `revision`, `reference_solution`, and the judged-evidence fields `rubric`, `judges` and `combine` ([Rubric And Judges](#rubric-and-judges)):
+A group is a **task** (what the agent is asked to do and how it is graded) and a **configuration** (the agent environment that does it). Two or more named arms, usually `baseline` and `candidate`, each overlay the shared configuration, and `component` names the only places where an arm may differ from the reference arm. Every group contains exactly these fields, plus optional `reference`, `commands`, `revision`, `reference_solution`, `participants` ([Participants](#participants)), and the judged-evidence fields `rubric`, `judges` and `combine` ([Rubric And Judges](#rubric-and-judges)):
 
 ```json
 {
@@ -93,6 +93,53 @@ A rubric asks what deterministic checks cannot. Each run is judged alone, blind 
 - `combine` names how several judges' answers become one, before any verdict is seen; it is required with more than one judge. Taking yes as 1 and no as 0: `majority` gives the answer more than half the judges gave (otherwise `unknown`); `unanimous` gives the lowest answer, so yes only when every judge says yes; `any` gives the highest, so yes when any judge does; `mean` averages the known answers and needs every dimension to be `"0-2"`. An `unknown` answer makes the result `unknown` whenever it could change it.
 - `judges` and `combine` need a `rubric`.
 
+## Participants
+
+A group may run more than one participant in each arm. `participants` declares a `protocol`; every participant uses the arm's configuration, so arms still differ only in their `component`.
+
+A **conversation** pairs the subject with a simulated user:
+
+```json
+{
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "medium",
+      "card": "cards/release-owner.md",
+      "max_turns": 10,
+      "stop": "THANKS, DONE"
+    }
+  }
+}
+```
+
+- It needs a body group whose `input` is a `prompt`: the opening message.
+- `card` is a text file inside the definition root and outside the fixture: everything the simulated user knows. It is read in when the definition loads and is a run input that must be committed.
+- `max_turns` (1 to 50, default 10) caps the subject's turns, the opening included. `stop` is the phrase with which the user ends the conversation.
+- `model` and optional `thinking` name the user's model.
+
+A **pipeline** runs ordered stages, each a separate subject:
+
+```json
+{
+  "participants": {
+    "protocol": "pipeline",
+    "stages": [
+      { "id": "review1", "input": "Review the change.", "sees": ["fixture"] },
+      { "id": "review2", "fresh": true, "sees": ["fixture"] },
+      { "id": "adjudicator", "input": "Adjudicate the reviews.", "sees": ["review1.response", "review1.files", "review2.response"] }
+    ],
+    "graded": "adjudicator"
+  }
+}
+```
+
+- Stage `id`s follow the group ID pattern and are unique. `input` is a prompt or an array of turns, and defaults to the group's `input`.
+- `sees` lists exactly what the stage gets: `fixture` (a fresh copy, only when the group declares one), `<stage>.response` (that earlier stage's final response) or `<stage>.files` (the files it created or modified; body groups only). Anything not listed never reaches the stage. It defaults to nothing.
+- `fresh: true` declares the stage independent: it may see the fixture but no earlier stage.
+- `graded` names the stage the group's expectations, comparisons and review questions apply to; it defaults to the last stage.
+
 ## Configuration And Arms
 
 A configuration has these fields; each arm's effective configuration is the shared `configuration` with that arm's overlay merged in:
@@ -103,6 +150,7 @@ A configuration has these fields; each arm's effective configuration is the shar
 | `subject` | yes | What is under test: `{ "kind": "skill", "source", "skills", "target", "context" }` (see [Subject](#subject)) or `{ "kind": "none" }` when the comparison is about the environment, not a skill. |
 | `model` | no | `model` names the provider/model; optional `thinking` selects its thinking level. The CLI has no model override, and a subject run without a model gets Pi's default and no copied login. |
 | `runtime` | no | Host session, prompt mode, extension bundles and environment; see [Runtime Profile](#runtime-profile). |
+| `shell` | no | A confined `bash` for the subject: `{ "isolation", "network": "none", "workspace", "requires" }`; see [Shell](#shell). |
 | `freeflow` | no | Contributor-only (needs a Freeflow repository as the definition root): Freeflow as part of the environment: `{ "source": { "kind": "git", "ref": "<commit>" }, "repository": { ... }, "personal": { ... } }`; see [Freeflow](#freeflow). |
 
 Rules:
@@ -111,7 +159,7 @@ Rules:
 - `arms` holds two or more named arms. A name starts with a lowercase letter, followed by up to 31 lowercase letters, numbers or hyphens. Each arm is an overlay with any of the configuration fields. Merging is key by key for objects; an array, scalar, or `null` in the overlay replaces the shared value.
 - `reference` is optional and names the arm the others are compared with; it defaults to `baseline`, and the named arm must exist. Evidence, views and the aggregate list the reference first, then the other arms in declaration order.
 - `component` is an array of dot paths into the configuration, such as `subject.source` or `model.thinking`. The evaluator compares each arm's effective configuration with the reference's leaf by leaf (an array is one leaf) and refuses the group before any subject runs when any arm differs anywhere `component` does not cover, or when a `component` path differs in no arm. `component: []` declares an A/A comparison (or A/A/A with three arms): every arm must be identical, which measures run-to-run variation.
-- `host.name`, `host.version` and `runtime` must be the same in every arm, except `runtime.environment.literal` (see [Runtime Profile](#runtime-profile)). `host.extensions`, `host.settings` and `freeflow` may differ; any of them can be the component under test.
+- `host.name`, `host.version` and `runtime` must be the same in every arm, except `runtime.environment.literal` (see [Runtime Profile](#runtime-profile)). `host.extensions`, `host.settings`, `shell` and `freeflow` may differ; any of them can be the component under test.
 - A non-reference arm that declares skills must name its target.
 - `--variant <arm>` selects any arm (see [Selection](#selection)).
 
@@ -259,7 +307,7 @@ A body group explicitly delivers each target on turn one and observes first-read
 }
 ```
 
-Description groups allow no tools or only built-in `read`. Body groups allow built-in `read`, `write`, `edit`, `ls`, `find` and `grep` (each confined to the evaluation environment), the evaluator's `run_command` tool for declared commands, plus custom tools declared by a runtime extension bundle. Native `bash` and `powershell` are unsupported. A no-target baseline or runtime-only group may use `skills: []` and `target: null`; a non-reference arm that declares skills must identify its target.
+Description groups allow no tools or only built-in `read`. Body groups allow built-in `read`, `write`, `edit`, `ls`, `find` and `grep` (each confined to the evaluation environment), the evaluator's `run_command` tool for declared commands, plus custom tools declared by a runtime extension bundle. Native `bash` is allowed only through a declared, verified [Shell](#shell); `powershell` is unsupported. A no-target baseline or runtime-only group may use `skills: []` and `target: null`; a non-reference arm that declares skills must identify its target.
 
 The examples are complete definition shapes. Replace fixture, resource, model, and Git-ref values with paths and identities that exist under your definition root.
 
@@ -294,6 +342,33 @@ The examples are complete definition shapes. Replace fixture, resource, model, a
   - Each distinct source and build is built once per group, under `resources/host-extensions/<n>/source` in the group directory. `resources.hostExtensions` records the source (with the resolved `commit` for a Git source), the entry, a `sha256` over the built directory's file list and contents, and the build's argv, exit code, duration and output tails.
   - These entries are for arms; a reviewer configuration may list only installed packages.
 - The advisory reviewer takes the same fields from a configuration file given with `review --configuration`.
+
+## Shell
+
+A body group may give its subject `bash` only through a host extension that runs the shell in isolation, such as a micro-VM. The evaluator does not choose or ship a sandbox; it verifies the one the configuration names:
+
+```json
+{
+  "tools": ["read", "write", "bash"],
+  "configuration": {
+    "host": { "name": "pi", "extensions": [{ "path": "isolation/vm-shell", "build": ["npm", "ci", "--ignore-scripts"], "entry": "index.ts" }] },
+    "shell": { "isolation": "isolation/vm-shell", "network": "none", "workspace": "/workspace", "requires": ["gondolin"] }
+  }
+}
+```
+
+- `bash` in `tools` needs a body group whose every arm declares `shell`, and a declared `shell` needs `bash` in `tools`. A declared `shell` is checked when the definition loads; without one, `run` refuses `bash` before any subject starts, and the guard blocks it.
+- `isolation` names one of the arm's `host.extensions` by its label: the package name, a working-tree `path`, or a Git source's `path`.
+- `network` must be `"none"`: the shell may not reach the network.
+- Optional `workspace` is where the isolation shows the workspace (a micro-VM often mounts it at `/workspace`). The guard checks a path under it as the same path in the host workspace, so `/workspace/src/a.js` is allowed and `/etc/hosts` is not.
+- Optional `requires` lists what the isolation needs on this machine: a known name (`gondolin` for QEMU and Node.js 23.6+, or `qemu` or `node-23.6` alone), or `{ "name", "programs": [any one of them on PATH], "reason", "install": { "macos", "apt", "dnf" }, "download" }`.
+
+Before an arm's first subject, the evaluator:
+
+1. Checks `requires`. When something is missing, the group is `invalid` before any subject runs, and the refusal names each missing item, what was found, why the isolation needs it, the install command for this system (Homebrew on macOS, apt or dnf on Linux), and the expected download when known. Ask the user before installing anything.
+2. Runs the probes: the subject's own Pi, with the guard and the arm's host extensions, `bash` as its only tool, and a local scripted model (an OpenAI-compatible endpoint the evaluator serves, so no model is called) that issues five bash calls. A control must succeed: writing a file inside the workspace. Four must fail: writing a host file outside the workspace, reading a marker beside the isolated home, reaching the network (a listener on the host's own network address, plus `https://example.com/` unless `SKILL_EVAL_PROBE_PUBLIC_URL` names another URL or is empty), and printing a variable the evaluator plants in Pi's environment. Each is judged by what the host observes: files, connections and output.
+
+Any probe that does not hold makes the group `invalid` before any subject runs. Each run records the arm's result under `confinement` (every probe's command, whether it ran and held, and its output), also kept in `confinement/<arm>/` in the group directory with Pi's events and stderr.
 
 ## Freeflow
 

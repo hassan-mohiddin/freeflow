@@ -11,6 +11,8 @@ import { postRunRecords } from "./hooks.mjs";
 import { identityRefusal, inputIdentity, installedHostVersion } from "./identity.mjs";
 import { removeCopiedCredentials, TARGET_MINUTES } from "./isolation.mjs";
 import { prepareSourceExtensions } from "./build-source.mjs";
+import { runParticipants } from "./participants.mjs";
+import { prepareShell } from "./shell.mjs";
 import { ensureLogin, resolveHostExtensions } from "./pi-host.mjs";
 import { enforceReferenceChecks } from "./reference.mjs";
 import { baseProcessEnvironment, runBody, runDescription, VariantSetupError } from "./pi.mjs";
@@ -220,10 +222,19 @@ function assertSupportedSelection(selection) {
     if (group.type !== "description" && group.type !== "body") {
       throw new Error("skill-eval run currently supports description and body groups only");
     }
-    const supportedTools = group.type === "body" ? BODY_TOOLS : DESCRIPTION_TOOLS;
+    const supportedTools = new Set(group.type === "body" ? BODY_TOOLS : DESCRIPTION_TOOLS);
+    // bash only through a declared, verified shell isolation (definitions.mjs and shell.mjs).
+    if (group.type === "body" && Object.values(group.variants).every((variant) => variant.shell)) {
+      supportedTools.add("bash");
+    }
     const unsupportedNativeTools = group.tools.filter((tool) => NATIVE_TOOLS.has(tool) && !supportedTools.has(tool));
     if (unsupportedNativeTools.length > 0) {
-      throw new Error(`${group.type} execution does not support native tools: ${unsupportedNativeTools.join(", ")}`);
+      const hint = unsupportedNativeTools.includes("bash")
+        ? "; bash runs only in a body group whose every arm declares a shell isolation (configuration.shell)"
+        : "";
+      throw new Error(
+        `${group.type} execution does not support native tools: ${unsupportedNativeTools.join(", ")}${hint}`,
+      );
     }
     // The evaluator supplies run_command itself when the definition declares commands.
     const customTools = group.tools.filter(
@@ -284,6 +295,8 @@ async function runGroup({
   let runtime = null;
   let freeflow = Object.fromEntries(arms.map((arm) => [arm, null]));
   let resourceError = null;
+  let resourceDetails = null;
+  let confinement = {};
   if (!stopped()) {
     try {
       fixture = await prepareFixture({ declaredPath: group.fixture, root, groupDirectory });
@@ -293,9 +306,13 @@ async function runGroup({
         groupDirectory,
       });
       freeflow = await prepareFreeflow({ variants: group.variants, root, groupDirectory });
-      // Building from source is local CPU work, so it waits for a --cpu-jobs slot.
+      // Building from source and probing the shell are local CPU work, so they wait for a --cpu-jobs slot.
       const extensions = hostExtensions;
       hostExtensions = await withCpuSlot(() => prepareSourceExtensions({ extensions, root, groupDirectory, signal }));
+      const built = hostExtensions;
+      confinement = await withCpuSlot(() =>
+        prepareShell({ group, variants: selected.variants, hostExtensions: built, groupDirectory, signal }),
+      );
       if (group.revision === "description-only") {
         await verifyDescriptionOnlyRevision({
           variants: group.variants,
@@ -305,6 +322,8 @@ async function runGroup({
       }
     } catch (error) {
       resourceError = error instanceof Error ? error.message : String(error);
+      resourceDetails = error?.details ?? null;
+      if (resourceDetails?.confinement) confinement = resourceDetails.confinement;
     }
   }
 
@@ -350,6 +369,7 @@ async function runGroup({
         });
         runs[variant] = run;
         if (executed) {
+          if (confinement[variant] !== undefined) run.confinement = confinement[variant];
           if (sourceCommit !== null && run.resources?.source?.kind === "working-tree") {
             run.resources.source.commit = sourceCommit;
           }
@@ -360,6 +380,8 @@ async function runGroup({
       }
     } else {
       runs[variant] = invalidRun(group, variant, resourceError);
+      if (resourceDetails !== null) runs[variant].error.details = resourceDetails;
+      if (confinement[variant] !== undefined) runs[variant].confinement = confinement[variant];
     }
     const persisted = await persistRunOrFailure(variantDirectory, runs[variant]);
     runs[variant] = persisted.run;
@@ -489,7 +511,7 @@ async function executeVariant({
   signal,
 }) {
   try {
-    const run = group.type === "body" ? runBody : runDescription;
+    const run = group.participants !== undefined ? runParticipants : group.type === "body" ? runBody : runDescription;
     return await run({ group, variant, root, variantDirectory, fixture, runtime, freeflow, hostExtensions, signal });
   } catch (error) {
     if (error instanceof VariantSetupError) return invalidRun(group, variant, error.message);

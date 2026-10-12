@@ -1,0 +1,24 @@
+{
+  "case": "f7-05",
+  "base_commit": "864df4cce17b4eedf819d63b03788adb6b7c748e",
+  "parent_commit": "ab509ff768e97dbd976ad4d09b28679edf7e74e2",
+  "subject": "Include runtime dependencies in dev snapshot",
+  "base_source": "rs-864df4cc: the clean variant is copied from it; the seeded variant adds one defect",
+  "review_lens": "security",
+  "variants": {
+    "clean": {
+      "class": null,
+      "description": "The change as committed. No defect is planted."
+    },
+    "seeded": {
+      "class": "logic",
+      "location": "scripts/freeflow-snapshot.mjs:0",
+      "locator": "const value = argv[++index] ?? inlineValue;",
+      "seed": "in parseArgs, the value lookup order changed so that the next argument is read before the inline value",
+      "description": "parseArgs reads an option's value from its inline form (--target=<dir>) when present, and only otherwise from the next argument. The seed reads the next argument first, so an inline value is taken only when no next argument exists.",
+      "consequence": "parseArgs(['--target=/x', '--commit', 'HEAD']) sets the target to '--commit' and then rejects 'HEAD' as an unknown argument. A snapshot can be refused, or written to the wrong target when the next token is a path.",
+      "proof": "proofs/f7-05/parse.proof.test.mjs"
+    }
+  },
+  "diff_check": "seeded change.diff = the clean change.diff with the seeded file's section replaced by git diff --no-index of parent against the seeded file"
+}

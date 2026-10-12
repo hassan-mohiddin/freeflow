@@ -1,0 +1,52 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "gondolin-shell",
+  "type": "body",
+  "input": { "prompt": "Use bash to create hello.txt containing the word hello." },
+  "fixture": null,
+  "tools": ["read", "write", "bash"],
+  "configuration": {
+    "host": {
+      "name": "pi",
+      "extensions": [
+        {
+          "path": ".skill-eval/examples/gondolin-extension",
+          "build": ["npm", "ci", "--ignore-scripts"],
+          "entry": "index.ts"
+        }
+      ]
+    },
+    "model": { "model": "anthropic/claude-haiku-5-5", "thinking": "low" },
+    "subject": { "kind": "none" },
+    "shell": {
+      "isolation": ".skill-eval/examples/gondolin-extension",
+      "network": "none",
+      "workspace": "/workspace",
+      "requires": ["gondolin"]
+    }
+  },
+  "arms": { "baseline": {}, "candidate": {} },
+  "component": [],
+  "expectations": [
+    {
+      "id": "baseline-hello",
+      "kind": "file-text",
+      "variant": "baseline",
+      "path": "hello.txt",
+      "expect": "contains",
+      "value": "hello",
+      "comparison": "hello"
+    },
+    {
+      "id": "candidate-hello",
+      "kind": "file-text",
+      "variant": "candidate",
+      "path": "hello.txt",
+      "expect": "contains",
+      "value": "hello",
+      "comparison": "hello"
+    }
+  ],
+  "review_questions": []
+}

@@ -5,6 +5,7 @@ import { ARM_NAME, comparisonArms, storedArms } from "./arms.mjs";
 import { renderClaim, trialCounts } from "./decision.mjs";
 import { judgedAggregateLines, judgedLines } from "./judge.mjs";
 import { aggregateMetricsLines, runMetricsLines } from "./metrics.mjs";
+import { participantLines } from "./participants.mjs";
 
 const DEFAULT_SELECTORS = /** @type {{group: string | null, variant: string | null}} */ ({
   group: null,
@@ -77,6 +78,7 @@ async function renderGroup(resultDirectory, group, selectedVariant) {
   appendGradeEvidence(lines, grade, group, definition, selectedVariant);
   await appendAdvisoryReview(lines, groupDirectory, variants);
   lines.push(...(await judgedLines(groupDirectory, variants)));
+  lines.push(...(await participantLines(groupDirectory, variants)));
   for (const variant of variants) {
     await appendVariantEvidence(lines, resultDirectory, groupDirectory, group.id, variant);
   }

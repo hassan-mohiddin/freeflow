@@ -1,0 +1,31 @@
+{
+  "case": "f7-04",
+  "base_commit": "6949f0d01981f2917b89b6531c8cbde42b7d21c1",
+  "parent_commit": "b35d2615709b09763efa1b1b8ec15b48304dc336",
+  "subject": "fix(evals): close review trust gaps (bundle integrity only)",
+  "base_paths": [
+    "skills/evaluate-skill/scripts/lib/integrity.mjs",
+    ".skill-eval/evaluate-skill/tests/integrity.test.mjs"
+  ],
+  "base_source": "rs-6949f0d0 (a second seeded case from the same audited clean variant; the clean fixture is copied from it)",
+  "review_lens": "security",
+  "variants": {
+    "clean": {
+      "class": null,
+      "description": "The change as committed. No defect is planted."
+    },
+    "seeded": {
+      "class": "convention",
+      "location": "skills/evaluate-skill/scripts/lib/integrity.mjs:23",
+      "locator": "mismatch before publish\"",
+      "seed": "in verifyBundleIntegrity, the error message ends \"before publish\" instead of \"before publication\"",
+      "description": "requirements.md item 4 says a mismatch throws an error whose message includes \"Bundle integrity mismatch before publication\". The seed changes the message to \"Bundle integrity mismatch before publish\". No committed test checks the message text.",
+      "consequence": "Callers and reviewers who match the documented message no longer recognise the failure. The integrity check still rejects the bundle.",
+      "proof": "message.proof.test.mjs: a tampered bundle must be rejected with the message named in requirement 4. Clean passes; seeded fails on the wording."
+    }
+  },
+  "diff_check": "seeded change.diff = the rs-6949f0d0 clean change.diff with the seeded file's section replaced by git diff --no-index of parent against the seeded file; the other sections are unchanged",
+  "unsure": [
+    "The clean variant is shared with rs-6949f0d0 and three other seeded cases of this set; a reviewer sees one seed per case."
+  ]
+}

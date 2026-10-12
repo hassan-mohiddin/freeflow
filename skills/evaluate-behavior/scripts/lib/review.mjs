@@ -1,10 +1,10 @@
 import { randomInt } from "node:crypto";
-import { mkdir, readdir, readFile, rm } from "node:fs/promises";
+import { readdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { isClassicPair, referenceArm, storedArms } from "./arms.mjs";
-import { sha256, writeJson, writeText } from "./evidence.mjs";
+import { sha256, writeJson } from "./evidence.mjs";
 import { loadConfiguration } from "./definitions.mjs";
 import {
   calibrationFromLabels,
@@ -20,8 +20,7 @@ import {
   withCalibration,
 } from "./judge.mjs";
 import { resolveHostExtensions } from "./pi-host.mjs";
-import { prepareIsolation, removeCopiedCredentials } from "./isolation.mjs";
-import { baseProcessEnvironment, runPiProcess } from "./pi.mjs";
+import { launchModel as launchJudge } from "./model-call.mjs";
 import { rebuildAggregate } from "./trials.mjs";
 import { resolveResult } from "./view.mjs";
 
@@ -234,69 +233,6 @@ async function runJudge(groupDirectory, name, definition, questions, labels, evi
     promptSha256: sha256(prompt),
     isolation: launched.isolation,
   };
-}
-
-/**
- * Starts one judge on a prompt in its own directory: no tools, skills, context files or session, in an isolated
- * home and agent directory like a subject. The directory keeps the prompt, events, final response and stderr.
- */
-async function launchJudge(reviewDirectory, prompt, options) {
-  const { model, thinking, extensions, settings, signal, role = "reviewer" } = options;
-  await rm(reviewDirectory, { recursive: true, force: true });
-  await mkdir(reviewDirectory, { recursive: true });
-  await writeText(path.join(reviewDirectory, "prompt.md"), prompt);
-
-  const args = [
-    "--mode",
-    "json",
-    "-p",
-    "--no-session",
-    "--no-extensions",
-    ...extensions.flatMap((extension) => ["--extension", extension.path]),
-    "--no-skills",
-    "--no-prompt-templates",
-    "--no-themes",
-    "--no-context-files",
-    "--no-approve",
-    "--no-tools",
-    "--model",
-    model,
-  ];
-  if (thinking !== null) args.push("--thinking", thinking);
-  args.push(prompt);
-  // The judge runs in its own isolated home and agent directory, like a subject.
-  let isolation;
-  try {
-    isolation = await prepareIsolation(reviewDirectory, model, { settings });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return { response: null, errors: [message], usage: null, isolation: null };
-  }
-  const observation = await runPiProcess({
-    command: "pi",
-    args,
-    cwd: reviewDirectory,
-    eventsFile: path.join(reviewDirectory, "events.jsonl"),
-    stderrFile: path.join(reviewDirectory, "stderr.log"),
-    signal,
-    environment: {
-      ...baseProcessEnvironment(),
-      PWD: reviewDirectory,
-      PI_SKIP_VERSION_CHECK: "1",
-      PI_TELEMETRY: "0",
-      ...isolation.environment,
-    },
-  });
-  await removeCopiedCredentials(reviewDirectory);
-  await writeText(path.join(reviewDirectory, "final.md"), `${observation.response}\n`);
-
-  const errors = [];
-  if (observation.exitCode !== 0 || !observation.settled || observation.assistantError !== null) {
-    errors.push(
-      `${role} did not complete: exit=${observation.exitCode} settled=${observation.settled} error=${observation.assistantError}`,
-    );
-  }
-  return { response: observation.response, errors, usage: observation.usage, isolation: isolation.evidence };
 }
 
 function subjectProvider(run) {

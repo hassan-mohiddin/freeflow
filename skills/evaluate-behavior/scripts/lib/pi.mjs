@@ -34,6 +34,11 @@ import {
 } from "./sandbox.mjs";
 
 const guardExtension = fileURLToPath(new URL("../pi-guard.mjs", import.meta.url));
+
+/** The evaluator's guard extension, which every subject process (and a shell's confinement probe) loads first. */
+export function guardExtensionPath() {
+  return guardExtension;
+}
 const commandToolExtension = fileURLToPath(new URL("../pi-command-tool.mjs", import.meta.url));
 const observerExtension = fileURLToPath(new URL("../pi-observer.mjs", import.meta.url));
 const HOST_COMMANDS = { pi: "pi" };
@@ -70,31 +75,12 @@ export async function runDescription({
   freeflow,
   hostExtensions,
   signal,
+  extendEnvironment = null,
 }) {
-  if (group.input.turns !== undefined) {
-    return runPersistentDescription({
-      group,
-      variant,
-      root,
-      variantDirectory,
-      fixture,
-      runtime,
-      freeflow,
-      hostExtensions,
-      signal,
-    });
-  }
-  return runOneShotDescription({
-    group,
-    variant,
-    root,
-    variantDirectory,
-    fixture,
-    runtime,
-    freeflow,
-    hostExtensions,
-    signal,
-  });
+  const options = { group, variant, root, variantDirectory, fixture, runtime, freeflow, hostExtensions, signal };
+  options.extendEnvironment = extendEnvironment;
+  if (group.input.turns !== undefined) return runPersistentDescription(options);
+  return runOneShotDescription(options);
 }
 
 export async function runBody({
@@ -107,8 +93,11 @@ export async function runBody({
   freeflow,
   hostExtensions,
   signal,
+  extendEnvironment = null,
+  nextPrompt = null,
 }) {
   const options = { group, variant, root, variantDirectory, fixture, runtime, freeflow, hostExtensions, signal };
+  options.extendEnvironment = extendEnvironment;
   const subject = await prepareSubject(options, "rpc");
   const before = await fingerprintDirectory(subject.workspace);
   const declaredPrompts = group.input.prompt === undefined ? [...group.input.turns] : [group.input.prompt];
@@ -123,6 +112,7 @@ export async function runBody({
     prompts: declaredPrompts,
     targetPath: subject.environment.targetPath,
     environment: subject.processEnvironment,
+    nextPrompt,
     afterTurn: needsTurnWorkspaceEvidence(group)
       ? (turn) => snapshotWorkspace({ workspace: subject.workspace, variantDirectory, turn, before })
       : null,
@@ -322,7 +312,17 @@ async function runPersistentDescription(options) {
 }
 
 async function prepareSubject(
-  { group, variant, root, variantDirectory, fixture: fixtureSnapshot, runtime, freeflow = null, hostExtensions = [] },
+  {
+    group,
+    variant,
+    root,
+    variantDirectory,
+    fixture: fixtureSnapshot,
+    runtime,
+    freeflow = null,
+    hostExtensions = [],
+    extendEnvironment = null,
+  },
   mode,
 ) {
   const workspace = path.join(variantDirectory, "workspace");
@@ -337,6 +337,8 @@ async function prepareSubject(
       root,
       variantDirectory,
     });
+    // A pipeline stage adds what it declares it sees from earlier stages as further declared context.
+    if (extendEnvironment !== null) await extendEnvironment(environment, variantDirectory);
     materializedRuntime = await materializeRuntime({ runtime, variantDirectory });
     // Runtime environment literals may differ between arms (definitions.mjs); each subject gets its arm's own.
     const literal = group.variants[variant].runtimeLiteral;
@@ -413,6 +415,8 @@ async function prepareSubject(
         contextObservationPath,
         requiresContextObservation,
       }),
+      // A declared shell lets the guard allow bash; its isolation extension runs it.
+      ...(group.variants[variant].shell ? { SKILL_EVAL_SHELL: JSON.stringify(group.variants[variant].shell) } : {}),
       // Last, so nothing inherited or declared can point the subject back at the parent's home or Pi settings.
       ...isolation.environment,
     },

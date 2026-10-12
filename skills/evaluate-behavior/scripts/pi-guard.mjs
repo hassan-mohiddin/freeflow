@@ -16,6 +16,29 @@ function parseStringArray(value) {
   }
 }
 
+// A declared shell (SKILL_EVAL_SHELL, set by the evaluator only for arms whose shell isolation it verified)
+// is the only way bash is allowed. Its optional `workspace` is the path where the isolation shows the workspace.
+function parseShell(value) {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed !== null && typeof parsed === "object" && typeof parsed.isolation === "string" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// A path under the isolation's workspace mount (such as /workspace/src/a.js) names the same file in the host
+// workspace, so it is checked there; every other path is checked as a host path.
+function mapGuestPath(requested, shell, writableRoot) {
+  const mount = shell?.workspace;
+  if (typeof mount !== "string" || !requested.startsWith("/")) return requested;
+  const normalized = path.posix.normalize(requested);
+  if (normalized === mount) return writableRoot;
+  if (!normalized.startsWith(`${mount}/`)) return requested;
+  return path.join(writableRoot, ...normalized.slice(mount.length + 1).split("/"));
+}
+
 function isContained(root, target) {
   const relative = path.relative(root, target);
   return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
@@ -145,6 +168,7 @@ export default function registerSkillEvalGuard(pi) {
   if (!writableRootValue) throw new Error("SKILL_EVAL_WRITABLE_ROOT is required");
   const writableRoot = realpathSync(writableRootValue);
   const allowedTools = new Set(parseStringArray(process.env.SKILL_EVAL_ALLOWED_TOOLS));
+  const shell = parseShell(process.env.SKILL_EVAL_SHELL);
   const declaredContext = loadDeclaredContext(process.env.SKILL_EVAL_CONTEXT_MANIFEST);
   const promptMode = process.env.SKILL_EVAL_PROMPT_MODE || "isolated";
   if (promptMode !== "isolated" && promptMode !== "host") {
@@ -156,6 +180,9 @@ export default function registerSkillEvalGuard(pi) {
   pi.on("tool_call", (event, ctx) => {
     if (!allowedTools.has(event.toolName)) {
       return { block: true, reason: `Tool is not declared for this evaluation: ${event.toolName}` };
+    }
+    if (event.toolName === "bash" && shell === null) {
+      return { block: true, reason: "bash runs only in a declared shell isolation for this evaluation" };
     }
     const listing = LISTING_TOOLS.has(event.toolName);
     if (!PATH_TOOLS.has(event.toolName) && !listing) return undefined;
@@ -169,7 +196,8 @@ export default function registerSkillEvalGuard(pi) {
       return { block: true, reason: `${event.toolName} requires a path inside the evaluation environment` };
     }
 
-    const requested = event.input.path.startsWith("@") ? event.input.path.slice(1) : event.input.path;
+    const declared = event.input.path.startsWith("@") ? event.input.path.slice(1) : event.input.path;
+    const requested = mapGuestPath(declared, shell, writableRoot);
     let canonical;
     try {
       canonical =
@@ -179,12 +207,12 @@ export default function registerSkillEvalGuard(pi) {
     } catch {
       return {
         block: true,
-        reason: `${event.toolName} path cannot be resolved inside the evaluation environment: ${requested}`,
+        reason: `${event.toolName} path cannot be resolved inside the evaluation environment: ${declared}`,
       };
     }
     const roots = event.toolName === "read" || listing ? allowedRoots : [writableRoot];
     if (!roots.some((root) => isContained(root, canonical))) {
-      return { block: true, reason: `${event.toolName} path escapes the evaluation environment: ${requested}` };
+      return { block: true, reason: `${event.toolName} path escapes the evaluation environment: ${declared}` };
     }
     return undefined;
   });
