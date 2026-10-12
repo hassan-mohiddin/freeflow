@@ -8,7 +8,7 @@ Accepted. Amended 2026-09-04.
 
 Freeflow ships as a marketplace repository with one source tree under the repo root.
 
-The GitHub repository includes the canonical 25-skill tree, bundled references, shared prompt sources, host-specific context-loading adapters/manifests, public docs, current `.skill-eval/` definitions, deprecated historical evaluations, command-surface metadata, Codex/Claude metadata, Agent Plugins/Gemini/Cursor/Copilot metadata, and Pi package metadata/extension. Retired Output Router evidence is preserved under `.deprecated/output-router/`.
+The GitHub repository includes the canonical skill tree, bundled references, shared prompt sources, host-specific context-loading adapters/manifests, public docs, current `.skill-eval/` definitions, deprecated historical evaluations, command-surface metadata, Codex/Claude metadata, Agent Plugins/Gemini/Cursor/Copilot metadata, and Pi package metadata/extension. Retired Output Router evidence is preserved under `.deprecated/output-router/`.
 
 The npm tarball is the installable runtime artifact. It includes the canonical `skills/` tree, shared prompt sources, host-specific hook adapters/manifests, runtime-required capability sources, and the Pi extension. It excludes GitHub-only `plugin-docs/`, `.skill-eval/`, `.deprecated/`, project-development docs and plans, generated evaluation output, historical background notes, handoffs, enforcement hooks, CLI tools, and old Orchestra compatibility.
 
