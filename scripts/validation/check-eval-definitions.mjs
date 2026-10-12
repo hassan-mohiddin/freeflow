@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
 // Loads every evaluation suite and group under .skill-eval with the evaluator's own loader, so a definition
-// that the evaluator would reject fails `npm run check` instead of failing silently at run time.
+// that the evaluator would reject fails `npm run check` instead of failing silently at run time. It also checks
+// that every declared fixture is a directory inside the repository, which the loader leaves to run time.
 
-import { readdir } from "node:fs/promises";
+import { lstat, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -37,13 +38,29 @@ export async function findDefinitionFiles(evalRoot) {
   return files;
 }
 
+/** Why a group's declared fixture would fail at run time, or null. The loader resolves it from the repository root. */
+async function fixtureProblem(fixture, repositoryRoot) {
+  if (fixture === null) return null;
+  const source = await realpath(path.resolve(repositoryRoot, fixture)).catch(() => null);
+  const root = await realpath(repositoryRoot);
+  if (source === null || (source !== root && !source.startsWith(root + path.sep))) {
+    return `declared fixture is missing or escapes the repository: ${fixture}`;
+  }
+  if (!(await lstat(source)).isDirectory()) return `declared fixture is not a directory: ${fixture}`;
+  return null;
+}
+
 export async function checkEvalDefinitions(repositoryRoot) {
   const evalRoot = path.join(repositoryRoot, ".skill-eval");
   const files = await findDefinitionFiles(evalRoot);
   const failures = [];
   for (const file of files) {
     try {
-      await loadDefinition(file, { root: repositoryRoot });
+      const definition = await loadDefinition(file, { root: repositoryRoot });
+      for (const group of definition.kind === "group" ? [definition] : definition.groups) {
+        const problem = await fixtureProblem(group.fixture, repositoryRoot);
+        if (problem !== null) throw new Error(`group ${group.id}: ${problem}`);
+      }
     } catch (error) {
       failures.push({
         file: path.relative(repositoryRoot, file),

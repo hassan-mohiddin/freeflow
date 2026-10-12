@@ -88,3 +88,36 @@ test("variant suite files and group directories are loaded too; runs and fixture
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("a declared fixture must be a directory inside the repository, resolved from its root", async () => {
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), "check-eval-definitions-")));
+  try {
+    await mkdir(path.join(root, ".skill-eval/family/fixtures/present"), { recursive: true });
+    await writeJson(root, ".skill-eval/family/groups/good.json", {
+      ...group("good"),
+      fixture: ".skill-eval/family/fixtures/present",
+    });
+    // Relative to the group file rather than the repository root: the mistake the check exists to catch.
+    await writeJson(root, ".skill-eval/family/groups/relative.json", {
+      ...group("relative"),
+      fixture: "fixtures/present",
+    });
+    await writeFile(path.join(root, ".skill-eval/family/fixtures/file"), "not a directory\n");
+    await writeJson(root, ".skill-eval/family/groups/file.json", {
+      ...group("file"),
+      fixture: ".skill-eval/family/fixtures/file",
+    });
+
+    const { checked, failures } = await checkEvalDefinitions(root);
+    assert.equal(checked, 3);
+    assert.deepEqual(
+      failures.map((failure) => [path.basename(failure.file), failure.message]),
+      [
+        ["file.json", "group file: declared fixture is not a directory: .skill-eval/family/fixtures/file"],
+        ["relative.json", "group relative: declared fixture is missing or escapes the repository: fixtures/present"],
+      ],
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
