@@ -4,6 +4,7 @@ import path from "node:path";
 import { ARM_NAME, armNames, DEFAULT_REFERENCE } from "./arms.mjs";
 import { validateDecision } from "./decision.mjs";
 import { validateCommandExpectations } from "./grade-command.mjs";
+import { referenceFiles, validateReferenceSolution } from "./reference.mjs";
 
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const EVALUATION_TYPES = new Set(["description", "body"]);
@@ -606,7 +607,7 @@ async function validateGroup(value, definitionPath, root) {
       "expectations",
       "review_questions",
     ],
-    ["commands", "revision", "reference"],
+    ["commands", "revision", "reference", "reference_solution"],
     "group",
     definitionPath,
   );
@@ -633,6 +634,11 @@ async function validateGroup(value, definitionPath, root) {
     }
   }
   validateExpectations(group.expectations, definitionPath);
+  const referenceProblem = validateReferenceSolution(group.reference_solution, {
+    root,
+    fixture: group.fixture === null ? null : path.resolve(root, group.fixture),
+  });
+  if (referenceProblem !== null) fail(referenceProblem.code, referenceProblem.message, definitionPath);
   const graderFiles = validateCommandExpectations(group, {
     arms: names,
     root,
@@ -674,7 +680,12 @@ async function validateGroup(value, definitionPath, root) {
     ...group,
     configurations: Object.fromEntries(names.map((arm) => [arm, resolved[arm].configuration])),
     // The files this group was read from and its command graders read, so a run can check they are committed.
-    files: [definitionPath, ...(extendsFile === null ? [] : [extendsFile]), ...graderFiles],
+    files: [
+      definitionPath,
+      ...(extendsFile === null ? [] : [extendsFile]),
+      ...graderFiles,
+      ...referenceFiles(group, root),
+    ],
     component,
     variants,
   };

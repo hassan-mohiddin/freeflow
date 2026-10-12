@@ -10,6 +10,7 @@ import { postRunRecords } from "./hooks.mjs";
 import { identityRefusal, inputIdentity, installedHostVersion } from "./identity.mjs";
 import { removeCopiedCredentials, TARGET_MINUTES } from "./isolation.mjs";
 import { ensureLogin, resolveHostExtensions } from "./pi-host.mjs";
+import { enforceReferenceChecks } from "./reference.mjs";
 import { baseProcessEnvironment, runBody, runDescription, VariantSetupError } from "./pi.mjs";
 import { prepareFixture, prepareRuntime, verifyDescriptionOnlyRevision } from "./sandbox.mjs";
 
@@ -33,7 +34,7 @@ const DEFAULT_RUNTIME = {
 export async function runEvaluation(
   definitionFile,
   selectors = {},
-  { root = process.cwd(), signal, budget = null, dryRun = false } = {},
+  { root = process.cwd(), signal, budget = null, dryRun = false, skipReferenceCheck = false } = {},
 ) {
   const definitionPath = await realpath(path.resolve(root, definitionFile));
   const definition = await loadDefinition(definitionPath, { root });
@@ -67,6 +68,9 @@ export async function runEvaluation(
     },
     startedAt: new Date().toISOString(),
   });
+
+  // A declared reference must solve its task before any subject starts (SPEC-002 A9).
+  await enforceReferenceChecks(selection, { root, resultDirectory, skip: skipReferenceCheck, signal });
 
   // Budget exhaustion cancels only queued subjects; a subject already running completes and is charged.
   const controller = new AbortController();
