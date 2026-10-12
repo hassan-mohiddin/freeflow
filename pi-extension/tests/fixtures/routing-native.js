@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { appendFile, mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   createAgentSession,
   DefaultResourceLoader,
@@ -34,6 +35,12 @@ function capture(root, bodies) {
     appendFile(join(dir, `${basename(process.argv[1] ?? "run")}-${++captureRun}.jsonl`), text + "\n"),
   );
 }
+
+/** The packaged routing skill, and the read a scripted profile makes before its first command or edit (`bootstrap.ts`). */
+export const ROUTING_SKILL = fileURLToPath(
+  new URL("../../../capabilities/cognitive-routing/SKILL.md", import.meta.url),
+);
+export const readRoutingSkill = { name: "read", args: { path: ROUTING_SKILL } };
 
 /**
  * Call/result pairing problems in a provider request body. Anthropic Messages requires each tool result in the

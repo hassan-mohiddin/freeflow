@@ -18,6 +18,8 @@ export class RoutingSession {
   capability;
   token = randomUUID();
   turn;
+  /** The packaged routing skill the bootstrap read must cover; undefined when it cannot be read. */
+  routingSkill;
   messages = [];
   error;
   projectionError;

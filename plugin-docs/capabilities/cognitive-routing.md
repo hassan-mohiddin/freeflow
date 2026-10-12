@@ -151,6 +151,8 @@ Common unavailable states include:
 
 The runtime reports the reason rather than partially enabling routing or silently choosing another model.
 
+Starting Pi with `--model` or `--thinking` counts as your choice of model: routing waits, and the footer reads `freeflow: routing blocked · startup_selection · /freeflow profile auto`, until you run `/freeflow profile auto`. To start with routing on, set the model in Pi's settings instead of on the command line.
+
 ## Configuration
 
 Configure Cognitive Routing in shared `.freeflow/config.json` or personal `.freeflow/local.json`:
@@ -271,6 +273,8 @@ Coordinator accepts new direction
 ```
 
 In `both`, every assignment identifies its worker. A unit may use Helper for preparation, Executor for production, and Helper for follow-through, but these are available routes rather than required phases.
+
+Each profile reads the Cognitive Routing skill before its first command or edit, and again after a compaction: until its view holds the skill, Freeflow refuses those calls and says what to read. Reading files and task memory are not held back.
 
 New user input always belongs to Coordinator. If it reaches a worker request that was already prepared, the worker stops ordinary task tools and returns available partial state instead of adopting the new direction.
 

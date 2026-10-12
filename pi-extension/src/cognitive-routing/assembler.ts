@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { viewHoldsSkill } from "./bootstrap.js";
 import { estimateRequest } from "./budget.js";
 import type { ModelControl } from "./model-control.js";
 import { prepareView, type PreparedView } from "./projection.js";
@@ -361,6 +362,8 @@ export class ContextAssembler {
         prepared = this.prepared("coordinator", input);
       }
       check(prepared.ready, "context_unavailable", prepared.problems.map((p) => p.detail).join("; "));
+      if (this.session.routingSkill)
+        this.session.turn.skillInView = viewHoldsSkill(prepared.messages, this.session.routingSkill);
       // Only worker views record exposure; hashing every source for the Coordinator's view would be wasted.
       if (isWorkerProfile(this.session.turn.profile)) {
         const known = this.session.stateData().exposure;
