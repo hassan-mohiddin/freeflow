@@ -61,15 +61,14 @@ jobs:
       - name: Verify worktree is clean
         run: test -z "$(git status --porcelain)"
 
-  # The suites with platform-specific code (paths, symlinks and Windows directory junctions in Task Memory) on the other
-  # two systems users run Freeflow on. Not a required check: "Deterministic checks" alone gates merging.
+  # The suites with platform-specific code (paths, symlinks) on macOS, where most development happens. Not a required
+  # check: "Deterministic checks" alone gates merging. Windows runs only on demand (windows.yml).
   platforms:
     name: Tests on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [macos-latest]
 
     steps:
       - name: Checkout
@@ -81,10 +80,6 @@ jobs:
         with:
           node-version: "24"
           package-manager-cache: false
-
-      - name: Use Git Bash for npm scripts on Windows
-        if: runner.os == 'Windows'
-        run: npm config set script-shell "C:\\Program Files\\Git\\bin\\bash.exe"
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
