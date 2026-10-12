@@ -67,7 +67,8 @@ Each heading means exactly what it means in the Working Record format ([Working 
 - <the outcome the user wants>
 
 ## Work agreement
-- <what done looks like; what you do without asking; what needs the user's yes; when you come back; how long it holds>, quoting the user's reply beside what it answered, and any narrower instruction for now ("don't edit yet"), which governs until the user lifts it
+- Done when <the check>; Without asking: <...>; Ask first: <...>; Back <when>; Holds until <...>: only the parts that are known, quoting the user's reply beside what it answered
+- <any narrower instruction for now ("don't edit yet"), which governs until the user lifts it>
 
 ## What defines this task
 - <pointer to a spec, plan, issue, or brief, and what it establishes>
@@ -207,7 +208,7 @@ The same work without a record.
 - The HTTP client retries failed requests with backoff and respects `Retry-After`.
 
 ## Work agreement
-- Fix the retries and run the tests; the user said "go ahead, but don't commit yet".
+- Without asking: fix the retries and run the tests; the user said "go ahead, but don't commit yet".
 - Ask first: commit, push, or a change to the public `HttpClient` options.
 - Back when the client suite passes, or if the fix needs a new dependency.
 
