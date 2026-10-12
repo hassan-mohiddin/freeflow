@@ -95,7 +95,7 @@ A rubric asks what deterministic checks cannot. Each run is judged alone, blind 
 
 ## Participants
 
-A group may run more than one participant in each arm. `participants` declares a `protocol`; every participant uses the arm's configuration, so arms still differ only in their `component`.
+A group may run more than one participant in each arm. `participants` declares a `protocol`; every participant uses the arm's configuration. Declare it on the group, shared by every arm, or in the configuration: shared in `configuration`, or per arm in an overlay, where arms may differ in it like any other path (`"component": ["participants"]`), for example one review against an adjudicated pair. An arm whose `participants` is absent, or `null` to clear a shared one, runs one ordinary subject. Not both on the group and in the configuration. Expectations, comparisons and review questions apply to each arm's graded run: its pipeline's graded stage, its conversation, or its single subject.
 
 A **conversation** pairs the subject with a simulated user:
 
