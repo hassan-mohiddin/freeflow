@@ -43,7 +43,7 @@
     "check:release-metadata": "scripts/validation/validate-release-metadata.sh --mode prepublish",
     "perf:request": "node scripts/perf/request-overhead.mjs",
     "eval:gate": "node .skill-eval/scripts/gate.mjs",
-    "test": "npm run test:pi-extension && npm run test:host-manifests && npm run test:skill-author && npm run test:skill-eval && npm run test:track-work && npm run test:freeflow-snapshot && npm run test:release-utils && npm run test:release-workflow && npm run test:changelog && npm run test:docs && npm run test:eval-coverage",
+    "test": "npm run test:pi-extension && npm run test:host-manifests && npm run test:skill-author && npm run test:skill-eval && npm run test:track-work && npm run test:freeflow-snapshot && npm run test:release-utils && npm run test:release-workflow && npm run test:changelog && npm run test:docs && npm run test:eval-coverage && npm run test:guards",
     "test:pi-extension": "npm run build && node --test $(find pi-extension/tests -name '*.test.js' | sort)",
     "test:host-manifests": "node --test scripts/validation/check-host-manifests.test.mjs hooks/tests/check-host-adapters.test.mjs",
     "test:skill-author": "node --test $(find .skill-eval/write-skill/tests -name '*.test.mjs' | sort)",
@@ -55,6 +55,7 @@
     "test:release-workflow": "node --test scripts/validation/check-release-workflow.test.mjs",
     "test:docs": "node --test scripts/validation/check-docs.test.mjs",
     "test:eval-coverage": "node --test scripts/validation/check-eval-coverage.test.mjs",
+    "test:guards": "node --test scripts/validation/guards.test.mjs",
     "release:prepare": "node scripts/release.mjs",
     "release:notes": "node scripts/release-notes.mjs",
     "snapshot:refresh": "node scripts/freeflow-snapshot.mjs"
