@@ -5,7 +5,7 @@ description: "Use on Pi with Freeflow Messaging on, when the user asks you to co
 
 # Messaging
 
-With Messaging on, this Pi session can exchange plain-text messages with other live Pi sessions on this machine that have it on too. A message you send reaches the other agent between its tool calls, or starts a turn if it is idle. One you receive arrives the same way, as `<message from="name" session="id" folder="...">text</message>`; `<message-status>` reports what happened to a message of yours that was held, and `<session-status>` that a session you watch went idle or ended. The other session may deliver your message, hold it for its user to accept, or refuse it.
+With Messaging on, this Pi session can exchange plain-text messages with other live Pi sessions on this machine that have it on too. A message you send reaches the other agent between its tool calls, or starts a turn if it is idle; a session whose user has not prompted it yet reads it with that first prompt. One you receive arrives the same way, as `<message from="name" session="id" folder="...">text</message>`; `<message-status>` reports what happened to a message of yours that was held, and `<session-status>` that a session you watch went idle or ended. The other session may deliver your message, hold it for its user to accept, or refuse it.
 
 The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 
@@ -26,7 +26,7 @@ Goal: the message reaches the one session it is meant for.
 
 Goal: the other agent can act on your message without reconstructing your context.
 
-It has none of your conversation. Say what you need and why, with the facts it needs to answer: exact paths, commands, error lines, task IDs. Ask one thing, and say what you want back. Your name and session reach it with the message; you do not need to introduce yourself.
+It has none of your conversation. Say what you need and why, with the facts it needs to answer: exact paths, commands, error lines, task IDs. Ask one thing, and say what you want back. A choice your user has not made yet is open: say so, never present it as decided or by design. Your name and session reach it with the message; you do not need to introduce yourself.
 
 Messages carry text, not your context. Mention what you have that could help ("I have the full test output, about 3,000 tokens") instead of pasting it, and send it when asked. When you need the other session's context, ask for it by name.
 
