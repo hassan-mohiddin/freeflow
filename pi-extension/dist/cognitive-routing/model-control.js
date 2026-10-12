@@ -123,7 +123,8 @@ export class ModelControl {
       this.session.enabledWorkers(state),
       (provider, modelId) => this.session.ctx?.modelRegistry?.find?.(provider, modelId),
       (model) => keepsCacheAcrossEffort(model, this.session.ctx),
-      // Pi's only retention control; unset means the short tier.
+      // The host's default retention, which Freeflow reads and never sets; unset means the short tier. (Pi also takes a
+      // per-request cacheRetention option, which Freeflow does not pass.)
       process.env.PI_CACHE_RETENTION === "long" ? "long" : "short",
     );
   }

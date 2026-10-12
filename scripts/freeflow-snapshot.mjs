@@ -6,6 +6,9 @@ import { basename, dirname, relative, resolve, sep, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
+// The runtime-dependency install, recorded verbatim in the snapshot's metadata.
+const NPM_CI_FLAGS = ["--omit=dev", "--ignore-scripts", "--legacy-peer-deps", "--no-audit", "--no-fund"];
+
 const execFile = promisify(execFileCallback);
 const MAX_BUFFER = 256 * 1024 * 1024;
 
@@ -124,7 +127,7 @@ async function installRuntimeDependencies(archiveRoot, packageJson) {
   const lockBuffer = await readFile(lockPath);
   const lock = JSON.parse(lockBuffer.toString("utf8"));
   const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-  await run(npmCommand, ["ci", "--omit=dev", "--ignore-scripts", "--legacy-peer-deps", "--no-audit", "--no-fund"], {
+  await run(npmCommand, ["ci", ...NPM_CI_FLAGS], {
     cwd: archiveRoot,
   });
   const records = [];
@@ -360,8 +363,7 @@ export async function refreshSnapshot(options = {}) {
       sourceWorktreeDirty: dirtyWorktree,
       committedContentOnly: true,
       ignoredFilesExcluded: true,
-      construction:
-        "git archive <commit>, npm ci --omit=dev --ignore-scripts for declared runtime dependencies, then npm pack --ignore-scripts",
+      construction: `git archive <commit>, npm ci ${NPM_CI_FLAGS.join(" ")} for declared runtime dependencies, then npm pack --ignore-scripts`,
       packageName: packageJson.name,
       packageVersion: packageJson.version,
       npmPackIntegrity: `sha512-${digest(tarball, "sha512", "base64")}`,

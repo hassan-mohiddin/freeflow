@@ -47,9 +47,10 @@ test("under automatic routing a nested call is admitted with its issuing call", 
       const [read, unit] = outcomes;
       assert.equal(read.isError, false, read.text);
       assert.match(read.text, /EXACT_EVIDENCE_BODY_81/);
-      // model-only exposure makes Pi refuse it before Freeflow's gate, which refuses nested routing calls as well.
+      // model-only exposure makes Pi refuse it before Freeflow's gate is reached; the gate's own refusal of a nested
+      // routing call, kept in case Pi's exposure check changes, is tested directly in runtime.test.js.
       assert.equal(unit.isError, true);
-      assert.match(unit.text, /Tool routing_unit not found|Call routing_unit directly, not from a script\./);
+      assert.match(unit.text, /Tool routing_unit not found/);
     },
     true,
     {
