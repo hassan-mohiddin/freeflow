@@ -36,12 +36,16 @@ const snapshots = (manager) =>
     .filter((entry) => entry.type === "custom_message" && entry.customType === "freeflow-task-memory-snapshot");
 
 function makeRecords(cwd) {
-  for (const [name, goal] of [
-    ["Retry work", "Retries with backoff in the HTTP client."],
-    ["Docs cleanup", "Remove stale docs."],
+  for (const [name, goal, agreement] of [
+    [
+      "Retry work",
+      "Retries with backoff in the HTTP client.",
+      "- Add the retries and open a PR; merging is yours.\n\n",
+    ],
+    ["Docs cleanup", "Remove stale docs.", ""],
   ])
     execFileSync(process.execPath, [script, "init", "--root", cwd, "--name", name, "--input", "-"], {
-      input: `### Goal\n- ${goal}\n\n### Next useful action\n- Continue.\n`,
+      input: `### Goal\n- ${goal}\n\n${agreement && `### Work agreement\n${agreement}`}### Next useful action\n- Continue.\n`,
     });
 }
 
@@ -99,6 +103,8 @@ test("the user attaches by command; the snapshot reaches the next request", { ti
       // Shown in the transcript as one collapsed line (render.ts); the model receives the same content either way.
       assert.equal(snapshots(manager)[0].display, true);
       assert.match(inputText(requests[0]), /Focused task: Retry work[\s\S]*Retries with backoff/);
+      // The Work agreement reaches the model with the rest of Current Context.
+      assert.match(inputText(requests[0]), /### Work agreement\n\n- Add the retries and open a PR; merging is yours\./);
       assert.match(inputText(requests[0]), /Complete the fixture assignment/);
     },
     true,

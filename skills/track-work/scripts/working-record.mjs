@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { cwd } from "node:process";
 import { dirname, isAbsolute, resolve, sep } from "node:path";
-import { canonicalLines, joinLines, slugify } from "./lib/format.mjs";
+import { WORK_AGREEMENT_HEADING, canonicalLines, joinLines, slugify } from "./lib/format.mjs";
 import { parseDocument, validateDocument } from "./lib/document.mjs";
 import { runTransition } from "./lib/transitions.mjs";
 import {
@@ -77,7 +77,7 @@ const COMMAND_HELP = new Map([
   ],
   [
     "init",
-    "Usage: init --root <path> --name <task name> [--input <file|->]\nInput: Goal and Next useful action required; the seven Current Context headings and Recovery sources are accepted, and every line must sit under one of them. The record starts active. Use --input - to read Markdown fragments from stdin.",
+    "Usage: init --root <path> --name <task name> [--input <file|->]\nInput: Goal and Next useful action required; the seven Current Context headings, Work agreement (written only when given) and Recovery sources are accepted, and every line must sit under one of them. The record starts active. Use --input - to read Markdown fragments from stdin.",
   ],
   [
     "view",
@@ -308,6 +308,7 @@ function initialContent(skeletonLines, input) {
   const targets = new Map();
   const names = [
     "Goal",
+    WORK_AGREEMENT_HEADING,
     "What defines this task",
     "Settled",
     "Tentative",
@@ -339,6 +340,9 @@ function initialContent(skeletonLines, input) {
     if (/^## /.test(inputLines[index])) throw new CliError(`Unknown initialization heading: ${inputLines[index]}`);
   }
   const output = [...skeletonLines];
+  // The skeleton has no Work agreement heading: it is written only when the input gives one.
+  if (targets.has(WORK_AGREEMENT_HEADING))
+    output.splice(output.indexOf("### What defines this task"), 0, `### ${WORK_AGREEMENT_HEADING}`, "");
   for (const name of names) {
     const content = targets.get(name);
     if (!content) continue;

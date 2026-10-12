@@ -13,7 +13,7 @@ import { renderResult } from "./lib/view.mjs";
 const OPTIONS = {
   run: ["--group", "--variant", "--trials", "--max-cost", "--yes", "--dry-run"],
   view: ["--group", "--variant"],
-  review: ["--group", "--model", "--thinking", "--configuration", "--swap"],
+  review: ["--group", "--model", "--thinking", "--configuration", "--swap", "--limit"],
 };
 const argv = process.argv.slice(2);
 const [command] = argv;
@@ -45,6 +45,8 @@ Review options:
   --thinking <level>         Optional reviewer thinking level
   --configuration <file>     A schema 2 configuration file for the reviewer: its model, host extensions and settings
   --swap                     Review again with Run A and Run B swapped, and record agreement
+  --limit <name>=<chars>     Show the reviewer more or less: response, argument, file or materials (repeatable;
+                             defaults 8000, 300, 20000, 60000). Anything cut is recorded as a contract gap.
 
 Paths:
   Definition paths resolve from the current working directory.
@@ -87,6 +89,7 @@ function parseOperation(values) {
     configuration: null,
   };
   let swap = false;
+  const limits = {};
   let yes = false;
   let dryRun = false;
   const keys = {
@@ -104,6 +107,14 @@ function parseOperation(values) {
     if (!allowed.includes(option)) throw new Error(`Unknown option: ${option}`);
     if (option === "--swap") {
       swap = true;
+      continue;
+    }
+    if (option === "--limit") {
+      const [, name, chars] = /^([a-z]+)=(\d+)$/.exec(value ?? "") ?? [];
+      if (!name) throw new Error("--limit requires <name>=<chars>, such as file=40000");
+      if (Object.hasOwn(limits, name)) throw new Error(`--limit ${name} may be supplied only once`);
+      limits[name] = Number(chars);
+      index += 1;
       continue;
     }
     if (option === "--yes") {
@@ -142,6 +153,7 @@ function parseOperation(values) {
     thinking: parsed.thinking,
     configuration: parsed.configuration,
     swap,
+    limits,
     yes,
     dryRun,
   };
@@ -244,6 +256,7 @@ async function review(operation) {
       thinking: operation.thinking,
       configuration: operation.configuration,
       swap: operation.swap,
+      limits: operation.limits,
     }),
   );
   for (const group of outcome.groups) {

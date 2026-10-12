@@ -127,6 +127,12 @@ test("carried text is numbered by file line, from a read's offset, leaving Pi's 
     numberLines("x\n\n[12 more lines in file. Use offset=3 to continue.]", 2),
     "2\tx\n\n[12 more lines in file. Use offset=3 to continue.]",
   );
+  assert.equal(numberLines("a\nb\n", 1), "1\ta\n2\tb\n", "a final newline ends the last line; it adds no line");
+  assert.equal(
+    numberLines("x\n\n[12 more lines in file. Use offset=3 to continue.]", 1, { readNote: false }),
+    "1\tx\n2\t\n3\t[12 more lines in file. Use offset=3 to continue.]",
+    "a whole file has no read note: its text is numbered as it is",
+  );
 });
 
 test("a carried read result is numbered from the offset it was read at", { timeout: 30000 }, async () => {

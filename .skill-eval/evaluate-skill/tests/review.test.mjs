@@ -374,6 +374,50 @@ test("the judge sees written files in full, the fixture, and no run paths or arm
   });
 });
 
+test("--limit changes what the judge sees, and a cut is recorded as a contract gap", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installReviewerPi(root);
+    const { groupDirectory } = await writeWorkspaceResult(root);
+    const output = JSON.stringify({ answers: [{ question: 1, A: "yes", B: "no", rationale: "A names rollback." }] });
+
+    const full = review(root, bin, ["--model", "reviewer/model"], output);
+    assert.equal(full.status, 0, full.stderr);
+    const untouched = JSON.parse(await readFile(path.join(groupDirectory, "semantic-grade.json"), "utf8"));
+    assert.deepEqual(untouched.limits, { response: 8000, argument: 300, file: 20000, materials: 60000 });
+    assert.equal(untouched.truncated, 0);
+    assert.ok(!untouched.contractGaps.includes("materials truncated"));
+
+    const cut = review(root, bin, ["--model", "reviewer/model", "--limit", "file=40"], output);
+    assert.equal(cut.status, 0, cut.stderr);
+    const calls = (await readFile(path.join(root, "review.jsonl"), "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.ok(!calls.at(-1).prompt.includes("END-OF-PLAN"), "the written file is cut at 40 characters");
+    const semantic = JSON.parse(await readFile(path.join(groupDirectory, "semantic-grade.json"), "utf8"));
+    assert.equal(semantic.limits.file, 40);
+    assert.ok(semantic.truncated > 0);
+    assert.ok(semantic.contractGaps.includes("materials truncated"));
+  });
+});
+
+test("review refuses an unknown or malformed --limit before starting the reviewer", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installReviewerPi(root);
+    await writeResult(root);
+    for (const [limit, message] of [
+      ["file=lots", /--limit requires <name>=<chars>/],
+      ["pages=10", /unknown review limit: pages/],
+      ["file=0", /review limit file must be a positive integer/],
+    ]) {
+      const result = review(root, bin, ["--model", "reviewer/model", "--limit", limit], "{}");
+      assert.notEqual(result.status, 0, limit);
+      assert.match(result.stderr, message);
+    }
+    await assert.rejects(readFile(path.join(root, "review.jsonl")), { code: "ENOENT" });
+  });
+});
+
 test("the judge's identity, family relation and contract gaps are recorded", async () => {
   await withTempDirectory(async (root) => {
     const bin = await installReviewerPi(root);

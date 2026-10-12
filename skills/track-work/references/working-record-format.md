@@ -71,7 +71,7 @@ None
 ## Notes
 ```
 
-The five top-level sections are fixed, in this order: Current Context, Current Work, Future Work, History, Notes. `### Recovery sources` is optional; records created before it existed remain valid without it.
+The five top-level sections are fixed, in this order: Current Context, Current Work, Future Work, History, Notes. `### Recovery sources` is optional; records created before it existed remain valid without it. `### Work agreement` is optional and not in the skeleton: `init` writes it, directly after Goal, only when its input has one.
 
 The header holds the task name, `Schema`, task `State`, and `Last updated`. `init` and every successful lifecycle command set `Last updated`; views, validation, failed commands, and direct edits do not. It records recency only, not validity or truth.
 
@@ -95,17 +95,32 @@ Structured entities use compact field rows:
 
 ## Current Context
 
-Present understanding, as bullets under exactly these seven headings:
+Present understanding, as bullets under these seven headings, plus an optional Work agreement directly after Goal:
 
 | Heading | Holds |
 | --- | --- |
 | Goal | The outcome or central question; not the current mechanism. |
+| Work agreement (optional) | The current Work Agreement, as far as it is known: what done looks like, what the agent does without asking, what needs the user's yes first, where it comes back, and how long it holds. |
 | What defines this task | Pointers to the artifacts that define the task, such as its Spec, Plan, issue, or user-supplied brief. Every entry is read on each recovery. |
 | Settled | Facts and accepted understanding that still affect the work. |
 | Tentative | Hypotheses and provisional approaches. |
 | Open | Unresolved questions that could change the work. |
 | Current direction | The remaining approach and why; not a history of completed work. |
-| Boundaries | Scope exclusions, constraints, evidence limits, user-facing return conditions, and separately controlled actions. |
+| Boundaries | Scope exclusions, constraints, evidence limits, user-facing return conditions, and separately controlled actions. When the record has a Work agreement, return conditions and separately controlled actions belong there, and Boundaries keeps the rest. |
+
+Start each line with the lead words for the part it states: `Done when`, `Without asking:`, `Ask first:`, `Back`, `Holds until`. Write only the parts that are known; one line is often enough, and `validate` does not check the lead words. Each line that rests on the user's reply quotes it, beside what it answered:
+
+```markdown
+### Work agreement
+
+- Done when the reported bug is fixed and its PR is open.
+- Without asking: fix it, commit on a branch, open the PR. You said "yeah, do that" to that route (2026-10-12).
+- Ask first: merging, anything outside the bug.
+- Back at the PR.
+- Holds until the PR merges.
+```
+
+The heading is never empty: omit it until something is agreed. `validate` rejects it when it is empty or anywhere but directly after Goal.
 
 Keep only pointers under `What defines this task`; accepted choices go in Decisions and constraints in Boundaries. Change Current Context only when present meaning changes; a lifecycle transition alone does not require it. Remove narration once its consequence is recorded elsewhere.
 

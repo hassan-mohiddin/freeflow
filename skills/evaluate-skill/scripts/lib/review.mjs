@@ -11,10 +11,12 @@ import { baseProcessEnvironment, runPiProcess } from "./pi.mjs";
 import { resolveResult } from "./view.mjs";
 
 const ANSWERS = new Set(["yes", "no", "unclear"]);
-const RESPONSE_LIMIT = 8000;
-const ARGUMENT_LIMIT = 300;
-const FILE_LIMIT = 20000;
-const MATERIALS_LIMIT = 60000;
+/**
+ * How much the judge is shown, in characters: each turn's response, each tool call's arguments, each file, and the
+ * task materials in total. `review --limit <name>=<chars>` overrides any of them; the effective limits are recorded,
+ * and anything cut is recorded as a contract gap, because the judge contract asks for full files.
+ */
+export const REVIEW_LIMITS = Object.freeze({ response: 8000, argument: 300, file: 20000, materials: 60000 });
 
 /**
  * Answers each group's review questions with a separate model that sees two unlabeled runs.
@@ -34,8 +36,13 @@ const MATERIALS_LIMIT = 60000;
 export async function reviewResult(
   target,
   selectors,
-  { root = process.cwd(), signal, model = null, thinking = null, configuration = null, swap = false },
+  { root = process.cwd(), signal, model = null, thinking = null, configuration = null, swap = false, limits = {} },
 ) {
+  for (const [name, value] of Object.entries(limits)) {
+    if (!Object.hasOwn(REVIEW_LIMITS, name)) throw new Error(`unknown review limit: ${name}`);
+    if (!Number.isInteger(value) || value < 1) throw new Error(`review limit ${name} must be a positive integer`);
+  }
+  const effectiveLimits = { ...REVIEW_LIMITS, ...limits };
   const judge =
     configuration === null
       ? { model: null, extensions: [], settings: {} }
@@ -59,6 +66,7 @@ export async function reviewResult(
         extensions: loaded,
         settings,
         swap,
+        limits: effectiveLimits,
         signal,
       }),
     );
@@ -76,7 +84,7 @@ function selectGroups(summary, selector) {
   return selected;
 }
 
-async function reviewGroup(groupDirectory, id, { root, model, thinking, extensions, settings, swap, signal }) {
+async function reviewGroup(groupDirectory, id, { root, model, thinking, extensions, settings, swap, limits, signal }) {
   const definition = JSON.parse(await readFile(path.join(groupDirectory, "definition.json"), "utf8"));
   const questions = Array.isArray(definition.review_questions) ? definition.review_questions : [];
   if (questions.length === 0) return { id, state: "skipped", reason: "no review questions" };
@@ -88,10 +96,21 @@ async function reviewGroup(groupDirectory, id, { root, model, thinking, extensio
   }
 
   const neutral = neutralizer(groupDirectory, runs, root);
+  // Counts every cut the judge's view takes: a truncated text or an omitted task file.
+  const cut = {
+    count: 0,
+    text(value, chars) {
+      if (value.length > chars) this.count += 1;
+      return truncate(value, chars);
+    },
+    omit() {
+      this.count += 1;
+    },
+  };
   const evidence = {
-    materials: await taskMaterials(path.join(groupDirectory, "resources", "fixture")),
-    baseline: await runEvidence(runs.baseline, neutral),
-    candidate: await runEvidence(runs.candidate, neutral),
+    materials: await taskMaterials(path.join(groupDirectory, "resources", "fixture"), limits, cut),
+    baseline: await runEvidence(runs.baseline, neutral, limits, cut),
+    candidate: await runEvidence(runs.candidate, neutral, limits, cut),
   };
   const labels = randomInt(2) === 0 ? { A: "baseline", B: "candidate" } : { A: "candidate", B: "baseline" };
   const first = await runJudge(groupDirectory, "review", definition, questions, labels, evidence, {
@@ -119,6 +138,7 @@ async function reviewGroup(groupDirectory, id, { root, model, thinking, extensio
   const subjectProviders = [...new Set(["baseline", "candidate"].map((variant) => subjectProvider(runs[variant])))];
   const contractGaps = [];
   if (second === null) contractGaps.push("order not swapped");
+  if (cut.count > 0) contractGaps.push("materials truncated");
   contractGaps.push("calibration not checked");
   await writeJson(path.join(groupDirectory, "semantic-grade.json"), {
     schema_version: 1,
@@ -133,6 +153,8 @@ async function reviewGroup(groupDirectory, id, { root, model, thinking, extensio
     subject: { providers: subjectProviders, familyRelation: familyRelation(provider, subjectProviders) },
     labels,
     prompt: { file: "review/prompt.md", sha256: first.promptSha256 },
+    limits,
+    truncated: cut.count,
     answers: errors.length === 0 ? first.answers : [],
     ...(second === null
       ? {}
@@ -267,36 +289,37 @@ function neutralizer(groupDirectory, runs, root) {
   };
 }
 
-async function taskMaterials(fixtureDirectory) {
+async function taskMaterials(fixtureDirectory, limits, cut) {
   const files = await listFiles(fixtureDirectory);
   const lines = [];
   let used = 0;
   for (const relative of files) {
     const text = await readText(path.join(fixtureDirectory, relative));
     if (text === null) continue;
-    const remaining = MATERIALS_LIMIT - used;
+    const remaining = limits.materials - used;
     if (remaining <= 0) {
-      lines.push(`(further task files omitted: the materials limit of ${MATERIALS_LIMIT} characters was reached)`);
+      cut.omit();
+      lines.push(`(further task files omitted: the materials limit of ${limits.materials} characters was reached)`);
       break;
     }
-    const shown = truncate(text, Math.min(FILE_LIMIT, remaining));
-    used += Math.min(text.length, FILE_LIMIT, remaining);
+    const shown = cut.text(text, Math.min(limits.file, remaining));
+    used += Math.min(text.length, limits.file, remaining);
     lines.push(`### ${relative}`, "```", shown, "```");
   }
   return lines;
 }
 
-async function runEvidence(run, neutral) {
+async function runEvidence(run, neutral, limits, cut) {
   const turns = Array.isArray(run.turns)
     ? run.turns
     : [{ turn: 1, response: run.response, toolActivity: run.toolActivity }];
   const lines = [];
   for (const turn of turns) {
-    lines.push(`Turn ${turn.turn ?? 1} response:`, truncate(neutral(turn.response ?? ""), RESPONSE_LIMIT));
+    lines.push(`Turn ${turn.turn ?? 1} response:`, cut.text(neutral(turn.response ?? ""), limits.response));
     for (const call of turn.toolActivity ?? []) {
       const status = call.completed ? (call.isError ? "failed" : "succeeded") : "incomplete";
       lines.push(
-        `- tool ${call.toolName} ${status}: ${truncate(neutral(JSON.stringify(call.args ?? null)), ARGUMENT_LIMIT)}`,
+        `- tool ${call.toolName} ${status}: ${cut.text(neutral(JSON.stringify(call.args ?? null)), limits.argument)}`,
       );
     }
   }
@@ -309,7 +332,7 @@ async function runEvidence(run, neutral) {
       for (const relative of [...(changes.created ?? []), ...(changes.modified ?? [])]) {
         const text = await readText(path.join(run.workspace, relative));
         if (text === null) continue;
-        lines.push(`### File written: ${relative}`, "```", truncate(neutral(text), FILE_LIMIT), "```");
+        lines.push(`### File written: ${relative}`, "```", cut.text(neutral(text), limits.file), "```");
       }
     }
   }
