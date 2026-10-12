@@ -87,7 +87,7 @@ A rubric asks what deterministic checks cannot. Each run is judged alone, blind 
 
 - `rubric` is a non-empty array of dimensions with unique `id`s (the group ID pattern) and a non-empty `question`. Dimensions are rendered only for judges and never sent to the subject.
 - `answers` is `["yes", "no", "unknown"]` (the default) or `"0-2"`. A judge may always answer `unknown`, and must cite the evidence for every answer.
-- `reference` is optional: inline text, or `{ "path": "<relative path>" }` to a file inside the definition root and outside the fixture, which the subject sees. A file's text and hash are read in when the definition loads, so judging never depends on the working tree, and the file is a run input that must be committed like the definition.
+- `reference` is optional: inline text, or `{ "path": "<relative path>" }` to a file inside the definition root. It is shown to judges only. A path inside the fixture is refused, because the subject sees the fixture; keep the file out of the subject's declared `context` too, which the evaluator does not check. A file's text and hash are read in when the definition loads, so judging never depends on the working tree, and the file is a run input that must be committed like the definition.
 - `weight` is an optional positive number (default `1`). It is recorded with the dimension for reporting and decision rules.
 - `judges` is optional: one or more `{ model, thinking? }`, each configuration once, because repeated calls to one configuration are one vote. Without `judges`, `review --rubric --model` names the single judge.
 - `combine` names how several judges' answers become one, before any verdict is seen; it is required with more than one judge. Taking yes as 1 and no as 0: `majority` gives the answer more than half the judges gave (otherwise `unknown`); `unanimous` gives the lowest answer, so yes only when every judge says yes; `any` gives the highest, so yes when any judge does; `mean` averages the known answers and needs every dimension to be `"0-2"`. An `unknown` answer makes the result `unknown` whenever it could change it.
@@ -151,6 +151,7 @@ A configuration has these fields; each arm's effective configuration is the shar
 | `model` | no | `model` names the provider/model; optional `thinking` selects its thinking level. The CLI has no model override, and a subject run without a model gets Pi's default and no copied login. |
 | `runtime` | no | Host session, prompt mode, extension bundles and environment; see [Runtime Profile](#runtime-profile). |
 | `shell` | no | A confined `bash` for the subject: `{ "isolation", "network": "none", "workspace", "requires" }`; see [Shell](#shell). |
+| `environment` | no | A container the subject's shell and the command graders run in: `{ "kind": "container", "image": "<name>@sha256:<digest>", "workdir", "network": "none" }`; see [Container Environment](#container-environment). |
 | `freeflow` | no | Contributor-only (needs a Freeflow repository as the definition root): Freeflow as part of the environment: `{ "source": { "kind": "git", "ref": "<commit>" }, "repository": { ... }, "personal": { ... } }`; see [Freeflow](#freeflow). |
 
 Rules:
@@ -160,7 +161,7 @@ Rules:
 - `reference` is optional and names the arm the others are compared with; it defaults to `baseline`, and the named arm must exist. Evidence, views and the aggregate list the reference first, then the other arms in declaration order.
 - `component` is an array of dot paths into the configuration, such as `subject.source` or `model.thinking`. The evaluator compares each arm's effective configuration with the reference's leaf by leaf (an array is one leaf) and refuses the group before any subject runs when any arm differs anywhere `component` does not cover, or when a `component` path differs in no arm. `component: []` declares an A/A comparison (or A/A/A with three arms): every arm must be identical, which measures run-to-run variation.
 - **One arm** measures one setup with nothing to compare: the arm is its own reference (`reference`, if given, must name it), `component` is absent or `[]`, and no expectation declares a `comparison`. Checks, pass^k, metrics, judged scores (`review --rubric`), reference solutions and command graders work as usual; the aggregate's claim is a rate on the suite; a suite `decision` refuses a one-arm group, and a pairwise `review` refuses one (judge it with `--rubric`). With two or more arms, `component` is required.
-- `host.name`, `host.version` and `runtime` must be the same in every arm, except `runtime.environment.literal` (see [Runtime Profile](#runtime-profile)). `host.extensions`, `host.settings`, `shell` and `freeflow` may differ; any of them can be the component under test.
+- `host.name`, `host.version` and `runtime` must be the same in every arm, except `runtime.environment.literal` (see [Runtime Profile](#runtime-profile)). `host.extensions`, `host.settings`, `shell`, `environment` and `freeflow` may differ; any of them can be the component under test.
 - A non-reference arm that declares skills must name its target.
 - `--variant <arm>` selects any arm (see [Selection](#selection)).
 
@@ -370,6 +371,24 @@ Before an arm's first subject, the evaluator:
 2. Runs the probes: the subject's own Pi, with the guard and the arm's host extensions, `bash` as its only tool, and a local scripted model (an OpenAI-compatible endpoint the evaluator serves, so no model is called) that issues five bash calls. A control must succeed: writing a file inside the workspace. Four must fail: writing a host file outside the workspace, reading a marker beside the isolated home, reaching the network (a listener on the host's own network address, plus `https://example.com/` unless `SKILL_EVAL_PROBE_PUBLIC_URL` names another URL or is empty), and printing a variable the evaluator plants in Pi's environment. Each is judged by what the host observes: files, connections and output.
 
 Any probe that does not hold makes the group `invalid` before any subject runs. Each run records the arm's result under `confinement` (every probe's command, whether it ran and held, and its output), also kept in `confinement/<arm>/` in the group directory with Pi's events and stderr.
+
+## Container Environment
+
+A body group can run its subject's `bash` and its [command graders](#command-graders) in a task image with its own toolchain, as benchmark-style coding tasks need:
+
+```json
+{
+  "tools": ["read", "write", "edit", "bash"],
+  "configuration": {
+    "environment": { "kind": "container", "image": "example.org/task@sha256:<64 hex characters>", "workdir": "/testbed", "network": "none" }
+  }
+}
+```
+
+- The image must be pinned by digest; a tag can change under the run. `workdir` is where the workspace is mounted; `network` must be `"none"`. Arms may differ in `environment` when `component` declares it, such as `environment.image`. An arm declares either `shell` or a container environment, which provides the shell.
+- The evaluator uses the standard `docker` command line (Docker Desktop, Colima, OrbStack or Podman's `docker` all provide it) and looks for it only for groups that declare a container. A missing CLI, a stopped engine, or an image that is not present locally makes the group `invalid` before any subject runs, with the same refusal as a shell prerequisite; for a missing image it gives the `docker pull` command and, when `docker manifest inspect` reports it, the compressed download size. The evaluator never pulls an image; ask the user first.
+- With `bash` in `tools`, each subject gets its own container from the image (the workspace mounted at `workdir`, `--network none`, 4 GB of memory, 2 CPUs, 1024 processes), removed when the subject ends, cancelled or not. The guard rewrites each bash call to `docker exec` into it, so the command runs in the image and Pi runs only the docker client; paths under `workdir` are checked as workspace paths. The [Shell](#shell) probes run first, in a container of their own, and must all hold.
+- Each `command` expectation runs in a fresh container from the same image on the graded copy of the workspace (`docker run --rm`, same mount, network and limits), removed afterwards even on a timeout. Its record names the image and container. A `reference_solution` check still runs graders on the host.
 
 ## Freeflow
 

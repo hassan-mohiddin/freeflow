@@ -101,22 +101,35 @@ export async function runBody({
   const subject = await prepareSubject(options, "rpc");
   const before = await fingerprintDirectory(subject.workspace);
   const declaredPrompts = group.input.prompt === undefined ? [...group.input.turns] : [group.input.prompt];
-  const observation = await runRpcBodySession({
-    command: subject.host.command,
-    settings: subject.isolation.settings,
-    args: subject.args,
-    cwd: subject.workspace,
-    eventsFile: subject.eventsFile,
-    stderrFile: subject.stderrFile,
-    signal,
-    prompts: declaredPrompts,
-    targetPath: subject.environment.targetPath,
-    environment: subject.processEnvironment,
-    nextPrompt,
-    afterTurn: needsTurnWorkspaceEvidence(group)
-      ? (turn) => snapshotWorkspace({ workspace: subject.workspace, variantDirectory, turn, before })
-      : null,
-  });
+  // A container environment runs the subject's bash in a container of its own, removed even when the run is cancelled.
+  const declaredContainer = group.tools.includes("bash") ? group.variants[variant].shell?.container : undefined;
+  let container = null;
+  if (declaredContainer !== undefined) {
+    const { containerTarget, startContainer } = await import("./container.mjs");
+    container = await startContainer({ container: declaredContainer, workspace: subject.workspace });
+    subject.processEnvironment.SKILL_EVAL_CONTAINER = containerTarget(container, declaredContainer);
+  }
+  let observation;
+  try {
+    observation = await runRpcBodySession({
+      command: subject.host.command,
+      settings: subject.isolation.settings,
+      args: subject.args,
+      cwd: subject.workspace,
+      eventsFile: subject.eventsFile,
+      stderrFile: subject.stderrFile,
+      signal,
+      prompts: declaredPrompts,
+      targetPath: subject.environment.targetPath,
+      environment: subject.processEnvironment,
+      nextPrompt,
+      afterTurn: needsTurnWorkspaceEvidence(group)
+        ? (turn) => snapshotWorkspace({ workspace: subject.workspace, variantDirectory, turn, before })
+        : null,
+    });
+  } finally {
+    await container?.remove();
+  }
   const contextObservation = await readContextObservations(
     subject.contextObservationPath,
     subject.requiresContextObservation,

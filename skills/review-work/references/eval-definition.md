@@ -19,13 +19,17 @@ Goal: a correct subject passes, a wrong one fails, and the result means what its
 - **Names match checks:** each expectation's name and comparison say what it actually tests.
 - **Defects are real and present:** each seeded defect is shown by a check that fails with it and passes without it, or by a direct contradiction of a stated requirement. The case author is not the model being measured.
 - **Clean is clean:** a clean variant taken from history may hold a defect found later. Check it against its own requirements before trusting a clean-variant fail; a variant with a known defect is real, not clean, and is scored as such.
-- **No leaks:** nothing the subject can see, including group IDs, paths, file names, and fixture comments, hints at the defect or the expected answer.
+- **No leaks:** nothing the subject can see, including group IDs, paths, file names, and fixture comments, hints at the defect or the expected answer. Rubric references and grader files lie outside the fixture and the subject's declared context.
 - **Arms differ only as declared:** sources, models, settings, tools, and context match except for the component under test, and each is pinned.
+- **The decision comes first:** when the result will claim one arm is better, the decision rule (measure, arms, direction, size) is declared before any run.
+- **The task is solvable:** a coding task's reference solution passes its graders (`check-tasks`), so a failure measures the subject, not the task.
+- **Participants see only what they declare:** each pipeline stage's inputs and a simulated user's card hold what that participant should know and nothing that hints at the answer.
+- **A shell is confined:** a subject gets a shell only behind a declared isolation that the evaluator verifies, never the host's own.
 - **Judges see enough:** a grader or advisory reviewer receives the full output it judges and the material the question is about; answers given over truncated or missing evidence are not results.
 
 ## Classify What You Find
 
-A check that a correct answer fails, a defect not shown present, a clean variant with a known defect, or a leak is Blocking for spending on runs, because the result would be wrong whatever the subject does. Gaps in coverage beyond the claim are Improvements unless the claim depends on them.
+A check that a correct answer fails, a defect not shown present, a clean variant with a known defect, a leak, an unsolvable task, or a comparison claim with no decision rule declared is Blocking for spending on runs, because the result would be wrong whatever the subject does. Gaps in coverage beyond the claim are Improvements unless the claim depends on them.
 
 ## Where Revisions Go
 

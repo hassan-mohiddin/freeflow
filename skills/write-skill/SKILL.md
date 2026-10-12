@@ -214,10 +214,10 @@ Goal: every revision answers observed evidence and is checked against it.
 1. Start from the source: the evidence a change answers (Choose What To Change), or for a new skill, its behavioral claim.
 2. Name the exact claim: description activation, first-read body behavior, nearby behavior, dependency composition, retained use, artifact outcome, or cross-host behavior.
 3. Fix the cases before the draft is final: one that should use the guidance, a near miss that should not, and for judgment, one where following the default literally is the worse choice.
-4. Run baseline and candidate with [Evaluate Behavior](../evaluate-behavior/SKILL.md), under fixed declared inputs.
+4. Run the arms with [Evaluate Behavior](../evaluate-behavior/SKILL.md) under fixed declared inputs; when the claim is that the revision is better, declare the decision rule before the run.
 5. Read the transcripts and results, with the user when they review, before trusting a count.
 6. Revise one measured pressure point.
-7. Rerun the complete fixed group with both variants.
+7. Rerun the complete fixed group with every arm.
 
 Stop when the evidence supports the claim, or when the next revision would only tune against the same cases; judge it on held-out cases instead. Preserve adequate existing evidence rather than rerunning it.
 
