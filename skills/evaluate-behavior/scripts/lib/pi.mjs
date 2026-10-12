@@ -34,6 +34,11 @@ import {
 } from "./sandbox.mjs";
 
 const guardExtension = fileURLToPath(new URL("../pi-guard.mjs", import.meta.url));
+
+/** The evaluator's guard extension, which every subject process (and a shell's confinement probe) loads first. */
+export function guardExtensionPath() {
+  return guardExtension;
+}
 const commandToolExtension = fileURLToPath(new URL("../pi-command-tool.mjs", import.meta.url));
 const observerExtension = fileURLToPath(new URL("../pi-observer.mjs", import.meta.url));
 const HOST_COMMANDS = { pi: "pi" };
@@ -410,6 +415,8 @@ async function prepareSubject(
         contextObservationPath,
         requiresContextObservation,
       }),
+      // A declared shell lets the guard allow bash; its isolation extension runs it.
+      ...(group.variants[variant].shell ? { SKILL_EVAL_SHELL: JSON.stringify(group.variants[variant].shell) } : {}),
       // Last, so nothing inherited or declared can point the subject back at the parent's home or Pi settings.
       ...isolation.environment,
     },
