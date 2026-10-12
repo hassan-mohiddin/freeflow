@@ -176,7 +176,7 @@
         "ambient_discovery": false
       }
     },
-    "evaluate-skill": {
+    "evaluate-behavior": {
       "job": "Run controlled baseline-versus-candidate skill evaluations and preserve evidence for judgment.",
       "positive_trigger": "Define, run, grade, compare, or inspect a skill evaluation group or suite.",
       "near_miss": "Draft or revise skill wording without an evaluation request.",
@@ -186,9 +186,9 @@
       "neighbours": ["write-skill", "verify-work"],
       "evidence_class": ["native-activation", "artifact-outcome", "multi-turn"],
       "case_concept": "Compare baseline and candidate while preserving failures and leaving behavioral meaning to agent or user review.",
-      "current_result": "The evaluator scripts have their own tests (.skill-eval/evaluate-skill/tests). The skill text, including its measurement and defect-suite guidance, has no behavioral group or suite evidence.",
-      "source_path": "skills/evaluate-skill/SKILL.md",
-      "source_sha256": "9145b119f63ecdc4080cd82d3cc2e223eacb054d18fbd9bafc58f67453a76b09",
+      "current_result": "The evaluator scripts have their own tests (.skill-eval/evaluate-behavior/tests). The skill text, including its measurement and defect-suite guidance, has no behavioral group or suite evidence.",
+      "source_path": "skills/evaluate-behavior/SKILL.md",
+      "source_sha256": "ba4a291473763e2502a6f1b578816672a260af685dc6a45693192fed3d61d885",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -545,12 +545,12 @@
       "pressure": "Impose a universal template or add speculative resources without a behavioral need.",
       "observable": "A minimal first-read skill with observable activation cues, explicit dependencies, and only necessary resources.",
       "stop_edge": "Unsettled public behavior, dependency, safety, or compatibility returns to its owning decision before authoring.",
-      "neighbours": ["evaluate-skill", "decision-gate"],
+      "neighbours": ["evaluate-behavior", "decision-gate"],
       "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Create a minimal skill whose description and body work without a prescribed section template.",
       "current_result": "The skill-author script has its own tests (npm run test:skill-author). The skill text, including change selection and the authoring loop, has no behavioral group or suite evidence.",
       "source_path": "skills/write-skill/SKILL.md",
-      "source_sha256": "4da2ca057832118bfb52ba3b4e5ef16ca2b3238159de83196e82abcd42826094",
+      "source_sha256": "8065b49a95ec94f0753feb2f9a289fb5603a27a43d343c611cc410beb4c767a7",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

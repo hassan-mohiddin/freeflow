@@ -2,7 +2,7 @@
 
 Read this before choosing or materially changing the behavioral question, evidence class, group shape, pressure, or baseline/candidate boundary.
 
-This reference is judgment: adapt it to the question being answered. Its binding statements restate [Evaluate Skill](../SKILL.md) Rules or the definition schema.
+This reference is judgment: adapt it to the question being answered. Its binding statements restate [Evaluate Behavior](../SKILL.md) Rules or the definition schema.
 
 ## Map Claims To Evidence
 
@@ -15,6 +15,7 @@ This reference is judgment: adapt it to the question being answered. Its binding
 | Guidance remains useful later | Multi-turn evidence |
 | Files or structured state match | Artifact outcome |
 | Behavior holds across named hosts | The same group semantics on every named host |
+| An extension, setting, model or instruction change reaches the model | Delivery, observed in the system prompt or provider context |
 
 Record separately:
 
@@ -27,7 +28,7 @@ Record separately:
 - derived grades;
 - later semantic judgment.
 
-A read does not prove compliance. Correct behavior does not prove which skill caused it.
+A read does not prove compliance. Correct behavior does not prove which component caused it.
 
 ## Choose The Smallest Group Shape
 
@@ -49,13 +50,15 @@ Every group contains exactly:
 
 For a new skill, baseline has no target.
 
-For a revision, baseline names an exact immutable previous package. If no exact baseline exists, return to Write Skill before revision.
+For a revision of anything, baseline names the exact immutable previous state, such as a commit. If none exists, preserve it before revising (for a skill, through Write Skill).
+
+For a setting, a model or an extension, baseline is the value in use, and candidate is the one proposed.
 
 To learn whether a skill's body, not just its description, changes behavior, add a separate group whose baseline is a neutral package: the same name and description with a placeholder body. A candidate that matches the neutral baseline gains nothing from its body under that pressure.
 
 For a description-only revision, body and resources remain byte-identical; the group's `"revision": "description-only"` makes the evaluator check this before any subject runs.
 
-Freeze prompts or turns, fixture, tools, model, thinking, other skills, context, runtime, and criteria across variants. Put what may differ in the group's `component`; the evaluator refuses a group whose arms differ anywhere else.
+Freeze prompts or turns, fixture, tools, every configuration part other than the component, and criteria across variants. Put what may differ in the group's `component`; the evaluator refuses a group whose arms differ anywhere else.
 
 ## Design Common Questions
 
@@ -71,6 +74,10 @@ For a nearby prompt, predeclare whether success means:
 ### First-read body
 
 Explicitly deliver the exact target body with only guaranteed context. Ambient package context cannot repair a hidden dependency.
+
+### Delivery
+
+For a component that acts through what the host sends, such as an extension, a host setting or an instruction file, first check with a `context-text` expectation that it reached the system prompt or provider context. A change that never reached the model cannot explain a behavior difference.
 
 ### Dependency composition
 
@@ -101,7 +108,7 @@ Choose the pressure by the kind of instruction under test:
 
 ## Grade By Requirement And Respect Variance
 
-Grade each requirement a group checks, not only pass or fail. Label each as derivable from the request and code, dependent on a clarification, or imposed by the evaluator (an exact name or message only the checker knows); a failure on an evaluator-imposed requirement says little about the skill.
+Grade each requirement a group checks, not only pass or fail. Label each as derivable from the request and code, dependent on a clarification, or imposed by the evaluator (an exact name or message only the checker knows); a failure on an evaluator-imposed requirement says little about the component.
 
 One run per cell cannot separate a difference of one or two items from run-to-run variance. Repeat the cell, or report such a difference as unresolved.
 

@@ -6,9 +6,9 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { loadDefinition } from "../../../skills/evaluate-skill/scripts/lib/definitions.mjs";
+import { loadDefinition } from "../../../skills/evaluate-behavior/scripts/lib/definitions.mjs";
 
-const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-skill/scripts/skill-eval.mjs", import.meta.url));
+const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-behavior/scripts/skill-eval.mjs", import.meta.url));
 const COMMIT = "c0ffee".padEnd(40, "0");
 
 async function withTempDirectory(run) {

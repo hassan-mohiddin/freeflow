@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import registerSkillEvalGuard from "../../../skills/evaluate-skill/scripts/pi-guard.mjs";
+import registerSkillEvalGuard from "../../../skills/evaluate-behavior/scripts/pi-guard.mjs";
 
 async function withTempDirectory(run) {
   const directory = await mkdtemp(path.join(tmpdir(), "skill-eval-guard-test-"));

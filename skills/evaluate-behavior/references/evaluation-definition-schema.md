@@ -76,7 +76,7 @@ A configuration has these fields; each arm's effective configuration is the shar
 | `subject` | yes | What is under test: `{ "kind": "skill", "source", "skills", "target", "context" }` (see [Subject](#subject)) or `{ "kind": "none" }` when the comparison is about the environment, not a skill. |
 | `model` | no | `model` names the provider/model; optional `thinking` selects its thinking level. The CLI has no model override, and a subject run without a model gets Pi's default and no copied login. |
 | `runtime` | no | Host session, prompt mode, extension bundles and environment; see [Runtime Profile](#runtime-profile). |
-| `freeflow` | no | Freeflow as part of the environment: `{ "source": { "kind": "git", "ref": "<commit>" }, "repository": { ... }, "personal": { ... } }`; see [Freeflow](#freeflow). |
+| `freeflow` | no | Contributor-only (needs a Freeflow repository as the definition root): Freeflow as part of the environment: `{ "source": { "kind": "git", "ref": "<commit>" }, "repository": { ... }, "personal": { ... } }`; see [Freeflow](#freeflow). |
 
 Rules:
 
@@ -238,6 +238,8 @@ The examples are complete definition shapes. Replace fixture, resource, model, a
 - The advisory reviewer takes the same fields from a configuration file given with `review --configuration`.
 
 ## Freeflow
+
+Contributor-only: this field builds Freeflow itself with `scripts/freeflow-snapshot.mjs`, so it works only when the definition root is a Freeflow repository; elsewhere the group is refused before any subject runs. To compare a host extension, declare it under `host.extensions`.
 
 A configuration with `freeflow` runs the subject with Freeflow loaded, built from an exact commit:
 

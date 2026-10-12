@@ -6,10 +6,10 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { aggregateGroups } from "../../../skills/evaluate-skill/scripts/lib/trials.mjs";
+import { aggregateGroups } from "../../../skills/evaluate-behavior/scripts/lib/trials.mjs";
 import { toV2 } from "./helpers/to-v2.mjs";
 
-const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-skill/scripts/skill-eval.mjs", import.meta.url));
+const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-behavior/scripts/skill-eval.mjs", import.meta.url));
 const FAKE_KEYS = ["FAKE_PI_LOG", "FAKE_PI_COST"];
 
 async function withTempDirectory(run) {

@@ -2,7 +2,7 @@
 
 Read this before a run whose result must support a rate or a comparison, when sizing cases and trials, or before reporting counts as a finding.
 
-This reference is judgment: adapt it to the decision the result must support. Its binding statement on claims restates [Evaluate Skill](../SKILL.md) Rules. The figures in it come from measured review-suite runs and are examples, not thresholds.
+This reference is judgment: adapt it to the decision the result must support. Its binding statement on claims restates [Evaluate Behavior](../SKILL.md) Rules. The figures in it come from measured review-suite runs and are examples, not thresholds.
 
 ## Claim Classes
 
@@ -13,7 +13,7 @@ Name the strongest claim the result must support before building cases, and repo
 | **Can do X** | One complete run that shows X, with its transcript | — |
 | **Does X at a rate on this suite** | Pass, fail and unavailable counts per check, case and trial, with the case and trial counts stated; pass^k at the stated k for behavior relied on every time | One run; pass@k alone for behavior relied on every time |
 | **A beats B** | Paired runs of both arms on the same cases, and a decision rule and size fixed before the run | Fewer cases than declared; transitions such as fail-to-pass; unpaired runs; a rule chosen after seeing results |
-| **Ready** | Held-out cases, real services, pinned models, and evidence at the claim's own boundary | Any of the above alone. Evaluate Skill never claims it |
+| **Ready** | Held-out cases, real services, pinned models, and evidence at the claim's own boundary | Any of the above alone. Evaluate Behavior never claims it |
 
 "The candidate identified the defect in 69 of 90 reviews, the baseline in 42" is a count. "The candidate is better" needs the rule.
 

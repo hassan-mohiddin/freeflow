@@ -7,7 +7,7 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { loadDefinition } from "../../skills/evaluate-skill/scripts/lib/definitions.mjs";
+import { loadDefinition } from "../../skills/evaluate-behavior/scripts/lib/definitions.mjs";
 
 const DEFINITION_DIRECTORIES = new Set(["cases", "adversarial-cases", "groups"]);
 const SKIPPED_DIRECTORIES = new Set(["runs", "cache", "fixtures", "node_modules", "subjects", "reports", "provenance"]);

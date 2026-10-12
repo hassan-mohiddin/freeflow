@@ -1,20 +1,20 @@
 ---
-name: evaluate-skill
-description: "Use when testing, evaluating, or comparing how an agent skill behaves, such as whether it triggers or changes outcomes."
+name: evaluate-behavior
+description: "Use when testing, evaluating, or comparing how an agent behaves, such as whether a skill triggers or a change to its setup changes outcomes."
 ---
 
-# Evaluate Skill
+# Evaluate Behavior
 
-Determine whether an exact skill package changes agent behavior as intended under declared pressure. Evidence outranks confident prose.
+Determine whether one declared change to an agent's setup changes its behavior as intended under declared pressure. Evidence outranks confident prose.
 
-A **group** asks one behavioral question through exactly two variants:
+A **configuration** is everything that can shape the agent's behavior: host, model, skills, instruction files, and host extensions and settings. A **group** asks one behavioral question through exactly two variants of one configuration:
 
-- `baseline`: no target skill for a new skill, or one exact immutable previous package for a revision;
-- `candidate`: one exact new or updated package.
+- `baseline`: the setup without the change, such as no target skill, the previous commit, or the setting off;
+- `candidate`: the same setup with exactly the declared change, its **component**.
 
-The **subject** performs the declared task under one variant. The **evaluator** isolates subjects and preserves canonical evidence. The **deterministic grader** derives fixed mechanical facts after the run is saved. A **suite** runs an ordered set of independent groups.
+The **subject** is the agent performing the declared task under one variant. The **evaluator** isolates subjects and preserves canonical evidence. The **deterministic grader** derives fixed mechanical facts after the run is saved. A **suite** runs an ordered set of independent groups.
 
-Evaluate Skill does not author or revise skills, decide semantic quality, claim readiness, or choose publication. [Write Skill](../write-skill/SKILL.md) owns package preservation, revision, and the authoring loop an evaluation serves. The active agent or user judges unresolved meaning; the user decides whether to revise, use, publish, or reject the skill.
+Evaluate Behavior does not change what it evaluates, decide semantic quality, claim readiness, or choose adoption. The component's owner revises it: [Write Skill](../write-skill/SKILL.md) for a skill, including the authoring loop an evaluation serves. The active agent or user judges unresolved meaning; the user decides whether to revise, adopt, or reject the change.
 
 The **Rules** below are binding; if one cannot be met, stop and say why. Everything else is **judgment**: follow its stated goal, and adapt when a different choice serves that goal better.
 
@@ -22,13 +22,13 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 - Never mutate canonical evidence or erase an unfavorable result. Preserve partial and infrastructure evidence without converting unavailable behavior into pass or fail.
 - Never fabricate behavioral evidence. Missing evidence stays unavailable.
-- Compare a revision only against an exact immutable baseline. If none exists, return to Write Skill to preserve the current package; never create a baseline by editing the package being evaluated.
+- Compare a change only against an exact immutable baseline, such as a commit. If none exists, preserve the current state first (for a skill, through Write Skill); never create a baseline by editing what is being evaluated.
 - Keep deterministic criteria and review questions out of subject prompts and declared subject context.
-- Declare every subject resource. Ambient installation or context is not declared composition.
+- Declare every part of the configuration that can change behavior. Ambient installation, settings, or context are not declared composition.
 - Claim only what the evidence class observed; one class never proves another.
 - Never write that one variant beats another without paired runs on the same cases and a decision rule fixed before the run. Below that, report counts.
 - Never cite a dry run as evidence. When a run is refused for uncommitted inputs, commit the candidate and the definition, or keep the run as a dry run for your own checking only.
-- Never edit the skill from Evaluate Skill. Return one measured revision target to Write Skill.
+- Never change the component under test while evaluating it. Return one measured revision target to its owner.
 - After a behavioral change, rerun the complete fixed group with both variants. Never reuse an earlier run as the fresh counterpart or rerun only the preferred variant.
 - Advisory review and semantic judgment never enter canonical run or grade state, and neither establishes readiness.
 - Never invoke archived evaluators.
@@ -58,6 +58,9 @@ Name the exact claim and observing mechanism before choosing the group shape. Ev
 - **Retained use:** did guidance remain useful on later declared turns without redelivery?
 - **Artifact outcome:** did files, structured state, events, and responses match fixed criteria?
 - **Cross-host behavior:** did the same behavioral question hold on every named host? The evaluator currently runs only native Pi hosts.
+- **Delivery:** did the changed component reach the model, such as a setting's instructions in the system prompt? Check it before blaming behavior.
+
+Activation, first-read body and nearby behavior are questions about skills. For other components, delivery, behavior and artifact outcome come first.
 
 ```text
 successful read
@@ -76,7 +79,7 @@ correct behavior
 ≠ proof that the target caused it
 ```
 
-Test a skill's Rules and its judgment differently. A Rule needs pressure to break it; it passes only if it holds. Judgment needs a case where following the default literally is the worse choice; it passes on outcome, so a candidate that only obeys cannot pass.
+Test Rules and judgment differently, in a skill or any other instruction text. A Rule needs pressure to break it; it passes only if it holds. Judgment needs a case where following the default literally is the worse choice; it passes on outcome, so a candidate that only obeys cannot pass.
 
 Read [Evaluation Design](references/evaluation-design.md) before choosing or materially changing the question, evidence class, group shape, pressure, or baseline/candidate boundary.
 
@@ -89,9 +92,22 @@ Before building cases, name the strongest claim the result must support:
 - **can do X:** one complete run that shows it;
 - **does X at a rate on this suite:** counts per check, case and trial, and pass^k for behavior relied on every time;
 - **A beats B:** paired runs on the same cases, with a decision rule and size fixed before the run;
-- **ready:** beyond Evaluate Skill; it needs held-out cases and evidence at the claim's own boundary.
+- **ready:** beyond Evaluate Behavior; it needs held-out cases and evidence at the claim's own boundary.
 
 Read [Measurement](references/measurement.md) before a run that must support a rate or a comparison. Read [Defect Suites](references/defect-suites.md) before measuring a reviewer, checker or other detector.
+
+## Choose The Component
+
+Goal: the arms differ in exactly the thing the question is about.
+
+| Change under test | Component | Baseline | Revision goes to |
+| --- | --- | --- | --- |
+| A new or revised skill | `subject.skills`, `subject.target`, `subject.source` | no target, or the previous commit | Write Skill |
+| An instruction or context file | `subject.context` | without the file, or its previous commit | the file's owner |
+| A model or thinking level | `model.model`, `model.thinking` | the model in use | the user's choice |
+| An extension or plugin, or a host setting | `host.extensions`, `host.settings` | without it, or its current version or value | the extension's owner, or the user's choice |
+
+The task's fixture and the runtime are shared by both arms and cannot be the component. To learn how much two runs of one setup differ, declare `component: []`: an A/A comparison.
 
 ## Design The Smallest Valid Comparison
 
@@ -103,16 +119,16 @@ Before subject output exists:
 2. fix deterministic expectations and review questions;
 3. preserve the earliest natural prompt or strongest pressure capable of distinguishing behavior;
 4. declare exact baseline and candidate identities;
-5. keep prompt or turns, fixture, tools, model, thinking, other skills, context, runtime, and criteria fixed except for the target difference;
+5. keep prompt or turns, fixture, tools, and every configuration part other than the component fixed, along with the criteria;
 6. run one group or an ordered suite serially;
 7. inspect canonical evidence and deterministic facts before judging meaning;
 8. classify the failed boundary before proposing revision.
 
-For a new skill, the baseline has no target skill. For a revision, the baseline is the exact previous package. For a description-only revision, keep body, references, scripts, and other resources byte-identical, and declare `"revision": "description-only"` so the evaluator refuses a group that changes more.
+For a new skill, the baseline has no target skill. For a revised skill, the baseline is the exact previous package. For a description-only skill revision, keep body, references, scripts, and other resources byte-identical, and declare `"revision": "description-only"` so the evaluator refuses a group that changes more.
 
-If both variants pass, the pressure may be weak or the baseline already sufficient. If both fail, distinguish skill, fixture, dependency, environment, host, isolation, and criterion failures before revising instructions.
+If both variants pass, the pressure may be weak or the baseline already sufficient. If both fail, distinguish component, fixture, dependency, environment, host, isolation, and criterion failures before revising anything.
 
-Inline examples in the skill teach the subject and are part of the candidate intervention; they are not independent evaluation evidence.
+Inline examples in the instructions under test teach the subject and are part of the candidate intervention; they are not independent evaluation evidence.
 
 ## Declare The Complete Environment
 
@@ -120,12 +136,12 @@ Use the exact [Evaluation Definition Schema](references/evaluation-definition-sc
 
 - prompt or ordered turns;
 - fixture;
-- exact ordered skill packages and target index;
+- exact ordered skill packages and target index, when the subject has skills;
 - working-tree or Git source identity;
 - context resources;
 - tools and any declared commands;
 - model and thinking;
-- runtime host, prompt mode, and extension bundles when needed;
+- host, its version, extensions and settings, and the runtime prompt mode and extension bundles when needed;
 - literal and inherited environment sources;
 - deterministic expectations and comparison IDs;
 - review questions.
@@ -137,9 +153,9 @@ Before operating the evaluator, resolving paths, interpreting states, or reasoni
 Use the canonical [skill evaluator](scripts/skill-eval.mjs) from the definition root:
 
 ```text
-node <evaluate-skill-directory>/scripts/skill-eval.mjs run <suite-or-group-path> [--group <id-or-position>] [--variant baseline|candidate] [--trials <n>] [--max-cost <total>] [--yes] [--dry-run]
-node <evaluate-skill-directory>/scripts/skill-eval.mjs view <result-id-or-directory> [--group <id-or-position>] [--variant baseline|candidate]
-node <evaluate-skill-directory>/scripts/skill-eval.mjs review <result-id-or-directory> (--model <provider/model> | --configuration <file>) [--group <id-or-position>] [--thinking <level>] [--swap] [--limit <name>=<chars>]
+node <evaluate-behavior-directory>/scripts/skill-eval.mjs run <suite-or-group-path> [--group <id-or-position>] [--variant baseline|candidate] [--trials <n>] [--max-cost <total>] [--yes] [--dry-run]
+node <evaluate-behavior-directory>/scripts/skill-eval.mjs view <result-id-or-directory> [--group <id-or-position>] [--variant baseline|candidate]
+node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-id-or-directory> (--model <provider/model> | --configuration <file>) [--group <id-or-position>] [--thinking <level>] [--swap] [--limit <name>=<chars>]
 ```
 
 One run per variant cannot separate a behavioral difference from sampling noise. Use `--trials <n>` before claiming a difference; each trial is an independent complete result, and the aggregate counts their deterministic grades with pass^k. Use `--max-cost` when trials or suites could spend more than intended; it bounds the host's list-price estimate, not a subscription's plan limit, so state the subject count before a large batch.
@@ -180,7 +196,7 @@ When evidence supports a candidate change:
 1. identify the exact failed boundary;
 2. preserve the canonical result path and relevant evidence;
 3. state one measured revision target, keeping unrelated instructions and criteria stable;
-4. return revision to Write Skill;
+4. return revision to the component's owner;
 5. rerun the complete fixed group with both variants after the change.
 
 If the evaluation definition or criterion is wrong, preserve the old result and state that it no longer answers the revised question. Do not reinterpret it as evidence for the new question.
@@ -202,4 +218,4 @@ Report:
 - what it does not prove;
 - any supported failed boundary or revision target.
 
-Stop rather than overclaim when required activation, first-read, composition, retained-use, isolation, artifact, or host evidence is unavailable. The user decides whether to revise, use, publish, or reject the skill.
+Stop rather than overclaim when required delivery, activation, first-read, composition, retained-use, isolation, artifact, or host evidence is unavailable. The user decides whether to revise, adopt, or reject the change.

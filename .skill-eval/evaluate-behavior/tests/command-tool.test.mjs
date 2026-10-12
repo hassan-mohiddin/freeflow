@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import registerCommandTool from "../../../skills/evaluate-skill/scripts/pi-command-tool.mjs";
+import registerCommandTool from "../../../skills/evaluate-behavior/scripts/pi-command-tool.mjs";
 
 async function withWorkspace(commands, run) {
   const directory = await realpath(await mkdtemp(path.join(tmpdir(), "skill-eval-command-tool-test-")));

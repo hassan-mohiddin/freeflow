@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { renderResult } from "../../../skills/evaluate-skill/scripts/lib/view.mjs";
+import { renderResult } from "../../../skills/evaluate-behavior/scripts/lib/view.mjs";
 import { toV2 } from "./helpers/to-v2.mjs";
 
 const UNUSUAL_PATHS = ["literal\\t.txt", "actual\t.txt", "comma,name.txt", "line\r\nbreak.txt", "nested/part.txt"];

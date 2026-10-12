@@ -8,7 +8,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { toV2 } from "./helpers/to-v2.mjs";
 
-const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-skill/scripts/skill-eval.mjs", import.meta.url));
+const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-behavior/scripts/skill-eval.mjs", import.meta.url));
 const FAKE_PI_ENVIRONMENT_KEYS = [
   "FAKE_PI_BREAK_FINAL_FOR",
   "FAKE_PI_BREAK_GRADE_FALLBACK_FOR",

@@ -9,7 +9,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { toV2 } from "./helpers/to-v2.mjs";
 
-const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-skill/scripts/skill-eval.mjs", import.meta.url));
+const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-behavior/scripts/skill-eval.mjs", import.meta.url));
 const RESULT_ID = "20260925000000-feedface";
 const QUESTION = "Did the run name a rollback step before shipping?";
 

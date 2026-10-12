@@ -5,8 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { gradeDeterministic } from "../../../skills/evaluate-skill/scripts/lib/grade.mjs";
-import { fingerprintDirectory } from "../../../skills/evaluate-skill/scripts/lib/sandbox.mjs";
+import { gradeDeterministic } from "../../../skills/evaluate-behavior/scripts/lib/grade.mjs";
+import { fingerprintDirectory } from "../../../skills/evaluate-behavior/scripts/lib/sandbox.mjs";
 
 async function withTempDirectory(run) {
   const root = await mkdtemp(path.join(os.tmpdir(), "skill-eval-grade-"));

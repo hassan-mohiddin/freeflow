@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { loadDefinition, selectDefinition } from "../../../skills/evaluate-skill/scripts/lib/definitions.mjs";
+import { loadDefinition, selectDefinition } from "../../../skills/evaluate-behavior/scripts/lib/definitions.mjs";
 import { toV2 } from "./helpers/to-v2.mjs";
 
 async function withTempDirectory(run) {

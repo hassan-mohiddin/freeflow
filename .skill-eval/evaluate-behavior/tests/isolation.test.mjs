@@ -7,7 +7,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { toV2 } from "./helpers/to-v2.mjs";
 
-const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-skill/scripts/skill-eval.mjs", import.meta.url));
+const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-behavior/scripts/skill-eval.mjs", import.meta.url));
 
 async function withTempDirectory(run) {
   const directory = await realpath(await mkdtemp(path.join(tmpdir(), "skill-eval-isolation-test-")));

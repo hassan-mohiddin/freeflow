@@ -2,7 +2,7 @@
 
 Read this after canonical evidence and deterministic grades exist, when evidence conflicts, meaning remains unresolved, the failed boundary must be classified, or revision and rerun scope must be chosen.
 
-This reference is judgment: adapt it to the evidence in hand. Its rerun and no-edit requirements restate [Evaluate Skill](../SKILL.md) Rules.
+This reference is judgment: adapt it to the evidence in hand. Its rerun and no-edit requirements restate [Evaluate Behavior](../SKILL.md) Rules.
 
 ## Use The Strongest Evidence
 
@@ -46,29 +46,30 @@ Classify before revising:
 - nearby behavior that hijacks the task;
 - retained-use or multi-turn failure;
 - wording, placement, example, repetition, or stop-condition pressure;
+- a component that never reached the model;
 - fixture, environment, isolation, host, runner, or deterministic-check failure.
 
 Do not add broad prose before identifying which boundary failed.
 
-## Return Revision To Write Skill
+## Return Revision To The Owner
 
-When evidence supports a skill change:
+When evidence supports changing the component:
 
 1. name the exact failed boundary;
 2. cite the canonical evidence;
 3. identify one measured pressure point;
 4. preserve unrelated instructions and fixed criteria;
-5. return the revision target to [Write Skill](../../write-skill/SKILL.md).
+5. return the revision target to the component's owner.
 
-Write Skill owns package revision.
+[Write Skill](../../write-skill/SKILL.md) owns skill revision. An instruction file or extension code goes to its owner; a choice of model, setting or extension goes to the user.
 
-Evaluate Skill does not edit the skill or replace its baseline while evaluating it.
+Evaluate Behavior does not change the component or replace its baseline while evaluating it.
 
 When evidence proves the group, fixture, or criterion is wrong, revise the evaluation instead. Preserve the old result and state that it no longer answers the revised question.
 
 ## Rerun The Complete Group
 
-After a measured skill revision or resolved infrastructure cause:
+After a measured revision or resolved infrastructure cause:
 
 - rerun the complete fixed group;
 - run both baseline and candidate;
@@ -85,10 +86,10 @@ For variance, use `--trials` to run independent complete invocations rather than
 Report:
 
 - failed boundary and evidence;
-- exact skill revision or evaluation correction;
+- exact revision or evaluation correction;
 - criteria that remained fixed;
 - old and new result paths;
 - deterministic transitions;
 - remaining unsupported claims.
 
-The user decides whether to revise further, use, publish, or reject the skill.
+The user decides whether to revise further, adopt, or reject the change.
