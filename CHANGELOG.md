@@ -132,8 +132,6 @@
 
 ### Fixed
 
-- Evaluate Behavior: in a container environment, a subject's declared commands (`run_command`) run in its container, as `bash` does, instead of on the host, and the container starts for a group that declares commands without `bash`; graders already ran in the image.
-- Evaluate Behavior: judges and the pairwise reviewer run with the evaluator's Pi defaults (automatic retry and compaction off) under their declared settings, as subjects do.
 - Stops trusting the session file as verified after `/reload`, which keeps Pi's session in memory without re-reading the file; an entry that a failed write left only in memory now blocks Cognitive Routing instead of being treated as persisted.
 - Keeps Cognitive Routing correct on Pi 0.99 for runs that an extension's message starts: the run is handed to the Coordinator before its first request instead of waking an idle worker.
 - Explains a Cognitive Routing recovery refusal when a context ref is passed as a captured result id: the ref belongs in the request, where the worker selects it as evidence.
@@ -169,8 +167,6 @@
 
 ### Fixed
 
-- Evaluate Behavior: in a container environment, a subject's declared commands (`run_command`) run in its container, as `bash` does, instead of on the host, and the container starts for a group that declares commands without `bash`; graders already ran in the image.
-- Evaluate Behavior: judges and the pairwise reviewer run with the evaluator's Pi defaults (automatic retry and compaction off) under their declared settings, as subjects do.
 - Clears session-local Cognitive Routing manual-hold state before validating a newly bound session.
 - Clarifies evidence-selection operation shapes, remove-only withdrawal reasons, and the distinction between eligible result bodies and routing controls.
 - Prevents pre-prompt `/reload` and Cognitive Routing preset changes from blocking on Pi's not-yet-materialized session file.
@@ -196,8 +192,6 @@
 
 ### Fixed
 
-- Evaluate Behavior: in a container environment, a subject's declared commands (`run_command`) run in its container, as `bash` does, instead of on the host, and the container starts for a group that declares commands without `bash`; graders already ran in the image.
-- Evaluate Behavior: judges and the pairwise reviewer run with the evaluator's Pi defaults (automatic retry and compaction off) under their declared settings, as subjects do.
 - Limits normal evidence inspection to usable candidates and removes source-content previews, while preserving saved-selection diagnostics.
 - Preserves delivered-user identity across native compaction and explicit resume, so stored-but-undelivered history does not interrupt an outstanding Executor assignment while genuinely new input still does.
 - Keeps streamed routing contracts and reports visible in collapsed receipts; limitations and replacement reasons remain available in expanded views instead of obscuring current prose.
@@ -217,8 +211,6 @@
 
 ### Fixed
 
-- Evaluate Behavior: in a container environment, a subject's declared commands (`run_command`) run in its container, as `bash` does, instead of on the host, and the container starts for a group that declares commands without `bash`; graders already ran in the image.
-- Evaluate Behavior: judges and the pairwise reviewer run with the evaluator's Pi defaults (automatic retry and compaction off) under their declared settings, as subjects do.
 - Aligns OpenCode v2 skill configuration, Gemini lifecycle matching, and Copilot session-start context output with their documented host contracts.
 
 ## 0.7.0 - 2026-09-03
@@ -243,8 +235,6 @@
 
 ### Fixed
 
-- Evaluate Behavior: in a container environment, a subject's declared commands (`run_command`) run in its container, as `bash` does, instead of on the host, and the container starts for a group that declares commands without `bash`; graders already ran in the image.
-- Evaluate Behavior: judges and the pairwise reviewer run with the evaluator's Pi defaults (automatic retry and compaction off) under their declared settings, as subjects do.
 - Keeps extension-generated Runtime State before the latest genuine user message so automatic profile refreshes cannot masquerade as user interruptions and prematurely return delegated work.
 - Prevents stock-Pi model and thinking events emitted by Freeflow-owned profile transitions from being treated as native user overrides.
 - Expands direct Pi skill commands through Pi’s `sendUserMessage` API before dispatching them to the model.
