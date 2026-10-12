@@ -211,6 +211,17 @@ test("settled unbound attempt is retired truthfully and next request has a new i
     assert.notEqual(executions[1].basisUserEntryId, old.basisUserEntryId);
   }));
 
+test("the gate refuses a routing tool called from a script", async () =>
+  environment(async ({ runtime, make }) => {
+    const ctx = make("nested");
+    for (const toolName of ["delegate_work", "return_work", "routing_unit", "select_evidence"]) {
+      assert.deepEqual(runtime.preflight({ toolName, toolCallId: "inner", parentToolCallId: "outer" }, ctx), {
+        block: true,
+        reason: `Call ${toolName} directly, not from a script.`,
+      });
+    }
+  }));
+
 test("session profile overrides apply only to the selected pair and restore configured pairs", async () =>
   environment(async ({ runtime, make, activate }) => {
     const ctx = make("session-profile");
