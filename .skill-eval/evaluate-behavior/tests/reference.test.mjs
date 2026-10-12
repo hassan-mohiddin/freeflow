@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { loadDefinition, selectDefinition } from "../../../skills/evaluate-behavior/scripts/lib/definitions.mjs";
 import { checkSelection, enforceReferenceChecks } from "../../../skills/evaluate-behavior/scripts/lib/reference.mjs";
 import { runEvaluation } from "../../../skills/evaluate-behavior/scripts/lib/runner.mjs";
+import { dockerCalls, installFakeDocker } from "./helpers/fake-docker.mjs";
 
 const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-behavior/scripts/skill-eval.mjs", import.meta.url));
 const NODE = process.execPath;
@@ -347,3 +348,139 @@ test("check-tasks reports each group and starts no subject or result", async () 
 async function exists(file) {
   return (await stat(file).catch(() => null)) !== null;
 }
+
+const HALF_FIXED = "export function add(a, b) {\n  return Math.abs(a) + Math.abs(b);\n}\n";
+
+test("a task whose graders already pass on the unchanged fixture is already solved, and a run refuses it", async () => {
+  await withRoot(async (root) => {
+    const file = await writeTask(
+      root,
+      calcGroup({
+        expectations: [hiddenTestExpectation("baseline")],
+        reference_solution: { files: "references/fixed" },
+      }),
+      { "references/fixed/src/add.mjs": FIXED },
+    );
+    await write(path.join(root, "fixtures/calc/src/add.mjs"), FIXED);
+
+    const result = await checkOne(root, file);
+    assert.equal(result.state, "already-solved");
+    assert.equal(result.reason, "baseline: every check already passes on the unchanged fixture");
+    assert.deepEqual(result.arms[0].before, {
+      state: "already-solved",
+      checks: [{ id: "baseline-hidden", state: "pass" }],
+      tests: { "baseline-hidden": { failToPass: [], passToPass: ["adds two numbers", "adds negatives"] } },
+    });
+
+    await assert.rejects(runEvaluation(file, {}, { root, dryRun: true }), {
+      message: /task calc is already solved before any change.*--skip-reference-check/,
+    });
+    const [resultId] = await readdir(path.join(root, ".skill-eval/runs"));
+    const recorded = JSON.parse(
+      await readFile(path.join(root, ".skill-eval/runs", resultId, "groups/calc/reference-check.json"), "utf8"),
+    );
+    assert.equal(recorded.state, "already-solved");
+    assert.equal(recorded.skipped, false);
+
+    const tasks = spawnSync(process.execPath, [entrypoint, "check-tasks", "groups/calc.json"], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    assert.equal(tasks.status, 1, tasks.stderr);
+    assert.match(tasks.stdout, /^calc: already-solved/m);
+  });
+});
+
+test("required tests that fail before and pass after are fail-to-pass; ones passing both times are pass-to-pass", async () => {
+  await withRoot(async (root) => {
+    const file = await writeTask(
+      root,
+      calcGroup({
+        expectations: [hiddenTestExpectation("baseline")],
+        reference_solution: { files: "references/fixed" },
+      }),
+      { "references/fixed/src/add.mjs": FIXED },
+    );
+    await write(path.join(root, "fixtures/calc/src/add.mjs"), HALF_FIXED);
+
+    const result = await checkOne(root, file);
+    assert.equal(result.state, "solvable", result.reason);
+    assert.deepEqual(result.arms[0].before, {
+      state: "fails-before",
+      checks: [{ id: "baseline-hidden", state: "fail" }],
+      tests: { "baseline-hidden": { failToPass: ["adds negatives"], passToPass: ["adds two numbers"] } },
+    });
+
+    const definition = await loadDefinition(file, { root });
+    const resultDirectory = path.join(root, ".skill-eval/runs/recorded");
+    await enforceReferenceChecks(selectDefinition(definition, {}), { root, resultDirectory });
+    const recorded = JSON.parse(await readFile(path.join(resultDirectory, "groups/calc/reference-check.json"), "utf8"));
+    assert.deepEqual(recorded.arms[0].before.tests, result.arms[0].before.tests);
+    assert.equal(recorded.arms[0].state, "solvable");
+  });
+});
+
+const IMAGE = `example.org/calc@sha256:${"c".repeat(64)}`;
+
+function containerCalcGroup() {
+  const group = calcGroup({
+    expectations: [hiddenTestExpectation("baseline")],
+    reference_solution: { patch: "references/fix.patch" },
+  });
+  group.configuration.environment = { kind: "container", image: IMAGE, workdir: "/testbed", network: "none" };
+  return group;
+}
+
+async function withPath(prefix, run) {
+  const saved = process.env.PATH;
+  const savedHost = process.env.DOCKER_HOST;
+  process.env.PATH = `${prefix}${path.delimiter}${saved ?? ""}`;
+  delete process.env.DOCKER_HOST;
+  try {
+    return await run();
+  } finally {
+    process.env.PATH = saved;
+    if (savedHost !== undefined) process.env.DOCKER_HOST = savedHost;
+  }
+}
+
+test("a container group's command graders are checked in its image", async () => {
+  await withRoot(async (root) => {
+    const file = await writeTask(root, containerCalcGroup(), { "references/fix.patch": FIX_PATCH });
+    const docker = await installFakeDocker(root);
+
+    const result = await withPath(docker.bin, () => checkOne(root, file));
+
+    assert.equal(result.state, "solvable", result.reason);
+    assert.equal(result.arms[0].before.state, "fails-before");
+    const runs = (await dockerCalls(docker.log)).filter((args) => args[0] === "run");
+    assert.equal(runs.length, 2);
+    for (const args of runs) {
+      assert.ok(args.includes(IMAGE));
+      assert.equal(args[args.indexOf("--network") + 1], "none");
+      assert.match(args[args.indexOf("--volume") + 1], /\/commands\/baseline-hidden\/workspace:\/testbed$/);
+      assert.deepEqual(args.slice(args.indexOf(IMAGE) + 1), [
+        NODE,
+        "--test",
+        "--test-reporter=tap",
+        "test/add.test.mjs",
+      ]);
+    }
+  });
+});
+
+test("a container group is not checkable when its image is missing, with the structured refusal", async () => {
+  await withRoot(async (root) => {
+    const file = await writeTask(root, containerCalcGroup(), { "references/fix.patch": FIX_PATCH });
+    const docker = await installFakeDocker(root, { imageMissing: true });
+
+    const result = await withPath(docker.bin, () => checkOne(root, file));
+
+    assert.equal(result.state, "not-checkable");
+    assert.match(result.reason, /arm baseline runs in the container image example\.org\/calc@sha256:c+/);
+    assert.match(result.reason, /Install: docker pull example\.org\/calc@sha256:c+/);
+    assert.equal(result.missing[0].install, `docker pull ${IMAGE}`);
+    const verbs = (await dockerCalls(docker.log)).map((args) => args[0]);
+    assert.deepEqual(verbs, ["version", "image", "manifest"]);
+  });
+});

@@ -265,7 +265,7 @@ export function prerequisiteRefusal(groupId, arm, shell, missing) {
   return lines.join("\n");
 }
 
-async function packageManager(environment) {
+export async function packageManager(environment) {
   if (process.platform === "darwin") return "macos";
   if (process.platform !== "linux") return null;
   if (await onPath("apt-get", environment)) return "apt";

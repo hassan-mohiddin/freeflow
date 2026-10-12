@@ -9,7 +9,7 @@ import { ARM_NAME } from "./arms.mjs";
 const DECISION_FIELDS = new Set(["measure", "arms", "direction", "method", "alpha", "min_cases", "trials"]);
 const SCHEDULE_FIELDS = ["initial", "max", "step"];
 // Where each measure kind is read: comparisons from the deterministic counts, the others from aggregator sections.
-const MEASURE_KINDS = { comparison: null, metric: "metrics", judged: "judged" };
+const MEASURE_KINDS = { comparison: null, metric: "metrics", judged: "judged", score: "scores" };
 const MEASURE_NAME = /^[A-Za-z][A-Za-z0-9._-]{0,63}$/;
 const DIRECTIONS = new Set(["higher", "lower"]);
 const DEFAULTS = { method: "sign-test", alpha: 0.05, min_cases: 10 };
@@ -39,7 +39,7 @@ export function validateDecision(value, fail) {
   const measure = value.measure;
   const kinds = isPlainObject(measure) ? Object.keys(measure) : [];
   if (kinds.length !== 1 || !Object.hasOwn(MEASURE_KINDS, kinds[0])) {
-    fail("suite.decision.measure must have exactly one of comparison, metric or judged");
+    fail("suite.decision.measure must have exactly one of comparison, metric, judged or score");
   }
   const [kind] = kinds;
   if (typeof measure[kind] !== "string" || !MEASURE_NAME.test(measure[kind])) {
@@ -122,7 +122,8 @@ function armValues(group, rule) {
   for (const entry of section.perTrial) {
     const slot = arms[entry?.arm];
     if (slot === undefined) continue;
-    const value = entry.values?.[name];
+    // A score measure names a command expectation or its comparison; the section records it as `score.<id>`.
+    const value = entry.values?.[kind === "score" ? `score.${name}` : name];
     if (typeof value === "boolean") slot.values.push(value ? 1 : 0);
     else if (typeof value === "number" && Number.isFinite(value)) slot.values.push(value);
     else slot.excluded += 1;

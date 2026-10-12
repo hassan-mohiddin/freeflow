@@ -65,7 +65,7 @@ Commands:
   run     Execute selected evaluation groups
   view    Render selected stored evidence or a trial aggregate
   review  Record an advisory, arm-blind model answer to each group's review questions
-  check-tasks  Check that each group's reference_solution passes its workspace and command checks; no model
+  check-tasks  Check that each group's reference_solution passes its workspace and command checks, which must fail before it; no model
 
 Selectors:
   --group <id-or-position>
@@ -431,7 +431,9 @@ async function checkTasks(operation) {
     process.stdout.write(`${result.id}: ${result.state}${result.reason ? ` (${result.reason})` : ""}\n`);
     for (const arm of result.arms ?? []) process.stdout.write(`  ${arm.arm}: ${arm.state}\n`);
   }
-  if (results.some((result) => result.state === "unsolvable")) process.exitCode = 1;
+  if (results.some((result) => result.state === "unsolvable" || result.state === "already-solved")) {
+    process.exitCode = 1;
+  }
 }
 
 async function review(operation) {
