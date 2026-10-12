@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "w3-c",
+  "type": "description",
+  "input": {
+    "prompt": "Agents keep sending SQL strings to our search_tickets tool, and it only takes plain text, so those calls fail. Improve the description text that agents see for that tool so they stop doing it. The current file is in tools/search_tickets.json."
+  },
+  "fixture": "fixtures/w3-c",
+  "tools": ["read"],
+  "configuration": {
+    "extends": "../../../skill-family/configuration.json",
+    "subject": {
+      "kind": "skill",
+      "skills": ["skills/write-skill", "skills/write-spec", "skills/write-docs"],
+      "target": 0,
+      "context": [],
+      "source": {
+        "kind": "git",
+        "ref": "51998038825153582abda2ee1b3249f18342871f"
+      }
+    }
+  },
+  "arms": {
+    "base": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "3415a8a2f4158e17fe605c5378f18eb4e8c08ed5"
+        }
+      }
+    },
+    "head": {}
+  },
+  "component": ["subject.source"],
+  "expectations": [
+    {
+      "id": "base-target-read",
+      "kind": "skill-read",
+      "variant": "base",
+      "expect": "by-turn",
+      "turn": 1,
+      "comparison": "target-read"
+    },
+    {
+      "id": "head-target-read",
+      "kind": "skill-read",
+      "variant": "head",
+      "expect": "by-turn",
+      "turn": 1,
+      "comparison": "target-read"
+    }
+  ],
+  "review_questions": [],
+  "reference": "base"
+}

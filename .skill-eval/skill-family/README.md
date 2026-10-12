@@ -23,7 +23,7 @@ Consequence: groups `v1-a`, `v1-b`, `v1-c`, `w1-b`, `w1-c` and `w2-b` carry few 
 
 ## Split
 
-Held out: every third group in file-name order (positions 3, 6 and 9 of `suite.json`). Tuning groups may be used to revise wording. Held-out groups are reported separately and never used to choose or tune wording.
+Held out: every third group in file-name order (positions 3, 6, 9 and 12 of `suite.json`; the W3 groups were appended on 2026-10-12, which moved position 12 onto `w3-b`). Tuning groups may be used to revise wording. Held-out groups are reported separately and never used to choose or tune wording.
 
 | Position | Group | Split |
 | --- | --- | --- |
@@ -37,6 +37,10 @@ Held out: every third group in file-name order (positions 3, 6 and 9 of `suite.j
 | 8 | `w2-a` classify sentences | tuning |
 | 9 | `w2-b` activation path | **held out** |
 | 10 | `w2-c` justified guard | tuning |
+| 11 | `w3-a` AGENTS.md revision | tuning |
+| 12 | `w3-b` subagent brief | **held out** |
+| 13 | `w3-c` tool description | tuning |
+| 14 | `w3-d` spec request (near miss) | tuning |
 
 ## Groups
 
@@ -57,6 +61,15 @@ Pass condition: every deterministic check holds for the variant, and the review 
 - `v1-a` (single-run counts): counts from one run per variant (3/5 and 4/5). Claim: the report does not call the candidate better, states the counts, and recommends trials or a declared rule. Checks: only `report.md` is written, and it exists. The claim is decided by review.
 - `v1-b` (judge order swap): ten judged cases, one of which changes with the order. Claim: the report gives both readings of that case, says what was checked by hand, and avoids a conclusion from one disagreement. Checks: only `report.md` is written, and it exists. The claim is decided by review.
 - `v1-c` (model question design): a non-skill question, whether to move a summarizer to a larger model. Held out. Claim: the design makes the model the component, the model in use the baseline, checks delivery or behavior, and has no skill-only activation check. Checks: only `design.md` is written, and it exists. The claim is decided by review.
+
+**Write Skill, description activation (W3, added 2026-10-12)**
+
+Description groups (`type: description`, read-only tools). The subject is offered three writing skills, `write-skill` (index 0), `write-spec` (index 1) and `write-docs` (index 2), declared in the shared subject. Arms differ only in the Git ref of the skill source. Pass condition: the deterministic checks hold for each arm, and each arm's transition is factual.
+
+- `w3-a` (AGENTS.md revision): the user asks for a change to repository instruction text. Target: `write-skill`, read by turn 1. Fixture: `AGENTS.md`.
+- `w3-b` (subagent brief): the user asks for the brief the agent will give a subagent. Target: `write-skill`, read by turn 1. **Held out.**
+- `w3-c` (tool description): the user asks for better text on a tool the agent exposes. Target: `write-skill`, read by turn 1. Fixture: `tools/search_tickets.json`.
+- `w3-d` (near miss): the user asks for a feature spec. Target: `write-spec`, read by turn 1; `write-skill`'s `SKILL.md` must not be read (`resource-read` `not-read` on declared skill index 0).
 
 ## Running
 

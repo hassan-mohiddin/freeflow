@@ -31,7 +31,8 @@ const REVIEW_GROUPS = {
   "rv08-a": null,
 };
 const SKILL_FAMILY = {
-  "write-skill": ["w1-a", "w1-b", "w1-d", "w2-a", "w2-c"],
+  // w3-b is held out (position 12 of the skill-family suite) and is never listed here.
+  "write-skill": ["w1-a", "w1-b", "w1-d", "w2-a", "w2-c", "w3-a", "w3-c", "w3-d"],
   "evaluate-behavior": ["v1-a", "v1-b"],
 };
 
@@ -120,7 +121,8 @@ function skillFamily(name) {
   const groups = [];
   for (const id of SKILL_FAMILY[name]) {
     const source = readJson(path.join(root, ".skill-eval/skill-family/groups", `${id}.json`));
-    const subject = { ...source.configuration.subject, skills: [skill] };
+    // A group may declare its own skill list (W3 declares the competing writing skills); the others use the one skill.
+    const subject = { ...source.configuration.subject, skills: source.configuration.subject.skills ?? [skill] };
     groups.push({
       ...source,
       configuration: {
