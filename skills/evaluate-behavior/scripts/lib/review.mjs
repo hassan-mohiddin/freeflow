@@ -57,6 +57,7 @@ export async function reviewResult(
   selectors,
   {
     root = process.cwd(),
+    results = null,
     signal,
     model = null,
     thinking = null,
@@ -82,7 +83,7 @@ export async function reviewResult(
   if (model === null) throw new Error("the reviewer needs a model: pass --model or declare one in its configuration");
   const loaded = await resolveHostExtensions(judge.extensions);
   const settings = judge.settings;
-  const resultDirectory = await resolveResult(target, root);
+  const resultDirectory = await resolveResult(target, root, results);
   const summary = JSON.parse(await readFile(path.join(resultDirectory, "summary.json"), "utf8"));
   const groups = selectGroups(summary, selectors.group);
   const sampled =
@@ -560,7 +561,15 @@ const RUBRIC_INPUTS = Object.freeze({
 export async function reviewRubric(
   target,
   selectors,
-  { root = process.cwd(), signal, model = null, thinking = null, configuration = null, limits = {} } = {},
+  {
+    root = process.cwd(),
+    results = null,
+    signal,
+    model = null,
+    thinking = null,
+    configuration = null,
+    limits = {},
+  } = {},
 ) {
   const effectiveLimits = reviewLimits(limits);
   const host =
@@ -571,11 +580,11 @@ export async function reviewRubric(
   const fallbackJudge =
     fallback === null ? null : { model: fallback, thinking: thinking ?? host.model?.thinking ?? null };
   const extensions = await resolveHostExtensions(host.extensions);
-  const { resultDirectory, aggregateFile, results } = await targetResults(target, root);
+  const { resultDirectory, aggregateFile, results: trialDirectories } = await targetResults(target, root, results);
 
   // Every group's judges are settled before any judge starts.
   const work = [];
-  for (const directory of results) {
+  for (const directory of trialDirectories) {
     const summary = JSON.parse(await readFile(path.join(directory, "summary.json"), "utf8"));
     for (const group of selectGroups(summary, selectors.group)) {
       const groupDirectory = path.join(directory, "groups", group.id);
@@ -620,13 +629,16 @@ export async function reviewRubric(
 }
 
 /** The result directories a target names: the result itself, or every trial of an aggregate. */
-async function targetResults(target, root) {
-  const resultDirectory = await resolveResult(target, root);
+async function targetResults(target, root, resultsDirectory = null) {
+  const resultDirectory = await resolveResult(target, root, resultsDirectory);
   const aggregateFile = path.join(resultDirectory, "aggregate.json");
   const aggregate = await readJsonOrNull(aggregateFile);
   if (aggregate === null) return { resultDirectory, aggregateFile: null, results: [resultDirectory] };
   const results = [];
-  for (const trial of aggregate.trials ?? []) results.push(await resolveResult(trial.id, root));
+  // An aggregate's trials are stored beside it.
+  for (const trial of aggregate.trials ?? []) {
+    results.push(await resolveResult(trial.id, root, path.dirname(resultDirectory)));
+  }
   return { resultDirectory, aggregateFile, results };
 }
 
@@ -766,7 +778,11 @@ async function judgeGroup(groupDirectory, group, definition, rubric, judges, opt
  * per dimension, is recorded as its calibration status in every judged grade it gave, under the labelled runs and
  * under the target; an aggregate target is then rebuilt.
  */
-export async function calibrateJudges(target, labelsFile, { root = process.cwd() } = {}) {
+export async function calibrateJudges(
+  target,
+  labelsFile,
+  { root = process.cwd(), results: resultsDirectory = null } = {},
+) {
   const labelsPath = path.resolve(root, labelsFile);
   const text = await readFile(labelsPath, "utf8").catch(() => {
     throw new Error(`cannot read labels file: ${labelsFile}`);
@@ -796,7 +812,7 @@ export async function calibrateJudges(target, labelsFile, { root = process.cwd()
   }
   const source = { file: path.relative(root, labelsPath).split(path.sep).join("/"), sha256: sha256(text) };
   const calibrations = calibrationFromLabels(entries, source);
-  const { aggregateFile, results } = await targetResults(target, root);
+  const { aggregateFile, results } = await targetResults(target, root, resultsDirectory);
   for (const directory of results) {
     const summary = JSON.parse(await readFile(path.join(directory, "summary.json"), "utf8"));
     for (const group of summary.groups ?? []) {

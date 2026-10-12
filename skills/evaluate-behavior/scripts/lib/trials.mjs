@@ -2,11 +2,13 @@ import { mkdir, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 
 import { comparisonArms, referenceArm, storedArms } from "./arms.mjs";
+import { budgetEvidence, createBudget } from "./budget.mjs";
 import { decide, decisionClaim, undecidedCases } from "./decision.mjs";
 import { loadDefinition, selectDefinition } from "./definitions.mjs";
 import { createInvocationId, writeJson } from "./evidence.mjs";
 import { aggregateSections, hasAggregators } from "./hooks.mjs";
-import { budgetEvidence, runEvaluation } from "./runner.mjs";
+import { createLimiter } from "./queue.mjs";
+import { createRunReuse, refreshSelectedLogins, resultsDirectory, runEvaluation } from "./runner.mjs";
 
 const CHECK_STATES = ["pass", "fail", "unavailable"];
 
@@ -20,16 +22,19 @@ const CHECK_STATES = ["pass", "fail", "unavailable"];
  * alone, until `trials.max`. A `trials` option that differs from `trials.initial` is refused; without a schedule,
  * an omitted `trials` means one.
  *
+ * Every invocation shares one subject limiter (`jobs` subjects at once), one budget and one reuse state, and
+ * logins are refreshed once before any of them. With one job, invocations run one after another as before.
+ * With `pilot`, the first `pilot` groups run once first; any problem stops the run before the batch (no
+ * aggregate is written), and otherwise the pilot, with one invocation of the remaining groups, is the first trial.
+ *
  * @param {string} definitionFile
  * @param {any} selectors
- * @param {{root?: string, signal?: AbortSignal, trials?: number | null, maxCost: number | null, onTrial?: (result: any) => void, dryRun?: boolean, evaluate?: typeof runEvaluation}} options
+ * @param {{root?: string, signal?: AbortSignal, trials?: number | null, maxCost?: number | null, onTrial?: (result: any) => void, dryRun?: boolean, evaluate?: typeof runEvaluation, jobs?: number, results?: string | null, reuse?: boolean, pilot?: number | null}} options
  */
-export async function runTrials(
-  definitionFile,
-  selectors,
-  { root = process.cwd(), signal, trials = null, maxCost, onTrial, dryRun = false, evaluate = runEvaluation },
-) {
-  const rule = await suiteDecision(definitionFile, selectors, root);
+export async function runTrials(definitionFile, selectors, options = {}) {
+  const { root = process.cwd(), signal, trials = null, maxCost = null, onTrial, dryRun = false } = options;
+  const { evaluate = runEvaluation, jobs = 1, pilot = null } = options;
+  const { selection, rule } = await loadSelection(definitionFile, selectors, root);
   const schedule = rule?.trials ?? null;
   if (schedule !== null && trials !== null && trials !== schedule.initial) {
     throw new Error(
@@ -39,21 +44,67 @@ export async function runTrials(
   const initial = schedule?.initial ?? trials ?? 1;
   if (!Number.isInteger(initial) || initial < 1) throw new Error("trials must be a positive integer");
 
-  const budget = maxCost === null || maxCost === undefined ? null : { maxCost, spent: 0, exhausted: false };
-  const stopped = () => signal?.aborted || budget?.exhausted;
+  const runsDirectory = resultsDirectory(root, options.results);
+  const budget = createBudget(maxCost);
+  const shared = {
+    root,
+    signal,
+    budget,
+    dryRun,
+    subjects: createLimiter(jobs),
+    results: options.results ?? null,
+    reuse: createRunReuse(runsDirectory, options.reuse === true),
+    loginsRefreshed: true,
+  };
+  await refreshSelectedLogins(selection);
+  const stopped = () => Boolean(signal?.aborted || budget?.exhausted);
   const results = [];
   const entries = [];
-  const run = async (runSelectors, entry) => {
-    const result = await evaluate(definitionFile, runSelectors, { root, signal, budget, dryRun });
-    results.push(result);
-    entries.push({ id: result.id, state: result.state, ...entry });
+  const invoke = async (runSelectors, entry, extra = {}) => {
+    const result = await evaluate(definitionFile, runSelectors, { ...shared, ...extra });
     onTrial?.(result);
+    return { result, entry: { id: result.id, state: result.state, ...entry } };
   };
-  for (let trial = 0; trial < initial; trial += 1) {
-    if (stopped()) break;
-    await run(selectors, {});
+  // Invocations in order with one job; otherwise all at once, sharing the subject slots. Recorded in plan order.
+  const runAll = async (tasks) => {
+    const settled = [];
+    if (jobs === 1) {
+      for (const task of tasks) {
+        if (stopped()) break;
+        settled.push(await task());
+      }
+    } else {
+      settled.push(...(await Promise.all(tasks.map((task) => (stopped() ? null : task())))));
+    }
+    for (const outcome of settled) {
+      if (outcome === null) continue;
+      results.push(outcome.result);
+      entries.push(outcome.entry);
+    }
+  };
+
+  let planned = 0;
+  const tasks = [];
+  let pilotRecord = null;
+  if (pilot !== null) {
+    const outcome = await invoke(selectors, { part: "pilot" }, { groupRange: [0, pilot] });
+    const problems = await pilotProblems(outcome.result);
+    pilotRecord = { id: outcome.result.id, groups: outcome.result.summary.groups.length, problems };
+    if (problems.length > 0)
+      return { id: null, path: null, state: "pilot-stopped", pilot: pilotRecord, aggregate: null };
+    results.push(outcome.result);
+    entries.push(outcome.entry);
+    planned += 1;
+    // The pilot is the first trial of its groups; the remaining groups run once to complete that trial.
+    if (pilot < selection.groups.length) {
+      tasks.push(() => invoke(selectors, { part: "rest" }, { groupRange: [pilot, selection.groups.length] }));
+      planned += 1;
+    }
   }
-  let planned = initial;
+  const full = pilot === null ? initial : initial - 1;
+  for (let trial = 0; trial < full; trial += 1) tasks.push(() => invoke(selectors, {}));
+  planned += full;
+  await runAll(tasks);
   let groups = await aggregateGroups(results);
 
   // Adaptive trials: only the declared schedule adds trials, and only to cases whose sign could still change.
@@ -68,18 +119,20 @@ export async function runTrials(
     rounds.push(round);
     planned += scheduled;
     // Interleaved by step, so a budget that runs out leaves the cases evenly extended.
+    const roundTasks = [];
     for (let step = 0; step < schedule.step; step += 1) {
       for (const { id, add } of extra) {
-        if (step >= add || stopped()) continue;
-        await run({ ...selectors, group: id }, { round: round.round, group: id });
-        round.trials += 1;
+        if (step < add) roundTasks.push(() => invoke({ ...selectors, group: id }, { round: round.round, group: id }));
       }
     }
+    const before = results.length;
+    await runAll(roundTasks);
+    round.trials = results.length - before;
     groups = await aggregateGroups(results);
   }
 
   const id = createInvocationId();
-  const directory = path.join(root, ".skill-eval", "runs", id);
+  const directory = path.join(runsDirectory, id);
   await mkdir(directory, { recursive: true });
   const aggregate = {
     schema_version: 1,
@@ -94,6 +147,9 @@ export async function runTrials(
     claim: null,
     completedAt: new Date().toISOString(),
   };
+  if (pilotRecord !== null) aggregate.pilot = pilotRecord;
+  const reused = reusedRuns(results);
+  if (reused.length > 0) aggregate.reused = reused;
   if (schedule !== null) aggregate.schedule = { ...schedule, rounds };
   if (rule !== null) aggregate.decision = decide(rule, groups);
   aggregate.claim = claimFor(results, initial, dryRun, aggregate.decision);
@@ -103,49 +159,111 @@ export async function runTrials(
 }
 
 /**
+ * The pilot for a single run: the first `pilot` groups once, then their problems. The batch that follows runs
+ * the whole selection; this pilot's result is not one of its trials.
+ *
+ * @param {string} definitionFile
+ * @param {any} selectors
+ * @param {any} options runEvaluation's options, plus `pilot` (the number of groups)
+ */
+export async function runPilot(definitionFile, selectors, { pilot, evaluate = runEvaluation, ...options }) {
+  const result = await evaluate(definitionFile, selectors, { ...options, groupRange: [0, pilot] });
+  return { result, problems: await pilotProblems(result) };
+}
+
+/**
+ * What stops a pilot: a run that was cancelled, failed its infrastructure or was invalid, a grade that is
+ * unreadable or has errors, a group that recorded errors, or a comparison that no arm passed.
+ */
+export async function pilotProblems(result) {
+  const problems = [];
+  for (const group of result.summary?.groups ?? []) {
+    for (const [arm, state] of Object.entries(group.variants ?? {})) {
+      if (["cancelled", "infrastructure-failed", "invalid"].includes(state)) {
+        problems.push(`${group.id}: arm ${arm} is ${state}`);
+      }
+    }
+    for (const error of group.errors ?? []) problems.push(`${group.id}: ${error.message ?? error.kind}`);
+    const grade = await readJson(path.join(result.path, "groups", group.id, group.artifacts?.grade ?? ""));
+    if (grade === null) {
+      problems.push(`${group.id}: grade unreadable`);
+      continue;
+    }
+    for (const error of grade.errors ?? []) problems.push(`${group.id}: grade error: ${error.reason ?? error}`);
+    for (const comparison of grade.comparisons ?? []) {
+      const { arms } = comparisonArms(comparison);
+      if (!Object.values(arms ?? {}).some((outcome) => outcome?.state === "pass")) {
+        problems.push(`${group.id}: no arm passed ${comparison.id}`);
+      }
+    }
+  }
+  return problems;
+}
+
+/** Every run a trial took from the index instead of running it: the trial, group and arm, and where it came from. */
+function reusedRuns(results) {
+  const reused = [];
+  for (const result of results) {
+    for (const group of result.summary?.groups ?? []) {
+      for (const [arm, from] of Object.entries(group.reused ?? {})) {
+        reused.push({ trial: result.id, group: group.id, arm, from, reused: true });
+      }
+    }
+  }
+  return reused;
+}
+
+/**
  * Rereads every trial an aggregate lists and rewrites its aggregate.json: groups, aggregator sections, decision
  * and claim. Everything else (its ID, trials, schedule, budget, times) is kept, so rebuilding an unchanged
- * aggregate reproduces it exactly. A trial whose summary cannot be read is refused rather than dropped.
+ * aggregate reproduces it exactly. A trial whose summary cannot be read is refused rather than dropped. Trials
+ * are read from the directory that holds the aggregate, where they were stored beside it.
  *
  * @param {string} aggregatePath the aggregate's directory or its aggregate.json
- * @param {{root?: string}} [options]
+ * @param {{root?: string, results?: string | null}} [options]
  */
-export async function rebuildAggregate(aggregatePath, { root = process.cwd() } = {}) {
+export async function rebuildAggregate(aggregatePath, { root = process.cwd(), results = null } = {}) {
   const file = aggregatePath.endsWith(".json") ? aggregatePath : path.join(aggregatePath, "aggregate.json");
   const aggregate = await readJson(file);
   if (aggregate === null || aggregate.kind !== "aggregate" || !Array.isArray(aggregate.trials)) {
     throw new Error(`not a readable aggregate: ${file}`);
   }
-  const results = [];
+  const runsDirectory =
+    results === null ? path.dirname(path.dirname(path.resolve(root, file))) : path.resolve(root, results);
+  const trialResults = [];
   for (const trial of aggregate.trials) {
-    const directory = path.join(root, ".skill-eval", "runs", trial.id);
+    const directory = path.join(runsDirectory, trial.id);
     const summary = await readJson(path.join(directory, "summary.json"));
     if (summary === null) throw new Error(`trial ${trial.id} has no readable summary.json`);
-    results.push({ id: trial.id, path: directory, state: summary.state, summary });
+    trialResults.push({ id: trial.id, path: directory, state: summary.state, summary });
   }
-  const groups = await aggregateGroups(results);
+  const groups = await aggregateGroups(trialResults);
   const rebuilt = { ...aggregate, groups };
   if (aggregate.decision !== undefined) rebuilt.decision = decide(aggregate.decision.rule, groups);
   const k = aggregate.schedule?.initial ?? aggregate.requestedTrials;
-  rebuilt.claim = claimFor(results, k, aggregate.dryRun === true, rebuilt.decision);
+  rebuilt.claim = claimFor(trialResults, k, aggregate.dryRun === true, rebuilt.decision);
   await writeJson(file, rebuilt);
   return rebuilt;
 }
 
-/** The suite's validated decision rule, or null. A decision run must select both of its arms in every group. */
-async function suiteDecision(definitionFile, selectors, root) {
+/**
+ * The selection, and the suite's validated decision rule or null. A decision run must select both of its arms
+ * in every group.
+ */
+async function loadSelection(definitionFile, selectors, root) {
   const definitionPath = await realpath(path.resolve(root, definitionFile));
   const definition = await loadDefinition(definitionPath, { root });
+  const selection = selectDefinition(definition, selectors);
   const rule = definition.kind === "suite" ? (definition.decision ?? null) : null;
-  if (rule === null) return null;
+  if (rule === null) return { selection, rule };
   if (selectors?.variant !== null && selectors?.variant !== undefined) {
     throw new Error("the suite's decision compares two arms; --variant would run only one");
   }
-  for (const { group } of selectDefinition(definition, selectors).groups) {
+  for (const { group } of selection.groups) {
     const missing = rule.arms.filter((arm) => !Object.hasOwn(group.variants ?? {}, arm));
     if (missing.length > 0) throw new Error(`decision arm ${missing.join(", ")} is not an arm of group ${group.id}`);
   }
-  return rule;
+  return { selection, rule };
 }
 
 /**

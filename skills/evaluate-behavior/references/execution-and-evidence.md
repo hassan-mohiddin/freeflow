@@ -9,9 +9,9 @@ This reference is a contract: it states how the evaluator behaves. Rely on that 
 Run commands from the repository or fixture root that owns the definitions:
 
 ```text
-node <evaluate-behavior-directory>/scripts/skill-eval.mjs run <suite-or-group-path> [--group <id-or-position>] [--variant baseline|candidate] [--trials <n>] [--max-cost <total>] [--yes] [--dry-run]
-node <evaluate-behavior-directory>/scripts/skill-eval.mjs view <result-id-or-directory> [--group <id-or-position>] [--variant baseline|candidate]
-node <evaluate-behavior-directory>/scripts/skill-eval.mjs view <result-id-or-directory> --html <file>
+node <evaluate-behavior-directory>/scripts/skill-eval.mjs run <suite-or-group-path> [--group <id-or-position>] [--variant baseline|candidate] [--trials <n>] [--max-cost <total>] [--jobs <n>] [--cpu-jobs <n>] [--reuse] [--pilot <n>] [--results <dir>] [--yes] [--dry-run]
+node <evaluate-behavior-directory>/scripts/skill-eval.mjs view <result-id-or-directory> [--group <id-or-position>] [--variant baseline|candidate] [--results <dir>]
+node <evaluate-behavior-directory>/scripts/skill-eval.mjs view <result-id-or-directory> --html <file> [--results <dir>]
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-id-or-directory> (--model <provider/model> | --configuration <file>) [--group <id-or-position>] [--thinking <level>] [--swap | --swap-sample <fraction>] [--limit <name>=<chars>]
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-or-aggregate-id> --rubric [--model <provider/model>] [--configuration <file>] [--group <id-or-position>] [--thinking <level>] [--limit <name>=<chars>]
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-or-aggregate-id> --calibrate <labels.json>
@@ -21,7 +21,7 @@ node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-or-aggr
 - The `run` target resolves from that directory.
 - Suite group references resolve relative to the suite file.
 - Fixture, skill, and context declarations resolve from the definition root.
-- Results are stored under `<cwd>/.skill-eval/runs/<result-id>`.
+- Results are stored under `<cwd>/.skill-eval/runs/<result-id>`, or under `--results <dir>` (resolved from the working directory) when given; `invocation.json` records the directory. `view` and `review` take the same `--results` to find stored IDs there, and an aggregate's trials are found beside it.
 - A bare `view` target is tried first as a stored result ID, then as a path from the working directory.
 - An absolute or path-like `view` target resolves as a directory path.
 
@@ -101,7 +101,15 @@ Use ordinary file tools for raw `run.json`, events, transcript, final response, 
 
 Normal completion follows settlement. Path guards, no-progress detection, cancellation, process-tree cleanup, and very high emergency ceilings stop runaway or unsafe infrastructure. Subjects run until they settle, with no turn, token, output, or short time cap, because a guessed cap cuts off the behavior the evaluation is trying to observe.
 
-`--max-cost <total>` is an explicit spend ceiling, not a subject cap. After each subject finishes, its host-reported `usage.cost.total` is added to the invocation's spend; once spend reaches the ceiling, no further subject starts and queued variants become `cancelled`. The subject already running completes, so spend can exceed the ceiling by one subject. The summary records `budget` with the ceiling, spend, and whether it was exhausted. A host that reports no cost never exhausts the ceiling.
+`--max-cost <total>` is an explicit spend ceiling, not a subject cap, shared by every subject of a run and of all its trials. It is reserve-then-charge: before a subject starts it reserves the mean cost of the subjects finished so far (zero before any finished), and it may not start once spend plus the running subjects' reservations reaches the ceiling; such variants become `cancelled`. When a subject finishes, its host-reported `usage.cost.total` is charged. Subjects already running complete and are charged, so spend can pass the ceiling by at most the running set (one subject with one job). The summary and aggregate record `budget` with the ceiling, spend, whether it was exhausted, and the `overshoot` past the ceiling. A host that reports no cost never exhausts the ceiling.
+
+## Concurrency, Reuse And Pilot
+
+- **`--jobs <n>`** (default 1) runs up to n subjects at once across groups, arms and trials, through one shared queue. Each group still prepares its fixture before its arms run, grades after all its arms, and each result's summary is written after all its groups; results are listed in plan order. With one job, groups, arms and trials run one after another as before. Cancellation (SIGINT or SIGTERM) stops queued subjects and terminates running ones; budget exhaustion only stops new ones.
+- **`--cpu-jobs <n>`** (default 2) bounds local CPU work that is not a model call, such as command graders, through a shared queue (`withCpuSlot` in `lib/queue.mjs`).
+- **Logins** are refreshed once, before any subject of a run or of all its trials starts. A subject refreshes again only if its login has fallen below the per-subject threshold, under a lock, so parallel subjects never refresh at once.
+- **Reuse.** Every complete run of a canonical (not dry) invocation whose group grade is readable is indexed in `<results>/index.jsonl` under a key: sha256 over the group's task fields, the content of its fixture, runtime bundles and command-grader files, the arm's name and effective configuration, the content of its working-tree skills and context (or the commit its Git source resolves to, and its Freeflow ref's commit), its model, the installed host version, and the evaluator's own scripts. With `--reuse`, a canonical run takes a matching indexed run (still complete, grade still readable) instead of running that arm: the run is copied into the new trial, graded there like any other, and marked `reused` with where it came from; the group records `reused` and the aggregate lists every reused run. A run is reused at most once within one run or aggregate, and a reused copy is never indexed. Dry runs never reuse and are never indexed.
+- **`--pilot <n>`** first runs the first n selected groups once, every arm. It stops with a report, before the batch and without an aggregate, if any of its runs is cancelled, infrastructure-failed or invalid, any grade is unreadable or has errors, or any comparison passed in no arm. Otherwise the batch continues: for trials, the pilot is the first trial of its groups and one invocation of the remaining groups completes that trial (the aggregate records `pilot` and each trial's `part`); for a single run, the whole selection runs after the pilot, which does not count.
 
 ## Trials
 

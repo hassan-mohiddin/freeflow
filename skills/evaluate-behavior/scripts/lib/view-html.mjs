@@ -15,19 +15,19 @@ const VALUE_CAP = 500;
 export async function writeHtml(
   target,
   file,
-  { root = process.cwd(), selectors = { group: null, variant: null } } = {},
+  { root = process.cwd(), selectors = { group: null, variant: null }, results = null } = {},
 ) {
   if (selectors.group !== null || selectors.variant !== null) {
     throw new Error("view --html renders the whole result; drop --group and --variant");
   }
-  const html = await renderHtml(target, { root });
+  const html = await renderHtml(target, { root, results });
   const destination = path.resolve(root, file);
   await writeFile(destination, html);
   return destination;
 }
 
-export async function renderHtml(target, { root = process.cwd() } = {}) {
-  const resultDirectory = await resolveResult(target, root);
+export async function renderHtml(target, { root = process.cwd(), results = null } = {}) {
+  const resultDirectory = await resolveResult(target, root, results);
   const aggregate = await readOptionalJson(path.join(resultDirectory, "aggregate.json"));
   if (aggregate !== null) {
     const parts = [
@@ -37,7 +37,8 @@ export async function renderHtml(target, { root = process.cwd() } = {}) {
     for (const trial of aggregate.trials) {
       parts.push(`<section class="trial"><h2>Trial ${esc(trial.id)} [${esc(trial.state)}]</h2>`);
       try {
-        const trialDirectory = await resolveResult(trial.id, root);
+        // An aggregate's trials are stored beside it.
+        const trialDirectory = await resolveResult(trial.id, root, path.dirname(resultDirectory));
         const summary = await readJson(path.join(trialDirectory, "summary.json"), `trial ${trial.id} summary`);
         parts.push(await resultBody(trialDirectory, summary));
       } catch (error) {

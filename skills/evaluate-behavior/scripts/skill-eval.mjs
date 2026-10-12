@@ -6,16 +6,31 @@ import { createInterface } from "node:readline/promises";
 
 import { loadDefinition, selectDefinition } from "./lib/definitions.mjs";
 import "./lib/metrics.mjs";
-import { runEvaluation } from "./lib/runner.mjs";
+import { createBudget } from "./lib/budget.mjs";
+import { createLimiter, setCpuJobs } from "./lib/queue.mjs";
+import { createRunReuse, resultsDirectory, runEvaluation } from "./lib/runner.mjs";
 import { calibrateJudges, reviewResult, reviewRubric } from "./lib/review.mjs";
-import { runTrials } from "./lib/trials.mjs";
+import { runPilot, runTrials } from "./lib/trials.mjs";
 import { renderResult } from "./lib/view.mjs";
 import { writeHtml } from "./lib/view-html.mjs";
 
 const OPTIONS = {
-  run: ["--group", "--variant", "--trials", "--max-cost", "--yes", "--dry-run"],
-  view: ["--group", "--variant", "--html"],
+  run: [
+    "--group",
+    "--variant",
+    "--trials",
+    "--max-cost",
+    "--yes",
+    "--dry-run",
+    "--jobs",
+    "--cpu-jobs",
+    "--results",
+    "--reuse",
+    "--pilot",
+  ],
+  view: ["--group", "--variant", "--html", "--results"],
   review: [
+    "--results",
     "--group",
     "--model",
     "--thinking",
@@ -54,6 +69,15 @@ Run options:
   --max-cost <total>  Stop starting subjects once host-reported cost reaches the total
   --yes               Start without asking (the plan is printed either way; scripts never ask)
   --dry-run           Allow uncommitted inputs; the result is marked as a dry run and supports no claim
+  --jobs <n>          Run up to n subjects at once across groups, arms and trials (default 1)
+  --cpu-jobs <n>      Run up to n local CPU tasks at once, such as hidden test commands (default 2)
+  --reuse             Count matching complete canonical runs from the results index as trials instead of
+                      running them again; each is reused once per run and listed as reused
+  --pilot <n>         Run the first n groups once first; stop with a report on any failed or invalid run,
+                      check error, or comparison no arm passed; otherwise continue (the pilot counts as a trial)
+
+Result location (run, view, review):
+  --results <dir>     Store and find results under <dir> instead of <cwd>/.skill-eval/runs
 
 Review options:
   --model <provider/model>   Required reviewer model
@@ -72,7 +96,7 @@ Review options:
 Paths:
   Definition paths resolve from the current working directory.
   Suite group references resolve relative to the suite file.
-  Results are stored under <cwd>/.skill-eval/runs/<result-id>.
+  Results are stored under <cwd>/.skill-eval/runs/<result-id>, or under --results.
   view accepts a stored result or aggregate ID or an explicit directory.
 
 Selection:
@@ -85,7 +109,8 @@ Current run support:
   Description tools: read; body tools: read, write, edit, run_command for declared commands, or declared extension tools
   Runtime profiles: Pi hosts, isolated or host system prompt, ordered immutable extension bundles, environment overrides
   Deterministic reads, paths, changed paths, text, JSON, tool calls, context observations, and factual comparisons
-  Ordered suites run serially and continue after isolated variant, group, or post-processing failures
+  Ordered suites run serially (or --jobs subjects at once) and continue after isolated variant, group, or
+  post-processing failures
   Grade-first views show compact criterion details, usage, and result-relative artifact paths
 `,
   );
@@ -111,13 +136,22 @@ function parseOperation(values) {
     swapSample: null,
     calibrate: null,
     html: null,
+    jobs: null,
+    cpuJobs: null,
+    results: null,
+    pilot: null,
   };
   let swap = false;
   let rubric = false;
   const limits = {};
   let yes = false;
   let dryRun = false;
+  let reuse = false;
   const keys = {
+    "--jobs": "jobs",
+    "--cpu-jobs": "cpuJobs",
+    "--results": "results",
+    "--pilot": "pilot",
     "--group": "group",
     "--variant": "variant",
     "--trials": "trials",
@@ -157,6 +191,10 @@ function parseOperation(values) {
       dryRun = true;
       continue;
     }
+    if (option === "--reuse") {
+      reuse = true;
+      continue;
+    }
     if (!value || value.startsWith("--")) throw new Error(`${option} requires a value`);
     const key = keys[option];
     if (parsed[key] !== null) throw new Error(`${option} may be supplied only once`);
@@ -174,6 +212,14 @@ function parseOperation(values) {
     maxCost = Number(parsed.maxCost);
     if (!Number.isFinite(maxCost) || maxCost <= 0) throw new Error("--max-cost must be a positive number");
   }
+  const positive = (name, value, fallback) => {
+    if (value === null) return fallback;
+    if (!/^\d+$/.test(value) || Number(value) < 1) throw new Error(`${name} must be a positive integer`);
+    return Number(value);
+  };
+  const jobs = positive("--jobs", parsed.jobs, 1);
+  const cpuJobs = positive("--cpu-jobs", parsed.cpuJobs, null);
+  const pilot = positive("--pilot", parsed.pilot, null);
   const swapSample = parsed.swapSample === null ? null : Number(parsed.swapSample);
   if (swapSample !== null && !(swapSample > 0 && swapSample <= 1)) {
     throw new Error("--swap-sample must be a fraction greater than 0 and at most 1");
@@ -202,6 +248,11 @@ function parseOperation(values) {
     limits,
     yes,
     dryRun,
+    jobs,
+    cpuJobs,
+    pilot,
+    reuse,
+    results: parsed.results,
   };
 }
 
@@ -267,6 +318,9 @@ async function planRun(operation, root) {
   let line = `Plan: ${subjects} subjects (${counts}); models: ${[...models].join(", ")}`;
   if (freeflow.size > 0) line += `; Freeflow builds: ${[...freeflow].join(", ")}`;
   if (extensions.size > 0) line += `; extensions: ${[...extensions].join(", ")}`;
+  if (operation.jobs > 1) line += `; ${operation.jobs} subjects at once`;
+  if (operation.pilot !== null) line += `; pilot of the first ${Math.min(operation.pilot, groups)} groups`;
+  if (operation.reuse) line += "; reusing matching runs";
   if (operation.dryRun) line += "; dry run";
   process.stdout.write(`${line}\n`);
   if (operation.yes || !process.stdin.isTTY || !process.stdout.isTTY) return { decision };
@@ -284,31 +338,54 @@ async function run(operation) {
     process.exitCode = 1;
     return;
   }
+  if (operation.cpuJobs !== null) setCpuJobs(operation.cpuJobs);
   await withCancellation(async (signal) => {
+    const common = { root, signal, dryRun: operation.dryRun, jobs: operation.jobs, results: operation.results };
     // A suite's decision is reached over an aggregate, so it always runs as trials, even a single one.
     if (plan.decision === null && (operation.trials ?? 1) === 1) {
-      const budget = operation.maxCost === null ? null : { maxCost: operation.maxCost, spent: 0, exhausted: false };
-      const result = await runEvaluation(operation.target, operation.selectors, {
-        root,
-        signal,
-        budget,
-        dryRun: operation.dryRun,
-      });
+      const shared = {
+        ...common,
+        budget: createBudget(operation.maxCost),
+        subjects: createLimiter(operation.jobs),
+        reuse: createRunReuse(resultsDirectory(root, operation.results), operation.reuse),
+      };
+      if (operation.pilot !== null) {
+        const pilot = await runPilot(operation.target, operation.selectors, { ...shared, pilot: operation.pilot });
+        if (!reportPilot(pilot.result.id, pilot.problems)) return;
+        shared.loginsRefreshed = true;
+      }
+      const result = await runEvaluation(operation.target, operation.selectors, shared);
       printResult(result);
       if (result.state !== "complete") process.exitCode = 1;
       return;
     }
     const aggregate = await runTrials(operation.target, operation.selectors, {
-      root,
-      signal,
+      ...common,
       trials: operation.trials,
       maxCost: operation.maxCost,
       onTrial: printResult,
-      dryRun: operation.dryRun,
+      reuse: operation.reuse,
+      pilot: operation.pilot,
     });
+    if (aggregate.state === "pilot-stopped") {
+      reportPilot(aggregate.pilot.id, aggregate.pilot.problems);
+      return;
+    }
+    if (aggregate.aggregate.pilot) reportPilot(aggregate.aggregate.pilot.id, []);
     process.stdout.write(`Aggregate: ${aggregate.id}\nPath: ${aggregate.path}\nState: ${aggregate.state}\n`);
     if (aggregate.state !== "complete") process.exitCode = 1;
   });
+}
+
+/** Prints a pilot's outcome; false (and a failing exit) when its problems stop the run. */
+function reportPilot(id, problems) {
+  if (problems.length === 0) {
+    process.stdout.write(`Pilot: ${id} passed\n`);
+    return true;
+  }
+  process.stdout.write(`Pilot: ${id} stopped the run\n${problems.map((problem) => `  - ${problem}\n`).join("")}`);
+  process.exitCode = 1;
+  return false;
 }
 
 async function review(operation) {
@@ -317,6 +394,7 @@ async function review(operation) {
   const outcome = await withCancellation((signal) =>
     reviewResult(operation.target, operation.selectors, {
       root: process.cwd(),
+      results: operation.results,
       signal,
       model: operation.model,
       thinking: operation.thinking,
@@ -341,6 +419,7 @@ async function judge(operation) {
   const outcome = await withCancellation((signal) =>
     reviewRubric(operation.target, operation.selectors, {
       root: process.cwd(),
+      results: operation.results,
       signal,
       model: operation.model,
       thinking: operation.thinking,
@@ -357,7 +436,10 @@ async function judge(operation) {
 }
 
 async function calibrate(operation) {
-  const outcome = await calibrateJudges(operation.target, operation.calibrate, { root: process.cwd() });
+  const outcome = await calibrateJudges(operation.target, operation.calibrate, {
+    root: process.cwd(),
+    results: operation.results,
+  });
   const number = (value) => (value === null ? "-" : value.toFixed(2));
   for (const calibration of outcome.calibrations) {
     const name = `${calibration.model}${calibration.thinking ? ` (${calibration.thinking})` : ""}`;
@@ -379,11 +461,14 @@ if (!command || command === "--help" || command === "-h") {
     if (command === "view" && operation.html !== null) {
       const written = await writeHtml(operation.target, operation.html, {
         root: process.cwd(),
+        results: operation.results,
         selectors: operation.selectors,
       });
       process.stdout.write(`Wrote ${written}\n`);
     } else if (command === "view") {
-      process.stdout.write(await renderResult(operation.target, operation.selectors, { root: process.cwd() }));
+      process.stdout.write(
+        await renderResult(operation.target, operation.selectors, { root: process.cwd(), results: operation.results }),
+      );
     } else if (command === "review") {
       await review(operation);
     } else {
