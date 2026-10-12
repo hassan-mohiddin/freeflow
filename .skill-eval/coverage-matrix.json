@@ -188,7 +188,7 @@
       "case_concept": "Compare arms against a reference under a declared decision rule while preserving failures and leaving behavioral meaning to agent or user review.",
       "current_result": "The evaluator scripts have their own tests (.skill-eval/evaluate-behavior/tests). The skill text, including its measurement and defect-suite guidance, has no behavioral group or suite evidence.",
       "source_path": "skills/evaluate-behavior/SKILL.md",
-      "source_sha256": "c10b09ed03e79b7e39f2f327dd168f848f3a5fd9bfb1c12dfdd31c76db197f69",
+      "source_sha256": "34016bf9dd7e608f000289c13c16fea5587f1953731d6abc0fe8a8405f4234c1",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
