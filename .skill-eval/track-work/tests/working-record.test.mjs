@@ -1736,7 +1736,7 @@ test("init creates the complete Schema 4 skeleton and two bounded views", async 
     const initialized = await initRecord(workspace, "continuity");
     assert.equal(initialized.exitCode, 0, initialized.stderr);
     const recordPath = initialized.stdout.trim();
-    assert.match(recordPath, /\.freeflow\/tasks\/task-001-continuity\/record\.md$/);
+    assert.match(recordPath, /\.freeflow[\\/]tasks[\\/]task-001-continuity[\\/]record\.md$/);
 
     const record = await readFile(recordPath, "utf8");
     for (const heading of [
