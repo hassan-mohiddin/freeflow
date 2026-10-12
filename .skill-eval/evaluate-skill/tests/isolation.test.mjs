@@ -173,3 +173,37 @@ test("a provider with no stored login still runs, with nothing copied", async ()
     assert.equal(call.agentAuth, null);
   });
 });
+
+test("run loads a named provider extension into every subject, right after the guard, and records it", async () => {
+  await withTempDirectory(async (root) => {
+    const { log, definition, env } = await setUp(root, { fake: { type: "api_key", key: "k" } });
+    const pluginDirectory = path.join(root, "auth-plugin");
+    await mkdir(pluginDirectory);
+    await writeFile(
+      path.join(pluginDirectory, "package.json"),
+      JSON.stringify({ name: "auth-plugin", version: "2.0.0" }),
+    );
+
+    const result = spawnSync(
+      process.execPath,
+      [entrypoint, "run", definition, "--dry-run", "--extension", "auth-plugin"],
+      { cwd: root, encoding: "utf8", env },
+    );
+
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    assert.match(result.stdout, /^Plan: .+; extensions: auth-plugin@2\.0\.0; dry run$/m);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    for (const variant of ["baseline", "candidate"]) {
+      const run = JSON.parse(
+        await readFile(path.join(resultDirectory, "groups/isolated", variant, "run.json"), "utf8"),
+      );
+      const extensions = run.process.args.flatMap((arg, index) =>
+        arg === "--extension" ? [run.process.args[index + 1]] : [],
+      );
+      assert.match(extensions[0], /pi-guard\.mjs$/);
+      assert.equal(extensions[1], pluginDirectory);
+      assert.deepEqual(run.resources.hostExtensions, [{ path: pluginDirectory, package: "auth-plugin@2.0.0" }]);
+    }
+    assert.ok(await readFile(log, "utf8"));
+  });
+});

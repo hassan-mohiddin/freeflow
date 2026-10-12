@@ -17,13 +17,13 @@ const CHECK_STATES = ["pass", "fail", "unavailable"];
 export async function runTrials(
   definitionFile,
   selectors,
-  { root = process.cwd(), signal, trials, maxCost, onTrial, dryRun = false },
+  { root = process.cwd(), signal, trials, maxCost, onTrial, dryRun = false, hostExtensions = [] },
 ) {
   const budget = maxCost === null ? null : { maxCost, spent: 0, exhausted: false };
   const results = [];
   for (let trial = 0; trial < trials; trial += 1) {
     if (signal?.aborted || budget?.exhausted) break;
-    const result = await runEvaluation(definitionFile, selectors, { root, signal, budget, dryRun });
+    const result = await runEvaluation(definitionFile, selectors, { root, signal, budget, dryRun, hostExtensions });
     results.push(result);
     onTrial?.(result);
   }

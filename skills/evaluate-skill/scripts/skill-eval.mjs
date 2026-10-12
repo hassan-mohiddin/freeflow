@@ -5,13 +5,14 @@ import path from "node:path";
 import { createInterface } from "node:readline/promises";
 
 import { loadDefinition, selectDefinition } from "./lib/definitions.mjs";
+import { describeExtension, extensionLabel } from "./lib/extensions.mjs";
 import { runEvaluation } from "./lib/runner.mjs";
 import { reviewResult } from "./lib/review.mjs";
 import { runTrials } from "./lib/trials.mjs";
 import { renderResult } from "./lib/view.mjs";
 
 const OPTIONS = {
-  run: ["--group", "--variant", "--trials", "--max-cost", "--yes", "--dry-run"],
+  run: ["--group", "--variant", "--trials", "--max-cost", "--yes", "--dry-run", "--extension"],
   view: ["--group", "--variant"],
   review: ["--group", "--model", "--thinking", "--extension", "--swap"],
 };
@@ -39,6 +40,7 @@ Run options:
   --max-cost <total>  Stop starting subjects once host-reported cost reaches the total
   --yes               Start without asking (the plan is printed either way; scripts never ask)
   --dry-run           Allow uncommitted inputs; the result is marked as a dry run and supports no claim
+  --extension <path>  Load this Pi extension in every subject, such as a provider's auth extension (repeatable)
 
 Review options:
   --model <provider/model>   Required reviewer model
@@ -183,6 +185,8 @@ async function planRun(operation, root) {
   const counts = `${groups} group${groups === 1 ? "" : "s"}, ${arms} arm${arms === 1 ? "" : "s"}, ${operation.trials} trial${operation.trials === 1 ? "" : "s"}`;
   let line = `Plan: ${arms * operation.trials} subjects (${counts}); models: ${[...models].join(", ")}`;
   if (freeflow.size > 0) line += `; Freeflow builds: ${[...freeflow].join(", ")}`;
+  if (operation.hostExtensions.length > 0)
+    line += `; extensions: ${operation.hostExtensions.map(extensionLabel).join(", ")}`;
   if (operation.dryRun) line += "; dry run";
   process.stdout.write(`${line}\n`);
   if (operation.yes || !process.stdin.isTTY || !process.stdout.isTTY) return true;
@@ -194,6 +198,9 @@ async function planRun(operation, root) {
 
 async function run(operation) {
   const root = process.cwd();
+  operation.hostExtensions = await Promise.all(
+    operation.extensions.map((entry) => describeExtension(path.resolve(root, entry))),
+  );
   if (!(await planRun(operation, root))) {
     process.stdout.write("Not started.\n");
     process.exitCode = 1;
@@ -207,6 +214,7 @@ async function run(operation) {
         signal,
         budget,
         dryRun: operation.dryRun,
+        hostExtensions: operation.hostExtensions,
       });
       printResult(result);
       if (result.state !== "complete") process.exitCode = 1;
@@ -219,6 +227,7 @@ async function run(operation) {
       maxCost: operation.maxCost,
       onTrial: printResult,
       dryRun: operation.dryRun,
+      hostExtensions: operation.hostExtensions,
     });
     process.stdout.write(`Aggregate: ${aggregate.id}\nPath: ${aggregate.path}\nState: ${aggregate.state}\n`);
     if (aggregate.state !== "complete") process.exitCode = 1;

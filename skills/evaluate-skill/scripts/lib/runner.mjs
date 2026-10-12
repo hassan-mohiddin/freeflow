@@ -31,7 +31,7 @@ const DEFAULT_RUNTIME = {
 export async function runEvaluation(
   definitionFile,
   selectors = {},
-  { root = process.cwd(), signal, budget = null, dryRun = false } = {},
+  { root = process.cwd(), signal, budget = null, dryRun = false, hostExtensions = [] } = {},
 ) {
   const definitionPath = await realpath(path.resolve(root, definitionFile));
   const definition = await loadDefinition(definitionPath, { root });
@@ -83,7 +83,17 @@ export async function runEvaluation(
     // A clean working tree is identified by its commit, recorded on each working-tree source.
     const sourceCommit = refusal === null ? identity.commit : null;
     for (const selected of selection.groups) {
-      groups.push(await runGroup({ selected, root, resultDirectory, signal: controller.signal, charge, sourceCommit }));
+      groups.push(
+        await runGroup({
+          selected,
+          root,
+          resultDirectory,
+          signal: controller.signal,
+          charge,
+          sourceCommit,
+          hostExtensions,
+        }),
+      );
     }
   } finally {
     signal?.removeEventListener("abort", onParentAbort);
@@ -179,7 +189,7 @@ export function budgetEvidence(budget) {
   return { maxCost: budget.maxCost, spent: Number(budget.spent.toFixed(10)), exhausted: budget.exhausted };
 }
 
-async function runGroup({ selected, root, resultDirectory, signal, charge, sourceCommit = null }) {
+async function runGroup({ selected, root, resultDirectory, signal, charge, sourceCommit = null, hostExtensions = [] }) {
   const { group } = selected;
   const groupDirectory = path.join(resultDirectory, "groups", group.id);
   await mkdir(groupDirectory, { recursive: true });
@@ -228,6 +238,7 @@ async function runGroup({ selected, root, resultDirectory, signal, charge, sourc
         fixture,
         runtime,
         freeflow: freeflow[variant],
+        hostExtensions,
         signal,
       });
       charge(runs[variant]);
@@ -339,10 +350,20 @@ function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function executeVariant({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal }) {
+async function executeVariant({
+  group,
+  variant,
+  root,
+  variantDirectory,
+  fixture,
+  runtime,
+  freeflow,
+  hostExtensions,
+  signal,
+}) {
   try {
     const run = group.type === "body" ? runBody : runDescription;
-    return await run({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal });
+    return await run({ group, variant, root, variantDirectory, fixture, runtime, freeflow, hostExtensions, signal });
   } catch (error) {
     if (error instanceof VariantSetupError) return invalidRun(group, variant, error.message);
     return infrastructureFailedRun(group, variant, error);

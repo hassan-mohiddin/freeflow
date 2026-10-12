@@ -58,15 +58,55 @@ export class VariantSetupError extends Error {
   }
 }
 
-export async function runDescription({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal }) {
+export async function runDescription({
+  group,
+  variant,
+  root,
+  variantDirectory,
+  fixture,
+  runtime,
+  freeflow,
+  hostExtensions,
+  signal,
+}) {
   if (group.input.turns !== undefined) {
-    return runPersistentDescription({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal });
+    return runPersistentDescription({
+      group,
+      variant,
+      root,
+      variantDirectory,
+      fixture,
+      runtime,
+      freeflow,
+      hostExtensions,
+      signal,
+    });
   }
-  return runOneShotDescription({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal });
+  return runOneShotDescription({
+    group,
+    variant,
+    root,
+    variantDirectory,
+    fixture,
+    runtime,
+    freeflow,
+    hostExtensions,
+    signal,
+  });
 }
 
-export async function runBody({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal }) {
-  const options = { group, variant, root, variantDirectory, fixture, runtime, freeflow, signal };
+export async function runBody({
+  group,
+  variant,
+  root,
+  variantDirectory,
+  fixture,
+  runtime,
+  freeflow,
+  hostExtensions,
+  signal,
+}) {
+  const options = { group, variant, root, variantDirectory, fixture, runtime, freeflow, hostExtensions, signal };
   const subject = await prepareSubject(options, "rpc");
   const before = await fingerprintDirectory(subject.workspace);
   const declaredPrompts = group.input.prompt === undefined ? [...group.input.turns] : [group.input.prompt];
@@ -164,6 +204,7 @@ function subjectRun({ group, variant }, subject, observation) {
       context: subject.environment.context,
       runtime: subject.runtime,
       freeflow: subject.freeflow,
+      hostExtensions: subject.hostExtensions,
       contextDelivery: subject.environment.contextDelivery,
       targetPath: subject.environment.targetPath,
     },
@@ -273,7 +314,7 @@ async function runPersistentDescription(options) {
 }
 
 async function prepareSubject(
-  { group, variant, root, variantDirectory, fixture: fixtureSnapshot, runtime, freeflow = null },
+  { group, variant, root, variantDirectory, fixture: fixtureSnapshot, runtime, freeflow = null, hostExtensions = [] },
   mode,
 ) {
   const workspace = path.join(variantDirectory, "workspace");
@@ -312,6 +353,7 @@ async function prepareSubject(
     sessionDirectory,
     group.variants[variant].model,
     freeflow?.entry ?? null,
+    hostExtensions,
   );
   const allowedRoots = [
     await realpath(workspace),
@@ -324,6 +366,7 @@ async function prepareSubject(
   return {
     args,
     environment,
+    hostExtensions,
     freeflow:
       freeflow === null
         ? null
@@ -485,12 +528,24 @@ function subjectRunState(observation) {
   return "infrastructure-failed";
 }
 
-function piArguments(group, environment, runtime, mode, observeContext, sessionDirectory, model, freeflowEntry) {
+function piArguments(
+  group,
+  environment,
+  runtime,
+  mode,
+  observeContext,
+  sessionDirectory,
+  model,
+  freeflowEntry,
+  hostExtensions = [],
+) {
   const args = ["--mode", mode];
   if (mode === "json") args.push("-p");
   if (runtime.session) args.push("--session-dir", sessionDirectory);
   else args.push("--no-session");
   args.push("--no-extensions", "--extension", guardExtension);
+  // Provider extensions (such as a subscription's auth extension) load right after the guard.
+  for (const extension of hostExtensions) args.push("--extension", extension.path);
   if (group.commands !== undefined) args.push("--extension", commandToolExtension);
   if (freeflowEntry !== null) args.push("--extension", freeflowEntry);
   for (const bundle of runtime.extensions) args.push("--extension", bundle.entry);

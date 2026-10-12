@@ -1,9 +1,10 @@
 import { randomInt } from "node:crypto";
-import { mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { sha256, writeJson, writeText } from "./evidence.mjs";
+import { describeExtension } from "./extensions.mjs";
 import { prepareIsolation, removeCopiedCredentials } from "./isolation.mjs";
 import { baseProcessEnvironment, runPiProcess } from "./pi.mjs";
 import { resolveResult } from "./view.mjs";
@@ -52,17 +53,6 @@ export async function reviewResult(
     );
   }
   return { resultDirectory, groups: outcomes };
-}
-
-/** A package directory is identified by its name and version, a single file by its content hash. */
-async function describeExtension(extensionPath) {
-  const info = await stat(extensionPath).catch(() => null);
-  if (info === null) throw new Error(`Extension not found: ${extensionPath}`);
-  if (!info.isDirectory()) return { path: extensionPath, sha256: sha256(await readFile(extensionPath)) };
-  const manifest = JSON.parse(await readFile(path.join(extensionPath, "package.json"), "utf8").catch(() => "{}"));
-  const name = typeof manifest.name === "string" ? manifest.name : null;
-  const version = typeof manifest.version === "string" ? manifest.version : null;
-  return { path: extensionPath, package: name && version ? `${name}@${version}` : null };
 }
 
 function selectGroups(summary, selector) {
