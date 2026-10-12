@@ -7,7 +7,7 @@ import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 
 import { cohenKappa, raterAgreement } from "./agreement.mjs";
-import { DefinitionError } from "./definitions.mjs";
+import { DefinitionError, loadJudgeConfiguration } from "./definitions.mjs";
 import { sha256 } from "./evidence.mjs";
 import { registerAggregator } from "./hooks.mjs";
 
@@ -54,7 +54,7 @@ export function steeringOf(parsed) {
   const steering = Array.isArray(parsed?.steering) ? parsed.steering : [];
   return steering.filter((entry) => typeof entry === "string" && entry.trim() !== "");
 }
-const JUDGE_FIELDS = new Set(["model", "thinking"]);
+const JUDGE_FIELDS = new Set(["model", "thinking", "configuration"]);
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -114,23 +114,37 @@ export async function validateJudging(group, definitionPath, root) {
   if (Object.hasOwn(group, "judges")) {
     if (!Array.isArray(group.judges) || group.judges.length === 0) fail("group.judges must be a non-empty array");
     const seen = new Set();
-    result.judges = group.judges.map((judge, index) => {
+    result.judges = [];
+    for (const [index, judge] of group.judges.entries()) {
       const label = `group.judges[${index}]`;
       if (!isPlainObject(judge)) fail(`${label} must be an object`);
       for (const field of Object.keys(judge))
         if (!JUDGE_FIELDS.has(field)) fail(`${label} contains unsupported field ${field}`);
-      if (!nonEmpty(judge.model)) fail(`${label}.model must be a non-empty string`);
-      if (Object.hasOwn(judge, "thinking") && !nonEmpty(judge.thinking)) {
-        fail(`${label}.thinking must be a non-empty string`);
+      // A judge's own configuration replaces the host setup it would inherit from the group.
+      const own = Object.hasOwn(judge, "configuration")
+        ? await loadJudgeConfiguration(judge.configuration, `${label}.configuration`, definitionPath, root)
+        : null;
+      if (own !== null && own.extensions.some((extension) => !Object.hasOwn(extension, "package"))) {
+        fail(`${label}.configuration.host.extensions must be installed packages; a judge builds nothing from source`);
+      }
+      const model = judge.model ?? own?.model?.model;
+      const thinking = judge.thinking ?? own?.model?.thinking;
+      if (!nonEmpty(model)) fail(`${label}.model must be a non-empty string, or come from its configuration`);
+      if (thinking !== undefined && !nonEmpty(thinking)) fail(`${label}.thinking must be a non-empty string`);
+      const normalized = { model, ...(thinking === undefined ? {} : { thinking }) };
+      if (own !== null) {
+        normalized.configuration = {
+          extensions: own.extensions,
+          settings: own.settings,
+          source: own.file === null ? "inline" : path.relative(root, own.file).split(path.sep).join("/"),
+        };
       }
       // Repeated calls to one judge configuration are one vote, not several (Review Work's judge contract).
-      const identity = `${judge.model}\n${judge.thinking ?? ""}`;
+      const identity = JSON.stringify([model, thinking ?? null, normalized.configuration ?? null]);
       if (seen.has(identity)) fail(`${label} repeats a judge configuration; repeated calls are one vote, not several`);
       seen.add(identity);
-      return Object.hasOwn(judge, "thinking")
-        ? { model: judge.model, thinking: judge.thinking }
-        : { model: judge.model };
-    });
+      result.judges.push(normalized);
+    }
   }
   if (Object.hasOwn(group, "combine")) {
     if (!COMBINE_RULES.includes(group.combine)) fail(`group.combine must be one of ${COMBINE_RULES.join(", ")}`);
@@ -172,12 +186,20 @@ async function readReference(value, label, group, root, fail) {
   return { path: relative, text, sha256: sha256(text) };
 }
 
-/** The absolute paths of a validated rubric's reference files: run inputs, like the definition file itself. */
-export function rubricFiles(rubric, root) {
+/**
+ * The absolute paths of a validated rubric's reference files and its judges' configuration files: run inputs, like
+ * the definition file itself.
+ */
+export function rubricFiles(rubric, root, judges = []) {
   if (!Array.isArray(rubric)) return [];
-  return rubric
+  const references = rubric
     .filter((dimension) => typeof dimension.reference?.path === "string")
     .map((dimension) => path.resolve(root, dimension.reference.path));
+  const configurations = (judges ?? [])
+    .map((judge) => judge.configuration?.source)
+    .filter((source) => typeof source === "string" && source !== "inline")
+    .map((source) => path.resolve(root, source));
+  return [...new Set([...references, ...configurations])];
 }
 
 /** The normalized rubric of a stored definition, or null when it declares none. */
@@ -207,12 +229,13 @@ export function rubricHash(rubric) {
  * A judge configuration's identity for calibration: its model, thinking, host extensions and the rubric it
  * answers. Calibration measured for one configuration says nothing about another.
  */
-export function judgeConfiguration({ model, thinking, extensions, rubric }) {
+export function judgeConfiguration({ model, thinking, extensions, settings = {}, rubric }) {
   return sha256(
     JSON.stringify([
       model,
       thinking ?? null,
       (extensions ?? []).map((entry) => entry.package),
+      settings,
       rubricHash(rubric),
       RUBRIC_PROMPT_VERSION,
     ]),

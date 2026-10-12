@@ -398,7 +398,7 @@ export async function runSuite(root, entry, plan, { jobs = null, maxCost = null,
       return {
         suite: entry.suite,
         verdict: "infrastructure",
-        detail: `judging failed: ${judged.stderr.trim() || judged.stdout.trim().split("\n").at(-1) || `exit ${judged.code}`}`,
+        detail: `judging failed: ${await judgingFailure(judged, aggregate, path.dirname(aggregatePath))}`,
         aggregate: aggregate.id,
         cost: await aggregateCost(aggregate, path.dirname(aggregatePath)),
       };
@@ -406,6 +406,34 @@ export async function runSuite(root, entry, plan, { jobs = null, maxCost = null,
     aggregate = JSON.parse(await readFile(path.join(aggregatePath, "aggregate.json"), "utf8"));
   }
   return readAggregate(entry, aggregate, path.dirname(aggregatePath));
+}
+
+/**
+ * Why judging failed: the judges' own recorded errors from the judged grades (such as a provider refusing the call),
+ * else the command's stderr, else its exit code. stdout's last line is only the last group's state.
+ */
+export async function judgingFailure(outcome, aggregate, runsDirectory) {
+  const readJson = (file) => readFile(file, "utf8").then(JSON.parse, () => null);
+  const errors = [];
+  for (const trial of aggregate.trials ?? []) {
+    const trialDirectory = path.join(runsDirectory, trial.id);
+    const summary = await readJson(path.join(trialDirectory, "summary.json"));
+    for (const group of summary?.groups ?? []) {
+      for (const arm of Object.keys(group.variants ?? {})) {
+        const grade = await readJson(path.join(trialDirectory, "groups", group.id, arm, "judged-grade.json"));
+        if (grade?.state !== "judge-error") continue;
+        for (const error of grade.errors ?? []) {
+          const line = `${group.id}/${arm}: ${error}`;
+          if (!errors.includes(line)) errors.push(line);
+        }
+      }
+    }
+  }
+  if (errors.length > 0) {
+    const more = errors.length > 3 ? ` (and ${errors.length - 3} more)` : "";
+    return `${errors.slice(0, 3).join("; ")}${more}`;
+  }
+  return outcome.stderr.trim() || `the judging command exited ${outcome.code}`;
 }
 
 /** A suite's report from its aggregate: verdict, cost and reuse, or infrastructure when runs failed. */
