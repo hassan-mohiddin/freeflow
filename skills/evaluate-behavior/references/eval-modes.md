@@ -20,6 +20,16 @@ Each mode is a group shape; modes combine, such as a coding task judged by a rub
 - **Yields:** transitions and pairs between arms that cannot differ in setup; any gap is run-to-run variation, the floor a real difference must clear.
 - **Pitfalls:** run it in the same batch and on the same cases as the comparison it calibrates. One noise check is itself noisy; a repeat of the reference as an extra arm in the comparison group gives the floor without a separate batch.
 
+## Measure
+
+- **Answers:** how well does one setup do on this suite? Use it to record a baseline you will compare against later, to score a benchmark, or to check that a setup still passes what it passed before.
+- **Declare:** `arms` with a single arm, which is its own reference; no `component`, or `component: []`; and no expectation with a `comparison`.
+- **Yields:** checks with pass^k over trials, run metrics, judged scores from `review --rubric`, command graders and reference checks as usual; the aggregate's claim is a rate on this suite.
+- **Pitfalls:**
+  - It never supports a comparison claim. A suite `decision` refuses a one-arm group, and a pairwise `review` refuses it; judge it with `--rubric`.
+  - Measuring two setups separately and setting their rates side by side is not a comparison: they ran in different batches and conditions. When the question becomes "which is better", run both as arms of one group with a decision rule.
+  - A benchmark score is a rate on this suite, with these checks and this setup. It is not readiness.
+
 ## Conversation
 
 - **Answers:** does the agent behave well when a user answers back, such as asking for what it needs, or not asking for what it was already told?
