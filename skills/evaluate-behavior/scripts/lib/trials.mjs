@@ -161,19 +161,6 @@ export async function runTrials(definitionFile, selectors, options = {}) {
 }
 
 /**
- * The pilot for a single run: the first `pilot` groups once, then their problems. The batch that follows runs
- * the whole selection; this pilot's result is not one of its trials.
- *
- * @param {string} definitionFile
- * @param {any} selectors
- * @param {any} options runEvaluation's options, plus `pilot` (the number of groups)
- */
-export async function runPilot(definitionFile, selectors, { pilot, evaluate = runEvaluation, ...options }) {
-  const result = await evaluate(definitionFile, selectors, { ...options, groupRange: [0, pilot] });
-  return { result, problems: await pilotProblems(result) };
-}
-
-/**
  * What stops a pilot: a run that was cancelled, failed its infrastructure or was invalid, a grade that is
  * unreadable or has errors, a group that recorded errors, or a comparison that no arm passed.
  */

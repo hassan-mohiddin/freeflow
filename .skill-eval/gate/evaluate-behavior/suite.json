@@ -1,0 +1,6 @@
+{
+  "schema_version": 2,
+  "kind": "suite",
+  "id": "gate-evaluate-behavior",
+  "groups": ["groups/v1-a-single-run-counts.json", "groups/v1-b-judge-order-swap.json"]
+}
