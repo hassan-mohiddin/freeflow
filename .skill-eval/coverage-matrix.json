@@ -177,15 +177,15 @@
       }
     },
     "evaluate-behavior": {
-      "job": "Run controlled baseline-versus-candidate skill evaluations and preserve evidence for judgment.",
-      "positive_trigger": "Define, run, grade, compare, or inspect a skill evaluation group or suite.",
+      "job": "Run controlled evaluations of any declared agent setup, with arms compared against a reference, and preserve evidence for judgment.",
+      "positive_trigger": "Define, run, grade, compare, or inspect an evaluation of an agent's behavior: a skill, an instruction file, a model, an extension or setting.",
       "near_miss": "Draft or revise skill wording without an evaluation request.",
       "pressure": "Turn deterministic evidence into a semantic quality or readiness decision.",
       "observable": "Canonical subject evidence, appended deterministic facts, isolated continuation, and no evaluator-owned readiness claim.",
       "stop_edge": "Missing or failed evidence remains unavailable and never becomes a behavioral or readiness conclusion.",
       "neighbours": ["write-skill", "verify-work"],
       "evidence_class": ["native-activation", "artifact-outcome", "multi-turn"],
-      "case_concept": "Compare baseline and candidate while preserving failures and leaving behavioral meaning to agent or user review.",
+      "case_concept": "Compare arms against a reference under a declared decision rule while preserving failures and leaving behavioral meaning to agent or user review.",
       "current_result": "The evaluator scripts have their own tests (.skill-eval/evaluate-behavior/tests). The skill text, including its measurement and defect-suite guidance, has no behavioral group or suite evidence.",
       "source_path": "skills/evaluate-behavior/SKILL.md",
       "source_sha256": "eb3facdd06e9b46c7c58754f3a9aea08d8787d1b673a3eff2b26c15a1a76a1be",
@@ -550,7 +550,7 @@
       "case_concept": "Create a minimal skill whose description and body work without a prescribed section template.",
       "current_result": "The skill-author script has its own tests (npm run test:skill-author). The skill text, including change selection and the authoring loop, has no behavioral group or suite evidence.",
       "source_path": "skills/write-skill/SKILL.md",
-      "source_sha256": "d165dcecacb915042f3b04b53677edab04c03e4a05db9168e2ae8466e4682c63",
+      "source_sha256": "49b35c2ca7905154fc6815ebffa05994c8dd63f3403fd74d9d9086593b8b663f",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
