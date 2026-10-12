@@ -22,7 +22,7 @@ Definition files and declared paths are checked for lexical and canonical contai
 
 ## Common Group Shape
 
-A group is a **task** (what the agent is asked to do and how it is graded) and a **configuration** (the agent environment that does it). Two or more named arms, usually `baseline` and `candidate`, each overlay the shared configuration, and `component` names the only places where an arm may differ from the reference arm. Every group contains exactly these fields, plus optional `reference`, `commands`, `revision`, and the judged-evidence fields `rubric`, `judges` and `combine` ([Rubric And Judges](#rubric-and-judges)):
+A group is a **task** (what the agent is asked to do and how it is graded) and a **configuration** (the agent environment that does it). Two or more named arms, usually `baseline` and `candidate`, each overlay the shared configuration, and `component` names the only places where an arm may differ from the reference arm. Every group contains exactly these fields, plus optional `reference`, `commands`, `revision`, `reference_solution`, and the judged-evidence fields `rubric`, `judges` and `combine` ([Rubric And Judges](#rubric-and-judges)):
 
 ```json
 {
@@ -111,7 +111,7 @@ Rules:
 - `arms` holds two or more named arms. A name starts with a lowercase letter, followed by up to 31 lowercase letters, numbers or hyphens. Each arm is an overlay with any of the configuration fields. Merging is key by key for objects; an array, scalar, or `null` in the overlay replaces the shared value.
 - `reference` is optional and names the arm the others are compared with; it defaults to `baseline`, and the named arm must exist. Evidence, views and the aggregate list the reference first, then the other arms in declaration order.
 - `component` is an array of dot paths into the configuration, such as `subject.source` or `model.thinking`. The evaluator compares each arm's effective configuration with the reference's leaf by leaf (an array is one leaf) and refuses the group before any subject runs when any arm differs anywhere `component` does not cover, or when a `component` path differs in no arm. `component: []` declares an A/A comparison (or A/A/A with three arms): every arm must be identical, which measures run-to-run variation.
-- `host.name`, `host.version` and `runtime` must be the same in every arm. `host.extensions`, `host.settings` and `freeflow` may differ; any of them can be the component under test.
+- `host.name`, `host.version` and `runtime` must be the same in every arm, except `runtime.environment.literal` (see [Runtime Profile](#runtime-profile)). `host.extensions`, `host.settings` and `freeflow` may differ; any of them can be the component under test.
 - A non-reference arm that declares skills must name its target.
 - `--variant <arm>` selects any arm (see [Selection](#selection)).
 
@@ -277,6 +277,22 @@ The examples are complete definition shapes. Replace fixture, resource, model, a
 
 - `extensions` lists Pi packages by exact name and version. Each is found among the user's installed Pi packages (`<Pi agent directory>/npm/node_modules`); a missing package or another version refuses the run before anything starts. They load right after the evaluator's guard, in order, and are recorded under `resources.hostExtensions`. Extensions can change what the host sends (an auth extension may reshape the system prompt), so they belong to the configuration, and arms that differ in them must declare it in `component`.
 - `settings` is any object of Pi settings. It becomes the subject's `settings.json` in its isolated agent directory, merged over the evaluator's two defaults: `retry.enabled` and `compaction.enabled` are `false` unless declared, so a provider error or a compaction never happens silently inside a measured run. Any other setting it does not name takes Pi's default; the user's own settings never apply. `run.json` records the effective settings under `isolation.settings`, and body runs send the same retry and compaction values to Pi over RPC. `packages` is refused: extensions load only from `extensions`.
+- An extension can also be built from source, so arms can compare versions of an extension under development:
+
+  ```json
+  {
+    "extensions": [
+      { "source": { "kind": "git", "ref": "3f2a9c1", "path": "packages/my-extension" }, "build": ["npm", "run", "build"], "entry": "dist/index.js" },
+      { "path": "extensions/local-probe", "entry": "index.mjs" }
+    ]
+  }
+  ```
+
+  - `source` takes a directory (`path`, or `"."`) at an exact commit (`ref`: 7 to 64 hex characters; branches and tags are refused because they move) of the Git repository holding the definition root, extracted with `git archive`. `path` instead takes a directory under the definition root from the working tree; it is a run input, so it must be committed for a canonical run, and it is snapshotted, never used live.
+  - Optional `build` runs once in the extracted copy, without a shell, in an isolated home, temp and Pi directory with no copied login, with a 10-minute timeout. A build that fails, times out or cannot start makes the group `invalid` before any subject runs.
+  - `entry` is the file Pi loads, relative to the built directory.
+  - Each distinct source and build is built once per group, under `resources/host-extensions/<n>/source` in the group directory. `resources.hostExtensions` records the source (with the resolved `commit` for a Git source), the entry, a `sha256` over the built directory's file list and contents, and the build's argv, exit code, duration and output tails.
+  - These entries are for arms; a reviewer configuration may list only installed packages.
 - The advisory reviewer takes the same fields from a configuration file given with `review --configuration`.
 
 ## Freeflow
@@ -315,7 +331,7 @@ A configuration with `freeflow` runs the subject with Freeflow loaded, built fro
 
 ## Runtime Profile
 
-A runtime profile, under `configuration.runtime`, is shared by every arm. It changes the host environment, not the skill target:
+A runtime profile, under `configuration.runtime`, is shared by every arm, except `environment.literal`. It changes the host environment, not the skill target:
 
 ```json
 {
@@ -344,7 +360,7 @@ The host comes from `configuration.host.name` (`pi`); the evaluator maps it to t
 
 Both modes enforce the same tool and path guards. A declared runtime states only what it changes: an omitted `session` is `false`, `extensions` is `[]`, `environment` is `{ "literal": {}, "inherit": [] }`, and `prompt` is `isolated`. `session` controls whether the variant receives an isolated persistent session directory; it defaults to `false` in omitted runtime profiles. A runtime may declare zero or more bundles. Each bundle has an entry file and one or more directory resources copied under their original relative paths, so sibling imports and multi-tree extensions remain intact. Bundle bytes are snapshotted once and copied identically to every arm.
 
-`environment.literal` contains non-secret string configuration and is recorded in run evidence. `environment.inherit` names parent-process variables whose values are passed to the child but never persisted; other parent variables are not passed. Missing inherited variables invalidate the variant. The evaluator supplies only a small host-runtime baseline such as `PATH` and `HOME`. Launch-control and loader keys are rejected from inherited values, literal and inherited names must not overlap, and secret-like literal keys are rejected.
+`environment.literal` contains non-secret string configuration and is recorded in run evidence. Arms may differ in it when `component` names `runtime.environment.literal` or one key under it, such as `runtime.environment.literal.FEATURE_MODE`; each arm's subject then receives its own literals, recorded under `resources.runtime.environment`. Declare `environment` in the shared runtime so an arm's overlay changes only the literal. `environment.inherit` names parent-process variables whose values are passed to the child but never persisted; other parent variables are not passed. Missing inherited variables invalidate the variant. The evaluator supplies only a small host-runtime baseline such as `PATH` and `HOME`. Launch-control and loader keys are rejected from inherited values, literal and inherited names must not overlap, and secret-like literal keys are rejected.
 
 Extensions are trusted executable inputs, not OS-sandboxed code. The evaluator proves declared identity and post-run immutability, but extension code retains its host permissions.
 
@@ -497,6 +513,7 @@ Expectations may share one comparison ID only when there is exactly one for each
 
 Definition loading validates common structure and unique IDs, and every field of a `command` expectation, because it runs a program. Other kind-specific expectation validation occurs during deterministic grading after run persistence. A malformed expectation therefore becomes separate `grade-error` evidence rather than changing the subject run. Use the documented shapes to avoid spending a subject run on an invalid check.
 
+- `reference_solution` is optional and has exactly one key: `{ "patch": "<file>" }`, a unified diff applied to the fixture copy with `git apply`, or `{ "files": "<dir>" }`, whose regular files overlay the fixture copy. Both paths are relative, stay inside the definition root, may not lie inside the fixture, and are inputs of the run. The reference is one workspace shared by every arm, so `skill-eval check-tasks` grades each arm's workspace and command expectations with no model, reporting per arm: `solvable` only when every arm's applicable expectations pass, `unsolvable` with the failing graders named per arm, or `not-checkable` when a check cannot run (interaction expectations need a transcript). An optional `"arm": "<name>"` inside `reference_solution` restricts the check to one arm. `run` refuses an unsolvable group before any subject starts unless `--skip-reference-check` is given; the result records the check in `groups/<id>/reference-check.json`.
 Group `commands` run only through the subject's `run_command` tool. Grading runs only the `argv` of `command` expectations, after the subject has finished.
 
 ## Declared Commands

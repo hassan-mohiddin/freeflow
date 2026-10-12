@@ -10,6 +10,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
+import { isSourceExtension } from "./build-source.mjs";
+
 const execFileAsync = promisify(execFile);
 const SCRIPTS = fileURLToPath(new URL("../", import.meta.url));
 export const INDEX_FILE = "index.jsonl";
@@ -120,6 +122,14 @@ export async function reuseKey({ group, arm, root, hostVersion }) {
     armInputs.source = await gitCommit(root, variant.source.ref);
   }
   if (variant.freeflow?.source?.ref) armInputs.freeflow = await gitCommit(root, variant.freeflow.source.ref);
+  // Host extensions built from source: a working-tree directory by content, a Git source by its commit.
+  for (const [index, extension] of (variant.hostExtensions ?? []).entries()) {
+    if (!isSourceExtension(extension)) continue;
+    armInputs[`hostExtensions.${index}`] =
+      extension.source === undefined
+        ? await contentHash(path.resolve(root, extension.path))
+        : await gitCommit(root, extension.source.ref);
+  }
 
   return sha256(
     canonicalJson({

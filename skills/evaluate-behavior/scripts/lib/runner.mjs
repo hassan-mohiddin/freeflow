@@ -10,9 +10,11 @@ import { prepareFreeflow } from "./freeflow.mjs";
 import { postRunRecords } from "./hooks.mjs";
 import { identityRefusal, inputIdentity, installedHostVersion } from "./identity.mjs";
 import { removeCopiedCredentials, TARGET_MINUTES } from "./isolation.mjs";
+import { prepareSourceExtensions } from "./build-source.mjs";
 import { ensureLogin, resolveHostExtensions } from "./pi-host.mjs";
+import { enforceReferenceChecks } from "./reference.mjs";
 import { baseProcessEnvironment, runBody, runDescription, VariantSetupError } from "./pi.mjs";
-import { createLimiter } from "./queue.mjs";
+import { createLimiter, withCpuSlot } from "./queue.mjs";
 import { adoptRun, appendIndex, createReuse } from "./reuse.mjs";
 import { prepareFixture, prepareRuntime, verifyDescriptionOnlyRevision } from "./sandbox.mjs";
 
@@ -55,6 +57,7 @@ export function createRunReuse(runsDirectory, enabled) {
  */
 export async function runEvaluation(definitionFile, selectors = {}, options = {}) {
   const { root = process.cwd(), signal, budget = null, dryRun = false, groupRange = null } = options;
+  const { skipReferenceCheck = false } = options;
   const subjects = options.subjects ?? createLimiter(options.jobs ?? 1);
   const runsDirectory = resultsDirectory(root, options.results);
   const reuse = options.reuse ?? createRunReuse(runsDirectory, false);
@@ -94,6 +97,9 @@ export async function runEvaluation(definitionFile, selectors = {}, options = {}
     },
     startedAt: new Date().toISOString(),
   });
+
+  // A declared reference must solve its task before any subject starts (SPEC-002 A9).
+  await enforceReferenceChecks(selection, { root, resultDirectory, skip: skipReferenceCheck, signal });
 
   // Budget exhaustion stops only subjects not yet started; a subject already running completes and is charged.
   const context = {
@@ -159,7 +165,9 @@ async function resolveSelectedExtensions(selection) {
   for (const { group, variants } of selection.groups) {
     const arms = Object.fromEntries(armNames(group).map((arm) => [arm, []]));
     for (const [arm, state] of Object.entries(variants)) {
-      if (state === "selected") arms[arm] = await resolveHostExtensions(group.variants[arm].hostExtensions ?? []);
+      if (state === "selected") {
+        arms[arm] = await resolveHostExtensions(group.variants[arm].hostExtensions ?? [], { deferSources: true });
+      }
     }
     resolved.set(group.id, arms);
   }
@@ -285,6 +293,9 @@ async function runGroup({
         groupDirectory,
       });
       freeflow = await prepareFreeflow({ variants: group.variants, root, groupDirectory });
+      // Building from source is local CPU work, so it waits for a --cpu-jobs slot.
+      const extensions = hostExtensions;
+      hostExtensions = await withCpuSlot(() => prepareSourceExtensions({ extensions, root, groupDirectory, signal }));
       if (group.revision === "description-only") {
         await verifyDescriptionOnlyRevision({
           variants: group.variants,
@@ -309,8 +320,9 @@ async function runGroup({
     } else if (stopped()) {
       runs[variant] = cancelledRun(group, variant);
     } else if (resourceError === null) {
-      // A canonical run has a reuse key; with --reuse an indexed run under it stands in for this one.
-      keys[variant] = dryRun ? null : await reuse.keyFor(group, variant, root).catch(() => null);
+      // With --reuse a canonical run has a reuse key: an indexed run under it stands in for this one, and a new
+      // run is indexed under it. Without --reuse nothing extra runs (not even `pi --version`).
+      keys[variant] = dryRun || !reuse.enabled ? null : await reuse.keyFor(group, variant, root).catch(() => null);
       const claimed = await reuse.claim(keys[variant]);
       const adopted = claimed === null ? null : await adoptRun(claimed, variantDirectory).catch(() => null);
       if (adopted !== null) {

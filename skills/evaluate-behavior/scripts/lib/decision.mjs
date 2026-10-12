@@ -257,24 +257,43 @@ export function trialCounts(aggregate) {
   );
 }
 
-/** The claim lines of an aggregate view: the rate claim without a decision, else the rule, split, p and verdict. */
-export function renderClaim(aggregate) {
-  const claim = aggregate.claim;
-  if (!claim) return [];
+/** A verdict's words: "beats", "worse" or "no difference shown". */
+export function verdictText(verdict) {
+  return VERDICT_TEXT[verdict] ?? String(verdict);
+}
+
+/**
+ * The aggregate's claim in words, shared by the text and HTML views: `reached` is the class reached ("rate on this
+ * suite, k=3", "beats", "none (dry run)"), and `detail` what it is about (the decision's arms, measure and
+ * direction) or, without a decision, why no "beats" claim is supported. Null when the aggregate has no claim.
+ */
+export function claimSummary(aggregate) {
+  const claim = aggregate?.claim;
+  if (!claim) return null;
+  const none = `none${claim.reason ? ` (${claim.reason})` : ""}`;
   const decision = aggregate.decision;
   if (decision === undefined) {
-    const supported =
-      claim.class === "rate-on-suite"
-        ? `rate on this suite, k=${claim.k}`
-        : `none${claim.reason ? ` (${claim.reason})` : ""}`;
-    return [`Claim: ${supported}; no "beats" claim: ${String(claim.beats).replace(/^not supported: /, "")}`];
+    return {
+      reached: claim.class === "rate-on-suite" ? `rate on this suite, k=${claim.k}` : none,
+      detail: `no "beats" claim: ${String(claim.beats).replace(/^not supported: /, "")}`,
+    };
   }
   const { kind, name } = measureOf(decision.rule);
+  return {
+    reached: claim.class === "none" ? none : verdictText(claim.class),
+    detail: `${decision.arm} against ${decision.reference} on ${kind} ${name}, ${decision.rule.direction} is better`,
+  };
+}
+
+/** The claim lines of an aggregate view: the rate claim without a decision, else the rule, split, p and verdict. */
+export function renderClaim(aggregate) {
+  const summary = claimSummary(aggregate);
+  if (summary === null) return [];
+  const decision = aggregate.decision;
+  if (decision === undefined) return [`Claim: ${summary.reached}; ${summary.detail}`];
   const rule = decision.rule;
-  const reached =
-    claim.class === "none" ? `none${claim.reason ? ` (${claim.reason})` : ""}` : VERDICT_TEXT[claim.class];
   const lines = [
-    `Claim: ${reached}; ${decision.arm} against ${decision.reference} on ${kind} ${name}, ${rule.direction} is better`,
+    `Claim: ${summary.reached}; ${summary.detail}`,
     row("decision", [
       `rule=sha256:${decision.ruleSha256}`,
       `method=${rule.method}`,

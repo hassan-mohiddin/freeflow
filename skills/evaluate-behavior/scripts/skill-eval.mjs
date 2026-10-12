@@ -4,10 +4,12 @@ import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
 
+import { extensionLabel } from "./lib/build-source.mjs";
 import { loadDefinition, selectDefinition } from "./lib/definitions.mjs";
 import "./lib/metrics.mjs";
 import { createBudget } from "./lib/budget.mjs";
 import { createLimiter, setCpuJobs } from "./lib/queue.mjs";
+import { checkSelection } from "./lib/reference.mjs";
 import { createRunReuse, resultsDirectory, runEvaluation } from "./lib/runner.mjs";
 import { calibrateJudges, reviewResult, reviewRubric } from "./lib/review.mjs";
 import { runPilot, runTrials } from "./lib/trials.mjs";
@@ -22,12 +24,14 @@ const OPTIONS = {
     "--max-cost",
     "--yes",
     "--dry-run",
+    "--skip-reference-check",
     "--jobs",
     "--cpu-jobs",
     "--results",
     "--reuse",
     "--pilot",
   ],
+  "check-tasks": ["--group"],
   view: ["--group", "--variant", "--html", "--results"],
   review: [
     "--results",
@@ -51,6 +55,7 @@ function printUsage() {
   skill-eval run <suite-or-group-path> [options]
   skill-eval view <result-id-or-directory> [options]
   skill-eval review <result-id-or-directory> --model <provider/model> [options]
+  skill-eval check-tasks <suite-or-group-path> [--group <id-or-position>]
   skill-eval review <result-or-aggregate-id> --rubric [options]
   skill-eval review <result-or-aggregate-id> --calibrate <labels.json>
 
@@ -58,6 +63,7 @@ Commands:
   run     Execute selected evaluation groups
   view    Render selected stored evidence or a trial aggregate
   review  Record an advisory, arm-blind model answer to each group's review questions
+  check-tasks  Check that each group's reference_solution passes its workspace and command checks; no model
 
 Selectors:
   --group <id-or-position>
@@ -69,10 +75,11 @@ Run options:
   --max-cost <total>  Stop starting subjects once host-reported cost reaches the total
   --yes               Start without asking (the plan is printed either way; scripts never ask)
   --dry-run           Allow uncommitted inputs; the result is marked as a dry run and supports no claim
-  --jobs <n>          Run up to n subjects at once across groups, arms and trials (default 1)
+  --skip-reference-check  Run even when a declared reference_solution fails check-tasks (the result records it)
+  --jobs <n>         Run up to n subjects at once across groups, arms and trials (default 1)
   --cpu-jobs <n>      Run up to n local CPU tasks at once, such as hidden test commands (default 2)
   --reuse             Count matching complete canonical runs from the results index as trials instead of
-                      running them again; each is reused once per run and listed as reused
+                      running them again (each once per run, listed as reused), and index this run's own
   --pilot <n>         Run the first n groups once first; stop with a report on any failed or invalid run,
                       check error, or comparison no arm passed; otherwise continue (the pilot counts as a trial)
 
@@ -147,6 +154,7 @@ function parseOperation(values) {
   let yes = false;
   let dryRun = false;
   let reuse = false;
+  let skipReferenceCheck = false;
   const keys = {
     "--jobs": "jobs",
     "--cpu-jobs": "cpuJobs",
@@ -193,6 +201,10 @@ function parseOperation(values) {
     }
     if (option === "--reuse") {
       reuse = true;
+      continue;
+    }
+    if (option === "--skip-reference-check") {
+      skipReferenceCheck = true;
       continue;
     }
     if (!value || value.startsWith("--")) throw new Error(`${option} requires a value`);
@@ -253,6 +265,7 @@ function parseOperation(values) {
     pilot,
     reuse,
     results: parsed.results,
+    skipReferenceCheck,
   };
 }
 
@@ -303,7 +316,7 @@ async function planRun(operation, root) {
       models.add(model ? `${model.model}${model.thinking ? ` (${model.thinking})` : ""}` : "host default");
       if (group.variants[arm].freeflow) freeflow.add(group.variants[arm].freeflow.source.ref);
       for (const extension of group.variants[arm].hostExtensions ?? []) {
-        extensions.add(`${extension.package}@${extension.version}`);
+        extensions.add(extensionLabel(extension));
       }
     }
   }
@@ -340,7 +353,14 @@ async function run(operation) {
   }
   if (operation.cpuJobs !== null) setCpuJobs(operation.cpuJobs);
   await withCancellation(async (signal) => {
-    const common = { root, signal, dryRun: operation.dryRun, jobs: operation.jobs, results: operation.results };
+    const common = {
+      root,
+      signal,
+      dryRun: operation.dryRun,
+      jobs: operation.jobs,
+      results: operation.results,
+      skipReferenceCheck: operation.skipReferenceCheck,
+    };
     // A suite's decision is reached over an aggregate, so it always runs as trials, even a single one.
     if (plan.decision === null && (operation.trials ?? 1) === 1) {
       const shared = {
@@ -386,6 +406,19 @@ function reportPilot(id, problems) {
   process.stdout.write(`Pilot: ${id} stopped the run\n${problems.map((problem) => `  - ${problem}\n`).join("")}`);
   process.exitCode = 1;
   return false;
+}
+
+/** Checks each selected group's reference_solution against its graders. Runs no subject; exits 1 if any is unsolvable. */
+async function checkTasks(operation) {
+  const root = process.cwd();
+  const definitionPath = await realpath(path.resolve(root, operation.target));
+  const selection = selectDefinition(await loadDefinition(definitionPath, { root }), operation.selectors);
+  const results = await checkSelection(selection, { root });
+  for (const result of results) {
+    process.stdout.write(`${result.id}: ${result.state}${result.reason ? ` (${result.reason})` : ""}\n`);
+    for (const arm of result.arms ?? []) process.stdout.write(`  ${arm.arm}: ${arm.state}\n`);
+  }
+  if (results.some((result) => result.state === "unsolvable")) process.exitCode = 1;
 }
 
 async function review(operation) {
@@ -471,6 +504,8 @@ if (!command || command === "--help" || command === "-h") {
       );
     } else if (command === "review") {
       await review(operation);
+    } else if (command === "check-tasks") {
+      await checkTasks(operation);
     } else {
       await run(operation);
     }

@@ -3,7 +3,9 @@ import path from "node:path";
 
 import { ARM_NAME, armNames, DEFAULT_REFERENCE } from "./arms.mjs";
 import { validateDecision } from "./decision.mjs";
+import { isSourceExtension, sourceExtensionInputs, validateSourceExtension } from "./build-source.mjs";
 import { validateCommandExpectations } from "./grade-command.mjs";
+import { referenceFiles, validateReferenceSolution } from "./reference.mjs";
 import { rubricFiles, validateJudging } from "./judge.mjs";
 
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
@@ -339,8 +341,10 @@ const SCHEMA_1_MESSAGE =
   "schema 1 definitions are no longer supported; rewrite it as schema 2 (see the evaluation definition schema reference)";
 const CONFIGURATION_FIELDS = ["host", "model", "subject", "freeflow", "runtime"];
 // Arms may not differ here: runtime bundles are prepared once per group, and Pi is the only host. Host extensions
-// and settings may differ, like the rest of the configuration.
+// and settings may differ, like the rest of the configuration, and so may runtime environment literals, which each
+// arm's subject receives as its own.
 const SHARED_ONLY = ["host.name", "host.version", "runtime"];
+const ARM_RUNTIME = ["runtime.environment.literal"];
 const COMPONENT_PATH = /^[a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9_-]+)*$/;
 
 function rejectSchema1(value, label, definitionPath) {
@@ -451,6 +455,10 @@ function validateHostExtensions(value, label, definitionPath) {
   if (!Array.isArray(value)) fail("invalid-definition", `${label} must be an array`, definitionPath);
   const names = new Set();
   for (const [index, entry] of value.entries()) {
+    if (isSourceExtension(entry)) {
+      validateSourceExtension(entry, `${label}[${index}]`, (code, message) => fail(code, message, definitionPath));
+      continue;
+    }
     const extension = requireExactKeys(entry, ["package", "version"], [], `${label}[${index}]`, definitionPath);
     requireString(extension.package, `${label}[${index}].package`, definitionPath);
     requireString(extension.version, `${label}[${index}].version`, definitionPath);
@@ -536,7 +544,10 @@ async function resolveArms(group, definitionPath, root) {
   const differing = new Set();
   for (const arm of names.slice(1)) {
     for (const difference of differences(resolved[referenceName].configuration, resolved[arm].configuration)) {
-      if (SHARED_ONLY.some((entry) => declares(entry, difference))) {
+      if (
+        SHARED_ONLY.some((entry) => declares(entry, difference)) &&
+        !ARM_RUNTIME.some((entry) => declares(entry, difference))
+      ) {
         const shared = names.length === 2 ? "both arms" : "every arm";
         fail("unsupported-difference", `${where(arm)} in ${difference}, which ${shared} must share`, definitionPath);
       }
@@ -607,7 +618,7 @@ async function validateGroup(value, definitionPath, root) {
       "expectations",
       "review_questions",
     ],
-    ["commands", "revision", "reference", "rubric", "judges", "combine"],
+    ["commands", "revision", "reference", "rubric", "judges", "combine", "reference_solution"],
     "group",
     definitionPath,
   );
@@ -634,6 +645,12 @@ async function validateGroup(value, definitionPath, root) {
     }
   }
   validateExpectations(group.expectations, definitionPath);
+  const referenceProblem = validateReferenceSolution(group.reference_solution, {
+    root,
+    arms: names,
+    fixture: group.fixture === null ? null : path.resolve(root, group.fixture),
+  });
+  if (referenceProblem !== null) fail(referenceProblem.code, referenceProblem.message, definitionPath);
   const graderFiles = validateCommandExpectations(group, {
     arms: names,
     root,
@@ -671,17 +688,27 @@ async function validateGroup(value, definitionPath, root) {
     if (resolved[arm].freeflow !== undefined) variants[arm].freeflow = resolved[arm].freeflow;
     variants[arm].hostExtensions = resolved[arm].configuration.host.extensions ?? [];
     variants[arm].hostSettings = resolved[arm].configuration.host.settings ?? {};
+    // The group runtime is the reference's; an arm whose environment literals differ carries its own.
+    const literal = resolved[arm].runtime?.environment.literal;
+    if (JSON.stringify(literal) !== JSON.stringify(resolved[reference].runtime?.environment.literal)) {
+      variants[arm].runtimeLiteral = literal;
+    }
   }
   const internal = {
     ...group,
     configurations: Object.fromEntries(names.map((arm) => [arm, resolved[arm].configuration])),
-    // The files this group was read from, its command graders and rubric references read, so a run can check they
-    // are committed.
+    // The files this group was read from, and those its command graders, rubric references, reference solution
+    // and path-sourced extensions read, so a run can check they are committed.
     files: [
       definitionPath,
       ...(extendsFile === null ? [] : [extendsFile]),
       ...graderFiles,
+      ...referenceFiles(group, root),
       ...rubricFiles(group.rubric, root),
+      ...sourceExtensionInputs(
+        names.map((arm) => variants[arm].hostExtensions),
+        root,
+      ),
     ],
     component,
     variants,

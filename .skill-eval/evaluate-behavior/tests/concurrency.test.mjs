@@ -396,8 +396,14 @@ test("--reuse counts matching canonical runs instead of running them, each once 
     const suite = await writeSuite(root, [group("one")]);
     await commitAll(root, "inputs");
 
-    // A canonical run indexes its complete runs.
-    const first = runCli(root, bin, ["run", suite], {}, { dryRun: false });
+    // Without --reuse nothing is indexed.
+    const plain = runCli(root, bin, ["run", suite], {}, { dryRun: false });
+    assert.equal(plain.status, 0, plain.stderr);
+    assert.equal((await readIndex(path.join(root, ".skill-eval/runs"))).size, 0);
+    await rm(path.join(root, "fake.jsonl"));
+
+    // A canonical run with --reuse finds nothing yet, and indexes its complete runs.
+    const first = runCli(root, bin, ["run", suite, "--reuse"], {}, { dryRun: false });
     assert.equal(first.status, 0, first.stderr);
     const firstId = first.stdout.match(/^Result: (.+)$/m)[1];
     const index = await readIndex(path.join(root, ".skill-eval/runs"));

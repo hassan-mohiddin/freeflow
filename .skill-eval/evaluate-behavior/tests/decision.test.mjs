@@ -11,6 +11,7 @@ import { loadDefinition } from "../../../skills/evaluate-behavior/scripts/lib/de
 import { registerAggregator } from "../../../skills/evaluate-behavior/scripts/lib/hooks.mjs";
 import "../../../skills/evaluate-behavior/scripts/lib/metrics.mjs";
 import { aggregateGroups, rebuildAggregate, runTrials } from "../../../skills/evaluate-behavior/scripts/lib/trials.mjs";
+import { renderHtml } from "../../../skills/evaluate-behavior/scripts/lib/view-html.mjs";
 import { renderResult } from "../../../skills/evaluate-behavior/scripts/lib/view.mjs";
 import { toV2 } from "./helpers/to-v2.mjs";
 
@@ -581,6 +582,10 @@ test("the aggregate view shows the rule, split, p, adaptive rounds and verdict",
       text,
     );
     assert.ok(lines.includes("adaptive\tround=1\ttrials=2/2\tcases=tied"), text);
+    // The HTML page words the claim and counts trials the same way, from decision.mjs.
+    const html = await renderHtml(id, { root });
+    assert.match(html, /<section class="claim"><h2>Claim<\/h2><p>no difference shown<\/p>/);
+    assert.match(html, /trials 2\/2 initial, 4\/4 adaptive \(up to 6 per case\)/);
     // The header counts the full invocations and the adaptive trials apart.
     assert.equal(lines[0], `Aggregate ${id} [complete] trials=2/2 initial, 4/4 adaptive (up to 6 per case)`);
     assert.ok(lines.includes("case\ttied\tequal\ttrials=6\tbaseline=1 (n=6)\tcandidate=1 (n=6)"), text);
