@@ -2,6 +2,7 @@ import { mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 
 import { armNames } from "./arms.mjs";
+import { budgetEvidence, charge, reserve } from "./budget.mjs";
 import { COMMAND_TOOL, loadDefinition, selectDefinition } from "./definitions.mjs";
 import { createInvocationId, fileIdentity, writeJson, writeText } from "./evidence.mjs";
 import { gradeDeterministic } from "./grade.mjs";
@@ -15,6 +16,8 @@ import { prepareShell } from "./shell.mjs";
 import { ensureLogin, resolveHostExtensions } from "./pi-host.mjs";
 import { enforceReferenceChecks } from "./reference.mjs";
 import { baseProcessEnvironment, runBody, runDescription, VariantSetupError } from "./pi.mjs";
+import { createLimiter, withCpuSlot } from "./queue.mjs";
+import { adoptRun, appendIndex, createReuse } from "./reuse.mjs";
 import { prepareFixture, prepareRuntime, verifyDescriptionOnlyRevision } from "./sandbox.mjs";
 
 const DESCRIPTION_TOOLS = new Set(["read"]);
@@ -29,19 +32,42 @@ const DEFAULT_RUNTIME = {
   environment: { literal: {}, inherit: [] },
 };
 
+/** Where results are stored: `--results` when given, else `<root>/.skill-eval/runs`. */
+export function resultsDirectory(root, results = null) {
+  return results === null || results === undefined
+    ? path.join(root, ".skill-eval", "runs")
+    : path.resolve(root, results);
+}
+
+/** The reuse state for one run or aggregate (see reuse.mjs); `enabled` is `--reuse`. */
+export function createRunReuse(runsDirectory, enabled) {
+  return createReuse({
+    resultsDirectory: runsDirectory,
+    enabled,
+    hostVersion: () => installedHostVersion("pi", baseProcessEnvironment()),
+  });
+}
+
 /**
+ * Runs the selection once. Subjects run through `subjects` (a limiter shared by every invocation of one
+ * aggregate; `jobs` at once); with one job, groups and arms run in order exactly as before. Cancellation
+ * reaches running subjects; budget exhaustion only stops new ones from starting.
+ *
  * @param {string} definitionFile
  * @param {any} selectors
- * @param {{root?: string, signal?: AbortSignal, budget?: {maxCost: number, spent: number, exhausted: boolean} | null}} options
+ * @param {{root?: string, signal?: AbortSignal, budget?: any, dryRun?: boolean, jobs?: number, subjects?: ReturnType<typeof createLimiter>, results?: string | null, reuse?: any, groupRange?: [number, number] | null, loginsRefreshed?: boolean}} options
  */
-export async function runEvaluation(
-  definitionFile,
-  selectors = {},
-  { root = process.cwd(), signal, budget = null, dryRun = false, skipReferenceCheck = false } = {},
-) {
+export async function runEvaluation(definitionFile, selectors = {}, options = {}) {
+  const { root = process.cwd(), signal, budget = null, dryRun = false, groupRange = null } = options;
+  const { skipReferenceCheck = false } = options;
+  const subjects = options.subjects ?? createLimiter(options.jobs ?? 1);
+  const runsDirectory = resultsDirectory(root, options.results);
+  const reuse = options.reuse ?? createRunReuse(runsDirectory, false);
   const definitionPath = await realpath(path.resolve(root, definitionFile));
   const definition = await loadDefinition(definitionPath, { root });
   const selection = selectDefinition(definition, selectors);
+  // A pilot runs the first groups of the selection, and the batch after it the rest.
+  if (groupRange !== null) selection.groups = selection.groups.slice(groupRange[0], groupRange[1]);
   assertSupportedSelection(selection);
 
   // Canonical evidence needs every working-tree input recoverable from one commit; anything else is a dry run.
@@ -50,9 +76,8 @@ export async function runEvaluation(
   if (refusal !== null && !dryRun) throw new Error(refusal);
   const hostVersion = await checkHostVersion(selection);
   const hostExtensions = await resolveSelectedExtensions(selection);
-  await refreshSelectedLogins(selection);
+  if (!options.loginsRefreshed) await refreshSelectedLogins(selection);
   const invocationId = createInvocationId();
-  const runsDirectory = path.join(root, ".skill-eval", "runs");
   const resultDirectory = path.join(runsDirectory, invocationId);
   await mkdir(runsDirectory, { recursive: true });
   await mkdir(resultDirectory);
@@ -60,6 +85,9 @@ export async function runEvaluation(
     schema_version: 1,
     id: invocationId,
     definition: definitionPath,
+    results: runsDirectory,
+    jobs: subjects.limit,
+    reuse: reuse.enabled,
     selection: {
       group: selectors.group ?? null,
       variant: selectors.variant ?? null,
@@ -75,40 +103,27 @@ export async function runEvaluation(
   // A declared reference must solve its task before any subject starts (SPEC-002 A9).
   await enforceReferenceChecks(selection, { root, resultDirectory, skip: skipReferenceCheck, signal });
 
-  // Budget exhaustion cancels only queued subjects; a subject already running completes and is charged.
-  const controller = new AbortController();
-  const onParentAbort = () => controller.abort();
-  if (signal?.aborted) controller.abort();
-  else signal?.addEventListener("abort", onParentAbort, { once: true });
-  const charge = (run) => {
-    if (budget === null) return;
-    budget.spent += run.usage?.cost?.total ?? 0;
-    if (budget.spent >= budget.maxCost) {
-      budget.exhausted = true;
-      controller.abort();
-    }
-  };
-
-  const groups = [];
-  try {
+  // Budget exhaustion stops only subjects not yet started; a subject already running completes and is charged.
+  const context = {
+    root,
+    invocationId,
+    resultDirectory,
+    signal,
+    stopped: () => Boolean(signal?.aborted || budget?.exhausted),
+    budget,
+    subjects,
     // A clean working tree is identified by its commit, recorded on each working-tree source.
-    const sourceCommit = refusal === null ? identity.commit : null;
-    for (const selected of selection.groups) {
-      groups.push(
-        await runGroup({
-          selected,
-          root,
-          resultDirectory,
-          signal: controller.signal,
-          charge,
-          sourceCommit,
-          hostExtensions: hostExtensions.get(selected.group.id),
-        }),
-      );
-    }
-  } finally {
-    signal?.removeEventListener("abort", onParentAbort);
-  }
+    sourceCommit: refusal === null ? identity.commit : null,
+    reuse,
+    dryRun,
+    indexEntries: [],
+  };
+  const runOne = (selected) =>
+    runGroup({ ...context, selected, hostExtensions: hostExtensions.get(selected.group.id) });
+  const groups =
+    subjects.limit === 1 ? await sequential(selection.groups, runOne) : await Promise.all(selection.groups.map(runOne));
+  // Canonical complete runs become reusable; an index that cannot be written never fails the run.
+  if (!dryRun) await appendIndex(runsDirectory, context.indexEntries).catch(() => {});
   const state = batchState(groups);
   const summary = {
     schema_version: 1,
@@ -161,11 +176,17 @@ async function resolveSelectedExtensions(selection) {
   return resolved;
 }
 
+async function sequential(items, work) {
+  const results = [];
+  for (const item of items) results.push(await work(item));
+  return results;
+}
+
 /**
  * Before a batch, makes every OAuth login the selected arms use valid for the target window, refreshing it
- * once, centrally, so no subject has to refresh its own copy.
+ * once, centrally, so no subject has to refresh its own copy. Trials call it once for all their invocations.
  */
-async function refreshSelectedLogins(selection) {
+export async function refreshSelectedLogins(selection) {
   const providers = new Set();
   for (const { group, variants } of selection.groups) {
     for (const [arm, state] of Object.entries(variants)) {
@@ -232,11 +253,38 @@ function assertSupportedSelection(selection) {
   }
 }
 
-export function budgetEvidence(budget) {
-  return { maxCost: budget.maxCost, spent: Number(budget.spent.toFixed(10)), exhausted: budget.exhausted };
+export { budgetEvidence };
+
+/**
+ * One subject in a slot: it waits for a free slot, starts only if nothing stopped the run and the budget can
+ * reserve for it, and is charged what it cost. Returns `{ run, executed }`.
+ */
+async function runSubject({ group, variant, stopped, budget, subjects, execute }) {
+  return subjects.run(async () => {
+    if (stopped()) return { run: cancelledRun(group, variant), executed: false };
+    const reservation = reserve(budget);
+    if (reservation === null) return { run: cancelledRun(group, variant), executed: false };
+    const run = await execute();
+    charge(budget, reservation, run.usage?.cost?.total ?? 0);
+    return { run, executed: true };
+  });
 }
 
-async function runGroup({ selected, root, resultDirectory, signal, charge, sourceCommit = null, hostExtensions = {} }) {
+async function runGroup({
+  selected,
+  root,
+  invocationId,
+  resultDirectory,
+  signal,
+  stopped,
+  budget,
+  subjects,
+  sourceCommit = null,
+  hostExtensions = {},
+  reuse,
+  dryRun,
+  indexEntries,
+}) {
   const { group } = selected;
   const arms = armNames(group);
   const groupDirectory = path.join(resultDirectory, "groups", group.id);
@@ -249,7 +297,7 @@ async function runGroup({ selected, root, resultDirectory, signal, charge, sourc
   let resourceError = null;
   let resourceDetails = null;
   let confinement = {};
-  if (!signal?.aborted) {
+  if (!stopped()) {
     try {
       fixture = await prepareFixture({ declaredPath: group.fixture, root, groupDirectory });
       runtime = await prepareRuntime({
@@ -258,8 +306,13 @@ async function runGroup({ selected, root, resultDirectory, signal, charge, sourc
         groupDirectory,
       });
       freeflow = await prepareFreeflow({ variants: group.variants, root, groupDirectory });
-      hostExtensions = await prepareSourceExtensions({ extensions: hostExtensions, root, groupDirectory, signal });
-      confinement = await prepareShell({ group, variants: selected.variants, hostExtensions, groupDirectory, signal });
+      // Building from source and probing the shell are local CPU work, so they wait for a --cpu-jobs slot.
+      const extensions = hostExtensions;
+      hostExtensions = await withCpuSlot(() => prepareSourceExtensions({ extensions, root, groupDirectory, signal }));
+      const built = hostExtensions;
+      confinement = await withCpuSlot(() =>
+        prepareShell({ group, variants: selected.variants, hostExtensions: built, groupDirectory, signal }),
+      );
       if (group.revision === "description-only") {
         await verifyDescriptionOnlyRevision({
           variants: group.variants,
@@ -276,40 +329,55 @@ async function runGroup({ selected, root, resultDirectory, signal, charge, sourc
 
   const runs = {};
   const runFiles = {};
-  for (const variant of arms) {
+  const keys = {};
+  const reusedFrom = {};
+  const runArm = async (variant) => {
     const variantDirectory = path.join(groupDirectory, variant);
     await mkdir(variantDirectory, { recursive: true });
     if (selected.variants[variant] === "not-selected") {
       runs[variant] = notSelectedRun(group, variant);
-    } else if (signal?.aborted) {
+    } else if (stopped()) {
       runs[variant] = cancelledRun(group, variant);
     } else if (resourceError === null) {
-      runs[variant] = await executeVariant({
-        group,
-        variant,
-        root,
-        variantDirectory,
-        fixture,
-        runtime,
-        freeflow: freeflow[variant],
-        hostExtensions: hostExtensions[variant] ?? [],
-        signal,
-      });
-      charge(runs[variant]);
-      if (confinement[variant] !== undefined) runs[variant].confinement = confinement[variant];
-      if (sourceCommit !== null && runs[variant].resources?.source?.kind === "working-tree") {
-        runs[variant].resources.source.commit = sourceCommit;
+      // With --reuse a canonical run has a reuse key: an indexed run under it stands in for this one, and a new
+      // run is indexed under it. Without --reuse nothing extra runs (not even `pi --version`).
+      keys[variant] = dryRun || !reuse.enabled ? null : await reuse.keyFor(group, variant, root).catch(() => null);
+      const claimed = await reuse.claim(keys[variant]);
+      const adopted = claimed === null ? null : await adoptRun(claimed, variantDirectory).catch(() => null);
+      if (adopted !== null) {
+        runs[variant] = adopted;
+        reusedFrom[variant] = adopted.reused;
+      } else {
+        const { run, executed } = await runSubject({
+          group,
+          variant,
+          stopped,
+          budget,
+          subjects,
+          execute: () =>
+            executeVariant({
+              group,
+              variant,
+              root,
+              variantDirectory,
+              fixture,
+              runtime,
+              freeflow: freeflow[variant],
+              hostExtensions: hostExtensions[variant] ?? [],
+              signal,
+            }),
+        });
+        runs[variant] = run;
+        if (executed) {
+          if (confinement[variant] !== undefined) run.confinement = confinement[variant];
+          if (sourceCommit !== null && run.resources?.source?.kind === "working-tree") {
+            run.resources.source.commit = sourceCommit;
+          }
+          // Post-run hooks see the finished run before it is persisted; their records land in run.json.
+          const records = await postRunRecords({ group, arm: variant, run, root, directory: variantDirectory, signal });
+          if (records !== null) run.postRun = records;
+        }
       }
-      // Post-run hooks see the finished run before it is persisted; their records land in run.json.
-      const records = await postRunRecords({
-        group,
-        arm: variant,
-        run: runs[variant],
-        root,
-        directory: variantDirectory,
-        signal,
-      });
-      if (records !== null) runs[variant].postRun = records;
     } else {
       runs[variant] = invalidRun(group, variant, resourceError);
       if (resourceDetails !== null) runs[variant].error.details = resourceDetails;
@@ -318,7 +386,9 @@ async function runGroup({ selected, root, resultDirectory, signal, charge, sourc
     const persisted = await persistRunOrFailure(variantDirectory, runs[variant]);
     runs[variant] = persisted.run;
     runFiles[variant] = persisted.file;
-  }
+  };
+  if (subjects.limit === 1) await sequential(arms, runArm);
+  else await Promise.all(arms.map(runArm));
 
   const evidence = {};
   for (const arm of arms) evidence[arm] = await runFileIdentity(runFiles[arm]);
@@ -339,6 +409,20 @@ async function runGroup({ selected, root, resultDirectory, signal, charge, sourc
     artifacts: { grade: persistedGrade.artifact, group: "group.json" },
     errors: persistedGrade.errors,
   };
+  if (Object.keys(reusedFrom).length > 0) groupResult.reused = reusedFrom;
+  // A complete run with a readable grade is indexed for reuse; a reused run is not, so it is reused once.
+  const gradeReadable =
+    persistedGrade.artifact === "deterministic-grade.json" && persistedGrade.grade.state !== "grade-error";
+  for (const arm of arms) {
+    if (!gradeReadable || typeof keys[arm] !== "string" || runs[arm].state !== "complete" || runs[arm].reused) continue;
+    indexEntries.push({
+      key: keys[arm],
+      result: invocationId,
+      group: group.id,
+      arm,
+      indexedAt: new Date().toISOString(),
+    });
+  }
   return persistGroupResult(groupDirectory, groupResult);
 }
 

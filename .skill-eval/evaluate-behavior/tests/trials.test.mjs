@@ -184,7 +184,7 @@ test("--max-cost stops starting subjects once host-reported cost reaches the cei
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
     const summary = JSON.parse(await readFile(path.join(resultDirectory, "summary.json"), "utf8"));
     assert.equal(summary.state, "cancelled");
-    assert.deepEqual(summary.budget, { maxCost: 0.5, spent: 0.8, exhausted: true });
+    assert.deepEqual(summary.budget, { maxCost: 0.5, spent: 0.8, exhausted: true, overshoot: 0.3 });
     assert.deepEqual(summary.groups[1].variants, { baseline: "cancelled", candidate: "cancelled" });
   });
 });
@@ -209,7 +209,7 @@ test("the cost ceiling is shared across trials", async () => {
     );
     assert.equal(aggregate.state, "cancelled");
     assert.equal(aggregate.trials.length, 2);
-    assert.deepEqual(aggregate.budget, { maxCost: 1, spent: 1.2, exhausted: true });
+    assert.deepEqual(aggregate.budget, { maxCost: 1, spent: 1.2, exhausted: true, overshoot: 0.2 });
   });
 });
 
