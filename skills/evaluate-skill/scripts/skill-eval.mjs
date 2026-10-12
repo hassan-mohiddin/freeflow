@@ -1,12 +1,17 @@
 #!/usr/bin/env node
 
+import { realpath } from "node:fs/promises";
+import path from "node:path";
+import { createInterface } from "node:readline/promises";
+
+import { loadDefinition, selectDefinition } from "./lib/definitions.mjs";
 import { runEvaluation } from "./lib/runner.mjs";
 import { reviewResult } from "./lib/review.mjs";
 import { runTrials } from "./lib/trials.mjs";
 import { renderResult } from "./lib/view.mjs";
 
 const OPTIONS = {
-  run: ["--group", "--variant", "--trials", "--max-cost"],
+  run: ["--group", "--variant", "--trials", "--max-cost", "--yes"],
   view: ["--group", "--variant"],
   review: ["--group", "--model", "--thinking", "--extension", "--swap"],
 };
@@ -32,6 +37,7 @@ Selectors:
 Run options:
   --trials <n>        Run n independent complete invocations and record an aggregate
   --max-cost <total>  Stop starting subjects once host-reported cost reaches the total
+  --yes               Start without asking (the plan is printed either way; scripts never ask)
 
 Review options:
   --model <provider/model>   Required reviewer model
@@ -73,6 +79,7 @@ function parseOperation(values) {
   const parsed = { group: null, variant: null, trials: null, maxCost: null, model: null, thinking: null };
   const extensions = [];
   let swap = false;
+  let yes = false;
   const keys = {
     "--group": "group",
     "--variant": "variant",
@@ -87,6 +94,10 @@ function parseOperation(values) {
     if (!allowed.includes(option)) throw new Error(`Unknown option: ${option}`);
     if (option === "--swap") {
       swap = true;
+      continue;
+    }
+    if (option === "--yes") {
+      yes = true;
       continue;
     }
     if (!value || value.startsWith("--")) throw new Error(`${option} requires a value`);
@@ -120,6 +131,7 @@ function parseOperation(values) {
     thinking: parsed.thinking,
     extensions,
     swap,
+    yes,
   };
 }
 
@@ -140,8 +152,45 @@ function printResult(result) {
   process.stdout.write(`Result: ${result.id}\nPath: ${result.path}\nState: ${result.state}\n`);
 }
 
+/**
+ * What a run will start, from the definition alone: subjects, the models they use, and any Freeflow builds.
+ * Printed before anything starts; an interactive terminal is asked to confirm unless --yes was given.
+ */
+async function planRun(operation, root) {
+  // Resolved the way the runner resolves it, so the plan loads exactly what will run.
+  const definitionPath = await realpath(path.resolve(root, operation.target));
+  const selection = selectDefinition(await loadDefinition(definitionPath, { root }), operation.selectors);
+  let arms = 0;
+  const models = new Set();
+  const freeflow = new Set();
+  for (const { group, variants } of selection.groups) {
+    for (const [arm, state] of Object.entries(variants)) {
+      if (state !== "selected") continue;
+      arms += 1;
+      const model = group.variants[arm].model;
+      models.add(model ? `${model.model}${model.thinking ? ` (${model.thinking})` : ""}` : "host default");
+      if (group.variants[arm].freeflow) freeflow.add(group.variants[arm].freeflow.source.ref);
+    }
+  }
+  const groups = selection.groups.length;
+  const counts = `${groups} group${groups === 1 ? "" : "s"}, ${arms} arm${arms === 1 ? "" : "s"}, ${operation.trials} trial${operation.trials === 1 ? "" : "s"}`;
+  let line = `Plan: ${arms * operation.trials} subjects (${counts}); models: ${[...models].join(", ")}`;
+  if (freeflow.size > 0) line += `; Freeflow builds: ${[...freeflow].join(", ")}`;
+  process.stdout.write(`${line}\n`);
+  if (operation.yes || !process.stdin.isTTY || !process.stdout.isTTY) return true;
+  const readline = createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await readline.question("Start? [y/N] ");
+  readline.close();
+  return /^y(es)?$/i.test(answer.trim());
+}
+
 async function run(operation) {
   const root = process.cwd();
+  if (!(await planRun(operation, root))) {
+    process.stdout.write("Not started.\n");
+    process.exitCode = 1;
+    return;
+  }
   await withCancellation(async (signal) => {
     if (operation.trials === 1) {
       const budget = operation.maxCost === null ? null : { maxCost: operation.maxCost, spent: 0, exhausted: false };

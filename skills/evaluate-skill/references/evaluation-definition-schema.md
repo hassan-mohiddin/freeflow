@@ -76,14 +76,14 @@ A configuration has these fields; each arm's effective configuration is the shar
 | `subject` | yes | What is under test: `{ "kind": "skill", "source", "skills", "target", "context" }` (see [Subject](#subject)) or `{ "kind": "none" }` when the comparison is about the environment, not a skill. |
 | `model` | no | `model` names the provider/model; optional `thinking` selects its thinking level. The CLI has no model override, and a subject run without a model gets Pi's default and no copied login. |
 | `runtime` | no | Host session, prompt mode, extension bundles and environment; see [Runtime Profile](#runtime-profile). |
-| `freeflow` | no | Reserved; must be absent or `null` until Freeflow configurations are supported. |
+| `freeflow` | no | Freeflow as part of the environment: `{ "source": { "kind": "git", "ref": "<commit>" }, "repository": { ... }, "personal": { ... } }`; see [Freeflow](#freeflow). |
 
 Rules:
 
 - `configuration` may also hold `extends`: a path, relative to the group file, to a configuration file (`{ "schema_version": 2, "kind": "configuration", "id": "...", "configuration": { ... } }`). Its configuration is merged first, then the group's own fields. A configuration file cannot itself extend another.
 - `arms` holds exactly `baseline` and `candidate`. Each is an overlay with any of the configuration fields. Merging is key by key for objects; an array, scalar, or `null` in the overlay replaces the shared value.
 - `component` is an array of dot paths into the configuration, such as `subject.source` or `model.thinking`. The evaluator compares the two effective configurations leaf by leaf (an array is one leaf) and refuses the group before any subject runs when they differ anywhere `component` does not cover, or when a `component` path does not differ. `component: []` declares an A/A comparison: the two arms must be identical, which measures run-to-run variation.
-- `host` and `runtime` must be the same in both arms.
+- `host` and `runtime` must be the same in both arms. `freeflow` may differ; it is often the component under test.
 - A candidate that declares skills must name its target.
 
 ## Description Group Example
@@ -221,6 +221,38 @@ Description groups allow no tools or only built-in `read`. Body groups allow bui
 
 The examples are complete definition shapes. Replace fixture, resource, model, and Git-ref values with paths and identities that exist under your definition root.
 
+## Freeflow
+
+A configuration with `freeflow` runs the subject with Freeflow loaded, built from an exact commit:
+
+```json
+{
+  "configuration": {
+    "host": { "name": "pi" },
+    "model": { "model": "xai/grok-4.7", "thinking": "medium" },
+    "subject": { "kind": "none" },
+    "runtime": { "prompt": "host" },
+    "freeflow": {
+      "source": { "kind": "git", "ref": "<commit>" },
+      "repository": { "taskMemory": { "enabled": false } },
+      "personal": {}
+    }
+  },
+  "arms": {
+    "baseline": {},
+    "candidate": { "freeflow": { "repository": { "taskMemory": { "enabled": true } } } }
+  },
+  "component": ["freeflow.repository.taskMemory.enabled"]
+}
+```
+
+- `source` is a Git source only; the package is built from that commit with the definition root's `scripts/freeflow-snapshot.mjs`, once per distinct ref per group, into the group's `resources/freeflow/`. The user's development snapshot is never used or changed.
+- `repository` is written to the workspace's `.freeflow/config.json` and `personal`, when not empty, to `.freeflow/local.json`, before the workspace's starting state is taken, so neither counts as a subject change. A fixture that already has either file is refused. Both default to `{}`.
+- Both are checked with the validator from the same build before any subject starts; a setting that build rejects makes the group `invalid`.
+- `runtime.prompt` must be `host`: the isolated prompt replaces the host's system prompt, which would remove Freeflow's own instructions.
+- Freeflow's extension loads right after the evaluator's guard, the package directory is readable by the subject, and Freeflow may register custom tools that `tools` then names.
+- `run.json` records the ref, resolved commit, package name and version, tarball hash, and the settings under `resources.freeflow`.
+
 ## Runtime Profile
 
 A runtime profile, under `configuration.runtime`, is shared by both arms. It changes the host environment, not the skill target:
@@ -250,7 +282,7 @@ The host comes from `configuration.host.name` (`pi`); the evaluator maps it to t
 - `isolated` replaces the host's system prompt with a minimal evaluator-owned prompt. Use it to isolate the target skill.
 - `host` keeps the host's own system prompt and whatever declared extensions compose onto it, appending declared context. Use it when evidence must reflect the production prompt, for example by declaring the Freeflow Pi extension bundle with a fixture containing `.freeflow/config.json`.
 
-Both modes enforce the same tool and path guards. `session` controls whether the variant receives an isolated persistent session directory; it defaults to `false` in omitted runtime profiles. A runtime may declare zero or more bundles. Each bundle has an entry file and one or more directory resources copied under their original relative paths, so sibling imports and multi-tree extensions remain intact. Bundle bytes are snapshotted once and copied identically to both variants.
+Both modes enforce the same tool and path guards. A declared runtime states only what it changes: an omitted `session` is `false`, `extensions` is `[]`, `environment` is `{ "literal": {}, "inherit": [] }`, and `prompt` is `isolated`. `session` controls whether the variant receives an isolated persistent session directory; it defaults to `false` in omitted runtime profiles. A runtime may declare zero or more bundles. Each bundle has an entry file and one or more directory resources copied under their original relative paths, so sibling imports and multi-tree extensions remain intact. Bundle bytes are snapshotted once and copied identically to both variants.
 
 `environment.literal` contains non-secret string configuration and is recorded in run evidence. `environment.inherit` names parent-process variables whose values are passed to the child but never persisted; other parent variables are not passed. Missing inherited variables invalidate the variant. The evaluator supplies only a small host-runtime baseline such as `PATH` and `HOME`. Launch-control and loader keys are rejected from inherited values, literal and inherited names must not overlap, and secret-like literal keys are rejected.
 

@@ -17,6 +17,7 @@ import {
   waitForForcedKill,
   writeStream,
 } from "./process.mjs";
+import { writeFreeflowSettings } from "./freeflow.mjs";
 import { prepareIsolation } from "./isolation.mjs";
 import { runRpcBodySession, runRpcDescriptionSession } from "./rpc.mjs";
 import {
@@ -57,15 +58,15 @@ export class VariantSetupError extends Error {
   }
 }
 
-export async function runDescription({ group, variant, root, variantDirectory, fixture, runtime, signal }) {
+export async function runDescription({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal }) {
   if (group.input.turns !== undefined) {
-    return runPersistentDescription({ group, variant, root, variantDirectory, fixture, runtime, signal });
+    return runPersistentDescription({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal });
   }
-  return runOneShotDescription({ group, variant, root, variantDirectory, fixture, runtime, signal });
+  return runOneShotDescription({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal });
 }
 
-export async function runBody({ group, variant, root, variantDirectory, fixture, runtime, signal }) {
-  const options = { group, variant, root, variantDirectory, fixture, runtime, signal };
+export async function runBody({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal }) {
+  const options = { group, variant, root, variantDirectory, fixture, runtime, freeflow, signal };
   const subject = await prepareSubject(options, "rpc");
   const before = await fingerprintDirectory(subject.workspace);
   const declaredPrompts = group.input.prompt === undefined ? [...group.input.turns] : [group.input.prompt];
@@ -162,6 +163,7 @@ function subjectRun({ group, variant }, subject, observation) {
       skills: subject.environment.skills,
       context: subject.environment.context,
       runtime: subject.runtime,
+      freeflow: subject.freeflow,
       contextDelivery: subject.environment.contextDelivery,
       targetPath: subject.environment.targetPath,
     },
@@ -270,7 +272,10 @@ async function runPersistentDescription(options) {
   });
 }
 
-async function prepareSubject({ group, variant, root, variantDirectory, fixture: fixtureSnapshot, runtime }, mode) {
+async function prepareSubject(
+  { group, variant, root, variantDirectory, fixture: fixtureSnapshot, runtime, freeflow = null },
+  mode,
+) {
   const workspace = path.join(variantDirectory, "workspace");
 
   let environment;
@@ -285,6 +290,8 @@ async function prepareSubject({ group, variant, root, variantDirectory, fixture:
     });
     materializedRuntime = await materializeRuntime({ runtime, variantDirectory });
     fixture = await materializeFixture({ fixture: fixtureSnapshot, workspace });
+    // Written before the workspace's starting state is taken, so they never count as the subject's changes.
+    if (freeflow !== null) await writeFreeflowSettings(workspace, freeflow);
     isolation = await prepareIsolation(variantDirectory, group.variants[variant].model?.model ?? null);
   } catch (error) {
     if (error instanceof VariantSetupError) throw error;
@@ -304,16 +311,31 @@ async function prepareSubject({ group, variant, root, variantDirectory, fixture:
     requiresContextObservation,
     sessionDirectory,
     group.variants[variant].model,
+    freeflow?.entry ?? null,
   );
   const allowedRoots = [
     await realpath(workspace),
     ...environment.skills.map((skill) => skill.path),
     ...environment.context.map((entry) => entry.path),
     ...materializedRuntime.extensions.flatMap((bundle) => bundle.resources.map((resource) => resource.path)),
+    // Freeflow points the subject at its own skills and references inside the package.
+    ...(freeflow === null ? [] : [freeflow.packageRoot]),
   ];
   return {
     args,
     environment,
+    freeflow:
+      freeflow === null
+        ? null
+        : {
+            ref: freeflow.ref,
+            commit: freeflow.commit,
+            package: freeflow.package,
+            tarballSha256: freeflow.tarballSha256,
+            metadata: freeflow.metadata,
+            repository: freeflow.repository,
+            personal: freeflow.personal,
+          },
     runtime: materializedRuntime,
     host,
     fixture,
@@ -463,13 +485,14 @@ function subjectRunState(observation) {
   return "infrastructure-failed";
 }
 
-function piArguments(group, environment, runtime, mode, observeContext, sessionDirectory, model) {
+function piArguments(group, environment, runtime, mode, observeContext, sessionDirectory, model, freeflowEntry) {
   const args = ["--mode", mode];
   if (mode === "json") args.push("-p");
   if (runtime.session) args.push("--session-dir", sessionDirectory);
   else args.push("--no-session");
   args.push("--no-extensions", "--extension", guardExtension);
   if (group.commands !== undefined) args.push("--extension", commandToolExtension);
+  if (freeflowEntry !== null) args.push("--extension", freeflowEntry);
   for (const bundle of runtime.extensions) args.push("--extension", bundle.entry);
   if (observeContext) args.push("--extension", observerExtension);
   args.push("--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files", "--no-approve");

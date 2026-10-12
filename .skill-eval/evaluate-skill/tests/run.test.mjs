@@ -1932,7 +1932,10 @@ test("run persists isolated one-shot description evidence before deterministic a
     });
 
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /^Result: .+\nPath: .+\nState: complete\n$/);
+    assert.match(
+      result.stdout,
+      /^Plan: 2 subjects \(1 group, 2 arms, 1 trial\); models: fake\/model \(low\)\nResult: .+\nPath: .+\nState: complete\n$/,
+    );
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
     assert.ok(resultDirectory);
 

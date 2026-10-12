@@ -392,16 +392,49 @@ function validateEffectiveConfiguration(value, label, definitionPath) {
     fail("invalid-definition", "group.configuration.host.name must be pi", definitionPath);
   if (Object.hasOwn(host, "version")) requireString(host.version, `${label}.host.version`, definitionPath);
   if (Object.hasOwn(configuration, "model")) validateModel(configuration.model, `${label}.model`, definitionPath);
-  if (Object.hasOwn(configuration, "freeflow") && configuration.freeflow !== null) {
-    fail("invalid-definition", `${label}.freeflow is not supported yet`, definitionPath);
-  }
   const environment = validateSubject(configuration.subject, `${label}.subject`, definitionPath);
   let runtime;
   if (Object.hasOwn(configuration, "runtime") && configuration.runtime !== null) {
-    runtime = { host: host.name, ...requireObject(configuration.runtime, `${label}.runtime`, definitionPath) };
+    // Undeclared runtime fields take their defaults, so a definition states only what it changes.
+    runtime = {
+      host: host.name,
+      session: false,
+      extensions: [],
+      environment: { literal: {}, inherit: [] },
+      ...requireObject(configuration.runtime, `${label}.runtime`, definitionPath),
+    };
     validateRuntime(runtime, definitionPath);
   }
-  return { configuration, environment, runtime };
+  let freeflow;
+  if (Object.hasOwn(configuration, "freeflow") && configuration.freeflow !== null) {
+    freeflow = validateFreeflow(configuration.freeflow, `${label}.freeflow`, definitionPath);
+    // The isolated prompt replaces the host's system prompt, which would remove Freeflow's own instructions.
+    if (runtime?.prompt !== "host") {
+      fail(
+        "invalid-definition",
+        `${label}.freeflow needs configuration.runtime.prompt "host", so Freeflow's own instructions reach the subject`,
+        definitionPath,
+      );
+    }
+  }
+  return { configuration, environment, runtime, freeflow };
+}
+
+/**
+ * Freeflow as part of the configuration: the package built from an exact commit, and the settings written to
+ * the workspace's `.freeflow/config.json` (repository) and `.freeflow/local.json` (personal). The settings are
+ * checked later with the validator from that same build, so the check matches the version under test.
+ */
+function validateFreeflow(value, label, definitionPath) {
+  const freeflow = requireExactKeys(value, ["source"], ["repository", "personal"], label, definitionPath);
+  const source = requireExactKeys(freeflow.source, ["kind", "ref"], [], `${label}.source`, definitionPath);
+  if (source.kind !== "git") fail("invalid-definition", `${label}.source.kind must be git`, definitionPath);
+  requireString(source.ref, `${label}.source.ref`, definitionPath);
+  return {
+    source: { kind: "git", ref: source.ref },
+    repository: requireObject(freeflow.repository ?? {}, `${label}.repository`, definitionPath),
+    personal: requireObject(freeflow.personal ?? {}, `${label}.personal`, definitionPath),
+  };
 }
 
 async function readConfigurationFile(reference, definitionPath, root) {
@@ -553,6 +586,7 @@ async function validateGroup(value, definitionPath, root) {
   // runtime (which may not differ between arms) is the group's.
   for (const arm of VARIANTS) {
     if (resolved[arm].configuration.model !== undefined) variants[arm].model = resolved[arm].configuration.model;
+    if (resolved[arm].freeflow !== undefined) variants[arm].freeflow = resolved[arm].freeflow;
   }
   const internal = {
     ...group,
