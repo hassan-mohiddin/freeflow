@@ -10,6 +10,47 @@ Questions, criticism, examples, hypotheses, and tentative ideas remain discussio
 
 A direct request covers only its bounded outcome and entailed effects. High-risk or hard-to-reverse work receives proportionate decisions, evidence, verification, and selected checkpoints through this same Workflow—not a separate autonomy mode. A new user-owned choice or uncovered effect still requires a stop.
 
+## The Work Agreement
+
+The work agreement is what you and the agent agreed it may do: the outcome, what done looks like, what it does without asking, what needs your yes first, where it comes back to you, and how long that holds. There are no modes to pick. You can hand over a whole task, work one step at a time, or switch between the two, and the agreement follows.
+
+**The agent proposes it.** When your request leaves the outcome, scope or endpoint unclear and it matters, the agent says what it will do, what it won't, and when it will come back, then asks once. A clear request needs no proposal: "fix the failing test, commit it on a branch, don't push" is acted on directly. A proposal you haven't answered is not agreed.
+
+**It grows step by step.** You can agree to the whole route or part of it. At the edge of what you agreed, the agent reports and ends with the next step as a question, such as "Commit this?"; your yes extends the agreement. Work that turns out bigger with the same outcome stays covered. A fix that would change behavior, compatibility or scope comes back to you. Commit, push, merge, release and other separately controlled actions always need explicit cover.
+
+**Steering it.** Say what you want at any point:
+
+- Ask a question or raise a doubt: the agent answers. A doubt about the step in progress is answered before that step goes on.
+- Say stop: it starts nothing new, finishes or reverts only what is already running, and reports.
+- Narrow it for now ("just diagnose first", "don't edit yet"): that holds until you lift it, also after a compaction, even when a broader agreement is written down.
+- Change direction: the agent updates the written agreement in your words, then continues under the new one.
+
+Your latest message always wins over a stored agreement.
+
+**Where it is kept.** The agent keeps it in the lightest place the next context will read:
+
+| Work | Where |
+| --- | --- |
+| Finishes within the conversation | Nowhere; the conversation is enough. |
+| May cross a compaction, no Working Record | The compaction summary's `Work agreement` heading. |
+| Has a Working Record | The record's `### Work agreement` section, right after Goal, with your reply quoted next to what it answered. |
+| A long or unattended run, or one whose agreement changed several times | The section, plus `sources/work-agreement-log.md` in the task directory: each exchange that set or changed the agreement, the proposal in one line and your reply word for word. |
+
+A record is never created only to hold an agreement. After a compaction or in a new session, the agent checks the recovered agreement against your latest direction before acting on it. A stored agreement is a record of what you approved, never authority by itself.
+
+In a Working Record, each line starts with the part it states:
+
+```markdown
+### Work agreement
+
+- Done when the reported bug is fixed and its PR is open.
+- Without asking: fix it, commit on a branch, open the PR. You said "yeah, do that" to that route (2026-10-12).
+- Ask first: merging, anything outside the bug.
+- Back at the PR.
+```
+
+You can edit the section yourself, for example to narrow it before a long run. As with anything stored, your latest message still wins.
+
 ## Activation And Configuration
 
 Freeflow requires a valid shared `.freeflow/config.json`. Optional `.freeflow/local.json` supplies per-checkout personal overrides and cannot activate Freeflow by itself. The only core enablement switch is `enabled`; base Freeflow skills and the Interaction Contract are present whenever Freeflow is enabled. Cognitive Routing and Tool Execution are optional capabilities. The former context settings `contextVirtualization` and `conversationHistory` are unsupported and make either config layer invalid until removed.
@@ -130,7 +171,7 @@ Effects are cumulative. Passive observation may support an inquiry when safe and
 
 Artifacts have distinct jobs:
 
-- **Working Record:** living task context, one Current Slice, ordered Future Work, Decisions, Slice-local Evidence/Blockers, History, Notes, and the next action.
+- **Working Record:** living task context (including the optional Work agreement), one Current Slice, ordered Future Work, Decisions, Slice-local Evidence/Blockers, History, Notes, and the next action.
 - **Spec:** stable accepted content, behavior, boundaries, and uncertainty.
 - **Plan:** stable ordered execution strategy when dependencies, mechanism, and checks can be stated without guessing.
 - **Handoff:** point-in-time continuation context for a pause or transfer.
