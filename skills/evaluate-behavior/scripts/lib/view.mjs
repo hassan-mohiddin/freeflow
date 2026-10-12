@@ -2,6 +2,7 @@ import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { ARM_NAME, comparisonArms, storedArms } from "./arms.mjs";
+import { aggregateMetricsLines, runMetricsLines } from "./metrics.mjs";
 
 const DEFAULT_SELECTORS = /** @type {{group: string | null, variant: string | null}} */ ({
   group: null,
@@ -263,6 +264,7 @@ function renderAggregate(resultDirectory, aggregate) {
           : [`pass=${passRate(check)}`];
       lines.push(compactRow("check", [check.id, check.variant, check.kind, ...counts]));
     }
+    lines.push(...aggregateMetricsLines(group.metrics));
   }
   return `${lines.join("\n")}\n`;
 }
@@ -417,6 +419,7 @@ function appendRunEvidence(lines, run) {
     if (typeof run.usage.cost?.total === "number") usage.push(`cost=${formatNumber(run.usage.cost.total)}`);
     lines.push(compactRow("  usage", usage));
   }
+  lines.push(...runMetricsLines(run));
   if (run.process?.assistantError) lines.push(`  assistant-error: ${run.process.assistantError}`);
   if (run.process?.terminationReason) {
     lines.push(`  termination: ${run.process.terminationReason}`);
