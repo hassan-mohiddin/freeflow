@@ -96,6 +96,10 @@ Select focused independent follow-up only when accepted corrections or revisions
 
 If Review 2 remains Blocking, adjudicate it before acting again. Diagnose a repeated, extending, invalidating, causally uncertain, or basis-uncertain blocker. Return an independent clear local defect to its owner when diagnosis would add no useful understanding. Review 3 remains exceptional, separately authorized, and final.
 
+## Record The Review
+
+When the task has a Working Record, record the adjudicated review there as a `Review — judgment and effect:` entry through [Track Work](../../../skills/track-work/SKILL.md): the reviewer's model and family, the reviewed state and what the reviewer was given, each material item with its disposition and reason, the derived judgment, and the next route. Keep Rejected items and their reasons, so a rejection can be checked later against what turned out to be true.
+
 ## Stop
 
 Stop when every material item is Accepted, Rejected, or Open; the adjudicated judgment is supported; for an artifact, affected dependencies and contingent material are explicit; and the next route and authority state are clear.

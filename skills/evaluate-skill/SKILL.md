@@ -124,7 +124,7 @@ Use the canonical [skill evaluator](scripts/skill-eval.mjs) from the definition 
 ```text
 node <evaluate-skill-directory>/scripts/skill-eval.mjs run <suite-or-group-path> [--group <id-or-position>] [--variant baseline|candidate] [--trials <n>] [--max-cost <total>]
 node <evaluate-skill-directory>/scripts/skill-eval.mjs view <result-id-or-directory> [--group <id-or-position>] [--variant baseline|candidate]
-node <evaluate-skill-directory>/scripts/skill-eval.mjs review <result-id-or-directory> --model <provider/model> [--group <id-or-position>] [--thinking <level>]
+node <evaluate-skill-directory>/scripts/skill-eval.mjs review <result-id-or-directory> --model <provider/model> [--group <id-or-position>] [--thinking <level>] [--extension <path>]...
 ```
 
 One run per variant cannot separate a behavioral difference from sampling noise. Use `--trials <n>` before claiming a difference; each trial is an independent complete result, and the aggregate only counts their deterministic grades. Use `--max-cost` when trials or suites could spend more than intended.
@@ -154,7 +154,7 @@ A transition such as `fail-to-pass` is a factual comparison. It does not mean ba
 
 After canonical evidence and deterministic grades exist, read [Review and Revision](references/review-and-revision.md) when evidence conflicts, semantic meaning remains unresolved, the failed boundary must be classified, a revision target must be selected, or rerun scope is uncertain.
 
-The evaluator never grades meaning automatically. `review` records an optional advisory answer to each review question from a separate model that sees the two runs unlabeled, in `semantic-grade.json`.
+The evaluator never grades meaning automatically. `review` records an optional advisory answer to each review question from a separate model that sees the two runs unlabeled, in `semantic-grade.json`. That model is a judge: before choosing it or relying on its answers, read Review Work's [Judge Contract](../review-work/references/judge-contract.md). Its answers cover only what it was shown; it sees each run's response and tool arguments, cut to a few hundred characters, and none of the fixture. Pass `--extension` for an extension the reviewer's provider needs, such as a subscription's auth extension; every extension is recorded with the answers.
 
 The active agent or user may judge reasoning quality, authority preservation, architectural fitness, recommendation quality, or semantic completeness. Keep that judgment, cited evidence, uncertainty, and limits outside canonical run and grade state.
 

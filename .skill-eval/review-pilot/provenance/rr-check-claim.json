@@ -1,0 +1,26 @@
+{
+  "case": "rr-check-claim",
+  "skill": "review-work (report and record)",
+  "source": {
+    "commit": "967c212661fbdb4389a0dc6497b6ea181527fa81",
+    "subject": "the --extension option for skill-eval review, its tests, and two real npm run check logs from the same change",
+    "paths": ["evidence/change.diff", "evidence/check.txt", "evidence/review-test.txt"]
+  },
+  "seed": {
+    "description": "The report says npm run check passes. In the seeded variant, evidence/check.txt is the real log of the first check run on this change, which failed at format:check (Prettier flagged the new test) with exit status 1. The clean variant's check.txt is the real passing run after the test was formatted.",
+    "location": "report.md (npm run check passes) against evidence/check.txt",
+    "locator": "check.txt"
+  },
+  "seed_verification": {
+    "method": "contradicts-evidence",
+    "command": "tail -3 evidence/check.txt",
+    "clean_result": "exit status: 0",
+    "seeded_result": "[warn] Code style issues found ... exit status: 1",
+    "evidence": "The seeded log is the passing log's first 38 lines (typecheck through check:docs, identical in both runs) followed by the recorded format:check failure."
+  },
+  "groups": {
+    "clean": "rp07-a",
+    "seeded": "rp07-b",
+    "trigger": "rp09"
+  }
+}

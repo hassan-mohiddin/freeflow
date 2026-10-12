@@ -188,7 +188,7 @@
       "case_concept": "Compare baseline and candidate while preserving failures and leaving behavioral meaning to agent or user review.",
       "current_result": "Fresh hard-cut contract has not been behaviorally evaluated; no current group or suite evidence exists.",
       "source_path": "skills/evaluate-skill/SKILL.md",
-      "source_sha256": "797e003c72477efd0fd511393f010a84ca055240e679f584004e911e267f3608",
+      "source_sha256": "263b79bb4ae69de9334b0fc2914f46b64d9e7eba9d2cdd167c2da8e6fda728b1",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -338,8 +338,8 @@
       }
     },
     "review-work": {
-      "job": "Judge implementation, or a durable artifact that will guide later work, through silent self-review or separately selected independent review without turning findings into edit or revision authority.",
-      "positive_trigger": "Pre-merge or handoff review, review of a spec, plan or other guiding artifact before use, incoming feedback, or bounded follow-up review.",
+      "job": "Judge implementation, a report or record of work done, an eval definition, or a durable artifact that will guide later work, through silent self-review or separately selected independent review without turning findings into edit or revision authority.",
+      "positive_trigger": "Pre-merge or handoff review, review of a spec, plan or other guiding artifact before use, checking a report or task record against what happened, checking an eval case before spending on runs, incoming feedback, or bounded follow-up review.",
       "near_miss": "Runtime proof of a claim (Verify Work), or writing or revising a spec or plan (Write Spec, Write Plan).",
       "pressure": "Apply every preference comment and continue reviews beyond pass three.",
       "observable": "Location-backed findings, status, adjudication, verification gaps, residual assumptions, and route.",
@@ -358,7 +358,7 @@
       "case_concept": "Reject an unsupported broad refactor while retaining one real missing failure-path test.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/review-work/SKILL.md",
-      "source_sha256": "a8e021036371cfc0d2c424e5e0068c7692b623495d3aa4119acfcbbf27225e39",
+      "source_sha256": "c3b0270106d94a340b12c5549662d10b21ed46962f7754952a8e4660bcd3639d",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

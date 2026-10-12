@@ -1,5 +1,5 @@
 import { randomInt } from "node:crypto";
-import { mkdir, readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { sha256, writeJson, writeText } from "./evidence.mjs";
@@ -16,9 +16,19 @@ const ARGUMENT_LIMIT = 300;
  *
  * @param {string} target
  * @param {{group: string | null}} selectors
- * @param {{root?: string, signal?: AbortSignal, model: string, thinking?: string | null}} options
+ * Pi extensions stay off except the ones named in `extensions` (for example, a provider's auth extension).
+ * Each is recorded, because an extension can change what the reviewer is sent.
+ *
+ * @param {string} target
+ * @param {{group: string | null}} selectors
+ * @param {{root?: string, signal?: AbortSignal, model: string, thinking?: string | null, extensions?: string[]}} options
  */
-export async function reviewResult(target, selectors, { root = process.cwd(), signal, model, thinking = null }) {
+export async function reviewResult(
+  target,
+  selectors,
+  { root = process.cwd(), signal, model, thinking = null, extensions = [] },
+) {
+  const loaded = await Promise.all(extensions.map((entry) => describeExtension(path.resolve(root, entry))));
   const resultDirectory = await resolveResult(target, root);
   const summary = JSON.parse(await readFile(path.join(resultDirectory, "summary.json"), "utf8"));
   const groups = selectGroups(summary, selectors.group);
@@ -26,10 +36,26 @@ export async function reviewResult(target, selectors, { root = process.cwd(), si
   for (const group of groups) {
     if (signal?.aborted) break;
     outcomes.push(
-      await reviewGroup(path.join(resultDirectory, "groups", group.id), group.id, { model, thinking, signal }),
+      await reviewGroup(path.join(resultDirectory, "groups", group.id), group.id, {
+        model,
+        thinking,
+        extensions: loaded,
+        signal,
+      }),
     );
   }
   return { resultDirectory, groups: outcomes };
+}
+
+/** A package directory is identified by its name and version, a single file by its content hash. */
+async function describeExtension(extensionPath) {
+  const info = await stat(extensionPath).catch(() => null);
+  if (info === null) throw new Error(`Extension not found: ${extensionPath}`);
+  if (!info.isDirectory()) return { path: extensionPath, sha256: sha256(await readFile(extensionPath)) };
+  const manifest = JSON.parse(await readFile(path.join(extensionPath, "package.json"), "utf8").catch(() => "{}"));
+  const name = typeof manifest.name === "string" ? manifest.name : null;
+  const version = typeof manifest.version === "string" ? manifest.version : null;
+  return { path: extensionPath, package: name && version ? `${name}@${version}` : null };
 }
 
 function selectGroups(summary, selector) {
@@ -42,7 +68,7 @@ function selectGroups(summary, selector) {
   return selected;
 }
 
-async function reviewGroup(groupDirectory, id, { model, thinking, signal }) {
+async function reviewGroup(groupDirectory, id, { model, thinking, extensions, signal }) {
   const definition = JSON.parse(await readFile(path.join(groupDirectory, "definition.json"), "utf8"));
   const questions = Array.isArray(definition.review_questions) ? definition.review_questions : [];
   if (questions.length === 0) return { id, state: "skipped", reason: "no review questions" };
@@ -66,6 +92,7 @@ async function reviewGroup(groupDirectory, id, { model, thinking, signal }) {
     "-p",
     "--no-session",
     "--no-extensions",
+    ...extensions.flatMap((extension) => ["--extension", extension.path]),
     "--no-skills",
     "--no-prompt-templates",
     "--no-themes",
@@ -103,6 +130,7 @@ async function reviewGroup(groupDirectory, id, { model, thinking, signal }) {
     state,
     model,
     thinking,
+    extensions,
     labels,
     prompt: { file: "review/prompt.md", sha256: sha256(prompt) },
     answers,

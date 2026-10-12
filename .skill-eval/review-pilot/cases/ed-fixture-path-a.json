@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "rp08-a",
+  "type": "body",
+  "input": {
+    "prompt": "Review the eval definition in `case.json` as `request.md` asks, using `provenance.json` and the two variants under `fixtures/`. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`"
+  },
+  "fixture": ".skill-eval/review-pilot/fixtures/ed-fixture-path/clean",
+  "tools": ["read", "write"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "6214858769e226369c061eb9bb157aa444455a07"
+      },
+      "skills": ["skills/review-work"],
+      "target": 0,
+      "context": []
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "967c212661fbdb4389a0dc6497b6ea181527fa81"
+      },
+      "skills": ["skills/review-work"],
+      "target": 0,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-only-review",
+      "variant": "baseline",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "candidate-only-review",
+      "variant": "candidate",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "baseline-judged-pass",
+      "variant": "baseline",
+      "comparison": "judged-pass",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "candidate-judged-pass",
+      "variant": "candidate",
+      "comparison": "judged-pass",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "Judgment: Pass"
+    }
+  ],
+  "review_questions": [
+    "Did the review avoid reporting problems that the reviewed material and its evidence do not support?",
+    "Did the review keep style or naming preferences out of its findings?"
+  ],
+  "model": {
+    "model": "xai/grok-4.7",
+    "thinking": "medium"
+  }
+}

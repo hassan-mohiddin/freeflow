@@ -1,0 +1,52 @@
+diff --git a/skills/evaluate-skill/scripts/lib/runner.mjs b/skills/evaluate-skill/scripts/lib/runner.mjs
+--- a/skills/evaluate-skill/scripts/lib/runner.mjs
++++ b/skills/evaluate-skill/scripts/lib/runner.mjs
+@@ -198,7 +198,8 @@
+ 
+ function selectedGroupState(runs, grade) {
+   if (runs.some((run) => run.state === "cancelled")) return "cancelled";
+-  if (runs.every((run) => run.state === "complete") && grade.state !== "grade-error") return "complete";
++  // A grade whose every selected check is unavailable observed nothing, so the group is not complete.
++  if (runs.every((run) => run.state === "complete") && grade.state === "complete") return "complete";
+   return "partially-complete";
+ }
+ 
+diff --git a/.skill-eval/evaluate-skill/tests/run.test.mjs b/.skill-eval/evaluate-skill/tests/run.test.mjs
+--- a/.skill-eval/evaluate-skill/tests/run.test.mjs
++++ b/.skill-eval/evaluate-skill/tests/run.test.mjs
+@@ -1816,6 +1816,35 @@
+   });
+ });
+ 
++test("a run whose selected checks are all unavailable exits non-zero", async () => {
++  await withTempDirectory(async (root) => {
++    const bin = await installFakePi(root);
++    await writeSkill(root, "skills/release-route", {
++      name: "release-route",
++      description: "Use when choosing how to deliver a completed software change.",
++    });
++    const group = descriptionGroup();
++    // Only baseline checks, but only the candidate runs: nothing selected can be observed.
++    group.expectations = [{ id: "baseline-no-read", kind: "skill-read", variant: "baseline", expect: "never" }];
++    const definition = await writeJson(root, "groups/nothing-observed.json", group);
++    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
++      cwd: root,
++      encoding: "utf8",
++      env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}` },
++    });
++    assert.equal(result.status, 1, result.stdout);
++    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
++    assert.ok(resultDirectory);
++    const summary = parseJson(await readFile(path.join(resultDirectory, "summary.json"), "utf8"), "summary");
++    assert.equal(summary.groups[0].state, "partially-complete");
++    const grade = parseJson(
++      await readFile(path.join(resultDirectory, "groups/natural-activation/deterministic-grade.json"), "utf8"),
++      "grade",
++    );
++    assert.equal(grade.state, "unavailable");
++  });
++});
++
+ test("run persists isolated one-shot description evidence before deterministic activation grades", async () => {
+   await withTempDirectory(async (root) => {
+     const fakeLog = path.join(root, "fake-pi.jsonl");

@@ -144,7 +144,7 @@ The report is evidence for adjudication. It is not authority over source truth, 
 
 ## Artifact
 
-Use this section for a durable artifact such as a Working Record, Spec, Plan, design, decision record, ADR, Handoff, or skill.
+Use this section for a durable artifact such as a Working Record, Spec, Plan, design, decision record, ADR, Handoff, or skill, and for a report or an eval definition. For a report or record, also provide what the account describes: the commands, outputs, files, commits, and run results its claims rest on. For an eval definition, also provide the evaluator's definition format, its loader's result, and the evidence that each seeded or real defect is present.
 
 ### Required Context
 
@@ -176,7 +176,7 @@ Use supplied and already available evidence. Do not start a missing active check
 ## Artifact And Intended Use
 
 - Artifact: [path]
-- Type: [working record | spec | PRD | issue | API contract | technical design | migration contract | plan | decision record | ADR | handoff | other]
+- Type: [working record | report | spec | PRD | issue | API contract | technical design | migration contract | plan | decision record | ADR | handoff | eval definition | other]
 - Reviewed state: [revision, hash, or other exact identity]
 - Intended use: [decision or future action this artifact must support]
 - Dependency order: [upstream -> downstream, or standalone]
@@ -218,6 +218,8 @@ For Review 2 or 3:
 - **Plan:** an inspectable ordered strategy with scope, dependencies, assumptions, checks, and stop conditions.
 - **Decision record or ADR:** the decision, owner, alternatives, rationale, consequences, and revisit or supersession conditions.
 - **Handoff:** a point-in-time continuation package that preserves what its recipient needs without replacing live task memory.
+- **Report:** every claim matches what happened, every evidence pointer resolves and shows what the claim says, no claim is stronger than its evidence, and unfinished, skipped, or failed work is stated.
+- **Eval definition:** it loads, a correct answer can pass every expectation and a wrong one cannot, each expectation checks what its name and text claim, every seeded or real defect is shown present, every clean variant is free of known defects, and nothing the subject can see reveals the answer.
 - **Other artifact:** its stated purpose without taking over another artifact's job.
 
 Do not require one artifact to perform another artifact's job.

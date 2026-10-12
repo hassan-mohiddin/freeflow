@@ -1,0 +1,46 @@
+
+> @hassangameryt/freeflow@0.8.0 check
+> npm run typecheck && npm run lint && npm run check:source && npm run check:host-manifests && npm run check:changelog && npm run check:release-workflow && npm run check:docs && npm run format:check && npm run check:release-version && npm run check:commands && npm run check:activation && npm run check:runtime && npm run check:package && npm run check:eval-coverage && npm run check:eval-definitions && npm run check:coverage-matrix && npm run check:skill-routing && npm run check:incident-fixtures
+
+
+> @hassangameryt/freeflow@0.8.0 typecheck
+> tsc -p pi-extension/tsconfig.json --noEmit
+
+
+> @hassangameryt/freeflow@0.8.0 lint
+> eslint pi-extension/src
+
+
+> @hassangameryt/freeflow@0.8.0 check:source
+> node scripts/validation/check-source-files.mjs
+
+Source-file checks passed: 202 JSON, 16 shell, 550 JavaScript files.
+
+> @hassangameryt/freeflow@0.8.0 check:host-manifests
+> node scripts/validation/check-host-manifests.mjs
+
+Host manifest check passed: Agent Plugins 1.0, Gemini, Cursor, Copilot/VS Code, Kiro, OpenCode, and Hermes surfaces share 0.8.0.
+
+> @hassangameryt/freeflow@0.8.0 check:changelog
+> node scripts/validation/check-changelog.mjs --structure
+
+Changelog structure passed: canonical Unreleased categories and bullet entries.
+
+> @hassangameryt/freeflow@0.8.0 check:release-workflow
+> node scripts/validation/check-release-workflow.mjs
+
+CI and release workflow invariants passed.
+
+> @hassangameryt/freeflow@0.8.0 check:docs
+> node scripts/validation/check-docs.mjs
+
+Documentation check passed: 24 current pages and v0.8.0 evidence verified.
+
+> @hassangameryt/freeflow@0.8.0 format:check
+> prettier --check .
+
+Checking formatting...
+[warn] .skill-eval/evaluate-skill/tests/review.test.mjs
+[warn] Code style issues found in the above file. Run Prettier with --write to fix.
+
+exit status: 1
