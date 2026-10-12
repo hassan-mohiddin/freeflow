@@ -138,6 +138,54 @@ test("Pi guard injects exact ordered declared context and ignores ambient contex
   });
 });
 
+test("Pi guard confines listing and search tools to the readable roots", async () => {
+  await withTempDirectory(async (root) => {
+    const workspace = path.join(root, "workspace");
+    const outside = path.join(root, "outside");
+    await mkdir(path.join(workspace, "files"), { recursive: true });
+    await mkdir(outside, { recursive: true });
+    await symlink(outside, path.join(workspace, "escape"));
+    const originalRoots = process.env.SKILL_EVAL_ALLOWED_ROOTS;
+    const originalWritableRoot = process.env.SKILL_EVAL_WRITABLE_ROOT;
+    const originalTools = process.env.SKILL_EVAL_ALLOWED_TOOLS;
+    process.env.SKILL_EVAL_ALLOWED_ROOTS = JSON.stringify([workspace]);
+    process.env.SKILL_EVAL_WRITABLE_ROOT = workspace;
+    process.env.SKILL_EVAL_ALLOWED_TOOLS = JSON.stringify(["read", "ls", "find", "grep"]);
+    try {
+      const guard = installGuard().get("tool_call");
+      for (const [toolName, input] of [
+        ["ls", {}],
+        ["ls", { path: "files" }],
+        ["find", { pattern: "*.md" }],
+        ["find", { pattern: "*.md", path: "files" }],
+        ["grep", { pattern: "TODO", path: "." }],
+      ]) {
+        assert.equal(guard({ toolName, input }, { cwd: workspace }), undefined, `${toolName} ${JSON.stringify(input)}`);
+      }
+      for (const [toolName, input] of [
+        ["ls", { path: outside }],
+        ["ls", { path: ".." }],
+        ["find", { pattern: "*", path: "escape" }],
+        ["grep", { pattern: "x", path: root }],
+      ]) {
+        assert.match(
+          guard({ toolName, input }, { cwd: workspace }).reason,
+          /escapes the evaluation environment/,
+          `${toolName} ${JSON.stringify(input)}`,
+        );
+      }
+      assert.match(guard({ toolName: "ls", input: {} }, { cwd: root }).reason, /needs a path inside/);
+    } finally {
+      if (originalRoots === undefined) delete process.env.SKILL_EVAL_ALLOWED_ROOTS;
+      else process.env.SKILL_EVAL_ALLOWED_ROOTS = originalRoots;
+      if (originalWritableRoot === undefined) delete process.env.SKILL_EVAL_WRITABLE_ROOT;
+      else process.env.SKILL_EVAL_WRITABLE_ROOT = originalWritableRoot;
+      if (originalTools === undefined) delete process.env.SKILL_EVAL_ALLOWED_TOOLS;
+      else process.env.SKILL_EVAL_ALLOWED_TOOLS = originalTools;
+    }
+  });
+});
+
 test("Pi guard permits only declared tools and reads contained by canonical roots", async () => {
   await withTempDirectory(async (root) => {
     const workspace = path.join(root, "workspace");

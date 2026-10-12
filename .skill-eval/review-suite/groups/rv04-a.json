@@ -7,7 +7,7 @@
     "prompt": "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`"
   },
   "fixture": ".skill-eval/review-suite/fixtures/rs-25844ce3/clean/workspace",
-  "tools": ["read", "write"],
+  "tools": ["read", "write", "ls", "find"],
   "configuration": {
     "extends": "../configuration.json"
   },

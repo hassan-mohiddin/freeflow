@@ -55,6 +55,8 @@ Every defect was proven by its builder and then reproduced independently on fres
 
 Each group compares requirements withheld (`baseline`) with requirements given as declared context (`candidate`); the component is `subject.context` (the F5 comparison). Deterministic checks: only `review.md` written; a judgment on the first line; for a defective variant, no `Judgment: Pass` and the defective file named; for a clean variant, no `Judgment: Blocking`, and `Judgment: Pass`. Whether the review located the defect itself is the advisory reviewer's question, which names the location and expression.
 
+Reviewers have `read`, `write`, `ls` and `find`, each confined to the run. The F5 run of 2026-10-12 used `read` and `write` only, so many of its reviewers could not list `files/`; results from runs before and after the change do not compare directly.
+
 ## Measured with
 
 Subject model `anthropic/claude-haiku-5-5` (the user's instruction, 2026-10-12), with the subscription's auth extension declared in each configuration. Results are Haiku's and do not compare directly with the earlier pilot, which ran on `xai/grok-4.7`.

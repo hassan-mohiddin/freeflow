@@ -13,7 +13,7 @@ import { prepareFixture, prepareRuntime, verifyDescriptionOnlyRevision } from ".
 
 const VARIANTS = ["baseline", "candidate"];
 const DESCRIPTION_TOOLS = new Set(["read"]);
-const BODY_TOOLS = new Set(["read", "write", "edit"]);
+const BODY_TOOLS = new Set(["read", "write", "edit", "ls", "find", "grep"]);
 // Native tools must be separated from extension tools before CLI tool selection is built.
 const NATIVE_TOOLS = new Set(["read", "bash", "powershell", "edit", "write", "grep", "find", "ls"]);
 const DEFAULT_RUNTIME = {

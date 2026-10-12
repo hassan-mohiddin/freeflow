@@ -113,7 +113,7 @@ ordered.forEach((entry, position) => {
       type: "body",
       input: { prompt: PROMPT },
       fixture: `${fixture}/workspace`,
-      tools: ["read", "write"],
+      tools: ["read", "write", "ls", "find"],
       configuration: { extends: "../configuration.json" },
       arms: {
         baseline: { subject: { context: [] } },

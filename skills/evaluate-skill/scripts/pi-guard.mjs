@@ -3,6 +3,9 @@ import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 
 const PATH_TOOLS = new Set(["read", "write", "edit"]);
+// Listing and search tools take an optional path that defaults to the working directory; an explicit path is
+// confined to the readable roots like a read.
+const LISTING_TOOLS = new Set(["ls", "find", "grep"]);
 
 function parseStringArray(value) {
   try {
@@ -154,7 +157,14 @@ export default function registerSkillEvalGuard(pi) {
     if (!allowedTools.has(event.toolName)) {
       return { block: true, reason: `Tool is not declared for this evaluation: ${event.toolName}` };
     }
-    if (!PATH_TOOLS.has(event.toolName)) return undefined;
+    const listing = LISTING_TOOLS.has(event.toolName);
+    if (!PATH_TOOLS.has(event.toolName) && !listing) return undefined;
+    if (listing && event.input?.path === undefined) {
+      const cwd = realpathSync(ctx.cwd);
+      return allowedRoots.some((root) => isContained(root, cwd))
+        ? undefined
+        : { block: true, reason: `${event.toolName} needs a path inside the evaluation environment` };
+    }
     if (typeof event.input?.path !== "string") {
       return { block: true, reason: `${event.toolName} requires a path inside the evaluation environment` };
     }
@@ -172,7 +182,7 @@ export default function registerSkillEvalGuard(pi) {
         reason: `${event.toolName} path cannot be resolved inside the evaluation environment: ${requested}`,
       };
     }
-    const roots = event.toolName === "read" ? allowedRoots : [writableRoot];
+    const roots = event.toolName === "read" || listing ? allowedRoots : [writableRoot];
     if (!roots.some((root) => isContained(root, canonical))) {
       return { block: true, reason: `${event.toolName} path escapes the evaluation environment: ${requested}` };
     }
