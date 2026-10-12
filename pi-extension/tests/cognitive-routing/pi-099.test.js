@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCodemodeExtension } from "@earendil-works/pi-coding-agent";
-import { fixture, response } from "../fixtures/routing-native.js";
+import { fixture, readRoutingSkill, response } from "../fixtures/routing-native.js";
 
 // Cognitive Routing on Pi 0.99: runs started by extension messages, real codemode, retries, virtual models, holds
 // before the session file exists, and tools other extensions add. Coordinator is gpt-4o, Executor gpt-4.1-mini.
@@ -22,18 +22,22 @@ const close = { name: "routing_unit", args: { operation: "close", outcome: "acce
 test("an exit notice after the unit closed starts a Coordinator turn", { timeout: 30000 }, async () => {
   await fixture(
     async (n) =>
-      [[delegate], [{ name: "bash_background", args: { command: "sleep 0.8; echo done" } }], [submit], [close]][
-        n - 1
-      ] ?? [],
+      [
+        [delegate],
+        [readRoutingSkill],
+        [{ name: "bash_background", args: { command: "sleep 0.8; echo done" } }],
+        [submit],
+        [close],
+      ][n - 1] ?? [],
     false,
     async ({ session, requests }) => {
-      // The Coordinator's closing request is the fifth; the notice starts the sixth.
-      for (let i = 0; i < 100 && requests.length < 6; i++) await wait(50);
+      // The Coordinator's closing request is the sixth; the notice starts the seventh.
+      for (let i = 0; i < 100 && requests.length < 7; i++) await wait(50);
       await session.waitForIdle();
-      assert.equal(requests.length, 6);
-      assert.ok(!hasNotice(requests[4]));
-      assert.equal(requests[5].model, COORDINATOR);
-      assert.ok(hasNotice(requests[5]));
+      assert.equal(requests.length, 7);
+      assert.ok(!hasNotice(requests[5]));
+      assert.equal(requests[6].model, COORDINATOR);
+      assert.ok(hasNotice(requests[6]));
     },
     true,
     toolExecution,
@@ -44,12 +48,13 @@ test("an exit notice while the worker runs reaches the worker's next request", {
   await fixture(
     async (n) => {
       if (n === 1) return [delegate];
-      if (n === 2) return [{ name: "bash_background", args: { command: "sleep 0.2; echo done" } }];
-      if (n === 3) {
+      if (n === 2) return [readRoutingSkill];
+      if (n === 3) return [{ name: "bash_background", args: { command: "sleep 0.2; echo done" } }];
+      if (n === 4) {
         await wait(700);
         return [{ name: "read", args: { path: "evidence.txt" } }];
       }
-      return [[submit], [close]][n - 4] ?? [];
+      return [[submit], [close]][n - 5] ?? [];
     },
     false,
     async ({ requests }) => {
@@ -57,6 +62,7 @@ test("an exit notice while the worker runs reaches the worker's next request", {
         requests.map((body) => [body.model, hasNotice(body)]),
         [
           [COORDINATOR, false],
+          [EXECUTOR, false],
           [EXECUTOR, false],
           [EXECUTOR, false],
           [EXECUTOR, true],
@@ -72,18 +78,21 @@ test("an exit notice while the worker runs reaches the worker's next request", {
 
 test("a notice after a worker's run ended wakes Coordinator, not the worker", { timeout: 30000 }, async () => {
   await fixture(
-    async (n) => [[delegate], [{ name: "bash_background", args: { command: "sleep 0.8; echo done" } }]][n - 1] ?? [],
+    async (n) =>
+      [[delegate], [readRoutingSkill], [{ name: "bash_background", args: { command: "sleep 0.8; echo done" } }]][
+        n - 1
+      ] ?? [],
     false,
     async ({ session, requests }) => {
       assert.deepEqual(
         requests.map((body) => body.model),
-        [COORDINATOR, EXECUTOR, EXECUTOR],
+        [COORDINATOR, EXECUTOR, EXECUTOR, EXECUTOR],
       );
-      for (let i = 0; i < 100 && requests.length < 4; i++) await wait(50);
+      for (let i = 0; i < 100 && requests.length < 5; i++) await wait(50);
       await session.waitForIdle();
-      assert.equal(requests.length, 4);
-      assert.ok(hasNotice(requests[3]));
-      assert.equal(requests[3].model, COORDINATOR);
+      assert.equal(requests.length, 5);
+      assert.ok(hasNotice(requests[4]));
+      assert.equal(requests[4].model, COORDINATOR);
     },
     true,
     toolExecution,
@@ -204,6 +213,7 @@ test(
       async (n) =>
         [
           [delegate],
+          [readRoutingSkill],
           [{ name: "codemode", args: { code: script } }],
           [{ name: "codemode", args: { code: "return 'return_work' in tools;" } }],
           [submit],
@@ -211,7 +221,7 @@ test(
         ][n - 1] ?? [],
       false,
       async ({ manager }) => {
-        const [, first, second] = results(manager);
+        const [, , first, second] = results(manager);
         assert.equal(first.isError, false);
         assert.match(JSON.stringify(first.content), /EXACT_EVIDENCE_BODY_81\|nested\\n/);
         assert.deepEqual(

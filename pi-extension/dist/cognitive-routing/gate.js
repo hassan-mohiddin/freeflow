@@ -6,6 +6,7 @@ import { bodyHash } from "./sources.js";
 import { initialState } from "./state.js";
 import { RoutingError, isWorkerProfile, requireCondition as check, ROUTING_TOOLS } from "./types.js";
 import { cachedBranch } from "../host/branch.js";
+const BOOTSTRAP_GATED = new Set(["bash", "bash_background", "monitor", "edit", "write", "apply_patch"]);
 /**
  * What routing allows while a profile runs, and what it tells the tool runtime: which ordinary tools a worker may
  * still call, which recovery reads an assessment permits, handoff batching rules, and the operation, admission, and
@@ -217,6 +218,15 @@ export class ToolGate {
       this.batch(event.toolCallId, name, nested);
       check(!this.session.error && !this.session.store?.blocked, "routing_blocked");
       this.session.openTurn();
+      const skill = this.session.routingSkill;
+      // Commands and edits wait for the bootstrap read; reads and controls do not (`bootstrap.ts`). A codemode
+      // script's calls reach this gate under their own names.
+      if (skill && BOOTSTRAP_GATED.has(name) && !state.recoveryId && this.session.turn?.skillInView === false)
+        check(
+          false,
+          "routing_skill_unread",
+          `Read the complete cognitive-routing skill first: ${skill.path}. Under automatic routing each profile needs it in view before commands or edits, and a compaction takes it out of view. Read it in a response of its own.`,
+        );
       if (isWorkerProfile(this.session.turn?.profile) && !isRouting) {
         const a = state.assignmentId ? state.assignments.get(state.assignmentId) : undefined;
         const worker = a ? this.session.assignedWorker(state, a.id) : undefined;
