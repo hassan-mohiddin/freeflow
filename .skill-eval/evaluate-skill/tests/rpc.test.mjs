@@ -1722,3 +1722,40 @@ test(
     });
   },
 );
+
+test("declared Pi settings decide the RPC session's retry and compaction instead of the evaluator's defaults", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakeRpcPi(root);
+    await writeSkill(root, "skills/release-route");
+    const definition = await writeJson(root, "groups/multi-turn.json", multiTurnGroup());
+    const value = JSON.parse(await readFile(definition, "utf8"));
+    value.configuration.host = { name: "pi", settings: { retry: { enabled: true } } };
+    await writeFile(definition, `${JSON.stringify(value, null, 2)}\n`);
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const log = (await readFile(fakeLog, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    const commands = log.filter((entry) => entry.kind === "command").map((entry) => entry.command);
+    assert.deepEqual(
+      commands.slice(0, 2).map(({ type, enabled }) => ({ type, enabled })),
+      [
+        { type: "set_auto_retry", enabled: true },
+        { type: "set_auto_compaction", enabled: false },
+      ],
+    );
+  });
+});

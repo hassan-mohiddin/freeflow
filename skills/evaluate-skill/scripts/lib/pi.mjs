@@ -19,6 +19,7 @@ import {
 } from "./process.mjs";
 import { writeFreeflowSettings } from "./freeflow.mjs";
 import { prepareIsolation } from "./isolation.mjs";
+import { effectivePiSettings } from "./pi-host.mjs";
 import { runRpcBodySession, runRpcDescriptionSession } from "./rpc.mjs";
 import {
   fingerprintDirectory,
@@ -112,6 +113,7 @@ export async function runBody({
   const declaredPrompts = group.input.prompt === undefined ? [...group.input.turns] : [group.input.prompt];
   const observation = await runRpcBodySession({
     command: subject.host.command,
+    settings: subject.isolation.settings,
     args: subject.args,
     cwd: subject.workspace,
     eventsFile: subject.eventsFile,
@@ -266,6 +268,7 @@ async function runPersistentDescription(options) {
   const subject = await prepareSubject(options, "rpc");
   const observation = await runRpcDescriptionSession({
     command: subject.host.command,
+    settings: subject.isolation.settings,
     args: subject.args,
     cwd: subject.workspace,
     eventsFile: subject.eventsFile,
@@ -333,7 +336,9 @@ async function prepareSubject(
     fixture = await materializeFixture({ fixture: fixtureSnapshot, workspace });
     // Written before the workspace's starting state is taken, so they never count as the subject's changes.
     if (freeflow !== null) await writeFreeflowSettings(workspace, freeflow);
-    isolation = await prepareIsolation(variantDirectory, group.variants[variant].model?.model ?? null);
+    isolation = await prepareIsolation(variantDirectory, group.variants[variant].model?.model ?? null, {
+      settings: effectivePiSettings(group.variants[variant].hostSettings ?? {}),
+    });
   } catch (error) {
     if (error instanceof VariantSetupError) throw error;
     throw new VariantSetupError(error instanceof Error ? error.message : String(error));

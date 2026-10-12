@@ -111,7 +111,11 @@ test("group definitions preserve turns, fixtures, environments, expectations, re
       assert.deepEqual(loaded[field], definition[field], field);
     }
     for (const arm of ["baseline", "candidate"]) {
-      assert.deepEqual(loaded.variants[arm], { ...definition.variants[arm], model: definition.model }, arm);
+      assert.deepEqual(
+        loaded.variants[arm],
+        { ...definition.variants[arm], model: definition.model, hostExtensions: [], hostSettings: {} },
+        arm,
+      );
     }
     assert.deepEqual(loaded.model, definition.model);
     assert.deepEqual(loaded.runtime, definition.runtime);

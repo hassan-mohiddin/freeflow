@@ -6,7 +6,8 @@ import { createInvocationId, fileIdentity, writeJson, writeText } from "./eviden
 import { gradeDeterministic } from "./grade.mjs";
 import { prepareFreeflow } from "./freeflow.mjs";
 import { identityRefusal, inputIdentity, installedHostVersion } from "./identity.mjs";
-import { removeCopiedCredentials } from "./isolation.mjs";
+import { removeCopiedCredentials, TARGET_MINUTES } from "./isolation.mjs";
+import { ensureLogin, resolveHostExtensions } from "./pi-host.mjs";
 import { baseProcessEnvironment, runBody, runDescription, VariantSetupError } from "./pi.mjs";
 import { prepareFixture, prepareRuntime, verifyDescriptionOnlyRevision } from "./sandbox.mjs";
 
@@ -31,7 +32,7 @@ const DEFAULT_RUNTIME = {
 export async function runEvaluation(
   definitionFile,
   selectors = {},
-  { root = process.cwd(), signal, budget = null, dryRun = false, hostExtensions = [] } = {},
+  { root = process.cwd(), signal, budget = null, dryRun = false } = {},
 ) {
   const definitionPath = await realpath(path.resolve(root, definitionFile));
   const definition = await loadDefinition(definitionPath, { root });
@@ -43,6 +44,8 @@ export async function runEvaluation(
   const refusal = identityRefusal(identity);
   if (refusal !== null && !dryRun) throw new Error(refusal);
   const hostVersion = await checkHostVersion(selection);
+  const hostExtensions = await resolveSelectedExtensions(selection);
+  await refreshSelectedLogins(selection);
   const invocationId = createInvocationId();
   const runsDirectory = path.join(root, ".skill-eval", "runs");
   const resultDirectory = path.join(runsDirectory, invocationId);
@@ -91,7 +94,7 @@ export async function runEvaluation(
           signal: controller.signal,
           charge,
           sourceCommit,
-          hostExtensions,
+          hostExtensions: hostExtensions.get(selected.group.id),
         }),
       );
     }
@@ -133,6 +136,34 @@ function workingTreeInputs(selection, definitionPath, root) {
     }
   }
   return [...inputs];
+}
+
+/** Each selected arm's declared host extensions, found among the installed Pi packages before anything starts. */
+async function resolveSelectedExtensions(selection) {
+  const resolved = new Map();
+  for (const { group, variants } of selection.groups) {
+    const arms = { baseline: [], candidate: [] };
+    for (const [arm, state] of Object.entries(variants)) {
+      if (state === "selected") arms[arm] = await resolveHostExtensions(group.variants[arm].hostExtensions ?? []);
+    }
+    resolved.set(group.id, arms);
+  }
+  return resolved;
+}
+
+/**
+ * Before a batch, makes every OAuth login the selected arms use valid for the target window, refreshing it
+ * once, centrally, so no subject has to refresh its own copy.
+ */
+async function refreshSelectedLogins(selection) {
+  const providers = new Set();
+  for (const { group, variants } of selection.groups) {
+    for (const [arm, state] of Object.entries(variants)) {
+      const model = group.variants[arm].model?.model;
+      if (state === "selected" && typeof model === "string" && model.includes("/")) providers.add(model.split("/")[0]);
+    }
+  }
+  for (const provider of providers) await ensureLogin(provider, { threshold: TARGET_MINUTES, target: TARGET_MINUTES });
 }
 
 /** A declared host version must match the installed host before anything starts. */
@@ -189,7 +220,15 @@ export function budgetEvidence(budget) {
   return { maxCost: budget.maxCost, spent: Number(budget.spent.toFixed(10)), exhausted: budget.exhausted };
 }
 
-async function runGroup({ selected, root, resultDirectory, signal, charge, sourceCommit = null, hostExtensions = [] }) {
+async function runGroup({
+  selected,
+  root,
+  resultDirectory,
+  signal,
+  charge,
+  sourceCommit = null,
+  hostExtensions = { baseline: [], candidate: [] },
+}) {
   const { group } = selected;
   const groupDirectory = path.join(resultDirectory, "groups", group.id);
   await mkdir(groupDirectory, { recursive: true });
@@ -238,7 +277,7 @@ async function runGroup({ selected, root, resultDirectory, signal, charge, sourc
         fixture,
         runtime,
         freeflow: freeflow[variant],
-        hostExtensions,
+        hostExtensions: hostExtensions[variant],
         signal,
       });
       charge(runs[variant]);

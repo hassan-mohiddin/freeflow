@@ -123,9 +123,9 @@ Before operating the evaluator, resolving paths, interpreting states, or reasoni
 Use the canonical [skill evaluator](scripts/skill-eval.mjs) from the definition root:
 
 ```text
-node <evaluate-skill-directory>/scripts/skill-eval.mjs run <suite-or-group-path> [--group <id-or-position>] [--variant baseline|candidate] [--trials <n>] [--max-cost <total>] [--yes] [--dry-run] [--extension <path>]...
+node <evaluate-skill-directory>/scripts/skill-eval.mjs run <suite-or-group-path> [--group <id-or-position>] [--variant baseline|candidate] [--trials <n>] [--max-cost <total>] [--yes] [--dry-run]
 node <evaluate-skill-directory>/scripts/skill-eval.mjs view <result-id-or-directory> [--group <id-or-position>] [--variant baseline|candidate]
-node <evaluate-skill-directory>/scripts/skill-eval.mjs review <result-id-or-directory> --model <provider/model> [--group <id-or-position>] [--thinking <level>] [--extension <path>]... [--swap]
+node <evaluate-skill-directory>/scripts/skill-eval.mjs review <result-id-or-directory> (--model <provider/model> | --configuration <file>) [--group <id-or-position>] [--thinking <level>] [--swap]
 ```
 
 One run per variant cannot separate a behavioral difference from sampling noise. Use `--trials <n>` before claiming a difference; each trial is an independent complete result, and the aggregate only counts their deterministic grades. Use `--max-cost` when trials or suites could spend more than intended.
@@ -155,7 +155,7 @@ A transition such as `fail-to-pass` is a factual comparison. It does not mean ba
 
 After canonical evidence and deterministic grades exist, read [Review and Revision](references/review-and-revision.md) when evidence conflicts, semantic meaning remains unresolved, the failed boundary must be classified, a revision target must be selected, or rerun scope is uncertain.
 
-The evaluator never grades meaning automatically. `review` records an optional advisory answer to each review question from a separate model that sees the two runs unlabeled, in `semantic-grade.json`. That model is a judge: before choosing it or relying on its answers, read Review Work's [Judge Contract](../review-work/references/judge-contract.md). It sees the fixture and each run's written files in full, up to a stated limit, with run paths and variant names replaced; its identity, family relation and unmet contract items are recorded with the answers. Pass `--swap` to check that the order of the runs did not decide the answers, and `--extension` for an extension the reviewer's provider needs, such as a subscription's auth extension.
+The evaluator never grades meaning automatically. `review` records an optional advisory answer to each review question from a separate model that sees the two runs unlabeled, in `semantic-grade.json`. That model is a judge: before choosing it or relying on its answers, read Review Work's [Judge Contract](../review-work/references/judge-contract.md). It sees the fixture and each run's written files in full, up to a stated limit, with run paths and variant names replaced; its identity, family relation and unmet contract items are recorded with the answers. Pass `--swap` to check that the order of the runs did not decide the answers, and `--configuration` with a configuration file when the reviewer needs host extensions or settings, such as a subscription's auth extension.
 
 The active agent or user may judge reasoning quality, authority preservation, architectural fitness, recommendation quality, or semantic completeness. Keep that judgment, cited evidence, uncertainty, and limits outside canonical run and grade state.
 
