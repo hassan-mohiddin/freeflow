@@ -12,7 +12,7 @@
     "baseline": {
       "source": {
         "kind": "git",
-        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+        "ref": "6214858769e226369c061eb9bb157aa444455a07"
       },
       "skills": ["skills/review-work"],
       "target": 0,
@@ -21,7 +21,7 @@
     "candidate": {
       "source": {
         "kind": "git",
-        "ref": "6214858769e226369c061eb9bb157aa444455a07"
+        "ref": "967c212661fbdb4389a0dc6497b6ea181527fa81"
       },
       "skills": ["skills/review-work"],
       "target": 0,
@@ -70,7 +70,7 @@
       "kind": "file-text",
       "path": "review.md",
       "expect": "contains",
-      "value": "sectionsByTitle"
+      "value": "\\r?$"
     },
     {
       "id": "candidate-defect-located",
@@ -79,7 +79,7 @@
       "kind": "file-text",
       "path": "review.md",
       "expect": "contains",
-      "value": "sectionsByTitle"
+      "value": "\\r?$"
     }
   ],
   "review_questions": [

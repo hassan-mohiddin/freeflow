@@ -1,0 +1,26 @@
+{
+  "case": "ed-fixture-path",
+  "skill": "review-work (eval definition)",
+  "source": {
+    "commit": "967c212661fbdb4389a0dc6497b6ea181527fa81",
+    "subject": "the rw-unavailable-exit pair (rp04), rebuilt as an eval definition under review",
+    "paths": ["case.json", "provenance.json", "fixtures/clean", "fixtures/seeded"]
+  },
+  "seed": {
+    "description": "case.json is the seeded group of its pair, but its fixture field points at fixtures/clean, the variant without the planted defect. A correct reviewer would pass that change and be scored as missing a defect that is not there. The clean variant points at fixtures/seeded.",
+    "location": "case.json:9",
+    "locator": "fixtures/clean"
+  },
+  "seed_verification": {
+    "method": "contradicts-source",
+    "command": "diff -r clean seeded; grep -n 'grade.state' fixtures/clean/files/skills/evaluate-skill/scripts/lib/runner.mjs",
+    "clean_result": "fixture: fixtures/seeded, whose runner.mjs:202 holds the planted grade.state !== \"grade-error\"",
+    "seeded_result": "fixture: fixtures/clean, whose runner.mjs:202 holds the correct grade.state === \"complete\"",
+    "evidence": "The two variants differ only in case.json line 9."
+  },
+  "groups": {
+    "clean": "rp08-a",
+    "seeded": "rp08-b",
+    "trigger": "rp10"
+  }
+}

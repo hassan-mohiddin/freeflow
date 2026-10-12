@@ -14,6 +14,12 @@
     "cases/ra-plan-ordering-a.json",
     "cases/ra-plan-ordering-b.json",
     "cases/ra-spec-contradiction-a.json",
-    "cases/ra-spec-contradiction-b.json"
+    "cases/ra-spec-contradiction-b.json",
+    "cases/rr-check-claim-a.json",
+    "cases/rr-check-claim-b.json",
+    "cases/ed-fixture-path-a.json",
+    "cases/ed-fixture-path-b.json",
+    "cases/rr-trigger.json",
+    "cases/ed-trigger.json"
   ]
 }
