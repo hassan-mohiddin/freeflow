@@ -175,6 +175,69 @@ test("Recovery sources hold content only and reject nested headings", async () =
   });
 });
 
+const AGREEMENT =
+  '### Work agreement\n\n- Fix the bug and open a PR; merging is yours. You said "yes, do that" (2026-10-12).\n\n';
+
+test("init writes a Work agreement directly after Goal only when one is given", async () => {
+  await withWorkspace(async (workspace) => {
+    const withAgreement = await init(
+      workspace,
+      "agreed",
+      `### Goal\n- Test task.\n\n${AGREEMENT}### Next useful action\n- Continue.\n`,
+    );
+    const record = await readFile(withAgreement, "utf8");
+    assert.match(
+      record,
+      /### Goal\n\n- Test task\.\n\n### Work agreement\n\n- Fix the bug[^\n]*\n\n### What defines this task/,
+    );
+    assert.equal((await validate(workspace, withAgreement)).exitCode, 0);
+
+    const without = await readFile(await init(workspace, "unagreed"), "utf8");
+    assert.doesNotMatch(without, /Work agreement/);
+
+    const empty = await runScript(
+      workspace,
+      ["init", "--root", workspace, "--name", "placeholder", "--input", "-"],
+      "### Goal\n- Test task.\n\n### Work agreement\n\n### Next useful action\n- Continue.\n",
+    );
+    assert.notEqual(empty.exitCode, 0);
+    assert.match(empty.stderr, /Work agreement/);
+    assert.deepEqual(
+      (await readdir(join(workspace, ".freeflow/tasks"))).filter((name) => name.includes("placeholder")),
+      [],
+    );
+  });
+});
+
+test("a Work agreement is valid only directly after Goal, never empty, and survives lifecycle commands", async () => {
+  await withWorkspace(async (workspace) => {
+    const recordPath = await init(workspace, "agreement");
+    const original = await readFile(recordPath, "utf8");
+    const withSection = original.replace("### What defines this task", `${AGREEMENT}### What defines this task`);
+
+    await writeFile(recordPath, original.replace("## Current Work", `${AGREEMENT}## Current Work`));
+    assert.notEqual((await validate(workspace, recordPath)).exitCode, 0, "after Boundaries");
+    await writeFile(recordPath, withSection.replace("### Boundaries", `${AGREEMENT}### Boundaries`));
+    assert.notEqual((await validate(workspace, recordPath)).exitCode, 0, "twice");
+    await writeFile(
+      recordPath,
+      original.replace("### What defines this task", "### Work agreement\n\n- \n\n### What defines this task"),
+    );
+    assert.notEqual((await validate(workspace, recordPath)).exitCode, 0, "empty");
+
+    await writeFile(recordPath, withSection);
+    assert.equal((await validate(workspace, recordPath)).exitCode, 0);
+    await startDirect(workspace, recordPath);
+    assert.match(
+      await readFile(recordPath, "utf8"),
+      /### Goal\n\n- Test task\.\n\n### Work agreement\n\n- Fix the bug/,
+    );
+    const resume = await runScript(workspace, ["view", "resume", "--record", recordPath]);
+    assert.equal(resume.exitCode, 0, resume.stderr);
+    assert.match(resume.stdout, /### Work agreement\n\n- Fix the bug and open a PR; merging is yours\./);
+  });
+});
+
 test("Checkpoints accept the general types and still read the earlier names", async () => {
   await withWorkspace(async (workspace) => {
     const recordPath = await init(workspace, "types");
