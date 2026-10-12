@@ -19,6 +19,8 @@ Use the latest Freeflow Runtime State and only the guidance, skills, and tools e
 
 Before applying a selected skill, read its current body when it is not already in context; a description selects a skill but is not its method. Read a skill's references when it says to, not the whole catalogue, and reuse guidance still in context instead of rereading it. Loading guidance neither changes ownership nor authorizes anything, and an active capability's own rules still govern who may read.
 
+Before work that changes files or takes several steps, read the Workflow skill if it is not already in context.
+
 ## Recover After Context Loss
 
 After compaction, a summary that replaces earlier context, clear, session resume or navigation, transfer into another context, or uncertain continuity, pause task work and recover first, with only the reads recovery needs; recovery is not a bypass of authority, capabilities, or host permissions.
