@@ -11,6 +11,7 @@ Run commands from the repository or fixture root that owns the definitions:
 ```text
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs run <suite-or-group-path> [--group <id-or-position>] [--variant baseline|candidate] [--trials <n>] [--max-cost <total>] [--yes] [--dry-run]
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs view <result-id-or-directory> [--group <id-or-position>] [--variant baseline|candidate]
+node <evaluate-behavior-directory>/scripts/skill-eval.mjs view <result-id-or-directory> --html <file>
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-id-or-directory> (--model <provider/model> | --configuration <file>) [--group <id-or-position>] [--thinking <level>] [--swap] [--limit <name>=<chars>]
 ```
 

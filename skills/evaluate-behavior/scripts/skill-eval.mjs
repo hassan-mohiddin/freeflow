@@ -9,10 +9,11 @@ import { runEvaluation } from "./lib/runner.mjs";
 import { reviewResult } from "./lib/review.mjs";
 import { runTrials } from "./lib/trials.mjs";
 import { renderResult } from "./lib/view.mjs";
+import { writeHtml } from "./lib/view-html.mjs";
 
 const OPTIONS = {
   run: ["--group", "--variant", "--trials", "--max-cost", "--yes", "--dry-run"],
-  view: ["--group", "--variant"],
+  view: ["--group", "--variant", "--html"],
   review: ["--group", "--model", "--thinking", "--configuration", "--swap", "--limit"],
 };
 const argv = process.argv.slice(2);
@@ -87,6 +88,7 @@ function parseOperation(values) {
     model: null,
     thinking: null,
     configuration: null,
+    html: null,
   };
   let swap = false;
   const limits = {};
@@ -100,6 +102,7 @@ function parseOperation(values) {
     "--model": "model",
     "--configuration": "configuration",
     "--thinking": "thinking",
+    "--html": "html",
   };
   for (let index = 0; index < options.length; index += 1) {
     const option = options[index];
@@ -152,6 +155,7 @@ function parseOperation(values) {
     model: parsed.model,
     thinking: parsed.thinking,
     configuration: parsed.configuration,
+    html: parsed.html,
     swap,
     limits,
     yes,
@@ -270,7 +274,13 @@ if (!command || command === "--help" || command === "-h") {
 } else if (Object.hasOwn(OPTIONS, command)) {
   try {
     const operation = parseOperation(argv.slice(1));
-    if (command === "view") {
+    if (command === "view" && operation.html !== null) {
+      const written = await writeHtml(operation.target, operation.html, {
+        root: process.cwd(),
+        selectors: operation.selectors,
+      });
+      process.stdout.write(`Wrote ${written}\n`);
+    } else if (command === "view") {
       process.stdout.write(await renderResult(operation.target, operation.selectors, { root: process.cwd() }));
     } else if (command === "review") {
       await review(operation);
