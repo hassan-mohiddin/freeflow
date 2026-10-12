@@ -135,7 +135,7 @@ Pi settings read, never written: `compaction.reserveTokens` and `compaction.mode
 
 **Messages:** `freeflow-compaction-request` (visible, `/freeflow compact`), `freeflow-compaction-notice` (visible, `details.level`), `freeflow-carried-context` (hidden), `freeflow-compaction-recovery` (visible). Each is wrapped in Freeflow's notice tag, `<freeflow-notice type="compaction">` (`CompactionHost.notice()`, `freeflowNotice()`), so the agent never reads them as the user's words: Pi gives the model every custom message in the user role. The one exception is the user's own messages the carried context quotes: they sit in `<user-message>` tags, which Freeflow's guidance names as the user's words, and copied files and results cannot open or close that tag. The notice and recovery messages are drawn as one `Compaction` row each, expanding to the text.
 
-**Skill:** `capabilities/compaction/SKILL.md` with `references/summary-format.md`: when to compact, the summary's shape, what to carry.
+**Skill:** `capabilities/compaction/SKILL.md` with `references/summary-format.md`: when to compact, the summary's shape (record-backed, or record-shaped with the Working Record's headings, including its Work agreement), what to carry.
 
 ## State
 

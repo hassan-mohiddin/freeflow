@@ -35,7 +35,20 @@ Interpret the whole turn through the Interaction Contract.
 
 For example, after discussing several possible Slices, an ambiguous "proceed" may need: "Implement the next Slice and return, or finish the described task?" Do not ask this when the user already requested the whole task with a clear endpoint.
 
-The agreement may authorize investigation and approach selection as part of accomplishing the result. It need not prescribe files, tools, or implementation details. Keep it in conversation unless continuity requires task memory; it is not a mandatory artifact or separate autonomy mode.
+The agreement may authorize investigation and approach selection as part of accomplishing the result. It need not prescribe files, tools, or implementation details.
+
+When the outcome, what done looks like, or where you come back is unclear and it matters, propose it yourself rather than wait to be told: what you will do, what you will not, what needs the user's yes, and when you return, covering as much of the route as you can foresee. Then ask once. A proposal the user has not answered is not agreed.
+
+The agreement grows step by step. The user may agree to the whole route or part of it. At the edge of what was agreed, report and propose the next step; on a yes, the agreement extends. Work that turns out larger with the same outcome stays covered; a remedy that changes something the user owns needs a new yes (Rules).
+
+Keep the agreement in the lightest place the next context will read:
+
+- work that will finish within this context: the conversation only;
+- work that may cross a compaction and has no Working Record: the compaction summary;
+- work with a Working Record: its Work agreement section, through [Track Work](../track-work/SKILL.md);
+- a long or unattended run, or an agreement that has changed several times: the section plus Track Work's exchange log.
+
+It is not a mandatory artifact or a separate autonomy mode, and a record is never created only to hold it.
 
 Interpret authority from the request and still-valid approval. A direct request covers its bounded outcome and entailed tools, checks, and reversible local choices. Classify effects cumulatively: reading existing sources, active evidence generation, and changing files or external state. Planning an experiment does not make its effects passive.
 
@@ -77,7 +90,7 @@ Two signals say the balance is off. Reading files in case they matter, without a
 
 This holds whether the user discussed the task first or asked directly for execution; a direct request usually needs far less preparation, not none.
 
-When the task may outlast the current context, record the picture through [Track Work](../track-work/SKILL.md): the end state in the Goal and Boundaries, the route in Future Work, and the gathered context in Recovery sources and `What defines this task`. After compaction, that picture is what keeps the work on its original scope.
+When the task may outlast the current context, record the picture through [Track Work](../track-work/SKILL.md): the outcome in the Goal, what done looks like and where you return in the Work agreement, the route in Future Work, and the gathered context in Recovery sources and `What defines this task`. After compaction, that picture is what keeps the work on its original scope.
 
 ## Choose And Keep One Current Owner
 
@@ -142,7 +155,7 @@ Use Track Work when losing decisions, the current result, dependencies, evidence
 
 Before a known context boundary, preserve material changed understanding, partial effects, relevant failed approaches, remaining dependencies, and the next useful action through Track Work. Keep the intended outcome and user-facing return condition distinct from the current implementation approach. Do not wait for artificial completion or write a command log.
 
-After recovery, reconcile the record's current sections and relevant History with current user direction, defining artifacts, and live state; confirm that the recovered agreement still authorizes the next action and its prerequisites hold. Reload the owner's exact method if absent. Inspect additional sources only where they change the next action, rather than replaying the investigation.
+After recovery, reconcile the record's current sections and relevant History with current user direction, defining artifacts, and live state; confirm that the recovered agreement (the record's Work agreement, or the summary's) still matches the user's latest direction and authorizes the next action, and that its prerequisites hold. Reload the owner's exact method if absent. Inspect additional sources only where they change the next action, rather than replaying the investigation.
 
 With intact context, use `resume` or targeted record reads when current-state readback is useful. Do not trigger full reconstruction merely because another turn or ordinary pause occurred.
 
@@ -155,6 +168,15 @@ Goal: covered work continues to its agreed end without unnecessary stops, and st
 Continue across covered actions and Slices without asking for another "continue" when the agreement covers the remaining task.
 
 A method change, worker handback, passing check, or context reconstruction is not automatically a user-facing return. Resume covered work after required recovery. Respect fresh user direction and stop when the agreed endpoint, a genuine blocker, or an uncovered consequential choice is reached.
+
+When the user steers mid-work, respond to what the message needs:
+
+- a question or doubt: answer it, then continue;
+- a question near the end of a step: finish the step, then answer;
+- an urgent instruction, such as stop or prepare for compaction: reach the next safe point and do it first;
+- a change of direction: pause, update the agreement where it lives, then continue under the new one.
+
+The agreement holds until its stated end or the user's new direction. Fresh direction always wins over a stored agreement.
 
 Select checkpoints only when they protect a meaningful dependency, decision, rollback, transfer, integration, or delivery boundary. Their owners perform them; Track Work preserves them when needed. Self-review is ordinary feedback, not a checkpoint.
 
