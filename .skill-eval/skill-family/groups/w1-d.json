@@ -7,12 +7,7 @@
     "prompt": "Review the customer drafts from the `email-drafts` skill in `skill/`, summarised in `evidence/drafts-review.md`. Three candidate changes follow. For each one, decide keep or drop. Keep means you make a change to the skill's text for it, wherever that text should sit. Drop means you make no change to the skill's text for it. Write `changes.md` with exactly three lines, one per candidate in the order given. Each line starts with the candidate's ID, then `: keep` or `: drop`, then the reason, for example `X1: keep - reason`. Write only `changes.md`; leave `skill/` unchanged.\n\n- P1: Add: do not promise a delivery date; say it is pending confirmation from the carrier.\n- P2: Add: check the customer's first name against the CRM record before greeting.\n- P3: Add: sign off with the team name."
   },
   "fixture": ".skill-eval/skill-family/fixtures/w1-d",
-  "tools": [
-    "read",
-    "write",
-    "ls",
-    "find"
-  ],
+  "tools": ["read", "write", "ls", "find"],
   "configuration": {
     "extends": "../configuration.json",
     "subject": {
@@ -28,9 +23,7 @@
           "kind": "git",
           "ref": "3415a8a2f4158e17fe605c5378f18eb4e8c08ed5"
         },
-        "skills": [
-          "skills/write-skill"
-        ]
+        "skills": ["skills/write-skill"]
       }
     },
     "candidate": {
@@ -39,15 +32,11 @@
           "kind": "git",
           "ref": "b78e8fd9f7acc8209a831aaef6f576d1ca6508c8"
         },
-        "skills": [
-          "skills/write-skill"
-        ]
+        "skills": ["skills/write-skill"]
       }
     }
   },
-  "component": [
-    "subject.source"
-  ],
+  "component": ["subject.source"],
   "expectations": [
     {
       "id": "baseline-only-changes-written",
@@ -55,9 +44,7 @@
       "comparison": "only-changes-written",
       "kind": "changed-paths",
       "expect": "equals",
-      "paths": [
-        "changes.md"
-      ]
+      "paths": ["changes.md"]
     },
     {
       "id": "candidate-only-changes-written",
@@ -65,9 +52,7 @@
       "comparison": "only-changes-written",
       "kind": "changed-paths",
       "expect": "equals",
-      "paths": [
-        "changes.md"
-      ]
+      "paths": ["changes.md"]
     },
     {
       "id": "baseline-line-1-p1-keep",
