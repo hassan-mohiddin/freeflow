@@ -70,31 +70,12 @@ export async function runDescription({
   freeflow,
   hostExtensions,
   signal,
+  extendEnvironment = null,
 }) {
-  if (group.input.turns !== undefined) {
-    return runPersistentDescription({
-      group,
-      variant,
-      root,
-      variantDirectory,
-      fixture,
-      runtime,
-      freeflow,
-      hostExtensions,
-      signal,
-    });
-  }
-  return runOneShotDescription({
-    group,
-    variant,
-    root,
-    variantDirectory,
-    fixture,
-    runtime,
-    freeflow,
-    hostExtensions,
-    signal,
-  });
+  const options = { group, variant, root, variantDirectory, fixture, runtime, freeflow, hostExtensions, signal };
+  options.extendEnvironment = extendEnvironment;
+  if (group.input.turns !== undefined) return runPersistentDescription(options);
+  return runOneShotDescription(options);
 }
 
 export async function runBody({
@@ -107,8 +88,11 @@ export async function runBody({
   freeflow,
   hostExtensions,
   signal,
+  extendEnvironment = null,
+  nextPrompt = null,
 }) {
   const options = { group, variant, root, variantDirectory, fixture, runtime, freeflow, hostExtensions, signal };
+  options.extendEnvironment = extendEnvironment;
   const subject = await prepareSubject(options, "rpc");
   const before = await fingerprintDirectory(subject.workspace);
   const declaredPrompts = group.input.prompt === undefined ? [...group.input.turns] : [group.input.prompt];
@@ -123,6 +107,7 @@ export async function runBody({
     prompts: declaredPrompts,
     targetPath: subject.environment.targetPath,
     environment: subject.processEnvironment,
+    nextPrompt,
     afterTurn: needsTurnWorkspaceEvidence(group)
       ? (turn) => snapshotWorkspace({ workspace: subject.workspace, variantDirectory, turn, before })
       : null,
@@ -322,7 +307,17 @@ async function runPersistentDescription(options) {
 }
 
 async function prepareSubject(
-  { group, variant, root, variantDirectory, fixture: fixtureSnapshot, runtime, freeflow = null, hostExtensions = [] },
+  {
+    group,
+    variant,
+    root,
+    variantDirectory,
+    fixture: fixtureSnapshot,
+    runtime,
+    freeflow = null,
+    hostExtensions = [],
+    extendEnvironment = null,
+  },
   mode,
 ) {
   const workspace = path.join(variantDirectory, "workspace");
@@ -337,6 +332,8 @@ async function prepareSubject(
       root,
       variantDirectory,
     });
+    // A pipeline stage adds what it declares it sees from earlier stages as further declared context.
+    if (extendEnvironment !== null) await extendEnvironment(environment, variantDirectory);
     materializedRuntime = await materializeRuntime({ runtime, variantDirectory });
     fixture = await materializeFixture({ fixture: fixtureSnapshot, workspace });
     // Written before the workspace's starting state is taken, so they never count as the subject's changes.

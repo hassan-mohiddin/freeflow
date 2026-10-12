@@ -22,7 +22,7 @@ Definition files and declared paths are checked for lexical and canonical contai
 
 ## Common Group Shape
 
-A group is a **task** (what the agent is asked to do and how it is graded) and a **configuration** (the agent environment that does it). Two or more named arms, usually `baseline` and `candidate`, each overlay the shared configuration, and `component` names the only places where an arm may differ from the reference arm. Every group contains exactly these fields, plus optional `reference`, `commands`, `revision`, and the judged-evidence fields `rubric`, `judges` and `combine` ([Rubric And Judges](#rubric-and-judges)):
+A group is a **task** (what the agent is asked to do and how it is graded) and a **configuration** (the agent environment that does it). Two or more named arms, usually `baseline` and `candidate`, each overlay the shared configuration, and `component` names the only places where an arm may differ from the reference arm. Every group contains exactly these fields, plus optional `reference`, `commands`, `revision`, `participants` ([Participants](#participants)), and the judged-evidence fields `rubric`, `judges` and `combine` ([Rubric And Judges](#rubric-and-judges)):
 
 ```json
 {
@@ -92,6 +92,53 @@ A rubric asks what deterministic checks cannot. Each run is judged alone, blind 
 - `judges` is optional: one or more `{ model, thinking? }`, each configuration once, because repeated calls to one configuration are one vote. Without `judges`, `review --rubric --model` names the single judge.
 - `combine` names how several judges' answers become one, before any verdict is seen; it is required with more than one judge. Taking yes as 1 and no as 0: `majority` gives the answer more than half the judges gave (otherwise `unknown`); `unanimous` gives the lowest answer, so yes only when every judge says yes; `any` gives the highest, so yes when any judge does; `mean` averages the known answers and needs every dimension to be `"0-2"`. An `unknown` answer makes the result `unknown` whenever it could change it.
 - `judges` and `combine` need a `rubric`.
+
+## Participants
+
+A group may run more than one participant in each arm. `participants` declares a `protocol`; every participant uses the arm's configuration, so arms still differ only in their `component`.
+
+A **conversation** pairs the subject with a simulated user:
+
+```json
+{
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "medium",
+      "card": "cards/release-owner.md",
+      "max_turns": 10,
+      "stop": "THANKS, DONE"
+    }
+  }
+}
+```
+
+- It needs a body group whose `input` is a `prompt`: the opening message.
+- `card` is a text file inside the definition root and outside the fixture: everything the simulated user knows. It is read in when the definition loads and is a run input that must be committed.
+- `max_turns` (1 to 50, default 10) caps the subject's turns, the opening included. `stop` is the phrase with which the user ends the conversation.
+- `model` and optional `thinking` name the user's model.
+
+A **pipeline** runs ordered stages, each a separate subject:
+
+```json
+{
+  "participants": {
+    "protocol": "pipeline",
+    "stages": [
+      { "id": "review1", "input": "Review the change.", "sees": ["fixture"] },
+      { "id": "review2", "fresh": true, "sees": ["fixture"] },
+      { "id": "adjudicator", "input": "Adjudicate the reviews.", "sees": ["review1.response", "review1.files", "review2.response"] }
+    ],
+    "graded": "adjudicator"
+  }
+}
+```
+
+- Stage `id`s follow the group ID pattern and are unique. `input` is a prompt or an array of turns, and defaults to the group's `input`.
+- `sees` lists exactly what the stage gets: `fixture` (a fresh copy, only when the group declares one), `<stage>.response` (that earlier stage's final response) or `<stage>.files` (the files it created or modified; body groups only). Anything not listed never reaches the stage. It defaults to nothing.
+- `fresh: true` declares the stage independent: it may see the fixture but no earlier stage.
+- `graded` names the stage the group's expectations, comparisons and review questions apply to; it defaults to the last stage.
 
 ## Configuration And Arms
 

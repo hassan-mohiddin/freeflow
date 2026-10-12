@@ -5,6 +5,7 @@ import { ARM_NAME, armNames, DEFAULT_REFERENCE } from "./arms.mjs";
 import { validateDecision } from "./decision.mjs";
 import { validateCommandExpectations } from "./grade-command.mjs";
 import { rubricFiles, validateJudging } from "./judge.mjs";
+import { participantFiles, validateParticipants } from "./participants.mjs";
 
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const EVALUATION_TYPES = new Set(["description", "body"]);
@@ -607,7 +608,7 @@ async function validateGroup(value, definitionPath, root) {
       "expectations",
       "review_questions",
     ],
-    ["commands", "revision", "reference", "rubric", "judges", "combine"],
+    ["commands", "revision", "reference", "rubric", "judges", "combine", "participants"],
     "group",
     definitionPath,
   );
@@ -641,6 +642,7 @@ async function validateGroup(value, definitionPath, root) {
   });
   requireStringArray(group.review_questions, "group.review_questions", definitionPath);
   Object.assign(group, await validateJudging(group, definitionPath, root));
+  Object.assign(group, await validateParticipants(group, definitionPath, root));
   if (Object.hasOwn(group, "revision")) {
     if (group.revision !== "description-only") {
       fail("invalid-definition", "group.revision must be description-only when declared", definitionPath);
@@ -682,6 +684,7 @@ async function validateGroup(value, definitionPath, root) {
       ...(extendsFile === null ? [] : [extendsFile]),
       ...graderFiles,
       ...rubricFiles(group.rubric, root),
+      ...participantFiles(group.participants, root),
     ],
     component,
     variants,
