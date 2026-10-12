@@ -101,8 +101,10 @@ export async function runBody({
   const subject = await prepareSubject(options, "rpc");
   const before = await fingerprintDirectory(subject.workspace);
   const declaredPrompts = group.input.prompt === undefined ? [...group.input.turns] : [group.input.prompt];
-  // A container environment runs the subject's bash in a container of its own, removed even when the run is cancelled.
-  const declaredContainer = group.tools.includes("bash") ? group.variants[variant].shell?.container : undefined;
+  // A container environment runs the subject's bash and declared commands in a container of its own, removed even
+  // when the run is cancelled. A group with neither needs no subject container; its graders still run in the image.
+  const usesContainer = group.tools.includes("bash") || (group.commands?.length ?? 0) > 0;
+  const declaredContainer = usesContainer ? group.variants[variant].shell?.container : undefined;
   let container = null;
   if (declaredContainer !== undefined) {
     const { containerTarget, startContainer } = await import("./container.mjs");

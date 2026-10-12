@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 
+import { containerExecArgv, dockerClientEnvironment, parseContainerTarget } from "./lib/container.mjs";
 import { COMMAND_TOOL } from "./lib/definitions.mjs";
 
 const DEFAULT_TIMEOUT_MS = 120 * 1000;
@@ -44,13 +45,16 @@ function signalGroup(child, signal) {
   }
 }
 
-// Runs one author-declared argv in the workspace. A nonzero exit or timeout is ordinary evidence, not a tool error.
-function runCommand(command, cwd, signal) {
+// Runs one author-declared argv in the workspace, or, in a container environment, through `docker exec` in the
+// subject's container, where bash runs too, so both use the image's toolchain. A nonzero exit or timeout is
+// ordinary evidence, not a tool error.
+function runCommand(command, cwd, signal, container) {
   const timeoutMs = command.timeout_ms ?? DEFAULT_TIMEOUT_MS;
+  const argv = container === null ? command.argv : containerExecArgv(container, command.argv);
   return new Promise((resolve, reject) => {
-    const child = spawn(command.argv[0], command.argv.slice(1), {
+    const child = spawn(argv[0], argv.slice(1), {
       cwd,
-      env: commandEnvironment(),
+      env: container === null ? commandEnvironment() : dockerClientEnvironment(),
       shell: false,
       detached: process.platform !== "win32",
       stdio: ["ignore", "pipe", "pipe"],
@@ -94,6 +98,8 @@ export default function registerCommandTool(pi) {
   const workspace = process.env.SKILL_EVAL_WRITABLE_ROOT;
   if (!workspace) throw new Error("SKILL_EVAL_WRITABLE_ROOT is required");
   const byId = new Map(commands.map((command) => [command.id, command]));
+  // Set by the evaluator only for a container environment; the guard routes bash by the same value.
+  const container = parseContainerTarget(process.env.SKILL_EVAL_CONTAINER);
 
   pi.registerTool({
     name: COMMAND_TOOL,
@@ -113,7 +119,7 @@ export default function registerCommandTool(pi) {
     async execute(_toolCallId, input, signal) {
       const command = byId.get(input?.command);
       if (!command) throw new Error(`Command is not declared for this evaluation: ${String(input?.command)}`);
-      const result = await runCommand(command, workspace, signal);
+      const result = await runCommand(command, workspace, signal, container);
       const status = result.timedOut
         ? `timed out after ${result.timeoutMs} ms`
         : `exit code: ${result.exitCode ?? `signal ${result.signal}`}`;

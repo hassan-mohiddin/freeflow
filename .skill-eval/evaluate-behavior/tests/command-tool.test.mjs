@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -128,4 +128,40 @@ test("the command process does not inherit evaluator control variables", async (
       assert.match(result.content[0].text, /none/);
     },
   );
+});
+
+test("in a container environment a declared command runs through docker exec in the subject's container", async () => {
+  await withWorkspace([{ id: "unit-tests", argv: ["npm", "test"] }], async (workspace) => {
+    // A docker stand-in that records its argv and its working directory.
+    const bin = path.join(workspace, "bin");
+    await mkdir(bin);
+    const log = path.join(workspace, "docker.json");
+    await writeFile(
+      path.join(bin, "docker"),
+      `#!${process.execPath}\nrequire("node:fs").writeFileSync(${JSON.stringify(log)}, JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd() }));\nconsole.log("ran in the image");\n`,
+    );
+    await chmod(path.join(bin, "docker"), 0o755);
+    const original = { container: process.env.SKILL_EVAL_CONTAINER, path: process.env.PATH };
+    process.env.SKILL_EVAL_CONTAINER = JSON.stringify({
+      name: "skill-eval-subject-1",
+      host: "unix:///x.sock",
+      workdir: "/testbed",
+    });
+    process.env.PATH = [bin, original.path ?? ""].join(path.delimiter);
+    try {
+      const tool = installTool();
+      const result = await tool.execute("call-1", { command: "unit-tests" }, undefined, undefined, {});
+
+      assert.equal(result.details.exitCode, 0);
+      assert.match(result.content[0].text, /ran in the image/);
+      assert.deepEqual(JSON.parse(await readFile(log, "utf8")), {
+        argv: ["--host", "unix:///x.sock", "exec", "--workdir", "/testbed", "skill-eval-subject-1", "npm", "test"],
+        cwd: workspace,
+      });
+    } finally {
+      if (original.container === undefined) delete process.env.SKILL_EVAL_CONTAINER;
+      else process.env.SKILL_EVAL_CONTAINER = original.container;
+      process.env.PATH = original.path;
+    }
+  });
 });

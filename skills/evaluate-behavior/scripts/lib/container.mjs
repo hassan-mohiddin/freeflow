@@ -266,6 +266,23 @@ export function containerTarget(handle, container) {
   return JSON.stringify({ name: handle.name, host: handle.host, workdir: container.workdir });
 }
 
+/** The running container from `containerTarget`'s value, or null when there is none. */
+export function parseContainerTarget(value) {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return typeof parsed?.name === "string" && typeof parsed.workdir === "string" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The docker client argv that runs a declared command's argv inside the running container, at its workdir. */
+export function containerExecArgv(target, argv) {
+  const host = typeof target.host === "string" && target.host !== "" ? ["--host", target.host] : [];
+  return ["docker", ...host, "exec", "--workdir", target.workdir, target.name, ...argv];
+}
+
 /**
  * The argv that runs a command grader in a fresh container on the graded copy, with the same limits and network.
  * The caller removes the container by name afterwards, so a timeout or cancellation leaves nothing running.

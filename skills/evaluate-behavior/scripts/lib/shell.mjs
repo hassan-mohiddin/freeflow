@@ -336,7 +336,7 @@ export async function prepareShell({ group, variants, hostExtensions, groupDirec
         missing,
       });
     }
-    // A container that only hosts the command graders gives the subject no shell to probe.
+    // A container without bash gives the subject no shell to probe: it hosts only declared commands and graders.
     if (shell.container !== undefined && !group.tools.includes("bash")) continue;
     confinement[arm] = await verifyConfinement({
       arm,

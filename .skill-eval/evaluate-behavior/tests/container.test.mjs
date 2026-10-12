@@ -324,6 +324,27 @@ test("probes, subjects and graders run in containers with the declared limits, i
   });
 });
 
+test("a container group without bash still runs its declared commands in a subject container", async () => {
+  await withTempDirectory(async (root) => {
+    const pi = await installFakePi(root);
+    const docker = await installFakeDocker(root);
+    const definition = await write(
+      path.join(root, "groups/boxed.json"),
+      containerGroup({ tools: ["read", "run_command"], commands: [{ id: "unit-tests", argv: ["npm", "test"] }] }),
+    );
+
+    const result = runCli(root, [pi.bin, docker.bin], ["run", definition, "--dry-run"]);
+
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    const calls = await dockerCalls(docker.log);
+    const verbs = calls.map((args) => (args[0] === "--host" ? `host ${args[2]}` : args[0]));
+    // No shell to probe; each arm gets a subject container, then its grader runs in a fresh one.
+    const prerequisites = ["version", "image"];
+    const subject = ["context", "create", "start", "rm"];
+    assert.deepEqual(verbs, [...prerequisites, ...prerequisites, ...subject, "run", "rm", ...subject, "run", "rm"]);
+  });
+});
+
 test("cancelling a running subject removes its container", async () => {
   await withTempDirectory(async (root) => {
     const pi = await installFakePi(root);
