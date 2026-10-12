@@ -101,7 +101,8 @@ import { appendFileSync, readFileSync } from "node:fs";
 // The reviewer runs with only the base environment, so the fake reads its settings from beside itself.
 const config = JSON.parse(readFileSync(new URL("./fake-review.json", import.meta.url), "utf8"));
 const args = process.argv.slice(2);
-appendFileSync(config.log, JSON.stringify({ args, prompt: args.at(-1), cwd: process.cwd(), leakedEnv: Object.keys(process.env).filter((key) => key.startsWith("FAKE_")) }) + "\\n");
+const readSettings = () => { try { return JSON.parse(readFileSync(process.env.PI_CODING_AGENT_DIR + "/settings.json", "utf8")); } catch { return null; } };
+appendFileSync(config.log, JSON.stringify({ args, prompt: args.at(-1), cwd: process.cwd(), settings: readSettings(), leakedEnv: Object.keys(process.env).filter((key) => key.startsWith("FAKE_")) }) + "\\n");
 const emit = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
 const message = {
   role: "assistant",
@@ -344,6 +345,33 @@ test("without --configuration, the reviewer runs on the group's host setup and r
     assert.equal(semantic.judge.setup, "group");
     assert.deepEqual(semantic.judge.extensions, [{ path: plugin, package: "group-auth@1.0.0" }]);
     assert.deepEqual(semantic.judge.settings, { retry: { enabled: false } });
+  });
+});
+
+test("the reviewer runs with the evaluator's Pi defaults, and declared settings win", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installReviewerPi(root);
+    await writeResult(root);
+    await writeJson(path.join(root, "judge.json"), {
+      schema_version: 2,
+      kind: "configuration",
+      id: "judge",
+      configuration: {
+        host: { name: "pi", settings: { retry: { enabled: true } } },
+        model: { model: "reviewer/model" },
+      },
+    });
+    const output = JSON.stringify({ answers: [{ question: 1, A: "yes", B: "no", rationale: "A names rollback." }] });
+
+    assert.equal(review(root, bin, ["--model", "reviewer/model"], output).status, 0);
+    assert.equal(review(root, bin, ["--configuration", "judge.json"], output).status, 0);
+
+    const [plain, configured] = (await readFile(path.join(root, "review.jsonl"), "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.deepEqual(plain.settings, { retry: { enabled: false }, compaction: { enabled: false } });
+    assert.deepEqual(configured.settings, { retry: { enabled: true }, compaction: { enabled: false } });
   });
 });
 

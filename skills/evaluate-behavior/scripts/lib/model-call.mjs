@@ -7,6 +7,7 @@ import path from "node:path";
 
 import { writeText } from "./evidence.mjs";
 import { prepareIsolation, removeCopiedCredentials } from "./isolation.mjs";
+import { effectivePiSettings } from "./pi-host.mjs";
 import { baseProcessEnvironment, runPiProcess } from "./pi.mjs";
 
 /**
@@ -43,7 +44,8 @@ export async function launchModel(directory, prompt, options) {
   args.push(prompt);
   let isolation;
   try {
-    isolation = await prepareIsolation(directory, model, { settings });
+    // The evaluator's Pi defaults (retry and compaction off) apply here as for subjects; declared settings win.
+    isolation = await prepareIsolation(directory, model, { settings: effectivePiSettings(settings) });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { response: null, errors: [message], usage: null, isolation: null };
