@@ -41,6 +41,8 @@ Changed from the selection, with the reasons recorded in each provenance file:
 
 Every defect was proven by its builder and then reproduced independently on fresh exports (`git archive <base>` plus the fixture's files): a test or probe that passes on the sound state and fails on the defective one, or for a convention defect the quoted requirement and the seeded line that contradicts it. Every `real` variant's files match the introducing commit byte for byte.
 
+A later audit of the clean variants (`clean-audit.json`) traced every requirement to its commit: requirements that claimed more than the commit evidences were narrowed, two fixtures gained changed files their requirements depend on, and five clean variants with a genuine blocking-level issue are excluded from false-rejection measures (their seeded variants stay).
+
 ## Layout
 
 - `fixtures/<case>/<variant>/`: `requirements.md`, and `workspace/` (`change.diff`, `files/`, `verification.md`), which becomes the reviewer's workspace.
@@ -49,13 +51,35 @@ Every defect was proven by its builder and then reproduced independently on fres
 - `cases.json`: one index over the provenance records (`tools/index-cases.mjs`, which also checks every locator against its fixture).
 - `groups/`, `context/`, `suite.json`, `groups.json`: the eval definitions (`tools/write-groups.mjs`). Group IDs are neutral (`rvNN-a`/`rvNN-b`, ordered by hash) and `groups.json` maps them back to cases. Requirements are declared from `context/<group>/requirements.md`, because the subject sees a declared context path.
 - `configuration.json`: the subject configuration every group extends.
+- `tests.json`: each base change's test files, all passing on its clean variant; `tools/run-tests.mjs` runs them for a reviewer through the `tests` command.
+- `clean-audit.json`: the clean audit's exclusions and repairs.
 - `tools/verify-case.mjs`: rebuilds a case's variants from the base commit and runs committed tests (`--test`), the fix's tests on a real variant (`--fix-test`), or proof tests, after an optional `--build`.
 
 ## Groups
 
 Each group compares requirements withheld (`baseline`) with requirements given as declared context (`candidate`); the component is `subject.context` (the F5 comparison). Deterministic checks: only `review.md` written; a judgment on the first line; for a defective variant, no `Judgment: Pass` and the defective file named; for a clean variant, no `Judgment: Blocking`, and `Judgment: Pass`. Whether the review located the defect itself is the advisory reviewer's question, which names the location and expression.
 
-Reviewers have `read`, `write`, `ls` and `find`, each confined to the run. The F5 run of 2026-10-12 used `read` and `write` only, so many of its reviewers could not list `files/`; results from runs before and after the change do not compare directly.
+Reviewers have `read`, `write`, `ls` and `find`, each confined to the run, and for a base change a `tests` command that runs its declared tests on the full tree. A clean variant counts as rejected when the review ends Inconclusive or Blocking; Pass and Non-blocking both let it proceed. The F5 run of 2026-10-12 used `read` and `write` only, so many of its reviewers could not list `files/`; results from runs before and after the change do not compare directly.
+
+## F3: one review against Review 1, an independent Review 2 and an adjudicator
+
+`suite-f3.json` and `groups-f3/` (`tools/write-groups-f3.mjs`, from `groups/`) compare one review with an adjudicated pair of reviews. Both arms get the requirements as declared context, the suite's tools and, for a base change, its `tests` command; they differ only in `participants`:
+
+- `baseline`: one review, as the suite's subject.
+- `candidate`: a pipeline. Review 1 is that same review. Review 2 is fresh: it sees the change and the requirements, never Review 1. The adjudicator sees the change, the requirements, and both reviews' responses and `review.md` files, adjudicates them per Review Work's adjudication, and writes the final `review.md`. The adjudicator is the graded stage.
+
+It holds every defective variant (30) and the 15 clean variants the clean audit keeps, with the suite's group IDs, so `groups.json` gives each one's case, class and held-out flag.
+
+Measures:
+
+- **Detection** (the decision): each defective group has a rubric dimension `identified` (the suite's question: the defect's location, expression and effect, supported with file and line), judged by `anthropic/claude-haiku-5-5` at high thinking. The suite's decision is a sign test over the defective cases on that judged measure, candidate against baseline. Clean groups have no judged measure and are left out of the decision.
+- **False rejection**, counted separately on the clean groups: the `not-blocked` and `not-inconclusive` comparisons on the first line of `review.md`. A clean trial is falsely rejected when either fails.
+- The suite's other deterministic checks on `review.md` (only `review.md` written, a judgment line, no Pass and the defective file named on a defective variant, Pass on a clean one). `ran-tests` is left out, because the graded adjudicator need not run the tests itself.
+- Cost and turns per arm (tracked metrics). The candidate arm's usage covers all three stages.
+
+Expected cost per trial: 45 groups × (1 baseline + 3 candidate) = 180 subject runs, then `review --rubric` on the aggregate: 30 defective groups × 2 arms = 60 judge calls. Judging must run before the decision exists, so the suite declares no adaptive trials: no judged value exists while the trials run.
+
+Results are measured by the coordinator in wave 4; nothing here has been run.
 
 ## Measured with
 

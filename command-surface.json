@@ -108,8 +108,8 @@
       "skill": "write-skill"
     },
     {
-      "command": "/evaluate-skill",
-      "skill": "evaluate-skill"
+      "command": "/evaluate-behavior",
+      "skill": "evaluate-behavior"
     }
   ]
 }

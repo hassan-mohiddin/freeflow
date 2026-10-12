@@ -32,13 +32,29 @@ export function currentCycle(branch: readonly any[]): any[] {
   return branch.slice(start);
 }
 
+/**
+ * The entries whose file touches no compaction has listed yet: the current cycle, plus the latest compaction's kept
+ * tail. Pi keeps raw the entries from its `firstKeptEntryId`, which sit before its compaction entry on the branch, and
+ * lists only what it summarized; Freeflow's compactions keep nothing raw.
+ */
+function unlistedEntries(branch: readonly any[]): any[] {
+  let latest = branch.length - 1;
+  while (latest >= 0 && branch[latest]?.type !== "compaction") latest--;
+  if (latest < 0) return [...branch];
+  const keptFrom = branch[latest].firstKeptEntryId
+    ? branch.findIndex((entry, i) => i < latest && entry?.id === branch[latest].firstKeptEntryId)
+    : -1;
+  const tail = keptFrom < 0 ? [] : branch.slice(keptFrom, latest).filter((entry) => entry?.type !== "compaction");
+  return [...tail, ...branch.slice(latest + 1)];
+}
+
 /** The cycle number the next compaction starts. Cycle 1 runs from session start to the first compaction. */
 export const nextCycle = (branch: readonly any[]): number =>
   branch.filter((entry) => entry?.type === "compaction").length + 2;
 
 /**
- * Files successful calls in this cycle read or changed, in first-touched order. Calls a codemode script made count
- * too: Pi records them on the script's result as nested calls.
+ * Files successful calls read or changed since the latest compaction listed them (this cycle, and Pi's kept tail), in
+ * first-touched order. Calls a codemode script made count too: Pi records them on the script's result as nested calls.
  */
 export function cycleFiles(branch: readonly any[]): { read: string[]; changed: string[] } {
   const calls = new Map<string, { name: string; input: any }>();
@@ -47,7 +63,7 @@ export function cycleFiles(branch: readonly any[]): { read: string[]; changed: s
   const touch = (name: string, input: any) => {
     for (const path of touchedPaths(name, input)) (name === "read" ? read : changed).add(path);
   };
-  for (const entry of currentCycle(branch)) {
+  for (const entry of unlistedEntries(branch)) {
     const message = entry?.type === "message" ? entry.message : undefined;
     if (message?.role === "assistant")
       for (const block of message.content ?? [])

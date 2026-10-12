@@ -1,0 +1,24 @@
+{
+  "case": "f7-03",
+  "base_commit": "355956c13b94e40f903db0dd5990ba6008e51a5c",
+  "parent_commit": "9426e7cc3588ad4e9f460f7ec1b5fa4d1a7b0bde",
+  "subject": "refactor(evals): return settled process outcomes",
+  "base_source": "rs-355956c1: the clean variant is copied from it; the seeded variant adds one defect",
+  "review_lens": "security",
+  "variants": {
+    "clean": {
+      "class": null,
+      "description": "The change as committed. No defect is planted."
+    },
+    "seeded": {
+      "class": "logic",
+      "location": "skills/evaluate-skill/scripts/lib/process-outcome.mjs:0",
+      "locator": "result.process.code > 0",
+      "seed": "in failedProcess, the exit check changed from result.process.code !== 0 to result.process.code > 0",
+      "description": "failedProcess decides whether a Pi process counts as failed. The clean check is code !== 0, so a process that ends by signal (code null) is failed. The seed uses code > 0, which is false for null.",
+      "consequence": "A Pi process killed by a signal, with no exit code, is no longer a failed process. Its partial output is graded and recorded as a complete operation.",
+      "proof": "proofs/f7-03/signal.proof.test.mjs"
+    }
+  },
+  "diff_check": "seeded change.diff = the clean change.diff with the seeded file's section replaced by git diff --no-index of parent against the seeded file"
+}

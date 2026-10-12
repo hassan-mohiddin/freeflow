@@ -93,3 +93,24 @@ test("without a trust point the full comparison still decides", async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("a branch-only match does not trust an entry Pi holds on another branch but never wrote", async () => {
+  const { root, manager } = await persisted();
+  try {
+    trustLoadedSession(manager);
+    const parent = manager.getLeafId();
+    // An entry Pi holds in memory but the file lacks (a failed or skipped write), on its own branch.
+    manager.persist = false;
+    const unwritten = manager.appendCustomEntry("test-unpersisted", { lost: true });
+    manager.persist = true;
+    manager.branch(parent);
+    manager.appendMessage(user("two"));
+    assert.equal(await matches(manager), true, "the live branch is on disk");
+    manager.branch(unwritten);
+    // No trust point survives the branch-only match, so the full comparison runs and cannot find the entry's
+    // ancestry on disk: routing blocks instead of trusting it.
+    await assert.rejects(matches(manager), { code: "ancestry_unavailable" });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

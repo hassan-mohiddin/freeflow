@@ -1,0 +1,136 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "rv03-a",
+  "type": "body",
+  "input": {
+    "prompt": "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`\n\nThe requirements the change must meet:\n\n# Requirements: runtime dependencies in the development snapshot\n\n`scripts/freeflow-snapshot.mjs` builds a self-contained development snapshot of one committed Freeflow revision. This change makes the snapshot carry the package's declared runtime dependencies, installed from that revision's committed lockfile.\n\n1. A refresh archives the selected committed revision (HEAD by default) with `git archive`. Uncommitted and ignored files are excluded.\n2. When the snapshot package declares dependencies, the refresh installs the production tree from the revision's committed package-lock.json with npm ci --omit=dev --ignore-scripts --legacy-peer-deps --no-audit --no-fund; no development dependencies are installed.\n3. The refresh runs npm ci with --ignore-scripts, so no lifecycle script (install, preinstall, postinstall, prepare) of an installed dependency runs.\n4. A snapshot package that declares runtime dependencies but has no committed `package-lock.json` fails the refresh with an error that names the lockfile, and publishes nothing.\n5. The package tarball is produced with `npm pack --ignore-scripts`. The packed package must contain every required runtime entrypoint.\n6. Each installed runtime dependency is present under `node_modules` in the published package. Publication fails if a runtime dependency has no version.\n7. Snapshot metadata records `runtimeDependenciesInstalled`, `packageLockSha256` (the SHA-256 of the lockfile bytes), and one `runtimeDependencies` entry per declared dependency with its name, requested spec, installed version, and lockfile integrity when the lockfile has one.\n8. `packageFileCount` counts the files of the packed package. `fileCount` counts the files of the published target, so it is larger than `packageFileCount` when runtime dependencies are installed.\n9. A snapshot package with no runtime dependencies is published without `node_modules`, and its metadata records `runtimeDependenciesInstalled: false` with an empty `runtimeDependencies` list."
+  },
+  "fixture": ".skill-eval/review-suite/fixtures/rs-864df4cc/clean/workspace",
+  "tools": ["read", "write", "ls", "find", "run_command"],
+  "commands": [
+    {
+      "id": "tests",
+      "argv": ["node", "../../../../../../../.skill-eval/review-suite/tools/run-tests.mjs", "rv03-a"],
+      "timeout_ms": 600000
+    }
+  ],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "base": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "3415a8a2f4158e17fe605c5378f18eb4e8c08ed5"
+        }
+      }
+    },
+    "head": {}
+  },
+  "reference": "base",
+  "component": ["subject.source"],
+  "expectations": [
+    {
+      "id": "base-only-review",
+      "variant": "base",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "head-only-review",
+      "variant": "head",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "base-judgment-line",
+      "variant": "base",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "head-judgment-line",
+      "variant": "head",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "base-not-blocked",
+      "variant": "base",
+      "comparison": "not-blocked",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Blocking"
+    },
+    {
+      "id": "head-not-blocked",
+      "variant": "head",
+      "comparison": "not-blocked",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Blocking"
+    },
+    {
+      "id": "base-not-inconclusive",
+      "variant": "base",
+      "comparison": "not-inconclusive",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Inconclusive"
+    },
+    {
+      "id": "head-not-inconclusive",
+      "variant": "head",
+      "comparison": "not-inconclusive",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Inconclusive"
+    },
+    {
+      "id": "base-judged-pass",
+      "variant": "base",
+      "comparison": "judged-pass",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "equals",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "head-judged-pass",
+      "variant": "head",
+      "comparison": "judged-pass",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "equals",
+      "value": "Judgment: Pass"
+    }
+  ],
+  "review_questions": [
+    "Did the review avoid reporting problems that the change, its files and the author's report do not support?",
+    "Did the review keep style or naming preferences out of its findings?"
+  ]
+}

@@ -1,0 +1,357 @@
+# Review, Evaluation and Verification
+
+> **Covers:** `skills/review-work/`, `skills/evaluate-behavior/`, `skills/verify-work/SKILL.md`, `.skill-eval/scripts/gate.mjs`, `.skill-eval/gate.json`, `.skill-eval/gate/`, `scripts/validation/check-eval-definitions.mjs`
+> **Tests:** `.skill-eval/evaluate-behavior/tests/`
+> **Verified at:** `76d2471d` (2026-10-13)
+
+For contributors changing how Freeflow reviews work, evaluates agent behavior, or verifies claims: what each part does, how they depend on each other, why they are shaped this way, and which of their behaviors are deliberate. It also covers the evaluator's code, the evidence it stores, and the contributor gate that measures Freeflow's own changes.
+
+## Purpose
+
+An agent that writes code also claims things about it: that it works, that a review found nothing, that a change to its own guidance made it better. Freeflow keeps those claims honest with three parts, each answering a different question:
+
+- **Verification** (Verify Work): does this claim hold now, at the boundary where it must hold? It runs checks and says what their results establish.
+- **Review** (Review Work): is this work, artifact, report or eval definition correct and complete enough for its use? It judges sufficiency from evidence; it does not create evidence.
+- **Evaluation** (Evaluate Behavior and its evaluator): does a declared change to an agent's setup change how the agent behaves? It runs agents under controlled conditions and preserves what they did.
+
+They share one idea: evidence is classed by what observed it, and no class is promoted into another. A passing test is not a review; a reviewer's verdict is not a measurement; a measured difference on one suite is not readiness.
+
+Deliberately out of scope:
+
+- Review Work does not fix, revise, or accept; findings return to the producing activity's owner.
+- Evaluate Behavior does not change what it evaluates, claim readiness, or choose adoption; the user decides.
+- Model-based evaluation is never part of `npm run check` or CI.
+- No part enforces anything at runtime. They are skills: guidance the agent follows, plus the evaluator script it runs.
+
+## Vocabulary
+
+| Term | Meaning | In code or text |
+| --- | --- | --- |
+| Self-review, independent review, adjudication | The three review roles: the producer checks its own result; a separately selected reviewer in a separate context judges a state it did not produce; the receiver decides what a returned report establishes | Review Work, "Choose The Review Role" |
+| Review kinds | Work, artifact, report or record, eval definition; security risk is a lens any kind can add | `skills/review-work/references/{work,artifact,report-and-record,eval-definition,security-risk-lens}.md` |
+| Judge | Any model whose verdict on another agent's output is used as evidence: an independent reviewer, the evaluator's pairwise reviewer, a rubric judge | `skills/review-work/references/judge-contract.md` |
+| Configuration | Everything that can shape behavior: host and version, host extensions and settings, model and thinking, skills, context files, Freeflow, runtime, shell or container environment, participants | configuration keys in `lib/definitions.mjs` |
+| Group | One behavioral question: one task run in named arms | `kind: "group"`, `schema_version: 2` |
+| Arm | One configuration of the group's task; names match `^[a-z][a-z0-9-]{0,31}$` | `group.arms`, `lib/arms.mjs` |
+| Reference | The arm the others are compared with; `baseline` by default | `group.reference`, `referenceArm()` |
+| Component | The configuration paths that may differ between arms; any other difference is refused | `group.component` |
+| Subject | The agent performing the task in one arm | `<arm>/run.json` |
+| Suite | An ordered set of independent groups, optionally with a decision rule | `kind: "suite"` |
+| Trial | One complete invocation of the selected groups; an aggregate holds several | `<invocation-id>/`, `aggregate.json` |
+| Deterministic grade | Mechanical facts derived from saved evidence after the run | `deterministic-grade.json`, `gradeDeterministic()` |
+| Judged evidence | Rubric judges' answers about one run, stored apart from run and grade | `<arm>/judged-grade.json`, `JUDGED_GRADE` |
+| Advisory review | A pairwise model review of all arms side by side, unlabeled | `semantic-grade.json`, `reviewResult()` |
+| Decision | A rule declared before the run that turns a suite's results into `beats`, `worse` or `no-difference-shown` | `suite.decision`, `lib/decision.mjs` |
+| Claim class | The strongest claim the evidence reached: can do, rate on suite, beats; readiness is never claimed | aggregate `claim`, `decisionClaim()` |
+| pass^k | A check passed in every one of k trials | aggregate per-check counts |
+| Gate | The contributor command that runs the regression suites a change touches, base against head | `npm run eval:gate`, `.skill-eval/scripts/gate.mjs` |
+
+## How It Works
+
+### The three parts and how they connect
+
+```text
+Verify Work ── observes: runs checks, says what results establish
+     │  results are evidence for
+     ▼
+Review Work ── judges sufficiency; owns the judge contract
+     │  judge contract governs every model verdict used as evidence
+     ▼
+Evaluate Behavior ── measures behavior under declared configurations
+     │  measured revision target returns to the component's owner
+     ▼
+Write Skill (skills and other instruction text) / the owner of the component
+```
+
+- Review Work's reviewers use Verify Work's check-result and claim-result semantics when they run a covered check; a reviewer that can recover evidence itself, by running an authorized check or reading the code, judges from what it observed.
+- The evaluator's judges, both the pairwise reviewer and rubric judges, follow Review Work's judge contract. Changing the contract is a Review Work change that affects the evaluator (ADR 0013).
+- Review Work's eval-definition kind reviews cases, suites, fixtures, graders and rubrics before their runs are paid for.
+- Evaluate Behavior measures changes to any component, including Review Work's own wording: the review suite under `.skill-eval/review-suite/` runs Review Work as the subject and scores its reports with rubric judges.
+- Write Skill owns skills and other instruction text an agent acts on (instruction files, prompts, tool descriptions, briefs). Its "Evaluate In One Loop" calls Evaluate Behavior to run the arms of a change; Evaluate Behavior returns one measured revision target and never edits the text itself.
+- The evaluator's command graders are verification inside an evaluation: hidden tests run against the subject's final workspace.
+
+### Review
+
+Review Work is one skill for every kind of review (ADR 0013). Its core holds the Rules, the three roles, classification, the review budget and adjudication; each kind has a reference with its method and lenses.
+
+1. **Before a model reviews**, the deterministic checks that apply run first, and their results go to the reviewer as evidence.
+2. **Classify before calling something a defect**, in order: is the behavior settled (else a Question); is the claim supported (else Needs evidence); must it be fixed for this boundary (Blocking or Non-blocking Issue); otherwise omit it or name an Improvement.
+3. **Independent review** is never automatic. It is selected through Workflow to protect a concrete boundary. The reviewer reports once and stops: Blocking, Inconclusive, Non-blocking or Pass. It edits nothing and adjudicates nothing.
+4. **Adjudication** by the receiver disposes each finding as Accepted, Rejected or Open, from the actual state rather than the reviewer's verdict.
+5. **Budget:** Review 1 broad; Review 2 focused, only when corrections or new evidence need it; Review 3 exceptional and final. Never Review 4. Never repeat a review merely to obtain Pass.
+
+The judge contract (`judge-contract.md`) is binding for every judge use: record identity (model, provider, family, thinking, prompt hash, date, anything loaded that changes what it is sent); independence and the family relation to the producer; what the judge saw and what was withheld; a verdict with evidence, where "unclear" is valid; order and a swap when comparing; the combining rule named before verdicts; calibration status. Rubric judges judge one output alone and blind, so no swap is needed; their combining rule is declared in the definition; calibration belongs to the judge configuration.
+
+### Evaluation: one run, step by step
+
+The evaluator is `skills/evaluate-behavior/scripts/skill-eval.mjs`. `run <suite-or-group>` does this:
+
+1. **Load and validate** (`loadDefinition`). Schema 2 only. Arms are resolved into one effective configuration each (`resolveArms`); a difference outside `component` is refused (`undeclared-difference`), and host name, host version and runtime other than `runtime.environment.literal` may never differ (`unsupported-difference`). `--source <arm>=<commit>` replaces every Git ref an arm declares, for this run only (`applySourceOverrides`).
+2. **Check identity** (`lib/identity.mjs`). Every working-tree input must match `HEAD`; otherwise the run is refused unless `--dry-run`. A declared `host.version` must equal `pi --version`.
+3. **Check tasks** (`enforceReferenceChecks`). A group with a `reference_solution` has it applied to a fixture copy and its graders run, before any model call. An unsolvable or already-solved task is refused unless `--skip-reference-check`.
+4. **Plan.** Print groups, arms, trials, subjects and reusable runs; ask "Start? [y/N]" on a terminal unless `--yes`. Refresh every selected login once (`refreshSelectedLogins`).
+5. **Prepare each subject** (`prepareSubject`, `prepareIsolation`). Its own `HOME`, temp, `XDG_*` and Pi agent directory under `<arm>/isolation/`; only the declared provider's login copied in, mode 0600, and deleted after exit. Host extensions resolved by exact version; source-built extensions and Freeflow built once per distinct commit. Pi starts with `--no-extensions`, `--no-skills`, `--no-context-files` and the rest, plus the evaluator's guard extension.
+6. **Confine** (`pi-guard.mjs`). Only declared tools; `read`, `ls`, `find` and `grep` resolve inside the declared roots; `write` and `edit` stay in the workspace; declared context files are verified by SHA-256. The default `isolated` prompt mode replaces the host's system prompt with one listing the declared tools, skills and context; `host` keeps the host prompt. `bash` exists only behind a declared, probed shell or a container; in a container environment, `bash` and declared commands both run in the subject's container.
+7. **Run** the subject: RPC for body groups (`rpc.mjs`), one-shot JSON mode for description groups. Conversations and pipelines run several participants (`lib/participants.mjs`). Up to `--jobs` subjects at once; budget is reserved before each start and charged after (`lib/budget.mjs`).
+8. **Persist, then grade.** `run.json`, the transcript, events and the workspace are written first. Post-run hooks record metrics (`lib/metrics.mjs`) and run command graders on a copy of the workspace (`lib/grade-command.mjs`). Deterministic grades and comparisons are written after (`gradeDeterministic`, `gradeComparisons`); a malformed expectation becomes `grade-error`, never a changed run.
+9. **Aggregate** trials (`runTrials`, `aggregateGroups`): per-check counts with pass^k, metrics per arm with paired differences, judged answers, and the decision's verdict. With a decision's `trials` schedule, undecided cases get more trials, up to `max`.
+10. **Judge**, as a separate command (`review`), after the evidence exists. `review --rubric` writes judged evidence and rebuilds the aggregate (`rebuildAggregate`).
+
+### Group shapes and modes
+
+The same core runs every mode; a mode is a group shape (`skills/evaluate-behavior/references/eval-modes.md`):
+
+- **Compare arms:** two or more arms, one reference, a declared component. The default.
+- **Noise check:** `component: []` and identical arms; their gap is the floor a real difference must clear.
+- **Measure:** one arm, no component, no comparison; yields a rate on the suite. A decision and a pairwise review refuse it.
+- **Conversation:** `participants.protocol: "conversation"`; a simulated user answers only from its card, until a stop phrase or `max_turns` (1 to 50).
+- **Pipeline:** `participants.protocol: "pipeline"`; ordered stages, each a separate subject that sees only what its `sees` lists (`fresh` stages see nothing earlier). The `graded` stage (last by default) is the arm's run; others are stored as `<arm>.<stage>/`. Arms may differ in `participants` when `component` names it, so one review can be compared with two reviews and an adjudicator.
+- **Coding task:** the fixture is a repository; `command` expectations run hidden tests on a copy of the final workspace with grader `files` from outside the fixture; `reference_solution` proves solvability; declared `commands` give the subject `run_command`.
+- **Judged evaluation:** a `rubric` of dimensions (`yes/no/unknown` or `0-2`, with an optional judge-only `reference`), `judges`, and `combine` (`majority`, `unanimous`, `any`, `mean`).
+
+### Decisions and claims
+
+A decision names a measure (`comparison`, `metric`, `judged` or `score`), two arms (reference first), a direction, and optionally `alpha` (0.05), `min_cases` (10) and a `trials` schedule (`initial`, `step`, `max`). The unit is the case: each arm's values are averaged over its trials, each case counts as better, worse or equal, and an exact two-sided sign test runs over the decided cases (`signTest`). `beats` needs at least `min_cases` decided cases, p below `alpha`, and the split in the declared direction; `worse` is the mirror; anything else is `no-difference-shown`. A case whose difference is under one trial's worth is undecided and, with a schedule, gets more trials. The aggregate's claim records the verdict, split, p and the rule's hash (`ruleSha256`). Without a decision the strongest claim is `rate-on-suite`; "beats" is reported as not supported.
+
+### Judging
+
+- **Pairwise review** (`review --model` or `--configuration`) shows every arm's run side by side under random labels, with paths neutralized, and asks the group's `review_questions`; answers are `yes`, `no` or `unclear`. `--swap` reruns with reversed labels; `--swap-sample <fraction>` does so on a random sample of groups. Stored in `semantic-grade.json`. It is advisory, never calibrated, and not a measure.
+- **Rubric judging** (`review --rubric`) has each declared judge answer every dimension for one run alone, blind to its arm, with evidence; answers are combined by the declared rule, and agreement between judges is reported (Cohen's kappa for two, Krippendorff's alpha for more; `lib/agreement.mjs`). Stored per arm in `judged-grade.json`.
+- **Fencing:** each judge prompt wraps run material between `BEGIN RUN MATERIAL <token>` and `END RUN MATERIAL <token>` with a fresh random token (`fenceMaterial`). Text inside that tries to direct the judge is quoted back as `steering` and does not change answers.
+- **Host setup:** a judge without its own `configuration` inherits the reference arm's host extensions and settings, so it uses the same login and prompt-shaping extension as the subjects. The pairwise reviewer inherits the same way unless `--configuration` is given.
+- **Calibration:** `review --calibrate <labels.json>` pairs judge answers with hand labels and records kappa and observed agreement per judge configuration (model, thinking, extensions, settings, rubric hash, prompt version). Re-judging keeps calibration only while that identity is unchanged; until calibrated, answers carry `calibration not checked`.
+
+### The two layers
+
+- **User layer:** `skills/evaluate-behavior/`, `skills/review-work/`, `skills/verify-work/`. Shipped to users, general, with Node and Pi as the only requirements. Nothing in the skill text names Freeflow or this repository.
+- **Contributor layer:** `.skill-eval/` (suites, the review suite, the gate and its suites, examples, the evaluator's tests) and `scripts/validation/`. It uses the user layer to measure Freeflow's own changes. One evaluator field is contributor sugar inside the user layer: `configuration.freeflow`, which builds Freeflow from a commit with `scripts/freeflow-snapshot.mjs` in the definition root.
+
+### The contributor gate
+
+`npm run eval:gate -- --base <ref>` (`.skill-eval/scripts/gate.mjs`, guide in `.skill-eval/scripts/gate.md`):
+
+1. Lists paths changed since the base (`git diff --name-only <base>...HEAD`) and matches them against `.skill-eval/gate.json` entries' `paths` globs; each entry names one suite.
+2. Prints the plan; `--dry-run-plan` stops there.
+3. Runs each matched suite through the evaluator with `--reuse`, `--pilot 3`, the entry's trials, and `--source` mapping the entry's arms to the base commit and HEAD, so the definitions are never edited. Judged suites get an aggregate `review --rubric`.
+4. Reports each suite with its aggregate ID and cost: PASS (the decision is `beats` or `no-difference-shown`, or without one, no other arm passed or was judged yes less often than the reference), REGRESSED (`worse`, or some arm passed or was judged yes less often), UNDECIDED (the claim reached no class, a comparison has unavailable outcomes, or the budget ran out first), INFRASTRUCTURE (a refusal, a stopped pilot, or failed, invalid or cancelled runs), or MEASURED (a suite of one-arm groups). Exit 1 if any regressed, else 2 on a refusal or infrastructure failure, else 0.
+
+The gate suites under `.skill-eval/gate/` are written by `.skill-eval/gate/tools/write-gate-suites.mjs` from tuning cases only: `review-work` (6 groups, 12 subjects, 6 judge calls), `write-skill` (7 groups, including three that check Write Skill is chosen for an `AGENTS.md` edit and a tool description and not for a spec), `evaluate-behavior` (2 groups). Their default model is `anthropic/claude-haiku-5-5` at thinking `medium`.
+
+### Verification
+
+Verify Work determines what fresh direct evidence establishes about a specific claim at the boundary where it must hold, with references for browser runtime, integration, performance evidence and test design. It is unchanged by the evaluator work. The evaluator shares its observing mechanisms (command graders run tests on a workspace; deterministic checks read final state), but Verify Work does not run the evaluator, and there is no Freeflow skill that drives a running application end to end.
+
+## Decisions
+
+- **One review skill with kinds, and it owns the judge contract.** Review Artifact was merged into Review Work; new review kinds are references, not skills. A judge is a reviewer, so the contract lives with review, and the evaluator is one consumer. Rejected: separate skills per kind (every rule change made twice and drifted); the contract in the evaluator (other judges would restate it). Source: ADR 0013.
+- **No reviewer panels, votes, or mandatory different-family reviewer.** The review research found that combining verdicts mostly trades false alarms for detection, identical-model repeats add nothing, and a different family changes what is flagged without a measured gain. Repeated calls to one configuration count as one vote. Source: ADR 0013.
+- **Skill names keep verb-object form: `review-work`, `evaluate-behavior`, `verify-work`.** Bare verbs collide with host commands (`/review`); role nouns (reviewer, evaluator) collide with Freeflow terms and read as personas. `evaluate-skill` became `evaluate-behavior` because its subject is any declared configuration, not only skills.
+- **Schema 2: the configuration is the subject.** Definitions declare a task plus a configuration with per-arm overlays and a declared component, instead of skill-shaped fields. Optional v1 fields would have made v1 a v2 in disguise. The host adapter is deferred until a second host is real; Pi specifics stay in the Pi modules.
+- **Everything that can change behavior is declared.** Host extensions (such as a subscription's auth extension, which reshapes the system prompt) and host settings are configuration, not command-line flags, and may differ between arms. The evaluator's own Pi defaults (`retry.enabled=false`, `compaction.enabled=false`) are merged under declared settings in one place (`effectivePiSettings`), for subjects, simulated users, judges and reviewers alike. Logins refresh centrally through the installed Pi rather than being refused near expiry.
+- **Canonical evidence comes from commits.** Working-tree inputs that differ from `HEAD` refuse a canonical run; a dry run is allowed but never enters a claim or the reuse index. This makes every result recoverable from a commit.
+- **Judged evidence is its own class.** Judge answers never change run or deterministic grade files; they are stored apart with identity and calibration, and count toward a claim only through a decision declared before the run. Rejected: judges kept purely advisory (rubric scores could not be measures), and judges writing into grades (one class silently promoted into another).
+- **The sign test first, with the case as the unit.** Trials of one case are repeated draws of one question, so they are averaged rather than counted as independent. The sign test is conservative and assumption-light; other methods (such as a paired bootstrap) can be added later.
+- **Deterministic first.** A judge answers only what checks cannot. Command graders, reference solutions and the ten expectation kinds carry as much as they can before any model judges.
+- **No required dependencies; optional ones only when declared.** The user layer runs on Node and Pi. A confined shell needs a declared isolation extension (such as the Gondolin example) and a container needs the `docker` CLI; each is checked only for a group that declares it. When something is missing, the evaluator refuses with what is missing and how to install it, and the skill tells the agent to ask the user before installing. Images are pinned by digest and never pulled.
+- **A shell is allowed only as verified confinement.** Five probes run through the arm's own Pi before any subject: a workspace write that must succeed, and a write outside, a read of the home's parent, a network call and an environment leak that must all fail. Rejected: trusting an isolation's claims without probing.
+- **One-arm measure groups.** Recording a baseline, scoring a benchmark and regression checks need a rate without a comparison; a one-arm group is its own reference and can never support a comparison claim.
+- **Judges inherit the subjects' host setup unless they declare their own.** A judge launched without the subscription's auth extension was refused by the provider as unbilled extra usage; inheritance makes the default correct, and a declared `configuration` lets a judge differ on purpose.
+- **Reuse by content, not by name.** `--reuse` counts an indexed complete run as a trial only when a hash over the task, group inputs, the arm's effective configuration and inputs, model, host version and the evaluator's own code matches. Rejected: reusing by result ID or commit alone, which cannot tell that a grader or the evaluator changed.
+- **The gate is local, not CI.** It calls real models, needs the contributor's credentials, and costs money; `npm run check` stays deterministic. The gate measures each change base against head on a cheap model with reuse, so later autonomy work can call it.
+- **Prefer measuring before adopting guidance.** Review Work's evidence sentence was adopted after it raised clean-change acceptance from 77% to 91% with detection unchanged; a second candidate sentence was dropped because it lost guard bypasses (`.skill-eval/review-suite/results/`).
+
+## Intended Behavior That Looks Wrong
+
+- **`--dry-run` still runs subjects and calls models.** A dry run only allows uncommitted inputs and keeps the result out of claims and the reuse index. To check that definitions load without spending, use `npm run check:eval-definitions`; to check a coding task, use `check-tasks`. Making dry runs skip subjects would remove the only way to try an uncommitted candidate.
+- **An unknown expectation kind passes loading.** Fields are whitelisted for the ten known kinds; an unknown kind fails at grading as `unsupported expectation kind`, recorded as a grade error. Grading errors are evidence about the definition and never rewrite the run.
+- **The gate suites declare no decision.** A sign test needs at least six decided cases in one direction to reach p < 0.05, and the gate's review suite has three judged cases. The gate reads per-comparison and per-dimension counts instead: any arm passing less often than the reference is REGRESSED.
+- **A `fail-to-pass` transition is not "better".** Transitions are factual comparisons from the reference; only a declared decision says which arm is better.
+- **Reuse misses after any evaluator change.** The reuse key includes a hash of the whole `scripts/` directory, so subjects rerun when the evaluator changes even if nothing else did. Reusing across evaluator versions could pair runs graded or isolated differently.
+- **`--trials` must equal a decision's `trials.initial`, and `--variant` is refused for a decision suite.** A decision compares two arms over a schedule declared before the run; overriding either would make the rule something chosen at run time.
+- **A pairwise review is never calibrated.** It compares arms side by side for reading, not measuring; calibration applies to rubric judges.
+- **The isolated prompt replaces the host's system prompt.** It removes ambient instructions so only declared context reaches the subject. When the component is something the host prompt carries, such as Freeflow, the group declares `runtime.prompt: "host"`.
+- **A judge's answers count as one vote however many times it runs.** Repeated calls to one configuration are not independent judges.
+
+## Surface
+
+### Commands
+
+```text
+skill-eval.mjs run <suite-or-group> [--group] [--variant] [--trials] [--max-cost] [--jobs] [--cpu-jobs] [--reuse] [--pilot] [--results] [--yes] [--dry-run] [--skip-reference-check] [--source <arm>=<commit>]
+skill-eval.mjs check-tasks <suite-or-group> [--group]
+skill-eval.mjs view <result-or-aggregate> [--group] [--variant] [--html <file>] [--results]
+skill-eval.mjs review <result-or-aggregate> (--model | --configuration) [--thinking] [--swap | --swap-sample <f>] [--limit name=chars] [--group] [--results]
+skill-eval.mjs review <result-or-aggregate> --rubric [--model] [--configuration]
+skill-eval.mjs review <result-or-aggregate> --calibrate <labels.json>
+```
+
+| Flag | Default | Effect |
+| --- | --- | --- |
+| `--trials <n>` | 1, or `decision.trials.initial` | Independent complete invocations, aggregated |
+| `--max-cost <total>` | none | Stops starting subjects once the host's list-price cost estimate reaches the total; not a subscription limit |
+| `--jobs <n>` | 1 | Subjects at once |
+| `--cpu-jobs <n>` | 2 | Local CPU work at once: command graders, builds, probes |
+| `--results <dir>` | `<root>/.skill-eval/runs` | Where results are written and found |
+| `--reuse` | off | Count matching indexed runs as trials, and index this batch's runs |
+| `--pilot <n>` | off | Run the first n groups once; stop before the batch on a failed, invalid or cancelled arm, a grade error, or a comparison no arm passed; otherwise the pilot is the first trial |
+| `--source <arm>=<sha>` | none | Repeatable; replaces every Git ref the arm declares for this run |
+| `--skip-reference-check` | off | Run despite a failing reference check; recorded in `reference-check.json` |
+| `--limit name=chars` | `response` 8000, `argument` 300, `file` 20000, `materials` 60000 | What a judge sees; cut material is recorded as truncated |
+
+Exit codes: 0 complete; 1 for an incomplete run, a declined plan, a stopped pilot, a review or judge error, a failing `check-tasks`, or an argument error; 2 for an unknown command.
+
+### Contributor scripts
+
+- `npm run eval:gate -- --base <ref> [--dry-run-plan] [--jobs <n>] [--max-cost <total>]`.
+- `npm run check:eval-definitions`: loads every suite and group under `.skill-eval/` with the evaluator's `loadDefinition`, and checks that each declared fixture is a directory inside the repository (resolved from its root, as runs resolve it), inside `npm run check`.
+- `npm run test:skill-eval`: the evaluator's tests, inside `npm test`.
+
+### Definition keys
+
+The binding shape is `skills/evaluate-behavior/references/evaluation-definition-schema.md`. In summary:
+
+- **Suite:** `id`, `groups`, optional `decision` (`measure`, `arms`, `direction`, `method: "sign-test"`, `alpha`, `min_cases`, `trials`).
+- **Group:** `id`, `type` (`description` or `body`), `input` (`prompt` or `turns`), `fixture`, `tools`, `configuration`, `arms`, `expectations`, `review_questions`; optional `component`, `commands`, `revision: "description-only"`, `reference`, `rubric`, `judges`, `combine`, `reference_solution`, `participants`.
+- **Configuration** (group, arm overlay, or a file via `extends`): `host` (`version`, `extensions`, `settings`), `model`, `subject` (skills, target, source, context), `freeflow`, `runtime`, `shell`, `environment`, `participants`.
+- **Expectation kinds:** `skill-read`, `resource-read`, `path`, `changed-paths`, `file-text`, `json`, `response-text`, `context-text`, `tool-call`, `command`.
+
+## State
+
+```text
+<results>/
+  index.jsonl                         reuse index: key, result, group, arm, indexedAt
+  <invocation-id>/                    YYYYMMDDHHMMSS-<8 hex>
+    invocation.json                   selection, jobs, reuse, sources, startedAt
+    summary.json                      state, dryRun, inputs.commit, groups, hostVersion, budget
+    groups/<group>/
+      definition.json                 the resolved group
+      reference-check.json            when reference_solution is declared
+      deterministic-grade.json        checks, comparisons, grade errors
+      group.json                      states, reused runs, artifacts
+      semantic-grade.json             pairwise advisory review
+      review/, review-swap/           the reviewer's prompt, events and output
+      judging/<token>/judge-N/        rubric judges' scratch directories
+      resources/                      snapshots of fixture, skills, context, runtime, Freeflow, extensions
+      confinement/<arm>/confinement.json
+      commands/<expectation>/         command-grader workspace copies
+      <arm>/run.json                  the subject's record, metrics, post-run commands, participants
+      <arm>/transcript.json, final.md, events.jsonl, stderr.log, context-observations.jsonl
+      <arm>/workspace/                the subject's final workspace
+      <arm>/judged-grade.json         judged evidence
+      <arm>/isolation/                HOME, agent dir, tmp; copied logins removed after exit
+      <arm>.<stage>/                  pipeline stages other than the graded one
+  <aggregate-id>/aggregate.json       per-check counts, pass^k, metrics, judged, decision, claim; trials are sibling directories
+```
+
+- Everything is on disk; nothing lives only in memory between commands. `rebuildAggregate` rereads every trial's `summary.json` and grades and rewrites `aggregate.json` (sections, decision and claim), keeping its ID, trials, schedule and budget. It runs after rubric judging and calibration of an aggregate.
+- Calibration is stored in each judged grade's `judges[].calibration`: state, agreement, kappa per dimension, the labels file's path and SHA-256 (the labels are not copied), and when it was checked.
+- Only `--reuse` invocations write `index.jsonl`, and only for complete, graded, non-reused runs outside dry runs.
+
+## Invariants
+
+- Run evidence is written before any grade, and no grade or judge ever modifies `run.json`, the transcript or the workspace. Guarded by `grade-command.test.mjs` (graders run on a copy) and `judge.test.mjs`.
+- Judged evidence appears only in `judged-grade.json` and pairwise answers only in `semantic-grade.json`; neither is in `deterministic-grade.json`. Guarded by `judge.test.mjs`.
+- Rubric questions, rubric references, grader files and review questions never reach the subject. Guarded by `judge.test.mjs` (the rubric never reaches the subject) and `grade-command.test.mjs` (grader files come from the definition directory, not the fixture).
+- Arms differ only in their declared component. Guarded by `arms.test.mjs` and `definitions.test.mjs`.
+- A canonical run has no uncommitted inputs, and a declared host version matches the installed Pi. Guarded by `identity.test.mjs`.
+- Each subject has its own home, temp and agent directories, and only its provider's login, removed after exit. Guarded by `isolation.test.mjs`.
+- A subject's tools stay inside declared roots, and `bash` exists only behind a probed shell or a container. Guarded by `pi-guard.test.mjs`, `shell.test.mjs`, `container.test.mjs`.
+- In a container environment, the subject's `bash` and declared commands run in its container and graders in a fresh one from the same image. Guarded by `container.test.mjs` and `command-tool.test.mjs`.
+- Every model the evaluator launches (subject, simulated user, judge, reviewer) gets the evaluator's Pi defaults under its declared settings. Guarded by `isolation.test.mjs` and `review.test.mjs`.
+- "beats" is reported only from a declared decision. Guarded by `decision.test.mjs` and `trials.test.mjs`.
+- A missing metric is `null`, never 0. Guarded by `metrics.test.mjs`.
+- No more than `--jobs` subjects run at once, and parallel subjects cannot overshoot `--max-cost` by more than the running set. Guarded by `concurrency.test.mjs`.
+- The evaluator never pulls an image and never installs anything. No test can prove an absence; `container.test.mjs` and `shell.test.mjs` check that missing prerequisites refuse.
+- No test calls a real model: tests use `helpers/fake-pi.mjs` and `helpers/fake-docker.mjs`.
+
+## Failure Behavior
+
+| Failure | Result |
+| --- | --- |
+| Undeclared difference between arms, unknown key, schema 1 | Refused at load; nothing runs |
+| Uncommitted inputs | Refused, naming the paths, unless `--dry-run` |
+| Host version or extension version mismatch | Refused before anything starts |
+| Login under 30 minutes and refresh fails | Refused: log in again in Pi |
+| Reference solution fails, or the task is already solved | Refused unless `--skip-reference-check`; `check-tasks` exits 1 |
+| Shell prerequisite missing (such as QEMU for Gondolin) | The arm is invalid; the message names what is missing and says to ask the user before installing |
+| A confinement probe holds when it should fail | The arm is invalid: "is not confined" with the probes |
+| Docker missing, daemon down, image absent | The group is invalid before any subject; an absent image gets a `docker pull` suggestion, never a pull |
+| Subject protocol error, extension error, changed immutable resource | `infrastructure-failed` run |
+| No progress for 30 minutes | `no-progress-watchdog` ends the subject |
+| Budget reached | Remaining subjects are `cancelled` before execution; overshoot is recorded |
+| Malformed expectation or grader failure | `grade-error` evidence; the run stays as it was |
+| Judge exits early, returns non-JSON, or misses a dimension | `judge-error` for that grade; other grades unaffected |
+| Pilot finds a problem | The batch does not start; no aggregate is written |
+| Unreadable trial during `rebuildAggregate` | Refused rather than counted as passing |
+
+## Cost
+
+- Subject runs are the cost. Reduce them in this order: answer from saved evidence; `check-tasks` (no model); `--pilot`; `--reuse` from the first batch so unchanged baselines are reused; a decision's adaptive `trials` schedule; fewer judge calls (deterministic checks first, `--swap-sample`, the smallest view a question needs).
+- `--jobs` saves time, not spend. `--cpu-jobs` keeps local work (graders, builds, probes) within what the machine carries.
+- `--max-cost` bounds the host's list-price estimate. On a subscription the binding limit is the plan's usage, which the evaluator cannot see; the plan line's subject count is the figure to check before a large batch.
+- Each run records `cacheHitRate` and token counts per subject, so prompt-cache behavior is visible per arm.
+- Measured on 2026-10-12: one gate smoke run on Haiku 5.5 with the auth extension ran 6 Review Work subjects base against head and 6 rubric judges; review subjects cost about $0.40 each at list price.
+
+## Code Map
+
+| Path | Owns |
+| --- | --- |
+| `skills/evaluate-behavior/SKILL.md` | The method: Rules, questions, claims, components, modes, reporting |
+| `skills/evaluate-behavior/references/` | `evaluation-definition-schema.md` (binding schema), `eval-modes.md`, `evaluation-design.md`, `execution-and-evidence.md`, `measurement.md`, `defect-suites.md`, `review-and-revision.md` |
+| `skills/evaluate-behavior/scripts/skill-eval.mjs` | CLI: options, `planRun`, `run`, `checkTasks`, `review`, `judge`, `calibrate` |
+| `skills/evaluate-behavior/scripts/pi-guard.mjs`, `pi-command-tool.mjs`, `pi-observer.mjs`, `pi-login-refresh.mjs` | Subject-side Pi extensions: confinement and prompt, `run_command`, context observation, central login refresh |
+| `skills/evaluate-behavior/scripts/lib/` | The evaluator's modules, in the rows below |
+| `lib/definitions.mjs`, `arms.mjs`, `source-override.mjs` | Loading and validation, arms and reference, `--source` |
+| `lib/runner.mjs`, `trials.mjs`, `hooks.mjs`, `queue.mjs`, `budget.mjs`, `reuse.mjs` | Execution, trials and aggregation (`rebuildAggregate`), hook registries, concurrency, budget, reuse index |
+| `lib/pi.mjs`, `rpc.mjs`, `pi-host.mjs`, `model-call.mjs`, `isolation.mjs`, `process.mjs` | Pi-specific execution: arguments, RPC sessions, extension resolution and settings, judge launches, per-subject isolation, process watchdogs |
+| `lib/participants.mjs` | Conversations and pipelines |
+| `lib/sandbox.mjs`, `identity.mjs`, `evidence.mjs` | Snapshots and fingerprints, commit identity and host version, evidence writing |
+| `lib/freeflow.mjs`, `build-source.mjs` | Freeflow and other extensions built from a commit or path |
+| `lib/shell.mjs`, `container.mjs` | Confined shell and its probes; container environments |
+| `lib/reference.mjs` | Reference solutions and `check-tasks` |
+| `lib/grade*.mjs` | Deterministic graders, command graders (TAP, JUnit), comparisons |
+| `lib/review.mjs`, `judge.mjs`, `agreement.mjs` | Pairwise review, rubric judging, combining, fencing, calibration, agreement |
+| `lib/decision.mjs`, `metrics.mjs` | Decision rule and sign test; run metrics |
+| `lib/view.mjs`, `view-html.mjs` | Text views and the self-contained HTML page |
+| `skills/review-work/SKILL.md`, `references/` | Review Rules, roles, classification, budget; per-kind methods, reviewer contract, adjudication, judge contract, security lens |
+| `skills/verify-work/SKILL.md`, `references/` | Claim verification and its evidence references |
+| `.skill-eval/scripts/gate.mjs`, `gate.md`, `.skill-eval/gate.json`, `.skill-eval/gate/` | The contributor gate, its configuration and suites |
+| `.skill-eval/review-suite/` | The review suite: 25 cases, 50 groups (clean, seeded and real defects, a held-out third), the F3 and F7 suites, generators in `tools/`, results in `results/` |
+| `.skill-eval/skill-family/` | Write Skill and Evaluate Behavior guidance cases (14 groups), including W3 description cases for instruction text other than skills |
+| `.skill-eval/examples/gondolin-extension/` | An MIT-licensed example isolation extension for the confined shell, copied from Pi's examples with a minimal guest environment and egress denied |
+| `scripts/validation/check-eval-definitions.mjs` | Loads every `.skill-eval` definition and checks its fixtures exist, inside `npm run check` |
+
+## Tests
+
+`.skill-eval/evaluate-behavior/tests/` has 30 test files, run by `npm run test:skill-eval` with a fake Pi (`helpers/fake-pi.mjs`) and a fake Docker (`helpers/fake-docker.mjs`):
+
+- **Definitions and arms:** `definitions`, `arms`, `measure`, `source-override`, `entrypoint`, `check-eval-definitions`.
+- **Execution and isolation:** `run`, `isolation`, `identity`, `pi-guard`, `rpc`, `command-tool`, `concurrency`, `participants`, `freeflow`, `build-source`.
+- **Environments:** `shell` (probes, refusals, the Gondolin example; the real micro-VM case is skipped without QEMU), `container`.
+- **Grading and tasks:** `grading`, `grade-command`, `reference`.
+- **Measurement:** `trials`, `decision`, `metrics`.
+- **Judging:** `review`, `judge`, `agreement`.
+- **Views and gate:** `view`, `view-html` (snapshot, escaping, no scripts or network), `gate`.
+
+These prove the evaluator's mechanics with stand-in models. They do not prove behavior with real models, which only runs prove.
+
+## Limits
+
+- Pi is the only host (`EVALUATION_HOSTS`); cross-host questions cannot run yet.
+- Containers and the Gondolin shell are tested only with fakes and skipped cases; neither has run on a real engine or VM.
+- A pipeline stage cannot have its own configuration: every stage uses the arm's.
+- Each rubric judge answers all dimensions in one call, so answers to one dimension can influence another.
+- The only decision method is the sign test; there are no confidence intervals on rates.
+- A pinned Pi binary and mocks with record and replay do not exist.
+- The gate suites are small (2 to 7 groups, one trial) and catch clear regressions only. A gate arm whose base commit predates a skill's path is invalid: `skills/evaluate-behavior` does not exist on `main` before the rename.
+- The coverage matrix (`.skill-eval/coverage-matrix.json`) lists every skill as `unverified`; it records design coverage and source hashes, not behavioral evidence.
+- Review Work's detection of a requirement enforced on one path and broken on another is weak on Haiku, and the review suite's known-issue comparison rests on five changes.
+- There is no skill that verifies a feature by driving the running application.
+
+## Changes
+
+- 2026-10-12 to 2026-10-13 (branch `feat/evaluate-behavior`): the evaluator generalised for any eval: named arms with a reference, decisions with adaptive trials, run metrics, rubric judges with agreement and calibration, command graders and reference solutions, components built from source, conversations and pipelines, the confined shell and containers, concurrency, budget, reuse, pilots, `--source`, the HTML view, one-arm measure groups, judge host-setup inheritance, and the contributor gate.
+- 2026-10-12: `evaluate-skill` renamed `evaluate-behavior` (breaking).
+- 2026-10-12: Review Work judges from evidence the reviewer can recover itself; the review suite (25 cases) built and used for F5 and F2.
+- 2026-10-12: Review Artifact merged into Review Work; the judge contract added (ADR 0013).
+- 2026-10-12: schema 2, per-subject isolation, declared host extensions and settings, canonical runs from commits.

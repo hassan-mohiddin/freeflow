@@ -1,0 +1,14 @@
+{
+  "schema_version": 2,
+  "kind": "suite",
+  "id": "gate-write-skill",
+  "groups": [
+    "groups/w1-b-revise-for-tool.json",
+    "groups/w1-d-keep-placement-fix.json",
+    "groups/w2-a-classify-sentences.json",
+    "groups/w2-c-justified-guard.json",
+    "groups/w3-a.json",
+    "groups/w3-c.json",
+    "groups/w3-d.json"
+  ]
+}

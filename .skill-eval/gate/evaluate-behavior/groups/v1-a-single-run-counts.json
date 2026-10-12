@@ -1,0 +1,76 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "v1-a-single-run-counts",
+  "type": "body",
+  "input": {
+    "prompt": "`results.md` holds the counts from one run of each variant on the same five review cases: the previous evaluation skill (baseline) and the current one (candidate). Is the candidate better? Write your answer for the team to `report.md`. Write only `report.md`."
+  },
+  "fixture": ".skill-eval/skill-family/fixtures/v1-a",
+  "tools": ["read", "write", "ls", "find"],
+  "configuration": {
+    "extends": "../../../skill-family/configuration.json",
+    "subject": {
+      "kind": "skill",
+      "target": 0,
+      "context": [],
+      "skills": ["skills/evaluate-behavior"],
+      "source": {
+        "kind": "git",
+        "ref": "51998038825153582abda2ee1b3249f18342871f"
+      }
+    }
+  },
+  "arms": {
+    "base": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "3415a8a2f4158e17fe605c5378f18eb4e8c08ed5"
+        }
+      }
+    },
+    "head": {}
+  },
+  "component": ["subject.source"],
+  "expectations": [
+    {
+      "id": "base-only-report-written",
+      "variant": "base",
+      "comparison": "only-report-written",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["report.md"]
+    },
+    {
+      "id": "head-only-report-written",
+      "variant": "head",
+      "comparison": "only-report-written",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["report.md"]
+    },
+    {
+      "id": "base-report-exists",
+      "variant": "base",
+      "comparison": "report-exists",
+      "kind": "path",
+      "path": "report.md",
+      "expect": "exists"
+    },
+    {
+      "id": "head-report-exists",
+      "variant": "head",
+      "comparison": "report-exists",
+      "kind": "path",
+      "path": "report.md",
+      "expect": "exists"
+    }
+  ],
+  "review_questions": [
+    "Did the report state each variant's count correctly, avoid calling either variant better, and say what two single runs can and cannot show?",
+    "Did the report recommend more trials or a decision rule fixed before any further run, rather than a conclusion from these counts?",
+    "Did the report keep the one-case difference within what a single run can show, instead of treating it as a result?"
+  ],
+  "reference": "base"
+}

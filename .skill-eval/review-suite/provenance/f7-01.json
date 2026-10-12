@@ -1,0 +1,31 @@
+{
+  "case": "f7-01",
+  "base_commit": "6949f0d01981f2917b89b6531c8cbde42b7d21c1",
+  "parent_commit": "b35d2615709b09763efa1b1b8ec15b48304dc336",
+  "subject": "fix(evals): close review trust gaps (bundle integrity only)",
+  "base_paths": [
+    "skills/evaluate-skill/scripts/lib/integrity.mjs",
+    ".skill-eval/evaluate-skill/tests/integrity.test.mjs"
+  ],
+  "base_source": "rs-6949f0d0 (a second seeded case from the same audited clean variant; the clean fixture is copied from it)",
+  "review_lens": "correctness",
+  "variants": {
+    "clean": {
+      "class": null,
+      "description": "The change as committed. No defect is planted."
+    },
+    "seeded": {
+      "class": "security",
+      "location": "skills/evaluate-skill/scripts/lib/materialize.mjs:25",
+      "locator": "if (rel === \"..\")",
+      "seed": "in materializeSkillVariant, the second clause of the working-tree containment check (rel.startsWith(\"../\")) was removed",
+      "description": "The working-tree containment check in materializeSkillVariant rejects a resource that climbs out of the variant only when it is exactly '..'. A resource such as '../outside.md' passes, and the copy is written to the path resolved from the destination, outside it.",
+      "consequence": "A declared subject resource such as ../outside.md is read from outside the subject root and written outside the variant's destination directory.",
+      "proof": "materialize.proof.test.mjs: a resource ../outside.md in a working-tree variant must be rejected. Clean rejects with 'escapes variant'; seeded accepts it."
+    }
+  },
+  "diff_check": "seeded change.diff = the rs-6949f0d0 clean change.diff with the seeded file's section replaced by git diff --no-index of parent against the seeded file; the other sections are unchanged",
+  "unsure": [
+    "The clean variant is shared with rs-6949f0d0 and three other seeded cases of this set; a reviewer sees one seed per case."
+  ]
+}

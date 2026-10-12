@@ -1,0 +1,136 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "rv08-a",
+  "type": "body",
+  "input": {
+    "prompt": "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`\n\nThe requirements the change must meet:\n\n# Requirements\n\nThe change moves two routing transition rules into the state reducer, so every event is refused the same way whichever handler sends it. Before this change, the tool handlers enforced them alone.\n\n1. A delegate event that starts a new assignment (one that does not replace an outstanding assignment) is refused with `recovery_outstanding` while an attached recovery is open.\n2. A delegate event that replaces an outstanding assignment is refused with `unresolved_worker_execution` while a worker execution for that assignment is neither bound to an assistant entry nor interrupted.\n3. Recovery cancellation is refused with `unresolved_worker_execution` while a worker execution started for that recovery is neither bound to an assistant entry nor interrupted.\n4. Closing a unit is refused with `unresolved_worker_execution` while a worker execution started for the attached recovery is neither bound to an assistant entry nor interrupted.\n5. Closing a unit over an outstanding assignment is refused with `unresolved_worker_execution` while a worker execution for that assignment is neither bound to an assistant entry nor interrupted.\n6. Once the blocking execution is interrupted (execution-interrupted), the same cancellation or close is accepted. A legitimate close or cancellation is not blocked after that.\n7. A refused event leaves the state unchanged."
+  },
+  "fixture": ".skill-eval/review-suite/fixtures/rs-f0abfb11/clean/workspace",
+  "tools": ["read", "write", "ls", "find", "run_command"],
+  "commands": [
+    {
+      "id": "tests",
+      "argv": ["node", "../../../../../../../.skill-eval/review-suite/tools/run-tests.mjs", "rv08-a"],
+      "timeout_ms": 600000
+    }
+  ],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "base": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "3415a8a2f4158e17fe605c5378f18eb4e8c08ed5"
+        }
+      }
+    },
+    "head": {}
+  },
+  "reference": "base",
+  "component": ["subject.source"],
+  "expectations": [
+    {
+      "id": "base-only-review",
+      "variant": "base",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "head-only-review",
+      "variant": "head",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "base-judgment-line",
+      "variant": "base",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "head-judgment-line",
+      "variant": "head",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "base-not-blocked",
+      "variant": "base",
+      "comparison": "not-blocked",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Blocking"
+    },
+    {
+      "id": "head-not-blocked",
+      "variant": "head",
+      "comparison": "not-blocked",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Blocking"
+    },
+    {
+      "id": "base-not-inconclusive",
+      "variant": "base",
+      "comparison": "not-inconclusive",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Inconclusive"
+    },
+    {
+      "id": "head-not-inconclusive",
+      "variant": "head",
+      "comparison": "not-inconclusive",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Inconclusive"
+    },
+    {
+      "id": "base-judged-pass",
+      "variant": "base",
+      "comparison": "judged-pass",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "equals",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "head-judged-pass",
+      "variant": "head",
+      "comparison": "judged-pass",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "equals",
+      "value": "Judgment: Pass"
+    }
+  ],
+  "review_questions": [
+    "Did the review avoid reporting problems that the change, its files and the author's report do not support?",
+    "Did the review keep style or naming preferences out of its findings?"
+  ]
+}

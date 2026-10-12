@@ -1,0 +1,5 @@
+$ git add build-manifest.generated.json
+$ skillpack commit -m "Update manifest"
+error: build-manifest.generated.json differs from the output of `make manifest`
+  rule: generated files must match their generator (skillpack 2.4+)
+  result: commit not created

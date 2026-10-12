@@ -1,0 +1,78 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "w1-b-revise-for-tool",
+  "type": "body",
+  "input": {
+    "prompt": "The `manifest-update` skill in `skill/` must match the current tooling in `tool/`. Revise `skill/SKILL.md` to match, and change nothing else. Write only `skill/SKILL.md`."
+  },
+  "fixture": ".skill-eval/skill-family/fixtures/w1-b",
+  "tools": ["read", "write", "ls", "find"],
+  "configuration": {
+    "extends": "../../../skill-family/configuration.json",
+    "subject": {
+      "kind": "skill",
+      "target": 0,
+      "context": [],
+      "skills": ["skills/write-skill"],
+      "source": {
+        "kind": "git",
+        "ref": "51998038825153582abda2ee1b3249f18342871f"
+      }
+    }
+  },
+  "arms": {
+    "base": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "3415a8a2f4158e17fe605c5378f18eb4e8c08ed5"
+        }
+      }
+    },
+    "head": {}
+  },
+  "component": ["subject.source"],
+  "expectations": [
+    {
+      "id": "base-only-skill-changed",
+      "variant": "base",
+      "comparison": "only-skill-changed",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["skill/SKILL.md"]
+    },
+    {
+      "id": "head-only-skill-changed",
+      "variant": "head",
+      "comparison": "only-skill-changed",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["skill/SKILL.md"]
+    },
+    {
+      "id": "base-guard-sentence-removed",
+      "variant": "base",
+      "comparison": "guard-sentence-removed",
+      "kind": "file-text",
+      "path": "skill/SKILL.md",
+      "expect": "not-contains",
+      "value": "Never hand-edit `build-manifest.generated.json`"
+    },
+    {
+      "id": "head-guard-sentence-removed",
+      "variant": "head",
+      "comparison": "guard-sentence-removed",
+      "kind": "file-text",
+      "path": "skill/SKILL.md",
+      "expect": "not-contains",
+      "value": "Never hand-edit `build-manifest.generated.json`"
+    }
+  ],
+  "review_questions": [
+    "Did the revision remove the Rule that the tool now enforces, and keep a guard only for a path the tool does not refuse?",
+    "Did the revision leave the skill's other steps and Rules as they were, apart from what the tooling change requires?",
+    "Does the revised skill still tell the agent to run the tests and report the result?"
+  ],
+  "reference": "base"
+}

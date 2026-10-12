@@ -218,7 +218,7 @@ export class CompactionController {
   ): string {
     const { window, trigger } = thresholds;
     if (this.host.coordinatorUnderProjection())
-      return `${level === "compactNow" ? "Compact now" : "Compaction is due soon"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger}. Your view leaves out what workers did, so do not compact yourself: ${level === "compactNow" ? "now" : "at a safe point (after the current assessment, or before the next assignment)"}, delegate an assignment asking the worker to read the compaction skill, compact with compact_context, and then return with return_work; then continue.`;
+      return `${level === "compactNow" ? "Compact now" : "Compaction is due soon"}: the full history is about ${tokens} of ${window} tokens, and Pi compacts on its own past about ${trigger}${level === "compactNow" ? ", or when a request overflows the model's window" : ""}. Your view leaves out what workers did, so do not compact yourself: ${level === "compactNow" ? "now" : "at a safe point (after the current assessment, or before the next assignment)"}, delegate an assignment asking the worker to read the compaction skill, compact with compact_context, and then return with return_work; then continue.`;
     const index = withList ? this.indexText(ctx) : "";
     const list = index ? `\n\n${index}` : "";
     // A worker's return hands the same history to the Coordinator and the next assignment, so it ends no growth.

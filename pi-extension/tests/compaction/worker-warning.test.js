@@ -92,3 +92,25 @@ test("a worker's compact now asks it to compact before returning; the warning le
   assert.match(notice(limits.warning, "a1"), /with a return, finish it instead/);
   assert.match(notice(limits.warning, undefined), /with a final answer, finish it instead/);
 });
+
+test("a Coordinator under projection is told of Pi's overflow compaction at compact now, like any agent", () => {
+  const limits = thresholds(128_000, 16_384);
+  const notice = (tokens) =>
+    new CompactionController({
+      effective: () => true,
+      routingProfile: () => "coordinator",
+      routingAssignment: () => undefined,
+      background: () => [],
+      notice: (text) => `[notice] ${text}`,
+      coordinatorUnderProjection: () => true,
+      carryEnabled: () => true,
+      nativeRefs: () => true,
+      assignmentResults: () => undefined,
+      resolveRef: () => undefined,
+      summarize: async () => undefined,
+      measure: () => ({ tokens, thresholds: limits }),
+    }).observe({ sessionManager: { getBranch: () => [] } })?.text;
+  assert.match(notice(limits.compactNow), /^\[notice\] Compact now: the full history is about \d+ of 128000 tokens/);
+  assert.match(notice(limits.compactNow), /past about \d+, or when a request overflows the model's window\. Your view/);
+  assert.doesNotMatch(notice(limits.warning), /overflows/, "the warning names only Pi's threshold, as for any agent");
+});

@@ -1,0 +1,76 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "v1-b-judge-order-swap",
+  "type": "body",
+  "input": {
+    "prompt": "A judge answered one question about each of ten review cases. It answered twice: once with the two runs in their original order, and once with the order swapped. The answers are in `judge-answers.md`; the case evidence is in `cases.md`. Write `report.md` on what the answers show about the judge. Write only `report.md`."
+  },
+  "fixture": ".skill-eval/skill-family/fixtures/v1-b",
+  "tools": ["read", "write", "ls", "find"],
+  "configuration": {
+    "extends": "../../../skill-family/configuration.json",
+    "subject": {
+      "kind": "skill",
+      "target": 0,
+      "context": [],
+      "skills": ["skills/evaluate-behavior"],
+      "source": {
+        "kind": "git",
+        "ref": "51998038825153582abda2ee1b3249f18342871f"
+      }
+    }
+  },
+  "arms": {
+    "base": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "3415a8a2f4158e17fe605c5378f18eb4e8c08ed5"
+        }
+      }
+    },
+    "head": {}
+  },
+  "component": ["subject.source"],
+  "expectations": [
+    {
+      "id": "base-only-report-written",
+      "variant": "base",
+      "comparison": "only-report-written",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["report.md"]
+    },
+    {
+      "id": "head-only-report-written",
+      "variant": "head",
+      "comparison": "only-report-written",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["report.md"]
+    },
+    {
+      "id": "base-report-exists",
+      "variant": "base",
+      "comparison": "report-exists",
+      "kind": "path",
+      "path": "report.md",
+      "expect": "exists"
+    },
+    {
+      "id": "head-report-exists",
+      "variant": "head",
+      "comparison": "report-exists",
+      "kind": "path",
+      "path": "report.md",
+      "expect": "exists"
+    }
+  ],
+  "review_questions": [
+    "Did the report give both readings of the case where the two orders disagree, with the counts under each?",
+    "Did the report say what it checked by hand against the evidence, and what calibration the judge would still need?",
+    "Did the report avoid concluding from one disagreement that the judge is either reliable or unreliable?"
+  ],
+  "reference": "base"
+}

@@ -23,7 +23,7 @@ export const WORKFLOW_COMMANDS = [
   { command: "launch-work", skill: "launch-work" },
   { command: "bypass", skill: "bypass" },
 ];
-export const CONTRIBUTOR_COMMANDS = ["setup-freeflow", "write-skill", "evaluate-skill"];
+export const CONTRIBUTOR_COMMANDS = ["setup-freeflow", "write-skill", "evaluate-behavior"];
 /**
  * Every portable skill Freeflow ships, by directory name. The canonical list: validation scripts and tests compare the
  * skills directory, the package and the coverage matrix against it instead of a fixed count.
@@ -37,7 +37,7 @@ export const FREEFLOW_MODEL_SKILL_NAMES = [
   "design-for-depth",
   "diagnose-failure",
   "discuss",
-  "evaluate-skill",
+  "evaluate-behavior",
   "execute-work",
   "finish-branch",
   "handoff",

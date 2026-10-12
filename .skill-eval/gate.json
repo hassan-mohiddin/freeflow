@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "model": { "model": "anthropic/claude-haiku-5-5", "thinking": "medium" },
+  "entries": [
+    {
+      "paths": [
+        "skills/review-work/**",
+        ".skill-eval/review-work/**",
+        ".skill-eval/review-suite/**",
+        ".skill-eval/gate/review-work/**"
+      ],
+      "suite": ".skill-eval/gate/review-work/suite.json",
+      "trials": 1,
+      "arms": { "base": "base", "head": "head" }
+    },
+    {
+      "paths": [
+        "skills/write-skill/**",
+        ".skill-eval/write-skill/**",
+        ".skill-eval/skill-family/**",
+        ".skill-eval/gate/write-skill/**"
+      ],
+      "suite": ".skill-eval/gate/write-skill/suite.json",
+      "trials": 1,
+      "arms": { "base": "base", "head": "head" }
+    },
+    {
+      "paths": [
+        "skills/evaluate-behavior/**",
+        ".skill-eval/evaluate-behavior/**",
+        ".skill-eval/skill-family/**",
+        ".skill-eval/gate/evaluate-behavior/**"
+      ],
+      "suite": ".skill-eval/gate/evaluate-behavior/suite.json",
+      "trials": 1,
+      "arms": { "base": "base", "head": "head" }
+    }
+  ]
+}

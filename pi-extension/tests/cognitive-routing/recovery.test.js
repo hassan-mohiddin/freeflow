@@ -1024,3 +1024,63 @@ test(
     );
   },
 );
+
+test(
+  "a recovery requested during user attention keeps the assessment waiting for that attention",
+  { timeout: 30000 },
+  async () => {
+    let active;
+    await fixture(
+      async (n, body, manager) => {
+        if (n === 1)
+          return [{ name: "delegate_work", args: { operation: "assign", contract: "Return a base report." } }];
+        if (n === 2)
+          return [
+            {
+              name: "return_work",
+              args: { operation: "submit", report: "ATTENTION_FIRST_BASE_71", outcome: "completed" },
+            },
+          ];
+        if (n === 3) {
+          // New user input arrives while the Coordinator assesses: the assessment waits for its attention.
+          await active.steer("ATTENTION_FIRST_INPUT_73");
+          return [{ name: "read", args: { path: "recovery.txt" } }];
+        }
+        if (n === 4) {
+          const state = routingState(manager);
+          assert.equal(state.assessment.view, "suspended");
+          assert.equal(state.assessment.suspensionReason, "user-attention");
+          return [
+            {
+              name: "routing_unit",
+              args: { operation: "recover", request: "Read only recovery.txt.", paths: ["recovery.txt"] },
+            },
+          ];
+        }
+        if (n === 5) {
+          assert.equal(body.model, "gpt-4.1-mini");
+          return [{ name: "read", args: { path: "recovery.txt" } }];
+        }
+        if (n === 6)
+          return [
+            {
+              name: "return_work",
+              args: { operation: "supplement", report: "ATTENTION_FIRST_SUPPLEMENT_79", outcome: "completed" },
+            },
+          ];
+        const state = routingState(manager);
+        assert.equal(state.recoveryId, undefined);
+        assert.equal([...state.recoveries.values()].at(-1).state, "completed");
+        // The recovery answered the Coordinator's evidence question, not the user's input: the assessment still
+        // waits for that attention instead of resuming on its own.
+        assert.equal(state.assessment.view, "suspended");
+        assert.equal(state.assessment.suspensionReason, "user-attention");
+        return [];
+      },
+      true,
+      undefined,
+      true,
+      { onSession: (session) => (active = session) },
+    );
+  },
+);

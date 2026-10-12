@@ -1,0 +1,99 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "w2-c-justified-guard",
+  "type": "body",
+  "input": {
+    "prompt": "The skill in `skill/` repeats two sentences: A, `Never tag before the verification report says Pass.`, and B, `Keep each step short.` For each one, decide whether its repetition should stay as written, and why. Write `guard.md` with two lines. Line 1 starts with `A: justified` or `A: not justified`. Line 2 starts with `B: justified` or `B: not justified`. Each line then gives the reason. Write only `guard.md`."
+  },
+  "fixture": ".skill-eval/skill-family/fixtures/w2-c",
+  "tools": ["read", "write", "ls", "find"],
+  "configuration": {
+    "extends": "../../../skill-family/configuration.json",
+    "subject": {
+      "kind": "skill",
+      "target": 0,
+      "context": [],
+      "skills": ["skills/write-skill"],
+      "source": {
+        "kind": "git",
+        "ref": "51998038825153582abda2ee1b3249f18342871f"
+      }
+    }
+  },
+  "arms": {
+    "base": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "3415a8a2f4158e17fe605c5378f18eb4e8c08ed5"
+        }
+      }
+    },
+    "head": {}
+  },
+  "component": ["subject.source"],
+  "expectations": [
+    {
+      "id": "base-only-guard-written",
+      "variant": "base",
+      "comparison": "only-guard-written",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["guard.md"]
+    },
+    {
+      "id": "head-only-guard-written",
+      "variant": "head",
+      "comparison": "only-guard-written",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["guard.md"]
+    },
+    {
+      "id": "base-line-1-verdict-a",
+      "variant": "base",
+      "comparison": "line-1-verdict-a",
+      "kind": "file-text",
+      "path": "guard.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "A: justified"
+    },
+    {
+      "id": "head-line-1-verdict-a",
+      "variant": "head",
+      "comparison": "line-1-verdict-a",
+      "kind": "file-text",
+      "path": "guard.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "A: justified"
+    },
+    {
+      "id": "base-line-2-verdict-b",
+      "variant": "base",
+      "comparison": "line-2-verdict-b",
+      "kind": "file-text",
+      "path": "guard.md",
+      "line": 2,
+      "expect": "contains",
+      "value": "B: not justified"
+    },
+    {
+      "id": "head-line-2-verdict-b",
+      "variant": "head",
+      "comparison": "line-2-verdict-b",
+      "kind": "file-text",
+      "path": "guard.md",
+      "line": 2,
+      "expect": "contains",
+      "value": "B: not justified"
+    }
+  ],
+  "review_questions": [
+    "Does the reason for A rest on a route or decision point that the other copy of the sentence does not reach?",
+    "Does the reason for B avoid counting emphasis or consistency as a justification for repeating the sentence?"
+  ],
+  "reference": "base"
+}

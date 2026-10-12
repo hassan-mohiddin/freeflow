@@ -1,0 +1,38 @@
+{
+  "audited": "2026-10-12",
+  "method": "Each clean variant was audited against its commit: every requirement traced to the commit's message, diff or tests (over-reaching requirements narrowed to that evidence), checked against the fixture's files (missing changed files added), and searched for genuine issues. A blocking-level issue excludes the clean variant from false-rejection measures; its seeded variant stays in use. Every exclusion below was reproduced independently.",
+  "excluded": {
+    "rs-2c00f6e3": "A precise replaceText edit can rewrite supersededBy (replacePreciseText checks no forbidden field), against the commit's own statement that supersession links cannot be set through precise edits. Pre-existing in the parent; the commit's test covers only set.",
+    "rs-4ab18f5b": "persistedBranchMatches compares only the live branch, then trusts every in-memory entry, so an unwritten entry on another branch passes reconcile() unblocked (requirement 3). Reproduced: the control blocks with ancestry_unavailable, the off-branch case does not.",
+    "rs-6cdbdfcf": "Reads in Pi's kept raw tail drop out of every later session-wide file list after Pi compacts, against the commit's own README ('across any mix of Freeflow and Pi compactions'). Reproduced with Pi 1.0.1's prepareCompaction and the commit's harness. Still on main.",
+    "rs-a0b9cc37": "The semantic step now runs after an objective failure (the parent guarded it), so a legacy single-case run that failed objectively becomes incomplete and makes a second provider request, against the plan's rule that legacy status and exit stay unchanged.",
+    "rs-aaf5e7cb": "Keep-alive lanes are keyed without the credential, so a request recorded on another route is still replayed after a switch to Sign in with ChatGPT during a hold, against requirement 2 as written. Pre-existing mechanism; small harm."
+  },
+  "repaired": {
+    "requirements narrowed to the commit's evidence": [
+      "rs-0b8e9c15",
+      "rs-12575cea",
+      "rs-24c53d4b",
+      "rs-25844ce3",
+      "rs-355956c1",
+      "rs-6949f0d0",
+      "rs-864df4cc",
+      "rs-92d1d78d",
+      "rs-97b149b0",
+      "rs-9849a16c",
+      "rs-c45f16f6",
+      "rs-ccfe0bef",
+      "rs-dcf82fce",
+      "rs-e312562f",
+      "rs-f0abfb11"
+    ],
+    "changed files added to the fixture": {
+      "rs-12575cea": ["skills/evaluate-skill/scripts/lib/plan.mjs"],
+      "rs-6949f0d0": [
+        "skills/evaluate-skill/scripts/lib/materialize.mjs",
+        "skills/evaluate-skill/scripts/lib/publication.mjs"
+      ]
+    }
+  },
+  "acceptance": "For a kept clean variant, Pass and Non-blocking both let the change proceed (Review Work: Non-blocking permits it with explicit deferrals), and several kept changes have small genuine non-blocking issues. A false rejection is Inconclusive or Blocking."
+}
