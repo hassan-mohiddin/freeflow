@@ -49,7 +49,7 @@ A group runs two or more named arms, and one of them, `baseline` unless `referen
 
 For a new skill, baseline has no target.
 
-For a revision of anything, baseline names the exact immutable previous state, such as a commit. If none exists, preserve it before revising (for a skill, through Write Skill).
+For a revision of anything, baseline names the exact immutable previous state, such as a commit. If none exists, preserve it before revising (for a skill or instruction text, through Write Skill).
 
 For a setting, a model or an extension, baseline is the value in use, and candidate is the one proposed.
 
