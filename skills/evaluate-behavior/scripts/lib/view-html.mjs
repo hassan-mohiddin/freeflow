@@ -32,6 +32,8 @@ export async function renderHtml(target, { root = process.cwd() } = {}) {
   if (aggregate !== null) {
     const parts = [
       claimSection(aggregate),
+      decisionBlock(aggregate),
+      ...(Array.isArray(aggregate.groups) ? aggregate.groups : []).map(metricsGroupBlock),
       `<p class="meta">Aggregate ${esc(aggregate.id)} · state ${esc(aggregate.state)} · trials ${aggregate.trials.length}/${esc(aggregate.requestedTrials)}</p>`,
     ];
     for (const trial of aggregate.trials) {
@@ -81,6 +83,8 @@ async function groupSection(resultDirectory, group) {
   for (const arm of storedArms(group, definition)) {
     parts.push(await armSection(groupDirectory, arm, grade));
   }
+  const advisory = await readOptionalJson(path.join(groupDirectory, "semantic-grade.json"));
+  if (advisory !== null) parts.push(advisoryBlock(advisory));
   parts.push("</section>");
   return parts.join("\n");
 }
@@ -180,16 +184,170 @@ function metricsBlock(metrics) {
   return `<h4>Metrics</h4><table><tbody>${rows.join("")}</tbody></table>`;
 }
 
+// The judged-grade.json shape is written by review.mjs (rubric judging) and read by judge.mjs (judgedLines).
 function judgedBlock(judged) {
-  // The judged-grade shape is owned by the judging layer; show answers as rows when they are a list, else the raw record.
-  if (Array.isArray(judged.answers)) {
-    const rows = judged.answers.map((answer) => {
-      const fields = answer !== null && typeof answer === "object" ? Object.entries(answer) : [["answer", answer]];
-      return `<tr>${fields.map(([name, value]) => `<td><span class="muted">${esc(name)}</span> ${esc(compact(value))}</td>`).join("")}</tr>`;
+  const dimensions = Array.isArray(judged.rubric?.dimensions) ? judged.rubric.dimensions : [];
+  const combined = Array.isArray(judged.answers) ? judged.answers : [];
+  const judges = Array.isArray(judged.judges) ? judged.judges : [];
+  const gaps = Array.isArray(judged.contractGaps) ? judged.contractGaps : [];
+  const parts = [
+    `<h4>Judged evidence <span class="muted">(judged, not deterministic grades)</span></h4>`,
+    `<p class="meta">state ${esc(judged.state)} · combine ${esc(judged.combine ?? "majority")} · truncated ${esc(judged.truncated ?? 0)}</p>`,
+    gaps.length === 0
+      ? "<p>Contract gaps: none</p>"
+      : `<p class="fail">Contract gaps: ${gaps.map((gap) => esc(gap)).join("; ")}</p>`,
+  ];
+  for (const dimension of dimensions) {
+    const result = combined.find((entry) => entry.dimension === dimension.id);
+    const rows = judges.map((judge) => {
+      const answer = (judge.answers ?? []).find((entry) => entry.dimension === dimension.id);
+      return `<tr><td>${esc(judgeLabel(judge))}<br><span class="muted">family ${esc(judge.familyRelation ?? "unknown")} · ${esc(judge.state)}</span></td><td>${esc(answer?.answer ?? "-")}</td><td>${esc(answer?.evidence ?? "-")}</td><td>${calibrationCell(judge.calibration, dimension.id)}</td></tr>`;
     });
-    return `<h4>Judged answers</h4><table><tbody>${rows.join("")}</tbody></table>`;
+    const votes = Array.isArray(result?.votes) ? result.votes.map((vote) => esc(vote)).join(", ") : "-";
+    rows.push(
+      `<tr><th>combined</th><td>${esc(result?.answer ?? "-")}</td><td>votes ${votes || "-"}</td><td></td></tr>`,
+    );
+    parts.push(
+      `<h5>${esc(dimension.id)} <span class="muted">${esc(dimension.question ?? "")}</span></h5>`,
+      `<table><thead><tr><th>judge</th><th>answer</th><th>evidence</th><th>calibration</th></tr></thead><tbody>${rows.join("")}</tbody></table>`,
+    );
   }
-  return `<h4>Judged answers</h4>${preBlock(JSON.stringify(judged, null, 2))}`;
+  for (const judge of judges) {
+    for (const error of judge.errors ?? []) parts.push(`<p class="fail">${esc(judgeLabel(judge))}: ${esc(error)}</p>`);
+  }
+  return parts.join("\n");
+}
+
+function judgeLabel(judge) {
+  return `${judge.model ?? "unknown"}${judge.thinking ? ` (${judge.thinking})` : ""}`;
+}
+
+function calibrationCell(calibration, dimensionId) {
+  if (calibration?.state !== "checked") return "not checked";
+  const measured = calibration.dimensions?.[dimensionId];
+  const kappa = measured ? `kappa ${fmt(measured.kappa)} over ${esc(measured.items ?? "-")} item(s)` : "no kappa";
+  return `agreement ${fmt(calibration.agreement)} over ${esc(calibration.runs ?? 0)} labelled run(s); ${kappa}; checked ${esc(calibration.checkedAt ?? "-")}`;
+}
+
+// The advisory pairwise review (semantic-grade.json). Its answers are not canonical evidence.
+function advisoryBlock(review) {
+  const labels = review.labels && typeof review.labels === "object" ? review.labels : {};
+  const names = Object.keys(labels);
+  const arms = names.map((label) => labels[label]);
+  const answers = Array.isArray(review.answers) ? review.answers : [];
+  const rows = answers.map(
+    (answer, index) =>
+      `<tr><td>${index + 1}. ${esc(answer.question ?? "")}</td>${arms.map((arm) => `<td>${esc(answer[arm] ?? "-")}</td>`).join("")}<td>${esc(answer.rationale ?? "")}</td></tr>`,
+  );
+  const parts = [
+    `<section class="advisory"><h3>Advisory pairwise review <span class="muted">(advisory, not canonical evidence)</span></h3>`,
+    `<p class="meta">state ${esc(review.state)} · model ${esc(review.model ?? "unknown")}${review.thinking ? ` (${esc(review.thinking)})` : ""} · judge family ${esc(review.judge?.family ?? "unknown")} · subject ${esc(review.subject?.familyRelation ?? "unknown")}</p>`,
+    `<p class="meta">Labels: ${names.map((label) => `${esc(label)} = ${esc(labels[label])}`).join(", ") || "none"}</p>`,
+    `<table><thead><tr><th>question</th>${arms.map((arm) => `<th>${esc(arm)}</th>`).join("")}<th>rationale</th></tr></thead><tbody>${rows.join("")}</tbody></table>`,
+  ];
+  const agreement = review.swap?.agreement;
+  if (agreement) {
+    const perArm = agreement.arms
+      ? ` · per arm ${Object.entries(agreement.arms)
+          .map(([arm, counts]) => `${esc(arm)} ${esc(counts.agreed)}/${esc(counts.questions)}`)
+          .join(", ")}`
+      : "";
+    parts.push(`<p>Order swap agreed on ${esc(agreement.agreed)}/${esc(agreement.questions)}${perArm}</p>`);
+  } else if (review.swap === undefined) {
+    parts.push(`<p class="missing">Order not swapped.</p>`);
+  }
+  for (const gap of Array.isArray(review.contractGaps) ? review.contractGaps : []) {
+    parts.push(`<p class="fail">Contract gap: ${esc(gap)}</p>`);
+  }
+  for (const error of Array.isArray(review.errors) ? review.errors : []) {
+    parts.push(`<p class="fail">Error: ${esc(error)}</p>`);
+  }
+  parts.push("</section>");
+  return parts.join("\n");
+}
+
+// The aggregate's decision: the rule, the split, the sign test p and the verdict.
+const VERDICT_TEXT = { beats: "beats", worse: "worse", "no-difference-shown": "no difference shown" };
+
+function decisionBlock(aggregate) {
+  const decision = aggregate.decision;
+  if (!decision || typeof decision !== "object" || !decision.rule) return "";
+  const rule = decision.rule;
+  const measure = Object.entries(rule.measure ?? {})
+    .map(([kind, name]) => `${kind} ${name}`)
+    .join(", ");
+  const rows = [
+    ["measure", measure],
+    ["direction", `${rule.direction} is better`],
+    ["arms", `${decision.arm} against ${decision.reference}`],
+    ["method", `${rule.method} (alpha ${fmt(rule.alpha)}, min cases ${rule.min_cases})`],
+    ...(rule.trials ? [["trials", `${rule.trials.initial}..${rule.trials.max} step ${rule.trials.step}`]] : []),
+    ["rule sha256", decision.ruleSha256],
+    ["split (better / worse / ties)", `${decision.better} / ${decision.worse} / ${decision.ties}`],
+    ["decided / excluded", `${decision.decided} / ${decision.excluded}`],
+    ["p (sign test)", Number.isFinite(decision.p) ? String(Number(decision.p.toPrecision(4))) : "-"],
+    ["verdict", VERDICT_TEXT[decision.verdict] ?? decision.verdict],
+    ["claim", `${aggregate.claim?.class ?? "none"}${aggregate.claim?.reason ? ` (${aggregate.claim.reason})` : ""}`],
+  ];
+  const cases = Array.isArray(decision.cases) ? decision.cases : [];
+  const caseRows = cases.map(
+    (entry) =>
+      `<tr><td>${esc(entry.id)}</td><td>${esc(entry.trials ?? "-")}</td><td>${esc(entry.sign ?? "-")}</td><td>${esc(entry.reason ?? "")}</td><td><code>${esc(compact(entry.arms))}</code></td></tr>`,
+  );
+  return [
+    `<section class="decision"><h2>Decision</h2>`,
+    `<table><tbody>${rows.map(([name, value]) => `<tr><th>${esc(name)}</th><td>${esc(value)}</td></tr>`).join("")}</tbody></table>`,
+    `<h4>Cases</h4><table><thead><tr><th>case</th><th>trials</th><th>sign</th><th>reason</th><th>arms</th></tr></thead><tbody>${caseRows.join("")}</tbody></table>`,
+    "</section>",
+  ].join("\n");
+}
+
+// The per-group metrics section of an aggregate: per arm medians, and paired differences against the reference.
+function metricsGroupBlock(group) {
+  const section = group?.metrics;
+  if (!section || typeof section !== "object") return "";
+  const head = `<section class="metrics"><h3>Metrics: ${esc(group.id)}</h3>`;
+  if (typeof section.error === "string") return `${head}<p class="fail">${esc(section.error)}</p></section>`;
+  const arms = Object.entries(section.arms ?? {});
+  const names = [...new Set(arms.flatMap(([, metrics]) => Object.keys(metrics ?? {})))].filter((name) =>
+    arms.some(([, metrics]) => (metrics?.[name]?.count ?? 0) > 0),
+  );
+  const rows = names.map(
+    (name) =>
+      `<tr><td>${esc(name)}</td>${arms
+        .map(([, metrics]) => {
+          const summary = metrics?.[name];
+          return `<td>median ${fmt(summary?.median)} · mean ${fmt(summary?.mean)} · n ${esc(summary?.count ?? 0)}</td>`;
+        })
+        .join("")}</tr>`,
+  );
+  const diffRows = [];
+  for (const [arm, byName] of Object.entries(section.differences ?? {})) {
+    for (const name of names) {
+      const difference = byName?.[name];
+      if (!difference || difference.pairs === 0) continue;
+      diffRows.push(
+        `<tr><td>${esc(name)}</td><td>${esc(arm)} − ${esc(section.reference)}</td><td>mean ${fmt(difference.mean)} · median ${fmt(difference.median)} · pairs ${esc(difference.pairs)}</td></tr>`,
+      );
+    }
+  }
+  const parts = [head];
+  parts.push(
+    `<table><thead><tr><th>metric</th>${arms.map(([arm]) => `<th>${esc(arm)}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`,
+  );
+  if (diffRows.length > 0) {
+    parts.push(
+      `<h4>Paired differences</h4><table><thead><tr><th>metric</th><th>comparison</th><th>difference</th></tr></thead><tbody>${diffRows.join("")}</tbody></table>`,
+    );
+  }
+  parts.push("</section>");
+  return parts.join("\n");
+}
+
+function fmt(value) {
+  if (value === null || value === undefined) return "-";
+  if (typeof value === "number") return Number.isFinite(value) ? String(Number(value.toFixed(3))) : "-";
+  return esc(value);
 }
 
 function claimSection(aggregate) {
@@ -243,6 +401,7 @@ h1 { font-size: 20px; }
 h2 { font-size: 18px; margin: 0 0 8px; }
 h3 { font-size: 16px; margin: 16px 0 6px; }
 h4 { font-size: 14px; margin: 14px 0 4px; }
+h5 { font-size: 14px; margin: 12px 0 4px; }
 section, article { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 16px; }
 .muted, .meta { color: var(--muted); font-size: 13px; }
 .claim { border-top: 0; }

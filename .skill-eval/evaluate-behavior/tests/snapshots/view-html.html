@@ -16,6 +16,7 @@ h1 { font-size: 20px; }
 h2 { font-size: 18px; margin: 0 0 8px; }
 h3 { font-size: 16px; margin: 16px 0 6px; }
 h4 { font-size: 14px; margin: 14px 0 4px; }
+h5 { font-size: 14px; margin: 12px 0 4px; }
 section, article { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 16px; }
 .muted, .meta { color: var(--muted); font-size: 13px; }
 .claim { border-top: 0; }
@@ -53,8 +54,20 @@ Keep it short.</pre>
 <h4>Tool calls</h4><ol><li>turn 1 · <code>write</code> <code>{&quot;path&quot;:&quot;NOTES.md&quot;}</code></li></ol>
 <h4>Deterministic checks</h4><table><thead><tr><th>id</th><th>kind</th><th>state</th><th>expected</th><th>observed</th></tr></thead><tbody><tr><td>candidate-note</td><td>path</td><td class="pass">pass</td><td><code>{&quot;exists&quot;:true}</code></td><td><code>{&quot;exists&quot;:true}</code></td></tr></tbody></table>
 <h4>Metrics</h4><table><tbody><tr><td>turnsUsed</td><td><code>1</code></td></tr><tr><td>editedFiles</td><td><code>1</code></td></tr></tbody></table>
-<h4>Judged answers</h4><table><tbody><tr><td><span class="muted">id</span> found-note</td><td><span class="muted">answer</span> yes</td><td><span class="muted">rationale</span> NOTES.md holds the note</td></tr></tbody></table>
+<h4>Judged evidence <span class="muted">(judged, not deterministic grades)</span></h4>
+<p class="meta">state complete · combine majority · truncated 0</p>
+<p class="fail">Contract gaps: calibration not checked</p>
+<h5>found-note <span class="muted">Is the note present?</span></h5>
+<table><thead><tr><th>judge</th><th>answer</th><th>evidence</th><th>calibration</th></tr></thead><tbody><tr><td>fake/judge<br><span class="muted">family same-provider · complete</span></td><td>yes</td><td>NOTES.md &lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt; holds the note</td><td>agreement 1 over 1 labelled run(s); kappa 1 over 1 item(s); checked 2026-10-12T00:00:00.000Z</td></tr><tr><td>other/judge (high)<br><span class="muted">family different · complete</span></td><td>no</td><td>The file has no note.</td><td>not checked</td></tr><tr><th>combined</th><td>yes</td><td>votes yes, no</td><td></td></tr></tbody></table>
+<p class="fail">other/judge (high): second pass disagreed</p>
 </article>
+<section class="advisory"><h3>Advisory pairwise review <span class="muted">(advisory, not canonical evidence)</span></h3>
+<p class="meta">state complete · model fake/reviewer · judge family fake · subject same-provider</p>
+<p class="meta">Labels: A = baseline, B = candidate</p>
+<table><thead><tr><th>question</th><th>baseline</th><th>candidate</th><th>rationale</th></tr></thead><tbody><tr><td>1. Is the note present?</td><td>no</td><td>yes</td><td>NOTES.md is only in candidate</td></tr></tbody></table>
+<p>Order swap agreed on 1/1 · per arm baseline 1/1, candidate 1/1</p>
+<p class="fail">Contract gap: calibration not checked</p>
+</section>
 </section>
 </main>
 </body>
