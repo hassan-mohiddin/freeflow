@@ -43,3 +43,8 @@ The baseline arm pins the review skills at e09b99d3, before Review Artifact was 
 - The reviewer can read but not run code, so code defects must be found by reading.
 - The fixtures keep real repository paths such as `.skill-eval/...` and `evaluate-skill`, which a reviewer can see. Both arms see the same text.
 - A clean change is assumed sound because it was merged. A review that finds a real problem in it is scored as a false alarm here, so read the transcript before trusting a clean-variant fail.
+- Known faults, found in the first run: `rp03-a` is not clean (73a14c09 lets a line-ending edit through; 3ddc9792 fixed it), and `defect-located` for `rp02-b` and `rp03-b` looks for a function name the reviews do not use. Fix both before the next comparison.
+
+## Results
+
+- [2026-10-12: the Review Work merge](results/2026-10-12-review-work-merge.md): no detectable difference.
