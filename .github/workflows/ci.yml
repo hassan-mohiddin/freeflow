@@ -56,17 +56,7 @@ jobs:
         run: node scripts/validation/check-changelog.mjs
 
       - name: Run deterministic tests
-        run: |
-          npm run test:pi-extension
-          npm run test:host-manifests
-          npm run test:skill-author
-          npm run test:skill-eval
-          npm run test:track-work
-          npm run test:freeflow-snapshot
-          npm run test:release-utils
-          npm run test:release-workflow
-          npm run test:changelog
-          npm run test:docs
+        run: npm test
 
       - name: Verify worktree is clean
         run: test -z "$(git status --porcelain)"

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { inspectCiWorkflow, inspectReleaseWorkflow } from "./check-release-workflow.mjs";
+import { inspectCiWorkflow, inspectReleaseWorkflow, inspectTestScript } from "./check-release-workflow.mjs";
 
 const workflow = readFileSync(new URL("../../.github/workflows/release.yml", import.meta.url), "utf8");
 const ciWorkflow = readFileSync(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
@@ -29,11 +29,20 @@ test("rejects publication before release-note extraction", () => {
 });
 
 test("bounds npm registry propagation verification after publish", () => {
-  assert.match(workflow, /registry_attempts=18/);
+  assert.match(workflow, /registry_attempts=36/);
   assert.match(workflow, /registry_delay_seconds=10/);
   assert.match(workflow, /E404\|404 Not Found/);
   assert.match(workflow, /sleep "\$registry_delay_seconds"/);
   assert.match(workflow, /registry_predicate/);
-  assert.ok(workflow.indexOf('npm publish "$RELEASE_TARBALL"') < workflow.indexOf("registry_attempts=18"));
-  assert.ok(workflow.indexOf("registry_attempts=18") < workflow.indexOf('gh release create "$RELEASE_TAG"'));
+  assert.ok(workflow.indexOf('npm publish "$RELEASE_TARBALL"') < workflow.indexOf("registry_attempts=36"));
+  assert.ok(workflow.indexOf("registry_attempts=36") < workflow.indexOf('gh release create "$RELEASE_TAG"'));
+});
+
+test("npm test runs every test:* suite, so a new suite cannot be left out of CI", () => {
+  const scripts = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).scripts;
+  assert.deepEqual(inspectTestScript(scripts), { errors: [] });
+  const added = { ...scripts, "test:new-thing": "node --test new.test.mjs" };
+  assert.deepEqual(inspectTestScript(added).errors, ["npm test must run test:new-thing."]);
+  const { test: _omitted, ...withoutTest } = scripts;
+  assert.match(inspectTestScript(withoutTest).errors[0], /must define a test script/);
 });

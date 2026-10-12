@@ -42,9 +42,7 @@ Release preparation is an authorized local preparation step, not publication:
 
    ```bash
    npm run check:release-metadata
-   npm run test:docs
-   npm run test:changelog
-   npm run test:release-workflow
+   npm test
    ```
 
 5. Inspect the exact package boundary:
