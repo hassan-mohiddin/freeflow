@@ -151,6 +151,8 @@ Common unavailable states include:
 
 The runtime reports the reason rather than partially enabling routing or silently choosing another model.
 
+Starting Pi with `--model` or `--thinking` counts as your choice of model: routing waits, and the footer reads `freeflow: routing blocked · startup_selection · /freeflow profile auto`, until you run `/freeflow profile auto`. To start with routing on, set the model in Pi's settings instead of on the command line.
+
 ## Configuration
 
 Configure Cognitive Routing in shared `.freeflow/config.json` or personal `.freeflow/local.json`:

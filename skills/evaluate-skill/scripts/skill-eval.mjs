@@ -8,7 +8,7 @@ import { renderResult } from "./lib/view.mjs";
 const OPTIONS = {
   run: ["--group", "--variant", "--trials", "--max-cost"],
   view: ["--group", "--variant"],
-  review: ["--group", "--model", "--thinking"],
+  review: ["--group", "--model", "--thinking", "--extension"],
 };
 const argv = process.argv.slice(2);
 const [command] = argv;
@@ -36,6 +36,7 @@ Run options:
 Review options:
   --model <provider/model>   Required reviewer model
   --thinking <level>         Optional reviewer thinking level
+  --extension <path>         Load this Pi extension in the reviewer (repeatable); all others stay off
 
 Paths:
   Definition paths resolve from the current working directory.
@@ -69,6 +70,7 @@ function parseOperation(values) {
   if (!target) throw new Error(`skill-eval ${command} requires a target`);
   const allowed = OPTIONS[command];
   const parsed = { group: null, variant: null, trials: null, maxCost: null, model: null, thinking: null };
+  const extensions = [];
   const keys = {
     "--group": "group",
     "--variant": "variant",
@@ -82,6 +84,11 @@ function parseOperation(values) {
     const value = options[index + 1];
     if (!allowed.includes(option)) throw new Error(`Unknown option: ${option}`);
     if (!value || value.startsWith("--")) throw new Error(`${option} requires a value`);
+    if (option === "--extension") {
+      extensions.push(value);
+      index += 1;
+      continue;
+    }
     const key = keys[option];
     if (parsed[key] !== null) throw new Error(`${option} may be supplied only once`);
     parsed[key] = value;
@@ -105,6 +112,7 @@ function parseOperation(values) {
     maxCost,
     model: parsed.model,
     thinking: parsed.thinking,
+    extensions,
   };
 }
 
@@ -154,6 +162,7 @@ async function review(operation) {
       signal,
       model: operation.model,
       thinking: operation.thinking,
+      extensions: operation.extensions,
     }),
   );
   for (const group of outcome.groups) {

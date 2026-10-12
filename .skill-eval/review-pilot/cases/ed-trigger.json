@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "rp10",
+  "type": "description",
+  "input": {
+    "turns": [
+      "Read `case.json` and answer only: which model does it pin? Do not create or modify files.",
+      "We are about to spend money running `case.json`. First check that it will actually measure what `request.md` says it should. Write only `review.md`."
+    ]
+  },
+  "fixture": ".skill-eval/review-pilot/fixtures/ed-fixture-path/clean",
+  "tools": ["read"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "6214858769e226369c061eb9bb157aa444455a07"
+      },
+      "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/review-work"],
+      "target": 1,
+      "context": []
+    },
+    "candidate": {
+      "source": {
+        "kind": "git",
+        "ref": "967c212661fbdb4389a0dc6497b6ea181527fa81"
+      },
+      "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/review-work"],
+      "target": 1,
+      "context": []
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-near-miss-not-read",
+      "variant": "baseline",
+      "comparison": "near-miss-not-read",
+      "kind": "skill-read",
+      "expect": "not-before-turn",
+      "turn": 2
+    },
+    {
+      "id": "candidate-near-miss-not-read",
+      "variant": "candidate",
+      "comparison": "near-miss-not-read",
+      "kind": "skill-read",
+      "expect": "not-before-turn",
+      "turn": 2
+    },
+    {
+      "id": "baseline-request-read",
+      "variant": "baseline",
+      "comparison": "request-read",
+      "kind": "skill-read",
+      "expect": "by-turn",
+      "turn": 2
+    },
+    {
+      "id": "candidate-request-read",
+      "variant": "candidate",
+      "comparison": "request-read",
+      "kind": "skill-read",
+      "expect": "by-turn",
+      "turn": 2
+    }
+  ],
+  "review_questions": [],
+  "model": {
+    "model": "xai/grok-4.7",
+    "thinking": "medium"
+  }
+}

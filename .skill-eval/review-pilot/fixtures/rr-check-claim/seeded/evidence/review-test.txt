@@ -1,0 +1,30 @@
+TAP version 13
+# Subtest: review records variant-blind advisory answers without touching canonical grades
+ok 1 - review records variant-blind advisory answers without touching canonical grades
+  type: 'test'
+# Subtest: view shows the advisory review mapped back to variants
+ok 2 - view shows the advisory review mapped back to variants
+  type: 'test'
+# Subtest: malformed reviewer output is preserved as a review error
+ok 3 - malformed reviewer output is preserved as a review error
+  type: 'test'
+# Subtest: review skips groups without questions or complete runs
+ok 4 - review skips groups without questions or complete runs
+  type: 'test'
+# Subtest: review loads only the named extensions and records each one
+ok 5 - review loads only the named extensions and records each one
+  type: 'test'
+# Subtest: review refuses a missing extension before starting the reviewer
+ok 6 - review refuses a missing extension before starting the reviewer
+  type: 'test'
+# Subtest: review requires an explicit reviewer model
+ok 7 - review requires an explicit reviewer model
+  type: 'test'
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0

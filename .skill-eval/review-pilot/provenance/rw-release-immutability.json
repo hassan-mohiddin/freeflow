@@ -13,7 +13,7 @@
   "seed": {
     "description": "In sectionsByTitle, the trailing-newline normalization changed from /\\r?\\n$/ to /\\r?$/. The regex no longer removes the final \\n of a released section, so a section that differs from base only by a missing final newline is reported as edited. This is a realistic regex-edit slip (a dropped escape) and breaks the commit's own test 'ignores a missing terminal newline when comparing released sections'.",
     "location": "scripts/changelog-utils.mjs:47",
-    "locator": "sectionsByTitle"
+    "locator": "\\r?$"
   },
   "seed_verification": {
     "method": "test-fails",
@@ -23,7 +23,19 @@
     "evidence": null
   },
   "groups": {
-    "clean": "rp03-a",
+    "real": "rp03-a",
     "seeded": "rp03-b"
+  },
+  "real_defect": {
+    "description": "The merged change itself (the 'clean' fixture) strips one trailing /\\r?\\n$/ from every released section, so a section whose last line changes from LF to CRLF compares equal. That breaks requirement 2 (a line-ending change must fail). Commit 3ddc9792, the same day, moved the strip to the end of the whole file only.",
+    "location": "scripts/changelog-utils.mjs:47",
+    "locator": "\\r?\\n$",
+    "found_by": "Both arms of the 2026-10-12 pilot, in all three trials, before anyone had noticed it.",
+    "verification": {
+      "method": "direct-call",
+      "command": "releasedSectionsEqual(edited, base) with a heading-only section, and with a last line directly before the next heading, changed from LF to CRLF",
+      "clean_result": "true (treated as unchanged) at 73a14c09",
+      "fixed_result": "false (an edit) at 3ddc9792"
+    }
   }
 }

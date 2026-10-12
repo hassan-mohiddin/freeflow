@@ -1,0 +1,111 @@
+
+> @hassangameryt/freeflow@0.8.0 check
+> npm run typecheck && npm run lint && npm run check:source && npm run check:host-manifests && npm run check:changelog && npm run check:release-workflow && npm run check:docs && npm run format:check && npm run check:release-version && npm run check:commands && npm run check:activation && npm run check:runtime && npm run check:package && npm run check:eval-coverage && npm run check:eval-definitions && npm run check:coverage-matrix && npm run check:skill-routing && npm run check:incident-fixtures
+
+
+> @hassangameryt/freeflow@0.8.0 typecheck
+> tsc -p pi-extension/tsconfig.json --noEmit
+
+
+> @hassangameryt/freeflow@0.8.0 lint
+> eslint pi-extension/src
+
+
+> @hassangameryt/freeflow@0.8.0 check:source
+> node scripts/validation/check-source-files.mjs
+
+Source-file checks passed: 202 JSON, 16 shell, 550 JavaScript files.
+
+> @hassangameryt/freeflow@0.8.0 check:host-manifests
+> node scripts/validation/check-host-manifests.mjs
+
+Host manifest check passed: Agent Plugins 1.0, Gemini, Cursor, Copilot/VS Code, Kiro, OpenCode, and Hermes surfaces share 0.8.0.
+
+> @hassangameryt/freeflow@0.8.0 check:changelog
+> node scripts/validation/check-changelog.mjs --structure
+
+Changelog structure passed: canonical Unreleased categories and bullet entries.
+
+> @hassangameryt/freeflow@0.8.0 check:release-workflow
+> node scripts/validation/check-release-workflow.mjs
+
+CI and release workflow invariants passed.
+
+> @hassangameryt/freeflow@0.8.0 check:docs
+> node scripts/validation/check-docs.mjs
+
+Documentation check passed: 24 current pages and v0.8.0 evidence verified.
+
+> @hassangameryt/freeflow@0.8.0 format:check
+> prettier --check .
+
+Checking formatting...
+All matched files use Prettier code style!
+
+> @hassangameryt/freeflow@0.8.0 check:release-version
+> node scripts/validation/check-release-version.mjs
+
+Release version metadata is consistent: 0.8.0
+
+> @hassangameryt/freeflow@0.8.0 check:commands
+> scripts/validation/audit-command-surface.sh
+
+Command surface audit passed: 18 direct skill calls, 3 developer skill calls, 3 Pi native commands, host-native skill invocation declared.
+
+> @hassangameryt/freeflow@0.8.0 check:activation
+> scripts/validation/check-activation-contract.sh
+
+Activation contract check passed: layered config, prompt fragments, discoverable skills, and host-file preservation are aligned.
+
+> @hassangameryt/freeflow@0.8.0 check:runtime
+> hooks/tests/check-runtime-context-hook.sh
+
+Freeflow runtime context hook skipped: Freeflow core runtime prompt files are missing.
+runtime-context hook checks passed
+
+> @hassangameryt/freeflow@0.8.0 check:package
+> node scripts/validation/check-package.mjs
+
+Package boundary check passed: 240 files inspected.
+
+> @hassangameryt/freeflow@0.8.0 check:eval-coverage
+> node scripts/validation/check-eval-coverage.mjs --strict
+
+24 coverage entries match their skill source.
+
+> @hassangameryt/freeflow@0.8.0 check:eval-definitions
+> node scripts/validation/check-eval-definitions.mjs
+
+72 evaluation definitions load.
+
+> @hassangameryt/freeflow@0.8.0 check:coverage-matrix
+> node .skill-eval/scripts/verify-coverage-matrix.mjs
+
+{
+  "valid": true,
+  "skills": 24
+}
+
+> @hassangameryt/freeflow@0.8.0 check:skill-routing
+> node scripts/validation/check-skill-routing-doc.mjs
+
+Skill routing doc check passed: 24 active rows match declared sibling routes and direct resource dependencies; no retired optional capability packages are classified as active.
+
+> @hassangameryt/freeflow@0.8.0 check:incident-fixtures
+> node .skill-eval/workflow/scripts/verify-incident-fixtures.mjs
+
+{
+  "valid": true,
+  "checks": [
+    "plan defers the registered boundary while treating one oversized helper slice as proof",
+    "rejected replacement mutates empty and accepted canonical state",
+    "manual helper counters pass without registered host dispatch",
+    "cancellation plus corrupt bytes starts forbidden integrity work",
+    "verification mutates the evidence it claims only to inspect",
+    "same-root replaceable trust anchor accepts forged evidence",
+    "sibling adapters repeat the same rejected-state mutation",
+    "fixture and case bytes match frozen provenance and contain no hindsight paths"
+  ]
+}
+
+exit status: 0

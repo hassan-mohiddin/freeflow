@@ -523,7 +523,7 @@ const FALLBACK_INSTRUCTIONS = [
  * pointing at the wrong one sends recovery into another task. The summary names the record when there is one.
  */
 function recoveryText(cycle: number, carried = ""): string {
-  return `Compaction finished; cycle ${cycle} starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on, and verify work the summary calls done instead of redoing it. ${carried}This compaction is done, so do not re-read the compaction skill or its summary format. Then continue the work the compaction interrupted.`;
+  return `Compaction finished; cycle ${cycle} starts here. Recover before you continue: if the summary names a Working Record for this work, recover it as Track Work says; otherwise the summary is your record for this cycle, so re-read its Recovery sources. Reconcile with the live state your next step depends on, and verify work the summary calls done instead of redoing it. ${carried}Skills you read before this point are out of view, even where the summary lists their files: read each one again before you apply its method, the cognitive-routing skill first when routing is on. This compaction is done, so do not re-read the compaction skill or its summary format. Then continue the work the compaction interrupted.`;
 }
 
 /** The agent path: the compaction was the request, and it is done. */

@@ -99,6 +99,18 @@ export class ContextAssembler {
       a?.state === "returned" && recovery?.state !== "reading"
         ? "Worker ordinary task work has ended. Only supported handoff correction is permitted."
         : "",
+      // After a compaction the routing skill may be out of view, and Haiku 5.5 workers then answered as Coordinator
+      // and ended without returning; Coordinator saw only "outstanding" and waited (Task 008 S-005).
+      state.control === "automatic" && a?.state === "outstanding" && worker && state.profile === worker
+        ? `You are ${label(worker)}: carry out A${assignmentNumber} from its delegate_work contract, then hand it back with return_work. Coordinator receives nothing until you return.`
+        : "",
+      state.control === "automatic" && a?.state === "outstanding" && worker && state.profile === "coordinator"
+        ? `${label(worker)}'s run on A${assignmentNumber} ended without return_work, so nothing was handed back. Send it again with delegate_work replace, close the unit, or ask the user.`
+        : "",
+      // Worker calls reach the Coordinator as assistant turns; Haiku 5.5 took them for its own (Task 008 S-005).
+      state.profile === "coordinator" && state.assessment
+        ? "The worker's run appears in your view as assistant turns: those calls are the worker's, as the source provenance after the run says, not yours."
+        : "",
       // Selected bodies are not re-sent with the return; they stay where the worker produced them (Task 004 S-005).
       state.profile === "coordinator" && state.assessment && selection.selected.length
         ? "Selected evidence is already in your view, in place in the worker's run: the source provenance after the run names each selected ref's call (its path or command) and marks it `task evidence`. Recover only evidence the assessment needs that is not there."
@@ -391,6 +403,7 @@ function compactedInAssignment(branch, assignmentId) {
   const freeflow = [...branch].reverse().find((entry) => entry?.type === "compaction")?.details?.freeflow;
   return freeflow && !freeflow.fallback && freeflow.assignment === assignmentId ? freeflow.cycle : undefined;
 }
+const label = (profile) => profile.charAt(0).toUpperCase() + profile.slice(1);
 function workerCompaction(branch) {
   const latest = [...branch].reverse().find((entry) => entry?.type === "compaction");
   const freeflow = latest?.details?.freeflow;
