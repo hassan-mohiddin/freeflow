@@ -49,9 +49,11 @@ The baseline arm pins 62148587, the merge of Review Artifact into Review Work. T
 - The reviewer can read but not run code, so code defects must be found by reading.
 - The fixtures keep real repository paths such as `.skill-eval/...` and `evaluate-skill`, which a reviewer can see. Both arms see the same text.
 - A clean change is assumed sound because it was merged. A review that finds a real problem in it is scored as a false alarm here, so read the transcript before trusting a clean-variant fail.
+- The judgment checks look for `Judgment: Pass` anywhere in `review.md`. A review that quotes that text, as every review of an eval definition does, is misgraded. `rp08` must be read from each review's first line until the evaluator can check one line; its "clean" variant also holds two real measurement flaws (see its results), so a Blocking judgment there is correct.
 - The first run found two faults, now fixed: `rp03-a` was scored as clean though it holds a real defect, and `defect-located` for `rp02-b` and `rp03-b` looked for a function name the reviews do not use. Results before the fix count `rp03-a` as a false alarm in both arms.
 - The advisory review sees each run's response and tool arguments cut to a few hundred characters, and none of the fixture. On these cases it never answered "no" and answered "unclear" for long reviews, so its answers do not show whether a review was right. Run it with `--extension` naming the provider's auth extension when the judge needs one (the Anthropic subscription does, through `@gotgenes/pi-anthropic-auth`).
 
 ## Results
 
 - [2026-10-12: the Review Work merge](results/2026-10-12-review-work-merge.md): no detectable difference.
+- [2026-10-12: judge contract and new review kinds](results/2026-10-12-review-work-specializations.md): no regression; the eval-definition reference finds real definition flaws the baseline passes.
