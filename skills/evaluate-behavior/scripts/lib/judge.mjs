@@ -137,6 +137,14 @@ async function readReference(value, label, group, root, fail) {
   return { path: relative, text, sha256: sha256(text) };
 }
 
+/** The absolute paths of a validated rubric's reference files: run inputs, like the definition file itself. */
+export function rubricFiles(rubric, root) {
+  if (!Array.isArray(rubric)) return [];
+  return rubric
+    .filter((dimension) => typeof dimension.reference?.path === "string")
+    .map((dimension) => path.resolve(root, dimension.reference.path));
+}
+
 /** The normalized rubric of a stored definition, or null when it declares none. */
 export function rubricOf(definition) {
   if (!Array.isArray(definition?.rubric) || definition.rubric.length === 0) return null;

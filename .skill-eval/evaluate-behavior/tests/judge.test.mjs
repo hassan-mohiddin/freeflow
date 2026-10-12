@@ -523,17 +523,19 @@ test("review on an aggregate judges every trial, and the judged aggregator count
 
     assert.equal(result.status, 0, result.stderr);
     assert.equal((result.stdout.match(/: complete/g) ?? []).length, 4, "two arms in each of two trials");
-    assert.match(result.stdout, /Aggregate: (rebuilt|not rebuilt \(rebuildAggregate is not available yet\))/);
+    assert.match(result.stdout, /Aggregate: rebuilt; claim: none/);
     assert.equal((await readLog(path.join(root, "judge.jsonl"))).length, 12);
 
+    // The rebuilt aggregate.json carries the judged section, as a fresh aggregation of its trials gives it.
     const aggregate = await readJson(path.join(aggregatePath, "aggregate.json"));
+    const { judged } = aggregate.groups[0];
     const results = [];
     for (const trial of aggregate.trials) {
       const trialPath = path.join(root, ".skill-eval/runs", trial.id);
       results.push({ id: trial.id, path: trialPath, summary: await readJson(path.join(trialPath, "summary.json")) });
     }
-    const [group] = await aggregateGroups(results);
-    const { judged } = group;
+    const [fresh] = await aggregateGroups(results);
+    assert.deepEqual(JSON.parse(JSON.stringify(fresh.judged)), judged);
     assert.equal(judged.combine, "majority");
     assert.deepEqual(judged.arms.candidate["names-route"], {
       yes: 2,
@@ -563,10 +565,6 @@ test("review on an aggregate judges every trial, and the judged aggregator count
     assert.equal(judged.agreement["names-route"].method, "krippendorff-alpha");
     assert.equal(judged.judges.length, 3);
     assert.deepEqual(judged.contractGaps, ["calibration not checked"]);
-    if (/Aggregate: rebuilt/.test(result.stdout)) {
-      const rebuilt = await readJson(path.join(aggregatePath, "aggregate.json"));
-      assert.deepEqual(rebuilt.groups[0].judged.perTrial, judged.perTrial);
-    }
 
     const lines = judgedAggregateLines(judged);
     assert.ok(
@@ -581,6 +579,94 @@ test("review on an aggregate judges every trial, and the judged aggregator count
       lines.includes("judged\tclarity\tcandidate\t0=0\t1=0\t2=2\tunknown=0\tnot-judged=0\tmean=2"),
       lines.join("\n"),
     );
+  });
+});
+
+test("judging an aggregate rebuilds its decision when the suite's measure is judged", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    await writeJson(path.join(root, "judges.json"), SCRIPTED);
+    // Six cases, each candidate yes and baseline no: 6-0, p = 2/64 < 0.05, so "beats" once judged.
+    const ids = ["case-1", "case-2", "case-3", "case-4", "case-5", "case-6"];
+    for (const id of ids) {
+      await writeJson(
+        path.join(root, `groups/${id}.json`),
+        rubricGroup({ id, judges: [{ model: HAIKU, thinking: "high" }], combine: undefined }),
+      );
+    }
+    const suite = await writeJson(path.join(root, "suites/suite.json"), {
+      schema_version: 2,
+      kind: "suite",
+      id: "judged-cases",
+      groups: ids.map((id) => `../groups/${id}.json`),
+      decision: {
+        measure: { judged: "names-route" },
+        arms: ["baseline", "candidate"],
+        direction: "higher",
+        min_cases: 6,
+      },
+    });
+    const run = cli(root, bin, ["run", suite, "--trials", "2"]);
+    assert.equal(run.status, 0, run.stderr);
+    const aggregateId = run.stdout.match(/^Aggregate: (.+)$/m)[1];
+    const aggregatePath = run.stdout.match(/^Aggregate: .+\nPath: (.+)$/m)[1];
+    const before = await readJson(path.join(aggregatePath, "aggregate.json"));
+    assert.equal(before.decision.verdict, "no-difference-shown");
+    assert.equal(before.decision.excluded, 6, "nothing is judged yet");
+
+    const result = cli(root, bin, ["review", aggregateId, "--rubric"]);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Aggregate: rebuilt/);
+    const after = await readJson(path.join(aggregatePath, "aggregate.json"));
+    assert.deepEqual(
+      after.groups.map((group) => group.judged.arms.candidate["names-route"].passAll),
+      ids.map(() => true),
+    );
+    assert.equal(after.decision.verdict, "beats");
+    assert.equal(after.decision.better, 6);
+    assert.equal(after.decision.p, 2 / 64);
+    assert.equal(after.decision.ruleSha256, before.decision.ruleSha256);
+    // A dry run supports no claim, whatever the decision says.
+    assert.equal(after.claim.class, "none");
+    assert.equal(after.id, before.id);
+  });
+});
+
+test("a rubric reference file is a run input, so the commit check covers it", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    await mkdir(path.join(root, "references"), { recursive: true });
+    await writeFile(path.join(root, "references/route.md"), "The route has three steps.\n");
+    const definition = rubricGroup({
+      rubric: [
+        { id: "follows", question: "Does the run follow the reference?", reference: { path: "references/route.md" } },
+      ],
+      judges: [{ model: HAIKU, thinking: "high" }],
+      combine: undefined,
+    });
+    const file = await writeJson(path.join(root, "groups/judged-route.json"), definition);
+    const loaded = await loadDefinition(file, { root });
+    assert.ok(loaded.files.includes(path.join(root, "references/route.md")), loaded.files.join(", "));
+
+    const git = (args) => {
+      const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+      assert.equal(result.status, 0, result.stderr);
+    };
+    git(["init", "--quiet"]);
+    git(["config", "user.email", "skill-eval@example.test"]);
+    git(["config", "user.name", "Skill Eval"]);
+    git(["add", "--", "."]);
+    git(["commit", "--quiet", "-m", "fixture"]);
+    await writeFile(path.join(root, "references/route.md"), "The route has four steps.\n");
+
+    const refused = spawnSync(process.execPath, [entrypoint, "run", file, "--yes"], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}` },
+    });
+    assert.notEqual(refused.status, 0);
+    assert.match(refused.stderr, /uncommitted inputs: references\/route\.md/);
   });
 });
 

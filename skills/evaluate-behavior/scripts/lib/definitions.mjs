@@ -2,7 +2,8 @@ import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 
 import { ARM_NAME, armNames, DEFAULT_REFERENCE } from "./arms.mjs";
-import { validateJudging } from "./judge.mjs";
+import { validateDecision } from "./decision.mjs";
+import { rubricFiles, validateJudging } from "./judge.mjs";
 
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const EVALUATION_TYPES = new Set(["description", "body"]);
@@ -667,8 +668,8 @@ async function validateGroup(value, definitionPath, root) {
   const internal = {
     ...group,
     configurations: Object.fromEntries(names.map((arm) => [arm, resolved[arm].configuration])),
-    // The files this group was read from, so a run can check they are committed.
-    files: [definitionPath, ...(extendsFile === null ? [] : [extendsFile])],
+    // The files this group was read from, rubric reference files included, so a run can check they are committed.
+    files: [definitionPath, ...(extendsFile === null ? [] : [extendsFile]), ...rubricFiles(group.rubric, root)],
     component,
     variants,
   };
@@ -682,7 +683,13 @@ async function validateGroup(value, definitionPath, root) {
 
 function validateSuite(value, definitionPath) {
   rejectSchema1(value, "suite", definitionPath);
-  const suite = requireExactKeys(value, ["schema_version", "kind", "id", "groups"], [], "suite", definitionPath);
+  const suite = requireExactKeys(
+    value,
+    ["schema_version", "kind", "id", "groups"],
+    ["decision"],
+    "suite",
+    definitionPath,
+  );
   if (suite.schema_version !== 2) fail("unsupported-schema", "suite.schema_version must be 2", definitionPath);
   if (suite.kind !== "suite") fail("invalid-definition", "suite.kind must be suite", definitionPath);
   requireId(suite.id, "suite.id", definitionPath);
@@ -691,6 +698,9 @@ function validateSuite(value, definitionPath) {
     requireSuiteReference(reference, `suite.groups[${index}]`, definitionPath);
   }
   if (groups.length === 0) fail("invalid-definition", "suite.groups must not be empty", definitionPath);
+  if (Object.hasOwn(suite, "decision")) {
+    suite.decision = validateDecision(suite.decision, (message) => fail("invalid-definition", message, definitionPath));
+  }
   return suite;
 }
 

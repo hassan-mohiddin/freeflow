@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Result fixture-result</title>
+<style>
+:root { color-scheme: light dark; --bg: #ffffff; --fg: #1d1f23; --muted: #5c6370; --border: #d8dce3; --code: #f5f6f8; --pass: #1a7f37; --fail: #cf222e; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #0f1115; --fg: #e6e8eb; --muted: #9aa3ad; --border: #2c313a; --code: #171a20; --pass: #3fb950; --fail: #ff7b72; }
+}
+:root[data-theme="dark"] { --bg: #0f1115; --fg: #e6e8eb; --muted: #9aa3ad; --border: #2c313a; --code: #171a20; --pass: #3fb950; --fail: #ff7b72; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 960px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 20px; }
+h2 { font-size: 18px; margin: 0 0 8px; }
+h3 { font-size: 16px; margin: 16px 0 6px; }
+h4 { font-size: 14px; margin: 14px 0 4px; }
+section, article { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 16px; }
+.muted, .meta { color: var(--muted); font-size: 13px; }
+.claim { border-top: 0; }
+pre { background: var(--code); border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; margin: 6px 0; }
+code { font-size: 13px; overflow-wrap: anywhere; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { border-bottom: 1px solid var(--border); padding: 4px 6px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+details { margin: 6px 0; }
+summary { cursor: pointer; font-family: ui-monospace, Menlo, monospace; font-size: 13px; overflow-wrap: anywhere; }
+.pass { color: var(--pass); }
+.fail { color: var(--fail); }
+.missing { color: var(--muted); font-style: italic; }
+</style>
+</head>
+<body>
+<main>
+<p class="meta">Result fixture-result · state complete</p>
+<section class="group"><h2>Group behavior [complete] <span class="muted">type=body</span></h2>
+<h3>Prompt</h3><pre>Add a note.
+Keep it short.</pre>
+<h3>Review questions</h3><ul><li>Is the note present?</li></ul>
+<article class="arm"><h3>baseline <span class="muted">[complete]</span></h3>
+<h4>Final response</h4><pre>No note added.
+</pre>
+<h4>Changed files</h4><p>None.</p>
+<h4>Tool calls</h4><p>None.</p>
+<h4>Deterministic checks</h4><table><thead><tr><th>id</th><th>kind</th><th>state</th><th>expected</th><th>observed</th></tr></thead><tbody><tr><td>baseline-note</td><td>path</td><td class="fail">fail</td><td><code>{&quot;exists&quot;:true}</code></td><td><code>{&quot;exists&quot;:false}</code></td></tr></tbody></table>
+</article>
+<article class="arm"><h3>candidate <span class="muted">[complete]</span></h3>
+<h4>Final response</h4><pre>Added NOTES.md with a short note.
+</pre>
+<h4>Changed files</h4><details><summary>created NOTES.md</summary><pre>Note: keep it short.
+</pre></details>
+<details><summary>deleted old.txt</summary><p class="missing">Deleted; no content.</p></details>
+<h4>Tool calls</h4><ol><li>turn 1 · <code>write</code> <code>{&quot;path&quot;:&quot;NOTES.md&quot;}</code></li></ol>
+<h4>Deterministic checks</h4><table><thead><tr><th>id</th><th>kind</th><th>state</th><th>expected</th><th>observed</th></tr></thead><tbody><tr><td>candidate-note</td><td>path</td><td class="pass">pass</td><td><code>{&quot;exists&quot;:true}</code></td><td><code>{&quot;exists&quot;:true}</code></td></tr></tbody></table>
+<h4>Metrics</h4><table><tbody><tr><td>turnsUsed</td><td><code>1</code></td></tr><tr><td>editedFiles</td><td><code>1</code></td></tr></tbody></table>
+<h4>Judged answers</h4><table><tbody><tr><td><span class="muted">id</span> found-note</td><td><span class="muted">answer</span> yes</td><td><span class="muted">rationale</span> NOTES.md holds the note</td></tr></tbody></table>
+</article>
+</section>
+</main>
+</body>
+</html>

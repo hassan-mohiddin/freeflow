@@ -87,7 +87,7 @@ A rubric asks what deterministic checks cannot. Each run is judged alone, blind 
 
 - `rubric` is a non-empty array of dimensions with unique `id`s (the group ID pattern) and a non-empty `question`. Dimensions are rendered only for judges and never sent to the subject.
 - `answers` is `["yes", "no", "unknown"]` (the default) or `"0-2"`. A judge may always answer `unknown`, and must cite the evidence for every answer.
-- `reference` is optional: inline text, or `{ "path": "<relative path>" }` to a file inside the definition root and outside the fixture, which the subject sees. A file's text and hash are read in when the definition loads, so judging never depends on the working tree.
+- `reference` is optional: inline text, or `{ "path": "<relative path>" }` to a file inside the definition root and outside the fixture, which the subject sees. A file's text and hash are read in when the definition loads, so judging never depends on the working tree, and the file is a run input that must be committed like the definition.
 - `weight` is an optional positive number (default `1`). It is recorded with the dimension for reporting and decision rules.
 - `judges` is optional: one or more `{ model, thinking? }`, each configuration once, because repeated calls to one configuration are one vote. Without `judges`, `review --rubric --model` names the single judge.
 - `combine` names how several judges' answers become one, before any verdict is seen; it is required with more than one judge. Taking yes as 1 and no as 0: `majority` gives the answer more than half the judges gave (otherwise `unknown`); `unanimous` gives the lowest answer, so yes only when every judge says yes; `any` gives the highest, so yes when any judge does; `mean` averages the known answers and needs every dimension to be `"0-2"`. An `unknown` answer makes the result `unknown` whenever it could change it.
@@ -509,7 +509,32 @@ Commands are trusted author input with the evaluator's host permissions, like ex
 }
 ```
 
-A suite has only `schema_version`, `kind`, `id`, and ordered unique `groups`. Group references resolve from the suite directory; their resolved definition paths must remain inside the definition root. Referenced group IDs must also be unique.
+A suite has `schema_version`, `kind`, `id`, ordered unique `groups`, and an optional `decision`. Group references resolve from the suite directory; their resolved definition paths must remain inside the definition root. Referenced group IDs must also be unique.
+
+### Decision
+
+A suite may declare the rule its trials are judged by, before any run. Without one, an aggregate supports only a rate on the suite. A direct group run is one case and never yields "beats".
+
+```json
+"decision": {
+  "measure": { "comparison": "target-read" },
+  "arms": ["baseline", "candidate"],
+  "direction": "higher",
+  "method": "sign-test",
+  "alpha": 0.05,
+  "min_cases": 10,
+  "trials": { "initial": 3, "max": 9, "step": 3 }
+}
+```
+
+- `measure` names exactly one of: `comparison`, a comparison ID from the groups' expectations (a pass counts 1, a fail 0); `metric`, a name in the aggregate's `metrics` section; or `judged`, a dimension ID in its `judged` section. Section values are read from `perTrial` (`true` counts 1, `false` 0, numbers as given). Null and unavailable values are excluded and counted.
+- `arms` names two arms, the reference first; every selected group must have both, and `--variant` is refused.
+- `direction` says whether `higher` or `lower` is better. `measure`, `arms` and `direction` are required.
+- `method` is `sign-test` (default), `alpha` is between 0 and 1 (default 0.05), and `min_cases` is a positive integer (default 10).
+- The unit is the case. Each arm's values over a case's trials are averaged, and the second arm is better, worse or equal. An exact two-sided sign test over the better and worse cases (ties and excluded cases are counted, not tested) gives `beats` only with at least `min_cases` decided cases, p below `alpha`, and the split in the declared direction; the same evidence the other way gives `worse`; anything else is `no-difference-shown`.
+- `trials` is optional. With it, `--trials` may be omitted or must equal `initial`. After `initial` trials, each case whose sign is not yet stable (the arms tie, or differ by less than one trial's worth: the observed range divided by the fewer values) runs up to `step` more trials of that group alone, until `max`. A case with an arm that has no usable value is not extended.
+
+The aggregate records `decision` (the rule with defaults applied, its `ruleSha256`, the split, ties, excluded cases and values, p, the verdict, and each case's per-arm mean and count), `schedule` (each adaptive round's cases and trial count) and, on each added trial, its `round` and `group`. Its `claim` is the verdict reached, with the split, p and rule hash; a dry run's claim class stays `none`.
 
 ## Selection
 

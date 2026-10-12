@@ -5,14 +5,16 @@ import path from "node:path";
 import { createInterface } from "node:readline/promises";
 
 import { loadDefinition, selectDefinition } from "./lib/definitions.mjs";
+import "./lib/metrics.mjs";
 import { runEvaluation } from "./lib/runner.mjs";
 import { calibrateJudges, reviewResult, reviewRubric } from "./lib/review.mjs";
 import { runTrials } from "./lib/trials.mjs";
 import { renderResult } from "./lib/view.mjs";
+import { writeHtml } from "./lib/view-html.mjs";
 
 const OPTIONS = {
   run: ["--group", "--variant", "--trials", "--max-cost", "--yes", "--dry-run"],
-  view: ["--group", "--variant"],
+  view: ["--group", "--variant", "--html"],
   review: [
     "--group",
     "--model",
@@ -107,6 +109,7 @@ function parseOperation(values) {
     configuration: null,
     swapSample: null,
     calibrate: null,
+    html: null,
   };
   let swap = false;
   let rubric = false;
@@ -123,6 +126,7 @@ function parseOperation(values) {
     "--thinking": "thinking",
     "--swap-sample": "swapSample",
     "--calibrate": "calibrate",
+    "--html": "html",
   };
   for (let index = 0; index < options.length; index += 1) {
     const option = options[index];
@@ -188,6 +192,7 @@ function parseOperation(values) {
     model: parsed.model,
     thinking: parsed.thinking,
     configuration: parsed.configuration,
+    html: parsed.html,
     swap,
     swapSample,
     rubric,
@@ -309,7 +314,7 @@ async function review(operation) {
 
 function printAggregate(aggregate) {
   if (aggregate === null) return;
-  process.stdout.write(`Aggregate: ${aggregate.rebuilt ? "rebuilt" : `not rebuilt (${aggregate.reason})`}\n`);
+  process.stdout.write(`Aggregate: rebuilt; claim: ${aggregate.claim ?? "none"}\n`);
 }
 
 async function judge(operation) {
@@ -351,7 +356,13 @@ if (!command || command === "--help" || command === "-h") {
 } else if (Object.hasOwn(OPTIONS, command)) {
   try {
     const operation = parseOperation(argv.slice(1));
-    if (command === "view") {
+    if (command === "view" && operation.html !== null) {
+      const written = await writeHtml(operation.target, operation.html, {
+        root: process.cwd(),
+        selectors: operation.selectors,
+      });
+      process.stdout.write(`Wrote ${written}\n`);
+    } else if (command === "view") {
       process.stdout.write(await renderResult(operation.target, operation.selectors, { root: process.cwd() }));
     } else if (command === "review") {
       await review(operation);

@@ -22,7 +22,7 @@ import {
 import { resolveHostExtensions } from "./pi-host.mjs";
 import { prepareIsolation, removeCopiedCredentials } from "./isolation.mjs";
 import { baseProcessEnvironment, runPiProcess } from "./pi.mjs";
-import * as trialsModule from "./trials.mjs";
+import { rebuildAggregate } from "./trials.mjs";
 import { resolveResult } from "./view.mjs";
 
 const ANSWERS = new Set(["yes", "no", "unclear"]);
@@ -630,14 +630,13 @@ async function targetResults(target, root) {
   return { resultDirectory, aggregateFile, results };
 }
 
-/** Rebuilds an aggregate from its trials, so its sections, `judged` included, reflect the judged grades. */
+/**
+ * Rebuilds an aggregate from its trials, so its sections (`judged` included), decision and claim reflect the
+ * judged grades.
+ */
 async function rebuild(aggregateFile, root) {
-  // TODO(A1): import { rebuildAggregate } from "./trials.mjs" directly once builder-1's A1 is merged.
-  if (typeof trialsModule.rebuildAggregate !== "function") {
-    return { rebuilt: false, reason: "rebuildAggregate is not available yet" };
-  }
-  await trialsModule.rebuildAggregate(aggregateFile, { root });
-  return { rebuilt: true };
+  const rebuilt = await rebuildAggregate(aggregateFile, { root });
+  return { rebuilt: true, claim: rebuilt.claim?.class ?? null };
 }
 
 async function readJsonOrNull(file) {
