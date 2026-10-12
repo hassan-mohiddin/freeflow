@@ -6,7 +6,7 @@
   "input": {
     "prompt": "Agents keep sending SQL strings to our search_tickets tool, and it only takes plain text, so those calls fail. Improve the description text that agents see for that tool so they stop doing it. The current file is in tools/search_tickets.json."
   },
-  "fixture": "fixtures/w3-c",
+  "fixture": ".skill-eval/skill-family/fixtures/w3-c",
   "tools": ["read"],
   "configuration": {
     "extends": "../configuration.json",

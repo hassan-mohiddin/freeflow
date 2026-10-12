@@ -6,7 +6,7 @@
   "input": {
     "prompt": "The repository's AGENTS.md tells you to run the full test suite before every small edit, and that is slowing you down. Revise that part of AGENTS.md so you stop doing it. Leave the rest of the file alone, and show me the new text."
   },
-  "fixture": "fixtures/w3-a",
+  "fixture": ".skill-eval/skill-family/fixtures/w3-a",
   "tools": ["read"],
   "configuration": {
     "extends": "../../../skill-family/configuration.json",
