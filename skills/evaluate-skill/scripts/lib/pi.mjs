@@ -17,6 +17,7 @@ import {
   waitForForcedKill,
   writeStream,
 } from "./process.mjs";
+import { prepareIsolation } from "./isolation.mjs";
 import { runRpcBodySession, runRpcDescriptionSession } from "./rpc.mjs";
 import {
   fingerprintDirectory,
@@ -164,6 +165,7 @@ function subjectRun({ group, variant }, subject, observation) {
       contextDelivery: subject.environment.contextDelivery,
       targetPath: subject.environment.targetPath,
     },
+    isolation: subject.isolation,
     contextObservationArtifact: observation.contextObservationArtifact ?? null,
     response: observation.response,
     transcript: observation.transcript,
@@ -274,6 +276,7 @@ async function prepareSubject({ group, variant, root, variantDirectory, fixture:
   let environment;
   let fixture;
   let materializedRuntime;
+  let isolation;
   try {
     environment = await materializeEnvironment({
       environment: group.variants[variant],
@@ -282,6 +285,7 @@ async function prepareSubject({ group, variant, root, variantDirectory, fixture:
     });
     materializedRuntime = await materializeRuntime({ runtime, variantDirectory });
     fixture = await materializeFixture({ fixture: fixtureSnapshot, workspace });
+    isolation = await prepareIsolation(variantDirectory, group.model?.model ?? null);
   } catch (error) {
     if (error instanceof VariantSetupError) throw error;
     throw new VariantSetupError(error instanceof Error ? error.message : String(error));
@@ -312,15 +316,20 @@ async function prepareSubject({ group, variant, root, variantDirectory, fixture:
     eventsFile: path.join(variantDirectory, "events.jsonl"),
     stderrFile: path.join(variantDirectory, "stderr.log"),
     startedAt: new Date().toISOString(),
-    processEnvironment: createProcessEnvironment({
-      runtime: materializedRuntime,
-      group,
-      workspace,
-      allowedRoots,
-      contextManifestPath: environment.contextDelivery.manifestPath,
-      contextObservationPath,
-      requiresContextObservation,
-    }),
+    isolation: isolation.evidence,
+    processEnvironment: {
+      ...createProcessEnvironment({
+        runtime: materializedRuntime,
+        group,
+        workspace,
+        allowedRoots,
+        contextManifestPath: environment.contextDelivery.manifestPath,
+        contextObservationPath,
+        requiresContextObservation,
+      }),
+      // Last, so nothing inherited or declared can point the subject back at the parent's home or Pi settings.
+      ...isolation.environment,
+    },
   };
 }
 

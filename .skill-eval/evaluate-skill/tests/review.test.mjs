@@ -123,7 +123,12 @@ function review(root, bin, args, output) {
   return spawnSync(process.execPath, [entrypoint, "review", RESULT_ID, ...args], {
     cwd: root,
     encoding: "utf8",
-    env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`, FAKE_SHOULD_NOT_LEAK: "1" },
+    env: {
+      ...process.env,
+      PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+      FAKE_SHOULD_NOT_LEAK: "1",
+      SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
+    },
   });
 }
 
@@ -194,6 +199,8 @@ test("view shows the advisory review mapped back to variants", async () => {
       ),
       viewed.stdout,
     );
+    assert.ok(viewed.stdout.includes("judge\tcontract gap: order not swapped"), viewed.stdout);
+    assert.ok(viewed.stdout.includes("judge\tfamily=unknown"), viewed.stdout);
   });
 });
 
@@ -281,6 +288,94 @@ test("review refuses a missing extension before starting the reviewer", async ()
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /Extension not found: .*missing/);
     await assert.rejects(readFile(path.join(root, "review.jsonl")), { code: "ENOENT" });
+  });
+});
+
+async function writeWorkspaceResult(root) {
+  const { groupDirectory } = await writeResult(root);
+  const long = `# Plan\n\n${"Step: verify the rollback before shipping. ".repeat(20)}\nEND-OF-PLAN\n`;
+  for (const variant of ["baseline", "candidate"]) {
+    const workspace = path.join(groupDirectory, variant, "workspace");
+    await mkdir(workspace, { recursive: true });
+    await writeFile(path.join(workspace, "plan.md"), `${variant === "candidate" ? long : "Ship now.\n"}`);
+    const run = bodyRun(variant, `Wrote ${path.join(workspace, "plan.md")}.`, ["plan.md"]);
+    run.workspace = workspace;
+    run.model = { declared: { model: "fake/subject" }, observed: { provider: "fake", model: "subject" } };
+    run.toolActivity = [
+      { toolName: "write", args: { path: path.join(workspace, "plan.md") }, completed: true, isError: false },
+      // A blocked read outside the sandbox names a repository path that is not under the run.
+      { toolName: "read", args: { path: path.join(root, "src/secret.mjs") }, completed: true, isError: true },
+    ];
+    await writeJson(path.join(groupDirectory, variant, "run.json"), run);
+  }
+  const fixture = path.join(groupDirectory, "resources/fixture");
+  await mkdir(fixture, { recursive: true });
+  await writeFile(path.join(fixture, "requirements.md"), "Requirement: name the rollback step. FIXTURE-MARK\n");
+  return { groupDirectory, long };
+}
+
+test("the judge sees written files in full, the fixture, and no run paths or arm names", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installReviewerPi(root);
+    await writeWorkspaceResult(root);
+    const output = JSON.stringify({ answers: [{ question: 1, A: "yes", B: "no", rationale: "A names rollback." }] });
+
+    const result = review(root, bin, ["--model", "reviewer/model"], output);
+
+    assert.equal(result.status, 0, result.stderr);
+    const [call] = (await readFile(path.join(root, "review.jsonl"), "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.ok(call.prompt.includes("END-OF-PLAN"), "the full written file reaches the judge");
+    assert.ok(call.prompt.includes("FIXTURE-MARK"), "the task materials reach the judge");
+    assert.ok(!call.prompt.includes(root), "no absolute run path reaches the judge");
+    assert.doesNotMatch(call.prompt, /baseline|candidate/i);
+  });
+});
+
+test("the judge's identity, family relation and contract gaps are recorded", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installReviewerPi(root);
+    const { groupDirectory } = await writeWorkspaceResult(root);
+    const output = JSON.stringify({ answers: [{ question: 1, A: "yes", B: "no", rationale: "A names rollback." }] });
+
+    assert.equal(review(root, bin, ["--model", "reviewer/model", "--thinking", "low"], output).status, 0);
+
+    const semantic = JSON.parse(await readFile(path.join(groupDirectory, "semantic-grade.json"), "utf8"));
+    const { isolation, ...identity } = semantic.judge;
+    assert.deepEqual(identity, {
+      model: "reviewer/model",
+      provider: "reviewer",
+      family: "reviewer",
+      thinking: "low",
+      extensions: [],
+    });
+    // The judge runs isolated too; no login is stored for this fake provider, so none is copied.
+    assert.equal(isolation.provider, "reviewer");
+    assert.deepEqual(isolation.credentials, []);
+    assert.ok(isolation.root.startsWith(groupDirectory));
+    assert.deepEqual(semantic.subject, { providers: ["fake"], familyRelation: "different" });
+    assert.deepEqual(semantic.contractGaps, ["order not swapped", "calibration not checked"]);
+  });
+});
+
+test("--swap reruns the judge with the order reversed and reports agreement", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installReviewerPi(root);
+    const { groupDirectory } = await writeWorkspaceResult(root);
+    // The fake answers A=yes, B=no both times, so the verdict follows the position, not the run.
+    const output = JSON.stringify({ answers: [{ question: 1, A: "yes", B: "no", rationale: "A is first." }] });
+
+    const result = review(root, bin, ["--model", "reviewer/model", "--swap"], output);
+
+    assert.equal(result.status, 0, result.stderr);
+    const calls = (await readFile(path.join(root, "review.jsonl"), "utf8")).trim().split("\n");
+    assert.equal(calls.length, 2);
+    const semantic = JSON.parse(await readFile(path.join(groupDirectory, "semantic-grade.json"), "utf8"));
+    assert.deepEqual(semantic.swap.labels, { A: semantic.labels.B, B: semantic.labels.A });
+    assert.deepEqual(semantic.swap.agreement, { agreed: 0, questions: 1 });
+    assert.deepEqual(semantic.contractGaps, ["calibration not checked"]);
   });
 });
 

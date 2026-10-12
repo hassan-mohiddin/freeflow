@@ -300,11 +300,13 @@ Without `turn`, response checks use the final response and workspace checks use 
 | `resource-read` | `resource`, optional `index`, `path`, optional body `turn` | `read`, `not-read` |
 | `path` | workspace `path`, optional body `turn` | `exists`, `absent` |
 | `changed-paths` | unique workspace `paths`, optional body `turn` | `equals`, `excludes` |
-| `file-text` | workspace `path`, string `value`, optional body `turn` | `contains`, `not-contains`, `equals` |
+| `file-text` | workspace `path`, string `value`, optional body `turn`, optional `line` | `contains`, `not-contains`, `equals` |
 | `json` | workspace `path`, optional body `turn`, conditional `pointer` and `value` | `available`, `missing`, `valid`, `malformed`, `field-present`, `field-absent`, `field-equals` |
 | `response-text` | string `value`, optional body `turn` | `contains`, `not-contains`, `equals` |
 | `tool-call` | string `tool`, optional body `turn`, optional `argumentContains`/`argumentNotContains` arrays | `called`, `succeeded`, `failed`, `not-called` |
 | `context-text` | string `value`, optional `surface` (`system-prompt` or `provider-context`), optional `request`, optional body `turn` | `contains`, `not-contains`, `equals` |
+
+With `line` (a positive integer, 1-based), a `file-text` expectation compares only that line, without its line ending. A line the file does not have fails every expectation, including `not-contains`, so an empty file cannot pass by having nothing to read. Use it to check one line, such as a review's first-line judgment, when the rest of the file may quote the same text.
 
 For `tool-call` with `expect: "not-called"`, omitted argument filters require zero calls to the named tool. Supplied filters scope the absence check to calls matching those argument predicates.
 

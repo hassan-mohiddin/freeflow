@@ -8,7 +8,7 @@ import { renderResult } from "./lib/view.mjs";
 const OPTIONS = {
   run: ["--group", "--variant", "--trials", "--max-cost"],
   view: ["--group", "--variant"],
-  review: ["--group", "--model", "--thinking", "--extension"],
+  review: ["--group", "--model", "--thinking", "--extension", "--swap"],
 };
 const argv = process.argv.slice(2);
 const [command] = argv;
@@ -37,6 +37,7 @@ Review options:
   --model <provider/model>   Required reviewer model
   --thinking <level>         Optional reviewer thinking level
   --extension <path>         Load this Pi extension in the reviewer (repeatable); all others stay off
+  --swap                     Review again with Run A and Run B swapped, and record agreement
 
 Paths:
   Definition paths resolve from the current working directory.
@@ -71,6 +72,7 @@ function parseOperation(values) {
   const allowed = OPTIONS[command];
   const parsed = { group: null, variant: null, trials: null, maxCost: null, model: null, thinking: null };
   const extensions = [];
+  let swap = false;
   const keys = {
     "--group": "group",
     "--variant": "variant",
@@ -83,6 +85,10 @@ function parseOperation(values) {
     const option = options[index];
     const value = options[index + 1];
     if (!allowed.includes(option)) throw new Error(`Unknown option: ${option}`);
+    if (option === "--swap") {
+      swap = true;
+      continue;
+    }
     if (!value || value.startsWith("--")) throw new Error(`${option} requires a value`);
     if (option === "--extension") {
       extensions.push(value);
@@ -113,6 +119,7 @@ function parseOperation(values) {
     model: parsed.model,
     thinking: parsed.thinking,
     extensions,
+    swap,
   };
 }
 
@@ -163,6 +170,7 @@ async function review(operation) {
       model: operation.model,
       thinking: operation.thinking,
       extensions: operation.extensions,
+      swap: operation.swap,
     }),
   );
   for (const group of outcome.groups) {

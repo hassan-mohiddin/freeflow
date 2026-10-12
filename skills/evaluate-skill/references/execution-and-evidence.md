@@ -63,6 +63,8 @@ For each selected variant:
 
 Working-tree sources snapshot current paths. Git sources resolve one exact commit and record both the declared ref and resolved identity.
 
+Each host process, subject or reviewer, runs in its own isolation root (`isolation/` beside its evidence): `HOME`, `TMPDIR`, `TMP`, `TEMP`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME` and `PI_CODING_AGENT_DIR` point inside it, so the user's home, temp files and Pi settings are not visible and two processes share nothing. Only the declared model's provider login is copied into the agent directory, from `SKILL_EVAL_CREDENTIALS_DIR`, else `PI_CODING_AGENT_DIR`, else `~/.pi/agent`, together with that provider's custom model entry when one exists. `run.json` records under `isolation` which entries were copied, never their values. An OAuth login with under 60 minutes left is refused before the process starts, because a refresh inside the copy would rotate the user's own token away. A provider with no stored login runs with nothing copied. Pi uses its defaults for every setting the definition does not declare.
+
 ## Persistence And States
 
 Each selected run is persisted before its counterpart. Grade and group evidence are persisted before later groups.
@@ -96,16 +98,18 @@ Normal completion follows settlement. Path guards, no-progress detection, cancel
 
 ## Trials
 
-`--trials <n>` runs the selection as `n` independent complete invocations. Each trial is an ordinary result with its own ID. A separate aggregate under `.skill-eval/runs/<aggregate-id>/aggregate.json` lists the trials and, per group, counts pass, fail, and unavailable for every deterministic check and comparison, plus comparison transitions. A trial whose grade file cannot be read is counted in `unreadableGrades`; the other trials still aggregate. `--max-cost` is shared across trials, and exhaustion stops starting further trials. `view <aggregate-id>` renders the counts; view an individual trial for its evidence.
+`--trials <n>` runs the selection as `n` independent complete invocations. Each trial is an ordinary result with its own ID. A separate aggregate under `.skill-eval/runs/<aggregate-id>/aggregate.json` lists the trials and, per group, counts pass, fail, and unavailable for every deterministic check and comparison, plus comparison transitions. A trial whose grade file cannot be read is counted in `unreadableGrades`; the other trials still aggregate. Grade errors are counted per group (`gradeErrors`), and run states per variant (`runStates`), so nothing that failed leaves the denominators silently. Each check also records `trials` and `passAll`, its pass^k: whether it passed in every one of the k trials that graded it. Each comparison records `pairs`, the per-trial outcomes: both pass, both fail, baseline only, candidate only, or incomplete. The aggregate's `claim` names the strongest claim the counts support, a rate on this suite at its k, and states that no "beats" claim is supported, because no suite declares a decision rule. `--max-cost` is shared across trials, and exhaustion stops starting further trials. `view <aggregate-id>` renders the counts, pass^k, pairs and claim; view an individual trial for its evidence.
 
 ## Advisory Review
 
-`review` answers each group's `review_questions` with a separate reviewer model:
+`review` answers each group's `review_questions` with a separate reviewer model, a judge under Review Work's [Judge Contract](../../review-work/references/judge-contract.md):
 
 - only groups with review questions and two complete runs are reviewed;
-- the reviewer sees the task turns, each run's responses, tool calls, and changed paths as Run A and Run B in random order, and never sees variant names or deterministic grades;
-- it runs without tools, skills, extensions, context files, or session, with only the base process environment;
-- `groups/<id>/semantic-grade.json` records the label mapping, prompt hash, answers mapped back to variants, and errors; `groups/<id>/review/` keeps the prompt, events, final response, and stderr;
+- the reviewer sees the task turns, the group's fixture files as shared task materials, and for each run its responses, tool calls, changed paths and the full text of every file it created or modified (each file up to 20,000 characters and the materials up to 60,000, with any cut stated), as Run A and Run B in random order;
+- run workspaces, the group and run directories, the repository root and the user's home are replaced by neutral tokens, so absolute paths and the variant names inside them never reach it; it never sees deterministic grades;
+- it runs without tools, skills, context files, or session, in its own isolation root, with extensions off except those named with `--extension`;
+- `--swap` reviews again with Run A and Run B exchanged and records agreement per question; without it, the unchecked order is recorded as a contract gap;
+- `groups/<id>/semantic-grade.json` records the judge's model, provider, family (approximated by provider), thinking, extensions and isolation; the subject's providers and the family relation (`same`, `different` or `unknown`); the label mapping, prompt hash, answers mapped back to variants, swap results, `contractGaps` (at least `calibration not checked`), and errors; `groups/<id>/review/` keeps the prompt, events, final response, and stderr;
 - malformed or incomplete reviewer output becomes `review-error` with the raw response preserved.
 
 A review is advisory. It never changes run or deterministic grade evidence, and rerunning it replaces only the previous advisory review.

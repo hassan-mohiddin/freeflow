@@ -251,7 +251,7 @@ const EXPECTATION_FIELDS = new Map([
   ["resource-read", ["resource", "index", "path"]],
   ["path", ["path"]],
   ["changed-paths", ["paths"]],
-  ["file-text", ["path", "value"]],
+  ["file-text", ["path", "value", "line"]],
   ["json", ["path", "pointer", "value"]],
   ["response-text", ["value"]],
   ["context-text", ["value", "surface", "request"]],

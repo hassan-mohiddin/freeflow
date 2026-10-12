@@ -35,6 +35,8 @@ function spawnSync(command, args, options) {
   if (command === process.execPath && args?.includes(entrypoint)) {
     const env = { ...(options?.env ?? process.env) };
     for (const key of FAKE_PI_ENVIRONMENT_KEYS) env[key] ??= "";
+    // Never copy the developer's real Pi logins into test runs.
+    env.SKILL_EVAL_CREDENTIALS_DIR ??= path.join(tmpdir(), "skill-eval-no-credentials");
     return rawSpawnSync(command, args, { ...options, env });
   }
   return rawSpawnSync(command, args, options);

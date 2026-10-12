@@ -81,16 +81,19 @@ export async function gradeChangedPaths(group, runs, expectation) {
 
 export async function gradeFileText(group, runs, expectation) {
   const turn = expectation.turn ?? null;
+  const line = expectation.line ?? null;
   if (
     !validBodyExpectation(group, expectation, turn) ||
     !RESPONSE_EXPECTATIONS.has(expectation.expect) ||
     typeof expectation.value !== "string" ||
     typeof expectation.path !== "string" ||
-    !isSafeRelativePath(expectation.path)
+    !isSafeRelativePath(expectation.path) ||
+    (line !== null && !(Number.isInteger(line) && line >= 1))
   ) {
     return { error: "invalid file-text expectation" };
   }
   const expected = { expect: expectation.expect, path: expectation.path, value: expectation.value, turn };
+  if (line !== null) expected.line = line;
   const run = runs[expectation.variant];
   if (!run || run.state !== "complete") return unavailableCheck(expectation, expected);
   const workspace = workspaceEvidence(run, turn);
@@ -102,7 +105,15 @@ export async function gradeFileText(group, runs, expectation) {
     sha256: file.sha256,
     turn,
   };
-  const matches = file.state === "present" && textMatches(expectation.expect, expectation.value, file.text);
+  let text = file.state === "present" ? file.text : null;
+  if (line !== null) {
+    // One line, without its line ending. A line that does not exist fails every expectation,
+    // so an empty or short file cannot pass a not-contains check by having nothing to read.
+    const lines = text === null || text === "" ? [] : text.split(/\r?\n/);
+    text = line <= lines.length ? lines[line - 1] : null;
+    observed.line = text === null ? "missing" : "present";
+  }
+  const matches = text !== null && textMatches(expectation.expect, expectation.value, text);
   return completedCheck(expectation, expected, observed, matches);
 }
 

@@ -159,6 +159,12 @@ async function appendAdvisoryReview(lines, groupDirectory, selectedVariant) {
       ]),
     );
   }
+  if (review.subject?.familyRelation) lines.push(compactRow("judge", [`family=${review.subject.familyRelation}`]));
+  if (review.swap?.agreement) {
+    const { agreed, questions } = review.swap.agreement;
+    lines.push(compactRow("judge", [`order swap agreed on ${agreed}/${questions}`]));
+  }
+  for (const gap of review.contractGaps ?? []) lines.push(compactRow("judge", [`contract gap: ${gap}`]));
   for (const error of review.errors ?? []) lines.push(compactRow("error", ["review", error]));
 }
 
@@ -177,9 +183,22 @@ function renderAggregate(resultDirectory, aggregate) {
     );
   }
   for (const trial of aggregate.trials) lines.push(compactRow("trial", [trial.id, trial.state]));
+  if (aggregate.claim) {
+    const supported = aggregate.claim.class === "rate-on-suite" ? `rate on this suite, k=${aggregate.claim.k}` : "none";
+    lines.push(`Claim: ${supported}; no "beats" claim: ${aggregate.claim.beats.replace(/^not supported: /, "")}`);
+  }
   for (const group of aggregate.groups) {
     const unreadable = group.unreadableGrades ? ` unreadable-grades=${group.unreadableGrades}` : "";
-    lines.push("", `Group ${group.id} trials=${group.trials}${unreadable}`);
+    const gradeErrors = group.gradeErrors ? ` grade-errors=${group.gradeErrors}` : "";
+    lines.push("", `Group ${group.id} trials=${group.trials}${unreadable}${gradeErrors}`);
+    for (const [variant, states] of Object.entries(group.runStates ?? {})) {
+      const notComplete = Object.entries(states).filter(([state]) => state !== "complete");
+      if (notComplete.length > 0) {
+        lines.push(
+          compactRow("runs", [variant, ...Object.entries(states).map(([state, count]) => `${state}=${count}`)]),
+        );
+      }
+    }
     for (const comparison of group.comparisons) {
       lines.push(
         compactRow("comparison", [
@@ -190,9 +209,27 @@ function renderAggregate(resultDirectory, aggregate) {
           ...Object.entries(comparison.transitions).map(([transition, count]) => `${transition}=${count}`),
         ]),
       );
+      if (comparison.pairs) {
+        const pairs = Object.entries(comparison.pairs).filter(([, count]) => count > 0);
+        lines.push(
+          compactRow("comparison", [
+            comparison.id,
+            `pairs: ${pairs.map(([pair, count]) => `${pair}=${count}`).join(" ")}`,
+          ]),
+        );
+      }
     }
     for (const check of group.checks) {
-      lines.push(compactRow("check", [check.id, check.variant, check.kind, `pass=${passRate(check)}`]));
+      const counts =
+        typeof check.passAll === "boolean"
+          ? [
+              `pass=${passRate(check)}`,
+              `fail=${check.fail}`,
+              `unavailable=${check.unavailable}`,
+              `pass^${check.trials}=${check.passAll ? "yes" : "no"}`,
+            ]
+          : [`pass=${passRate(check)}`];
+      lines.push(compactRow("check", [check.id, check.variant, check.kind, ...counts]));
     }
   }
   return `${lines.join("\n")}\n`;

@@ -107,6 +107,8 @@ function group(id) {
 
 function runCli(root, bin, args, env = {}) {
   const fakeEnv = Object.fromEntries(FAKE_KEYS.map((key) => [key, ""]));
+  // Never copy the developer's real Pi logins into test runs.
+  fakeEnv.SKILL_EVAL_CREDENTIALS_DIR = path.join(root, "no-credentials");
   return spawnSync(process.execPath, [entrypoint, ...args], {
     cwd: root,
     encoding: "utf8",
@@ -246,5 +248,128 @@ test("aggregation counts an unreadable trial grade instead of discarding every t
       groups[0].checks.map(({ id, pass, fail, unavailable }) => ({ id, pass, fail, unavailable })),
       [{ id: "candidate-read", pass: 1, fail: 0, unavailable: 0 }],
     );
+  });
+});
+
+test("aggregation reports pass^k, per-trial pairs, grade errors and run states", async () => {
+  await withTempDirectory(async (root) => {
+    const trials = [];
+    // Three trials: the candidate check passes every time; the baseline passes once.
+    for (const [index, baselineState] of ["pass", "fail", "fail"].entries()) {
+      const trial = path.join(root, `trial-${index + 1}`);
+      await writeJson(trial, "groups/review/deterministic-grade.json", {
+        checks: [
+          { id: "baseline-found", variant: "baseline", kind: "file-text", state: baselineState },
+          { id: "candidate-found", variant: "candidate", kind: "file-text", state: "pass" },
+        ],
+        comparisons: [
+          {
+            id: "found",
+            kind: "file-text",
+            baseline: { check: "baseline-found", state: baselineState },
+            candidate: { check: "candidate-found", state: "pass" },
+            transition: baselineState === "pass" ? "unchanged" : "fail-to-pass",
+          },
+        ],
+        errors: index === 2 ? [{ expectation: "broken", error: "invalid file-text expectation" }] : [],
+      });
+      trials.push({
+        path: trial,
+        summary: {
+          groups: [
+            {
+              id: "review",
+              variants: { baseline: "complete", candidate: index === 1 ? "infrastructure-failed" : "complete" },
+              artifacts: { grade: "deterministic-grade.json" },
+            },
+          ],
+        },
+      });
+    }
+
+    const [group] = await aggregateGroups(trials);
+
+    assert.equal(group.gradeErrors, 1);
+    assert.deepEqual(group.runStates, {
+      baseline: { complete: 3 },
+      candidate: { complete: 2, "infrastructure-failed": 1 },
+    });
+    const byId = Object.fromEntries(group.checks.map((check) => [check.id, check]));
+    assert.deepEqual(
+      { trials: byId["candidate-found"].trials, passAll: byId["candidate-found"].passAll },
+      { trials: 3, passAll: true },
+    );
+    assert.deepEqual(
+      { trials: byId["baseline-found"].trials, passAll: byId["baseline-found"].passAll },
+      { trials: 3, passAll: false },
+    );
+    assert.deepEqual(group.comparisons[0].pairs, {
+      "both-pass": 1,
+      "both-fail": 0,
+      "baseline-only": 0,
+      "candidate-only": 2,
+      incomplete: 0,
+    });
+  });
+});
+
+test("an aggregate view shows counts, pass^k, pairs and the claim it supports", async () => {
+  await withTempDirectory(async (root) => {
+    const id = "20260925000000-agg00001";
+    await writeJson(root, `.skill-eval/runs/${id}/aggregate.json`, {
+      schema_version: 1,
+      kind: "aggregate",
+      id,
+      state: "complete",
+      requestedTrials: 3,
+      trials: [
+        { id: "t1", state: "complete" },
+        { id: "t2", state: "complete" },
+        { id: "t3", state: "complete" },
+      ],
+      claim: { class: "rate-on-suite", k: 3, beats: "not supported: the suite declares no decision rule" },
+      groups: [
+        {
+          id: "review",
+          trials: 3,
+          unreadableGrades: 0,
+          gradeErrors: 1,
+          runStates: { baseline: { complete: 3 }, candidate: { complete: 3 } },
+          comparisons: [
+            {
+              id: "found",
+              kind: "file-text",
+              baseline: { pass: 1, fail: 2, unavailable: 0 },
+              candidate: { pass: 3, fail: 0, unavailable: 0 },
+              transitions: { "fail-to-pass": 2, unchanged: 1 },
+              pairs: { "both-pass": 1, "both-fail": 0, "baseline-only": 0, "candidate-only": 2, incomplete: 0 },
+            },
+          ],
+          checks: [
+            {
+              id: "candidate-found",
+              variant: "candidate",
+              kind: "file-text",
+              pass: 3,
+              fail: 0,
+              unavailable: 0,
+              trials: 3,
+              passAll: true,
+            },
+          ],
+        },
+      ],
+    });
+
+    const viewed = spawnSync(process.execPath, [entrypoint, "view", id], { cwd: root, encoding: "utf8" });
+
+    assert.equal(viewed.status, 0, viewed.stderr);
+    assert.match(
+      viewed.stdout,
+      /Claim: rate on this suite, k=3; no "beats" claim: the suite declares no decision rule/,
+    );
+    assert.match(viewed.stdout, /Group review trials=3 grade-errors=1/);
+    assert.ok(viewed.stdout.includes("pairs: both-pass=1 candidate-only=2"), viewed.stdout);
+    assert.ok(viewed.stdout.includes("pass=3/3\tfail=0\tunavailable=0\tpass^3=yes"), viewed.stdout);
   });
 });

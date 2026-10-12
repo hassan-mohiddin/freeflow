@@ -4,6 +4,7 @@ import path from "node:path";
 import { COMMAND_TOOL, loadDefinition, selectDefinition } from "./definitions.mjs";
 import { createInvocationId, fileIdentity, writeJson, writeText } from "./evidence.mjs";
 import { gradeDeterministic } from "./grade.mjs";
+import { removeCopiedCredentials } from "./isolation.mjs";
 import { runBody, runDescription, VariantSetupError } from "./pi.mjs";
 import { prepareFixture, prepareRuntime, verifyDescriptionOnlyRevision } from "./sandbox.mjs";
 
@@ -277,6 +278,8 @@ async function executeVariant({ group, variant, root, variantDirectory, fixture,
   } catch (error) {
     if (error instanceof VariantSetupError) return invalidRun(group, variant, error.message);
     return infrastructureFailedRun(group, variant, error);
+  } finally {
+    await removeCopiedCredentials(variantDirectory);
   }
 }
 
