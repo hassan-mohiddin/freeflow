@@ -44,7 +44,7 @@
       "kind": "skill",
       "source": {
         "kind": "git",
-        "ref": "5a7db0e6"
+        "ref": "47de263c"
       },
       "skills": ["skills/workflow", "skills/track-work"],
       "target": 0,
@@ -57,13 +57,13 @@
       "freeflow": {
         "source": {
           "kind": "git",
-          "ref": "522903b7"
+          "ref": "9e3ee801"
         }
       },
       "subject": {
         "source": {
           "kind": "git",
-          "ref": "522903b7"
+          "ref": "9e3ee801"
         }
       }
     }

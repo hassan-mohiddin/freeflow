@@ -10,6 +10,8 @@
     "groups-explicit/c4a-tm-task-memory-recovery.json",
     "groups-explicit/c4b-summary-recovery.json",
     "groups-explicit/c5-unanswered-proposal.json",
-    "groups-explicit/c6-fresh-direction.json"
+    "groups-explicit/c6-fresh-direction.json",
+    "groups-explicit/r1-review-finding.json",
+    "groups-explicit/q1-question-hints-change.json"
   ]
 }

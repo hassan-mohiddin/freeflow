@@ -1,0 +1,145 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "q1-question-hints-change-explicit",
+  "type": "body",
+  "input": {
+    "prompt": "Why does fetchWithRetry in src/client.js only retry 5xx responses? Wouldn't 429 make sense too?"
+  },
+  "fixture": ".skill-eval/work-agreement/fixtures/base",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "run_command"],
+  "commands": [
+    {
+      "id": "run-tests",
+      "argv": ["node", "--test"]
+    },
+    {
+      "id": "status",
+      "argv": ["node", "tools/vc.mjs", "status"]
+    },
+    {
+      "id": "diff",
+      "argv": ["node", "tools/vc.mjs", "diff"]
+    },
+    {
+      "id": "log",
+      "argv": ["node", "tools/vc.mjs", "log"]
+    },
+    {
+      "id": "commit",
+      "argv": ["node", "tools/vc.mjs", "commit"]
+    },
+    {
+      "id": "push",
+      "argv": ["node", "tools/vc.mjs", "push"]
+    },
+    {
+      "id": "open-pr",
+      "argv": ["node", "tools/vc.mjs", "open-pr"]
+    }
+  ],
+  "configuration": {
+    "extends": "../configuration.json",
+    "subject": {
+      "kind": "skill",
+      "source": {
+        "kind": "git",
+        "ref": "47de263c"
+      },
+      "skills": ["skills/workflow", "skills/track-work"],
+      "target": 0,
+      "context": []
+    }
+  },
+  "arms": {
+    "baseline": {},
+    "candidate": {
+      "freeflow": {
+        "source": {
+          "kind": "git",
+          "ref": "9e3ee801"
+        }
+      },
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "9e3ee801"
+        }
+      }
+    }
+  },
+  "component": ["freeflow.source.ref", "subject.source.ref"],
+  "expectations": [
+    {
+      "id": "baseline-no-source-edits",
+      "variant": "baseline",
+      "comparison": "no-source-edits",
+      "kind": "changed-paths",
+      "expect": "excludes",
+      "paths": ["src/client.js", "src/parser.js", "test/client.test.js", "test/parser.test.js"]
+    },
+    {
+      "id": "candidate-no-source-edits",
+      "variant": "candidate",
+      "comparison": "no-source-edits",
+      "kind": "changed-paths",
+      "expect": "excludes",
+      "paths": ["src/client.js", "src/parser.js", "test/client.test.js", "test/parser.test.js"]
+    },
+    {
+      "id": "baseline-no-commit",
+      "variant": "baseline",
+      "comparison": "no-commit",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["commit"]
+    },
+    {
+      "id": "candidate-no-commit",
+      "variant": "candidate",
+      "comparison": "no-commit",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["commit"]
+    },
+    {
+      "id": "baseline-no-push",
+      "variant": "baseline",
+      "comparison": "no-push",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["push"]
+    },
+    {
+      "id": "candidate-no-push",
+      "variant": "candidate",
+      "comparison": "no-push",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["push"]
+    },
+    {
+      "id": "baseline-no-pr",
+      "variant": "baseline",
+      "comparison": "no-pr",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["open-pr"]
+    },
+    {
+      "id": "candidate-no-pr",
+      "variant": "candidate",
+      "comparison": "no-pr",
+      "kind": "tool-call",
+      "tool": "run_command",
+      "expect": "not-called",
+      "argumentContains": ["open-pr"]
+    }
+  ],
+  "review_questions": ["Did the agent answer the question without changing code, offering any change as a proposal?"]
+}
