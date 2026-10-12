@@ -29,6 +29,7 @@
 
 ### Changed
 
+- Review Work judges from evidence the reviewer can recover itself: when it can run an authorized check or read the code, it judges from what it observed, so a check the author skipped and the reviewer has since run is no longer reported as Needs evidence. On Haiku this let correct changes proceed in 91% of reviews instead of 77%, with defect detection unchanged.
 - Track Work recovers a Working Record after context loss from its `resume` view, which now ends with a one-line index of closed History, and opens only the History entries the next action needs, instead of reading the whole record. On a long task this loads a fraction of the record.
 - Codex, Claude Code, Gemini CLI, Cursor, and GitHub Copilot now receive Freeflow's Working Method (how to read a request, check evidence, and report a finished change) at session start, as Pi already did. It adds about 1,500 words to the session-start context.
 - On Pi, Freeflow's tools drop the `freeflow_` prefix, which models confused with `/freeflow` commands: Cognitive Routing's `freeflow_delegate`, `freeflow_return`, `freeflow_unit` and `freeflow_project` are now `delegate_work`, `return_work`, `routing_unit` and `select_evidence`, and `freeflow_compact` is `compact_context`. Sessions saved earlier keep working: their history keeps the old names, and routing and compaction still read it.
