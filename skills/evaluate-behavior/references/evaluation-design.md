@@ -70,6 +70,8 @@ For a nearby prompt, predeclare whether success means:
 - non-trigger; or
 - safe behavior after activation.
 
+Test both sides in one suite: prompts where the target should be read and close prompts where it should not. A suite with only one side rewards a description that triggers on everything, or on nothing.
+
 ### First-read body
 
 Explicitly deliver the exact target body with only guaranteed context. Ambient package context cannot repair a hidden dependency.
@@ -90,6 +92,8 @@ Use ordered turns in one persistent subject process. Repeated body delivery does
 
 Grade files, changed paths, structured state, and events before relying on the final response. Preserve turn-scoped workspace evidence when later turns may change earlier state. When the outcome is working code, grade it with a command, such as hidden tests, rather than by reading it.
 
+Grade what the agent produced, not the path it took. A required sequence of tool calls fails valid approaches the author did not foresee. Check a tool call only when the call is itself the behavior, such as a forbidden action or a confirmation the task requires.
+
 ## Apply Real Pressure
 
 A useful group:
@@ -105,9 +109,20 @@ Choose the pressure by the kind of instruction under test:
 - **A Rule:** make breaking it the easy or rewarded path, such as urgency, a user request that conflicts with it, or a shortcut that saves work. The candidate passes only if the Rule holds.
 - **Judgment:** include at least one case where following the default literally is the worse choice, next to a case where the default is right. The candidate passes on the outcome in both, so a variant that only obeys the default cannot pass.
 
+## Make Tasks Fair
+
+A task is fair when an agent that does the job correctly passes, and one that does not, fails.
+
+- Everything a check requires is stated in the task or follows from it. A check that expects a file path the task never names fails a correct agent.
+- Two people who know the domain would give each run the same pass or fail. When they would not, sharpen the task or the check before running.
+- Passing requires doing the job, not a shortcut: editing or deleting tests, hard-coding an expected output, or writing text aimed at a judge.
+- An arm that fails a case in every one of many trials usually has a broken task or check, not an incapable agent. Read its transcripts, and for a coding task run its reference solution, before revising the component.
+
 ## Grade By Requirement And Respect Variance
 
 Grade each requirement a group checks, not only pass or fail. Label each as derivable from the request and code, dependent on a clarification, or imposed by the evaluator (an exact name or message only the checker knows); a failure on an evaluator-imposed requirement says little about the component.
+
+For a task with several parts, give each part its own expectation, so a run that does most of the task reads differently from one that fails at once. The aggregate counts each check separately; it does not combine them into one weighted score.
 
 One run per cell cannot separate a difference of one or two items from run-to-run variance. Repeat the cell, or report such a difference as unresolved.
 
