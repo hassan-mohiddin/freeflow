@@ -1,7 +1,8 @@
 import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 
-const VARIANTS = ["baseline", "candidate"];
+import { ARM_NAME, comparisonArms, storedArms } from "./arms.mjs";
+
 const DEFAULT_SELECTORS = /** @type {{group: string | null, variant: string | null}} */ ({
   group: null,
   variant: null,
@@ -42,8 +43,8 @@ export async function renderResult(target, selectors = DEFAULT_SELECTORS, { root
         : groups.filter((group) => group.position === position);
     if (groups.length === 0) throw new ViewError(`Unknown group selector: ${selectors.group}`);
   }
-  if (selectors.variant !== null && !VARIANTS.includes(selectors.variant)) {
-    throw new ViewError("variant must be baseline or candidate");
+  if (selectors.variant !== null && !ARM_NAME.test(selectors.variant)) {
+    throw new ViewError("variant must be an arm name, such as baseline or candidate");
   }
 
   const lines = [`Result ${summary.id} [${summary.state}]`, `Path: ${escapeCell(resultDirectory)}`];
@@ -58,12 +59,16 @@ async function renderGroup(resultDirectory, group, selectedVariant) {
   const definition = await readJson(path.join(groupDirectory, "definition.json"), `definition for ${group.id}`);
   const gradeFile = path.join(groupDirectory, group.artifacts?.grade ?? "deterministic-grade.json");
   const grade = await readJson(gradeFile, `grade for ${group.id}`);
-  const variants = selectedVariant === null ? VARIANTS : [selectedVariant];
+  const arms = storedArms(group, definition);
+  if (selectedVariant !== null && !arms.includes(selectedVariant)) {
+    throw new ViewError(`variant ${selectedVariant} is not an arm of group ${group.id}`);
+  }
+  const variants = selectedVariant === null ? arms : [selectedVariant];
   const lines = [`Group ${group.id} [${group.state}] type=${definition.type}`];
 
   appendSharedEvidence(lines, definition);
   appendGradeEvidence(lines, grade, group, definition, selectedVariant);
-  await appendAdvisoryReview(lines, groupDirectory, selectedVariant);
+  await appendAdvisoryReview(lines, groupDirectory, variants);
   for (const variant of variants) {
     await appendVariantEvidence(lines, resultDirectory, groupDirectory, group.id, variant);
   }
@@ -130,13 +135,26 @@ function appendGradeEvidence(lines, grade, group, definition, selectedVariant) {
   if (selectedVariant === null && Array.isArray(grade.comparisons) && grade.comparisons.length > 0) {
     lines.push("Comparisons:");
     for (const comparison of grade.comparisons) {
+      if (comparison.arms === undefined) {
+        lines.push(
+          compactRow("comparison", [
+            comparison.id,
+            comparison.kind,
+            comparison.transition,
+            `baseline=${comparison.baseline.check}:${comparison.baseline.state}`,
+            `candidate=${comparison.candidate.check}:${comparison.candidate.state}`,
+          ]),
+        );
+        continue;
+      }
+      // Each non-reference arm's transition from the reference, then every arm's check and state.
+      const { arms, transitions } = comparisonArms(comparison);
       lines.push(
         compactRow("comparison", [
           comparison.id,
           comparison.kind,
-          comparison.transition,
-          `baseline=${comparison.baseline.check}:${comparison.baseline.state}`,
-          `candidate=${comparison.candidate.check}:${comparison.candidate.state}`,
+          ...Object.entries(transitions).map(([arm, transition]) => `${arm}:${transition}`),
+          ...Object.entries(arms).map(([arm, outcome]) => `${arm}=${outcome?.check}:${outcome?.state}`),
         ]),
       );
     }
@@ -144,12 +162,11 @@ function appendGradeEvidence(lines, grade, group, definition, selectedVariant) {
 }
 
 // Advisory answers stay visually separate from deterministic grades; they are not canonical evidence.
-async function appendAdvisoryReview(lines, groupDirectory, selectedVariant) {
+async function appendAdvisoryReview(lines, groupDirectory, variants) {
   const file = path.join(groupDirectory, "semantic-grade.json");
   if (!(await stat(file).catch(() => null))) return;
   const review = await readJson(file, "advisory review");
   lines.push(`Advisory review [${review.state}] model=${review.model} (not canonical evidence)`);
-  const variants = selectedVariant === null ? VARIANTS : [selectedVariant];
   for (const [index, answer] of (review.answers ?? []).entries()) {
     lines.push(
       compactRow("review", [
@@ -163,6 +180,14 @@ async function appendAdvisoryReview(lines, groupDirectory, selectedVariant) {
   if (review.swap?.agreement) {
     const { agreed, questions } = review.swap.agreement;
     lines.push(compactRow("judge", [`order swap agreed on ${agreed}/${questions}`]));
+    const byArm = Object.entries(review.swap.agreement.arms ?? {});
+    if (byArm.length > 0) {
+      lines.push(
+        compactRow("judge", [
+          `order swap agreed per arm: ${byArm.map(([arm, counts]) => `${arm}=${counts.agreed}/${counts.questions}`).join(" ")}`,
+        ]),
+      );
+    }
   }
   for (const gap of review.contractGaps ?? []) lines.push(compactRow("judge", [`contract gap: ${gap}`]));
   for (const error of review.errors ?? []) lines.push(compactRow("error", ["review", error]));
@@ -203,6 +228,10 @@ function renderAggregate(resultDirectory, aggregate) {
       }
     }
     for (const comparison of group.comparisons) {
+      if (comparison.arms !== undefined) {
+        appendArmComparison(lines, comparison);
+        continue;
+      }
       lines.push(
         compactRow("comparison", [
           comparison.id,
@@ -236,6 +265,28 @@ function renderAggregate(resultDirectory, aggregate) {
     }
   }
   return `${lines.join("\n")}\n`;
+}
+
+/** An arm-keyed aggregate comparison: every arm's pass rate, then each arm's transitions and pairs against the reference. */
+function appendArmComparison(lines, comparison) {
+  lines.push(
+    compactRow("comparison", [
+      comparison.id,
+      comparison.kind,
+      ...Object.entries(comparison.arms).map(([arm, counts]) => `${arm}=${passRate(counts)}`),
+    ]),
+  );
+  for (const [arm, versus] of Object.entries(comparison.outcomes ?? {})) {
+    const pairs = Object.entries(versus.pairs ?? {}).filter(([, count]) => count > 0);
+    lines.push(
+      compactRow("comparison", [
+        comparison.id,
+        `${arm} against ${comparison.reference}`,
+        ...Object.entries(versus.transitions ?? {}).map(([transition, count]) => `${transition}=${count}`),
+        `pairs: ${pairs.map(([pair, count]) => `${pair}=${count}`).join(" ")}`,
+      ]),
+    );
+  }
 }
 
 function passRate(counts) {

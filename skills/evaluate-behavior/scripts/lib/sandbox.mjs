@@ -229,14 +229,15 @@ export async function materializeEnvironment({ environment, root, variantDirecto
 }
 
 /**
- * Snapshots each variant's target skill into `destinationRoot/<variant>` and checks that the two differ only in
- * the frontmatter description: every other file, and SKILL.md outside its description, must be byte-identical.
- * Throws with the first difference found.
+ * Snapshots each of the group's two arms' target skill into `destinationRoot/<arm>` and checks that the two differ
+ * only in the frontmatter description: every other file, and SKILL.md outside its description, must be
+ * byte-identical. Throws with the first difference found.
  */
 export async function verifyDescriptionOnlyRevision({ variants, root, destinationRoot }) {
   const canonicalRoot = await realpath(root);
   const snapshots = {};
-  for (const variant of ["baseline", "candidate"]) {
+  const [reference, revised] = Object.keys(variants);
+  for (const variant of [reference, revised]) {
     const environment = variants[variant];
     const declaredPath = environment.skills[environment.target];
     const destination = path.join(destinationRoot, variant);
@@ -259,8 +260,8 @@ export async function verifyDescriptionOnlyRevision({ variants, root, destinatio
       });
     }
   }
-  const baselineFiles = new Map(snapshots.baseline.files.map((file) => [file.path, file]));
-  const candidateFiles = new Map(snapshots.candidate.files.map((file) => [file.path, file]));
+  const baselineFiles = new Map(snapshots[reference].files.map((file) => [file.path, file]));
+  const candidateFiles = new Map(snapshots[revised].files.map((file) => [file.path, file]));
   for (const filePath of new Set([...baselineFiles.keys(), ...candidateFiles.keys()])) {
     if (filePath === "SKILL.md") continue;
     const baselineFile = baselineFiles.get(filePath);
@@ -270,7 +271,9 @@ export async function verifyDescriptionOnlyRevision({ variants, root, destinatio
     }
   }
   const [baselineSkill, candidateSkill] = await Promise.all(
-    [snapshots.baseline, snapshots.candidate].map((snapshot) => readFile(path.join(snapshot.path, "SKILL.md"), "utf8")),
+    [snapshots[reference], snapshots[revised]].map((snapshot) =>
+      readFile(path.join(snapshot.path, "SKILL.md"), "utf8"),
+    ),
   );
   if (withoutDescription(baselineSkill) !== withoutDescription(candidateSkill)) {
     throw new Error("description-only revision changes SKILL.md outside its frontmatter description");

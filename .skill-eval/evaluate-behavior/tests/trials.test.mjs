@@ -252,7 +252,7 @@ test("aggregation counts an unreadable trial grade instead of discarding every t
     assert.equal(groups[0].unreadableGrades, 1);
     assert.deepEqual(
       groups[0].checks.map(({ id, pass, fail, unavailable }) => ({ id, pass, fail, unavailable })),
-      [{ id: "candidate-read", pass: 1, fail: 0, unavailable: 0 }],
+      [{ id: "candidate-read", pass: 1, fail: 0, unavailable: 1 }],
     );
   });
 });

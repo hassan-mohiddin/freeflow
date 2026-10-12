@@ -1,3 +1,4 @@
+import { armNames, referenceArm } from "./arms.mjs";
 import { gradeComparisons } from "./grade-comparison.mjs";
 import {
   gradeContextText,
@@ -45,7 +46,10 @@ export async function gradeDeterministic(group, runs, evidence) {
     }
   }
 
-  const compared = gradeComparisons(group.expectations, checks);
+  const compared = gradeComparisons(group.expectations, checks, {
+    arms: armNames(group),
+    reference: referenceArm(group),
+  });
   errors.push(...compared.errors);
   return {
     schema_version: 1,

@@ -5,6 +5,7 @@ import path from "node:path";
 import {
   completedCheck,
   hasOwn,
+  isArm,
   isContained,
   isSafeRelativePath,
   readPaths,
@@ -13,7 +14,6 @@ import {
   unavailableCheck,
   validBodyExpectation,
   validTurn,
-  VARIANTS,
 } from "./grade-support.mjs";
 
 const ACTIVATION_EXPECTATIONS = new Set(["never", "on-turn", "by-turn", "not-before-turn"]);
@@ -27,7 +27,7 @@ export async function gradeSkillRead(group, runs, expectation) {
   const timingExpectation = expectation.expect !== "never";
   if (
     group.type !== "description" ||
-    !VARIANTS.includes(expectation.variant) ||
+    !isArm(group, expectation.variant) ||
     !ACTIVATION_EXPECTATIONS.has(expectation.expect) ||
     (timingExpectation ? turn === null || !validTurn(group, turn) : hasOwn(expectation, "turn"))
   ) {
@@ -50,7 +50,7 @@ export async function gradeResourceRead(group, runs, expectation) {
   const turn = expectation.turn ?? null;
   const indexed = expectation.resource === "skill" || expectation.resource === "context";
   if (
-    !VARIANTS.includes(expectation.variant) ||
+    !isArm(group, expectation.variant) ||
     !["workspace", "skill", "context"].includes(expectation.resource) ||
     !["read", "not-read"].includes(expectation.expect) ||
     typeof expectation.path !== "string" ||
