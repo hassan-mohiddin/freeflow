@@ -1,6 +1,7 @@
 import {
   ACTIVE_SLICE_FIELDS,
   CHECKPOINT_TYPES,
+  CONTEXT_HEADINGS,
   CURRENT_SLICE_STATES,
   DECISION_FIELDS,
   DECISION_STATES,
@@ -19,6 +20,7 @@ import {
   SLICE_TYPES,
   TASK_STATES,
   TOP_LEVEL_SECTIONS,
+  WORK_AGREEMENT_HEADING,
   isCalendarDate,
   joinLines,
   nextId,
@@ -255,24 +257,20 @@ function parseTopLevelSections(lines) {
   );
 }
 
+const CONTEXT_LAYOUTS = [CONTEXT_HEADINGS, [CONTEXT_HEADINGS[0], WORK_AGREEMENT_HEADING, ...CONTEXT_HEADINGS.slice(1)]];
+
 function parseContext(lines, section) {
   const headings = findHeadings(lines, section.start, section.end, 3);
-  if (headings.length !== 7)
-    fail("invalid-context", "Current Context must contain exactly the seven canonical headings");
+  const titles = headings.map((heading) => heading.title);
+  if (!CONTEXT_LAYOUTS.some((layout) => layout.join("\n") === titles.join("\n")))
+    fail(
+      "invalid-context",
+      `Current Context must contain the seven canonical headings, with an optional ${WORK_AGREEMENT_HEADING} directly after Goal`,
+    );
   const statements = new Map();
   for (let index = 0; index < headings.length; index += 1) {
-    const expected = [
-      "Goal",
-      "What defines this task",
-      "Settled",
-      "Tentative",
-      "Open",
-      "Current direction",
-      "Boundaries",
-    ][index];
-    if (headings[index].title !== expected) fail("invalid-context", `Expected Current Context heading ${expected}`);
     const end = headings[index + 1]?.index ?? section.end;
-    statements.set(expected, { headingIndex: headings[index].index, start: headings[index].index + 1, end });
+    statements.set(titles[index], { headingIndex: headings[index].index, start: headings[index].index + 1, end });
   }
   return { ...section, headings: statements };
 }
@@ -517,6 +515,12 @@ export function validateDocument(document) {
   const goal = context.headings.get("Goal");
   if (!hasMeaningfulContent(document.lines, goal.start, goal.end))
     fail("missing-field", "Current Context Goal must contain meaningful content");
+  const agreement = context.headings.get(WORK_AGREEMENT_HEADING);
+  if (agreement && !hasMeaningfulContent(document.lines, agreement.start, agreement.end))
+    fail(
+      "missing-field",
+      `Current Context ${WORK_AGREEMENT_HEADING} must contain meaningful content; omit the heading until something is agreed`,
+    );
   if (!hasMeaningfulContent(document.lines, current.nextAction.start, current.nextAction.end))
     fail("missing-field", "Next useful action must contain meaningful content");
   for (const block of allBlocks(document)) {

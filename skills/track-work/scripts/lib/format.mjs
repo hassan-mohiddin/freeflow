@@ -10,6 +10,8 @@ export const CONTEXT_HEADINGS = [
   "Current direction",
   "Boundaries",
 ];
+// Optional: allowed only directly after Goal, and never empty.
+export const WORK_AGREEMENT_HEADING = "Work agreement";
 export const HISTORY_HEADINGS = ["Decisions", "Checkpoints", "Slices"];
 
 export const TASK_STATES = new Set(["active", "paused", "completed", "abandoned"]);
