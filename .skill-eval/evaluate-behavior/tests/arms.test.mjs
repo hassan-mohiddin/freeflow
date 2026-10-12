@@ -162,7 +162,12 @@ test("a three-arm A/A/B group loads with the reference first and refuses what it
         { code: "unsupported-difference", message: /arm same differs from baseline in host.version/ },
       ],
       ["a reference that is not an arm", { reference: "other" }, { message: /group.reference must name one of/ }],
-      ["a single arm", { arms: { baseline: {} }, component: [] }, { message: /at least two arms/ }],
+      // One arm is a measure group (allowed), but it cannot keep a comparison.
+      [
+        "a single arm with a comparison",
+        { arms: { baseline: {} }, component: [] },
+        { message: /comparison needs two arms/ },
+      ],
       [
         "an arm name outside the pattern",
         { arms: { ...threeArmGroup().arms, Same: {} } },

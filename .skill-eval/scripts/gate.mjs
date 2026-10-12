@@ -217,6 +217,13 @@ export function suiteVerdict(aggregate, override = undefined) {
     }
   }
   if (regressions.length > 0) return { verdict: "regressed", detail: regressions.join("; ") };
+  // A suite of one-arm groups measures one setup: there is nothing to regress against, so report its pass^k.
+  const groups = aggregate.groups ?? [];
+  if (compared === 0 && groups.length > 0 && groups.every((group) => Object.keys(group.runStates ?? {}).length === 1)) {
+    const checks = groups.flatMap((group) => group.checks ?? []);
+    const held = checks.filter((check) => check.passAll === true).length;
+    return { verdict: "measured", detail: `one-arm suite: ${held} of ${checks.length} checks passed in every trial` };
+  }
   if (compared === 0) return { verdict: "undecided", detail: "no comparison to read" };
   if (unresolved > 0) return { verdict: "undecided", detail: `${unresolved} comparisons with unavailable outcomes` };
   return { verdict: "pass", detail: `${compared} comparisons, none passed less often` };
