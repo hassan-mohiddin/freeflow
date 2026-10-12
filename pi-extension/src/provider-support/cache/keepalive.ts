@@ -137,9 +137,16 @@ export class CacheKeepAlive {
   /** Remember the request just sent on its model; a hold keeps the latest one warm. */
   record(payload: any, ctx: any): void {
     const key = laneKey(ctx, undefined, this.requester());
-    // Sign in with ChatGPT rejects max_output_tokens (live, 400), so a replay cannot be capped and is never sent.
-    const protocol = isChatGPTSignIn(ctx.model, ctx) ? undefined : PROTOCOLS[ctx.model?.api];
-    if (!key || !protocol) return;
+    if (!key) return;
+    // Sign in with ChatGPT rejects max_output_tokens (live, 400), so a replay cannot be capped and is never sent. Its
+    // lanes carry no credential, so a request on it also drops what an API key on the same model left.
+    if (isChatGPTSignIn(ctx.model, ctx)) {
+      this.lanes.delete(key);
+      if (this.active?.lane === key) this.stop(SIGN_IN_STOP);
+      return;
+    }
+    const protocol = PROTOCOLS[ctx.model?.api];
+    if (!protocol) return;
     if (protocol.replayable?.(payload) === false) {
       this.lanes.delete(key);
       if (this.active?.lane === key) this.stop("this request cannot be replayed with a capped output");
@@ -212,6 +219,7 @@ export class CacheKeepAlive {
     const hold = this.currentHold(active.ctx);
     if (!hold || laneKey(active.ctx, hold, hold.requester) !== active.lane)
       return this.stop("requester resumed or run ended");
+    if (isChatGPTSignIn(lane.model, active.ctx)) return this.stop(SIGN_IN_STOP);
     const now = this.now();
     // Like Pi's warmer, a refresh later than halfway from its slot to expiry is likely a full rewrite.
     const ttl = this.ttlMs(lane)!,
@@ -244,6 +252,8 @@ export class CacheKeepAlive {
     this.schedule();
   }
 }
+
+const SIGN_IN_STOP = "Sign in with ChatGPT is never replayed";
 
 /** Pi's refresh point: 90% of the lifetime, keeping at least ten seconds of margin. */
 const refreshDelay = (ttl: number) => Math.min(ttl * 0.9, ttl - EXPIRY_MARGIN_MS);
