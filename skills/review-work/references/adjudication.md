@@ -22,6 +22,8 @@ State:
 
 State the concrete reason: unsupported, stale, resolved, duplicate, preference-only, out of scope or outside the artifact's job, or based on a source or dependency misread.
 
+Reject only for a reason you checked against the reviewed state. A real defect rejected here is rarely caught later, so when you cannot settle a finding, it is Open, not Rejected. A similar finding dismissed before is not a reason: check this one, and never dismiss a security finding on precedent.
+
 ### Open
 
 State:

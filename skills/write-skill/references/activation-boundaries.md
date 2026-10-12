@@ -69,6 +69,8 @@ A nearby case can pass through:
 
 Test both the immediate response and later declared turns when retained influence matters.
 
+When comparing description wordings, test each on prompts that should read the skill and close prompts that should not, and keep some of each out of the comparison. Choosing a wording by its score on the same prompts you report makes that score optimistic; report the held-out prompts separately. A trigger rate is its own result: it says nothing about what the body does once read.
+
 Examples:
 
 Broad useful trigger:

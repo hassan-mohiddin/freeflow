@@ -38,6 +38,8 @@ When revising from evidence, such as observed failures, transcripts, review find
 
 Keep dropped candidates and their reasons with the evidence, outside the package.
 
+When a transcript shows the agent read an instruction and did not follow it, suspect the instruction before the agent: it may be ambiguous, placed after the choice it governs, or outweighed by another instruction. Sharpen or move it; adding emphasis or repeating it rarely fixes an instruction the agent read differently.
+
 When the same workflow is rebuilt by hand across several tasks and no skill owns it, propose a new skill to the user, naming the tasks it recurred in.
 
 ## Establish The Behavioral Claim
@@ -213,7 +215,7 @@ Goal: every revision answers observed evidence and is checked against it.
 
 1. Start from the source: the evidence a change answers (Choose What To Change), or for a new skill, its behavioral claim.
 2. Name the exact claim: description activation, first-read body behavior, nearby behavior, dependency composition, retained use, artifact outcome, or cross-host behavior.
-3. Fix the cases before the draft is final: one that should use the guidance, a near miss that should not, and for judgment, one where following the default literally is the worse choice.
+3. Fix the cases before the draft is final: one that should use the guidance, a near miss that should not, and for judgment, one where following the default literally is the worse choice. Draw them from real failures where they exist.
 4. Run the arms with [Evaluate Behavior](../evaluate-behavior/SKILL.md) under fixed declared inputs; when the claim is that the revision is better, declare the decision rule before the run.
 5. Read the transcripts and results, with the user when they review, before trusting a count.
 6. Revise one measured pressure point.
