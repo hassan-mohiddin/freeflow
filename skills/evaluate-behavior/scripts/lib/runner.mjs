@@ -9,6 +9,7 @@ import { prepareFreeflow } from "./freeflow.mjs";
 import { postRunRecords } from "./hooks.mjs";
 import { identityRefusal, inputIdentity, installedHostVersion } from "./identity.mjs";
 import { removeCopiedCredentials, TARGET_MINUTES } from "./isolation.mjs";
+import { prepareSourceExtensions } from "./build-source.mjs";
 import { ensureLogin, resolveHostExtensions } from "./pi-host.mjs";
 import { baseProcessEnvironment, runBody, runDescription, VariantSetupError } from "./pi.mjs";
 import { prepareFixture, prepareRuntime, verifyDescriptionOnlyRevision } from "./sandbox.mjs";
@@ -145,7 +146,9 @@ async function resolveSelectedExtensions(selection) {
   for (const { group, variants } of selection.groups) {
     const arms = Object.fromEntries(armNames(group).map((arm) => [arm, []]));
     for (const [arm, state] of Object.entries(variants)) {
-      if (state === "selected") arms[arm] = await resolveHostExtensions(group.variants[arm].hostExtensions ?? []);
+      if (state === "selected") {
+        arms[arm] = await resolveHostExtensions(group.variants[arm].hostExtensions ?? [], { deferSources: true });
+      }
     }
     resolved.set(group.id, arms);
   }
@@ -238,6 +241,7 @@ async function runGroup({ selected, root, resultDirectory, signal, charge, sourc
         groupDirectory,
       });
       freeflow = await prepareFreeflow({ variants: group.variants, root, groupDirectory });
+      hostExtensions = await prepareSourceExtensions({ extensions: hostExtensions, root, groupDirectory, signal });
       if (group.revision === "description-only") {
         await verifyDescriptionOnlyRevision({
           variants: group.variants,

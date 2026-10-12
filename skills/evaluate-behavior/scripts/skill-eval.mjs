@@ -4,6 +4,7 @@ import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
 
+import { extensionLabel } from "./lib/build-source.mjs";
 import { loadDefinition, selectDefinition } from "./lib/definitions.mjs";
 import "./lib/metrics.mjs";
 import { runEvaluation } from "./lib/runner.mjs";
@@ -201,7 +202,7 @@ async function planRun(operation, root) {
       models.add(model ? `${model.model}${model.thinking ? ` (${model.thinking})` : ""}` : "host default");
       if (group.variants[arm].freeflow) freeflow.add(group.variants[arm].freeflow.source.ref);
       for (const extension of group.variants[arm].hostExtensions ?? []) {
-        extensions.add(`${extension.package}@${extension.version}`);
+        extensions.add(extensionLabel(extension));
       }
     }
   }

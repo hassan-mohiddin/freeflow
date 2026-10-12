@@ -295,7 +295,7 @@ async function commandEnvironment(isolationRoot, cwd) {
 }
 
 /** Runs argv without a shell in its own process group; a timeout or cancellation stops the whole tree. */
-function runProcess(argv, { cwd, environment, timeoutMs, signal }) {
+export function runProcess(argv, { cwd, environment, timeoutMs, signal }) {
   return new Promise((resolve, reject) => {
     const started = Date.now();
     let child;
