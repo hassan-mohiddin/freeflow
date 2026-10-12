@@ -105,7 +105,7 @@ Freeflow runs on every Pi turn and request, so its work delays every model call 
 - Run `npm run check:changelog` after changelog changes. Never hand-edit versioned release sections or ask automation to infer a category; release preparation only normalizes already categorized entries.
 - Never edit released changelog sections.
 - Two kinds of documentation, each for its own reader: user docs in `plugin-docs/` (installing, configuring, using Freeflow) and developer docs in `dev-docs/` (architecture, subsystems, maintainer guides, decision records). Write and update both with the [Write Docs](skills/write-docs/SKILL.md) skill.
-- Developer docs change in the same commit as the behavior they describe, without separate authorization; run `node skills/write-docs/scripts/docs-check.mjs dev-docs` after changing them.
+- Developer docs change in the same commit as the behavior they describe, without separate authorization; `npm run check` fails (`check:dev-docs`) when code a developer doc covers changes in a commit that neither changes the doc nor moves its `Verified at` past it.
 - Changes to `plugin-docs/`, public contract or install guidance, ADRs, or release evidence require explicit authorization and should be deferred to the final documentation slice.
 - If leaving a document stale would make the repository misleading, stop and ask rather than silently editing it.
 
