@@ -167,7 +167,7 @@ On `message_end` with usage (Freeflow enabled), `CacheHealth.observe()` compares
 - Native messages are never edited, reordered or removed by request history; only transient messages are placed. Guarded by `history.test.js`.
 - Nothing here fails a request: assembly falls back to the current view (`history.test.js`, "context persistence failure returns the current qualified view"), and payload adaptation returns Pi's payload on any error (a `catch` in each adapter; not tested).
 - Breakpoints change markers only, never content. Not compared directly; `cache-anchor-native.test.js` checks marker placement in real Pi requests.
-- Unqualified routes, Codex and Sign in with ChatGPT receive Pi's payload unchanged. Guarded by `chatgpt-sign-in.test.js`, `cache-anchor.test.js` and `cache-keepalive.test.js`.
+- Unqualified routes, Codex and Sign in with ChatGPT receive Pi's payload unchanged, and a keep-alive hold never replays a request on Sign in with ChatGPT, including one an API key recorded on the same model before a switch. Guarded by `chatgpt-sign-in.test.js`, `cache-anchor.test.js` and `cache-keepalive.test.js`.
 - Keep-alive never replays an uncapped request, and stops at 6 hours or $2 per hold. Guarded by `cache-keepalive.test.js`.
 - Unchanged native history, and routing's renderings of it, are fingerprinted once per session (`history.test.js`, "entry-backed messages are fingerprinted once"; `request-path-budget.test.js`, "a later request fingerprints only what is new"), and the session file is checked by its new tail rather than re-read (`persisted-branch.test.js`).
 

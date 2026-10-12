@@ -263,3 +263,33 @@ test("Sign in with ChatGPT is never warmed: it rejects the output cap a replay n
   await h.advance(HOUR);
   assert.deepEqual(h.sent, []);
 });
+
+test("a request recorded on an API key is not replayed after a switch to Sign in with ChatGPT", async () => {
+  const hold = { provider: gptWithLifetime.provider, modelId: gptWithLifetime.id };
+  const payload = () => ({
+    model: gptWithLifetime.id,
+    input: [{ role: "user", content: "task" }],
+    max_output_tokens: 8000,
+  });
+  const usage = { input: 4, output: 10, cacheRead: 2_000_000, cacheWrite: 0 };
+
+  // A request on the new route drops the lane the API key left.
+  const h = harness({ hold, model: gptWithLifetime });
+  const signIn = (m) => ({ ...h.ctx(m), modelRegistry: { isUsingOAuth: () => true } });
+  h.keepAlive.record(payload(), h.ctx(gptWithLifetime));
+  h.keepAlive.observe(h.ctx(gptWithLifetime), usage);
+  h.keepAlive.record(payload(), signIn(gptWithLifetime));
+  h.keepAlive.evaluate(signIn(gptWithLifetime));
+  await h.advance(HOUR);
+  assert.deepEqual(h.sent, [], "the switch drops the API-key lane");
+
+  // With no request on the new route yet, a hold that is already warming stops before it would send.
+  const g = harness({ hold, model: gptWithLifetime });
+  g.keepAlive.record(payload(), g.ctx(gptWithLifetime));
+  g.keepAlive.observe(g.ctx(gptWithLifetime), usage);
+  g.keepAlive.evaluate(g.ctx(gptWithLifetime));
+  g.keepAlive.evaluate({ ...g.ctx(gptWithLifetime), modelRegistry: { isUsingOAuth: () => true } });
+  await g.advance(HOUR);
+  assert.deepEqual(g.sent, [], "a refresh never sends on Sign in with ChatGPT");
+  assert.match(g.keepAlive.status() ?? "", /Sign in with ChatGPT/);
+});
