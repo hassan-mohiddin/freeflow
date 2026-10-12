@@ -34,4 +34,6 @@ Exit codes: 1 when any suite regressed, else 2 on a refusal or infrastructure fa
 - `decision` (optional) is `"none"` to read comparisons even when the suite declares a decision, or a decision rule (the suite schema's shape, without `trials`) applied to the aggregate instead of the suite's.
 - `model` is the gate's default. A suite's own configuration keeps precedence; the plan notes a suite that uses another model. The evaluator takes models only from definitions, so an arm with no model is refused with the default to declare.
 
-The suites measure the arms they declare. The gate does not rewrite a suite's baseline to the base ref.
+- `arms` (optional) measures the change itself: `{ "baseline": "base", "candidate": "head" }` runs each named arm with every Git source ref it declares (subject source, Freeflow, source-built extensions) replaced by the base commit or HEAD, through the evaluator's `--source <arm>=<commit>`. The definitions are not edited; the commits are recorded in each run's `invocation.json`, on each run, and in its reuse key. An arm with no Git source is refused, so such a suite needs Git-sourced arms.
+
+Without `arms`, a suite measures the arms it declares: skill-family, for example, compares two fixed refs and does not measure the change. A suite of one-arm groups is reported as **MEASURED** with how many checks passed in every trial (exit code as for a pass).

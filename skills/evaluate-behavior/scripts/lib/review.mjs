@@ -85,6 +85,11 @@ export async function reviewResult(
   const resultDirectory = await resolveResult(target, root, results);
   const summary = JSON.parse(await readFile(path.join(resultDirectory, "summary.json"), "utf8"));
   const groups = selectGroups(summary, selectors.group);
+  // A pairwise review compares runs; a one-arm group has one run, which only --rubric judges.
+  const single = (group) => Object.keys(group.variants ?? {}).length === 1;
+  if (groups.length > 0 && groups.every(single)) {
+    throw new Error("a pairwise review compares two or more runs; one-arm groups are judged with review --rubric");
+  }
   const sampled =
     swapSample === null
       ? null
@@ -137,6 +142,7 @@ async function reviewGroup(
   const questions = Array.isArray(definition.review_questions) ? definition.review_questions : [];
   if (questions.length === 0) return { id, state: "skipped", reason: "no review questions" };
   const arms = storedArms(group, definition);
+  if (arms.length === 1) return { id, state: "skipped", reason: "one arm: judge it with review --rubric" };
   const runs = {};
   for (const variant of arms) {
     runs[variant] = JSON.parse(await readFile(path.join(groupDirectory, variant, "run.json"), "utf8"));

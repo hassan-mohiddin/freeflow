@@ -22,7 +22,7 @@ Definition files and declared paths are checked for lexical and canonical contai
 
 ## Common Group Shape
 
-A group is a **task** (what the agent is asked to do and how it is graded) and a **configuration** (the agent environment that does it). Two or more named arms, usually `baseline` and `candidate`, each overlay the shared configuration, and `component` names the only places where an arm may differ from the reference arm. Every group contains exactly these fields, plus optional `reference`, `commands`, `revision`, `reference_solution`, `participants` ([Participants](#participants)), and the judged-evidence fields `rubric`, `judges` and `combine` ([Rubric And Judges](#rubric-and-judges)):
+A group is a **task** (what the agent is asked to do and how it is graded) and a **configuration** (the agent environment that does it). Two or more named arms, usually `baseline` and `candidate`, each overlay the shared configuration, and `component` names the only places where an arm may differ from the reference arm; a group with one arm measures one setup and needs no `component`. Every group contains exactly these fields, plus optional `reference`, `commands`, `revision`, `reference_solution`, `participants` ([Participants](#participants)), and the judged-evidence fields `rubric`, `judges` and `combine` ([Rubric And Judges](#rubric-and-judges)):
 
 ```json
 {
@@ -157,9 +157,10 @@ A configuration has these fields; each arm's effective configuration is the shar
 Rules:
 
 - `configuration` may also hold `extends`: a path, relative to the group file, to a configuration file (`{ "schema_version": 2, "kind": "configuration", "id": "...", "configuration": { ... } }`). Its configuration is merged first, then the group's own fields. A configuration file cannot itself extend another.
-- `arms` holds two or more named arms. A name starts with a lowercase letter, followed by up to 31 lowercase letters, numbers or hyphens. Each arm is an overlay with any of the configuration fields. Merging is key by key for objects; an array, scalar, or `null` in the overlay replaces the shared value.
+- `arms` holds one or more named arms. A name starts with a lowercase letter, followed by up to 31 lowercase letters, numbers or hyphens. Each arm is an overlay with any of the configuration fields. Merging is key by key for objects; an array, scalar, or `null` in the overlay replaces the shared value.
 - `reference` is optional and names the arm the others are compared with; it defaults to `baseline`, and the named arm must exist. Evidence, views and the aggregate list the reference first, then the other arms in declaration order.
 - `component` is an array of dot paths into the configuration, such as `subject.source` or `model.thinking`. The evaluator compares each arm's effective configuration with the reference's leaf by leaf (an array is one leaf) and refuses the group before any subject runs when any arm differs anywhere `component` does not cover, or when a `component` path differs in no arm. `component: []` declares an A/A comparison (or A/A/A with three arms): every arm must be identical, which measures run-to-run variation.
+- **One arm** measures one setup with nothing to compare: the arm is its own reference (`reference`, if given, must name it), `component` is absent or `[]`, and no expectation declares a `comparison`. Checks, pass^k, metrics, judged scores (`review --rubric`), reference solutions and command graders work as usual; the aggregate's claim is a rate on the suite; a suite `decision` refuses a one-arm group, and a pairwise `review` refuses one (judge it with `--rubric`). With two or more arms, `component` is required.
 - `host.name`, `host.version` and `runtime` must be the same in every arm, except `runtime.environment.literal` (see [Runtime Profile](#runtime-profile)). `host.extensions`, `host.settings`, `shell`, `environment` and `freeflow` may differ; any of them can be the component under test.
 - A non-reference arm that declares skills must name its target.
 - `--variant <arm>` selects any arm (see [Selection](#selection)).
