@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "suite",
   "id": "review-artifact",
   "groups": ["cases/RAQ-001-failure-unit-review-activation.json", "cases/RAQ-001-failure-unit-review-outcome.json"]

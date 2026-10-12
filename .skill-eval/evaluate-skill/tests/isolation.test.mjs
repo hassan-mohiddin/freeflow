@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { toV2 } from "./helpers/to-v2.mjs";
 
 const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-skill/scripts/skill-eval.mjs", import.meta.url));
 
@@ -19,7 +20,7 @@ async function withTempDirectory(run) {
 
 async function writeJson(file, value) {
   await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, `${JSON.stringify(value, null, 2)}\n`);
+  await writeFile(file, `${JSON.stringify(toV2(value), null, 2)}\n`);
   return file;
 }
 

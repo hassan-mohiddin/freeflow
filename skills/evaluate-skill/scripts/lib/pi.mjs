@@ -153,7 +153,7 @@ function subjectRun({ group, variant }, subject, observation) {
     tools: [...group.tools],
     commands: group.commands ?? [],
     model: {
-      declared: group.model ?? null,
+      declared: group.variants[variant].model ?? null,
       observed: observation.model,
     },
     resources: {
@@ -285,7 +285,7 @@ async function prepareSubject({ group, variant, root, variantDirectory, fixture:
     });
     materializedRuntime = await materializeRuntime({ runtime, variantDirectory });
     fixture = await materializeFixture({ fixture: fixtureSnapshot, workspace });
-    isolation = await prepareIsolation(variantDirectory, group.model?.model ?? null);
+    isolation = await prepareIsolation(variantDirectory, group.variants[variant].model?.model ?? null);
   } catch (error) {
     if (error instanceof VariantSetupError) throw error;
     throw new VariantSetupError(error instanceof Error ? error.message : String(error));
@@ -296,7 +296,15 @@ async function prepareSubject({ group, variant, root, variantDirectory, fixture:
   const requiresContextObservation = group.expectations.some((expectation) => expectation.kind === "context-text");
   const sessionDirectory = path.join(variantDirectory, "session");
   if (materializedRuntime.session) await mkdir(sessionDirectory, { recursive: true });
-  const args = piArguments(group, environment, materializedRuntime, mode, requiresContextObservation, sessionDirectory);
+  const args = piArguments(
+    group,
+    environment,
+    materializedRuntime,
+    mode,
+    requiresContextObservation,
+    sessionDirectory,
+    group.variants[variant].model,
+  );
   const allowedRoots = [
     await realpath(workspace),
     ...environment.skills.map((skill) => skill.path),
@@ -455,7 +463,7 @@ function subjectRunState(observation) {
   return "infrastructure-failed";
 }
 
-function piArguments(group, environment, runtime, mode, observeContext, sessionDirectory) {
+function piArguments(group, environment, runtime, mode, observeContext, sessionDirectory, model) {
   const args = ["--mode", mode];
   if (mode === "json") args.push("-p");
   if (runtime.session) args.push("--session-dir", sessionDirectory);
@@ -468,8 +476,8 @@ function piArguments(group, environment, runtime, mode, observeContext, sessionD
   if (group.tools.length === 0) args.push("--no-tools");
   else args.push("--tools", group.tools.join(","));
   for (const skill of environment.skills) args.push("--skill", skill.path);
-  if (group.model?.model) args.push("--model", group.model.model);
-  if (group.model?.thinking) args.push("--thinking", group.model.thinking);
+  if (model?.model) args.push("--model", model.model);
+  if (model?.thinking) args.push("--thinking", model.thinking);
   if (mode === "json") args.push(group.input.prompt);
   return args;
 }

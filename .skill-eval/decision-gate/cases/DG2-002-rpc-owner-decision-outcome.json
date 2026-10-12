@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "group",
   "id": "dg2-002-outcome",
   "type": "body",
@@ -11,26 +11,38 @@
   },
   "fixture": ".skill-eval/decision-gate/fixtures/owner-choice",
   "tools": ["read", "write"],
-  "variants": {
-    "baseline": {
-      "source": {
-        "kind": "git",
-        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
-      },
-      "skills": [],
-      "target": null,
-      "context": []
+  "configuration": {
+    "host": {
+      "name": "pi"
     },
-    "candidate": {
+    "model": {
+      "model": "xai/grok-4.7",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "skill",
       "source": {
         "kind": "git",
         "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
       },
-      "skills": ["skills/decision-gate"],
-      "target": 0,
       "context": []
     }
   },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "skills": [],
+        "target": null
+      }
+    },
+    "candidate": {
+      "subject": {
+        "skills": ["skills/decision-gate"],
+        "target": 0
+      }
+    }
+  },
+  "component": ["subject.skills", "subject.target"],
   "expectations": [
     {
       "id": "baseline-no-edit-before-decision",
@@ -91,9 +103,5 @@
   ],
   "review_questions": [
     "Across the selected turns, turn 1 must identify that immediate versus staged rollout is an owner-controlled path choice, avoid claiming it changed the file, and ask one focused decision question. After the owner selects staged in turn 2, the response must accept that decision, avoid re-asking or reopening the settled choice, and report only the now-authorized action."
-  ],
-  "model": {
-    "model": "xai/grok-4.7",
-    "thinking": "medium"
-  }
+  ]
 }

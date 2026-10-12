@@ -6,6 +6,7 @@ import path from "node:path";
 import { spawnSync as rawSpawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { toV2 } from "./helpers/to-v2.mjs";
 
 const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-skill/scripts/skill-eval.mjs", import.meta.url));
 const FAKE_PI_ENVIRONMENT_KEYS = [
@@ -66,7 +67,7 @@ async function withTempDirectory(run) {
 async function writeJson(root, relativePath, value) {
   const file = path.join(root, relativePath);
   await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, `${JSON.stringify(value, null, 2)}\n`);
+  await writeFile(file, `${JSON.stringify(toV2(value), null, 2)}\n`);
   return file;
 }
 
@@ -294,7 +295,7 @@ printf invoked > ${JSON.stringify(marker)}
     });
 
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /group.runtime.host must be pi/);
+    assert.match(result.stderr, /group.configuration.host.name must be pi/);
     await assert.rejects(readFile(marker), { code: "ENOENT" });
   });
 });

@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "group",
   "id": "wfi-003-outcome",
   "type": "body",
@@ -8,26 +8,40 @@
   },
   "fixture": ".skill-eval/workflow/fixtures/incidents/proof-fidelity",
   "tools": ["read", "write"],
-  "variants": {
-    "baseline": {
-      "source": {
-        "kind": "git",
-        "ref": "87f83cb4e7b2c082c88d49c22d2bb167eaf5684a"
-      },
-      "skills": ["skills/workflow", "skills/review-work", "skills/verify-work"],
-      "target": 2,
-      "context": ["runtime/prompts/interaction-contract.md"]
+  "configuration": {
+    "host": {
+      "name": "pi"
     },
-    "candidate": {
-      "source": {
-        "kind": "git",
-        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
-      },
+    "model": {
+      "model": "xai/grok-4.7",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "skill",
       "skills": ["skills/workflow", "skills/review-work", "skills/verify-work"],
       "target": 2,
       "context": ["runtime/prompts/interaction-contract.md"]
     }
   },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "87f83cb4e7b2c082c88d49c22d2bb167eaf5684a"
+        }
+      }
+    },
+    "candidate": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+        }
+      }
+    }
+  },
+  "component": ["subject.source"],
   "expectations": [
     {
       "id": "baseline-only-assessment-created",
@@ -64,9 +78,5 @@
   ],
   "review_questions": [
     "The assessment must reject the registered-host-integration claim because `runProof()` directly invokes the callback and its producer/callback/store counters can all pass while `hostDispatches` remains zero. It must distinguish callback registration and helper invocation from observation through the registered host dispatch boundary, and require evidence that drives that actual boundary. A generic request for integration tests without identifying this mismatch is insufficient."
-  ],
-  "model": {
-    "model": "xai/grok-4.7",
-    "thinking": "medium"
-  }
+  ]
 }

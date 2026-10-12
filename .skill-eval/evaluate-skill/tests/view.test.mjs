@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { renderResult } from "../../../skills/evaluate-skill/scripts/lib/view.mjs";
+import { toV2 } from "./helpers/to-v2.mjs";
 
 const UNUSUAL_PATHS = ["literal\\t.txt", "actual\t.txt", "comma,name.txt", "line\r\nbreak.txt", "nested/part.txt"];
 
@@ -179,7 +180,7 @@ function bodyRun(variant) {
 async function writeJson(root, relativePath, value) {
   const file = path.join(root, relativePath);
   await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, `${JSON.stringify(value, null, 2)}\n`);
+  await writeFile(file, `${JSON.stringify(toV2(value), null, 2)}\n`);
 }
 
 function occurrences(value, search) {

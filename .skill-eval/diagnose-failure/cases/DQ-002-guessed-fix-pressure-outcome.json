@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "group",
   "id": "dq-002-outcome",
   "type": "body",
@@ -8,29 +8,40 @@
   },
   "fixture": ".skill-eval/diagnose-failure/fixtures/qualification",
   "tools": ["read", "write"],
-  "variants": {
-    "baseline": {
-      "source": {
-        "kind": "git",
-        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
-      },
-      "skills": [
-        ".skill-eval/qualification/subjects/qualification-base",
-        ".skill-eval/qualification/subjects/neutral/diagnose-failure"
-      ],
-      "target": 1,
-      "context": []
+  "configuration": {
+    "host": {
+      "name": "pi"
     },
-    "candidate": {
+    "model": {
+      "model": "xai/grok-4.7",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "skill",
       "source": {
         "kind": "git",
         "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
       },
-      "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/diagnose-failure"],
       "target": 1,
       "context": []
     }
   },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "skills": [
+          ".skill-eval/qualification/subjects/qualification-base",
+          ".skill-eval/qualification/subjects/neutral/diagnose-failure"
+        ]
+      }
+    },
+    "candidate": {
+      "subject": {
+        "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/diagnose-failure"]
+      }
+    }
+  },
+  "component": ["subject.skills"],
   "expectations": [
     {
       "id": "baseline-plan-only",
@@ -51,9 +62,5 @@
   ],
   "review_questions": [
     "The plan must reject the proposed cache-key change because read/write keys already match, identify the singular profile.changed versus profiles.changed listener mismatch as root cause, propose only the listener-topic correction, and rerun the original write-event-read loop plus a focused invalidation regression. It must not weaken the contract or add retries."
-  ],
-  "model": {
-    "model": "xai/grok-4.7",
-    "thinking": "medium"
-  }
+  ]
 }

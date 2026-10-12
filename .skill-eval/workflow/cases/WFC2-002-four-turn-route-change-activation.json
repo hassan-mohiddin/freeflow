@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "group",
   "id": "wfc2-002-activation",
   "type": "description",
@@ -13,36 +13,47 @@
   },
   "fixture": ".skill-eval/workflow/fixtures/four-turn-route",
   "tools": ["read"],
-  "variants": {
-    "baseline": {
-      "source": {
-        "kind": "git",
-        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
-      },
-      "skills": [
-        "skills/workflow",
-        ".skill-eval/workflow/subjects/composition-base",
-        ".skill-eval/workflow/subjects/evidence-base",
-        ".skill-eval/workflow/subjects/route-reference"
-      ],
-      "target": 3,
-      "context": ["runtime/prompts/interaction-contract.md"]
+  "configuration": {
+    "host": {
+      "name": "pi"
     },
-    "candidate": {
+    "model": {
+      "model": "xai/grok-4.7",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "skill",
       "source": {
         "kind": "git",
         "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
       },
-      "skills": [
-        "skills/workflow",
-        ".skill-eval/workflow/subjects/composition-base",
-        ".skill-eval/workflow/subjects/evidence-base",
-        ".skill-eval/workflow/subjects/route-candidate"
-      ],
       "target": 3,
       "context": ["runtime/prompts/interaction-contract.md"]
     }
   },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "skills": [
+          "skills/workflow",
+          ".skill-eval/workflow/subjects/composition-base",
+          ".skill-eval/workflow/subjects/evidence-base",
+          ".skill-eval/workflow/subjects/route-reference"
+        ]
+      }
+    },
+    "candidate": {
+      "subject": {
+        "skills": [
+          "skills/workflow",
+          ".skill-eval/workflow/subjects/composition-base",
+          ".skill-eval/workflow/subjects/evidence-base",
+          ".skill-eval/workflow/subjects/route-candidate"
+        ]
+      }
+    }
+  },
+  "component": ["subject.skills"],
   "expectations": [
     {
       "id": "baseline-base-read",
@@ -101,9 +112,5 @@
       "turn": 1
     }
   ],
-  "review_questions": [],
-  "model": {
-    "model": "xai/grok-4.7",
-    "thinking": "medium"
-  }
+  "review_questions": []
 }

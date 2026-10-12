@@ -1,6 +1,6 @@
 # Evaluation Definition Schema
 
-Read this when authoring or checking schema-version-1 group and suite JSON.
+Read this when authoring or checking schema-version-2 group, suite, and configuration JSON. Schema 1 definitions are not loaded; rewrite them in the shape below.
 
 This reference is a contract: the shapes and constraints below are binding as written. Structural violations are rejected before any subject runs, including an expectation field its kind does not define and a group with no expectations and no review questions. An expectation of an unknown kind, or with invalid values for its fields, surfaces afterward as `grade-error` evidence.
 
@@ -15,49 +15,42 @@ Run `skill-eval` from the repository or fixture root that owns the evaluation in
 | `run <suite-or-group-path>` | current working directory |
 | suite `groups` entries | directory containing the suite file |
 | group `fixture` | definition root/current working directory |
-| environment `skills` and `context` | definition root/current working directory, then the selected working tree or Git commit |
+| `configuration.extends` | directory containing the group file |
+| subject `skills` and `context` | definition root/current working directory, then the selected working tree or Git commit |
 
 Definition files and declared paths are checked for lexical and canonical containment. Paths are slash-separated relative paths, not absolute paths.
 
 ## Common Group Shape
 
-Every group contains exactly these fields, plus optional `model`, `runtime`, `commands`, and `revision`:
+A group is a **task** (what the agent is asked to do and how it is graded) and a **configuration** (the agent environment that does it). The two arms, `baseline` and `candidate`, each overlay the shared configuration, and `component` names the only places where they may differ. Every group contains exactly these fields, plus optional `commands` and `revision`:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "group",
   "id": "one-behavioral-question",
   "type": "description",
   "input": { "prompt": "Natural task prompt." },
   "fixture": null,
   "tools": ["read"],
-  "variants": {
-    "baseline": {
-      "source": { "kind": "working-tree" },
-      "skills": [],
-      "target": null,
-      "context": []
-    },
-    "candidate": {
-      "source": { "kind": "working-tree" },
-      "skills": ["skills/target"],
-      "target": 0,
-      "context": []
-    }
+  "configuration": {
+    "host": { "name": "pi" },
+    "model": { "model": "xai/grok-4.7", "thinking": "low" },
+    "subject": { "kind": "skill", "source": { "kind": "working-tree" }, "context": [] }
   },
+  "arms": {
+    "baseline": { "subject": { "skills": [], "target": null } },
+    "candidate": { "subject": { "skills": ["skills/target"], "target": 0 } }
+  },
+  "component": ["subject.skills", "subject.target"],
   "expectations": [],
-  "review_questions": [],
-  "model": {
-    "model": "xai/grok-4.7",
-    "thinking": "low"
-  }
+  "review_questions": []
 }
 ```
 
 Rules:
 
-- `schema_version` is `1`.
+- `schema_version` is `2`.
 - `kind` is `group`.
 - `id` starts with a lowercase letter, contains lowercase letters, numbers, or single hyphens, and is at most 64 characters.
 - `type` is `description` or `body`.
@@ -66,14 +59,32 @@ Rules:
   - `turns`: a non-empty ordered array of non-empty strings. Repeated natural turns are allowed.
 - `fixture` is `null` or one contained relative directory path. The directory's contents become the workspace.
 - `tools` is an ordered array with no duplicates.
-- `variants` contains exactly `baseline` and `candidate`.
+- `configuration`, `arms` and `component` follow [Configuration And Arms](#configuration-and-arms).
 - `expectations` is an ordered array with unique expectation IDs.
 - `review_questions` is an ordered string array. Questions are rendered for the reviewer and never sent to the subject.
 - A group declares at least one expectation or review question. A group with only review questions has no deterministic checks; its evidence comes from the advisory review alone.
-- `revision` is optional and, when present, is `description-only`. It is valid only for a description group whose two variants both name a target skill. Before any subject runs, the evaluator snapshots both targets and refuses the group as `invalid` unless every file other than `SKILL.md` is byte-identical and `SKILL.md` differs only in its frontmatter `description`.
-- `model` is optional. `model.model` names the provider/model; optional `model.thinking` selects its thinking level. The CLI has no model override.
-- `runtime` is optional. When omitted, the group runs under a plain `pi` host with the isolated prompt and no declared extensions. When present, it declares the host, prompt mode, ordered extension bundles, and string environment overrides.
+- `revision` is optional and, when present, is `description-only`. It is valid only for a description group whose two arms both name a target skill. Before any subject runs, the evaluator snapshots both targets and refuses the group as `invalid` unless every file other than `SKILL.md` is byte-identical and `SKILL.md` differs only in its frontmatter `description`.
 - `commands` is optional and only for body groups that list the `run_command` tool. See [Declared Commands](#declared-commands).
+
+## Configuration And Arms
+
+A configuration has these fields; each arm's effective configuration is the shared `configuration` with that arm's overlay merged in:
+
+| Field | Required in the effective configuration | Meaning |
+| --- | --- | --- |
+| `host` | yes | `{ "name": "pi" }`, with an optional `version` string. |
+| `subject` | yes | What is under test: `{ "kind": "skill", "source", "skills", "target", "context" }` (see [Subject](#subject)) or `{ "kind": "none" }` when the comparison is about the environment, not a skill. |
+| `model` | no | `model` names the provider/model; optional `thinking` selects its thinking level. The CLI has no model override, and a subject run without a model gets Pi's default and no copied login. |
+| `runtime` | no | Host session, prompt mode, extension bundles and environment; see [Runtime Profile](#runtime-profile). |
+| `freeflow` | no | Reserved; must be absent or `null` until Freeflow configurations are supported. |
+
+Rules:
+
+- `configuration` may also hold `extends`: a path, relative to the group file, to a configuration file (`{ "schema_version": 2, "kind": "configuration", "id": "...", "configuration": { ... } }`). Its configuration is merged first, then the group's own fields. A configuration file cannot itself extend another.
+- `arms` holds exactly `baseline` and `candidate`. Each is an overlay with any of the configuration fields. Merging is key by key for objects; an array, scalar, or `null` in the overlay replaces the shared value.
+- `component` is an array of dot paths into the configuration, such as `subject.source` or `model.thinking`. The evaluator compares the two effective configurations leaf by leaf (an array is one leaf) and refuses the group before any subject runs when they differ anywhere `component` does not cover, or when a `component` path does not differ. `component: []` declares an A/A comparison: the two arms must be identical, which measures run-to-run variation.
+- `host` and `runtime` must be the same in both arms.
+- A candidate that declares skills must name its target.
 
 ## Description Group Example
 
@@ -81,7 +92,7 @@ A description group uses natural prompts and asks whether the exact target was r
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "group",
   "id": "natural-activation",
   "type": "description",
@@ -93,20 +104,16 @@ A description group uses natural prompts and asks whether the exact target was r
   },
   "fixture": null,
   "tools": ["read"],
-  "variants": {
-    "baseline": {
-      "source": { "kind": "git", "ref": "before-description-change" },
-      "skills": ["skills/target"],
-      "target": 0,
-      "context": []
-    },
-    "candidate": {
-      "source": { "kind": "working-tree" },
-      "skills": ["skills/target"],
-      "target": 0,
-      "context": []
-    }
+  "configuration": {
+    "host": { "name": "pi" },
+    "model": { "model": "xai/grok-4.7", "thinking": "medium" },
+    "subject": { "kind": "skill", "skills": ["skills/target"], "target": 0, "context": [] }
   },
+  "arms": {
+    "baseline": { "subject": { "source": { "kind": "git", "ref": "before-description-change" } } },
+    "candidate": { "subject": { "source": { "kind": "working-tree" } } }
+  },
+  "component": ["subject.source"],
   "expectations": [
     {
       "id": "baseline-read-by-two",
@@ -139,7 +146,7 @@ A body group explicitly delivers each target on turn one and observes first-read
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "group",
   "id": "retained-artifact-behavior",
   "type": "body",
@@ -151,20 +158,21 @@ A body group explicitly delivers each target on turn one and observes first-read
   },
   "fixture": "fixtures/task",
   "tools": ["read", "write", "edit"],
-  "variants": {
-    "baseline": {
-      "source": { "kind": "git", "ref": "before-body-change" },
-      "skills": ["skills/support", "skills/target"],
-      "target": 1,
-      "context": ["context/contract.md"]
-    },
-    "candidate": {
-      "source": { "kind": "working-tree" },
+  "configuration": {
+    "host": { "name": "pi" },
+    "model": { "model": "xai/grok-4.7", "thinking": "medium" },
+    "subject": {
+      "kind": "skill",
       "skills": ["skills/support", "skills/target"],
       "target": 1,
       "context": ["context/contract.md"]
     }
   },
+  "arms": {
+    "baseline": { "subject": { "source": { "kind": "git", "ref": "before-body-change" } } },
+    "candidate": { "subject": { "source": { "kind": "working-tree" } } }
+  },
+  "component": ["subject.source"],
   "expectations": [
     {
       "id": "baseline-result",
@@ -215,12 +223,11 @@ The examples are complete definition shapes. Replace fixture, resource, model, a
 
 ## Runtime Profile
 
-A runtime profile is shared by both baseline and candidate variants. It changes the host environment, not the skill target:
+A runtime profile, under `configuration.runtime`, is shared by both arms. It changes the host environment, not the skill target:
 
 ```json
 {
   "runtime": {
-    "host": "pi",
     "session": false,
     "extensions": [
       {
@@ -238,7 +245,7 @@ A runtime profile is shared by both baseline and candidate variants. It changes 
 }
 ```
 
-`host` is `pi`; the evaluator maps it to the installed Pi command and records the selected host. Optional `prompt` is `isolated` (default) or `host`:
+The host comes from `configuration.host.name` (`pi`); the evaluator maps it to the installed Pi command and records the selected host. Optional `prompt` is `isolated` (default) or `host`:
 
 - `isolated` replaces the host's system prompt with a minimal evaluator-owned prompt. Use it to isolate the target skill.
 - `host` keeps the host's own system prompt and whatever declared extensions compose onto it, appending declared context. Use it when evidence must reflect the production prompt, for example by declaring the Freeflow Pi extension bundle with a fixture containing `.freeflow/config.json`.
@@ -253,18 +260,21 @@ When a group declares `context-text` expectations, the evaluator loads its base 
 
 A custom tool name is allowed in `group.tools` only when the runtime declares an extension bundle. The evaluator remains extension-neutral: it does not interpret feature names or configuration schemas. Put feature configuration in the ordinary group fixture or runtime environment, and test combinations as separate suite groups.
 
-## Variant Environment
+## Subject
 
-Each environment has exactly:
+A `skill` subject's effective configuration has exactly:
 
 ```json
 {
+  "kind": "skill",
   "source": { "kind": "git", "ref": "v1.2.3" },
   "skills": ["skills/target", "skills/support"],
   "target": 0,
   "context": ["context/base-guidance.md"]
 }
 ```
+
+A `none` subject has only `{ "kind": "none" }`: no skills, no target, and no declared context.
 
 `source` is either:
 
@@ -278,7 +288,7 @@ or:
 { "kind": "git", "ref": "<exact-ref>" }
 ```
 
-A source applies only to declared skill and context paths in that variant. It never supplies the group fixture: `fixture` is snapshotted once from the definition-root working tree, then copied independently for selected variants. `skills` preserves registration order. `target` is `null` or a zero-based index into `skills`. A candidate that declares skills must name its target; a candidate with `skills: []` uses `target: null`. `context` preserves declaration order and may name UTF-8 files or directories.
+A source applies only to declared skill and context paths in that arm. It never supplies the group fixture: `fixture` is snapshotted once from the definition-root working tree, then copied independently for selected variants. `skills` preserves registration order. `target` is `null` or a zero-based index into `skills`. A candidate that declares skills must name its target; a candidate with `skills: []` uses `target: null`. `context` preserves declaration order and may name UTF-8 files or directories.
 
 ## Expectations
 
@@ -397,7 +407,7 @@ Commands are trusted author input with the evaluator's host permissions, like ex
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "suite",
   "id": "workflow-core",
   "groups": [

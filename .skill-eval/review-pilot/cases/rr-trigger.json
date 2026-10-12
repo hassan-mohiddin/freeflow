@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "group",
   "id": "rp09",
   "type": "description",
@@ -11,26 +11,40 @@
   },
   "fixture": ".skill-eval/review-pilot/fixtures/rr-check-claim/clean",
   "tools": ["read"],
-  "variants": {
-    "baseline": {
-      "source": {
-        "kind": "git",
-        "ref": "6214858769e226369c061eb9bb157aa444455a07"
-      },
-      "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/review-work"],
-      "target": 1,
-      "context": []
+  "configuration": {
+    "host": {
+      "name": "pi"
     },
-    "candidate": {
-      "source": {
-        "kind": "git",
-        "ref": "967c212661fbdb4389a0dc6497b6ea181527fa81"
-      },
+    "model": {
+      "model": "xai/grok-4.7",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "skill",
       "skills": [".skill-eval/qualification/subjects/qualification-base", "skills/review-work"],
       "target": 1,
       "context": []
     }
   },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "6214858769e226369c061eb9bb157aa444455a07"
+        }
+      }
+    },
+    "candidate": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "967c212661fbdb4389a0dc6497b6ea181527fa81"
+        }
+      }
+    }
+  },
+  "component": ["subject.source"],
   "expectations": [
     {
       "id": "baseline-near-miss-not-read",
@@ -65,9 +79,5 @@
       "turn": 2
     }
   ],
-  "review_questions": [],
-  "model": {
-    "model": "xai/grok-4.7",
-    "thinking": "medium"
-  }
+  "review_questions": []
 }

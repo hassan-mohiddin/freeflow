@@ -5,11 +5,12 @@ import path from "node:path";
 import test from "node:test";
 
 import { checkEvalDefinitions } from "../../../scripts/validation/check-eval-definitions.mjs";
+import { toV2 } from "./helpers/to-v2.mjs";
 
 async function writeJson(root, relativePath, value) {
   const file = path.join(root, relativePath);
   await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, `${JSON.stringify(value, null, 2)}\n`);
+  await writeFile(file, `${JSON.stringify(toV2(value), null, 2)}\n`);
 }
 
 function group(id) {

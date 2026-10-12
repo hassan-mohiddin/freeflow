@@ -55,7 +55,7 @@ To learn whether a skill's body, not just its description, changes behavior, add
 
 For a description-only revision, body and resources remain byte-identical; the group's `"revision": "description-only"` makes the evaluator check this before any subject runs.
 
-Freeze prompts or turns, fixture, tools, model, thinking, other skills, context, runtime, and criteria across variants.
+Freeze prompts or turns, fixture, tools, model, thinking, other skills, context, runtime, and criteria across variants. Put what may differ in the group's `component`; the evaluator refuses a group whose arms differ anywhere else.
 
 ## Design Common Questions
 
