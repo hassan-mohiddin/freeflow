@@ -553,7 +553,14 @@ async function resolveArms(group, definitionPath, root) {
     resolved[arm] = validateEffectiveConfiguration(merge(shared, overlay), `group.arms.${arm}`, definitionPath);
   }
 
-  const component = requireStringArray(group.component, "group.component", definitionPath, { unique: true });
+  // A one-arm group measures one setup: nothing differs, so `component` is absent or empty.
+  if (!Object.hasOwn(group, "component") && names.length > 1) {
+    fail("invalid-definition", "group is missing component", definitionPath);
+  }
+  const component = requireStringArray(group.component ?? [], "group.component", definitionPath, { unique: true });
+  if (names.length === 1 && component.length > 0) {
+    fail("invalid-definition", "group.component must be absent or empty for a one-arm group", definitionPath);
+  }
   for (const [index, entry] of component.entries()) {
     if (!COMPONENT_PATH.test(entry) || !CONFIGURATION_FIELDS.includes(entry.split(".")[0])) {
       fail("invalid-definition", `group.component[${index}] must be a path inside the configuration`, definitionPath);
@@ -598,7 +605,7 @@ async function resolveArms(group, definitionPath, root) {
 /** The declared arm names, reference first and then in declaration order, and the reference arm. */
 function validateArmNames(group, definitionPath) {
   const declared = Object.keys(requireObject(group.arms, "group.arms", definitionPath));
-  if (declared.length < 2) fail("invalid-definition", "group.arms must declare at least two arms", definitionPath);
+  if (declared.length < 1) fail("invalid-definition", "group.arms must declare at least one arm", definitionPath);
   for (const name of declared) {
     if (!ARM_NAME.test(name)) {
       fail(
@@ -608,7 +615,9 @@ function validateArmNames(group, definitionPath) {
       );
     }
   }
-  const reference = Object.hasOwn(group, "reference") ? group.reference : DEFAULT_REFERENCE;
+  // One arm is its own reference: it is measured, not compared.
+  const fallback = declared.length === 1 ? declared[0] : DEFAULT_REFERENCE;
+  const reference = Object.hasOwn(group, "reference") ? group.reference : fallback;
   if (typeof reference !== "string" || !declared.includes(reference)) {
     fail(
       "invalid-definition",
@@ -635,11 +644,21 @@ async function validateGroup(value, definitionPath, root) {
       "tools",
       "configuration",
       "arms",
-      "component",
       "expectations",
       "review_questions",
     ],
-    ["commands", "revision", "reference", "rubric", "judges", "combine", "reference_solution", "participants"],
+    // `component` is required when there are two or more arms (checked with the arms).
+    [
+      "component",
+      "commands",
+      "revision",
+      "reference",
+      "rubric",
+      "judges",
+      "combine",
+      "reference_solution",
+      "participants",
+    ],
     "group",
     definitionPath,
   );
@@ -666,6 +685,16 @@ async function validateGroup(value, definitionPath, root) {
     }
   }
   validateExpectations(group.expectations, definitionPath);
+  if (names.length === 1) {
+    const compared = group.expectations.findIndex((expectation) => Object.hasOwn(expectation, "comparison"));
+    if (compared >= 0) {
+      fail(
+        "invalid-definition",
+        `group.expectations[${compared}].comparison needs two arms; a one-arm group measures one setup`,
+        definitionPath,
+      );
+    }
+  }
   validateShellGroup({
     group,
     names,
@@ -870,6 +899,10 @@ export async function loadDefinition(file, { root = process.cwd() } = {}) {
     const group = await validateGroup(groupLoaded.value, groupLoaded.file, definitionRoot);
     if (ids.has(group.id)) fail("invalid-definition", `suite contains duplicate group ID ${group.id}`, loaded.file);
     ids.add(group.id);
+    // A decision compares two arms, so a one-arm group in the suite has nothing for it to read.
+    if (suite.decision !== undefined && Object.keys(group.variants).length === 1) {
+      fail("invalid-definition", `suite.decision compares arms, but group ${group.id} has one arm`, loaded.file);
+    }
     groups.push(group);
   }
   return { ...suite, groups };

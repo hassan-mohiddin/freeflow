@@ -53,3 +53,38 @@ test("every suite and case file under .skill-eval is loaded, and a legacy shape 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("variant suite files and group directories are loaded too; runs and fixtures are not", async () => {
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), "check-eval-definitions-")));
+  try {
+    await writeJson(root, ".skill-eval/review/suite-f3.json", {
+      schema_version: 1,
+      kind: "suite",
+      id: "f3",
+      groups: ["groups-f3/one.json"],
+    });
+    await writeJson(root, ".skill-eval/review/groups-f3/one.json", group("one"));
+    await writeJson(root, ".skill-eval/review/groups-wording1/two.json", group("two"));
+    await writeJson(root, ".skill-eval/review/review-suite.json", {
+      schema_version: 1,
+      kind: "suite",
+      id: "named",
+      groups: ["groups-f3/one.json"],
+    });
+    // A broken group in a variant directory is now caught.
+    await writeJson(root, ".skill-eval/review/groups-f7/broken.json", { ...group("broken"), kind: "nope" });
+    await writeJson(root, ".skill-eval/review/runs/groups/ignored.json", { anything: true });
+    await writeJson(root, ".skill-eval/review/fixtures/suite.json", { anything: true });
+    await writeJson(root, ".skill-eval/review/groupsnot/ignored.json", { anything: true });
+
+    const { checked, failures } = await checkEvalDefinitions(root);
+
+    assert.equal(checked, 5);
+    assert.deepEqual(
+      failures.map((failure) => failure.file),
+      [path.join(".skill-eval", "review", "groups-f7", "broken.json")],
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

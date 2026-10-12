@@ -10,6 +10,7 @@ import "./lib/metrics.mjs";
 import { createBudget } from "./lib/budget.mjs";
 import { createLimiter, setCpuJobs } from "./lib/queue.mjs";
 import { checkSelection } from "./lib/reference.mjs";
+import { applySourceOverrides, parseSourceOverrides } from "./lib/source-override.mjs";
 import { createRunReuse, resultsDirectory, runEvaluation } from "./lib/runner.mjs";
 import { calibrateJudges, reviewResult, reviewRubric } from "./lib/review.mjs";
 import { runPilot, runTrials } from "./lib/trials.mjs";
@@ -30,6 +31,7 @@ const OPTIONS = {
     "--results",
     "--reuse",
     "--pilot",
+    "--source",
   ],
   "check-tasks": ["--group"],
   view: ["--group", "--variant", "--html", "--results"],
@@ -82,6 +84,8 @@ Run options:
                       running them again (each once per run, listed as reused), and index this run's own
   --pilot <n>         Run the first n groups once first; stop with a report on any failed or invalid run,
                       check error, or comparison no arm passed; otherwise continue (the pilot counts as a trial)
+  --source <arm>=<sha> For this run only, use the commit for every Git source ref the arm declares (its subject,
+                      Freeflow and source-built extensions); recorded, never written to the definition (repeatable)
 
 Result location (run, view, review):
   --results <dir>     Store and find results under <dir> instead of <cwd>/.skill-eval/runs
@@ -155,6 +159,7 @@ function parseOperation(values) {
   let dryRun = false;
   let reuse = false;
   let skipReferenceCheck = false;
+  const sourceValues = [];
   const keys = {
     "--jobs": "jobs",
     "--cpu-jobs": "cpuJobs",
@@ -181,6 +186,12 @@ function parseOperation(values) {
     }
     if (option === "--rubric") {
       rubric = true;
+      continue;
+    }
+    if (option === "--source") {
+      if (!value || value.startsWith("--")) throw new Error("--source requires <arm>=<commit SHA>");
+      sourceValues.push(value);
+      index += 1;
       continue;
     }
     if (option === "--limit") {
@@ -266,6 +277,7 @@ function parseOperation(values) {
     reuse,
     results: parsed.results,
     skipReferenceCheck,
+    sources: parseSourceOverrides(sourceValues),
   };
 }
 
@@ -296,6 +308,8 @@ async function planRun(operation, root) {
   const definitionPath = await realpath(path.resolve(root, operation.target));
   const definition = await loadDefinition(definitionPath, { root });
   const selection = selectDefinition(definition, operation.selectors);
+  // Refused here, before the plan, exactly as the runner would refuse it.
+  applySourceOverrides(selection, operation.sources);
   const decision = definition.kind === "suite" ? (definition.decision ?? null) : null;
   const schedule = decision?.trials ?? null;
   if (schedule !== null && operation.trials !== null && operation.trials !== schedule.initial) {
@@ -334,6 +348,8 @@ async function planRun(operation, root) {
   if (operation.jobs > 1) line += `; ${operation.jobs} subjects at once`;
   if (operation.pilot !== null) line += `; pilot of the first ${Math.min(operation.pilot, groups)} groups`;
   if (operation.reuse) line += "; reusing matching runs";
+  const overridden = Object.entries(operation.sources ?? {});
+  if (overridden.length > 0) line += `; sources: ${overridden.map(([arm, commit]) => `${arm}=${commit}`).join(", ")}`;
   if (operation.dryRun) line += "; dry run";
   process.stdout.write(`${line}\n`);
   if (operation.yes || !process.stdin.isTTY || !process.stdout.isTTY) return { decision };
@@ -360,6 +376,7 @@ async function run(operation) {
       jobs: operation.jobs,
       results: operation.results,
       skipReferenceCheck: operation.skipReferenceCheck,
+      sources: operation.sources,
     };
     // A suite's decision is reached over an aggregate, so it always runs as trials, even a single one.
     if (plan.decision === null && (operation.trials ?? 1) === 1) {

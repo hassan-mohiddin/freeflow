@@ -20,12 +20,15 @@ import { loadDefinition } from "../../skills/evaluate-behavior/scripts/lib/defin
 import { installedHostVersion } from "../../skills/evaluate-behavior/scripts/lib/identity.mjs";
 import { baseProcessEnvironment } from "../../skills/evaluate-behavior/scripts/lib/pi.mjs";
 import { readIndex, reuseKey } from "../../skills/evaluate-behavior/scripts/lib/reuse.mjs";
+import { applySourceOverrides } from "../../skills/evaluate-behavior/scripts/lib/source-override.mjs";
+import { aggregateGroups } from "../../skills/evaluate-behavior/scripts/lib/trials.mjs";
 
 const execFileAsync = promisify(execFile);
 const EVALUATOR = fileURLToPath(new URL("../../skills/evaluate-behavior/scripts/skill-eval.mjs", import.meta.url));
 const DECLARATION = ".skill-eval/gate.json";
 const PILOT_GROUPS = 3;
-const ENTRY_FIELDS = new Set(["paths", "suite", "trials", "decision"]);
+const ENTRY_FIELDS = new Set(["paths", "suite", "trials", "decision", "arms"]);
+const SIDES = new Set(["base", "head"]);
 
 export class GateRefusal extends Error {}
 
@@ -80,6 +83,13 @@ export async function loadGate(root, file = DECLARATION) {
       if (rule.trials !== undefined) fail(`${label}.decision: an override cannot declare trials`);
       entry.decision = rule;
     }
+    // Which arms take the base commit and which the current one, for every Git source ref they declare.
+    if (Object.hasOwn(entry, "arms")) {
+      const sides = isPlainObject(entry.arms) ? Object.values(entry.arms) : [];
+      if (sides.length === 0 || sides.some((side) => !SIDES.has(side))) {
+        fail(`${label}.arms must map arm names to "base" or "head"`);
+      }
+    }
   }
   return gate;
 }
@@ -111,9 +121,16 @@ export async function changedPaths(root, base) {
  * index could already supply. An arm with no model is refused: the gate's default model would apply, but the
  * evaluator takes models only from definitions, so the suite must declare it.
  */
-export async function planSuite(root, entry, gate, { hostVersion, index }) {
+export async function planSuite(root, entry, gate, { hostVersion, index, commits = null }) {
   const suite = await loadDefinition(path.resolve(root, entry.suite), { root });
   if (suite.kind !== "suite") throw new GateRefusal(`${entry.suite} is not a suite`);
+  // Base and head take the place of the arms' declared Git refs, as the evaluator's --source will.
+  const sources = sourcesFor(entry, commits);
+  try {
+    applySourceOverrides({ groups: suite.groups.map((group) => ({ group })) }, sources);
+  } catch (error) {
+    throw new GateRefusal(`${entry.suite}: ${error instanceof Error ? error.message : String(error)}`);
+  }
   const schedule = suite.decision?.trials ?? null;
   const trials = schedule?.initial ?? entry.trials;
   const models = new Set();
@@ -160,7 +177,29 @@ export async function planSuite(root, entry, gate, { hostVersion, index }) {
             ? "suite"
             : "comparisons",
     schedule,
+    sources,
   };
+}
+
+/** The `--source` overrides an entry's `arms` ask for: each arm's side resolved to the base or head commit. */
+export function sourcesFor(entry, commits) {
+  if (entry.arms === undefined || commits === null) return null;
+  return Object.fromEntries(Object.entries(entry.arms).map(([arm, side]) => [arm, commits[side]]));
+}
+
+/** The base ref and HEAD as commit SHAs, which is what `--source` takes. */
+export async function resolveCommits(root, base) {
+  const commit = async (ref) => {
+    try {
+      const { stdout } = await execFileAsync("git", ["rev-parse", "--verify", "--end-of-options", `${ref}^{commit}`], {
+        cwd: root,
+      });
+      return stdout.trim();
+    } catch {
+      throw new GateRefusal(`cannot resolve ${ref} to a commit`);
+    }
+  };
+  return { base: await commit(base), head: await commit("HEAD") };
 }
 
 export function formatPlan(plans, { uncovered }) {
@@ -172,6 +211,10 @@ export function formatPlan(plans, { uncovered }) {
       `Suite ${plan.suite}: ${plan.groups} groups, ${plan.trials} trials, ${plan.subjects}${range} subjects; reuse ${reuse}; models ${plan.models.join(", ")}; verdict from ${plan.decision}`,
     );
     if (plan.trialsNote) lines.push(`  note: ${plan.trialsNote}`);
+    if (plan.sources) {
+      const arms = Object.entries(plan.sources).map(([arm, commit]) => `${arm}=${commit.slice(0, 12)}`);
+      lines.push(`  sources: ${arms.join(", ")}`);
+    }
     if (plan.otherModels.length > 0)
       lines.push(`  note: the suite's own model ${plan.otherModels.join(", ")} keeps precedence`);
   }
@@ -217,6 +260,13 @@ export function suiteVerdict(aggregate, override = undefined) {
     }
   }
   if (regressions.length > 0) return { verdict: "regressed", detail: regressions.join("; ") };
+  // A suite of one-arm groups measures one setup: there is nothing to regress against, so report its pass^k.
+  const groups = aggregate.groups ?? [];
+  if (compared === 0 && groups.length > 0 && groups.every((group) => Object.keys(group.runStates ?? {}).length === 1)) {
+    const checks = groups.flatMap((group) => group.checks ?? []);
+    const held = checks.filter((check) => check.passAll === true).length;
+    return { verdict: "measured", detail: `one-arm suite: ${held} of ${checks.length} checks passed in every trial` };
+  }
   if (compared === 0) return { verdict: "undecided", detail: "no comparison to read" };
   if (unresolved > 0) return { verdict: "undecided", detail: `${unresolved} comparisons with unavailable outcomes` };
   return { verdict: "pass", detail: `${compared} comparisons, none passed less often` };
@@ -262,10 +312,27 @@ function runEvaluator(root, args, { onOutput } = {}) {
 export async function runSuite(root, entry, plan, { jobs = null, maxCost = null, onOutput } = {}) {
   const args = ["run", entry.suite, "--yes", "--reuse", "--pilot", String(PILOT_GROUPS)];
   if (plan.schedule === null) args.push("--trials", String(entry.trials));
+  for (const [arm, commit] of Object.entries(plan.sources ?? {})) args.push("--source", `${arm}=${commit}`);
   if (jobs !== null) args.push("--jobs", String(jobs));
   if (maxCost !== null) args.push("--max-cost", String(maxCost));
   const outcome = await runEvaluator(root, args, { onOutput });
   const aggregatePath = outcome.stdout.match(/^Aggregate: .+\nPath: (.+)$/m)?.[1];
+  // One trial without a decision is an ordinary result, not an aggregate: count it the way an aggregate would.
+  // The last result printed is the run itself; a passed pilot's result is printed before it.
+  const singlePath = [...outcome.stdout.matchAll(/^Result: .+\nPath: (.+)$/gm)].at(-1)?.[1];
+  const pilotStopped = /^Pilot: .+ stopped the run$/m.test(outcome.stdout);
+  if (aggregatePath === undefined && !pilotStopped && singlePath !== undefined) {
+    const summary = JSON.parse(await readFile(path.join(singlePath, "summary.json"), "utf8"));
+    const single = { id: summary.id, path: singlePath, state: summary.state, summary };
+    const aggregate = {
+      id: summary.id,
+      state: summary.state,
+      trials: [{ id: summary.id, state: summary.state }],
+      groups: await aggregateGroups([single]),
+      claim: { class: summary.dryRun ? "none" : "rate-on-suite", k: 1 },
+    };
+    return readAggregate(entry, aggregate, path.dirname(singlePath));
+  }
   if (aggregatePath === undefined) {
     const pilot = outcome.stdout.match(/^Pilot: .+ stopped the run\n((?: {2}- .+\n?)*)/m);
     const reason = pilot
@@ -278,7 +345,12 @@ export async function runSuite(root, entry, plan, { jobs = null, maxCost = null,
     return { suite: entry.suite, verdict: "infrastructure", detail: reason, aggregate: null, cost: null };
   }
   const aggregate = JSON.parse(await readFile(path.join(aggregatePath, "aggregate.json"), "utf8"));
-  const cost = await aggregateCost(aggregate, path.dirname(aggregatePath));
+  return readAggregate(entry, aggregate, path.dirname(aggregatePath));
+}
+
+/** A suite's report from its aggregate: verdict, cost and reuse, or infrastructure when runs failed. */
+async function readAggregate(entry, aggregate, runsDirectory) {
+  const cost = await aggregateCost(aggregate, runsDirectory);
   const failedRuns = (aggregate.groups ?? []).flatMap((group) =>
     Object.entries(group.runStates ?? {}).flatMap(([arm, states]) =>
       ["infrastructure-failed", "invalid", "cancelled"]
@@ -348,7 +420,12 @@ export async function main(argv, { root = process.cwd(), write = (text) => proce
     const hostVersion = await installedHostVersion("pi", baseProcessEnvironment()).catch(() => null);
     const index = await readIndex(path.join(canonicalRoot, ".skill-eval", "runs"));
     const plans = [];
-    for (const entry of matched) plans.push(await planSuite(canonicalRoot, entry, gate, { hostVersion, index }));
+    const commits = matched.some((entry) => entry.arms !== undefined)
+      ? await resolveCommits(canonicalRoot, options.base)
+      : null;
+    for (const entry of matched) {
+      plans.push(await planSuite(canonicalRoot, entry, gate, { hostVersion, index, commits }));
+    }
     write(`Gate since ${options.base}: ${changed.length} changed paths, ${matched.length} suites\n`);
     for (const line of formatPlan(plans, { uncovered })) write(`${line}\n`);
     if (options.dryRunPlan) return 0;

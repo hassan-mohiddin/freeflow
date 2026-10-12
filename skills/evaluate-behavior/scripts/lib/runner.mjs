@@ -19,6 +19,7 @@ import { baseProcessEnvironment, runBody, runDescription, VariantSetupError } fr
 import { createLimiter, withCpuSlot } from "./queue.mjs";
 import { adoptRun, appendIndex, createReuse } from "./reuse.mjs";
 import { prepareFixture, prepareRuntime, verifyDescriptionOnlyRevision } from "./sandbox.mjs";
+import { applySourceOverrides } from "./source-override.mjs";
 
 const DESCRIPTION_TOOLS = new Set(["read"]);
 const BODY_TOOLS = new Set(["read", "write", "edit", "ls", "find", "grep"]);
@@ -68,6 +69,9 @@ export async function runEvaluation(definitionFile, selectors = {}, options = {}
   const selection = selectDefinition(definition, selectors);
   // A pilot runs the first groups of the selection, and the batch after it the rest.
   if (groupRange !== null) selection.groups = selection.groups.slice(groupRange[0], groupRange[1]);
+  // --source: an arm's Git source refs replaced for this run only, before anything reads them.
+  const sources = options.sources && Object.keys(options.sources).length > 0 ? options.sources : null;
+  applySourceOverrides(selection, sources);
   assertSupportedSelection(selection);
 
   // Canonical evidence needs every working-tree input recoverable from one commit; anything else is a dry run.
@@ -88,6 +92,7 @@ export async function runEvaluation(definitionFile, selectors = {}, options = {}
     results: runsDirectory,
     jobs: subjects.limit,
     reuse: reuse.enabled,
+    ...(sources === null ? {} : { sources }),
     selection: {
       group: selectors.group ?? null,
       variant: selectors.variant ?? null,
@@ -117,6 +122,7 @@ export async function runEvaluation(definitionFile, selectors = {}, options = {}
     reuse,
     dryRun,
     indexEntries: [],
+    sources,
   };
   const runOne = (selected) =>
     runGroup({ ...context, selected, hostExtensions: hostExtensions.get(selected.group.id) });
@@ -284,6 +290,7 @@ async function runGroup({
   reuse,
   dryRun,
   indexEntries,
+  sources = null,
 }) {
   const { group } = selected;
   const arms = armNames(group);
@@ -370,6 +377,7 @@ async function runGroup({
         runs[variant] = run;
         if (executed) {
           if (confinement[variant] !== undefined) run.confinement = confinement[variant];
+          if (sources?.[variant] !== undefined) run.sourceOverride = sources[variant];
           if (sourceCommit !== null && run.resources?.source?.kind === "working-tree") {
             run.resources.source.commit = sourceCommit;
           }
