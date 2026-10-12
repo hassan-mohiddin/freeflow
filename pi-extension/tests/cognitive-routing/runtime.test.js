@@ -579,3 +579,21 @@ test("a native model change ends automatic control and status reports routing in
     assert.equal(runtime.state().runtimeStatus, "inactive");
     assert.equal(runtime.state().effective, false);
   }));
+
+test("a model named on the command line holds routing with a reason that says so, until profile auto", async () =>
+  environment(async ({ runtime, make, activate }) => {
+    const ctx = make("startup");
+    activate(ctx);
+    const argv = process.argv;
+    process.argv = [...argv, "--model", "fixture/coordinator"];
+    try {
+      await runtime.bind(ctx, cap, true);
+    } finally {
+      process.argv = argv;
+    }
+    // The store is never reconciled while held, so its "acknowledgment_unclassified" hid the reason (Task 008 S-005).
+    assert.equal(runtime.state().runtimeStatus, "blocked");
+    assert.equal(runtime.state().runtimeReason, "startup_selection");
+    await runtime.models.setAutomaticControl();
+    assert.equal(runtime.state().runtimeStatus, "active");
+  }));
