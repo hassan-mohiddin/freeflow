@@ -1,0 +1,30 @@
+name: Feature request
+description: Something Freeflow should do, or do differently.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you were trying to do and where Freeflow got in the way or fell short.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like
+      description: How you picture it working. Optional; the problem is the important part.
+  - type: dropdown
+    id: host
+    attributes:
+      label: Host
+      description: Where you would use it.
+      multiple: true
+      options:
+        - Pi
+        - Claude Code
+        - Codex
+        - Gemini CLI
+        - Cursor
+        - GitHub Copilot
+        - Any

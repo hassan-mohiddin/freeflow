@@ -1,0 +1,56 @@
+name: Bug report
+description: Freeflow did something wrong or did not do what its docs say.
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: host
+    attributes:
+      label: Host
+      description: Which coding agent were you using Freeflow in?
+      options:
+        - Pi
+        - Claude Code
+        - Codex
+        - Gemini CLI
+        - Cursor
+        - GitHub Copilot
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Freeflow version
+      description: The installed version (for example `0.8.0`), from your host's plugin or package list.
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      description: The model the agent was running, if it matters here (for example `grok-4.7`).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The shortest sequence that shows it, if you have one.
+      placeholder: "1. ...\n2. ...\n3. ..."
+  - type: textarea
+    id: config
+    attributes:
+      label: Freeflow settings
+      description: The relevant part of `.freeflow/config.json` and `.freeflow/local.json`, or which switches are on in `/freeflow settings`. Remove anything private.
+      render: json
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output or logs
+      description: Error messages or the part of the transcript that shows the problem. Remove anything private.
+      render: text
