@@ -171,12 +171,13 @@ A method change, worker handback, passing check, or context reconstruction is no
 
 When the user steers mid-work, respond to what the message needs:
 
-- a question or doubt: answer it, then continue;
-- a question near the end of a step: finish the step, then answer;
-- an urgent instruction, such as stop or prepare for compaction: reach the next safe point and do it first;
-- a change of direction: pause, update the agreement where it lives, then continue under the new one.
+- a question or doubt that could change the current step, such as "wait, are you deleting that?": answer it before the step continues;
+- a question that cannot change the step: answer it now, or finish the step first when it is about to end;
+- stop: start no new effect, finish or revert only the operation already in flight, then report;
+- prepare for compaction: reach the next safe point, then prepare;
+- a change of direction, including a narrower one for now ("just diagnose first", "don't edit yet"): update the agreement where it lives, then continue under the new one.
 
-The agreement holds until its stated end or the user's new direction. Fresh direction always wins over a stored agreement.
+The agreement holds until its stated end or the user's new direction. Fresh direction always wins over a stored agreement, and a narrower instruction holds until the user lifts it, across compaction too; a broader stored agreement does not lift it.
 
 Select checkpoints only when they protect a meaningful dependency, decision, rollback, transfer, integration, or delivery boundary. Their owners perform them; Track Work preserves them when needed. Self-review is ordinary feedback, not a checkpoint.
 

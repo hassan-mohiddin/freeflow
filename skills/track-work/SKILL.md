@@ -82,7 +82,7 @@ Goal: after context loss, the next context knows what the user agreed it may do,
 
 Write the Work agreement section when something is agreed, at `init` if it is known then; never as a placeholder, and never ask the user for it just because a record is being created. Write only what is known: what done looks like, what you do without asking, what needs the user's yes first, where you come back, and how long it holds. Quote the user's reply beside what it answered. A one-line agreement is often enough.
 
-When the agreement grows or changes, replace the lines it changes. When a `Proposed:` item is answered, move it into the Work agreement, record it as a Decision if it decided something about the work, or drop it. A change to the agreement is not a Decision; a choice about the work is.
+When the agreement grows or changes, replace the lines it changes. When the user narrows it for now ("just diagnose first", "don't edit yet"), add that line at once, in their words: it governs over the rest of the section until the user lifts it, and a later context sees only what is written. When a `Proposed:` item is answered, move it into the Work agreement, record it as a Decision if it decided something about the work, or drop it. A change to the agreement is not a Decision; a choice about the work is.
 
 For a long or unattended run, or once the agreement has changed several times, also keep `sources/work-agreement-log.md`: one dated, numbered entry per exchange that set or changed the agreement, the proposal in one line and the user's reply verbatim, append-only. It holds only those exchanges, not discussion. List it under Recovery sources with the trigger "read when changing the Work agreement or when its wording is in question".
 

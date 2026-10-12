@@ -53,7 +53,7 @@ The summary must let a fresh context continue the **current step** correctly on 
 
 | Section | Holds | Leaves out | Check |
 | --- | --- | --- | --- |
-| Task | `Record:` the Working Record's path, which Freeflow does not state; `Goal:` in one line; `Slice:` with ID, title, and state; `Governing now:` only the decisions, constraints, and authority the next steps depend on, quoting the user where wording matters, including the record's current Work agreement line when the next steps depend on it. | Settled facts, decisions, and boundaries the next steps do not touch; they stay in the record. | Could the next steps break a rule that is not listed here? |
+| Task | `Record:` the Working Record's path, which Freeflow does not state; `Goal:` in one line; `Slice:` with ID, title, and state; `Governing now:` only the decisions, constraints, and authority the next steps depend on, quoting the user where wording matters, including the record's current Work agreement line when the next steps depend on it, and any narrower instruction the user gave since ("just diagnose first"), which governs until the user lifts it. | Settled facts, decisions, and boundaries the next steps do not touch; they stay in the record. | Could the next steps break a rule that is not listed here? |
 | Now | The step in progress and exactly how far it got. | The history of earlier steps. | Could someone point to the exact spot to resume? |
 | In flight | Typed bullets: `Observed:` a result with its exact evidence; `Hypothesis:` what is being tested, marked unverified; `Dropped:` an approach and why it failed; `Pending:` what is running or waiting, and on what. | Anything the record or Freeflow's own lines already hold. | Would losing this bullet make the next context repeat work or a mistake? |
 | Next steps | Ordered, concrete, checkable steps: the immediate ones. | The task's longer route; that is the record's Future Work. | Can a fresh context do step 1 right now? |
@@ -67,7 +67,7 @@ Each heading means exactly what it means in the Working Record format ([Working 
 - <the outcome the user wants>
 
 ## Work agreement
-- <what done looks like; what you do without asking; what needs the user's yes; when you come back; how long it holds>, quoting the user's reply beside what it answered
+- <what done looks like; what you do without asking; what needs the user's yes; when you come back; how long it holds>, quoting the user's reply beside what it answered, and any narrower instruction for now ("don't edit yet"), which governs until the user lifts it
 
 ## What defines this task
 - <pointer to a spec, plan, issue, or brief, and what it establishes>
