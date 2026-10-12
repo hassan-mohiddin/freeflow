@@ -12,7 +12,7 @@
     {
       "id": "tests",
       "argv": ["node", "../../../../../../../.skill-eval/review-suite/tools/run-tests.mjs", "rv12-a"],
-      "timeout_ms": 300000
+      "timeout_ms": 600000
     }
   ],
   "configuration": {

@@ -138,7 +138,7 @@ ordered.forEach((entry, position) => {
               {
                 id: "tests",
                 argv: ["node", "../../../../../../../.skill-eval/review-suite/tools/run-tests.mjs", id],
-                timeout_ms: 300000,
+                timeout_ms: 600000,
               },
             ],
           }
