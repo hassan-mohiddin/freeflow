@@ -98,7 +98,7 @@ function freeflowGroup({ candidateRepository = { taskMemory: { enabled: true } }
 }
 
 function runCli(root, bin, definition) {
-  return spawnSync(process.execPath, [entrypoint, "run", definition], {
+  return spawnSync(process.execPath, [entrypoint, "run", definition, "--dry-run"], {
     cwd: root,
     encoding: "utf8",
     env: {

@@ -14,12 +14,16 @@ const CHECK_STATES = ["pass", "fail", "unavailable"];
  * @param {any} selectors
  * @param {{root?: string, signal?: AbortSignal, trials: number, maxCost: number | null, onTrial?: (result: any) => void}} options
  */
-export async function runTrials(definitionFile, selectors, { root = process.cwd(), signal, trials, maxCost, onTrial }) {
+export async function runTrials(
+  definitionFile,
+  selectors,
+  { root = process.cwd(), signal, trials, maxCost, onTrial, dryRun = false },
+) {
   const budget = maxCost === null ? null : { maxCost, spent: 0, exhausted: false };
   const results = [];
   for (let trial = 0; trial < trials; trial += 1) {
     if (signal?.aborted || budget?.exhausted) break;
-    const result = await runEvaluation(definitionFile, selectors, { root, signal, budget });
+    const result = await runEvaluation(definitionFile, selectors, { root, signal, budget, dryRun });
     results.push(result);
     onTrial?.(result);
   }
@@ -35,7 +39,8 @@ export async function runTrials(definitionFile, selectors, { root = process.cwd(
     requestedTrials: trials,
     trials: results.map((result) => ({ id: result.id, state: result.state })),
     groups: await aggregateGroups(results),
-    claim: claimFor(results, trials),
+    dryRun,
+    claim: claimFor(results, trials, dryRun),
     completedAt: new Date().toISOString(),
   };
   if (budget !== null) aggregate.budget = budgetEvidence(budget);
@@ -47,10 +52,12 @@ export async function runTrials(definitionFile, selectors, { root = process.cwd(
  * The strongest claim the aggregate supports. Counts over complete trials support a rate on this suite;
  * a "beats" claim needs a decision rule and size declared by the suite, which no definition declares yet.
  */
-function claimFor(results, requested) {
+function claimFor(results, requested, dryRun) {
   const complete = results.filter((result) => result.state === "complete").length;
+  // A dry run read inputs no commit identifies, so its counts support no claim.
   return {
-    class: complete > 0 ? "rate-on-suite" : "none",
+    class: complete > 0 && !dryRun ? "rate-on-suite" : "none",
+    ...(dryRun ? { reason: "dry run" } : {}),
     k: requested,
     beats: "not supported: the suite declares no decision rule",
   };

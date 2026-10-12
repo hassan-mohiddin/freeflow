@@ -11,7 +11,7 @@ import { runTrials } from "./lib/trials.mjs";
 import { renderResult } from "./lib/view.mjs";
 
 const OPTIONS = {
-  run: ["--group", "--variant", "--trials", "--max-cost", "--yes"],
+  run: ["--group", "--variant", "--trials", "--max-cost", "--yes", "--dry-run"],
   view: ["--group", "--variant"],
   review: ["--group", "--model", "--thinking", "--extension", "--swap"],
 };
@@ -38,6 +38,7 @@ Run options:
   --trials <n>        Run n independent complete invocations and record an aggregate
   --max-cost <total>  Stop starting subjects once host-reported cost reaches the total
   --yes               Start without asking (the plan is printed either way; scripts never ask)
+  --dry-run           Allow uncommitted inputs; the result is marked as a dry run and supports no claim
 
 Review options:
   --model <provider/model>   Required reviewer model
@@ -80,6 +81,7 @@ function parseOperation(values) {
   const extensions = [];
   let swap = false;
   let yes = false;
+  let dryRun = false;
   const keys = {
     "--group": "group",
     "--variant": "variant",
@@ -98,6 +100,10 @@ function parseOperation(values) {
     }
     if (option === "--yes") {
       yes = true;
+      continue;
+    }
+    if (option === "--dry-run") {
+      dryRun = true;
       continue;
     }
     if (!value || value.startsWith("--")) throw new Error(`${option} requires a value`);
@@ -132,6 +138,7 @@ function parseOperation(values) {
     extensions,
     swap,
     yes,
+    dryRun,
   };
 }
 
@@ -176,6 +183,7 @@ async function planRun(operation, root) {
   const counts = `${groups} group${groups === 1 ? "" : "s"}, ${arms} arm${arms === 1 ? "" : "s"}, ${operation.trials} trial${operation.trials === 1 ? "" : "s"}`;
   let line = `Plan: ${arms * operation.trials} subjects (${counts}); models: ${[...models].join(", ")}`;
   if (freeflow.size > 0) line += `; Freeflow builds: ${[...freeflow].join(", ")}`;
+  if (operation.dryRun) line += "; dry run";
   process.stdout.write(`${line}\n`);
   if (operation.yes || !process.stdin.isTTY || !process.stdout.isTTY) return true;
   const readline = createInterface({ input: process.stdin, output: process.stdout });
@@ -194,7 +202,12 @@ async function run(operation) {
   await withCancellation(async (signal) => {
     if (operation.trials === 1) {
       const budget = operation.maxCost === null ? null : { maxCost: operation.maxCost, spent: 0, exhausted: false };
-      const result = await runEvaluation(operation.target, operation.selectors, { root, signal, budget });
+      const result = await runEvaluation(operation.target, operation.selectors, {
+        root,
+        signal,
+        budget,
+        dryRun: operation.dryRun,
+      });
       printResult(result);
       if (result.state !== "complete") process.exitCode = 1;
       return;
@@ -205,6 +218,7 @@ async function run(operation) {
       trials: operation.trials,
       maxCost: operation.maxCost,
       onTrial: printResult,
+      dryRun: operation.dryRun,
     });
     process.stdout.write(`Aggregate: ${aggregate.id}\nPath: ${aggregate.path}\nState: ${aggregate.state}\n`);
     if (aggregate.state !== "complete") process.exitCode = 1;

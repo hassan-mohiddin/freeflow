@@ -513,7 +513,8 @@ async function resolveArms(group, definitionPath, root) {
       );
     }
   }
-  return { resolved, component };
+  const extendsFile = reference === null ? null : path.resolve(path.dirname(definitionPath), reference);
+  return { resolved, component, extendsFile };
 }
 
 async function validateGroup(value, definitionPath, root) {
@@ -548,7 +549,7 @@ async function validateGroup(value, definitionPath, root) {
   if (group.fixture !== null) requireSafeRelativePath(group.fixture, "group.fixture", definitionPath);
   requireStringArray(group.tools, "group.tools", definitionPath, { unique: true });
   validateCommands(group, definitionPath);
-  const { resolved, component } = await resolveArms(group, definitionPath, root);
+  const { resolved, component, extendsFile } = await resolveArms(group, definitionPath, root);
   const variants = {
     baseline: { ...resolved.baseline.environment },
     candidate: { ...resolved.candidate.environment },
@@ -591,6 +592,8 @@ async function validateGroup(value, definitionPath, root) {
   const internal = {
     ...group,
     configurations: { baseline: resolved.baseline.configuration, candidate: resolved.candidate.configuration },
+    // The files this group was read from, so a run can check they are committed.
+    files: [definitionPath, ...(extendsFile === null ? [] : [extendsFile])],
     component,
     variants,
   };

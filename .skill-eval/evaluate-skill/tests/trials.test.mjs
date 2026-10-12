@@ -107,6 +107,8 @@ function group(id) {
 }
 
 function runCli(root, bin, args, env = {}) {
+  // Test inputs live in temporary directories outside Git, so every test run is a dry run.
+  if (args[0] === "run" && !args.includes("--dry-run")) args = [...args, "--dry-run"];
   const fakeEnv = Object.fromEntries(FAKE_KEYS.map((key) => [key, ""]));
   // Never copy the developer's real Pi logins into test runs.
   fakeEnv.SKILL_EVAL_CREDENTIALS_DIR = path.join(root, "no-credentials");
@@ -132,7 +134,7 @@ test("--trials runs independent complete invocations and aggregates pass rates",
 
     assert.equal(result.status, 0, result.stderr);
     // The plan comes first, and matches what then runs: 1 group x 2 arms x 3 trials.
-    assert.match(result.stdout, /^Plan: 6 subjects \(1 group, 2 arms, 3 trials\); models: host default$/m);
+    assert.match(result.stdout, /^Plan: 6 subjects \(1 group, 2 arms, 3 trials\); models: host default; dry run$/m);
     assert.ok(result.stdout.indexOf("Plan: ") < result.stdout.indexOf("Result: "));
     assert.equal(result.stdout.match(/^Result: /gm)?.length, 3);
     assert.equal(await spawnCount(log), 6);

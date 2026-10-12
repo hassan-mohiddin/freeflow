@@ -34,6 +34,8 @@ const FAKE_PI_ENVIRONMENT_KEYS = [
 
 function spawnSync(command, args, options) {
   if (command === process.execPath && args?.includes(entrypoint)) {
+    // Test inputs live in temporary directories outside Git, so every test run is a dry run.
+    if (args[1] === "run" && !args.includes("--dry-run")) args = [...args, "--dry-run"];
     const env = { ...(options?.env ?? process.env) };
     for (const key of FAKE_PI_ENVIRONMENT_KEYS) env[key] ??= "";
     // Never copy the developer's real Pi logins into test runs.
@@ -1934,7 +1936,7 @@ test("run persists isolated one-shot description evidence before deterministic a
     assert.equal(result.status, 0, result.stderr);
     assert.match(
       result.stdout,
-      /^Plan: 2 subjects \(1 group, 2 arms, 1 trial\); models: fake\/model \(low\)\nResult: .+\nPath: .+\nState: complete\n$/,
+      /^Plan: 2 subjects \(1 group, 2 arms, 1 trial\); models: fake\/model \(low\); dry run\nResult: .+\nPath: .+\nState: complete\n$/,
     );
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
     assert.ok(resultDirectory);

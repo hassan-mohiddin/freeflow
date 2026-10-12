@@ -184,7 +184,10 @@ function renderAggregate(resultDirectory, aggregate) {
   }
   for (const trial of aggregate.trials) lines.push(compactRow("trial", [trial.id, trial.state]));
   if (aggregate.claim) {
-    const supported = aggregate.claim.class === "rate-on-suite" ? `rate on this suite, k=${aggregate.claim.k}` : "none";
+    const supported =
+      aggregate.claim.class === "rate-on-suite"
+        ? `rate on this suite, k=${aggregate.claim.k}`
+        : `none${aggregate.claim.reason ? ` (${aggregate.claim.reason})` : ""}`;
     lines.push(`Claim: ${supported}; no "beats" claim: ${aggregate.claim.beats.replace(/^not supported: /, "")}`);
   }
   for (const group of aggregate.groups) {
