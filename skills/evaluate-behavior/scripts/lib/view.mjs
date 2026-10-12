@@ -2,7 +2,7 @@ import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { ARM_NAME, comparisonArms, storedArms } from "./arms.mjs";
-import { renderClaim } from "./decision.mjs";
+import { renderClaim, trialCounts } from "./decision.mjs";
 import { aggregateMetricsLines, runMetricsLines } from "./metrics.mjs";
 
 const DEFAULT_SELECTORS = /** @type {{group: string | null, variant: string | null}} */ ({
@@ -197,7 +197,7 @@ async function appendAdvisoryReview(lines, groupDirectory, variants) {
 
 function renderAggregate(resultDirectory, aggregate) {
   const lines = [
-    `Aggregate ${aggregate.id} [${aggregate.state}] trials=${aggregate.trials.length}/${aggregate.requestedTrials}`,
+    `Aggregate ${aggregate.id} [${aggregate.state}] trials=${trialCounts(aggregate)}`,
     `Path: ${escapeCell(resultDirectory)}`,
   ];
   if (aggregate.budget) {

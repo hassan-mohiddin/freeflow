@@ -242,6 +242,21 @@ export function decisionClaim(decision, { k, supported, reason }) {
   };
 }
 
+/**
+ * Trials run against trials asked for. With an adaptive schedule the full invocations and the trials its rounds
+ * added are counted apart, so the header never presents added trials as requested ones.
+ */
+export function trialCounts(aggregate) {
+  const trials = Array.isArray(aggregate.trials) ? aggregate.trials : [];
+  if (aggregate.schedule === undefined) return `${trials.length}/${aggregate.requestedTrials}`;
+  const added = trials.filter((trial) => trial.round !== undefined).length;
+  const scheduled = (aggregate.schedule.rounds ?? []).reduce((sum, round) => sum + (round.scheduled ?? 0), 0);
+  return (
+    `${trials.length - added}/${aggregate.requestedTrials} initial, ${added}/${scheduled} adaptive` +
+    ` (up to ${aggregate.schedule.max} per case)`
+  );
+}
+
 /** The claim lines of an aggregate view: the rate claim without a decision, else the rule, split, p and verdict. */
 export function renderClaim(aggregate) {
   const claim = aggregate.claim;
@@ -279,7 +294,13 @@ export function renderClaim(aggregate) {
     ]),
   ];
   for (const round of aggregate.schedule?.rounds ?? []) {
-    lines.push(row("adaptive", [`round=${round.round}`, `trials=${round.trials}`, `cases=${round.groups.join(",")}`]));
+    lines.push(
+      row("adaptive", [
+        `round=${round.round}`,
+        `trials=${round.trials}/${round.scheduled}`,
+        `cases=${round.groups.join(",")}`,
+      ]),
+    );
   }
   for (const entry of decision.cases) {
     const arms = Object.entries(entry.arms ?? {}).map(

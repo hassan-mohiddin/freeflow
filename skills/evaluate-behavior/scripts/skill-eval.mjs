@@ -38,6 +38,7 @@ Selectors:
 
 Run options:
   --trials <n>        Run n independent complete invocations and record an aggregate
+                      (a suite's decision always aggregates; its trials schedule sets n)
   --max-cost <total>  Stop starting subjects once host-reported cost reaches the total
   --yes               Start without asking (the plan is printed either way; scripts never ask)
   --dry-run           Allow uncommitted inputs; the result is marked as a dry run and supports no claim
@@ -135,7 +136,8 @@ function parseOperation(values) {
     parsed[key] = value;
     index += 1;
   }
-  let trials = 1;
+  // Null when omitted: one trial, unless the suite's decision schedules its own.
+  let trials = null;
   if (parsed.trials !== null) {
     trials = Number(parsed.trials);
     if (!/^\d+$/.test(parsed.trials) || trials < 1) throw new Error("--trials must be a positive integer");
@@ -184,11 +186,21 @@ function printResult(result) {
 /**
  * What a run will start, from the definition alone: subjects, the models they use, and any Freeflow builds.
  * Printed before anything starts; an interactive terminal is asked to confirm unless --yes was given.
+ * Returns null when not confirmed, else the selected suite's decision rule (null when it declares none).
  */
 async function planRun(operation, root) {
   // Resolved the way the runner resolves it, so the plan loads exactly what will run.
   const definitionPath = await realpath(path.resolve(root, operation.target));
-  const selection = selectDefinition(await loadDefinition(definitionPath, { root }), operation.selectors);
+  const definition = await loadDefinition(definitionPath, { root });
+  const selection = selectDefinition(definition, operation.selectors);
+  const decision = definition.kind === "suite" ? (definition.decision ?? null) : null;
+  const schedule = decision?.trials ?? null;
+  if (schedule !== null && operation.trials !== null && operation.trials !== schedule.initial) {
+    throw new Error(
+      `the suite's decision schedules ${schedule.initial} initial trials; omit --trials or set it to ${schedule.initial}`,
+    );
+  }
+  const trials = schedule?.initial ?? operation.trials ?? 1;
   let arms = 0;
   const models = new Set();
   const freeflow = new Set();
@@ -206,28 +218,36 @@ async function planRun(operation, root) {
     }
   }
   const groups = selection.groups.length;
-  const counts = `${groups} group${groups === 1 ? "" : "s"}, ${arms} arm${arms === 1 ? "" : "s"}, ${operation.trials} trial${operation.trials === 1 ? "" : "s"}`;
-  let line = `Plan: ${arms * operation.trials} subjects (${counts}); models: ${[...models].join(", ")}`;
+  let counts = `${groups} group${groups === 1 ? "" : "s"}, ${arms} arm${arms === 1 ? "" : "s"}, ${trials} trial${trials === 1 ? "" : "s"}`;
+  let subjects = `${arms * trials}`;
+  if (schedule !== null && schedule.max > schedule.initial) {
+    // Adaptive rounds add trials only to undecided cases, so the count is a range up to every case at max.
+    counts += `, adaptive up to ${schedule.max} per case`;
+    subjects += ` to ${arms * schedule.max}`;
+  }
+  let line = `Plan: ${subjects} subjects (${counts}); models: ${[...models].join(", ")}`;
   if (freeflow.size > 0) line += `; Freeflow builds: ${[...freeflow].join(", ")}`;
   if (extensions.size > 0) line += `; extensions: ${[...extensions].join(", ")}`;
   if (operation.dryRun) line += "; dry run";
   process.stdout.write(`${line}\n`);
-  if (operation.yes || !process.stdin.isTTY || !process.stdout.isTTY) return true;
+  if (operation.yes || !process.stdin.isTTY || !process.stdout.isTTY) return { decision };
   const readline = createInterface({ input: process.stdin, output: process.stdout });
   const answer = await readline.question("Start? [y/N] ");
   readline.close();
-  return /^y(es)?$/i.test(answer.trim());
+  return /^y(es)?$/i.test(answer.trim()) ? { decision } : null;
 }
 
 async function run(operation) {
   const root = process.cwd();
-  if (!(await planRun(operation, root))) {
+  const plan = await planRun(operation, root);
+  if (plan === null) {
     process.stdout.write("Not started.\n");
     process.exitCode = 1;
     return;
   }
   await withCancellation(async (signal) => {
-    if (operation.trials === 1) {
+    // A suite's decision is reached over an aggregate, so it always runs as trials, even a single one.
+    if (plan.decision === null && (operation.trials ?? 1) === 1) {
       const budget = operation.maxCost === null ? null : { maxCost: operation.maxCost, spent: 0, exhausted: false };
       const result = await runEvaluation(operation.target, operation.selectors, {
         root,

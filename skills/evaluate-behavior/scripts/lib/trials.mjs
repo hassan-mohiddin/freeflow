@@ -17,7 +17,8 @@ const CHECK_STATES = ["pass", "fail", "unavailable"];
  * When the suite declares a `decision`, the aggregate records it and its claim is the decision's verdict. When
  * the decision also declares `trials`, that schedule sets the trial count: `trials.initial` complete invocations,
  * then rounds in which each case whose sign is not yet stable runs up to `trials.step` more trials, that group
- * alone, until `trials.max`. A `trials` option that differs from `trials.initial` is refused.
+ * alone, until `trials.max`. A `trials` option that differs from `trials.initial` is refused; without a schedule,
+ * an omitted `trials` means one.
  *
  * @param {string} definitionFile
  * @param {any} selectors
@@ -35,7 +36,7 @@ export async function runTrials(
       `the suite's decision schedules ${schedule.initial} initial trials; omit --trials or set it to ${schedule.initial}`,
     );
   }
-  const initial = schedule?.initial ?? trials;
+  const initial = schedule?.initial ?? trials ?? 1;
   if (!Number.isInteger(initial) || initial < 1) throw new Error("trials must be a positive integer");
 
   const budget = maxCost === null || maxCost === undefined ? null : { maxCost, spent: 0, exhausted: false };
@@ -61,10 +62,11 @@ export async function runTrials(
   while (rounds.length < maxRounds && results.length === planned && !stopped()) {
     const undecided = undecidedCases(rule, groups);
     if (undecided.length === 0) break;
-    const round = { round: rounds.length + 1, groups: undecided.map(({ id }) => id), trials: 0 };
-    rounds.push(round);
     const extra = undecided.map(({ id, trials: done }) => ({ id, add: Math.min(schedule.step, schedule.max - done) }));
-    planned += extra.reduce((sum, { add }) => sum + add, 0);
+    const scheduled = extra.reduce((sum, { add }) => sum + add, 0);
+    const round = { round: rounds.length + 1, groups: undecided.map(({ id }) => id), scheduled, trials: 0 };
+    rounds.push(round);
+    planned += scheduled;
     // Interleaved by step, so a budget that runs out leaves the cases evenly extended.
     for (let step = 0; step < schedule.step; step += 1) {
       for (const { id, add } of extra) {
@@ -84,7 +86,8 @@ export async function runTrials(
     kind: "aggregate",
     id,
     state: aggregateState(results, planned),
-    requestedTrials: planned,
+    // The full invocations asked for; trials an adaptive round added are counted in `schedule.rounds`.
+    requestedTrials: initial,
     trials: entries,
     groups,
     dryRun,
