@@ -137,12 +137,24 @@ export async function planSuite(root, entry, gate, { hostVersion, index, commits
   const missing = [];
   let subjects = 0;
   let reusable = 0;
+  let judgeCalls = 0;
+  const absent = new Set();
   for (const group of suite.groups) {
     for (const arm of armNames(group)) {
       const model = group.variants[arm].model;
       if (!model?.model) missing.push(`${group.id}/${arm}`);
       else models.add(`${model.model}${model.thinking ? ` (${model.thinking})` : ""}`);
       subjects += trials;
+      // A rubric is judged after the run: one call per judge, run and trial.
+      if (Array.isArray(group.rubric)) judgeCalls += trials * Math.max(1, group.judges?.length ?? 0);
+      // An overridden arm reads its skills and context from that commit; say which it lacks before anything runs.
+      const variant = group.variants[arm];
+      if (sources?.[arm] !== undefined && variant.source?.kind === "git") {
+        for (const entry of [...(variant.skills ?? []), ...(variant.context ?? [])]) {
+          if (!(await existsAt(root, sources[arm], entry)))
+            absent.add(`${arm} lacks ${entry} at ${sources[arm].slice(0, 12)}`);
+        }
+      }
       if (hostVersion !== null) {
         const key = await reuseKey({ group, arm, root, hostVersion }).catch(() => null);
         reusable += Math.min(trials, index.get(key)?.length ?? 0);
@@ -164,6 +176,8 @@ export async function planSuite(root, entry, gate, { hostVersion, index, commits
     trialsNote:
       schedule !== null && schedule.initial !== entry.trials ? "the suite's decision schedule sets trials" : null,
     subjects,
+    judgeCalls,
+    absent: [...absent],
     reusable: hostVersion === null ? null : reusable,
     models: [...models],
     // The suite's own configuration keeps precedence; a different model is shown, not changed.
@@ -179,6 +193,15 @@ export async function planSuite(root, entry, gate, { hostVersion, index, commits
     schedule,
     sources,
   };
+}
+
+async function existsAt(root, commit, file) {
+  try {
+    await execFileAsync("git", ["cat-file", "-e", `${commit}:${file}`], { cwd: root });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** The `--source` overrides an entry's `arms` ask for: each arm's side resolved to the base or head commit. */
@@ -210,6 +233,8 @@ export function formatPlan(plans, { uncovered }) {
     lines.push(
       `Suite ${plan.suite}: ${plan.groups} groups, ${plan.trials} trials, ${plan.subjects}${range} subjects; reuse ${reuse}; models ${plan.models.join(", ")}; verdict from ${plan.decision}`,
     );
+    if (plan.judgeCalls > 0) lines.push(`  judging: ${plan.judgeCalls} judge calls after the run (review --rubric)`);
+    for (const note of plan.absent ?? []) lines.push(`  warning: ${note}; that arm's runs will be invalid`);
     if (plan.trialsNote) lines.push(`  note: ${plan.trialsNote}`);
     if (plan.sources) {
       const arms = Object.entries(plan.sources).map(([arm, commit]) => `${arm}=${commit.slice(0, 12)}`);
@@ -218,7 +243,11 @@ export function formatPlan(plans, { uncovered }) {
     if (plan.otherModels.length > 0)
       lines.push(`  note: the suite's own model ${plan.otherModels.join(", ")} keeps precedence`);
   }
-  if (uncovered.length > 0) lines.push(`Not covered by any suite: ${uncovered.join(", ")}`);
+  if (uncovered.length > 0) {
+    const shown = uncovered.slice(0, 10).join(", ");
+    const more = uncovered.length > 10 ? ` and ${uncovered.length - 10} more` : "";
+    lines.push(`Not covered by any suite (${uncovered.length}): ${shown}${more}`);
+  }
   return lines;
 }
 
@@ -256,6 +285,22 @@ export function suiteVerdict(aggregate, override = undefined) {
         if (counts.pass < base.pass)
           regressions.push(`${group.id}/${comparison.id}: ${arm} ${counts.pass} < ${reference} ${base.pass}`);
         else if (counts.unavailable > 0 || base.unavailable > 0) unresolved += 1;
+      }
+    }
+    // Judged yes/no dimensions read like comparisons: another arm judged yes fewer times than the reference.
+    const reference = group.comparisons?.[0]?.reference ?? "baseline";
+    const judgedArms = group.judged?.arms ?? {};
+    for (const [dimension, base] of Object.entries(judgedArms[reference] ?? {})) {
+      if (typeof base?.yes !== "number") continue;
+      for (const [arm, dimensions] of Object.entries(judgedArms)) {
+        const counts = dimensions?.[dimension];
+        if (arm === reference || typeof counts?.yes !== "number") continue;
+        compared += 1;
+        if (counts.yes < base.yes) {
+          regressions.push(`${group.id}/judged ${dimension}: ${arm} ${counts.yes} < ${reference} ${base.yes}`);
+        } else if (counts.notJudged > 0 || base.notJudged > 0 || counts.unknown > 0 || base.unknown > 0) {
+          unresolved += 1;
+        }
       }
     }
   }
@@ -344,7 +389,22 @@ export async function runSuite(root, entry, plan, { jobs = null, maxCost = null,
       : outcome.stderr.trim() || `the evaluator exited ${outcome.code}`;
     return { suite: entry.suite, verdict: "infrastructure", detail: reason, aggregate: null, cost: null };
   }
-  const aggregate = JSON.parse(await readFile(path.join(aggregatePath, "aggregate.json"), "utf8"));
+  let aggregate = JSON.parse(await readFile(path.join(aggregatePath, "aggregate.json"), "utf8"));
+  // Groups with a rubric are judged after the run (their judges come from the group); judging rebuilds the
+  // aggregate with the judged section the verdict reads.
+  if ((aggregate.groups ?? []).some((group) => group.judged !== undefined)) {
+    const judged = await runEvaluator(root, ["review", aggregatePath, "--rubric"], { onOutput });
+    if (judged.code !== 0) {
+      return {
+        suite: entry.suite,
+        verdict: "infrastructure",
+        detail: `judging failed: ${judged.stderr.trim() || judged.stdout.trim().split("\n").at(-1) || `exit ${judged.code}`}`,
+        aggregate: aggregate.id,
+        cost: await aggregateCost(aggregate, path.dirname(aggregatePath)),
+      };
+    }
+    aggregate = JSON.parse(await readFile(path.join(aggregatePath, "aggregate.json"), "utf8"));
+  }
   return readAggregate(entry, aggregate, path.dirname(aggregatePath));
 }
 

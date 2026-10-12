@@ -1,0 +1,179 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "w2-a-classify-sentences",
+  "type": "body",
+  "input": {
+    "prompt": "Classify each numbered sentence below as a Rule or as judgment, using the terms in the Write Skill guidance. Write `classify.md` with one line per sentence, in the order given, in the form `S1: Rule` or `S1: judgment`. Put nothing else in the file.\n\nS1. Never claim a package is valid before `validate` has passed on its final state.\nS2. Keep the summary of evaluation results out of the skill's own files; put it in the evaluation record.\nS3. Prefer one SKILL.md until a second file pays for itself in loading or ownership.\nS4. Delegate a unit when a cheaper profile can do it without significant quality loss.\nS5. Do not rely on a reference to cause its own first read.\nS6. Use a bulleted list when there are more than four instructions."
+  },
+  "fixture": null,
+  "tools": ["read", "write", "ls", "find"],
+  "configuration": {
+    "extends": "../../../skill-family/configuration.json",
+    "subject": {
+      "kind": "skill",
+      "target": 0,
+      "context": [],
+      "skills": ["skills/write-skill"],
+      "source": {
+        "kind": "git",
+        "ref": "51998038825153582abda2ee1b3249f18342871f"
+      }
+    }
+  },
+  "arms": {
+    "base": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "3415a8a2f4158e17fe605c5378f18eb4e8c08ed5"
+        }
+      }
+    },
+    "head": {}
+  },
+  "component": ["subject.source"],
+  "expectations": [
+    {
+      "id": "base-only-classify-written",
+      "variant": "base",
+      "comparison": "only-classify-written",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["classify.md"]
+    },
+    {
+      "id": "head-only-classify-written",
+      "variant": "head",
+      "comparison": "only-classify-written",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["classify.md"]
+    },
+    {
+      "id": "base-line-1",
+      "variant": "base",
+      "comparison": "line-1",
+      "kind": "file-text",
+      "path": "classify.md",
+      "line": 1,
+      "expect": "equals",
+      "value": "S1: Rule"
+    },
+    {
+      "id": "head-line-1",
+      "variant": "head",
+      "comparison": "line-1",
+      "kind": "file-text",
+      "path": "classify.md",
+      "line": 1,
+      "expect": "equals",
+      "value": "S1: Rule"
+    },
+    {
+      "id": "base-line-2",
+      "variant": "base",
+      "comparison": "line-2",
+      "kind": "file-text",
+      "path": "classify.md",
+      "line": 2,
+      "expect": "equals",
+      "value": "S2: Rule"
+    },
+    {
+      "id": "head-line-2",
+      "variant": "head",
+      "comparison": "line-2",
+      "kind": "file-text",
+      "path": "classify.md",
+      "line": 2,
+      "expect": "equals",
+      "value": "S2: Rule"
+    },
+    {
+      "id": "base-line-3",
+      "variant": "base",
+      "comparison": "line-3",
+      "kind": "file-text",
+      "path": "classify.md",
+      "line": 3,
+      "expect": "equals",
+      "value": "S3: judgment"
+    },
+    {
+      "id": "head-line-3",
+      "variant": "head",
+      "comparison": "line-3",
+      "kind": "file-text",
+      "path": "classify.md",
+      "line": 3,
+      "expect": "equals",
+      "value": "S3: judgment"
+    },
+    {
+      "id": "base-line-4",
+      "variant": "base",
+      "comparison": "line-4",
+      "kind": "file-text",
+      "path": "classify.md",
+      "line": 4,
+      "expect": "equals",
+      "value": "S4: judgment"
+    },
+    {
+      "id": "head-line-4",
+      "variant": "head",
+      "comparison": "line-4",
+      "kind": "file-text",
+      "path": "classify.md",
+      "line": 4,
+      "expect": "equals",
+      "value": "S4: judgment"
+    },
+    {
+      "id": "base-line-5",
+      "variant": "base",
+      "comparison": "line-5",
+      "kind": "file-text",
+      "path": "classify.md",
+      "line": 5,
+      "expect": "equals",
+      "value": "S5: Rule"
+    },
+    {
+      "id": "head-line-5",
+      "variant": "head",
+      "comparison": "line-5",
+      "kind": "file-text",
+      "path": "classify.md",
+      "line": 5,
+      "expect": "equals",
+      "value": "S5: Rule"
+    },
+    {
+      "id": "base-line-6",
+      "variant": "base",
+      "comparison": "line-6",
+      "kind": "file-text",
+      "path": "classify.md",
+      "line": 6,
+      "expect": "equals",
+      "value": "S6: judgment"
+    },
+    {
+      "id": "head-line-6",
+      "variant": "head",
+      "comparison": "line-6",
+      "kind": "file-text",
+      "path": "classify.md",
+      "line": 6,
+      "expect": "equals",
+      "value": "S6: judgment"
+    }
+  ],
+  "review_questions": [
+    "Did each classification follow the test of whether the outcome would be wrong in every case, rather than the sentence's grammar or mood?",
+    "Did any sentence written as an imperative get classed as a Rule when the sentence describes a trade-off?"
+  ],
+  "reference": "base"
+}

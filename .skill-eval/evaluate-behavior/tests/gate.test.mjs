@@ -7,6 +7,8 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { exitCode, globPattern, loadGate, matchEntries, suiteVerdict } from "../../scripts/gate.mjs";
+import { loadDefinition } from "../../../skills/evaluate-behavior/scripts/lib/definitions.mjs";
+import { applySourceOverrides } from "../../../skills/evaluate-behavior/scripts/lib/source-override.mjs";
 import { toV2 } from "./helpers/to-v2.mjs";
 
 const repository = fileURLToPath(new URL("../../../", import.meta.url));
@@ -57,14 +59,36 @@ test("changed paths map to the entries that cover them; uncovered paths are list
   assert.deepEqual(uncovered, ["README.md"]);
 });
 
-test("the repository's gate declaration loads and names suites that exist", async () => {
+test("the repository's gate suites measure base against head on Git-sourced arms, with no held-out case", async () => {
   const gate = await loadGate(repository);
   assert.deepEqual(gate.model, MODEL);
-  for (const entry of gate.entries) await access(path.join(repository, entry.suite));
   assert.deepEqual(
-    gate.entries.map((entry) => entry.suite),
-    [".skill-eval/review-suite/suite.json", ".skill-eval/skill-family/suite.json"],
+    gate.entries.map((entry) => [entry.suite, entry.trials, entry.arms]),
+    ["review-work", "write-skill", "evaluate-behavior"].map((name) => [
+      `.skill-eval/gate/${name}/suite.json`,
+      1,
+      { base: "base", head: "head" },
+    ]),
   );
+  const heldOut = new Set(
+    JSON.parse(await readFile(path.join(repository, ".skill-eval/review-suite/groups.json"), "utf8"))
+      .groups.filter((group) => group.held_out || group.clean_excluded)
+      .map((group) => group.id),
+  );
+  for (const entry of gate.entries) {
+    const suite = await loadDefinition(path.join(repository, entry.suite), { root: repository });
+    for (const group of suite.groups) {
+      assert.deepEqual(Object.keys(group.variants), ["base", "head"], group.id);
+      assert.ok(!heldOut.has(group.id), `${group.id} is held out or excluded`);
+      // The skill family's held-out groups are positions 3, 6 and 9: v1-c, w1-c and w2-b.
+      assert.ok(!/^(v1-c|w1-c|w2-b)-/.test(group.id), `${group.id} is held out`);
+      assert.deepEqual(group.variants.base.skills, group.variants.head.skills);
+    }
+    // Both arms take a commit: the overrides apply without refusal.
+    assert.doesNotThrow(() =>
+      applySourceOverrides({ groups: suite.groups.map((group) => ({ group })) }, { base: "abc1234", head: "def5678" }),
+    );
+  }
 });
 
 test("a gate declaration with an unknown field, bad trials or a scheduling override is refused", async () => {
@@ -139,6 +163,25 @@ test("verdicts: decisions and comparisons give pass, regressed or undecided", ()
     min_cases: 1,
   };
   assert.match(suiteVerdict(regressedComparison, override).detail, /^no-difference-shown: better 0, worse 1/);
+
+  // A judged yes/no dimension reads like a comparison, against the comparisons' reference arm.
+  const judgedGroup = (base, head) => ({
+    groups: [
+      {
+        id: "rv02-b",
+        comparisons: [{ id: "c", reference: "base", arms: { base: counts(1, 0), head: counts(1, 0) }, outcomes: {} }],
+        judged: { arms: { base: { identified: base }, head: { identified: head } } },
+      },
+    ],
+    claim: { class: "rate-on-suite" },
+  });
+  const judged = (yes, notJudged = 0) => ({ yes, no: 1 - yes - notJudged, unknown: 0, notJudged, trials: 1 });
+  assert.deepEqual(suiteVerdict(judgedGroup(judged(1), judged(0))), {
+    verdict: "regressed",
+    detail: "rv02-b/judged identified: head 0 < base 1",
+  });
+  assert.equal(suiteVerdict(judgedGroup(judged(1), judged(1))).verdict, "pass");
+  assert.equal(suiteVerdict(judgedGroup(judged(0, 1), judged(0, 1))).verdict, "undecided");
 
   assert.equal(exitCode([{ verdict: "pass" }, { verdict: "undecided" }]), 0);
   assert.equal(exitCode([{ verdict: "pass" }, { verdict: "infrastructure" }]), 2);
@@ -298,7 +341,7 @@ test("--dry-run-plan prints the matched suites and starts nothing", async () => 
       /^Suite \.skill-eval\/pass-suite\/suite\.json: 2 groups, 2 trials, 8 subjects; reuse up to 0; models anthropic\/claude-haiku-5-5 \(medium\); verdict from comparisons$/m,
     );
     assert.match(result.stdout, /^Suite \.skill-eval\/regress-suite\/suite\.json: 1 groups, 2 trials, 4 subjects;/m);
-    assert.match(result.stdout, /^Not covered by any suite: notes\.txt$/m);
+    assert.match(result.stdout, /^Not covered by any suite \(1\): notes\.txt$/m);
     assert.equal(await starts(root), 0);
   });
 });
