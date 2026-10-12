@@ -15,3 +15,11 @@ This reference is a contract: every item below is binding for each judge use. Wh
 7. **Calibration:** record whether this judge configuration has been checked against cases with known answers, and the result. An uncalibrated judge's verdict is advisory.
 
 A judge's verdict is evidence for adjudication or for a measured comparison. It is never canonical grading, acceptance, or authority to change the work.
+
+## Rubric Judges
+
+A rubric judge answers fixed questions about one output at a time, such as Evaluate Behavior's `review --rubric`. The items above apply, and:
+
+- Judge each output alone, blind to its arm or producer, so no order effect arises and item 5 needs no swap.
+- The combining rule (item 6) is declared in the evaluation definition before any run, not chosen when verdicts arrive.
+- Calibration status (item 7) belongs to the judge configuration: its model, thinking setting, anything loaded into it, and the rubric. Record it per configuration; a change in any of them makes a new, uncalibrated judge.

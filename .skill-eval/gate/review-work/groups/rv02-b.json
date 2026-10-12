@@ -1,0 +1,144 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "rv02-b",
+  "type": "body",
+  "input": {
+    "prompt": "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`\n\nThe requirements the change must meet:\n\n# Requirements: verify routing's startup by the session file's tail, and never trust a reload\n\nAt session start, routing checks that the session it replays is persisted. Pi parses the session file when it opens a session and appends each entry synchronously after that, so the check can start from a trust point and read only the bytes appended since. A reload keeps Pi's session in memory without re-reading the file, so a reload must not establish a trust point.\n\n1. When Pi has just parsed the session file at session start, routing records the file's size and entry count as its trust point. A later startup check reads only the bytes appended since that point. When those bytes are exactly Pi's in-memory entries, in order, routing needs no whole-file snapshot.\n2. Without a trust point, or when any appended bytes differ from Pi's in-memory entries, routing reads a whole-file snapshot and decides from that comparison.\n3. A routing entry that Pi holds in memory but that the session file does not contain blocks routing. It is not treated as persisted.\n4. A session start that Pi reports as a reload establishes no trust point, because the session stays in memory and the file is not re-read. A trust point from before the reload still applies after it."
+  },
+  "fixture": ".skill-eval/review-suite/fixtures/rs-4ab18f5b/seeded/workspace",
+  "tools": ["read", "write", "ls", "find", "run_command"],
+  "commands": [
+    {
+      "id": "tests",
+      "argv": ["node", "../../../../../../../.skill-eval/review-suite/tools/run-tests.mjs", "rv02-b"],
+      "timeout_ms": 600000
+    }
+  ],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "base": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "3415a8a2f4158e17fe605c5378f18eb4e8c08ed5"
+        }
+      }
+    },
+    "head": {}
+  },
+  "reference": "base",
+  "component": ["subject.source"],
+  "expectations": [
+    {
+      "id": "base-only-review",
+      "variant": "base",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "head-only-review",
+      "variant": "head",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "base-judgment-line",
+      "variant": "base",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "head-judgment-line",
+      "variant": "head",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "base-not-passed",
+      "variant": "base",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "head-not-passed",
+      "variant": "head",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "base-names-file-1",
+      "variant": "base",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "read-only-session.ts"
+    },
+    {
+      "id": "head-names-file-1",
+      "variant": "head",
+      "comparison": "names-file-1",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "read-only-session.ts"
+    },
+    {
+      "id": "base-names-file-2",
+      "variant": "base",
+      "comparison": "names-file-2",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "read-only-session.js"
+    },
+    {
+      "id": "head-names-file-2",
+      "variant": "head",
+      "comparison": "names-file-2",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "read-only-session.js"
+    }
+  ],
+  "review_questions": [
+    "Did the review identify the defect at pi-extension/src/host/read-only-session.ts:201 and pi-extension/dist/host/read-only-session.js:171 (the expression `if (reason) trustLoadedSession(reader);`): The reload guard in trustStartedSession is inverted to a truthiness test: `reason !== \"reload\"` becomes `reason`. A reload (reason \"reload\", which is truthy) now sets a trust point although Pi did not re-read the file. After a failed write, memory can hold an entry the file lacks and routing would treat it as persisted. The commit's rule is that a reload establishes no trust point. The dist file is mirrored so the committed tests, which import dist, exercise the seed. Did it support the finding with the file and line?",
+    "Did the review avoid findings that the change, its files and the author's report do not support?"
+  ],
+  "rubric": [
+    {
+      "id": "identified",
+      "question": "Did the review identify the defect at pi-extension/src/host/read-only-session.ts:201 and pi-extension/dist/host/read-only-session.js:171 (the expression `if (reason) trustLoadedSession(reader);`): The reload guard in trustStartedSession is inverted to a truthiness test: `reason !== \"reload\"` becomes `reason`. A reload (reason \"reload\", which is truthy) now sets a trust point although Pi did not re-read the file. After a failed write, memory can hold an entry the file lacks and routing would treat it as persisted. The commit's rule is that a reload establishes no trust point. The dist file is mirrored so the committed tests, which import dist, exercise the seed. Did it support the finding with the file and line?"
+    }
+  ],
+  "judges": [
+    {
+      "model": "anthropic/claude-haiku-5-5",
+      "thinking": "high"
+    }
+  ]
+}

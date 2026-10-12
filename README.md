@@ -244,7 +244,7 @@ Contributor calls:
 ```text
 /setup-freeflow
 /write-skill
-/evaluate-skill
+/evaluate-behavior
 ```
 
 Native Pi controls:

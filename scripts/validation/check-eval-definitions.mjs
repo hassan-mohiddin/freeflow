@@ -1,18 +1,22 @@
 #!/usr/bin/env node
 
 // Loads every evaluation suite and group under .skill-eval with the evaluator's own loader, so a definition
-// that the evaluator would reject fails `npm run check` instead of failing silently at run time.
+// that the evaluator would reject fails `npm run check` instead of failing silently at run time. It also checks
+// that every declared fixture is a directory inside the repository, which the loader leaves to run time.
 
-import { readdir } from "node:fs/promises";
+import { lstat, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { loadDefinition } from "../../skills/evaluate-skill/scripts/lib/definitions.mjs";
+import { loadDefinition } from "../../skills/evaluate-behavior/scripts/lib/definitions.mjs";
 
-const DEFINITION_DIRECTORIES = new Set(["cases", "adversarial-cases", "groups"]);
+// A definition directory is `groups`, `cases` or `adversarial-cases`, or a variant of one such as `groups-f3`.
+const DEFINITION_DIRECTORY = /^(?:groups|cases|adversarial-cases)(?:-[A-Za-z0-9._-]+)?$/;
+// A suite file is `suite.json`, a variant such as `suite-f3.json`, or a named suite such as `review-suite.json`.
+const SUITE_FILE = /^(?:suite(?:-[A-Za-z0-9._-]+)?|[A-Za-z0-9._-]+-suite)\.json$/;
 const SKIPPED_DIRECTORIES = new Set(["runs", "cache", "fixtures", "node_modules", "subjects", "reports", "provenance"]);
 
-/** Every suite file (`suite.json` or `*-suite.json`) and every JSON file in a cases or groups directory. */
+/** Every suite file and every JSON file in a groups or cases directory (including its variants). */
 export async function findDefinitionFiles(evalRoot) {
   const files = [];
   async function walk(directory, insideDefinitions) {
@@ -22,9 +26,9 @@ export async function findDefinitionFiles(evalRoot) {
       const entryPath = path.join(directory, entry.name);
       if (entry.isDirectory()) {
         if (SKIPPED_DIRECTORIES.has(entry.name)) continue;
-        await walk(entryPath, insideDefinitions || DEFINITION_DIRECTORIES.has(entry.name));
+        await walk(entryPath, insideDefinitions || DEFINITION_DIRECTORY.test(entry.name));
       } else if (entry.isFile() && entry.name.endsWith(".json")) {
-        if (insideDefinitions || entry.name === "suite.json" || entry.name.endsWith("-suite.json")) {
+        if (insideDefinitions || SUITE_FILE.test(entry.name)) {
           files.push(entryPath);
         }
       }
@@ -34,13 +38,29 @@ export async function findDefinitionFiles(evalRoot) {
   return files;
 }
 
+/** Why a group's declared fixture would fail at run time, or null. The loader resolves it from the repository root. */
+async function fixtureProblem(fixture, repositoryRoot) {
+  if (fixture === null) return null;
+  const source = await realpath(path.resolve(repositoryRoot, fixture)).catch(() => null);
+  const root = await realpath(repositoryRoot);
+  if (source === null || (source !== root && !source.startsWith(root + path.sep))) {
+    return `declared fixture is missing or escapes the repository: ${fixture}`;
+  }
+  if (!(await lstat(source)).isDirectory()) return `declared fixture is not a directory: ${fixture}`;
+  return null;
+}
+
 export async function checkEvalDefinitions(repositoryRoot) {
   const evalRoot = path.join(repositoryRoot, ".skill-eval");
   const files = await findDefinitionFiles(evalRoot);
   const failures = [];
   for (const file of files) {
     try {
-      await loadDefinition(file, { root: repositoryRoot });
+      const definition = await loadDefinition(file, { root: repositoryRoot });
+      for (const group of definition.kind === "group" ? [definition] : definition.groups) {
+        const problem = await fixtureProblem(group.fixture, repositoryRoot);
+        if (problem !== null) throw new Error(`group ${group.id}: ${problem}`);
+      }
     } catch (error) {
       failures.push({
         file: path.relative(repositoryRoot, file),

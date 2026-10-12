@@ -4,3 +4,5 @@
 .skill-eval/*/runs/
 .deprecated/skill-tooling-pre-rewrite/
 .skill-eval/review-suite/fixtures/
+# A copy of an upstream Pi example, kept close to its source for comparison.
+.skill-eval/examples/gondolin-extension/

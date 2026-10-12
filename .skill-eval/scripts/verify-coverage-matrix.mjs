@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { access, readFile, readdir } from "node:fs/promises";
 import { CANONICAL_SKILL_NAMES } from "../../scripts/validation/canonical-skills.mjs";
 import { resolve } from "node:path";
@@ -54,8 +53,7 @@ const required = [
 for (const name of matrixNames) {
   const entry = matrix.skills[name];
   for (const field of required) assert.equal(Object.hasOwn(entry, field), true, `${name} missing ${field}`);
-  const bytes = await readFile(resolve(root, entry.source_path));
-  assert.equal(createHash("sha256").update(bytes).digest("hex"), entry.source_sha256, `${name} source hash mismatch`);
+  // Source drift (source_sha256 against the file) is check:eval-coverage's, which npm run check runs in strict mode.
   assert.equal(Array.isArray(entry.neighbours), true);
   assert.equal(Array.isArray(entry.evidence_class), true);
   if (entry.evidence_status === "production-ready") {

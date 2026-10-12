@@ -1,0 +1,80 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "w2-b-activation-path",
+  "type": "body",
+  "input": {
+    "prompt": "Read `HOST.md` and the `invoice-check` skill in `skills/invoice-check/`. Write `activation.md` that says how the skill is first read on each route into it, and which context is guaranteed on every route. Write only `activation.md`."
+  },
+  "fixture": ".skill-eval/skill-family/fixtures/w2-b",
+  "tools": ["read", "write", "ls", "find"],
+  "configuration": {
+    "extends": "../configuration.json",
+    "subject": {
+      "kind": "skill",
+      "target": 0,
+      "context": []
+    }
+  },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "3415a8a2f4158e17fe605c5378f18eb4e8c08ed5"
+        },
+        "skills": ["skills/write-skill"]
+      }
+    },
+    "candidate": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "b78e8fd9f7acc8209a831aaef6f576d1ca6508c8"
+        },
+        "skills": ["skills/write-skill"]
+      }
+    }
+  },
+  "component": ["subject.source"],
+  "expectations": [
+    {
+      "id": "baseline-only-activation-written",
+      "variant": "baseline",
+      "comparison": "only-activation-written",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["activation.md"]
+    },
+    {
+      "id": "candidate-only-activation-written",
+      "variant": "candidate",
+      "comparison": "only-activation-written",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["activation.md"]
+    },
+    {
+      "id": "baseline-names-always-loaded-file",
+      "variant": "baseline",
+      "comparison": "names-always-loaded-file",
+      "kind": "file-text",
+      "path": "activation.md",
+      "expect": "contains",
+      "value": "AGENTS.md"
+    },
+    {
+      "id": "candidate-names-always-loaded-file",
+      "variant": "candidate",
+      "comparison": "names-always-loaded-file",
+      "kind": "file-text",
+      "path": "activation.md",
+      "expect": "contains",
+      "value": "AGENTS.md"
+    }
+  ],
+  "review_questions": [
+    "Did activation.md name every route by which the skill is first read, including direct invocation, and not only the skill list?",
+    "Did activation.md treat the rounding reference as not guaranteed on every route, given the way the skill loads it?"
+  ]
+}

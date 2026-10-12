@@ -1,0 +1,7 @@
+{
+  "name": "search_tickets",
+  "description": "Search support tickets.",
+  "parameters": {
+    "query": { "type": "string", "description": "Search text" }
+  }
+}

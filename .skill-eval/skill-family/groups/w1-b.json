@@ -1,0 +1,81 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "w1-b-revise-for-tool",
+  "type": "body",
+  "input": {
+    "prompt": "The `manifest-update` skill in `skill/` must match the current tooling in `tool/`. Revise `skill/SKILL.md` to match, and change nothing else. Write only `skill/SKILL.md`."
+  },
+  "fixture": ".skill-eval/skill-family/fixtures/w1-b",
+  "tools": ["read", "write", "ls", "find"],
+  "configuration": {
+    "extends": "../configuration.json",
+    "subject": {
+      "kind": "skill",
+      "target": 0,
+      "context": []
+    }
+  },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "3415a8a2f4158e17fe605c5378f18eb4e8c08ed5"
+        },
+        "skills": ["skills/write-skill"]
+      }
+    },
+    "candidate": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "b78e8fd9f7acc8209a831aaef6f576d1ca6508c8"
+        },
+        "skills": ["skills/write-skill"]
+      }
+    }
+  },
+  "component": ["subject.source"],
+  "expectations": [
+    {
+      "id": "baseline-only-skill-changed",
+      "variant": "baseline",
+      "comparison": "only-skill-changed",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["skill/SKILL.md"]
+    },
+    {
+      "id": "candidate-only-skill-changed",
+      "variant": "candidate",
+      "comparison": "only-skill-changed",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["skill/SKILL.md"]
+    },
+    {
+      "id": "baseline-guard-sentence-removed",
+      "variant": "baseline",
+      "comparison": "guard-sentence-removed",
+      "kind": "file-text",
+      "path": "skill/SKILL.md",
+      "expect": "not-contains",
+      "value": "Never hand-edit `build-manifest.generated.json`"
+    },
+    {
+      "id": "candidate-guard-sentence-removed",
+      "variant": "candidate",
+      "comparison": "guard-sentence-removed",
+      "kind": "file-text",
+      "path": "skill/SKILL.md",
+      "expect": "not-contains",
+      "value": "Never hand-edit `build-manifest.generated.json`"
+    }
+  ],
+  "review_questions": [
+    "Did the revision remove the Rule that the tool now enforces, and keep a guard only for a path the tool does not refuse?",
+    "Did the revision leave the skill's other steps and Rules as they were, apart from what the tooling change requires?",
+    "Does the revised skill still tell the agent to run the tests and report the result?"
+  ]
+}

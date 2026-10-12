@@ -1,0 +1,123 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "w1-d-keep-placement-fix",
+  "type": "body",
+  "input": {
+    "prompt": "Review the customer drafts from the `email-drafts` skill in `skill/`, summarised in `evidence/drafts-review.md`. Three candidate changes follow. For each one, decide keep or drop. Keep means you make a change to the skill's text for it, wherever that text should sit. Drop means you make no change to the skill's text for it. Write `changes.md` with exactly three lines, one per candidate in the order given. Each line starts with the candidate's ID, then `: keep` or `: drop`, then the reason, for example `X1: keep - reason`. Write only `changes.md`; leave `skill/` unchanged.\n\n- P1: Add: do not promise a delivery date; say it is pending confirmation from the carrier.\n- P2: Add: check the customer's first name against the CRM record before greeting.\n- P3: Add: sign off with the team name."
+  },
+  "fixture": ".skill-eval/skill-family/fixtures/w1-d",
+  "tools": ["read", "write", "ls", "find"],
+  "configuration": {
+    "extends": "../configuration.json",
+    "subject": {
+      "kind": "skill",
+      "target": 0,
+      "context": []
+    }
+  },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "3415a8a2f4158e17fe605c5378f18eb4e8c08ed5"
+        },
+        "skills": ["skills/write-skill"]
+      }
+    },
+    "candidate": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "b78e8fd9f7acc8209a831aaef6f576d1ca6508c8"
+        },
+        "skills": ["skills/write-skill"]
+      }
+    }
+  },
+  "component": ["subject.source"],
+  "expectations": [
+    {
+      "id": "baseline-only-changes-written",
+      "variant": "baseline",
+      "comparison": "only-changes-written",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["changes.md"]
+    },
+    {
+      "id": "candidate-only-changes-written",
+      "variant": "candidate",
+      "comparison": "only-changes-written",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["changes.md"]
+    },
+    {
+      "id": "baseline-line-1-p1-keep",
+      "variant": "baseline",
+      "comparison": "line-1-p1-keep",
+      "kind": "file-text",
+      "path": "changes.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "P1: keep"
+    },
+    {
+      "id": "candidate-line-1-p1-keep",
+      "variant": "candidate",
+      "comparison": "line-1-p1-keep",
+      "kind": "file-text",
+      "path": "changes.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "P1: keep"
+    },
+    {
+      "id": "baseline-line-2-p2-drop",
+      "variant": "baseline",
+      "comparison": "line-2-p2-drop",
+      "kind": "file-text",
+      "path": "changes.md",
+      "line": 2,
+      "expect": "contains",
+      "value": "P2: drop"
+    },
+    {
+      "id": "candidate-line-2-p2-drop",
+      "variant": "candidate",
+      "comparison": "line-2-p2-drop",
+      "kind": "file-text",
+      "path": "changes.md",
+      "line": 2,
+      "expect": "contains",
+      "value": "P2: drop"
+    },
+    {
+      "id": "baseline-line-3-p3-drop",
+      "variant": "baseline",
+      "comparison": "line-3-p3-drop",
+      "kind": "file-text",
+      "path": "changes.md",
+      "line": 3,
+      "expect": "contains",
+      "value": "P3: drop"
+    },
+    {
+      "id": "candidate-line-3-p3-drop",
+      "variant": "candidate",
+      "comparison": "line-3-p3-drop",
+      "kind": "file-text",
+      "path": "changes.md",
+      "line": 3,
+      "expect": "contains",
+      "value": "P3: drop"
+    }
+  ],
+  "review_questions": [
+    "For P1, did the decision keep the change and say where the guidance must sit to be read at the decision point, rather than dropping it as already covered?",
+    "For P2 and P3, did the reasons follow the evidence (a one-off data issue; text the skill already states)?",
+    "Did the decision avoid moving the guidance to a place the agent would still not read when it writes the greeting and the delivery answer?"
+  ]
+}

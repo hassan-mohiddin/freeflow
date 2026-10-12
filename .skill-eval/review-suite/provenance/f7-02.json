@@ -1,0 +1,24 @@
+{
+  "case": "f7-02",
+  "base_commit": "12575cea0c14289dbdc45332ee143809755eedbe",
+  "parent_commit": "1710c77548be099697c81e8fb4d94baff2780d2e",
+  "subject": "feat(evals): add CEV1 compact evidence core (compact-evidence module and test only)",
+  "base_source": "rs-12575cea: the clean variant is copied from it; the seeded variant adds one defect",
+  "review_lens": "correctness",
+  "variants": {
+    "clean": {
+      "class": null,
+      "description": "The change as committed. No defect is planted."
+    },
+    "seeded": {
+      "class": "convention",
+      "location": "skills/evaluate-skill/scripts/lib/compact-evidence.mjs:1",
+      "locator": "Object.entries(record.fields ?? {})",
+      "seed": "in encodeCev1, the .sort() on a record's fields was removed",
+      "description": "requirements.md item 1 says each record's fields are written sorted by key. encodeCev1 sorts them in the clean variant; the seed removes the sort, so fields are written in insertion order.",
+      "consequence": "The same record set can produce different text, so a reader that relies on the documented order, or compares encodings for identity, sees different bytes for equal evidence.",
+      "proof": "proofs/f7-02/order.proof.test.mjs"
+    }
+  },
+  "diff_check": "seeded change.diff = the clean change.diff with the seeded file's section replaced by git diff --no-index of parent against the seeded file"
+}

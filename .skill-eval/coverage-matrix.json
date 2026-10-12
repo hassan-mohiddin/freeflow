@@ -176,19 +176,19 @@
         "ambient_discovery": false
       }
     },
-    "evaluate-skill": {
-      "job": "Run controlled baseline-versus-candidate skill evaluations and preserve evidence for judgment.",
-      "positive_trigger": "Define, run, grade, compare, or inspect a skill evaluation group or suite.",
+    "evaluate-behavior": {
+      "job": "Run controlled evaluations of any declared agent setup, with arms compared against a reference, and preserve evidence for judgment.",
+      "positive_trigger": "Define, run, grade, compare, or inspect an evaluation of an agent's behavior: a skill, an instruction file, a model, an extension or setting.",
       "near_miss": "Draft or revise skill wording without an evaluation request.",
       "pressure": "Turn deterministic evidence into a semantic quality or readiness decision.",
       "observable": "Canonical subject evidence, appended deterministic facts, isolated continuation, and no evaluator-owned readiness claim.",
       "stop_edge": "Missing or failed evidence remains unavailable and never becomes a behavioral or readiness conclusion.",
       "neighbours": ["write-skill", "verify-work"],
       "evidence_class": ["native-activation", "artifact-outcome", "multi-turn"],
-      "case_concept": "Compare baseline and candidate while preserving failures and leaving behavioral meaning to agent or user review.",
-      "current_result": "Fresh hard-cut contract has not been behaviorally evaluated; no current group or suite evidence exists.",
-      "source_path": "skills/evaluate-skill/SKILL.md",
-      "source_sha256": "69ec274185020fe1126f5d5b0eaabdf0e3961528bc48cdf680a8cbb5520d23e8",
+      "case_concept": "Compare arms against a reference under a declared decision rule while preserving failures and leaving behavioral meaning to agent or user review.",
+      "current_result": "The evaluator scripts have their own tests (.skill-eval/evaluate-behavior/tests). The skill text, including its measurement and defect-suite guidance, has no behavioral group or suite evidence.",
+      "source_path": "skills/evaluate-behavior/SKILL.md",
+      "source_sha256": "9c1d8098f5739bc0606e2f30b4766fb4001c3a1a5939321c477cfec9734b0dae",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -358,7 +358,7 @@
       "case_concept": "Reject an unsupported broad refactor while retaining one real missing failure-path test.",
       "current_result": "Measured on anthropic/claude-haiku-5-5 only, with the review suite (.skill-eval/review-suite/results/2026-10-12-wording1-haiku.md): with this source, 41 of 45 reviews of correct changes let them proceed (77% for the previous source over two runs), seeded and real defects were identified in 147 of 180 reviews (305 of 360) with none passed, and known blocking-level issues in otherwise good changes in 15 of 45 (23 of 90). Other models and hosts: Unverified.",
       "source_path": "skills/review-work/SKILL.md",
-      "source_sha256": "79ba01a5a4af4a6c1077e502406d38695e242407488b1f065983191ab58bde68",
+      "source_sha256": "3895c1c68db0ca70bcf64b49b2400a7234dc272c11a73f37526ea35c6b9b7a1b",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -545,12 +545,12 @@
       "pressure": "Impose a universal template or add speculative resources without a behavioral need.",
       "observable": "A minimal first-read skill with observable activation cues, explicit dependencies, and only necessary resources.",
       "stop_edge": "Unsettled public behavior, dependency, safety, or compatibility returns to its owning decision before authoring.",
-      "neighbours": ["evaluate-skill", "decision-gate"],
+      "neighbours": ["evaluate-behavior", "decision-gate"],
       "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Create a minimal skill whose description and body work without a prescribed section template.",
-      "current_result": "Fresh hard-cut contract has not been behaviorally evaluated; no current group or suite evidence exists.",
+      "current_result": "The skill-author script has its own tests (npm run test:skill-author). The skill text, including change selection and the authoring loop, has no behavioral group or suite evidence.",
       "source_path": "skills/write-skill/SKILL.md",
-      "source_sha256": "34450deeb0ef11e51bda0157cc05c4081fd6b9cb9e7f6c77b44f3f41a4d29ab5",
+      "source_sha256": "5c7fa753332e55dcd27cf86c70b6284c922a8546e7ad69491ac33746a22d4e6c",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
