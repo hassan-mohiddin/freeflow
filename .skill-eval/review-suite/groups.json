@@ -22,7 +22,8 @@
       "variant": "clean",
       "kind": "base",
       "held_out": false,
-      "class": null
+      "class": null,
+      "clean_excluded": true
     },
     {
       "id": "rv02-b",
@@ -174,7 +175,8 @@
       "variant": "clean",
       "kind": "base",
       "held_out": false,
-      "class": null
+      "class": null,
+      "clean_excluded": true
     },
     {
       "id": "rv12-a",
@@ -326,7 +328,8 @@
       "variant": "clean",
       "kind": "base",
       "held_out": false,
-      "class": null
+      "class": null,
+      "clean_excluded": true
     },
     {
       "id": "rv21-b",
@@ -358,7 +361,8 @@
       "variant": "clean",
       "kind": "base",
       "held_out": true,
-      "class": null
+      "class": null,
+      "clean_excluded": true
     },
     {
       "id": "rv23-b",
@@ -398,7 +402,8 @@
       "variant": "clean",
       "kind": "base",
       "held_out": true,
-      "class": null
+      "class": null,
+      "clean_excluded": true
     }
   ]
 }

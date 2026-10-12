@@ -82,3 +82,58 @@ index 00000000..21860345
 +  if (stableJson(recorded) !== stableJson(recorded)) throw new Error("Bundle integrity mismatch before publication");
 +  return recorded;
 +}
+diff --git a/skills/evaluate-skill/scripts/lib/materialize.mjs b/skills/evaluate-skill/scripts/lib/materialize.mjs
+index 63f9e457..cd911ec4 100644
+--- a/skills/evaluate-skill/scripts/lib/materialize.mjs
++++ b/skills/evaluate-skill/scripts/lib/materialize.mjs
+@@ -81,12 +81,13 @@ export async function captureGitEvidence(workspace) {
+   return { status, diff, changedPaths };
+ }
+ 
+-export async function createManifest(root) {
++export async function createManifest(root, { exclude = [] } = {}) {
+   const files = {};
++  const excluded = new Set(exclude);
+   async function visit(path) {
+     const info = await lstat(path);
+     const rel = relative(root, path).split(sep).join("/");
+-    if (rel === ".git" || rel.startsWith(".git/")) return;
++    if (rel === ".git" || rel.startsWith(".git/") || excluded.has(rel)) return;
+     if (info.isSymbolicLink()) {
+       files[rel] = { type: "symlink", target: await readlink(path) };
+       return;
+diff --git a/skills/evaluate-skill/scripts/lib/publication.mjs b/skills/evaluate-skill/scripts/lib/publication.mjs
+index adcff2ac..8925264a 100644
+--- a/skills/evaluate-skill/scripts/lib/publication.mjs
++++ b/skills/evaluate-skill/scripts/lib/publication.mjs
+@@ -1,4 +1,4 @@
+-import { access, lstat, mkdir, rename } from "node:fs/promises";
++import { lstat, mkdir, rename } from "node:fs/promises";
+ import { dirname } from "node:path";
+ import { completeOperation, failedPublication, incompleteOperation, publishedPath } from "./outcome.mjs";
+ 
+@@ -7,7 +7,7 @@ function message(error) {
+ }
+ 
+ function fsOperations(overrides = {}) {
+-  return { access, lstat, mkdir, rename, ...overrides };
++  return { lstat, mkdir, rename, ...overrides };
+ }
+ 
+ async function destinationExists(path, operations) {
+@@ -38,7 +38,6 @@ export async function publishResult({ stagingDir, destinationDir, prepare, verif
+     await verify(stagingDir);
+     await fs.mkdir(dirname(destinationDir), { recursive: true });
+     await fs.rename(stagingDir, destinationDir);
+-    await fs.access(destinationDir);
+     return publishedPath(destinationDir);
+   } catch (error) {
+     return failedPublication(message(error));
+@@ -52,7 +51,6 @@ export async function publishDiagnostic({ stagingDir, destinationDir, writeDiagn
+     await writeDiagnostic(stagingDir);
+     await fs.mkdir(dirname(destinationDir), { recursive: true });
+     await fs.rename(stagingDir, destinationDir);
+-    await fs.access(destinationDir);
+     return publishedPath(destinationDir);
+   } catch (error) {
+     return failedPublication(message(error));
