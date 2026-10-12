@@ -1,0 +1,13 @@
+{
+  "schema_version": 2,
+  "kind": "suite",
+  "id": "gate-review-work",
+  "groups": [
+    "groups/rv02-b.json",
+    "groups/rv03-b.json",
+    "groups/rv11-a.json",
+    "groups/rv03-a.json",
+    "groups/rv04-a.json",
+    "groups/rv08-a.json"
+  ]
+}

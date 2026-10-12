@@ -1,0 +1,136 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "rv04-a",
+  "type": "body",
+  "input": {
+    "prompt": "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`\n\nThe requirements the change must meet:\n\n# Requirements: transactional result publication\n\n`publication.mjs` publishes an evaluation's staging directory to its destination as one atomic rename. It reports each outcome as a value, and it never throws to its caller for a publication failure that carries an error message.\n\n1. `createStagingDirectory(path)` creates the staging directory with a non-recursive `mkdir`. It returns a complete outcome carrying the path, or an incomplete outcome carrying the primary failure message.\n2. `publishResult` refuses a destination that already exists, before `prepare` runs. The refusal returns `publication-failed` with a failure message that says the destination already exists, returns no `path`, and leaves the existing destination unchanged.\n3. For a destination that does not exist, `publishResult` runs `prepare`, then `verify`, creates the destination's parent directory if needed, renames the staging directory to the destination, and confirms that the destination exists. It returns `{ status: \"published\", path }` only after that confirmation.\n4. A failure in `prepare`, `verify`, the parent `mkdir`, the rename, or the confirmation returns `publication-failed` with that failure's message and no `path`.\n5. A failed rename leaves the staging directory in place.\n6. `publishDiagnostic` follows the same rules for its destination: it refuses an existing destination before `writeDiagnostic` runs, and it never returns a path after a failed write, mkdir, rename, or confirmation.\n7. The filesystem operations (`lstat`, `mkdir`, `rename`, `access`) can be replaced through `operations`, and a failure in any of them is reported as a failed publication."
+  },
+  "fixture": ".skill-eval/review-suite/fixtures/rs-25844ce3/clean/workspace",
+  "tools": ["read", "write", "ls", "find", "run_command"],
+  "commands": [
+    {
+      "id": "tests",
+      "argv": ["node", "../../../../../../../.skill-eval/review-suite/tools/run-tests.mjs", "rv04-a"],
+      "timeout_ms": 600000
+    }
+  ],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "base": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "3415a8a2f4158e17fe605c5378f18eb4e8c08ed5"
+        }
+      }
+    },
+    "head": {}
+  },
+  "reference": "base",
+  "component": ["subject.source"],
+  "expectations": [
+    {
+      "id": "base-only-review",
+      "variant": "base",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "head-only-review",
+      "variant": "head",
+      "comparison": "only-review",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["review.md"]
+    },
+    {
+      "id": "base-judgment-line",
+      "variant": "base",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "head-judgment-line",
+      "variant": "head",
+      "comparison": "judgment-line",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "contains",
+      "value": "Judgment: "
+    },
+    {
+      "id": "base-not-blocked",
+      "variant": "base",
+      "comparison": "not-blocked",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Blocking"
+    },
+    {
+      "id": "head-not-blocked",
+      "variant": "head",
+      "comparison": "not-blocked",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Blocking"
+    },
+    {
+      "id": "base-not-inconclusive",
+      "variant": "base",
+      "comparison": "not-inconclusive",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Inconclusive"
+    },
+    {
+      "id": "head-not-inconclusive",
+      "variant": "head",
+      "comparison": "not-inconclusive",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "not-contains",
+      "value": "Judgment: Inconclusive"
+    },
+    {
+      "id": "base-judged-pass",
+      "variant": "base",
+      "comparison": "judged-pass",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "equals",
+      "value": "Judgment: Pass"
+    },
+    {
+      "id": "head-judged-pass",
+      "variant": "head",
+      "comparison": "judged-pass",
+      "kind": "file-text",
+      "path": "review.md",
+      "line": 1,
+      "expect": "equals",
+      "value": "Judgment: Pass"
+    }
+  ],
+  "review_questions": [
+    "Did the review avoid reporting problems that the change, its files and the author's report do not support?",
+    "Did the review keep style or naming preferences out of its findings?"
+  ]
+}
