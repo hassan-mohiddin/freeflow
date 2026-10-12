@@ -2,6 +2,7 @@ import { readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { storedArms } from "./arms.mjs";
+import { claimSummary, trialCounts, verdictText } from "./decision.mjs";
 import { resolveResult } from "./view.mjs";
 
 // Run content (responses, changed files, tool arguments) can be large or hostile; every value passes through esc().
@@ -15,31 +16,32 @@ const VALUE_CAP = 500;
 export async function writeHtml(
   target,
   file,
-  { root = process.cwd(), selectors = { group: null, variant: null } } = {},
+  { root = process.cwd(), selectors = { group: null, variant: null }, results = null } = {},
 ) {
   if (selectors.group !== null || selectors.variant !== null) {
     throw new Error("view --html renders the whole result; drop --group and --variant");
   }
-  const html = await renderHtml(target, { root });
+  const html = await renderHtml(target, { root, results });
   const destination = path.resolve(root, file);
   await writeFile(destination, html);
   return destination;
 }
 
-export async function renderHtml(target, { root = process.cwd() } = {}) {
-  const resultDirectory = await resolveResult(target, root);
+export async function renderHtml(target, { root = process.cwd(), results = null } = {}) {
+  const resultDirectory = await resolveResult(target, root, results);
   const aggregate = await readOptionalJson(path.join(resultDirectory, "aggregate.json"));
   if (aggregate !== null) {
     const parts = [
       claimSection(aggregate),
       decisionBlock(aggregate),
       ...(Array.isArray(aggregate.groups) ? aggregate.groups : []).map(metricsGroupBlock),
-      `<p class="meta">Aggregate ${esc(aggregate.id)} · state ${esc(aggregate.state)} · trials ${aggregate.trials.length}/${esc(aggregate.requestedTrials)}</p>`,
+      `<p class="meta">Aggregate ${esc(aggregate.id)} · state ${esc(aggregate.state)} · trials ${esc(trialCounts(aggregate))}</p>`,
     ];
     for (const trial of aggregate.trials) {
       parts.push(`<section class="trial"><h2>Trial ${esc(trial.id)} [${esc(trial.state)}]</h2>`);
       try {
-        const trialDirectory = await resolveResult(trial.id, root);
+        // An aggregate's trials are stored beside it.
+        const trialDirectory = await resolveResult(trial.id, root, path.dirname(resultDirectory));
         const summary = await readJson(path.join(trialDirectory, "summary.json"), `trial ${trial.id} summary`);
         parts.push(await resultBody(trialDirectory, summary));
       } catch (error) {
@@ -267,8 +269,6 @@ function advisoryBlock(review) {
 }
 
 // The aggregate's decision: the rule, the split, the sign test p and the verdict.
-const VERDICT_TEXT = { beats: "beats", worse: "worse", "no-difference-shown": "no difference shown" };
-
 function decisionBlock(aggregate) {
   const decision = aggregate.decision;
   if (!decision || typeof decision !== "object" || !decision.rule) return "";
@@ -286,8 +286,8 @@ function decisionBlock(aggregate) {
     ["split (better / worse / ties)", `${decision.better} / ${decision.worse} / ${decision.ties}`],
     ["decided / excluded", `${decision.decided} / ${decision.excluded}`],
     ["p (sign test)", Number.isFinite(decision.p) ? String(Number(decision.p.toPrecision(4))) : "-"],
-    ["verdict", VERDICT_TEXT[decision.verdict] ?? decision.verdict],
-    ["claim", `${aggregate.claim?.class ?? "none"}${aggregate.claim?.reason ? ` (${aggregate.claim.reason})` : ""}`],
+    ["verdict", verdictText(decision.verdict)],
+    ["claim", claimSummary(aggregate)?.reached ?? "none"],
   ];
   const cases = Array.isArray(decision.cases) ? decision.cases : [];
   const caseRows = cases.map(
@@ -350,15 +350,11 @@ function fmt(value) {
   return esc(value);
 }
 
+// Worded by decision.mjs, as in the text view, so a decision's verdict is never shown as "none".
 function claimSection(aggregate) {
-  if (!aggregate.claim) return "";
-  const claim = aggregate.claim;
-  const supported =
-    claim.class === "rate-on-suite"
-      ? `rate on this suite, k=${claim.k}`
-      : `none${claim.reason ? ` (${claim.reason})` : ""}`;
-  const beats = String(claim.beats ?? "").replace(/^not supported: /, "");
-  return `<section class="claim"><h2>Claim</h2><p>${esc(supported)}</p><p class="muted">No &quot;beats&quot; claim: ${esc(beats)}</p></section>`;
+  const summary = claimSummary(aggregate);
+  if (summary === null) return "";
+  return `<section class="claim"><h2>Claim</h2><p>${esc(summary.reached)}</p><p class="muted">${esc(summary.detail)}</p></section>`;
 }
 
 function preBlock(text) {

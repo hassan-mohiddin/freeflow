@@ -31,7 +31,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Never write that one arm beats another without paired runs on the same cases and a suite `decision` declared before the run; the evaluator reports "beats" only from that rule. Below that, report counts.
 - Never cite a dry run as evidence. When a run is refused for uncommitted inputs, commit the candidate and the definition, or keep the run as a dry run for your own checking only.
 - Never change the component under test while evaluating it. Return one measured revision target to its owner.
-- After a behavioral change, rerun the complete fixed group with every arm. Never reuse an earlier run as the fresh counterpart or rerun only the preferred arm.
+- After a behavioral change, rerun the complete fixed group with every arm. Never hand-pick an earlier run as the fresh counterpart or rerun only the preferred arm; an earlier run may stand in only through `--reuse`, which matches the arm's exact inputs, and the report names it as reused.
 - Judged evidence is its own class. Judge answers are stored apart from run and deterministic grade files, with each judge's identity and calibration status, and count toward a claim only through a decision rule declared before the run. They never change run or grade files and never establish readiness.
 - Installing anything an eval needs, such as the VM runtime behind a confined shell, is the user's decision. Relay the evaluator's exact refusal and ask before installing; never install silently.
 - Never invoke archived evaluators.
@@ -171,15 +171,15 @@ Before operating the evaluator, resolving paths, interpreting states, or reasoni
 Use the canonical [skill evaluator](scripts/skill-eval.mjs) from the definition root:
 
 ```text
-node <evaluate-behavior-directory>/scripts/skill-eval.mjs run <suite-or-group-path> [--group <id-or-position>] [--variant <arm>] [--trials <n>] [--max-cost <total>] [--yes] [--dry-run] [--skip-reference-check]
+node <evaluate-behavior-directory>/scripts/skill-eval.mjs run <suite-or-group-path> [--group <id-or-position>] [--variant <arm>] [--trials <n>] [--max-cost <total>] [--jobs <n>] [--cpu-jobs <n>] [--reuse] [--pilot <n>] [--results <dir>] [--yes] [--dry-run] [--skip-reference-check]
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs check-tasks <suite-or-group-path> [--group <id-or-position>]
-node <evaluate-behavior-directory>/scripts/skill-eval.mjs view <result-id-or-directory> [--group <id-or-position>] [--variant <arm>] [--html <file>]
+node <evaluate-behavior-directory>/scripts/skill-eval.mjs view <result-id-or-directory> [--group <id-or-position>] [--variant <arm>] [--html <file>] [--results <dir>]
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-id-or-directory> (--model <provider/model> | --configuration <file>) [--group <id-or-position>] [--thinking <level>] [--swap | --swap-sample <fraction>] [--limit <name>=<chars>]
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-or-aggregate-id> --rubric [--model <provider/model>] [--configuration <file>]
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-or-aggregate-id> --calibrate <labels.json>
 ```
 
-One run per arm cannot separate a behavioral difference from sampling noise. Use `--trials <n>` before claiming a difference; each trial is an independent complete result, and the aggregate counts their deterministic grades with pass^k, summarizes run metrics such as cost, turns and tokens per arm, and, when the suite declares a decision, records its verdict. A decision may schedule extra trials for undecided cases itself. Use `--max-cost` when trials or suites could spend more than intended; it bounds the host's list-price estimate, not a subscription's plan limit, so state the subject count before a large batch. Run `check-tasks` before spending on a coding task; it calls no model.
+One run per arm cannot separate a behavioral difference from sampling noise. Use `--trials <n>` before claiming a difference; each trial is an independent complete result, and the aggregate counts their deterministic grades with pass^k, summarizes run metrics such as cost, turns and tokens per arm, and, when the suite declares a decision, records its verdict. A suite with a decision always runs as trials, and may schedule extra trials for undecided cases itself. Use `--max-cost` when trials or suites could spend more than intended; it bounds the host's list-price estimate, not a subscription's plan limit, so state the subject count before a large batch. Run `check-tasks` before spending on a coding task; it calls no model. `--pilot`, `--reuse` and `--jobs` cut the cost and time of a batch ([Eval Modes](references/eval-modes.md)); `--results` stores results outside the definition root, and `view` and `review` take the same flag to find them.
 
 With no selectors, run or view every suite group and every arm. Selectors narrow execution or viewing scope; they do not modify definitions.
 
@@ -234,7 +234,7 @@ Report:
 
 - what ran;
 - each arm's exact identity, and which is the reference;
-- selected groups and arms;
+- selected groups and arms, and any run reused from an earlier result;
 - deterministic results, with case and trial counts and pass^k;
 - metrics that bear on the question, such as cost, turns or duration per arm;
 - the decision's verdict, with its split, p and rule, when the suite declares one, and otherwise the claim class reached;

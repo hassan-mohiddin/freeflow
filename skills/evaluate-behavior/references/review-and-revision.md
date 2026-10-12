@@ -75,7 +75,7 @@ After a measured revision or resolved infrastructure cause:
 - rerun the complete fixed group;
 - run every arm;
 - keep every result visible;
-- do not reuse an earlier reference run as a fresh counterpart;
+- do not hand-pick an earlier reference run as a fresh counterpart; `--reuse` stands one in only when its inputs match exactly, and lists it as reused;
 - do not rerun only the preferred arm;
 - do not use partial evidence as a comparable full result;
 - do not rerun merely to erase failure.
