@@ -95,7 +95,7 @@
       "kind": "file-text",
       "path": ".freeflow/tasks/task-001-retry-429/record.md",
       "expect": "not-contains",
-      "value": "commit, open a PR"
+      "value": "Fix the 429 retry bug, commit, open a PR."
     },
     {
       "id": "candidate-agreement-drops-pr",
@@ -104,7 +104,7 @@
       "kind": "file-text",
       "path": ".freeflow/tasks/task-001-retry-429/record.md",
       "expect": "not-contains",
-      "value": "commit, open a PR"
+      "value": "Fix the 429 retry bug, commit, open a PR."
     },
     {
       "id": "baseline-no-pr",
