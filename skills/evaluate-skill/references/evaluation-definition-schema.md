@@ -72,7 +72,7 @@ A configuration has these fields; each arm's effective configuration is the shar
 
 | Field | Required in the effective configuration | Meaning |
 | --- | --- | --- |
-| `host` | yes | `{ "name": "pi" }`, with an optional `version` string; a declared version must match `pi --version` or the run is refused. |
+| `host` | yes | `{ "name": "pi" }`, with optional `version` (must match `pi --version`), `extensions` and `settings`; see [Host Extensions And Settings](#host-extensions-and-settings). |
 | `subject` | yes | What is under test: `{ "kind": "skill", "source", "skills", "target", "context" }` (see [Subject](#subject)) or `{ "kind": "none" }` when the comparison is about the environment, not a skill. |
 | `model` | no | `model` names the provider/model; optional `thinking` selects its thinking level. The CLI has no model override, and a subject run without a model gets Pi's default and no copied login. |
 | `runtime` | no | Host session, prompt mode, extension bundles and environment; see [Runtime Profile](#runtime-profile). |
@@ -83,7 +83,7 @@ Rules:
 - `configuration` may also hold `extends`: a path, relative to the group file, to a configuration file (`{ "schema_version": 2, "kind": "configuration", "id": "...", "configuration": { ... } }`). Its configuration is merged first, then the group's own fields. A configuration file cannot itself extend another.
 - `arms` holds exactly `baseline` and `candidate`. Each is an overlay with any of the configuration fields. Merging is key by key for objects; an array, scalar, or `null` in the overlay replaces the shared value.
 - `component` is an array of dot paths into the configuration, such as `subject.source` or `model.thinking`. The evaluator compares the two effective configurations leaf by leaf (an array is one leaf) and refuses the group before any subject runs when they differ anywhere `component` does not cover, or when a `component` path does not differ. `component: []` declares an A/A comparison: the two arms must be identical, which measures run-to-run variation.
-- `host` and `runtime` must be the same in both arms. `freeflow` may differ; it is often the component under test.
+- `host.name`, `host.version` and `runtime` must be the same in both arms. `host.extensions`, `host.settings` and `freeflow` may differ; any of them can be the component under test.
 - A candidate that declares skills must name its target.
 
 ## Description Group Example
@@ -220,6 +220,22 @@ A body group explicitly delivers each target on turn one and observes first-read
 Description groups allow no tools or only built-in `read`. Body groups allow built-in `read`, `write`, and `edit`, the evaluator's `run_command` tool for declared commands, plus custom tools declared by a runtime extension bundle. Native `bash`, `powershell`, `grep`, `find`, and `ls` tools are unsupported. A no-target baseline or runtime-only group may use `skills: []` and `target: null`; a candidate that declares skills must identify its target.
 
 The examples are complete definition shapes. Replace fixture, resource, model, and Git-ref values with paths and identities that exist under your definition root.
+
+## Host Extensions And Settings
+
+```json
+{
+  "host": {
+    "name": "pi",
+    "extensions": [{ "package": "@gotgenes/pi-anthropic-auth", "version": "3.4.2" }],
+    "settings": { "retry": { "enabled": false }, "compaction": { "enabled": true } }
+  }
+}
+```
+
+- `extensions` lists Pi packages by exact name and version. Each is found among the user's installed Pi packages (`<Pi agent directory>/npm/node_modules`); a missing package or another version refuses the run before anything starts. They load right after the evaluator's guard, in order, and are recorded under `resources.hostExtensions`. Extensions can change what the host sends (an auth extension may reshape the system prompt), so they belong to the configuration, and two arms that differ in them must declare it in `component`.
+- `settings` is any object of Pi settings. It becomes the subject's `settings.json` in its isolated agent directory, merged over the evaluator's two defaults: `retry.enabled` and `compaction.enabled` are `false` unless declared, so a provider error or a compaction never happens silently inside a measured run. Any other setting it does not name takes Pi's default; the user's own settings never apply. `run.json` records the effective settings under `isolation.settings`, and body runs send the same retry and compaction values to Pi over RPC. `packages` is refused: extensions load only from `extensions`.
+- The advisory reviewer takes the same fields from a configuration file given with `review --configuration`.
 
 ## Freeflow
 

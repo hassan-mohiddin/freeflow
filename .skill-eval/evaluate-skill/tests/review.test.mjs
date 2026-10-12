@@ -244,26 +244,35 @@ test("review skips groups without questions or complete runs", async () => {
   });
 });
 
-test("review loads only the named extensions and records each one", async () => {
+// The reviewer's credentials directory in these tests; installed Pi packages live under it.
+async function installJudgePackage(root, name, version) {
+  const directory = path.join(root, "no-credentials", "npm", "node_modules", name);
+  await mkdir(directory, { recursive: true });
+  await writeFile(path.join(directory, "package.json"), JSON.stringify({ name, version }));
+  return directory;
+}
+
+test("review takes its model, extensions and settings from a configuration file and records them", async () => {
   await withTempDirectory(async (root) => {
     const bin = await installReviewerPi(root);
     const { groupDirectory } = await writeResult(root);
-    const packageDirectory = path.join(root, "auth-plugin");
-    await mkdir(packageDirectory);
-    await writeFile(
-      path.join(packageDirectory, "package.json"),
-      JSON.stringify({ name: "auth-plugin", version: "1.2.3" }),
-    );
-    const fileExtension = path.join(root, "shape.mjs");
-    await writeFile(fileExtension, "export default () => {};\n");
+    const plugin = await installJudgePackage(root, "auth-plugin", "1.2.3");
+    await writeJson(path.join(root, "judge.json"), {
+      schema_version: 2,
+      kind: "configuration",
+      id: "judge",
+      configuration: {
+        host: {
+          name: "pi",
+          extensions: [{ package: "auth-plugin", version: "1.2.3" }],
+          settings: { retry: { enabled: false } },
+        },
+        model: { model: "reviewer/model", thinking: "low" },
+      },
+    });
     const output = JSON.stringify({ answers: [{ question: 1, A: "yes", B: "no", rationale: "A names rollback." }] });
 
-    const result = review(
-      root,
-      bin,
-      ["--model", "reviewer/model", "--extension", "auth-plugin", "--extension", "shape.mjs"],
-      output,
-    );
+    const result = review(root, bin, ["--configuration", "judge.json"], output);
 
     assert.equal(result.status, 0, result.stderr);
     const [call] = (await readFile(path.join(root, "review.jsonl"), "utf8"))
@@ -271,23 +280,29 @@ test("review loads only the named extensions and records each one", async () => 
       .split("\n")
       .map((line) => JSON.parse(line));
     const loaded = call.args.flatMap((arg, index) => (arg === "--extension" ? [call.args[index + 1]] : []));
-    assert.deepEqual(loaded, [packageDirectory, fileExtension]);
+    assert.deepEqual(loaded, [plugin]);
     assert.ok(call.args.indexOf("--no-extensions") < call.args.indexOf("--extension"));
+    assert.equal(call.args[call.args.indexOf("--model") + 1], "reviewer/model");
+    assert.equal(call.args[call.args.indexOf("--thinking") + 1], "low");
     const semantic = JSON.parse(await readFile(path.join(groupDirectory, "semantic-grade.json"), "utf8"));
-    assert.deepEqual(semantic.extensions, [
-      { path: packageDirectory, package: "auth-plugin@1.2.3" },
-      { path: fileExtension, sha256: sha256("export default () => {};\n") },
-    ]);
+    assert.deepEqual(semantic.extensions, [{ path: plugin, package: "auth-plugin@1.2.3" }]);
+    assert.deepEqual(semantic.judge.settings, { retry: { enabled: false } });
   });
 });
 
-test("review refuses a missing extension before starting the reviewer", async () => {
+test("review refuses a configuration whose extension is not installed, before starting the reviewer", async () => {
   await withTempDirectory(async (root) => {
     const bin = await installReviewerPi(root);
     await writeResult(root);
-    const result = review(root, bin, ["--model", "reviewer/model", "--extension", "missing"], "{}");
+    await writeJson(path.join(root, "judge.json"), {
+      schema_version: 2,
+      kind: "configuration",
+      id: "judge",
+      configuration: { host: { name: "pi", extensions: [{ package: "missing", version: "1.0.0" }] } },
+    });
+    const result = review(root, bin, ["--model", "reviewer/model", "--configuration", "judge.json"], "{}");
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /Extension not found: .*missing/);
+    assert.match(result.stderr, /host\.extensions: missing is not installed in Pi/);
     await assert.rejects(readFile(path.join(root, "review.jsonl")), { code: "ENOENT" });
   });
 });
@@ -351,6 +366,7 @@ test("the judge's identity, family relation and contract gaps are recorded", asy
       family: "reviewer",
       thinking: "low",
       extensions: [],
+      settings: {},
     });
     // The judge runs isolated too; no login is stored for this fake provider, so none is copied.
     assert.equal(isolation.provider, "reviewer");
@@ -386,6 +402,6 @@ test("review requires an explicit reviewer model", async () => {
     await writeResult(root);
     const result = review(root, bin, [], "{}");
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /requires --model/);
+    assert.match(result.stderr, /requires --model or --configuration/);
   });
 });

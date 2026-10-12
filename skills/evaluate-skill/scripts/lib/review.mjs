@@ -1,9 +1,11 @@
 import { randomInt } from "node:crypto";
-import { mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { sha256, writeJson, writeText } from "./evidence.mjs";
+import { loadConfiguration } from "./definitions.mjs";
+import { resolveHostExtensions } from "./pi-host.mjs";
 import { prepareIsolation, removeCopiedCredentials } from "./isolation.mjs";
 import { baseProcessEnvironment, runPiProcess } from "./pi.mjs";
 import { resolveResult } from "./view.mjs";
@@ -21,19 +23,28 @@ const MATERIALS_LIMIT = 60000;
  * (up to a stated limit) and the shared task materials, with run paths and arm names replaced by
  * neutral tokens, and its identity, family relation and unmet contract items are recorded.
  *
- * Pi extensions stay off except the ones named in `extensions` (for example, a provider's auth extension).
- * Each is recorded, because an extension can change what the reviewer is sent.
+ * The reviewer's own configuration (model, host extensions such as a provider's auth extension, host settings) can come
+ * from a schema 2 configuration file; `model` and `thinking` override its model. Extensions are recorded, because
+ * an extension can change what the reviewer is sent.
  *
  * @param {string} target
  * @param {{group: string | null}} selectors
- * @param {{root?: string, signal?: AbortSignal, model: string, thinking?: string | null, extensions?: string[], swap?: boolean}} options
+ * @param {{root?: string, signal?: AbortSignal, model?: string | null, thinking?: string | null, configuration?: string | null, swap?: boolean}} options
  */
 export async function reviewResult(
   target,
   selectors,
-  { root = process.cwd(), signal, model, thinking = null, extensions = [], swap = false },
+  { root = process.cwd(), signal, model = null, thinking = null, configuration = null, swap = false },
 ) {
-  const loaded = await Promise.all(extensions.map((entry) => describeExtension(path.resolve(root, entry))));
+  const judge =
+    configuration === null
+      ? { model: null, extensions: [], settings: {} }
+      : await loadConfiguration(configuration, { root });
+  model = model ?? judge.model?.model ?? null;
+  thinking = thinking ?? judge.model?.thinking ?? null;
+  if (model === null) throw new Error("the reviewer needs a model: pass --model or declare one in its configuration");
+  const loaded = await resolveHostExtensions(judge.extensions);
+  const settings = judge.settings;
   const resultDirectory = await resolveResult(target, root);
   const summary = JSON.parse(await readFile(path.join(resultDirectory, "summary.json"), "utf8"));
   const groups = selectGroups(summary, selectors.group);
@@ -46,23 +57,13 @@ export async function reviewResult(
         model,
         thinking,
         extensions: loaded,
+        settings,
         swap,
         signal,
       }),
     );
   }
   return { resultDirectory, groups: outcomes };
-}
-
-/** A package directory is identified by its name and version, a single file by its content hash. */
-async function describeExtension(extensionPath) {
-  const info = await stat(extensionPath).catch(() => null);
-  if (info === null) throw new Error(`Extension not found: ${extensionPath}`);
-  if (!info.isDirectory()) return { path: extensionPath, sha256: sha256(await readFile(extensionPath)) };
-  const manifest = JSON.parse(await readFile(path.join(extensionPath, "package.json"), "utf8").catch(() => "{}"));
-  const name = typeof manifest.name === "string" ? manifest.name : null;
-  const version = typeof manifest.version === "string" ? manifest.version : null;
-  return { path: extensionPath, package: name && version ? `${name}@${version}` : null };
 }
 
 function selectGroups(summary, selector) {
@@ -75,7 +76,7 @@ function selectGroups(summary, selector) {
   return selected;
 }
 
-async function reviewGroup(groupDirectory, id, { root, model, thinking, extensions, swap, signal }) {
+async function reviewGroup(groupDirectory, id, { root, model, thinking, extensions, settings, swap, signal }) {
   const definition = JSON.parse(await readFile(path.join(groupDirectory, "definition.json"), "utf8"));
   const questions = Array.isArray(definition.review_questions) ? definition.review_questions : [];
   if (questions.length === 0) return { id, state: "skipped", reason: "no review questions" };
@@ -97,6 +98,7 @@ async function reviewGroup(groupDirectory, id, { root, model, thinking, extensio
     model,
     thinking,
     extensions,
+    settings,
     signal,
   });
   let second = null;
@@ -106,6 +108,7 @@ async function reviewGroup(groupDirectory, id, { root, model, thinking, extensio
       model,
       thinking,
       extensions,
+      settings,
       signal,
     });
   }
@@ -126,7 +129,7 @@ async function reviewGroup(groupDirectory, id, { root, model, thinking, extensio
     thinking,
     extensions,
     // Family is approximated by the provider: it says whether the judge and the subject come from one maker.
-    judge: { model, provider, family: provider, thinking, extensions, isolation: first.isolation },
+    judge: { model, provider, family: provider, thinking, extensions, settings, isolation: first.isolation },
     subject: { providers: subjectProviders, familyRelation: familyRelation(provider, subjectProviders) },
     labels,
     prompt: { file: "review/prompt.md", sha256: first.promptSha256 },
@@ -152,7 +155,7 @@ async function reviewGroup(groupDirectory, id, { root, model, thinking, extensio
 }
 
 async function runJudge(groupDirectory, name, definition, questions, labels, evidence, options) {
-  const { model, thinking, extensions, signal } = options;
+  const { model, thinking, extensions, settings, signal } = options;
   const prompt = reviewPrompt(definition, questions, evidence, labels);
   const reviewDirectory = path.join(groupDirectory, name);
   await rm(reviewDirectory, { recursive: true, force: true });
@@ -180,7 +183,7 @@ async function runJudge(groupDirectory, name, definition, questions, labels, evi
   // The judge runs in its own isolated home and agent directory, like a subject.
   let isolation;
   try {
-    isolation = await prepareIsolation(reviewDirectory, model);
+    isolation = await prepareIsolation(reviewDirectory, model, { settings });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { labels, answers: [], errors: [message], usage: null, promptSha256: sha256(prompt), isolation: null };

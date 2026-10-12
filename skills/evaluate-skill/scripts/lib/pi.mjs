@@ -19,6 +19,7 @@ import {
 } from "./process.mjs";
 import { writeFreeflowSettings } from "./freeflow.mjs";
 import { prepareIsolation } from "./isolation.mjs";
+import { effectivePiSettings } from "./pi-host.mjs";
 import { runRpcBodySession, runRpcDescriptionSession } from "./rpc.mjs";
 import {
   fingerprintDirectory,
@@ -58,20 +59,61 @@ export class VariantSetupError extends Error {
   }
 }
 
-export async function runDescription({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal }) {
+export async function runDescription({
+  group,
+  variant,
+  root,
+  variantDirectory,
+  fixture,
+  runtime,
+  freeflow,
+  hostExtensions,
+  signal,
+}) {
   if (group.input.turns !== undefined) {
-    return runPersistentDescription({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal });
+    return runPersistentDescription({
+      group,
+      variant,
+      root,
+      variantDirectory,
+      fixture,
+      runtime,
+      freeflow,
+      hostExtensions,
+      signal,
+    });
   }
-  return runOneShotDescription({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal });
+  return runOneShotDescription({
+    group,
+    variant,
+    root,
+    variantDirectory,
+    fixture,
+    runtime,
+    freeflow,
+    hostExtensions,
+    signal,
+  });
 }
 
-export async function runBody({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal }) {
-  const options = { group, variant, root, variantDirectory, fixture, runtime, freeflow, signal };
+export async function runBody({
+  group,
+  variant,
+  root,
+  variantDirectory,
+  fixture,
+  runtime,
+  freeflow,
+  hostExtensions,
+  signal,
+}) {
+  const options = { group, variant, root, variantDirectory, fixture, runtime, freeflow, hostExtensions, signal };
   const subject = await prepareSubject(options, "rpc");
   const before = await fingerprintDirectory(subject.workspace);
   const declaredPrompts = group.input.prompt === undefined ? [...group.input.turns] : [group.input.prompt];
   const observation = await runRpcBodySession({
     command: subject.host.command,
+    settings: subject.isolation.settings,
     args: subject.args,
     cwd: subject.workspace,
     eventsFile: subject.eventsFile,
@@ -164,6 +206,7 @@ function subjectRun({ group, variant }, subject, observation) {
       context: subject.environment.context,
       runtime: subject.runtime,
       freeflow: subject.freeflow,
+      hostExtensions: subject.hostExtensions,
       contextDelivery: subject.environment.contextDelivery,
       targetPath: subject.environment.targetPath,
     },
@@ -225,6 +268,7 @@ async function runPersistentDescription(options) {
   const subject = await prepareSubject(options, "rpc");
   const observation = await runRpcDescriptionSession({
     command: subject.host.command,
+    settings: subject.isolation.settings,
     args: subject.args,
     cwd: subject.workspace,
     eventsFile: subject.eventsFile,
@@ -273,7 +317,7 @@ async function runPersistentDescription(options) {
 }
 
 async function prepareSubject(
-  { group, variant, root, variantDirectory, fixture: fixtureSnapshot, runtime, freeflow = null },
+  { group, variant, root, variantDirectory, fixture: fixtureSnapshot, runtime, freeflow = null, hostExtensions = [] },
   mode,
 ) {
   const workspace = path.join(variantDirectory, "workspace");
@@ -292,7 +336,9 @@ async function prepareSubject(
     fixture = await materializeFixture({ fixture: fixtureSnapshot, workspace });
     // Written before the workspace's starting state is taken, so they never count as the subject's changes.
     if (freeflow !== null) await writeFreeflowSettings(workspace, freeflow);
-    isolation = await prepareIsolation(variantDirectory, group.variants[variant].model?.model ?? null);
+    isolation = await prepareIsolation(variantDirectory, group.variants[variant].model?.model ?? null, {
+      settings: effectivePiSettings(group.variants[variant].hostSettings ?? {}),
+    });
   } catch (error) {
     if (error instanceof VariantSetupError) throw error;
     throw new VariantSetupError(error instanceof Error ? error.message : String(error));
@@ -312,6 +358,7 @@ async function prepareSubject(
     sessionDirectory,
     group.variants[variant].model,
     freeflow?.entry ?? null,
+    hostExtensions,
   );
   const allowedRoots = [
     await realpath(workspace),
@@ -324,6 +371,7 @@ async function prepareSubject(
   return {
     args,
     environment,
+    hostExtensions,
     freeflow:
       freeflow === null
         ? null
@@ -485,12 +533,24 @@ function subjectRunState(observation) {
   return "infrastructure-failed";
 }
 
-function piArguments(group, environment, runtime, mode, observeContext, sessionDirectory, model, freeflowEntry) {
+function piArguments(
+  group,
+  environment,
+  runtime,
+  mode,
+  observeContext,
+  sessionDirectory,
+  model,
+  freeflowEntry,
+  hostExtensions = [],
+) {
   const args = ["--mode", mode];
   if (mode === "json") args.push("-p");
   if (runtime.session) args.push("--session-dir", sessionDirectory);
   else args.push("--no-session");
   args.push("--no-extensions", "--extension", guardExtension);
+  // Provider extensions (such as a subscription's auth extension) load right after the guard.
+  for (const extension of hostExtensions) args.push("--extension", extension.path);
   if (group.commands !== undefined) args.push("--extension", commandToolExtension);
   if (freeflowEntry !== null) args.push("--extension", freeflowEntry);
   for (const bundle of runtime.extensions) args.push("--extension", bundle.entry);

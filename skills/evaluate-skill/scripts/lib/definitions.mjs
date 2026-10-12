@@ -332,8 +332,9 @@ function validateModel(value, label, definitionPath) {
 const SCHEMA_1_MESSAGE =
   "schema 1 definitions are no longer supported; rewrite it as schema 2 (see the evaluation definition schema reference)";
 const CONFIGURATION_FIELDS = ["host", "model", "subject", "freeflow", "runtime"];
-// Arms may not differ here yet: runtime bundles are prepared once per group, and Pi is the only host.
-const SHARED_ONLY = ["host", "runtime"];
+// Arms may not differ here: runtime bundles are prepared once per group, and Pi is the only host. Host extensions
+// and settings may differ, like the rest of the configuration.
+const SHARED_ONLY = ["host.name", "host.version", "runtime"];
 const COMPONENT_PATH = /^[a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9_-]+)*$/;
 
 function rejectSchema1(value, label, definitionPath) {
@@ -387,10 +388,29 @@ function validateEffectiveConfiguration(value, label, definitionPath) {
     label,
     definitionPath,
   );
-  const host = requireExactKeys(configuration.host, ["name"], ["version"], `${label}.host`, definitionPath);
+  const host = requireExactKeys(
+    configuration.host,
+    ["name"],
+    ["version", "extensions", "settings"],
+    `${label}.host`,
+    definitionPath,
+  );
   if (!EVALUATION_HOSTS.has(host.name))
     fail("invalid-definition", "group.configuration.host.name must be pi", definitionPath);
   if (Object.hasOwn(host, "version")) requireString(host.version, `${label}.host.version`, definitionPath);
+  if (Object.hasOwn(host, "extensions"))
+    validateHostExtensions(host.extensions, `${label}.host.extensions`, definitionPath);
+  if (Object.hasOwn(host, "settings")) {
+    const settings = requireObject(host.settings, `${label}.host.settings`, definitionPath);
+    // Extensions load only from host.extensions, so the comparison declares every one of them.
+    if (Object.hasOwn(settings, "packages")) {
+      fail(
+        "invalid-definition",
+        `${label}.host.settings cannot set packages; declare extensions in host.extensions`,
+        definitionPath,
+      );
+    }
+  }
   if (Object.hasOwn(configuration, "model")) validateModel(configuration.model, `${label}.model`, definitionPath);
   const environment = validateSubject(configuration.subject, `${label}.subject`, definitionPath);
   let runtime;
@@ -418,6 +438,20 @@ function validateEffectiveConfiguration(value, label, definitionPath) {
     }
   }
   return { configuration, environment, runtime, freeflow };
+}
+
+/** Pi packages the host loads, each by its exact name and version, resolved from the user's installed packages. */
+function validateHostExtensions(value, label, definitionPath) {
+  if (!Array.isArray(value)) fail("invalid-definition", `${label} must be an array`, definitionPath);
+  const names = new Set();
+  for (const [index, entry] of value.entries()) {
+    const extension = requireExactKeys(entry, ["package", "version"], [], `${label}[${index}]`, definitionPath);
+    requireString(extension.package, `${label}[${index}].package`, definitionPath);
+    requireString(extension.version, `${label}[${index}].version`, definitionPath);
+    if (names.has(extension.package))
+      fail("invalid-definition", `${label} names ${extension.package} twice`, definitionPath);
+    names.add(extension.package);
+  }
 }
 
 /**
@@ -493,7 +527,7 @@ async function resolveArms(group, definitionPath, root) {
   const differing = differences(resolved.baseline.configuration, resolved.candidate.configuration);
   const declares = (entry, difference) => difference === entry || difference.startsWith(`${entry}.`);
   for (const difference of differing) {
-    if (SHARED_ONLY.includes(difference.split(".")[0])) {
+    if (SHARED_ONLY.some((entry) => difference === entry || difference.startsWith(`${entry}.`))) {
       fail("unsupported-difference", `the arms differ in ${difference}, which both arms must share`, definitionPath);
     }
     if (!component.some((entry) => declares(entry, difference))) {
@@ -588,6 +622,8 @@ async function validateGroup(value, definitionPath, root) {
   for (const arm of VARIANTS) {
     if (resolved[arm].configuration.model !== undefined) variants[arm].model = resolved[arm].configuration.model;
     if (resolved[arm].freeflow !== undefined) variants[arm].freeflow = resolved[arm].freeflow;
+    variants[arm].hostExtensions = resolved[arm].configuration.host.extensions ?? [];
+    variants[arm].hostSettings = resolved[arm].configuration.host.settings ?? {};
   }
   const internal = {
     ...group,
@@ -649,6 +685,50 @@ async function readJsonFile(file, root) {
   } catch {
     fail("invalid-json", `Definition is not valid JSON: ${lexicalFile}`, lexicalFile);
   }
+}
+
+/**
+ * Loads a configuration file (`kind: "configuration"`) on its own, for a process that is not an arm, such as
+ * the advisory reviewer: its model, host extensions and host settings, validated as an arm's would be.
+ *
+ * @returns {Promise<{model: {model: string, thinking?: string} | null, extensions: Array<{package: string, version: string}>, settings: Record<string, unknown>}>}
+ */
+export async function loadConfiguration(file, { root = process.cwd() } = {}) {
+  const absolute = path.resolve(root, file);
+  const configuration = await readConfigurationFile(path.basename(absolute), absolute, path.resolve(root));
+  const label = "configuration";
+  let extensions = [];
+  let settings = {};
+  if (Object.hasOwn(configuration, "host")) {
+    const host = requireExactKeys(
+      configuration.host,
+      ["name"],
+      ["version", "extensions", "settings"],
+      `${label}.host`,
+      absolute,
+    );
+    if (!EVALUATION_HOSTS.has(host.name)) fail("invalid-definition", `${label}.host.name must be pi`, absolute);
+    if (Object.hasOwn(host, "extensions")) {
+      validateHostExtensions(host.extensions, `${label}.host.extensions`, absolute);
+      extensions = host.extensions;
+    }
+    if (Object.hasOwn(host, "settings")) {
+      settings = requireObject(host.settings, `${label}.host.settings`, absolute);
+      if (Object.hasOwn(settings, "packages")) {
+        fail(
+          "invalid-definition",
+          `${label}.host.settings cannot set packages; declare extensions in host.extensions`,
+          absolute,
+        );
+      }
+    }
+  }
+  let model = null;
+  if (Object.hasOwn(configuration, "model")) {
+    validateModel(configuration.model, `${label}.model`, absolute);
+    model = configuration.model;
+  }
+  return { model, extensions, settings };
 }
 
 export async function loadDefinition(file, { root = process.cwd() } = {}) {

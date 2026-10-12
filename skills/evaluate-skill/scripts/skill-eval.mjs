@@ -13,7 +13,7 @@ import { renderResult } from "./lib/view.mjs";
 const OPTIONS = {
   run: ["--group", "--variant", "--trials", "--max-cost", "--yes", "--dry-run"],
   view: ["--group", "--variant"],
-  review: ["--group", "--model", "--thinking", "--extension", "--swap"],
+  review: ["--group", "--model", "--thinking", "--configuration", "--swap"],
 };
 const argv = process.argv.slice(2);
 const [command] = argv;
@@ -43,7 +43,7 @@ Run options:
 Review options:
   --model <provider/model>   Required reviewer model
   --thinking <level>         Optional reviewer thinking level
-  --extension <path>         Load this Pi extension in the reviewer (repeatable); all others stay off
+  --configuration <file>     A schema 2 configuration file for the reviewer: its model, host extensions and settings
   --swap                     Review again with Run A and Run B swapped, and record agreement
 
 Paths:
@@ -77,8 +77,15 @@ function parseOperation(values) {
   const [target, ...options] = values;
   if (!target) throw new Error(`skill-eval ${command} requires a target`);
   const allowed = OPTIONS[command];
-  const parsed = { group: null, variant: null, trials: null, maxCost: null, model: null, thinking: null };
-  const extensions = [];
+  const parsed = {
+    group: null,
+    variant: null,
+    trials: null,
+    maxCost: null,
+    model: null,
+    thinking: null,
+    configuration: null,
+  };
   let swap = false;
   let yes = false;
   let dryRun = false;
@@ -88,6 +95,7 @@ function parseOperation(values) {
     "--trials": "trials",
     "--max-cost": "maxCost",
     "--model": "model",
+    "--configuration": "configuration",
     "--thinking": "thinking",
   };
   for (let index = 0; index < options.length; index += 1) {
@@ -107,11 +115,6 @@ function parseOperation(values) {
       continue;
     }
     if (!value || value.startsWith("--")) throw new Error(`${option} requires a value`);
-    if (option === "--extension") {
-      extensions.push(value);
-      index += 1;
-      continue;
-    }
     const key = keys[option];
     if (parsed[key] !== null) throw new Error(`${option} may be supplied only once`);
     parsed[key] = value;
@@ -127,7 +130,9 @@ function parseOperation(values) {
     maxCost = Number(parsed.maxCost);
     if (!Number.isFinite(maxCost) || maxCost <= 0) throw new Error("--max-cost must be a positive number");
   }
-  if (command === "review" && parsed.model === null) throw new Error("skill-eval review requires --model");
+  if (command === "review" && parsed.model === null && parsed.configuration === null) {
+    throw new Error("skill-eval review requires --model or --configuration");
+  }
   return {
     target,
     selectors: { group: parsed.group, variant: parsed.variant },
@@ -135,7 +140,7 @@ function parseOperation(values) {
     maxCost,
     model: parsed.model,
     thinking: parsed.thinking,
-    extensions,
+    configuration: parsed.configuration,
     swap,
     yes,
     dryRun,
@@ -170,6 +175,7 @@ async function planRun(operation, root) {
   let arms = 0;
   const models = new Set();
   const freeflow = new Set();
+  const extensions = new Set();
   for (const { group, variants } of selection.groups) {
     for (const [arm, state] of Object.entries(variants)) {
       if (state !== "selected") continue;
@@ -177,12 +183,16 @@ async function planRun(operation, root) {
       const model = group.variants[arm].model;
       models.add(model ? `${model.model}${model.thinking ? ` (${model.thinking})` : ""}` : "host default");
       if (group.variants[arm].freeflow) freeflow.add(group.variants[arm].freeflow.source.ref);
+      for (const extension of group.variants[arm].hostExtensions ?? []) {
+        extensions.add(`${extension.package}@${extension.version}`);
+      }
     }
   }
   const groups = selection.groups.length;
   const counts = `${groups} group${groups === 1 ? "" : "s"}, ${arms} arm${arms === 1 ? "" : "s"}, ${operation.trials} trial${operation.trials === 1 ? "" : "s"}`;
   let line = `Plan: ${arms * operation.trials} subjects (${counts}); models: ${[...models].join(", ")}`;
   if (freeflow.size > 0) line += `; Freeflow builds: ${[...freeflow].join(", ")}`;
+  if (extensions.size > 0) line += `; extensions: ${[...extensions].join(", ")}`;
   if (operation.dryRun) line += "; dry run";
   process.stdout.write(`${line}\n`);
   if (operation.yes || !process.stdin.isTTY || !process.stdout.isTTY) return true;
@@ -232,7 +242,7 @@ async function review(operation) {
       signal,
       model: operation.model,
       thinking: operation.thinking,
-      extensions: operation.extensions,
+      configuration: operation.configuration,
       swap: operation.swap,
     }),
   );

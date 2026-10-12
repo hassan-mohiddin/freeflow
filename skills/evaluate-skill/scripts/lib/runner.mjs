@@ -6,7 +6,8 @@ import { createInvocationId, fileIdentity, writeJson, writeText } from "./eviden
 import { gradeDeterministic } from "./grade.mjs";
 import { prepareFreeflow } from "./freeflow.mjs";
 import { identityRefusal, inputIdentity, installedHostVersion } from "./identity.mjs";
-import { removeCopiedCredentials } from "./isolation.mjs";
+import { removeCopiedCredentials, TARGET_MINUTES } from "./isolation.mjs";
+import { ensureLogin, resolveHostExtensions } from "./pi-host.mjs";
 import { baseProcessEnvironment, runBody, runDescription, VariantSetupError } from "./pi.mjs";
 import { prepareFixture, prepareRuntime, verifyDescriptionOnlyRevision } from "./sandbox.mjs";
 
@@ -43,6 +44,8 @@ export async function runEvaluation(
   const refusal = identityRefusal(identity);
   if (refusal !== null && !dryRun) throw new Error(refusal);
   const hostVersion = await checkHostVersion(selection);
+  const hostExtensions = await resolveSelectedExtensions(selection);
+  await refreshSelectedLogins(selection);
   const invocationId = createInvocationId();
   const runsDirectory = path.join(root, ".skill-eval", "runs");
   const resultDirectory = path.join(runsDirectory, invocationId);
@@ -83,7 +86,17 @@ export async function runEvaluation(
     // A clean working tree is identified by its commit, recorded on each working-tree source.
     const sourceCommit = refusal === null ? identity.commit : null;
     for (const selected of selection.groups) {
-      groups.push(await runGroup({ selected, root, resultDirectory, signal: controller.signal, charge, sourceCommit }));
+      groups.push(
+        await runGroup({
+          selected,
+          root,
+          resultDirectory,
+          signal: controller.signal,
+          charge,
+          sourceCommit,
+          hostExtensions: hostExtensions.get(selected.group.id),
+        }),
+      );
     }
   } finally {
     signal?.removeEventListener("abort", onParentAbort);
@@ -123,6 +136,34 @@ function workingTreeInputs(selection, definitionPath, root) {
     }
   }
   return [...inputs];
+}
+
+/** Each selected arm's declared host extensions, found among the installed Pi packages before anything starts. */
+async function resolveSelectedExtensions(selection) {
+  const resolved = new Map();
+  for (const { group, variants } of selection.groups) {
+    const arms = { baseline: [], candidate: [] };
+    for (const [arm, state] of Object.entries(variants)) {
+      if (state === "selected") arms[arm] = await resolveHostExtensions(group.variants[arm].hostExtensions ?? []);
+    }
+    resolved.set(group.id, arms);
+  }
+  return resolved;
+}
+
+/**
+ * Before a batch, makes every OAuth login the selected arms use valid for the target window, refreshing it
+ * once, centrally, so no subject has to refresh its own copy.
+ */
+async function refreshSelectedLogins(selection) {
+  const providers = new Set();
+  for (const { group, variants } of selection.groups) {
+    for (const [arm, state] of Object.entries(variants)) {
+      const model = group.variants[arm].model?.model;
+      if (state === "selected" && typeof model === "string" && model.includes("/")) providers.add(model.split("/")[0]);
+    }
+  }
+  for (const provider of providers) await ensureLogin(provider, { threshold: TARGET_MINUTES, target: TARGET_MINUTES });
 }
 
 /** A declared host version must match the installed host before anything starts. */
@@ -179,7 +220,15 @@ export function budgetEvidence(budget) {
   return { maxCost: budget.maxCost, spent: Number(budget.spent.toFixed(10)), exhausted: budget.exhausted };
 }
 
-async function runGroup({ selected, root, resultDirectory, signal, charge, sourceCommit = null }) {
+async function runGroup({
+  selected,
+  root,
+  resultDirectory,
+  signal,
+  charge,
+  sourceCommit = null,
+  hostExtensions = { baseline: [], candidate: [] },
+}) {
   const { group } = selected;
   const groupDirectory = path.join(resultDirectory, "groups", group.id);
   await mkdir(groupDirectory, { recursive: true });
@@ -228,6 +277,7 @@ async function runGroup({ selected, root, resultDirectory, signal, charge, sourc
         fixture,
         runtime,
         freeflow: freeflow[variant],
+        hostExtensions: hostExtensions[variant],
         signal,
       });
       charge(runs[variant]);
@@ -339,10 +389,20 @@ function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function executeVariant({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal }) {
+async function executeVariant({
+  group,
+  variant,
+  root,
+  variantDirectory,
+  fixture,
+  runtime,
+  freeflow,
+  hostExtensions,
+  signal,
+}) {
   try {
     const run = group.type === "body" ? runBody : runDescription;
-    return await run({ group, variant, root, variantDirectory, fixture, runtime, freeflow, signal });
+    return await run({ group, variant, root, variantDirectory, fixture, runtime, freeflow, hostExtensions, signal });
   } catch (error) {
     if (error instanceof VariantSetupError) return invalidRun(group, variant, error.message);
     return infrastructureFailedRun(group, variant, error);

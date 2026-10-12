@@ -28,7 +28,18 @@ export async function runRpcBodySession(options) {
 }
 
 class RpcSession {
-  constructor({ command = "pi", args, cwd, eventsFile, stderrFile, signal, environment, afterTurn = null }) {
+  constructor({
+    command = "pi",
+    args,
+    cwd,
+    eventsFile,
+    stderrFile,
+    signal,
+    environment,
+    afterTurn = null,
+    settings = {},
+  }) {
+    this.settings = settings;
     this.child = spawn(command, args, {
       cwd,
       detached: process.platform !== "win32",
@@ -114,9 +125,10 @@ class RpcSession {
     return { ...this.observation(deliveredPrompts, exitCode, exitSignal), delivery };
   }
 
+  // The subject's effective settings decide retry and compaction; the evaluator's defaults keep both off.
   async configure() {
-    await this.sendCommand({ type: "set_auto_retry", enabled: false });
-    await this.sendCommand({ type: "set_auto_compaction", enabled: false });
+    await this.sendCommand({ type: "set_auto_retry", enabled: this.settings.retry?.enabled === true });
+    await this.sendCommand({ type: "set_auto_compaction", enabled: this.settings.compaction?.enabled === true });
   }
 
   async resolveSkillCommand(targetPath) {
