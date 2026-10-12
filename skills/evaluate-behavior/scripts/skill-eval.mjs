@@ -13,7 +13,7 @@ import { checkSelection } from "./lib/reference.mjs";
 import { applySourceOverrides, parseSourceOverrides } from "./lib/source-override.mjs";
 import { createRunReuse, resultsDirectory, runEvaluation } from "./lib/runner.mjs";
 import { calibrateJudges, reviewResult, reviewRubric } from "./lib/review.mjs";
-import { runPilot, runTrials } from "./lib/trials.mjs";
+import { runTrials } from "./lib/trials.mjs";
 import { renderResult } from "./lib/view.mjs";
 import { writeHtml } from "./lib/view-html.mjs";
 
@@ -378,19 +378,15 @@ async function run(operation) {
       skipReferenceCheck: operation.skipReferenceCheck,
       sources: operation.sources,
     };
-    // A suite's decision is reached over an aggregate, so it always runs as trials, even a single one.
-    if (plan.decision === null && (operation.trials ?? 1) === 1) {
+    // A suite's decision is reached over an aggregate, so it always runs as trials, even a single one; so does a
+    // pilot, which then counts as the first part of that one trial instead of being paid for twice.
+    if (plan.decision === null && (operation.trials ?? 1) === 1 && operation.pilot === null) {
       const shared = {
         ...common,
         budget: createBudget(operation.maxCost),
         subjects: createLimiter(operation.jobs),
         reuse: createRunReuse(resultsDirectory(root, operation.results), operation.reuse),
       };
-      if (operation.pilot !== null) {
-        const pilot = await runPilot(operation.target, operation.selectors, { ...shared, pilot: operation.pilot });
-        if (!reportPilot(pilot.result.id, pilot.problems)) return;
-        shared.loginsRefreshed = true;
-      }
       const result = await runEvaluation(operation.target, operation.selectors, shared);
       printResult(result);
       if (result.state !== "complete") process.exitCode = 1;
