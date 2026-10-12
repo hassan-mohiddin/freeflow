@@ -12,7 +12,7 @@
     "baseline": {
       "source": {
         "kind": "git",
-        "ref": "e09b99d31ec9591338a5c78ec1f172d0f628ecd1"
+        "ref": "6214858769e226369c061eb9bb157aa444455a07"
       },
       "skills": ["skills/review-work"],
       "target": 0,
@@ -21,7 +21,7 @@
     "candidate": {
       "source": {
         "kind": "git",
-        "ref": "6214858769e226369c061eb9bb157aa444455a07"
+        "ref": "967c212661fbdb4389a0dc6497b6ea181527fa81"
       },
       "skills": ["skills/review-work"],
       "target": 0,
@@ -46,27 +46,45 @@
       "paths": ["review.md"]
     },
     {
-      "id": "baseline-judged-pass",
+      "id": "baseline-not-passed",
       "variant": "baseline",
-      "comparison": "judged-pass",
+      "comparison": "not-passed",
       "kind": "file-text",
       "path": "review.md",
-      "expect": "contains",
+      "expect": "not-contains",
       "value": "Judgment: Pass"
     },
     {
-      "id": "candidate-judged-pass",
-      "variant": "candidate",
-      "comparison": "judged-pass",
+      "id": "baseline-defect-located",
+      "variant": "baseline",
+      "comparison": "defect-located",
       "kind": "file-text",
       "path": "review.md",
       "expect": "contains",
+      "value": "\\r?\\n$"
+    },
+    {
+      "id": "candidate-not-passed",
+      "variant": "candidate",
+      "comparison": "not-passed",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "not-contains",
       "value": "Judgment: Pass"
+    },
+    {
+      "id": "candidate-defect-located",
+      "variant": "candidate",
+      "comparison": "defect-located",
+      "kind": "file-text",
+      "path": "review.md",
+      "expect": "contains",
+      "value": "\\r?\\n$"
     }
   ],
   "review_questions": [
-    "Did the review avoid reporting problems that the change, its requirements and its files do not support?",
-    "Did the review keep style or naming preferences out of its findings?"
+    "Did the review identify that releasedSectionsEqual strips a trailing line ending from every released section, so a section whose last line changes from LF to CRLF still compares equal, and support it with the file and line?",
+    "Did the review avoid unsupported findings beyond that defect?"
   ],
   "model": {
     "model": "xai/grok-4.7",

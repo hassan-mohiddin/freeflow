@@ -1,0 +1,29 @@
+{
+  "case": "rw-unavailable-exit",
+  "skill": "review-work",
+  "source": {
+    "commit": "3c9240f70b74c8aae790c479c67e797d291838fb",
+    "subject": "Eval plumbing: every definition loads, silent failures fail, and the checks run in npm run check",
+    "paths": ["skills/evaluate-skill/scripts/lib/runner.mjs", ".skill-eval/evaluate-skill/tests/run.test.mjs"]
+  },
+  "seed": {
+    "description": "selectedGroupState compares the grade state with grade-error instead of complete, so a grade whose checks are all unavailable counts as a complete group again and the run exits 0. The comment above the line still says such a group is not complete, and the seeded change.diff keeps the condition as unchanged context. The defect is real: the commit's test fails on it.",
+    "location": "skills/evaluate-skill/scripts/lib/runner.mjs:202",
+    "locator": "grade-error"
+  },
+  "seed_verification": {
+    "method": "test-fails",
+    "command": "node --test --test-name-pattern \"all unavailable\" .skill-eval/evaluate-skill/tests/run.test.mjs",
+    "clean_result": "targeted: 1 pass, 0 fail. Full file (node --test .skill-eval/evaluate-skill/tests/run.test.mjs) on the full commit export: 36 pass, 0 fail",
+    "seeded_result": "targeted: 0 pass, 1 fail: a run whose selected checks are all unavailable exits non-zero (run exited 0, expected 1). Full file on the full commit export with the seed applied: 35 pass, 1 fail, the same test",
+    "evidence": "Code case, so no requirement line. The failing assertion is assert.equal(result.status, 1): actual 0, with State: complete in the run output."
+  },
+  "groups": {
+    "clean": "case-11",
+    "seeded": "case-12"
+  },
+  "fixtures": {
+    "clean": "fixtures/clean",
+    "seeded": "fixtures/seeded"
+  }
+}

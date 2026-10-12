@@ -1,6 +1,6 @@
 # Artifact Review
 
-Read this before reviewing a document that will guide later work: a Working Record, Spec, Plan, design, decision record, ADR, Handoff, skill, or another durable artifact.
+Read this before reviewing a document that will guide later work: a Spec, Plan, design, decision record, ADR, Handoff, skill, or another durable artifact. A Working Record is reviewed with [Report And Record Review](report-and-record.md).
 
 This reference is judgment; Review Work's Rules still bind.
 
@@ -20,13 +20,12 @@ Distinguish accepted behavior from the suggested implementation mechanism, and c
 
 If upstream content is unresolved or contradictory, mark dependent material contingent rather than generating exhaustive downstream findings against an unsettled premise.
 
-Read [Track Work](../../../skills/track-work/SKILL.md) before reviewing a Working Record. Use [Action Selection](../../../skills/action-selection/SKILL.md) when source inspection could branch broadly; skip it for an obvious artifact or dependency read.
+Use [Action Selection](../../../skills/action-selection/SKILL.md) when source inspection could branch broadly; skip it for an obvious artifact or dependency read.
 
 ## Judge The Artifact By Its Job
 
 Goal: ask of each artifact only what its job requires.
 
-- **Working Record:** accurate current task memory, recoverable decisions and work, evidence limits, provisional remaining route, defining artifacts and Recovery sources sufficient for a fresh context to resume, and one next useful action.
 - **Spec or content contract:** the accepted behavior, boundaries, evidence, and uncertainty needed for its intended use.
 - **Plan:** a supported ordered strategy, dependencies, assumptions, checks, and invalidation conditions.
 - **Decision record or ADR:** the choice, owner, source, alternatives, rationale, consequences, and revisit or supersession conditions.

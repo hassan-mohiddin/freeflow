@@ -127,6 +127,10 @@ Recovery may use previously exposed evidence, the exact task-file paths the Coor
 
 New user input belongs to the Coordinator. During a returned assessment it suspends the forced assessment-evidence obligation (`assessment-suspended`, reason `user-attention`) while keeping ordinary admitted history, the report, selections and current responsibility. A later `routing_unit assess` must re-establish readiness before the assessment view resumes. During outstanding worker execution, new direction reaches the worker as an attention message (`freeflow-routing-attention`) requiring it to stop ordinary task tools and return its partial state; the Coordinator then handles the new input.
 
+### A worker run that ends without a return
+
+A worker's run can end without `return_work`: interrupted, or the model answers in text and stops. The assignment stays outstanding and nothing reaches the Coordinator. The next user prompt hands control back to the Coordinator (`ModelControl.beforeRun()`), and while an assignment is outstanding the routing Runtime State tells it that the worker's run ended without returning and how to continue (`delegate_work replace`, close the unit, or ask the user). While a worker holds an outstanding assignment, the Runtime State tells the worker to carry it out and return. The assessing Coordinator is told that the worker's turns in its view are the worker's. These are point-of-use cues because, after a compaction, the routing skill may be out of view (Task 008 S-005: a Haiku 5.5 Executor answered as Coordinator, and the Coordinator took worker calls for its own).
+
 ### Persistence and reconciliation
 
 Every routing decision is an event appended as a `freeflow-routing-v2` custom entry on the session branch and read back (`EventStore`). State is the reducer's replay (`state.ts`), which also enforces every transition rule; `event-schema.ts` validates each stored event. Because the journal lives on the branch, navigation and forks select the matching history automatically.

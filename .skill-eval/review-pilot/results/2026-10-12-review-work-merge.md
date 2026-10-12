@@ -34,7 +34,7 @@ Requirement 3 says top-level `enabled: false` stops base runtime context. The cl
 ## Measurement
 
 - `defect-located` for rp02-b and rp03-b looks for the function name `sectionsByTitle`. The reviews name the seeded line (`scripts/changelog-utils.mjs:52` and its `replace` expression) instead, so the check reports a miss where the defect was found. Replace it with a check on the line or the expression.
-- The advisory review (Haiku, one trial per group) did not run: every call was refused for usage limits before any tokens were spent. No other judge was used, because the remaining model is the subject's own.
+- The advisory review (`anthropic/claude-haiku-5-5`, one trial per group; trial 2 for rp05-a, where the arms disagree) first failed on every call: the reviewer starts Pi with `--no-extensions`, so the subscription's auth extension was not loaded and Anthropic refused the requests as extra usage. Rerun with `--extension` naming `@gotgenes/pi-anthropic-auth@3.4.2`, all 12 completed for about $0.08. Across 24 answers per arm, Haiku never answered "no"; baseline got 15 yes and 9 unclear, candidate 14 yes and 10 unclear. The unclear answers fall on the longer reviews, because the judge sees tool arguments cut to 300 characters and none of the fixture. The advisory review cannot tell a right review from a wrong one on these cases; the judge contract's inputs item has to fix that before it is used again.
 
 ## Cost and incidents
 

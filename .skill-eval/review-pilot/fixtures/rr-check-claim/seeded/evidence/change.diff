@@ -1,0 +1,204 @@
+diff --git a/.skill-eval/evaluate-skill/tests/review.test.mjs b/.skill-eval/evaluate-skill/tests/review.test.mjs
+index 547fbd22..eddd87e8 100644
+--- a/.skill-eval/evaluate-skill/tests/review.test.mjs
++++ b/.skill-eval/evaluate-skill/tests/review.test.mjs
+@@ -236,6 +236,54 @@ test("review skips groups without questions or complete runs", async () => {
+   });
+ });
+ 
++test("review loads only the named extensions and records each one", async () => {
++  await withTempDirectory(async (root) => {
++    const bin = await installReviewerPi(root);
++    const { groupDirectory } = await writeResult(root);
++    const packageDirectory = path.join(root, "auth-plugin");
++    await mkdir(packageDirectory);
++    await writeFile(
++      path.join(packageDirectory, "package.json"),
++      JSON.stringify({ name: "auth-plugin", version: "1.2.3" }),
++    );
++    const fileExtension = path.join(root, "shape.mjs");
++    await writeFile(fileExtension, "export default () => {};\n");
++    const output = JSON.stringify({ answers: [{ question: 1, A: "yes", B: "no", rationale: "A names rollback." }] });
++
++    const result = review(
++      root,
++      bin,
++      ["--model", "reviewer/model", "--extension", "auth-plugin", "--extension", "shape.mjs"],
++      output,
++    );
++
++    assert.equal(result.status, 0, result.stderr);
++    const [call] = (await readFile(path.join(root, "review.jsonl"), "utf8"))
++      .trim()
++      .split("\n")
++      .map((line) => JSON.parse(line));
++    const loaded = call.args.flatMap((arg, index) => (arg === "--extension" ? [call.args[index + 1]] : []));
++    assert.deepEqual(loaded, [packageDirectory, fileExtension]);
++    assert.ok(call.args.indexOf("--no-extensions") < call.args.indexOf("--extension"));
++    const semantic = JSON.parse(await readFile(path.join(groupDirectory, "semantic-grade.json"), "utf8"));
++    assert.deepEqual(semantic.extensions, [
++      { path: packageDirectory, package: "auth-plugin@1.2.3" },
++      { path: fileExtension, sha256: sha256("export default () => {};\n") },
++    ]);
++  });
++});
++
++test("review refuses a missing extension before starting the reviewer", async () => {
++  await withTempDirectory(async (root) => {
++    const bin = await installReviewerPi(root);
++    await writeResult(root);
++    const result = review(root, bin, ["--model", "reviewer/model", "--extension", "missing"], "{}");
++    assert.notEqual(result.status, 0);
++    assert.match(result.stderr, /Extension not found: .*missing/);
++    await assert.rejects(readFile(path.join(root, "review.jsonl")), { code: "ENOENT" });
++  });
++});
++
+ test("review requires an explicit reviewer model", async () => {
+   await withTempDirectory(async (root) => {
+     const bin = await installReviewerPi(root);
+diff --git a/skills/evaluate-skill/scripts/lib/review.mjs b/skills/evaluate-skill/scripts/lib/review.mjs
+index f226f706..5f63c7da 100644
+--- a/skills/evaluate-skill/scripts/lib/review.mjs
++++ b/skills/evaluate-skill/scripts/lib/review.mjs
+@@ -1,5 +1,5 @@
+ import { randomInt } from "node:crypto";
+-import { mkdir, readFile, rm } from "node:fs/promises";
++import { mkdir, readFile, rm, stat } from "node:fs/promises";
+ import path from "node:path";
+ 
+ import { sha256, writeJson, writeText } from "./evidence.mjs";
+@@ -16,9 +16,19 @@ const ARGUMENT_LIMIT = 300;
+  *
+  * @param {string} target
+  * @param {{group: string | null}} selectors
+- * @param {{root?: string, signal?: AbortSignal, model: string, thinking?: string | null}} options
++ * Pi extensions stay off except the ones named in `extensions` (for example, a provider's auth extension).
++ * Each is recorded, because an extension can change what the reviewer is sent.
++ *
++ * @param {string} target
++ * @param {{group: string | null}} selectors
++ * @param {{root?: string, signal?: AbortSignal, model: string, thinking?: string | null, extensions?: string[]}} options
+  */
+-export async function reviewResult(target, selectors, { root = process.cwd(), signal, model, thinking = null }) {
++export async function reviewResult(
++  target,
++  selectors,
++  { root = process.cwd(), signal, model, thinking = null, extensions = [] },
++) {
++  const loaded = await Promise.all(extensions.map((entry) => describeExtension(path.resolve(root, entry))));
+   const resultDirectory = await resolveResult(target, root);
+   const summary = JSON.parse(await readFile(path.join(resultDirectory, "summary.json"), "utf8"));
+   const groups = selectGroups(summary, selectors.group);
+@@ -26,12 +36,28 @@ export async function reviewResult(target, selectors, { root = process.cwd(), si
+   for (const group of groups) {
+     if (signal?.aborted) break;
+     outcomes.push(
+-      await reviewGroup(path.join(resultDirectory, "groups", group.id), group.id, { model, thinking, signal }),
++      await reviewGroup(path.join(resultDirectory, "groups", group.id), group.id, {
++        model,
++        thinking,
++        extensions: loaded,
++        signal,
++      }),
+     );
+   }
+   return { resultDirectory, groups: outcomes };
+ }
+ 
++/** A package directory is identified by its name and version, a single file by its content hash. */
++async function describeExtension(extensionPath) {
++  const info = await stat(extensionPath).catch(() => null);
++  if (info === null) throw new Error(`Extension not found: ${extensionPath}`);
++  if (!info.isDirectory()) return { path: extensionPath, sha256: sha256(await readFile(extensionPath)) };
++  const manifest = JSON.parse(await readFile(path.join(extensionPath, "package.json"), "utf8").catch(() => "{}"));
++  const name = typeof manifest.name === "string" ? manifest.name : null;
++  const version = typeof manifest.version === "string" ? manifest.version : null;
++  return { path: extensionPath, package: name && version ? `${name}@${version}` : null };
++}
++
+ function selectGroups(summary, selector) {
+   const groups = Array.isArray(summary.groups) ? summary.groups : [];
+   if (selector === null) return groups;
+@@ -42,7 +68,7 @@ function selectGroups(summary, selector) {
+   return selected;
+ }
+ 
+-async function reviewGroup(groupDirectory, id, { model, thinking, signal }) {
++async function reviewGroup(groupDirectory, id, { model, thinking, extensions, signal }) {
+   const definition = JSON.parse(await readFile(path.join(groupDirectory, "definition.json"), "utf8"));
+   const questions = Array.isArray(definition.review_questions) ? definition.review_questions : [];
+   if (questions.length === 0) return { id, state: "skipped", reason: "no review questions" };
+@@ -66,6 +92,7 @@ async function reviewGroup(groupDirectory, id, { model, thinking, signal }) {
+     "-p",
+     "--no-session",
+     "--no-extensions",
++    ...extensions.flatMap((extension) => ["--extension", extension.path]),
+     "--no-skills",
+     "--no-prompt-templates",
+     "--no-themes",
+@@ -103,6 +130,7 @@ async function reviewGroup(groupDirectory, id, { model, thinking, signal }) {
+     state,
+     model,
+     thinking,
++    extensions,
+     labels,
+     prompt: { file: "review/prompt.md", sha256: sha256(prompt) },
+     answers,
+diff --git a/skills/evaluate-skill/scripts/skill-eval.mjs b/skills/evaluate-skill/scripts/skill-eval.mjs
+index 550b022f..8d242d63 100755
+--- a/skills/evaluate-skill/scripts/skill-eval.mjs
++++ b/skills/evaluate-skill/scripts/skill-eval.mjs
+@@ -8,7 +8,7 @@ import { renderResult } from "./lib/view.mjs";
+ const OPTIONS = {
+   run: ["--group", "--variant", "--trials", "--max-cost"],
+   view: ["--group", "--variant"],
+-  review: ["--group", "--model", "--thinking"],
++  review: ["--group", "--model", "--thinking", "--extension"],
+ };
+ const argv = process.argv.slice(2);
+ const [command] = argv;
+@@ -36,6 +36,7 @@ Run options:
+ Review options:
+   --model <provider/model>   Required reviewer model
+   --thinking <level>         Optional reviewer thinking level
++  --extension <path>         Load this Pi extension in the reviewer (repeatable); all others stay off
+ 
+ Paths:
+   Definition paths resolve from the current working directory.
+@@ -69,6 +70,7 @@ function parseOperation(values) {
+   if (!target) throw new Error(`skill-eval ${command} requires a target`);
+   const allowed = OPTIONS[command];
+   const parsed = { group: null, variant: null, trials: null, maxCost: null, model: null, thinking: null };
++  const extensions = [];
+   const keys = {
+     "--group": "group",
+     "--variant": "variant",
+@@ -82,6 +84,11 @@ function parseOperation(values) {
+     const value = options[index + 1];
+     if (!allowed.includes(option)) throw new Error(`Unknown option: ${option}`);
+     if (!value || value.startsWith("--")) throw new Error(`${option} requires a value`);
++    if (option === "--extension") {
++      extensions.push(value);
++      index += 1;
++      continue;
++    }
+     const key = keys[option];
+     if (parsed[key] !== null) throw new Error(`${option} may be supplied only once`);
+     parsed[key] = value;
+@@ -105,6 +112,7 @@ function parseOperation(values) {
+     maxCost,
+     model: parsed.model,
+     thinking: parsed.thinking,
++    extensions,
+   };
+ }
+ 
+@@ -154,6 +162,7 @@ async function review(operation) {
+       signal,
+       model: operation.model,
+       thinking: operation.thinking,
++      extensions: operation.extensions,
+     }),
+   );
+   for (const group of outcome.groups) {
