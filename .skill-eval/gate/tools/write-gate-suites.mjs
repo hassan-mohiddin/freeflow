@@ -32,7 +32,8 @@ const REVIEW_GROUPS = {
 };
 const SKILL_FAMILY = {
   // w3-b is held out (position 12 of the skill-family suite) and is never listed here.
-  "write-skill": ["w1-a", "w1-b", "w1-d", "w2-a", "w2-c", "w3-a", "w3-c", "w3-d"],
+  // w1-a is a capability case: on 2026-10-12 both arms kept its structural candidate (C2), so it stays in skill-family only.
+  "write-skill": ["w1-b", "w1-d", "w2-a", "w2-c", "w3-a", "w3-c", "w3-d"],
   "evaluate-behavior": ["v1-a", "v1-b"],
 };
 

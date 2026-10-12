@@ -52,7 +52,7 @@ Without `arms`, a suite measures the arms it declares: skill-family, for example
 | Suite | Groups | Subjects per run | Judge calls |
 | --- | --- | --- | --- |
 | `review-work` | 3 defective review-suite variants (logic, security, convention) and 3 clean ones the clean audit keeps | 12 | 6 (`identified`, Haiku 5.5 high) |
-| `write-skill` | skill family `w1-a`, `w1-b`, `w1-d`, `w2-a`, `w2-c` | 10 | 0 |
+| `write-skill` | skill family `w1-b`, `w1-d`, `w2-a`, `w2-c`, `w3-a`, `w3-c`, `w3-d` | 14 | 0 |
 | `evaluate-behavior` | skill family `v1-a`, `v1-b` | 4 | 0 |
 
 - The review cases carry their requirements in the prompt, not as declared context: a Git-sourced arm reads its context from its own commit, which need not hold the suite's context files.

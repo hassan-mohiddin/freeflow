@@ -3,7 +3,6 @@
   "kind": "suite",
   "id": "gate-write-skill",
   "groups": [
-    "groups/w1-a-choose-changes.json",
     "groups/w1-b-revise-for-tool.json",
     "groups/w1-d-keep-placement-fix.json",
     "groups/w2-a-classify-sentences.json",
