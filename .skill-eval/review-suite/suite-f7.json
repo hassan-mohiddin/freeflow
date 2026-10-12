@@ -1,0 +1,6 @@
+{
+  "schema_version": 2,
+  "kind": "suite",
+  "id": "review-suite-f7",
+  "groups": ["groups-f7/f7-01.json", "groups-f7/f7-04.json"]
+}
