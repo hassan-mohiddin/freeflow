@@ -22,7 +22,7 @@ Definition files and declared paths are checked for lexical and canonical contai
 
 ## Common Group Shape
 
-A group is a **task** (what the agent is asked to do and how it is graded) and a **configuration** (the agent environment that does it). Two or more named arms, usually `baseline` and `candidate`, each overlay the shared configuration, and `component` names the only places where an arm may differ from the reference arm. Every group contains exactly these fields, plus optional `reference`, `commands` and `revision`:
+A group is a **task** (what the agent is asked to do and how it is graded) and a **configuration** (the agent environment that does it). Two or more named arms, usually `baseline` and `candidate`, each overlay the shared configuration, and `component` names the only places where an arm may differ from the reference arm. Every group contains exactly these fields, plus optional `reference`, `commands`, `revision`, and the judged-evidence fields `rubric`, `judges` and `combine` ([Rubric And Judges](#rubric-and-judges)):
 
 ```json
 {
@@ -62,9 +62,36 @@ Rules:
 - `configuration`, `arms`, `reference` and `component` follow [Configuration And Arms](#configuration-and-arms).
 - `expectations` is an ordered array with unique expectation IDs.
 - `review_questions` is an ordered string array. Questions are rendered for the reviewer and never sent to the subject. The reviewer sees every arm's run as Run A, Run B, Run C, ... in a random order, must answer every question for every label, and its answers are mapped back to arm names; `review --swap` repeats the review with the order reversed and records agreement per question, and per arm when the arms are not `baseline` and `candidate`.
-- A group declares at least one expectation or review question. A group with only review questions has no deterministic checks; its evidence comes from the advisory review alone.
+- A group declares at least one expectation, review question, or rubric dimension. A group with only review questions has no deterministic checks; its evidence comes from the advisory review alone. A group with only a rubric is graded by its judges alone.
 - `revision` is optional and, when present, is `description-only`. It is valid only for a description group with exactly two arms that both name a target skill. Before any subject runs, the evaluator snapshots both targets and refuses the group as `invalid` unless every file other than `SKILL.md` is byte-identical and `SKILL.md` differs only in its frontmatter `description`.
 - `commands` is optional and only for body groups that list the `run_command` tool. See [Declared Commands](#declared-commands).
+
+## Rubric And Judges
+
+A rubric asks what deterministic checks cannot. Each run is judged alone, blind to its arm, by `review --rubric` (see [Execution And Evidence](execution-and-evidence.md#judged-evidence)); the answers are judged evidence, stored beside the run and never in run or deterministic grade files.
+
+```json
+{
+  "rubric": [
+    {
+      "id": "found-defect",
+      "question": "Did the review name the off-by-one in the pagination loop?",
+      "reference": { "path": "references/known-defect.md" }
+    },
+    { "id": "clarity", "question": "How actionable is the review?", "answers": "0-2", "weight": 2 }
+  ],
+  "judges": [{ "model": "anthropic/claude-haiku-5-5", "thinking": "high" }],
+  "combine": "majority"
+}
+```
+
+- `rubric` is a non-empty array of dimensions with unique `id`s (the group ID pattern) and a non-empty `question`. Dimensions are rendered only for judges and never sent to the subject.
+- `answers` is `["yes", "no", "unknown"]` (the default) or `"0-2"`. A judge may always answer `unknown`, and must cite the evidence for every answer.
+- `reference` is optional: inline text, or `{ "path": "<relative path>" }` to a file inside the definition root and outside the fixture, which the subject sees. A file's text and hash are read in when the definition loads, so judging never depends on the working tree, and the file is a run input that must be committed like the definition.
+- `weight` is an optional positive number (default `1`). It is recorded with the dimension for reporting and decision rules.
+- `judges` is optional: one or more `{ model, thinking? }`, each configuration once, because repeated calls to one configuration are one vote. Without `judges`, `review --rubric --model` names the single judge.
+- `combine` names how several judges' answers become one, before any verdict is seen; it is required with more than one judge. Taking yes as 1 and no as 0: `majority` gives the answer more than half the judges gave (otherwise `unknown`); `unanimous` gives the lowest answer, so yes only when every judge says yes; `any` gives the highest, so yes when any judge does; `mean` averages the known answers and needs every dimension to be `"0-2"`. An `unknown` answer makes the result `unknown` whenever it could change it.
+- `judges` and `combine` need a `rubric`.
 
 ## Configuration And Arms
 
