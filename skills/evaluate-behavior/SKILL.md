@@ -7,7 +7,7 @@ description: "Use when testing, evaluating, or comparing how an agent behaves, s
 
 Determine whether a declared change to an agent's setup changes its behavior as intended under declared pressure. Evidence outranks confident prose.
 
-A **configuration** is everything that can shape the agent's behavior: host, model, skills, instruction files, and host extensions and settings. A **group** asks one behavioral question by running two or more named **arms** of one configuration on the same task. One arm is the **reference** the others are compared with. The usual pair is:
+A **configuration** is everything that can shape the agent's behavior: host, model, skills, instruction files, and host extensions and settings. A **group** asks one behavioral question by running named **arms** of one configuration on the same task, usually two or more. One arm is the **reference** the others are compared with; a single arm measures one setup alone. The usual pair is:
 
 - `baseline`, the reference: the setup without the change, such as no target skill, the previous commit, or the setting off;
 - `candidate`: the same setup with exactly the declared change, its **component**.
@@ -118,6 +118,7 @@ Goal: the run shape matches how the behavior happens in practice.
 
 - **Compare:** arms run the same task once per trial; the default.
 - **Noise check:** `component: []` with identical arms; the gap between them is the floor a real difference must clear.
+- **Measure:** one arm and nothing to compare; it yields a rate on this suite with pass^k, metrics and judged scores, never a comparison or a decision.
 - **Conversation:** the subject talks with a simulated user who knows only what its card says.
 - **Pipeline:** ordered stages, each a separate subject that sees only what it declares, such as two reviews and an adjudicator.
 - **Coding task:** the subject changes a repository and commands such as hidden tests grade the result; a reference solution proves the task solvable before any model runs, and a confined shell is available only behind a declared, verified isolation.
