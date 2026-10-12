@@ -338,6 +338,9 @@ async function prepareSubject(
       variantDirectory,
     });
     materializedRuntime = await materializeRuntime({ runtime, variantDirectory });
+    // Runtime environment literals may differ between arms (definitions.mjs); each subject gets its arm's own.
+    const literal = group.variants[variant].runtimeLiteral;
+    if (literal !== undefined) materializedRuntime.environment = { ...materializedRuntime.environment, literal };
     fixture = await materializeFixture({ fixture: fixtureSnapshot, workspace });
     // Written before the workspace's starting state is taken, so they never count as the subject's changes.
     if (freeflow !== null) await writeFreeflowSettings(workspace, freeflow);
