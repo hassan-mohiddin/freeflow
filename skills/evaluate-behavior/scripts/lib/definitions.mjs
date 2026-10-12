@@ -342,7 +342,17 @@ function validateModel(value, label, definitionPath) {
 // reference arm's.
 const SCHEMA_1_MESSAGE =
   "schema 1 definitions are no longer supported; rewrite it as schema 2 (see the evaluation definition schema reference)";
-const CONFIGURATION_FIELDS = ["host", "model", "subject", "freeflow", "runtime", "shell", "environment"];
+// `participants` may be shared or differ between arms (one review against a pipeline of reviews); see participants.mjs.
+const CONFIGURATION_FIELDS = [
+  "host",
+  "model",
+  "subject",
+  "freeflow",
+  "runtime",
+  "shell",
+  "environment",
+  "participants",
+];
 // Arms may not differ here: runtime bundles are prepared once per group, and Pi is the only host. Host extensions
 // and settings may differ, like the rest of the configuration, and so may runtime environment literals, which each
 // arm's subject receives as its own.
@@ -397,7 +407,7 @@ function validateEffectiveConfiguration(value, label, definitionPath) {
   const configuration = requireExactKeys(
     value,
     ["host", "subject"],
-    ["model", "freeflow", "runtime", "shell", "environment"],
+    ["model", "freeflow", "runtime", "shell", "environment", "participants"],
     label,
     definitionPath,
   );
@@ -675,7 +685,9 @@ async function validateGroup(value, definitionPath, root) {
   });
   requireStringArray(group.review_questions, "group.review_questions", definitionPath);
   Object.assign(group, await validateJudging(group, definitionPath, root));
-  Object.assign(group, await validateParticipants(group, definitionPath, root));
+  const participants = await validateParticipants(group, resolved, definitionPath, root);
+  Object.assign(group, participants.group);
+  for (const arm of names) if (participants.arms[arm]) variants[arm].participants = participants.arms[arm];
   if (Object.hasOwn(group, "revision")) {
     if (group.revision !== "description-only") {
       fail("invalid-definition", "group.revision must be description-only when declared", definitionPath);
@@ -729,7 +741,7 @@ async function validateGroup(value, definitionPath, root) {
         names.map((arm) => variants[arm].hostExtensions),
         root,
       ),
-      ...participantFiles(group.participants, root),
+      ...participantFiles(Object.values(participants.arms), root),
     ],
     component,
     variants,

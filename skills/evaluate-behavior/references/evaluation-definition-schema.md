@@ -95,7 +95,7 @@ A rubric asks what deterministic checks cannot. Each run is judged alone, blind 
 
 ## Participants
 
-A group may run more than one participant in each arm. `participants` declares a `protocol`; every participant uses the arm's configuration, so arms still differ only in their `component`.
+A group may run more than one participant in each arm. `participants` declares a `protocol`; every participant uses the arm's configuration. Declare it on the group, shared by every arm, or in the configuration: shared in `configuration`, or per arm in an overlay, where arms may differ in it like any other path (`"component": ["participants"]`), for example one review against an adjudicated pair. An arm whose `participants` is absent, or `null` to clear a shared one, runs one ordinary subject. Not both on the group and in the configuration. Expectations, comparisons and review questions apply to each arm's graded run: its pipeline's graded stage, its conversation, or its single subject.
 
 A **conversation** pairs the subject with a simulated user:
 
@@ -669,9 +669,9 @@ A suite may declare the rule its trials are judged by, before any run. Without o
 - `direction` says whether `higher` or `lower` is better. `measure`, `arms` and `direction` are required.
 - `method` is `sign-test` (default), `alpha` is between 0 and 1 (default 0.05), and `min_cases` is a positive integer (default 10).
 - The unit is the case. Each arm's values over a case's trials are averaged, and the second arm is better, worse or equal. An exact two-sided sign test over the better and worse cases (ties and excluded cases are counted, not tested) gives `beats` only with at least `min_cases` decided cases, p below `alpha`, and the split in the declared direction; the same evidence the other way gives `worse`; anything else is `no-difference-shown`.
-- `trials` is optional. With it, `--trials` may be omitted or must equal `initial`. After `initial` trials, each case whose sign is not yet stable (the arms tie, or differ by less than one trial's worth: the observed range divided by the fewer values) runs up to `step` more trials of that group alone, until `max`. A case with an arm that has no usable value is not extended.
+- A suite with a decision always runs as trials and records an aggregate. `trials` is optional: without it, `--trials` sets the count (default 1); with it, `--trials` may be omitted or must equal `initial`. After `initial` trials, each case whose sign is not yet stable (the arms tie, or differ by less than one trial's worth: the observed range divided by the fewer values) runs up to `step` more trials of that group alone, until `max`. A case with an arm that has no usable value is not extended.
 
-The aggregate records `decision` (the rule with defaults applied, its `ruleSha256`, the split, ties, excluded cases and values, p, the verdict, and each case's per-arm mean and count), `schedule` (each adaptive round's cases and trial count) and, on each added trial, its `round` and `group`. Its `claim` is the verdict reached, with the split, p and rule hash; a dry run's claim class stays `none`.
+The aggregate records `decision` (the rule with defaults applied, its `ruleSha256`, the split, ties, excluded cases and values, p, the verdict, and each case's per-arm mean and count), `schedule` (each adaptive round's cases and its `scheduled` and run `trials`) and, on each added trial, its `round` and `group`; `requestedTrials` stays the initial count. Its `claim` is the verdict reached, with the split, p and rule hash; a dry run's claim class stays `none`.
 
 ## Selection
 

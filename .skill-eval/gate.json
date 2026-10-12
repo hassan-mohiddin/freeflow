@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "model": { "model": "anthropic/claude-haiku-5-5", "thinking": "medium" },
+  "entries": [
+    {
+      "paths": ["skills/review-work/**", ".skill-eval/review-suite/**"],
+      "suite": ".skill-eval/review-suite/suite.json",
+      "trials": 3
+    },
+    {
+      "paths": ["skills/write-skill/**", "skills/evaluate-behavior/**", ".skill-eval/skill-family/**"],
+      "suite": ".skill-eval/skill-family/suite.json",
+      "trials": 3
+    }
+  ]
+}

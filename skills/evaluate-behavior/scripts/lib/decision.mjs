@@ -242,24 +242,58 @@ export function decisionClaim(decision, { k, supported, reason }) {
   };
 }
 
-/** The claim lines of an aggregate view: the rate claim without a decision, else the rule, split, p and verdict. */
-export function renderClaim(aggregate) {
-  const claim = aggregate.claim;
-  if (!claim) return [];
+/**
+ * Trials run against trials asked for. With an adaptive schedule the full invocations and the trials its rounds
+ * added are counted apart, so the header never presents added trials as requested ones.
+ */
+export function trialCounts(aggregate) {
+  const trials = Array.isArray(aggregate.trials) ? aggregate.trials : [];
+  if (aggregate.schedule === undefined) return `${trials.length}/${aggregate.requestedTrials}`;
+  const added = trials.filter((trial) => trial.round !== undefined).length;
+  const scheduled = (aggregate.schedule.rounds ?? []).reduce((sum, round) => sum + (round.scheduled ?? 0), 0);
+  return (
+    `${trials.length - added}/${aggregate.requestedTrials} initial, ${added}/${scheduled} adaptive` +
+    ` (up to ${aggregate.schedule.max} per case)`
+  );
+}
+
+/** A verdict's words: "beats", "worse" or "no difference shown". */
+export function verdictText(verdict) {
+  return VERDICT_TEXT[verdict] ?? String(verdict);
+}
+
+/**
+ * The aggregate's claim in words, shared by the text and HTML views: `reached` is the class reached ("rate on this
+ * suite, k=3", "beats", "none (dry run)"), and `detail` what it is about (the decision's arms, measure and
+ * direction) or, without a decision, why no "beats" claim is supported. Null when the aggregate has no claim.
+ */
+export function claimSummary(aggregate) {
+  const claim = aggregate?.claim;
+  if (!claim) return null;
+  const none = `none${claim.reason ? ` (${claim.reason})` : ""}`;
   const decision = aggregate.decision;
   if (decision === undefined) {
-    const supported =
-      claim.class === "rate-on-suite"
-        ? `rate on this suite, k=${claim.k}`
-        : `none${claim.reason ? ` (${claim.reason})` : ""}`;
-    return [`Claim: ${supported}; no "beats" claim: ${String(claim.beats).replace(/^not supported: /, "")}`];
+    return {
+      reached: claim.class === "rate-on-suite" ? `rate on this suite, k=${claim.k}` : none,
+      detail: `no "beats" claim: ${String(claim.beats).replace(/^not supported: /, "")}`,
+    };
   }
   const { kind, name } = measureOf(decision.rule);
+  return {
+    reached: claim.class === "none" ? none : verdictText(claim.class),
+    detail: `${decision.arm} against ${decision.reference} on ${kind} ${name}, ${decision.rule.direction} is better`,
+  };
+}
+
+/** The claim lines of an aggregate view: the rate claim without a decision, else the rule, split, p and verdict. */
+export function renderClaim(aggregate) {
+  const summary = claimSummary(aggregate);
+  if (summary === null) return [];
+  const decision = aggregate.decision;
+  if (decision === undefined) return [`Claim: ${summary.reached}; ${summary.detail}`];
   const rule = decision.rule;
-  const reached =
-    claim.class === "none" ? `none${claim.reason ? ` (${claim.reason})` : ""}` : VERDICT_TEXT[claim.class];
   const lines = [
-    `Claim: ${reached}; ${decision.arm} against ${decision.reference} on ${kind} ${name}, ${rule.direction} is better`,
+    `Claim: ${summary.reached}; ${summary.detail}`,
     row("decision", [
       `rule=sha256:${decision.ruleSha256}`,
       `method=${rule.method}`,
@@ -279,7 +313,13 @@ export function renderClaim(aggregate) {
     ]),
   ];
   for (const round of aggregate.schedule?.rounds ?? []) {
-    lines.push(row("adaptive", [`round=${round.round}`, `trials=${round.trials}`, `cases=${round.groups.join(",")}`]));
+    lines.push(
+      row("adaptive", [
+        `round=${round.round}`,
+        `trials=${round.trials}/${round.scheduled}`,
+        `cases=${round.groups.join(",")}`,
+      ]),
+    );
   }
   for (const entry of decision.cases) {
     const arms = Object.entries(entry.arms ?? {}).map(

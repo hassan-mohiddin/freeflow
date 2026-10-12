@@ -2,7 +2,7 @@ import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { ARM_NAME, comparisonArms, storedArms } from "./arms.mjs";
-import { renderClaim } from "./decision.mjs";
+import { renderClaim, trialCounts } from "./decision.mjs";
 import { judgedAggregateLines, judgedLines } from "./judge.mjs";
 import { aggregateMetricsLines, runMetricsLines } from "./metrics.mjs";
 import { participantLines } from "./participants.mjs";
@@ -25,8 +25,12 @@ class ViewError extends Error {
  * @param {{root?: string}} [options]
  */
 
-export async function renderResult(target, selectors = DEFAULT_SELECTORS, { root = process.cwd() } = {}) {
-  const resultDirectory = await resolveResult(target, root);
+export async function renderResult(
+  target,
+  selectors = DEFAULT_SELECTORS,
+  { root = process.cwd(), results = null } = {},
+) {
+  const resultDirectory = await resolveResult(target, root, results);
   const aggregateFile = path.join(resultDirectory, "aggregate.json");
   if (await stat(aggregateFile).catch(() => null)) {
     if (selectors.group !== null || selectors.variant !== null) {
@@ -201,7 +205,7 @@ async function appendAdvisoryReview(lines, groupDirectory, variants) {
 
 function renderAggregate(resultDirectory, aggregate) {
   const lines = [
-    `Aggregate ${aggregate.id} [${aggregate.state}] trials=${aggregate.trials.length}/${aggregate.requestedTrials}`,
+    `Aggregate ${aggregate.id} [${aggregate.state}] trials=${trialCounts(aggregate)}`,
     `Path: ${escapeCell(resultDirectory)}`,
   ];
   if (aggregate.budget) {
@@ -345,9 +349,13 @@ async function appendVariantEvidence(lines, resultDirectory, groupDirectory, gro
   );
 }
 
-export async function resolveResult(target, root) {
+/** A result or aggregate directory: an explicit path, or a stored ID under `results` (default `<root>/.skill-eval/runs`). */
+export async function resolveResult(target, root, results = null) {
   const explicit = path.resolve(root, target);
-  const stored = path.join(root, ".skill-eval", "runs", target);
+  const stored = path.join(
+    results === null ? path.join(root, ".skill-eval", "runs") : path.resolve(root, results),
+    target,
+  );
   const isPath = path.isAbsolute(target) || target.includes("/") || target.includes("\\") || target.startsWith(".");
   const candidates = isPath ? [explicit] : [stored, explicit];
   for (const candidate of candidates) {

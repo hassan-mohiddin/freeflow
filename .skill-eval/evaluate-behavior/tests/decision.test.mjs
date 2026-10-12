@@ -9,7 +9,9 @@ import { fileURLToPath } from "node:url";
 import { decide, signTest, validateDecision } from "../../../skills/evaluate-behavior/scripts/lib/decision.mjs";
 import { loadDefinition } from "../../../skills/evaluate-behavior/scripts/lib/definitions.mjs";
 import { registerAggregator } from "../../../skills/evaluate-behavior/scripts/lib/hooks.mjs";
+import "../../../skills/evaluate-behavior/scripts/lib/metrics.mjs";
 import { aggregateGroups, rebuildAggregate, runTrials } from "../../../skills/evaluate-behavior/scripts/lib/trials.mjs";
+import { renderHtml } from "../../../skills/evaluate-behavior/scripts/lib/view-html.mjs";
 import { renderResult } from "../../../skills/evaluate-behavior/scripts/lib/view.mjs";
 import { toV2 } from "./helpers/to-v2.mjs";
 
@@ -220,8 +222,8 @@ test("an arm-keyed comparison is read by arm name", () => {
   assert.equal(decision.arm, "changed");
 });
 
-/** Trial result directories whose runs carry `values` for a dummy section aggregator to report. */
-async function sectionTrials(root, valuesFor) {
+/** Trial result directories whose runs record `metrics`, as the run-metrics hook writes them. */
+async function sectionTrials(root, metricsFor) {
   const trials = [];
   for (let trial = 1; trial <= 2; trial += 1) {
     const directory = path.join(root, `trial-${trial}`);
@@ -238,7 +240,7 @@ async function sectionTrials(root, valuesFor) {
       for (const arm of ["baseline", "candidate"]) {
         await writeJson(path.join(groupDirectory, arm, "run.json"), {
           variant: arm,
-          values: valuesFor(index, arm, trial),
+          metrics: metricsFor(index, arm, trial),
         });
       }
       groups.push({
@@ -253,50 +255,62 @@ async function sectionTrials(root, valuesFor) {
   return trials;
 }
 
-/** A stand-in for the metrics and judged aggregators: `perTrial` per the shared measures contract. */
-function sectionAggregator({ trials, arms }) {
-  return {
-    perTrial: trials.flatMap((trial) => arms.map((arm) => ({ trial: trial.id, arm, values: trial.runs[arm].values }))),
-  };
-}
-
-test("metric and judged measures are read from their aggregator sections' perTrial values", async () => {
+test("a metric measure is read from the real metrics aggregator's perTrial values", async () => {
   await withTempDirectory(async (root) => {
     const trials = await sectionTrials(root, (index, arm, trial) => ({
-      // The candidate is faster in every case; a null duration is excluded and counted.
+      // The candidate is faster in every case; a missing duration is null, excluded and counted.
       durationMs: arm === "candidate" ? (index === 1 && trial === 2 ? null : 100) : 200 + index,
-      // Judged yes/no: the candidate finds the defect in cases 1-5; case 6 ties.
-      "found-defect": arm === "candidate" ? index <= 5 : index === 6,
+      tokens: { input: arm === "candidate" ? 10 : 10 + index },
     }));
-    const unregister = [
-      registerAggregator("metrics", sectionAggregator),
-      registerAggregator("judged", sectionAggregator),
-    ];
-    let groups;
-    try {
-      groups = await aggregateGroups(trials);
-    } finally {
-      for (const remove of unregister) remove();
-    }
+    // Importing metrics.mjs registered the `metrics` aggregator, so the groups carry its section.
+    const groups = await aggregateGroups(trials);
+    assert.ok(Array.isArray(groups[0].metrics?.perTrial));
 
     const faster = decide({ ...RULE, measure: { metric: "durationMs" }, direction: "lower", min_cases: 6 }, groups);
     assert.equal(faster.verdict, "beats");
     assert.equal(faster.better, 6);
     assert.equal(faster.excludedValues, 1);
     assert.deepEqual(faster.cases[0].arms.candidate, { n: 1, mean: 100, excluded: 1 });
+    // A nested metric is named by its dotted path.
+    const fewer = decide({ ...RULE, measure: { metric: "tokens.input" }, direction: "lower", min_cases: 6 }, groups);
+    assert.deepEqual([fewer.better, fewer.verdict], [6, "beats"]);
 
-    const found = decide({ ...RULE, measure: { judged: "found-defect" }, min_cases: 5 }, groups);
-    // Case 6: the baseline found it and the candidate did not, so 5 to 1 is not enough.
-    assert.deepEqual([found.better, found.worse, found.ties, found.verdict], [5, 1, 0, "no-difference-shown"]);
-    assert.equal(found.cases[5].sign, "worse");
-    assert.equal(found.p, 0.21875);
-
-    // Without the section the measure is absent, and every case is excluded.
-    const plain = await aggregateGroups(trials);
-    const absent = decide({ ...RULE, measure: { metric: "durationMs" } }, plain);
-    assert.equal(absent.excluded, 6);
-    assert.equal(absent.cases[0].reason, "no metrics section");
+    // The measure comes only from the section: without it, or when the aggregator failed, every case is excluded.
+    for (const section of [undefined, { error: "aggregator failed" }]) {
+      const stripped = groups.map((entry) => ({ ...entry, metrics: section }));
+      const absent = decide({ ...RULE, measure: { metric: "durationMs" } }, stripped);
+      assert.deepEqual([absent.excluded, absent.decided], [6, 0]);
+      assert.equal(absent.cases[0].reason, "no metrics section");
+    }
   });
+});
+
+test("a judged measure is read from the judged section's perTrial values", () => {
+  // Judged yes/no per the shared contract: the candidate finds the defect in cases 1-5; in case 6 only the
+  // baseline does; an unknown answer (null) is excluded and counted.
+  const groups = Array.from({ length: 6 }, (_, offset) => {
+    const index = offset + 1;
+    const perTrial = [1, 2].flatMap((trial) => [
+      { trial: `t${trial}`, arm: "baseline", values: { "found-defect": index === 6 } },
+      {
+        trial: `t${trial}`,
+        arm: "candidate",
+        values: { "found-defect": trial === 2 && index === 1 ? null : index <= 5 },
+      },
+    ]);
+    return { id: `case-${index}`, trials: 2, comparisons: [], judged: { perTrial } };
+  });
+  const found = decide({ ...RULE, measure: { judged: "found-defect" }, min_cases: 5 }, groups);
+  // 5 to 1 is not enough.
+  assert.deepEqual([found.better, found.worse, found.ties, found.verdict], [5, 1, 0, "no-difference-shown"]);
+  assert.equal(found.cases[5].sign, "worse");
+  assert.equal(found.excludedValues, 1);
+  assert.equal(found.p, 0.21875);
+  const absent = decide(
+    { ...RULE, measure: { judged: "found-defect" } },
+    groups.map(({ judged: _judged, ...entry }) => entry),
+  );
+  assert.equal(absent.cases[0].reason, "no judged section");
 });
 
 // ----- runTrials with a scripted evaluator -----
@@ -434,11 +448,13 @@ test("adaptive trials extend only undecided cases, by the declared step, and sto
       max: 6,
       step: 2,
       rounds: [
-        { round: 1, groups: ["tied", "settles"], trials: 4 },
-        { round: 2, groups: ["tied"], trials: 2 },
+        { round: 1, groups: ["tied", "settles"], scheduled: 4, trials: 4 },
+        { round: 2, groups: ["tied"], scheduled: 2, trials: 2 },
       ],
     });
-    assert.equal(aggregate.requestedTrials, 8);
+    // Requested stays the initial full invocations; the rounds count what they added.
+    assert.equal(aggregate.requestedTrials, 2);
+    assert.equal(aggregate.trials.length, 8);
     assert.equal(aggregate.state, "complete");
     assert.deepEqual(aggregate.trials[2], { id: "trial-003", state: "complete", round: 1, group: "tied" });
     assert.deepEqual(Object.fromEntries(aggregate.groups.map((entry) => [entry.id, entry.trials])), {
@@ -565,7 +581,13 @@ test("the aggregate view shows the rule, split, p, adaptive rounds and verdict",
       ),
       text,
     );
-    assert.ok(lines.includes("adaptive\tround=1\ttrials=2\tcases=tied"), text);
+    assert.ok(lines.includes("adaptive\tround=1\ttrials=2/2\tcases=tied"), text);
+    // The HTML page words the claim and counts trials the same way, from decision.mjs.
+    const html = await renderHtml(id, { root });
+    assert.match(html, /<section class="claim"><h2>Claim<\/h2><p>no difference shown<\/p>/);
+    assert.match(html, /trials 2\/2 initial, 4\/4 adaptive \(up to 6 per case\)/);
+    // The header counts the full invocations and the adaptive trials apart.
+    assert.equal(lines[0], `Aggregate ${id} [complete] trials=2/2 initial, 4/4 adaptive (up to 6 per case)`);
     assert.ok(lines.includes("case\ttied\tequal\ttrials=6\tbaseline=1 (n=6)\tcandidate=1 (n=6)"), text);
   });
 });
@@ -627,31 +649,69 @@ emit({ type: "agent_settled" });
   return bin;
 }
 
-test("the CLI runs a suite's decision through the real runner with the fake provider", async () => {
+function runCli(root, bin, args) {
+  return spawnSync(process.execPath, [entrypoint, ...args, "--dry-run", "--yes"], {
+    cwd: root,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
+      PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+    },
+  });
+}
+
+async function readAggregate(root, stdout) {
+  const aggregateId = stdout.match(/^Aggregate: (.+)$/m)?.[1];
+  assert.ok(aggregateId, stdout);
+  return JSON.parse(await readFile(path.join(root, ".skill-eval/runs", aggregateId, "aggregate.json"), "utf8"));
+}
+
+async function starts(root) {
+  const log = await readFile(path.join(root, "fake.jsonl"), "utf8").catch(() => "");
+  return log.split("\n").filter(Boolean).length;
+}
+
+test("the CLI runs a suite's decision schedule without --trials, through the real runner", async () => {
   await withTempDirectory(async (root) => {
     const bin = await installFakePi(root);
     const suite = await writeSuite(root, ["one", "two"], { ...SCHEDULE_RULE, trials: { initial: 2, max: 4, step: 2 } });
-    const result = spawnSync(process.execPath, [entrypoint, "run", suite, "--trials", "2", "--dry-run", "--yes"], {
-      cwd: root,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
-        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
-      },
-    });
+
+    // A different trial count is refused before the plan, so nothing starts.
+    const refused = runCli(root, bin, ["run", suite, "--trials", "3"]);
+    assert.equal(refused.status, 1);
+    assert.match(refused.stderr, /schedules 2 initial trials/);
+    assert.equal(await starts(root), 0);
+
+    const result = runCli(root, bin, ["run", suite]);
     assert.equal(result.status, 0, result.stderr);
-    // The candidate reads its skill and the baseline has none, so both cases are decided after two trials.
-    const starts = (await readFile(path.join(root, "fake.jsonl"), "utf8")).split("\n").filter(Boolean);
-    assert.equal(starts.length, 8);
-    const aggregateId = result.stdout.match(/^Aggregate: (.+)$/m)?.[1];
-    const aggregate = JSON.parse(
-      await readFile(path.join(root, ".skill-eval/runs", aggregateId, "aggregate.json"), "utf8"),
+    // The plan states the initial trials and the most the adaptive rounds could add.
+    assert.match(
+      result.stdout,
+      /^Plan: 8 to 16 subjects \(2 groups, 4 arms, 2 trials, adaptive up to 4 per case\); models: host default; dry run$/m,
     );
+    // The candidate reads its skill and the baseline has none, so both cases are decided after two trials.
+    assert.equal(await starts(root), 8);
+    const aggregate = await readAggregate(root, result.stdout);
     assert.deepEqual(aggregate.schedule.rounds, []);
     assert.deepEqual([aggregate.decision.better, aggregate.decision.verdict], [2, "no-difference-shown"]);
     // A dry run supports no claim, whatever the split.
     assert.equal(aggregate.claim.class, "none");
     assert.equal(aggregate.claim.reason, "dry run");
+  });
+});
+
+test("the CLI aggregates a decision without a schedule even for one trial", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    const { trials: _schedule, ...rule } = SCHEDULE_RULE;
+    const suite = await writeSuite(root, ["one"], rule);
+    const result = runCli(root, bin, ["run", suite]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /^Plan: 2 subjects \(1 group, 2 arms, 1 trial\);/m);
+    const aggregate = await readAggregate(root, result.stdout);
+    assert.equal(aggregate.requestedTrials, 1);
+    assert.equal(Object.hasOwn(aggregate, "schedule"), false);
+    assert.equal(aggregate.decision.better, 1);
   });
 });
