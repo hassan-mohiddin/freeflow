@@ -42,6 +42,7 @@
 
 ### Fixed
 
+- Compaction notices and carried files: a Coordinator under projection is told at compact now that Pi also compacts when a request overflows the model's window, as other agents are; a carried file that ends with a newline no longer gets an extra empty numbered line, and a carried file whose last line looks like Pi's partial-read note is numbered like the rest.
 - Track Work works in a repository reached through a symlinked directory (such as macOS `/tmp` or `/var`). Before, it refused every command there because its Git ignore check compared a symlinked path with Git's resolved one.
 - Claude Code now receives Freeflow's whole session-start context. Claude Code caps each hook's context at 10,000 characters and shows longer output only as a short preview, so Freeflow now delivers each prompt through its own hook, and also at the start of forked sessions.
 - Codex now runs Freeflow's session-start hook. Since 0.7.1, Codex loaded Freeflow's skills but none of its hooks, because it ignores hooks in a plugin that carries the Agent Plugins manifest the other hosts need. Codex now installs Freeflow from its npm package, which leaves that manifest out, and the hook raises Codex's context limit so the whole context fits. After upgrading the `freeflow` marketplace, approve the Freeflow hook in Codex's `/hooks`; Codex skips it until you do.
