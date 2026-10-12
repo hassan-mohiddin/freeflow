@@ -1,0 +1,6 @@
+{
+  "schema_version": 2,
+  "kind": "suite",
+  "id": "workflow-activation",
+  "groups": ["groups/look-into.json", "groups/full-scope.json", "groups/edge.json", "groups/question.json"]
+}
