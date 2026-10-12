@@ -54,6 +54,7 @@
 - Under Cognitive Routing on Anthropic models, a notice that arrived while a worker ran (a monitor line, for example) could break the session: the Coordinator's next request put the worker's evidence between its last tool calls and their results, and Anthropic rejected it (`400 unexpected tool_use_id found in tool_result blocks`). Evidence now comes after the call group. The routing skill also says a worker's background commands and monitors keep running after it returns, so a Coordinator no longer refuses to delegate a watcher.
 - Under Cognitive Routing, a worker whose return was blocked by a selection problem was told the report would be delivered, so it could end its turn with the Coordinator never getting it. Its receipt now says nothing reaches the Coordinator until the problem is fixed, and how.
 - On Pi, two background commands started together when 15 were running could both start, past the limit of 16, and one started as the session ended could keep running into the next session.
+- `skill-eval review` shows the reviewer a reply shape with one entry per review question; with a one-entry example, a reviewer sometimes answered only the first question and the review failed.
 - Evaluate Skill grades skill-file reads in one-shot description runs and keeps their tool activity for the advisory review; a run that loses its context observation keeps its transcript, response and usage; and one trial's unreadable grade no longer aborts the whole aggregate (it is counted as `unreadableGrades`).
 
 ## 0.8.0 - 2026-10-03

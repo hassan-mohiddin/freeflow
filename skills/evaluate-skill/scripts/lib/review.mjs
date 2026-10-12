@@ -332,10 +332,14 @@ function reviewPrompt(definition, questions, evidence, labels) {
   if (evidence.materials.length > 0)
     lines.push("", "## Task materials (the same for both runs)", ...evidence.materials);
   for (const label of ["A", "B"]) lines.push("", `## Run ${label}`, ...evidence[labels[label]]);
+  // One example entry per question: a single-entry example is sometimes copied literally, answering only question 1.
+  const shape = questions.map((_, index) =>
+    JSON.stringify({ question: index + 1, A: "yes|no|unclear", B: "yes|no|unclear", rationale: "one sentence" }),
+  );
   lines.push(
     "",
-    "Reply with only JSON in this shape:",
-    '{"answers":[{"question":1,"A":"yes|no|unclear","B":"yes|no|unclear","rationale":"one sentence"}]}',
+    `Reply with only JSON in this shape, with one entry for each of the ${questions.length} questions:`,
+    `{"answers":[${shape.join(",")}]}`,
   );
   return lines.join("\n");
 }
