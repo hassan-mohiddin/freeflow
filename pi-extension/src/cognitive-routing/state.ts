@@ -272,9 +272,13 @@ function applyEvent(state: State, event: RoutingEvent, owned = false): State {
       s.handoffs.set(h.id, h);
       s.pendingId = h.id;
       s.assessment.view = "suspended";
-      s.assessment.suspensionReason = "recovery";
-      s.assessment.basisUserEntryId = h.basisUserEntryId;
-      s.assessment.problems = [];
+      // A recovery answers the Coordinator's evidence question, not new user input: an assessment already waiting
+      // for that attention keeps waiting for it after the recovery, instead of resuming when the supplement arrives.
+      if (s.assessment.suspensionReason !== "user-attention") {
+        s.assessment.suspensionReason = "recovery";
+        s.assessment.basisUserEntryId = h.basisUserEntryId;
+        s.assessment.problems = [];
+      }
       break;
     }
     case "recovery-supplement-accepted": {

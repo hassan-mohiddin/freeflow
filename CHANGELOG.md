@@ -45,6 +45,7 @@
 
 ### Fixed
 
+- Cognitive Routing: when the Coordinator requests an evidence recovery while an assessment waits for new user input, the assessment keeps waiting for that input after the recovery returns, instead of resuming on its own and skipping where unseen evidence should be placed.
 - After Pi compacts on its own, Freeflow's next compaction keeps the files read or changed in the part of the history Pi kept unsummarized in its session-wide file lists; before, those files dropped out of every later list.
 - Compaction notices and carried files: a Coordinator under projection is told at compact now that Pi also compacts when a request overflows the model's window, as other agents are; a carried file that ends with a newline no longer gets an extra empty numbered line, and a carried file whose last line looks like Pi's partial-read note is numbered like the rest.
 - Track Work works in a repository reached through a symlinked directory (such as macOS `/tmp` or `/var`). Before, it refused every command there because its Git ignore check compared a symlinked path with Git's resolved one.

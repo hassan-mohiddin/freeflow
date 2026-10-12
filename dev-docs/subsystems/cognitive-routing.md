@@ -175,6 +175,7 @@ Freeflow's and Pi's compaction may remove active user or evidence bodies while t
 | A returned worker cannot keep working even if the Coordinator's handoff is blocked. | The report ends ordinary task work; only correction or recovery remains. | Workers continue past their contract. |
 | Old contracts and reports stay in history after replacement or closure, labelled historical. | Admitted communication is kept (see Decisions). | The Coordinator loses context it already used. |
 | Under manual control the gate refuses every routing tool except `routing_unit`. | Inspection and closing saved work stay possible while a profile is held. | — |
+| A recovery requested while the assessment waits for new user input does not end that wait: after the supplement the Coordinator resumes through `assess`, and evidence it saw while working through the wait is placed at that resume. | The recovery answers the Coordinator's evidence question, not the user's input. | The input is treated as handled when the supplement arrives, and the resume placement is skipped. |
 | New user input during an assignment does not cancel it. | The worker returns partial state; the Coordinator decides. | Lost partial effects. |
 | Unknown historical attribution stays unknown. | Model identity is not role identity, and marker-shaped text is not provenance. | Mis-attributed evidence. |
 | Projection errors block the request rather than falling back to the full history. | The Coordinator must never receive a worker's full history by accident. | Silent cost and context blow-up. |
