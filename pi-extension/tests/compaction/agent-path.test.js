@@ -87,6 +87,11 @@ test("/freeflow compact leads to one compaction and the same run continues from 
         /copied into the carried context above were read at compaction: do not read those again unless something has changed them\. Skills, and anything listed there only by name, were not carried/,
       );
       assert.match(after[2], /do not re-read the compaction skill or its summary format/);
+      // Haiku 5.5 took the summary's file list as skills in view and skipped re-reading routing (Task 008 S-005).
+      assert.match(
+        after[2],
+        /Skills you read before this point are out of view, even where the summary lists their files/,
+      );
       // A record another session just updated is not this work's record: Freeflow names none.
       assert.ok(!after.slice(0, 3).some((each) => each.includes("task-999-elsewhere")));
       // Nothing from before the compaction is sent again: not the old read, not the request that compacted.
