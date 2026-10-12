@@ -1,6 +1,6 @@
 # Execution And Evidence
 
-Read this when operating `run|view|review`, resolving paths, interpreting states, or reasoning about Pi execution, isolation, persistence, cancellation, and safeguards.
+Read this when operating `run|view|review|check-tasks`, resolving paths, interpreting states, or reasoning about Pi execution, isolation, persistence, cancellation, and safeguards.
 
 This reference is a contract: it states how the evaluator behaves. Rely on that behavior as written; its binding requirements on you restate [Evaluate Behavior](../SKILL.md) Rules.
 
@@ -9,8 +9,8 @@ This reference is a contract: it states how the evaluator behaves. Rely on that 
 Run commands from the repository or fixture root that owns the definitions:
 
 ```text
-node <evaluate-behavior-directory>/scripts/skill-eval.mjs run <suite-or-group-path> [--group <id-or-position>] [--variant baseline|candidate] [--trials <n>] [--max-cost <total>] [--yes] [--dry-run] [--skip-reference-check]
-node <evaluate-behavior-directory>/scripts/skill-eval.mjs view <result-id-or-directory> [--group <id-or-position>] [--variant baseline|candidate]
+node <evaluate-behavior-directory>/scripts/skill-eval.mjs run <suite-or-group-path> [--group <id-or-position>] [--variant <arm>] [--trials <n>] [--max-cost <total>] [--yes] [--dry-run] [--skip-reference-check]
+node <evaluate-behavior-directory>/scripts/skill-eval.mjs view <result-id-or-directory> [--group <id-or-position>] [--variant <arm>]
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs view <result-id-or-directory> --html <file>
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs check-tasks <suite-or-group-path> [--group <id-or-position>]
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-id-or-directory> (--model <provider/model> | --configuration <file>) [--group <id-or-position>] [--thinking <level>] [--swap | --swap-sample <fraction>] [--limit <name>=<chars>]
@@ -36,7 +36,7 @@ skill-eval view 20260720173209-a3649b8b --group 2 --variant candidate
 skill-eval view /absolute/path/to/result
 ```
 
-With no selectors, `run` or `view` selects every suite group and both variants. `--group` is invalid for a direct group definition/result.
+With no selectors, `run` or `view` selects every suite group and every arm. `--group` is invalid for a direct group definition/result.
 
 Before anything starts, `run` prints its plan: `Plan: <subjects> subjects (<groups>, <arms>, <trials>); models: <model (thinking)>`, plus the Freeflow refs it will build. On an interactive terminal it then asks `Start? [y/N]` unless `--yes` is given; any answer but yes starts nothing and exits nonzero. When either stdin or stdout is not a terminal, as in scripts and agents, it prints the plan and continues.
 
@@ -102,9 +102,9 @@ Invalidity, infrastructure failure, cancellation, or `grade-error` makes the fin
 
 ## Views And Raw Evidence
 
-Views can render a complete result, all baseline or candidate variants, one group, or one group/variant. Grade appears before selected run evidence. The displayed absolute result path anchors result-relative artifact and workspace paths.
+Views can render a complete result, one arm across groups, one group, or one group's arm. Grade appears before selected run evidence. The displayed absolute result path anchors result-relative artifact and workspace paths.
 
-Path cells escape literal backslashes before tab, carriage return, and newline. Variant views exclude expectation-owned errors from the other variant while retaining comparison, group, and system errors.
+Path cells escape literal backslashes before tab, carriage return, and newline. Arm views exclude expectation-owned errors from other arms while retaining comparison, group, and system errors.
 
 Use ordinary file tools for raw `run.json`, events, transcript, final response, stderr, workspace, definition, grade, context observations, and group artifacts. Views remove transport noise; they do not replace canonical evidence. Tool-call grades distinguish attempted, succeeded, failed, and not-called outcomes.
 
@@ -116,7 +116,7 @@ Normal completion follows settlement. Path guards, no-progress detection, cancel
 
 ## Trials
 
-`--trials <n>` runs the selection as `n` independent complete invocations. Each trial is an ordinary result with its own ID. A separate aggregate under `.skill-eval/runs/<aggregate-id>/aggregate.json` lists the trials and, per group, counts pass, fail, and unavailable for every deterministic check and comparison, plus comparison transitions. A trial whose grade file cannot be read is counted in `unreadableGrades`; the other trials still aggregate. Grade errors are counted per group (`gradeErrors`), and run states per variant (`runStates`), so nothing that failed leaves the denominators silently. Each check also records `trials` and `passAll`, its pass^k: whether it passed in every one of the k trials that graded it. Each comparison records `pairs`, the per-trial outcomes: both pass, both fail, baseline only, candidate only, or incomplete. The aggregate's `claim` names the strongest claim the counts support, a rate on this suite at its k, and states that no "beats" claim is supported, because no suite declares a decision rule. `--max-cost` is shared across trials, and exhaustion stops starting further trials. `view <aggregate-id>` renders the counts, pass^k, pairs and claim; view an individual trial for its evidence.
+`--trials <n>` runs the selection as `n` independent complete invocations. Each trial is an ordinary result with its own ID. A separate aggregate under `.skill-eval/runs/<aggregate-id>/aggregate.json` lists the trials and, per group, counts pass, fail, and unavailable for every deterministic check and comparison, plus comparison transitions. A trial whose grade file cannot be read is counted in `unreadableGrades`; the other trials still aggregate. Grade errors are counted per group (`gradeErrors`), and run states per variant (`runStates`), so nothing that failed leaves the denominators silently. Each check also records `trials` and `passAll`, its pass^k: whether it passed in every one of the k trials that graded it. Each comparison records `pairs` for each non-reference arm, the per-trial outcomes against the reference: both pass, both fail, reference only, that arm only, or incomplete. Without a suite [decision](evaluation-definition-schema.md#decision), the aggregate's `claim` names the strongest claim the counts support, a rate on this suite at its k, and states that no "beats" claim is supported; with one, the claim is the decision's verdict. `--max-cost` is shared across trials, and exhaustion stops starting further trials. `view <aggregate-id>` renders the counts, pass^k, pairs and claim; view an individual trial for its evidence.
 
 Each subject's `run.json` records `metrics`, derived from evidence the run already holds: `durationMs` (completed minus started), `turns` (turns recorded; 1 for a one-shot run), `toolCalls` and `toolErrors`, `tokens` (`input`, `output`, `cacheRead`, `cacheWrite`), `cost` (the host-reported `usage.cost.total`) and `cacheHitRate` (cache reads over input plus cache reads plus cache writes). A metric without evidence is `null`, never 0. The aggregate's `metrics` section gives, per arm, each metric's count, median, mean, min and max over the trials that measured it; per non-reference arm, the paired difference against the reference within each trial where both were measured; and `perTrial` values, which a decision rule names as `{ "metric": "<name>" }` with nested fields dotted (`tokens.input`). Both views render them.
 
@@ -124,11 +124,11 @@ Each subject's `run.json` records `metrics`, derived from evidence the run alrea
 
 `review` answers each group's `review_questions` with a separate reviewer model, a judge under Review Work's [Judge Contract](../../review-work/references/judge-contract.md):
 
-- only groups with review questions and two complete runs are reviewed;
-- the reviewer sees the task turns, the group's fixture files as shared task materials, and for each run its responses, tool calls, changed paths and the full text of every file it created or modified (by default each response up to 8,000 characters, each tool call's arguments up to 300, each file up to 20,000 and the materials up to 60,000, with any cut stated; `--limit <name>=<chars>` changes any of them), as Run A and Run B in random order;
+- only groups with review questions and a complete run in every arm are reviewed;
+- the reviewer sees the task turns, the group's fixture files as shared task materials, and for each run its responses, tool calls, changed paths and the full text of every file it created or modified (by default each response up to 8,000 characters, each tool call's arguments up to 300, each file up to 20,000 and the materials up to 60,000, with any cut stated; `--limit <name>=<chars>` changes any of them), as Run A, Run B and so on in random order;
 - run workspaces, the group and run directories, the repository root and the user's home are replaced by neutral tokens, so absolute paths and the variant names inside them never reach it; it never sees deterministic grades;
 - it runs without tools, skills, context files, or session, in its own isolation root, with extensions off except the `host.extensions` of the configuration file given with `--configuration`, whose `host.settings` and model it also uses (`--model` and `--thinking` override the model);
-- `--swap` reviews again with Run A and Run B exchanged and records agreement per question; without it, the unchecked order is recorded as a contract gap; `--swap-sample <fraction>` swaps only on a random sample of the selected groups (the fraction of them, rounded up), and each group records `swapSample: { fraction, sampled }`;
+- `--swap` reviews again with the order reversed and records agreement per question; without it, the unchecked order is recorded as a contract gap; `--swap-sample <fraction>` swaps only on a random sample of the selected groups (the fraction of them, rounded up), and each group records `swapSample: { fraction, sampled }`;
 - `groups/<id>/semantic-grade.json` records the judge's model, provider, family (approximated by provider), thinking, extensions and isolation; the subject's providers and the family relation (`same`, `different` or `unknown`); the label mapping, prompt hash, answers mapped back to variants, swap results, the effective `limits` and how many cuts the view took (`truncated`), `contractGaps` (at least `calibration not checked`, and `materials truncated` when anything was cut), and errors; `groups/<id>/review/` keeps the prompt, events, final response, and stderr;
 - malformed or incomplete reviewer output becomes `review-error` with the raw response preserved.
 

@@ -19,14 +19,15 @@ Name the strongest claim the result must support before building cases, and repo
 
 ## Fix The Decision Rule First
 
-Before the run, write down:
+Declare the rule as the suite's `decision` before the run ([schema](evaluation-definition-schema.md#decision)). It names:
 
-- the measure, such as defects identified per review;
-- the unit, which is the case: trials of one case are repeated draws of one question;
-- the comparison and its method, with the method's assumptions;
-- what counts as better, worse, or unresolved.
+- the measure: a comparison's checks, a run metric such as cost or turns, or a judged rubric dimension;
+- the two arms it compares, the reference first, and whether higher or lower is better;
+- the size: the minimum number of decided cases, the significance level, and optionally an adaptive trial schedule.
 
-One method that respects the case as the unit: for each case, compare the arms over its trials and count the cases where the candidate did better, worse, or the same; read the split with a two-sided sign test, and report it beside the pooled counts. For example, 19 better, 5 worse and 6 equal gives p ≈ 0.007.
+The unit is the case: trials of one case are repeated draws of one question. For each case, the evaluator averages each arm's values over its trials and counts the case as better, worse or equal for the second arm. It then runs an exact two-sided sign test over the better and worse cases, with ties and cases lacking a value counted but not tested. The verdict is `beats` only with at least the minimum decided cases, p below the level, and the split in the declared direction; the same evidence the other way is `worse`; anything else is `no-difference-shown`. For example, 19 better, 5 worse and 6 equal gives p ≈ 0.007. Report the verdict beside the pooled counts, and the split behind it.
+
+The sign test ignores how much better a case was, so it is conservative for measures with large per-case differences, such as cost. A rule written after seeing results is not a decision rule: write a new suite and run it fresh.
 
 ## Size Cases And Trials To The Decision
 
@@ -34,7 +35,7 @@ One method that respects the case as the unit: for each case, compare the arms o
 - **pass^k and pass@k diverge.** At 75% per trial, all three of three trials succeed about 42% of the time, and at least one about 98%. Report pass^k for behavior a user relies on each time; pass@k fits only when a retry or a checker stands between the subject and the user.
 - **Cases set what a comparison can detect.** A 20-point difference at 80% power needs roughly 62 to 93 cases per arm, depending on the base rate. A pilot of 20 or 30 cases detects only large effects; say so in its report.
 - **Spend trials where a miss costs most.** Cases whose miss is the costlier error can run more trials than the rest, for example nine for known-issue cases and three for clean ones.
-- **Fix the trial count before the run.** A three-trial look once suggested a drop in detection (80 against 74 of 90) that six trials did not confirm. Adding trials until a result looks right is selection.
+- **Fix the trial count before the run.** A three-trial look once suggested a drop in detection (80 against 74 of 90) that six trials did not confirm. Adding trials until a result looks right is selection. A decision's `trials` schedule is the one exception, because it is declared before the run: it adds trials only to cases whose sign is not yet stable, up to its maximum.
 
 ## Expect Run-To-Run Noise
 
@@ -42,7 +43,7 @@ The same baseline commit accepted 31 of 45 correct changes in one run and 38 of 
 
 - Run both arms in the same batch, so they share conditions.
 - Pool every baseline run of the same commit, and compare a later candidate with all of them, not the most favorable.
-- When a claim is close, run an A/A comparison, with the same commit in both arms; the gap it shows is the floor a real difference must clear.
+- When a claim is close, run a noise check (`component: []`), with identical arms; the gap it shows is the floor a real difference must clear.
 
 ## Hold Cases Out
 
@@ -59,11 +60,14 @@ A deterministic check that stands in for a meaning, such as a regex or "the revi
 
 A judge's answers are measurements. Follow Review Work's [Judge Contract](../../review-work/references/judge-contract.md), and in practice:
 
-- Make each question answerable from the materials: name what to look for, such as the defect's location, expression and effect. Show a reply example with one entry per question; a one-entry example produced one-entry replies.
-- Run `--swap`. When the two orders disagree, report a strict reading (yes in both orders) and a lenient one (yes in one order and no in neither) rather than picking one.
+- Prefer a rubric (`review --rubric`) for anything you will count: each run is judged alone and blind to its arm, so no order effect arises, and a decision rule can name a dimension. Keep pairwise review questions for advisory comparison.
+- Make each question answerable from the materials: name what to look for, such as the defect's location, expression and effect, and put the expected answer in the dimension's `reference`, which only judges see.
+- With several judges, declare the combining rule before any verdict. The aggregate reports agreement between them per dimension (Cohen's kappa for two, Krippendorff's alpha for more); low agreement means the question, not the subject, is uncertain.
+- Calibrate each judge configuration with `review --calibrate <labels.json>` against runs you labelled by hand, and report its agreement with the labels beside its answers. A judge whose calibration is not checked stays advisory; a configuration with another model, thinking level, extension or rubric is a new, uncalibrated judge.
+- For pairwise review questions, run `--swap`, or `--swap-sample` once order effects are known to be rare. When the two orders disagree, report a strict reading (yes in both orders) and a lenient one (yes in one order and no in neither) rather than picking one.
 - Before counting answers, hand-check a sample of decisive ones against the evidence, and report how many were right and the judge's family relative to the subject's.
 - Keep the judge's view large enough for its question, and state what `--limit` cut.
 
 ## Count The Cost
 
-Count subjects before running: groups × arms × trials, plus one judge run per reviewed group, two with `--swap`. The plan line prints the subject count. Host-reported cost is a list-price estimate: runs billed to a subscription spend the user's plan limit instead, which `--max-cost` does not see. Run the smallest batch that can answer the question first, and state the count before a large one.
+Count subjects before running: groups × arms × trials, times the stages of a pipeline, plus a simulated user's call per conversation turn; then one judge call per reviewed group (two with `--swap`), and one per judge per judged run. The plan line prints the subject count; [Eval Modes](eval-modes.md) covers spending less. Host-reported cost is a list-price estimate: runs billed to a subscription spend the user's plan limit instead, which `--max-cost` does not see. Run the smallest batch that can answer the question first, and state the count before a large one.

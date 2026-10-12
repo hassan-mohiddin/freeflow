@@ -1,6 +1,6 @@
 # Evaluation Design
 
-Read this before choosing or materially changing the behavioral question, evidence class, group shape, pressure, or baseline/candidate boundary.
+Read this before choosing or materially changing the behavioral question, evidence class, group shape, pressure, arms, or component boundary.
 
 This reference is judgment: adapt it to the question being answered. Its binding statements restate [Evaluate Behavior](../SKILL.md) Rules or the definition schema.
 
@@ -26,6 +26,7 @@ Record separately:
 - behavior;
 - artifacts;
 - derived grades;
+- judged evidence;
 - later semantic judgment.
 
 A read does not prove compliance. Correct behavior does not prove which component caused it.
@@ -37,16 +38,14 @@ A read does not prove compliance. Correct behavior does not prove which componen
 - **Fixture task:** files or repository state matter.
 - **Stateful turns:** ordered conversation and retained use matter.
 - **Saved-result review:** canonical evidence already answers the question.
-- **Suite:** several independent questions require one ordered serial invocation.
+- **Suite:** several independent questions require one ordered invocation, or a comparison needs a decision rule over several cases.
+- **Conversation, pipeline, coding task or judged evaluation:** the behavior happens with a simulated user, across stages, in code that tests must run, or in meaning only a judge can read; see [Eval Modes](eval-modes.md).
 
 Keep activation and body behavior separate unless their integrated interaction is the exact question and the current runner supports that observing boundary.
 
-## Fix Exact Variants
+## Fix Exact Arms
 
-Every group contains exactly:
-
-- `baseline`;
-- `candidate`.
+A group runs two or more named arms, and one of them, `baseline` unless `reference` names another, is the reference the others are compared with. Two arms, `baseline` and `candidate`, answer most questions. Add an arm only when the question needs it, for example two candidate wordings against one baseline, or a repeat of the reference to show noise in the same batch; each added arm adds subjects, and a decision rule compares only the two arms it names.
 
 For a new skill, baseline has no target.
 
@@ -58,7 +57,7 @@ To learn whether a skill's body, not just its description, changes behavior, add
 
 For a description-only revision, body and resources remain byte-identical; the group's `"revision": "description-only"` makes the evaluator check this before any subject runs.
 
-Freeze prompts or turns, fixture, tools, every configuration part other than the component, and criteria across variants. Put what may differ in the group's `component`; the evaluator refuses a group whose arms differ anywhere else.
+Freeze prompts or turns, fixture, tools, every configuration part other than the component, and criteria across arms. Put what may differ in the group's `component`; the evaluator refuses a group whose arms differ anywhere else.
 
 ## Design Common Questions
 
@@ -89,7 +88,7 @@ Use ordered turns in one persistent subject process. Repeated body delivery does
 
 ### Artifact outcome
 
-Grade files, changed paths, structured state, and events before relying on the final response. Preserve turn-scoped workspace evidence when later turns may change earlier state.
+Grade files, changed paths, structured state, and events before relying on the final response. Preserve turn-scoped workspace evidence when later turns may change earlier state. When the outcome is working code, grade it with a command, such as hidden tests, rather than by reading it.
 
 ## Apply Real Pressure
 
@@ -98,7 +97,7 @@ A useful group:
 - creates a natural temptation to violate the intended behavior;
 - keeps criteria and review questions outside the prompt;
 - exposes deterministic evidence where possible;
-- distinguishes baseline from candidate behavior;
+- distinguishes the arms' behavior;
 - remains realistic enough that passing behavior is useful.
 
 Choose the pressure by the kind of instruction under test:

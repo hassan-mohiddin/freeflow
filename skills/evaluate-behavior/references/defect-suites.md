@@ -31,9 +31,10 @@ A detector is measured on two sides: how often it finds real problems, and how o
 
 ## Score Detection And Rejection
 
-- Fix the outcomes before the run, for example: a clean change is rejected when the review ends Inconclusive or Blocking.
-- Count a defect as found only when the detector identified it, by location and effect. Rejecting the change for another reason is not detection.
+- Fix the outcomes before the run, for example: a clean change is rejected when the review ends Inconclusive or Blocking. A deterministic check on the verdict line can score rejection; declare the comparison the suite's decision rule reads.
+- Count a defect as found only when the detector identified it, by location and effect. Rejecting the change for another reason is not detection. A text check rarely tells the two apart; a rubric dimension such as "found the defect", with the defect's location and effect in a `reference` only judges see, usually does.
 - Report, for each side and class: the counts, pass^k (found in every trial), the per-case split between arms, and held-out cases apart from tuning cases.
 - Read the rejections of clean changes and sort their causes, such as harness fault, ignoring evidence the detector produced itself, demanding a test for behavior the code plainly shows, and genuine open questions. The causes point at the revision; the count alone does not.
 - Weigh both sides before adopting a change. One wording raised acceptance of correct changes from 77% to 91% while detection held at 82% to 85%, and was adopted; a second sentence that also raised acceptance missed guard bypasses in otherwise sound changes, and was dropped.
 - Combining several detectors' verdicts trades one side for the other: an "any" rule mostly adds false rejections, a unanimous rule loses detections. Name the rule before seeing the verdicts.
+- To measure a review design rather than one reviewer, such as two independent reviews and an adjudicator, run it as a pipeline: each review a fresh stage that sees only the change, the adjudicator a stage that sees the reviews, and the adjudicator graded. Score both sides on its final verdict, and read the stage outputs to tell a missed defect from one the adjudicator dropped.
