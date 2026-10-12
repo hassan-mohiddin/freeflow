@@ -1,0 +1,17 @@
+{
+  "schema_version": 2,
+  "kind": "suite",
+  "id": "skill-family",
+  "groups": [
+    "groups/v1-a.json",
+    "groups/v1-b.json",
+    "groups/v1-c.json",
+    "groups/w1-a.json",
+    "groups/w1-b.json",
+    "groups/w1-c.json",
+    "groups/w1-d.json",
+    "groups/w2-a.json",
+    "groups/w2-b.json",
+    "groups/w2-c.json"
+  ]
+}
