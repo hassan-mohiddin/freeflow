@@ -53,15 +53,23 @@ export async function readJsonObject(file) {
 }
 
 /**
- * Finds each declared extension among the user's installed Pi packages (`<agent dir>/npm/node_modules`), by
- * exact name and version. A missing package or another version refuses the run.
+ * Finds each declared package extension among the user's installed Pi packages (`<agent dir>/npm/node_modules`),
+ * by exact name and version. A missing package or another version refuses the run. An extension built from source
+ * (`source` or `path`, see build-source.mjs) is built per group into its resources, so with `deferSources` it stays
+ * in its declared position as `{ pending: <declared entry> }`; without it, it is refused.
  *
- * @param {Array<{package: string, version: string}>} declared
+ * @param {Array<any>} declared
+ * @param {{deferSources?: boolean}} [options]
  */
-export async function resolveHostExtensions(declared) {
+export async function resolveHostExtensions(declared, { deferSources = false } = {}) {
   const root = path.join(piAgentDirectory(), "npm", "node_modules");
   const resolved = [];
   for (const extension of declared) {
+    if (!Object.hasOwn(extension, "package")) {
+      if (!deferSources) throw new Error("host.extensions built from source are supported only in arm configurations");
+      resolved.push({ pending: extension });
+      continue;
+    }
     const directory = path.join(root, ...extension.package.split("/"));
     const manifest = await readJsonObject(path.join(directory, "package.json"));
     if (manifest === null) {

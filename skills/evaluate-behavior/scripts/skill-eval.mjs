@@ -4,8 +4,10 @@ import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
 
+import { extensionLabel } from "./lib/build-source.mjs";
 import { loadDefinition, selectDefinition } from "./lib/definitions.mjs";
 import "./lib/metrics.mjs";
+import { checkSelection } from "./lib/reference.mjs";
 import { runEvaluation } from "./lib/runner.mjs";
 import { calibrateJudges, reviewResult, reviewRubric } from "./lib/review.mjs";
 import { runTrials } from "./lib/trials.mjs";
@@ -13,7 +15,8 @@ import { renderResult } from "./lib/view.mjs";
 import { writeHtml } from "./lib/view-html.mjs";
 
 const OPTIONS = {
-  run: ["--group", "--variant", "--trials", "--max-cost", "--yes", "--dry-run"],
+  run: ["--group", "--variant", "--trials", "--max-cost", "--yes", "--dry-run", "--skip-reference-check"],
+  "check-tasks": ["--group"],
   view: ["--group", "--variant", "--html"],
   review: [
     "--group",
@@ -36,6 +39,7 @@ function printUsage() {
   skill-eval run <suite-or-group-path> [options]
   skill-eval view <result-id-or-directory> [options]
   skill-eval review <result-id-or-directory> --model <provider/model> [options]
+  skill-eval check-tasks <suite-or-group-path> [--group <id-or-position>]
   skill-eval review <result-or-aggregate-id> --rubric [options]
   skill-eval review <result-or-aggregate-id> --calibrate <labels.json>
 
@@ -43,6 +47,7 @@ Commands:
   run     Execute selected evaluation groups
   view    Render selected stored evidence or a trial aggregate
   review  Record an advisory, arm-blind model answer to each group's review questions
+  check-tasks  Check that each group's reference_solution passes its workspace and command checks; no model
 
 Selectors:
   --group <id-or-position>
@@ -53,6 +58,7 @@ Run options:
   --max-cost <total>  Stop starting subjects once host-reported cost reaches the total
   --yes               Start without asking (the plan is printed either way; scripts never ask)
   --dry-run           Allow uncommitted inputs; the result is marked as a dry run and supports no claim
+  --skip-reference-check  Run even when a declared reference_solution fails check-tasks (the result records it)
 
 Review options:
   --model <provider/model>   Required reviewer model
@@ -116,6 +122,7 @@ function parseOperation(values) {
   const limits = {};
   let yes = false;
   let dryRun = false;
+  let skipReferenceCheck = false;
   const keys = {
     "--group": "group",
     "--variant": "variant",
@@ -154,6 +161,10 @@ function parseOperation(values) {
     }
     if (option === "--dry-run") {
       dryRun = true;
+      continue;
+    }
+    if (option === "--skip-reference-check") {
+      skipReferenceCheck = true;
       continue;
     }
     if (!value || value.startsWith("--")) throw new Error(`${option} requires a value`);
@@ -200,6 +211,7 @@ function parseOperation(values) {
     limits,
     yes,
     dryRun,
+    skipReferenceCheck,
   };
 }
 
@@ -240,7 +252,7 @@ async function planRun(operation, root) {
       models.add(model ? `${model.model}${model.thinking ? ` (${model.thinking})` : ""}` : "host default");
       if (group.variants[arm].freeflow) freeflow.add(group.variants[arm].freeflow.source.ref);
       for (const extension of group.variants[arm].hostExtensions ?? []) {
-        extensions.add(`${extension.package}@${extension.version}`);
+        extensions.add(extensionLabel(extension));
       }
     }
   }
@@ -273,6 +285,7 @@ async function run(operation) {
         signal,
         budget,
         dryRun: operation.dryRun,
+        skipReferenceCheck: operation.skipReferenceCheck,
       });
       printResult(result);
       if (result.state !== "complete") process.exitCode = 1;
@@ -289,6 +302,19 @@ async function run(operation) {
     process.stdout.write(`Aggregate: ${aggregate.id}\nPath: ${aggregate.path}\nState: ${aggregate.state}\n`);
     if (aggregate.state !== "complete") process.exitCode = 1;
   });
+}
+
+/** Checks each selected group's reference_solution against its graders. Runs no subject; exits 1 if any is unsolvable. */
+async function checkTasks(operation) {
+  const root = process.cwd();
+  const definitionPath = await realpath(path.resolve(root, operation.target));
+  const selection = selectDefinition(await loadDefinition(definitionPath, { root }), operation.selectors);
+  const results = await checkSelection(selection, { root });
+  for (const result of results) {
+    process.stdout.write(`${result.id}: ${result.state}${result.reason ? ` (${result.reason})` : ""}\n`);
+    for (const arm of result.arms ?? []) process.stdout.write(`  ${arm.arm}: ${arm.state}\n`);
+  }
+  if (results.some((result) => result.state === "unsolvable")) process.exitCode = 1;
 }
 
 async function review(operation) {
@@ -366,6 +392,8 @@ if (!command || command === "--help" || command === "-h") {
       process.stdout.write(await renderResult(operation.target, operation.selectors, { root: process.cwd() }));
     } else if (command === "review") {
       await review(operation);
+    } else if (command === "check-tasks") {
+      await checkTasks(operation);
     } else {
       await run(operation);
     }

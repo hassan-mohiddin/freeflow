@@ -335,6 +335,9 @@ async function prepareSubject(
     // A pipeline stage adds what it declares it sees from earlier stages as further declared context.
     if (extendEnvironment !== null) await extendEnvironment(environment, variantDirectory);
     materializedRuntime = await materializeRuntime({ runtime, variantDirectory });
+    // Runtime environment literals may differ between arms (definitions.mjs); each subject gets its arm's own.
+    const literal = group.variants[variant].runtimeLiteral;
+    if (literal !== undefined) materializedRuntime.environment = { ...materializedRuntime.environment, literal };
     fixture = await materializeFixture({ fixture: fixtureSnapshot, workspace });
     // Written before the workspace's starting state is taken, so they never count as the subject's changes.
     if (freeflow !== null) await writeFreeflowSettings(workspace, freeflow);
