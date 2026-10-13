@@ -132,6 +132,7 @@ export async function startRecorder({ upstream = DEFAULT_UPSTREAM, observationPa
     request.on("end", () => {
       const body = Buffer.concat(chunks);
       if (request.method === "POST") record(request, body);
+      else requests.push({ method: request.method, path: request.url });
       const headers = { ...request.headers, host: target.host };
       const relayed = transport.request(
         {
