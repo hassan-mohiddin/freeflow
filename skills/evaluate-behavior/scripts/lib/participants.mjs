@@ -9,12 +9,11 @@ import path from "node:path";
 import { DefinitionError } from "./definitions.mjs";
 import { fenceMaterial, materialBoundary } from "./judge.mjs";
 import { sha256, writeJson, writeText } from "./evidence.mjs";
-import { removeCopiedCredentials } from "./isolation.mjs";
+import { hostAdapter } from "./hosts/index.mjs";
 import { launchModel } from "./model-call.mjs";
-import { effectivePiSettings } from "./pi-host.mjs";
-import { runBody, runDescription, VariantSetupError } from "./pi.mjs";
 import { mergeUsage } from "./process.mjs";
 import { fingerprintDirectory } from "./sandbox.mjs";
+import { runBody, runDescription, VariantSetupError } from "./subject.mjs";
 
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const MAX_TURNS = 50;
@@ -217,7 +216,9 @@ async function runConversation(options, participants) {
   // The user's directory is its working directory and home, so it is named by a hash, never by the arm.
   const userDirectory = path.join(groupDirectory, "participants", sha256(`${groupDirectory}\n${variant}`).slice(0, 12));
   await rm(userDirectory, { recursive: true, force: true });
-  const settings = effectivePiSettings(group.variants[variant].hostSettings ?? {});
+  // The simulated user runs on the arm's host and host setup, so it uses the login the subject used.
+  const host = group.host ?? "pi";
+  const settings = hostAdapter(host).effectiveSettings(group.variants[variant].hostSettings ?? {});
   const opening = group.input.prompt;
   const messages = [];
   let ended = null;
@@ -232,6 +233,7 @@ async function runConversation(options, participants) {
     const prompt = userPrompt(user, opening, messages, turns, neutral);
     const directory = path.join(userDirectory, `turn-${turns.length + 1}`);
     const launched = await launchModel(directory, prompt, {
+      host,
       model: user.model,
       thinking: user.thinking,
       extensions: hostExtensions,
@@ -379,7 +381,7 @@ async function runPipeline(options, participants) {
         message,
       );
     } finally {
-      if (!isGraded) await removeCopiedCredentials(directory);
+      if (!isGraded) await hostAdapter(group.host ?? "pi").removeCredentials(directory);
     }
     usage = mergeUsage(usage, run.usage);
     const stageOutputs = await recordOutputs(path.join(directory, "outputs"), run);

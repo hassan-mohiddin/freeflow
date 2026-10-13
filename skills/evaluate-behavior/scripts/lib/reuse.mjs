@@ -188,25 +188,25 @@ async function readJson(file) {
 
 /**
  * The reuse state shared by every invocation of one run or aggregate: whether `--reuse` is on, the index as it
- * stood when the run began, the host version, and the runs already reused, so none is reused twice.
+ * stood when the run began, each host's version, and the runs already reused, so none is reused twice.
  *
- * @param {{resultsDirectory: string, enabled: boolean, hostVersion: () => Promise<string | null>}} options
+ * @param {{resultsDirectory: string, enabled: boolean, hostVersion: (host: string) => Promise<string | null>}} options
  */
 export function createReuse({ resultsDirectory, enabled, hostVersion }) {
   let index = null;
-  let version;
+  const versions = new Map();
   const used = new Set();
   const reused = [];
   return {
     enabled,
     resultsDirectory,
     reused,
-    async hostVersion() {
-      if (version === undefined) version = await hostVersion().catch(() => null);
-      return version;
+    async hostVersion(host = "pi") {
+      if (!versions.has(host)) versions.set(host, await hostVersion(host).catch(() => null));
+      return versions.get(host);
     },
     async keyFor(group, arm, root) {
-      const host = await this.hostVersion();
+      const host = await this.hostVersion(group.host ?? group.runtime?.host ?? "pi");
       if (host === null) return null;
       return reuseKey({ group, arm, root, hostVersion: host });
     },

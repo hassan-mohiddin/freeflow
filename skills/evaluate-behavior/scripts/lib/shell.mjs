@@ -12,10 +12,9 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import { containerShell, containerTarget, missingContainerPrerequisites, startContainer } from "./container.mjs";
+import { hostAdapter } from "./hosts/index.mjs";
 
 const run = promisify(execFile);
-const PROBE_PROVIDER = "skill-eval-probe";
-const PROBE_MODEL = "confinement";
 const PROBE_TIMEOUT_MS = 10 * 60 * 1000;
 const OUTPUT_TAIL = 2000;
 // Planted in Pi's own environment; a confined shell must not see it.
@@ -340,6 +339,7 @@ export async function prepareShell({ group, variants, hostExtensions, groupDirec
     if (shell.container !== undefined && !group.tools.includes("bash")) continue;
     confinement[arm] = await verifyConfinement({
       arm,
+      host: group.host ?? "pi",
       shell,
       extensions: hostExtensions[arm] ?? [],
       directory: path.join(groupDirectory, "confinement", arm),
@@ -358,19 +358,18 @@ export async function prepareShell({ group, variants, hostExtensions, groupDirec
 }
 
 /**
- * Runs the probes for one arm through its own Pi and extensions, with a local scripted model, and judges each by
+ * Runs the probes for one arm through its own host and extensions, with a local scripted model, and judges each by
  * what the host can observe: files on the host, connections to a host listener, and the probe output.
  */
-export async function verifyConfinement({ arm, shell, extensions, directory, groupDirectory, signal }) {
+export async function verifyConfinement({ arm, host = "pi", shell, extensions, directory, groupDirectory, signal }) {
   await rm(directory, { recursive: true, force: true });
   const workspace = path.join(directory, "workspace");
   const outside = path.join(directory, "outside");
   await mkdir(workspace, { recursive: true });
   await mkdir(outside, { recursive: true });
   const nonce = randomBytes(12).toString("hex");
-  const { prepareIsolation } = await import("./isolation.mjs");
-  const { effectivePiSettings } = await import("./pi-host.mjs");
-  const isolation = await prepareIsolation(directory, null, { settings: effectivePiSettings({}) });
+  const adapter = hostAdapter(host);
+  const isolation = await adapter.prepareIsolation(directory, null, { settings: adapter.effectiveSettings({}) });
   // The isolated HOME's parent holds a marker the shell must not read.
   const marker = path.join(isolation.evidence.root, "probe-marker");
   await writeFile(marker, `${nonce}\n`);
@@ -404,16 +403,10 @@ export async function verifyConfinement({ arm, shell, extensions, directory, gro
     },
     {
       id: "environment",
-      purpose: `the ${PROBE_VARIABLE} variable planted in Pi's environment must be absent`,
+      purpose: `the ${PROBE_VARIABLE} variable planted in ${adapter.label}'s environment must be absent`,
       command: `printenv ${PROBE_VARIABLE} || echo unset`,
     },
   ];
-  const model = await startModelStub(probes);
-  const agent = path.join(isolation.evidence.root, "agent");
-  await writeFile(
-    path.join(agent, "models.json"),
-    `${JSON.stringify({ providers: { [PROBE_PROVIDER]: { baseUrl: model.baseUrl, api: "openai-completions", apiKey: "probe", models: [{ id: PROBE_MODEL }] } } }, null, 2)}\n`,
-  );
 
   // A container shell is probed in its own container, started on the probe workspace like a subject's.
   let container = null;
@@ -421,63 +414,47 @@ export async function verifyConfinement({ arm, shell, extensions, directory, gro
     try {
       container = await startContainer({ container: shell.container, workspace, purpose: "probe" });
     } catch (error) {
-      await Promise.all([model.close(), listener.close()]);
+      await listener.close();
       throw error;
     }
   }
-  const { baseProcessEnvironment, guardExtensionPath, runPiProcess } = await import("./pi.mjs");
-  const environment = {
-    ...baseProcessEnvironment(),
+  // The guard's contract, as for a subject: only bash, confined to the probe workspace.
+  const guard = {
     PWD: workspace,
-    PI_SKIP_VERSION_CHECK: "1",
-    PI_TELEMETRY: "0",
     SKILL_EVAL_ALLOWED_ROOTS: JSON.stringify([workspace]),
     SKILL_EVAL_WRITABLE_ROOT: workspace,
     SKILL_EVAL_ALLOWED_TOOLS: JSON.stringify(["bash"]),
     SKILL_EVAL_CONTEXT_MANIFEST: "",
-    SKILL_EVAL_HOST: "pi",
+    SKILL_EVAL_HOST: host,
     SKILL_EVAL_PROMPT_MODE: "isolated",
     SKILL_EVAL_SHELL: JSON.stringify(shell),
     [PROBE_VARIABLE]: nonce,
     ...(container === null ? {} : { SKILL_EVAL_CONTAINER: containerTarget(container, shell.container) }),
-    ...isolation.environment,
   };
-  const args = ["--mode", "json", "-p", "--no-session", "--no-extensions", "--extension", guardExtensionPath()];
-  for (const extension of extensions) args.push("--extension", extension.path);
-  args.push(
-    "--no-skills",
-    "--no-prompt-templates",
-    "--no-themes",
-    "--no-context-files",
-    "--no-approve",
-    "--tools",
-    "bash",
-    "--model",
-    `${PROBE_PROVIDER}/${PROBE_MODEL}`,
-    "Run each confinement probe with bash, exactly as given.",
-  );
   const timeout = AbortSignal.timeout(PROBE_TIMEOUT_MS);
   const eventsFile = path.join(directory, "events.jsonl");
   const stderrFile = path.join(directory, "stderr.log");
-  let observation = null;
+  let probed = { observation: null, launchError: null, results: new Map() };
   let launchError = null;
   try {
-    observation = await runPiProcess({
-      command: "pi",
-      args,
-      cwd: workspace,
+    probed = await adapter.probeShell({
+      probes,
+      workspace,
+      isolation,
+      extensions,
+      guard,
       eventsFile,
       stderrFile,
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-      environment,
     });
   } catch (error) {
     launchError = error instanceof Error ? error.message : String(error);
   } finally {
-    await Promise.all([model.close(), listener.close(), container?.remove()]);
+    await Promise.all([listener.close(), container?.remove()]);
   }
 
-  const results = await toolResults(eventsFile);
+  const { observation, results } = probed;
+  launchError ??= probed.launchError;
   const judged = probes.map((probe) => ({ ...probe, ...results.get(probe.id) }));
   const control = await readFile(path.join(workspace, "confinement-control"), "utf8").catch(() => null);
   const leakedWrite = await stat(written).then(
@@ -506,7 +483,8 @@ export async function verifyConfinement({ arm, shell, extensions, directory, gro
       output: (probe.output ?? "").slice(-OUTPUT_TAIL),
     })),
     networkConnections: listener.connections,
-    pi: {
+    // The host process that ran the probes, recorded under the host's name.
+    [host]: {
       exitCode: observation?.exitCode ?? null,
       terminationReason: observation?.terminationReason ?? (timeout.aborted ? "timeout" : null),
       error: launchError,
@@ -535,32 +513,6 @@ function networkCommand(urls) {
       `else echo NO-HTTP-CLIENT; fi`,
   );
   return lines.join("; ");
-}
-
-/** Each probe's tool result from Pi's JSON events, by tool call ID. */
-async function toolResults(eventsFile) {
-  const results = new Map();
-  const contents = await readFile(eventsFile, "utf8").catch(() => "");
-  for (const line of contents.split("\n")) {
-    if (line.trim() === "") continue;
-    let event;
-    try {
-      event = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (event.type !== "tool_execution_end" || typeof event.toolCallId !== "string") continue;
-    const content = Array.isArray(event.result?.content) ? event.result.content : [];
-    results.set(event.toolCallId, {
-      ran: true,
-      isError: event.isError === true,
-      output: content
-        .filter((part) => part?.type === "text")
-        .map((part) => part.text)
-        .join(""),
-    });
-  }
-  return results;
 }
 
 /** An HTTP listener on every interface, reached through the host's first external IPv4 address when it has one. */
@@ -594,80 +546,4 @@ function externalAddress() {
     }
   }
   return null;
-}
-
-/**
- * A local OpenAI-compatible chat-completions endpoint that answers the first request with every probe as a bash
- * tool call, and any request carrying tool results with a short final answer. No model is called.
- */
-function startModelStub(probes) {
-  return new Promise((resolve, reject) => {
-    const server = http.createServer((request, response) => {
-      let body = "";
-      request.setEncoding("utf8");
-      request.on("data", (chunk) => {
-        body += chunk;
-      });
-      request.on("end", () => {
-        let parsed = {};
-        try {
-          parsed = JSON.parse(body || "{}");
-        } catch {
-          // Answered as a first request.
-        }
-        const followUp = Array.isArray(parsed.messages) && parsed.messages.some((message) => message?.role === "tool");
-        const message = followUp
-          ? { role: "assistant", content: "Probes finished." }
-          : {
-              role: "assistant",
-              content: null,
-              tool_calls: probes.map((probe, index) => ({
-                index,
-                id: probe.id,
-                type: "function",
-                function: { name: "bash", arguments: JSON.stringify({ command: probe.command }) },
-              })),
-            };
-        const finish = followUp ? "stop" : "tool_calls";
-        const base = { id: "probe", created: 0, model: parsed.model ?? PROBE_MODEL };
-        const usage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
-        if (parsed.stream !== true) {
-          response.writeHead(200, { "content-type": "application/json" });
-          response.end(
-            JSON.stringify({
-              ...base,
-              object: "chat.completion",
-              choices: [
-                {
-                  index: 0,
-                  message: { ...message, tool_calls: message.tool_calls?.map(({ index: _index, ...call }) => call) },
-                  finish_reason: finish,
-                },
-              ],
-              usage,
-            }),
-          );
-          return;
-        }
-        response.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
-        const send = (chunk) =>
-          response.write(`data: ${JSON.stringify({ ...base, object: "chat.completion.chunk", ...chunk })}\n\n`);
-        send({ choices: [{ index: 0, delta: message, finish_reason: null }] });
-        send({ choices: [{ index: 0, delta: {}, finish_reason: finish }] });
-        send({ choices: [], usage });
-        response.end("data: [DONE]\n\n");
-      });
-    });
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      resolve({
-        baseUrl: `http://127.0.0.1:${server.address().port}/v1`,
-        close: () =>
-          new Promise((done) => {
-            server.closeAllConnections?.();
-            server.close(() => done());
-          }),
-      });
-    });
-  });
 }

@@ -1,7 +1,7 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { ensureLogin, piAgentDirectory, readJsonObject } from "./pi-host.mjs";
+import { ensureLogin, piAgentDirectory, readJsonObject } from "./host.mjs";
 
 // A copied OAuth login must outlast the process using it: a refresh inside the copy would rotate the token
 // there and leave the user's own login holding a revoked one. So the login is refreshed centrally, in the

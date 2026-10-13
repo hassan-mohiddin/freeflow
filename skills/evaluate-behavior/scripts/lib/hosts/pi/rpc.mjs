@@ -15,7 +15,7 @@ import {
   waitForForcedKill,
   waitForProcessTreeExit,
   writeStream,
-} from "./process.mjs";
+} from "../../process.mjs";
 
 const MAX_INCOMPLETE_FRAME_BYTES = 16 * 1024 * 1024;
 

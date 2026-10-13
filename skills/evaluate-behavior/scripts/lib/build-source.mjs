@@ -162,9 +162,9 @@ async function buildSource(declared, { root, directory, signal }) {
   let build = null;
   if (declared.build !== undefined) {
     // The build gets the subject-style isolation: its own home, temp and Pi directories, no copied login.
-    const { prepareIsolation } = await import("./isolation.mjs");
+    const { prepareIsolation } = await import("./hosts/pi/isolation.mjs");
     const isolation = await prepareIsolation(directory, null);
-    const { baseProcessEnvironment } = await import("./pi.mjs");
+    const { baseProcessEnvironment } = await import("./process.mjs");
     const environment = { ...baseProcessEnvironment(), PWD: tree, ...isolation.environment };
     let result;
     try {
