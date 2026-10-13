@@ -8,30 +8,33 @@ import { createInvocationId, fileIdentity, writeJson, writeText } from "./eviden
 import { gradeDeterministic } from "./grade.mjs";
 import { prepareFreeflow } from "./freeflow.mjs";
 import { postRunRecords } from "./hooks.mjs";
-import { identityRefusal, inputIdentity, installedHostVersion } from "./identity.mjs";
-import { removeCopiedCredentials, TARGET_MINUTES } from "./isolation.mjs";
+import { hostAdapter } from "./hosts/index.mjs";
+import { identityRefusal, inputIdentity } from "./identity.mjs";
 import { prepareSourceExtensions } from "./build-source.mjs";
 import { armParticipants, runParticipants } from "./participants.mjs";
 import { prepareShell } from "./shell.mjs";
-import { ensureLogin, resolveHostExtensions } from "./pi-host.mjs";
 import { enforceReferenceChecks } from "./reference.mjs";
-import { baseProcessEnvironment, runBody, runDescription, VariantSetupError } from "./pi.mjs";
 import { createLimiter, withCpuSlot } from "./queue.mjs";
 import { adoptRun, appendIndex, createReuse } from "./reuse.mjs";
 import { prepareFixture, prepareRuntime, verifyDescriptionOnlyRevision } from "./sandbox.mjs";
 import { applySourceOverrides } from "./source-override.mjs";
+import { runBody, runDescription, VariantSetupError } from "./subject.mjs";
 
 const DESCRIPTION_TOOLS = new Set(["read"]);
 const BODY_TOOLS = new Set(["read", "write", "edit", "ls", "find", "grep"]);
 // Native tools must be separated from extension tools before CLI tool selection is built.
 const NATIVE_TOOLS = new Set(["read", "bash", "powershell", "edit", "write", "grep", "find", "ls"]);
 const DEFAULT_RUNTIME = {
-  host: "pi",
   session: false,
   prompt: "isolated",
   extensions: [],
   environment: { literal: {}, inherit: [] },
 };
+
+/** A group's host: its configuration's `host.name`, which every arm shares. Pi for groups resolved before it was recorded. */
+export function groupHost(group) {
+  return group.host ?? group.runtime?.host ?? "pi";
+}
 
 /** Where results are stored: `--results` when given, else `<root>/.skill-eval/runs`. */
 export function resultsDirectory(root, results = null) {
@@ -45,7 +48,7 @@ export function createRunReuse(runsDirectory, enabled) {
   return createReuse({
     resultsDirectory: runsDirectory,
     enabled,
-    hostVersion: () => installedHostVersion("pi", baseProcessEnvironment()),
+    hostVersion: (host) => hostAdapter(host).version(),
   });
 }
 
@@ -167,14 +170,16 @@ function workingTreeInputs(selection, definitionPath, root) {
   return [...inputs];
 }
 
-/** Each selected arm's declared host extensions, found among the installed Pi packages before anything starts. */
+/** Each selected arm's declared host extensions, found among the host's installed packages before anything starts. */
 async function resolveSelectedExtensions(selection) {
   const resolved = new Map();
   for (const { group, variants } of selection.groups) {
     const arms = Object.fromEntries(armNames(group).map((arm) => [arm, []]));
     for (const [arm, state] of Object.entries(variants)) {
       if (state === "selected") {
-        arms[arm] = await resolveHostExtensions(group.variants[arm].hostExtensions ?? [], { deferSources: true });
+        arms[arm] = await hostAdapter(groupHost(group)).resolveExtensions(group.variants[arm].hostExtensions ?? [], {
+          deferSources: true,
+        });
       }
     }
     resolved.set(group.id, arms);
@@ -193,33 +198,48 @@ async function sequential(items, work) {
  * once, centrally, so no subject has to refresh its own copy. Trials call it once for all their invocations.
  */
 export async function refreshSelectedLogins(selection) {
-  const providers = new Set();
+  const providers = new Map();
   for (const { group, variants } of selection.groups) {
+    const host = groupHost(group);
+    if (!providers.has(host)) providers.set(host, new Set());
     for (const [arm, state] of Object.entries(variants)) {
       const model = group.variants[arm].model?.model;
-      if (state === "selected" && typeof model === "string" && model.includes("/")) providers.add(model.split("/")[0]);
+      if (state === "selected" && typeof model === "string" && model.includes("/")) {
+        providers.get(host).add(model.split("/")[0]);
+      }
     }
   }
-  for (const provider of providers) await ensureLogin(provider, { threshold: TARGET_MINUTES, target: TARGET_MINUTES });
+  for (const [host, names] of providers) await hostAdapter(host).refreshLogins([...names]);
 }
 
-/** A declared host version must match the installed host before anything starts. */
+/**
+ * A declared host version must match the installed host before anything starts. Returns the installed version of
+ * the one host whose version was declared, or null when none was.
+ */
 async function checkHostVersion(selection) {
-  const declared = new Set();
+  const declared = new Map();
   for (const { group, variants } of selection.groups) {
+    const host = groupHost(group);
     for (const [arm, state] of Object.entries(variants)) {
       const version = group.configurations?.[arm]?.host?.version;
-      if (state === "selected" && version !== undefined) declared.add(version);
+      if (state !== "selected" || version === undefined) continue;
+      if (!declared.has(host)) declared.set(host, new Set());
+      declared.get(host).add(version);
     }
   }
   if (declared.size === 0) return null;
-  const installed = await installedHostVersion("pi", baseProcessEnvironment());
-  for (const version of declared) {
-    if (version !== installed) {
-      throw new Error(`the definition declares pi ${version}, but the installed pi is ${installed}`);
+  const installed = {};
+  for (const [host, versions] of declared) {
+    installed[host] = await hostAdapter(host).version();
+    for (const version of versions) {
+      if (version !== installed[host]) {
+        throw new Error(`the definition declares ${host} ${version}, but the installed ${host} is ${installed[host]}`);
+      }
     }
   }
-  return installed;
+  // One host's version is a string, as it always was; a selection declaring versions for several hosts records each.
+  const hosts = Object.keys(installed);
+  return hosts.length === 1 ? installed[hosts[0]] : installed;
 }
 
 function assertSupportedSelection(selection) {
@@ -308,7 +328,7 @@ async function runGroup({
     try {
       fixture = await prepareFixture({ declaredPath: group.fixture, root, groupDirectory });
       runtime = await prepareRuntime({
-        runtime: group.runtime ?? DEFAULT_RUNTIME,
+        runtime: group.runtime ?? { host: groupHost(group), ...DEFAULT_RUNTIME },
         root,
         groupDirectory,
       });
@@ -347,7 +367,7 @@ async function runGroup({
       runs[variant] = cancelledRun(group, variant);
     } else if (resourceError === null) {
       // With --reuse a canonical run has a reuse key: an indexed run under it stands in for this one, and a new
-      // run is indexed under it. Without --reuse nothing extra runs (not even `pi --version`).
+      // run is indexed under it. Without --reuse nothing extra runs (not even the host's version check).
       keys[variant] = dryRun || !reuse.enabled ? null : await reuse.keyFor(group, variant, root).catch(() => null);
       const claimed = await reuse.claim(keys[variant]);
       const adopted = claimed === null ? null : await adoptRun(claimed, variantDirectory).catch(() => null);
@@ -526,7 +546,7 @@ async function executeVariant({
     if (error instanceof VariantSetupError) return invalidRun(group, variant, error.message);
     return infrastructureFailedRun(group, variant, error);
   } finally {
-    await removeCopiedCredentials(variantDirectory);
+    await hostAdapter(groupHost(group)).removeCredentials(variantDirectory);
   }
 }
 

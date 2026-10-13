@@ -10,10 +10,10 @@ import { validateShell, validateShellGroup } from "./shell.mjs";
 import { referenceFiles, validateReferenceSolution } from "./reference.mjs";
 import { rubricFiles, validateJudging } from "./judge.mjs";
 import { participantFiles, validateParticipants } from "./participants.mjs";
+import { EVALUATION_HOSTS } from "./hosts/names.mjs";
 
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const EVALUATION_TYPES = new Set(["description", "body"]);
-const EVALUATION_HOSTS = new Set(["pi"]);
 const PROMPT_MODES = new Set(["isolated", "host"]);
 export const COMMAND_TOOL = "run_command";
 const MAX_COMMAND_TIMEOUT_MS = 10 * 60 * 1000;
@@ -780,6 +780,8 @@ async function validateGroup(value, definitionPath, root) {
     internal.model = referenceModel;
   }
   if (resolved[reference].runtime !== undefined) internal.runtime = resolved[reference].runtime;
+  // The host may not differ between arms (SHARED_ONLY), so the reference's is the group's.
+  internal.host = resolved[reference].configuration.host.name;
   return internal;
 }
 
@@ -843,7 +845,7 @@ async function readJsonFile(file, root) {
  * Loads a configuration file (`kind: "configuration"`) on its own, for a process that is not an arm, such as
  * the advisory reviewer: its model, host extensions and host settings, validated as an arm's would be.
  *
- * @returns {Promise<{model: {model: string, thinking?: string} | null, extensions: Array<{package: string, version: string}>, settings: Record<string, unknown>}>}
+ * @returns {Promise<{host: string | null, model: {model: string, thinking?: string} | null, extensions: Array<{package: string, version: string}>, settings: Record<string, unknown>}>}
  */
 export async function loadConfiguration(file, { root = process.cwd() } = {}) {
   const absolute = path.resolve(root, file);
@@ -855,7 +857,7 @@ export async function loadConfiguration(file, { root = process.cwd() } = {}) {
  * A rubric judge's own configuration: inline `host` and `model`, or `{ "extends": "<path>" }` naming a configuration
  * file relative to the group file. Validated as a configuration; `file` is the extended file, a run input.
  *
- * @returns {Promise<{model: {model: string, thinking?: string} | null, extensions: Array<any>, settings: Record<string, unknown>, file: string | null}>}
+ * @returns {Promise<{host: string | null, model: {model: string, thinking?: string} | null, extensions: Array<any>, settings: Record<string, unknown>, file: string | null}>}
  */
 export async function loadJudgeConfiguration(value, label, definitionPath, root) {
   const object = requireObject(value, label, definitionPath);
@@ -871,23 +873,25 @@ export async function loadJudgeConfiguration(value, label, definitionPath, root)
 
 /** The host setup a configuration gives a process that is not an arm: its model, host extensions and settings. */
 function hostSetup(configuration, label, absolute) {
+  let host = null;
   let extensions = [];
   let settings = {};
   if (Object.hasOwn(configuration, "host")) {
-    const host = requireExactKeys(
+    const declared = requireExactKeys(
       configuration.host,
       ["name"],
       ["version", "extensions", "settings"],
       `${label}.host`,
       absolute,
     );
-    if (!EVALUATION_HOSTS.has(host.name)) fail("invalid-definition", `${label}.host.name must be pi`, absolute);
-    if (Object.hasOwn(host, "extensions")) {
-      validateHostExtensions(host.extensions, `${label}.host.extensions`, absolute);
-      extensions = host.extensions;
+    if (!EVALUATION_HOSTS.has(declared.name)) fail("invalid-definition", `${label}.host.name must be pi`, absolute);
+    host = declared.name;
+    if (Object.hasOwn(declared, "extensions")) {
+      validateHostExtensions(declared.extensions, `${label}.host.extensions`, absolute);
+      extensions = declared.extensions;
     }
-    if (Object.hasOwn(host, "settings")) {
-      settings = requireObject(host.settings, `${label}.host.settings`, absolute);
+    if (Object.hasOwn(declared, "settings")) {
+      settings = requireObject(declared.settings, `${label}.host.settings`, absolute);
       if (Object.hasOwn(settings, "packages")) {
         fail(
           "invalid-definition",
@@ -902,7 +906,8 @@ function hostSetup(configuration, label, absolute) {
     validateModel(configuration.model, `${label}.model`, absolute);
     model = configuration.model;
   }
-  return { model, extensions, settings };
+  // `host` is null when the configuration names none; the process then runs on the host it inherits.
+  return { host, model, extensions, settings };
 }
 
 export async function loadDefinition(file, { root = process.cwd() } = {}) {

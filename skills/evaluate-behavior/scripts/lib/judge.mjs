@@ -134,6 +134,7 @@ export async function validateJudging(group, definitionPath, root) {
       const normalized = { model, ...(thinking === undefined ? {} : { thinking }) };
       if (own !== null) {
         normalized.configuration = {
+          ...(own.host === null ? {} : { host: own.host }),
           extensions: own.extensions,
           settings: own.settings,
           source: own.file === null ? "inline" : path.relative(root, own.file).split(path.sep).join("/"),
@@ -226,20 +227,21 @@ export function rubricHash(rubric) {
 }
 
 /**
- * A judge configuration's identity for calibration: its model, thinking, host extensions and the rubric it
+ * A judge configuration's identity for calibration: its host, model, thinking, host extensions and the rubric it
  * answers. Calibration measured for one configuration says nothing about another.
  */
-export function judgeConfiguration({ model, thinking, extensions, settings = {}, rubric }) {
-  return sha256(
-    JSON.stringify([
-      model,
-      thinking ?? null,
-      (extensions ?? []).map((entry) => entry.package),
-      settings,
-      rubricHash(rubric),
-      RUBRIC_PROMPT_VERSION,
-    ]),
-  ).slice(0, 16);
+export function judgeConfiguration({ host = "pi", model, thinking, extensions, settings = {}, rubric }) {
+  const identity = [
+    model,
+    thinking ?? null,
+    (extensions ?? []).map((entry) => entry.package),
+    settings,
+    rubricHash(rubric),
+    RUBRIC_PROMPT_VERSION,
+  ];
+  // Another host is another configuration; Pi's identity keeps its original form, so its calibrations still hold.
+  if (host !== "pi") identity.push(host);
+  return sha256(JSON.stringify(identity)).slice(0, 16);
 }
 
 /** An answer as stored: "yes", "no", "unknown", or a number on the 0-2 scale; undefined when it is not valid. */

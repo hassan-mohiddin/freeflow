@@ -18,7 +18,7 @@ import { armNames } from "../../skills/evaluate-behavior/scripts/lib/arms.mjs";
 import { decide, validateDecision } from "../../skills/evaluate-behavior/scripts/lib/decision.mjs";
 import { loadDefinition } from "../../skills/evaluate-behavior/scripts/lib/definitions.mjs";
 import { installedHostVersion } from "../../skills/evaluate-behavior/scripts/lib/identity.mjs";
-import { baseProcessEnvironment } from "../../skills/evaluate-behavior/scripts/lib/pi.mjs";
+import { baseProcessEnvironment } from "../../skills/evaluate-behavior/scripts/lib/process.mjs";
 import { readIndex, reuseKey } from "../../skills/evaluate-behavior/scripts/lib/reuse.mjs";
 import { applySourceOverrides } from "../../skills/evaluate-behavior/scripts/lib/source-override.mjs";
 import { aggregateGroups } from "../../skills/evaluate-behavior/scripts/lib/trials.mjs";

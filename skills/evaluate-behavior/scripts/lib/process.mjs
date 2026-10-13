@@ -3,6 +3,28 @@ import { once } from "node:events";
 
 export const NO_PROGRESS_MS = 30 * 60 * 1000;
 export const TERMINATION_GRACE_MS = 5000;
+// What every process the evaluator starts (subjects, judges, graders, builds) may inherit from the evaluator's own
+// environment; everything else is set explicitly. Pi's package directory and offline switch pass through for Pi.
+const BASE_PROCESS_ENVIRONMENT_KEYS = [
+  "PATH",
+  "HOME",
+  "TMPDIR",
+  "TMP",
+  "TEMP",
+  "LANG",
+  "LC_ALL",
+  "XDG_CONFIG_HOME",
+  "XDG_DATA_HOME",
+  "XDG_CACHE_HOME",
+  "PI_PACKAGE_DIR",
+  "PI_OFFLINE",
+];
+
+export function baseProcessEnvironment() {
+  return Object.fromEntries(
+    BASE_PROCESS_ENVIRONMENT_KEYS.flatMap((key) => (process.env[key] === undefined ? [] : [[key, process.env[key]]])),
+  );
+}
 
 export async function pipeStream(source, destination, onActivity) {
   for await (const chunk of source) {

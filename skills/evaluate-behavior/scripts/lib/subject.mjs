@@ -1,27 +1,15 @@
+// One subject: the host-neutral part of running an arm's agent. It materializes the declared environment, fixture,
+// runtime and Freeflow settings, asks the arm's host adapter (hosts/) to launch the agent, and turns what the host
+// observed into the arm's run record. Everything that depends on the host program lives in its adapter.
+
 import { createHash } from "node:crypto";
-import { spawn } from "node:child_process";
-import { once } from "node:events";
-import { createWriteStream } from "node:fs";
 import { mkdir, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-import {
-  mergeUsage,
-  messageText,
-  NO_PROGRESS_MS,
-  pipeStream,
-  processGroupExists,
-  signalProcessTree,
-  TERMINATION_GRACE_MS,
-  waitForForcedKill,
-  writeStream,
-} from "./process.mjs";
+import { baseProcessEnvironment } from "./process.mjs";
 import { writeFreeflowSettings } from "./freeflow.mjs";
 import { runMetrics } from "./hooks.mjs";
-import { prepareIsolation } from "./isolation.mjs";
-import { effectivePiSettings } from "./pi-host.mjs";
-import { runRpcBodySession, runRpcDescriptionSession } from "./rpc.mjs";
+import { hostAdapter } from "./hosts/index.mjs";
 import {
   fingerprintDirectory,
   materializeEnvironment,
@@ -33,29 +21,6 @@ import {
   workspaceChanges,
 } from "./sandbox.mjs";
 
-const guardExtension = fileURLToPath(new URL("../pi-guard.mjs", import.meta.url));
-
-/** The evaluator's guard extension, which every subject process (and a shell's confinement probe) loads first. */
-export function guardExtensionPath() {
-  return guardExtension;
-}
-const commandToolExtension = fileURLToPath(new URL("../pi-command-tool.mjs", import.meta.url));
-const observerExtension = fileURLToPath(new URL("../pi-observer.mjs", import.meta.url));
-const HOST_COMMANDS = { pi: "pi" };
-const BASE_PROCESS_ENVIRONMENT_KEYS = [
-  "PATH",
-  "HOME",
-  "TMPDIR",
-  "TMP",
-  "TEMP",
-  "LANG",
-  "LC_ALL",
-  "XDG_CONFIG_HOME",
-  "XDG_DATA_HOME",
-  "XDG_CACHE_HOME",
-  "PI_PACKAGE_DIR",
-  "PI_OFFLINE",
-];
 const TURN_WORKSPACE_KINDS = new Set(["path", "changed-paths", "file-text", "json"]);
 
 export class VariantSetupError extends Error {
@@ -113,7 +78,8 @@ export async function runBody({
   }
   let observation;
   try {
-    observation = await runRpcBodySession({
+    observation = await subject.adapter.runSession({
+      subject,
       command: subject.host.command,
       settings: subject.isolation.settings,
       args: subject.args,
@@ -243,7 +209,8 @@ function subjectRun({ group, variant }, subject, observation) {
 
 async function runOneShotDescription(options) {
   const subject = await prepareSubject(options, "json");
-  const observation = await runPiProcess({
+  const observation = await subject.adapter.runOneShot({
+    subject,
     command: subject.host.command,
     args: subject.args,
     cwd: subject.workspace,
@@ -276,7 +243,8 @@ async function runOneShotDescription(options) {
 
 async function runPersistentDescription(options) {
   const subject = await prepareSubject(options, "rpc");
-  const observation = await runRpcDescriptionSession({
+  const observation = await subject.adapter.runSession({
+    subject,
     command: subject.host.command,
     settings: subject.isolation.settings,
     args: subject.args,
@@ -345,6 +313,7 @@ async function prepareSubject(
   let environment;
   let fixture;
   let materializedRuntime;
+  let adapter;
   let isolation;
   try {
     environment = await materializeEnvironment({
@@ -361,30 +330,20 @@ async function prepareSubject(
     fixture = await materializeFixture({ fixture: fixtureSnapshot, workspace });
     // Written before the workspace's starting state is taken, so they never count as the subject's changes.
     if (freeflow !== null) await writeFreeflowSettings(workspace, freeflow);
-    isolation = await prepareIsolation(variantDirectory, group.variants[variant].model?.model ?? null, {
-      settings: effectivePiSettings(group.variants[variant].hostSettings ?? {}),
+    adapter = hostAdapter(materializedRuntime.host);
+    isolation = await adapter.prepareIsolation(variantDirectory, group.variants[variant].model?.model ?? null, {
+      settings: adapter.effectiveSettings(group.variants[variant].hostSettings ?? {}),
     });
   } catch (error) {
     if (error instanceof VariantSetupError) throw error;
     throw new VariantSetupError(error instanceof Error ? error.message : String(error));
   }
 
-  const host = { name: materializedRuntime.host, command: HOST_COMMANDS[materializedRuntime.host] };
+  const host = { name: materializedRuntime.host, command: adapter.command };
   const contextObservationPath = path.join(variantDirectory, "context-observations.jsonl");
   const requiresContextObservation = group.expectations.some((expectation) => expectation.kind === "context-text");
   const sessionDirectory = path.join(variantDirectory, "session");
   if (materializedRuntime.session) await mkdir(sessionDirectory, { recursive: true });
-  const args = piArguments(
-    group,
-    environment,
-    materializedRuntime,
-    mode,
-    requiresContextObservation,
-    sessionDirectory,
-    group.variants[variant].model,
-    freeflow?.entry ?? null,
-    hostExtensions,
-  );
   const allowedRoots = [
     await realpath(workspace),
     ...environment.skills.map((skill) => skill.path),
@@ -393,8 +352,32 @@ async function prepareSubject(
     // Freeflow points the subject at its own skills and references inside the package.
     ...(freeflow === null ? [] : [freeflow.packageRoot]),
   ];
+  let launch;
+  try {
+    launch = await adapter.prepareLaunch({
+      group,
+      variant,
+      environment,
+      runtime: materializedRuntime,
+      mode,
+      observeContext: requiresContextObservation,
+      contextObservationPath,
+      sessionDirectory,
+      model: group.variants[variant].model,
+      freeflowEntry: freeflow?.entry ?? null,
+      hostExtensions,
+      workspace,
+      variantDirectory,
+      allowedRoots,
+      isolation: isolation.evidence,
+    });
+  } catch (error) {
+    if (error instanceof VariantSetupError) throw error;
+    throw new VariantSetupError(error instanceof Error ? error.message : String(error));
+  }
   return {
-    args,
+    adapter,
+    args: launch.args,
     environment,
     hostExtensions,
     freeflow:
@@ -429,6 +412,7 @@ async function prepareSubject(
         contextManifestPath: environment.contextDelivery.manifestPath,
         contextObservationPath,
         requiresContextObservation,
+        hostEnvironment: launch.environment,
       }),
       // A declared shell lets the guard allow bash; its isolation extension runs it.
       ...(group.variants[variant].shell ? { SKILL_EVAL_SHELL: JSON.stringify(group.variants[variant].shell) } : {}),
@@ -446,13 +430,14 @@ function createProcessEnvironment({
   contextManifestPath,
   contextObservationPath,
   requiresContextObservation,
+  hostEnvironment,
 }) {
   const processEnvironment = baseProcessEnvironment();
   Object.assign(processEnvironment, {
     PWD: workspace,
     ...runtime.environment.literal,
-    PI_SKIP_VERSION_CHECK: "1",
-    PI_TELEMETRY: "0",
+    // The host's own variables, such as Pi's version check and telemetry switches, after declared literals.
+    ...hostEnvironment,
     SKILL_EVAL_ALLOWED_ROOTS: JSON.stringify(allowedRoots),
     SKILL_EVAL_WRITABLE_ROOT: workspace,
     SKILL_EVAL_ALLOWED_TOOLS: JSON.stringify(group.tools),
@@ -469,12 +454,6 @@ function createProcessEnvironment({
   }
   if (requiresContextObservation) processEnvironment.SKILL_EVAL_CONTEXT_OBSERVATION_PATH = contextObservationPath;
   return processEnvironment;
-}
-
-export function baseProcessEnvironment() {
-  return Object.fromEntries(
-    BASE_PROCESS_ENVIRONMENT_KEYS.flatMap((key) => (process.env[key] === undefined ? [] : [[key, process.env[key]]])),
-  );
 }
 
 // A missing or malformed observation fails the subject but keeps everything the process already reported:
@@ -558,208 +537,6 @@ function subjectRunState(observation) {
     return "complete";
   }
   return "infrastructure-failed";
-}
-
-function piArguments(
-  group,
-  environment,
-  runtime,
-  mode,
-  observeContext,
-  sessionDirectory,
-  model,
-  freeflowEntry,
-  hostExtensions = [],
-) {
-  const args = ["--mode", mode];
-  if (mode === "json") args.push("-p");
-  if (runtime.session) args.push("--session-dir", sessionDirectory);
-  else args.push("--no-session");
-  args.push("--no-extensions", "--extension", guardExtension);
-  // Provider extensions (such as a subscription's auth extension) load right after the guard.
-  for (const extension of hostExtensions) args.push("--extension", extension.path);
-  if (group.commands !== undefined) args.push("--extension", commandToolExtension);
-  if (freeflowEntry !== null) args.push("--extension", freeflowEntry);
-  for (const bundle of runtime.extensions) args.push("--extension", bundle.entry);
-  if (observeContext) args.push("--extension", observerExtension);
-  args.push("--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files", "--no-approve");
-  if (group.tools.length === 0) args.push("--no-tools");
-  else args.push("--tools", group.tools.join(","));
-  for (const skill of environment.skills) args.push("--skill", skill.path);
-  if (model?.model) args.push("--model", model.model);
-  if (model?.thinking) args.push("--thinking", model.thinking);
-  if (mode === "json") args.push(group.input.prompt);
-  return args;
-}
-
-export async function runPiProcess({ command, args, cwd, eventsFile, stderrFile, signal, environment }) {
-  const child = spawn(command, args, {
-    cwd,
-    detached: process.platform !== "win32",
-    env: environment,
-    shell: false,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  const events = createWriteStream(eventsFile, { encoding: "utf8" });
-  const stderr = createWriteStream(stderrFile, { encoding: "utf8" });
-  const transcript = [];
-  const calls = new Map();
-  const toolActivity = [];
-  const successfulReads = [];
-  const parseErrors = [];
-  const protocolErrors = [];
-  let settled = false;
-  let response = "";
-  let usage = null;
-  let assistantError = null;
-  let observedModel = null;
-  let buffer = "";
-  let eventLine = 0;
-  const processGroupId = child.pid;
-  let watchdog;
-  let forcedKill;
-  /** @type {Promise<void> | null} */
-  let forcedKillPromise = null;
-  let terminationReason = null;
-
-  const resetWatchdog = () => {
-    clearTimeout(watchdog);
-    watchdog = setTimeout(() => requestTermination("no-progress-watchdog"), NO_PROGRESS_MS);
-    watchdog.unref();
-  };
-  const requestTermination = (reason) => {
-    if (terminationReason !== null) return;
-    terminationReason = reason;
-    signalProcessTree(processGroupId, child, "SIGTERM");
-    if (process.platform !== "win32") {
-      forcedKillPromise = new Promise((resolve) => {
-        forcedKill = setTimeout(() => {
-          signalProcessTree(processGroupId, child, "SIGKILL");
-          resolve();
-        }, TERMINATION_GRACE_MS);
-      });
-    }
-  };
-  const onAbort = () => requestTermination("cancelled");
-  if (signal?.aborted) onAbort();
-  else signal?.addEventListener("abort", onAbort, { once: true });
-  resetWatchdog();
-
-  const stderrTask = pipeStream(child.stderr, stderr, resetWatchdog);
-  const stdoutTask = (async () => {
-    for await (const chunk of child.stdout) {
-      resetWatchdog();
-      buffer += chunk.toString("utf8");
-      while (true) {
-        const newline = buffer.indexOf("\n");
-        if (newline === -1) break;
-        const line = buffer.slice(0, newline);
-        buffer = buffer.slice(newline + 1);
-        await writeStream(events, `${line}\n`);
-        observeLine(line.endsWith("\r") ? line.slice(0, -1) : line);
-      }
-    }
-    if (buffer.length > 0) {
-      await writeStream(events, buffer);
-      observeLine(buffer.endsWith("\r") ? buffer.slice(0, -1) : buffer);
-    }
-    events.end();
-    await once(events, "finish");
-  })();
-
-  function observeLine(line) {
-    eventLine += 1;
-    if (line.trim() === "") return;
-    let event;
-    try {
-      event = JSON.parse(line);
-    } catch {
-      parseErrors.push({ line: eventLine, reason: "invalid-json" });
-      return;
-    }
-    if (event.type === "extension_error") {
-      protocolErrors.push({
-        reason: "extension-error",
-        extensionPath: event.extensionPath ?? null,
-        event: event.event ?? null,
-        error: event.error ?? null,
-      });
-      requestTermination("protocol-error");
-    }
-    if (event.type === "agent_settled") settled = true;
-    if (event.type === "tool_execution_start") {
-      // Same shape as RPC turns record, so graders and the advisory reviewer see one-shot tool use too.
-      const activity = {
-        toolCallId: event.toolCallId ?? null,
-        toolName: event.toolName ?? null,
-        args: event.args ?? null,
-        completed: false,
-        isError: null,
-      };
-      toolActivity.push(activity);
-      calls.set(event.toolCallId, activity);
-    }
-    if (event.type === "tool_execution_end") {
-      const call = calls.get(event.toolCallId);
-      if (call) {
-        call.completed = true;
-        call.isError = event.isError === true;
-      }
-      if (!event.isError && call?.toolName === "read" && typeof call.args?.path === "string") {
-        successfulReads.push(call.args.path);
-      }
-    }
-    if (event.type === "message_end" && event.message) {
-      transcript.push(event.message);
-      if (event.message.role === "assistant") {
-        response = messageText(event.message);
-        usage = mergeUsage(usage, event.message.usage);
-        observedModel = {
-          provider: event.message.provider ?? null,
-          model: event.message.model ?? null,
-        };
-        assistantError =
-          event.message.stopReason === "error" || event.message.stopReason === "aborted"
-            ? (event.message.errorMessage ?? `assistant stopped with ${event.message.stopReason}`)
-            : null;
-      }
-    }
-  }
-
-  let exitCode = null;
-  let exitSignal = null;
-  try {
-    const [code, closedSignal] = await once(child, "close");
-    exitCode = code;
-    exitSignal = closedSignal;
-    await Promise.all([stdoutTask, stderrTask]);
-  } catch (error) {
-    requestTermination("process-error");
-    throw error;
-  } finally {
-    clearTimeout(watchdog);
-    if (forcedKillPromise !== null) {
-      if (processGroupExists(processGroupId)) await waitForForcedKill(forcedKillPromise);
-      else clearTimeout(forcedKill);
-    }
-    signal?.removeEventListener("abort", onAbort);
-  }
-
-  return {
-    exitCode,
-    signal: exitSignal,
-    settled,
-    assistantError,
-    model: observedModel,
-    terminationReason,
-    parseErrors,
-    protocolErrors,
-    successfulReads,
-    toolActivity,
-    transcript,
-    response,
-    usage,
-  };
 }
 
 async function canonicalReadPaths(paths, cwd) {

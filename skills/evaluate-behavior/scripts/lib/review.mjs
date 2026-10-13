@@ -23,7 +23,7 @@ import {
   steeringOf,
   withCalibration,
 } from "./judge.mjs";
-import { resolveHostExtensions } from "./pi-host.mjs";
+import { hostAdapter } from "./hosts/index.mjs";
 import { launchModel as launchJudge } from "./model-call.mjs";
 import { rebuildAggregate } from "./trials.mjs";
 import { resolveResult } from "./view.mjs";
@@ -80,7 +80,7 @@ export async function reviewResult(
   }
   const judge =
     configuration === null
-      ? { model: null, extensions: [], settings: {} }
+      ? { host: null, model: null, extensions: [], settings: {} }
       : await loadConfiguration(configuration, { root });
   model = model ?? judge.model?.model ?? null;
   thinking = thinking ?? judge.model?.thinking ?? null;
@@ -98,24 +98,31 @@ export async function reviewResult(
   const setups = new Map();
   const resolved = new Map();
   for (const group of groups) {
+    let host;
     let declared;
     let settings;
     let setup;
+    const definition = await readJsonOrNull(path.join(resultDirectory, "groups", group.id, "definition.json"));
+    const inherited = groupHostSetup(definition ?? {});
     if (configuration !== null) {
-      [declared, settings, setup] = [judge.extensions, judge.settings, "command-line"];
+      // A configuration that names no host runs the reviewer on the group's.
+      [host, declared, settings, setup] = [
+        judge.host ?? inherited.host,
+        judge.extensions,
+        judge.settings,
+        "command-line",
+      ];
     } else {
-      const definition = await readJsonOrNull(path.join(resultDirectory, "groups", group.id, "definition.json"));
-      const inherited = groupHostSetup(definition ?? {});
       if (inherited.problem !== null) {
         throw new Error(
           `group ${group.id}: its host extensions are built from source, which the reviewer cannot inherit; pass --configuration`,
         );
       }
-      [declared, settings, setup] = [inherited.extensions, inherited.settings, "group"];
+      [host, declared, settings, setup] = [inherited.host, inherited.extensions, inherited.settings, "group"];
     }
-    const key = JSON.stringify(declared);
-    if (!resolved.has(key)) resolved.set(key, await resolveHostExtensions(declared));
-    setups.set(group.id, { extensions: resolved.get(key), settings, setup });
+    const key = JSON.stringify([host, declared]);
+    if (!resolved.has(key)) resolved.set(key, await hostAdapter(host).resolveExtensions(declared));
+    setups.set(group.id, { host, extensions: resolved.get(key), settings, setup });
   }
   const sampled =
     swapSample === null
@@ -161,7 +168,19 @@ function selectGroups(summary, selector) {
 async function reviewGroup(
   groupDirectory,
   group,
-  { root, model, thinking, extensions, settings, setup = "command-line", swap, swapSample = null, limits, signal },
+  {
+    root,
+    host = "pi",
+    model,
+    thinking,
+    extensions,
+    settings,
+    setup = "command-line",
+    swap,
+    swapSample = null,
+    limits,
+    signal,
+  },
 ) {
   const { id } = group;
   const definition = JSON.parse(await readFile(path.join(groupDirectory, "definition.json"), "utf8"));
@@ -186,6 +205,7 @@ async function reviewGroup(
   const order = shuffle(arms);
   const labels = labelled(order);
   const first = await runJudge(groupDirectory, "review", definition, questions, labels, evidence, {
+    host,
     model,
     thinking,
     extensions,
@@ -196,6 +216,7 @@ async function reviewGroup(
   if (swap && first.errors.length === 0 && !signal?.aborted) {
     const swapped = labelled([...order].reverse());
     second = await runJudge(groupDirectory, "review-swap", definition, questions, swapped, evidence, {
+      host,
       model,
       thinking,
       extensions,
@@ -561,20 +582,20 @@ export async function reviewRubric(
   } = {},
 ) {
   const effectiveLimits = reviewLimits(limits);
-  const host =
+  const commandLine =
     configuration === null
-      ? { model: null, extensions: [], settings: {} }
+      ? { host: null, model: null, extensions: [], settings: {} }
       : await loadConfiguration(configuration, { root });
-  const fallback = model ?? host.model?.model ?? null;
+  const fallback = model ?? commandLine.model?.model ?? null;
   const fallbackJudge =
-    fallback === null ? null : { model: fallback, thinking: thinking ?? host.model?.thinking ?? null };
+    fallback === null ? null : { model: fallback, thinking: thinking ?? commandLine.model?.thinking ?? null };
   const { resultDirectory, aggregateFile, results: trialDirectories } = await targetResults(target, root, results);
-  // Each distinct declared extension list is resolved once, against the installed Pi packages.
+  // Each distinct declared extension list is resolved once, against the host's installed packages.
   const resolvedSetups = new Map();
-  const resolveSetup = async (declared, settings, setup) => {
-    const key = JSON.stringify(declared);
-    if (!resolvedSetups.has(key)) resolvedSetups.set(key, await resolveHostExtensions(declared));
-    return { extensions: resolvedSetups.get(key), settings, setup };
+  const resolveSetup = async (host, declared, settings, setup) => {
+    const key = JSON.stringify([host, declared]);
+    if (!resolvedSetups.has(key)) resolvedSetups.set(key, await hostAdapter(host).resolveExtensions(declared));
+    return { host, extensions: resolvedSetups.get(key), settings, setup };
   };
   let commandLineUsed = false;
   let declaredJudgesSeen = false;
@@ -592,7 +613,7 @@ export async function reviewRubric(
         const groupSetup = groupHostSetup(definition);
         const inherit = () => {
           if (groupSetup.problem !== null) throw new Error(`group ${group.id}: ${groupSetup.problem}`);
-          return resolveSetup(groupSetup.extensions, groupSetup.settings, "group");
+          return resolveSetup(groupSetup.host, groupSetup.extensions, groupSetup.settings, "group");
         };
         if (Array.isArray(definition.judges) && definition.judges.length > 0) {
           if (model !== null || thinking !== null) {
@@ -605,7 +626,12 @@ export async function reviewRubric(
             const setup =
               own === null
                 ? await inherit()
-                : await resolveSetup(own.extensions ?? [], own.settings ?? {}, `own (${own.source ?? "inline"})`);
+                : await resolveSetup(
+                    own.host ?? groupSetup.host,
+                    own.extensions ?? [],
+                    own.settings ?? {},
+                    `own (${own.source ?? "inline"})`,
+                  );
             judges.push({ model: judge.model, thinking: judge.thinking ?? null, ...setup });
           }
         } else if (fallbackJudge !== null) {
@@ -613,7 +639,12 @@ export async function reviewRubric(
           const setup =
             configuration === null
               ? await inherit()
-              : await resolveSetup(host.extensions, host.settings, "command-line");
+              : await resolveSetup(
+                  commandLine.host ?? groupSetup.host,
+                  commandLine.extensions,
+                  commandLine.settings,
+                  "command-line",
+                );
           if (configuration !== null) commandLineUsed = true;
           judges = [{ ...fallbackJudge, ...setup }];
         } else {
@@ -659,6 +690,8 @@ function groupHostSetup(definition) {
   const settings = reference.hostSettings ?? {};
   const fromSource = extensions.some((extension) => !Object.hasOwn(extension, "package"));
   return {
+    // Definitions stored before the host was recorded ran on Pi.
+    host: definition.host ?? definition.runtime?.host ?? "pi",
     extensions,
     settings,
     problem: fromSource
@@ -744,8 +777,9 @@ async function judgeGroup(groupDirectory, group, definition, rubric, judges, opt
     for (const [index, judge] of judges.entries()) {
       if (signal?.aborted) break;
       const directory = path.join(judgingDirectory, `judge-${index + 1}`);
-      const { extensions, settings, setup } = judge;
+      const { host, extensions, settings, setup } = judge;
       const launched = await launchJudge(directory, prompt, {
+        host,
         model: judge.model,
         thinking: judge.thinking,
         extensions,
@@ -758,6 +792,7 @@ async function judgeGroup(groupDirectory, group, definition, rubric, judges, opt
       const answers = errors.length === 0 ? parseRubricAnswers(launched.response, rubric, errors, notes) : [];
       const provider = judge.model.includes("/") ? judge.model.split("/")[0] : null;
       const configurationId = judgeConfiguration({
+        host,
         model: judge.model,
         thinking: judge.thinking,
         extensions,

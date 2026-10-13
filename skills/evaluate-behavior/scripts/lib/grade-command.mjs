@@ -300,7 +300,7 @@ async function commandEnvironment(isolationRoot, cwd) {
   const agent = path.join(isolationRoot, "agent");
   for (const entry of [home, tmp, agent]) await mkdir(entry, { recursive: true });
   // Loaded here so definitions.mjs, which validates command expectations, stays free of the host modules.
-  const { baseProcessEnvironment } = await import("./pi.mjs");
+  const { baseProcessEnvironment } = await import("./process.mjs");
   return {
     ...baseProcessEnvironment(),
     PWD: cwd,

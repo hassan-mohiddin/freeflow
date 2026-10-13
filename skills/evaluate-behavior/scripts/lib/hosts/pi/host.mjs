@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 const run = promisify(execFile);
-const REFRESH_HELPER = fileURLToPath(new URL("../pi-login-refresh.mjs", import.meta.url));
+const REFRESH_HELPER = fileURLToPath(new URL("../../../pi-login-refresh.mjs", import.meta.url));
 const LOCK_STALE_MS = 2 * 60 * 1000;
 const LOCK_WAIT_MS = 90 * 1000;
 
