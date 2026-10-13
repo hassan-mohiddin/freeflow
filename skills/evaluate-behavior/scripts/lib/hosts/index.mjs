@@ -1,4 +1,4 @@
-// Evaluation hosts. A host is the agent program that runs a subject's model and tools (Pi today). The evaluator's
+// Evaluation hosts. A host is the agent program that runs a subject's model and tools: Pi or Claude Code. The evaluator's
 // core is host-neutral; each host's adapter implements the same interface:
 //
 // - name, label, command; version(environment): the installed host's version.
@@ -14,9 +14,13 @@
 //
 // Names a definition may use are in names.mjs, which definitions.mjs reads without loading any adapter.
 
+import { claudeCodeHost } from "./claude-code/index.mjs";
 import { piHost } from "./pi/index.mjs";
 
-const ADAPTERS = new Map([[piHost.name, piHost]]);
+const ADAPTERS = new Map([
+  [piHost.name, piHost],
+  [claudeCodeHost.name, claudeCodeHost],
+]);
 
 /** The adapter for a host name; an unknown name is an error, never a fallback to Pi. */
 export function hostAdapter(name) {

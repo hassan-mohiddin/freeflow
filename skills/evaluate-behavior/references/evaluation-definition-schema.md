@@ -147,7 +147,7 @@ A configuration has these fields; each arm's effective configuration is the shar
 
 | Field | Required in the effective configuration | Meaning |
 | --- | --- | --- |
-| `host` | yes | `{ "name": "pi" }`, with optional `version` (must match `pi --version`), `extensions` and `settings`; see [Host Extensions And Settings](#host-extensions-and-settings). |
+| `host` | yes | `{ "name": "pi" }` or `{ "name": "claude-code" }`, with optional `version` (must match `pi --version` or the first word of `claude --version`), `extensions` and `settings`; see [Host Extensions And Settings](#host-extensions-and-settings) and [Claude Code](#claude-code). |
 | `subject` | yes | What is under test: `{ "kind": "skill", "source", "skills", "target", "context" }` (see [Subject](#subject)) or `{ "kind": "none" }` when the comparison is about the environment, not a skill. |
 | `model` | no | `model` names the provider/model; optional `thinking` selects its thinking level. The CLI has no model override, and a subject run without a model gets Pi's default and no copied login. |
 | `runtime` | no | Host session, prompt mode, extension bundles and environment; see [Runtime Profile](#runtime-profile). |
@@ -346,6 +346,28 @@ The examples are complete definition shapes. Replace fixture, resource, model, a
   - These entries are for arms; a reviewer configuration may list only installed packages.
 - The advisory reviewer takes the same fields from a configuration file given with `review --configuration`.
 
+## Claude Code
+
+`"host": { "name": "claude-code" }` runs subjects, judges and simulated users in headless Claude Code (`claude -p` with stream-json input and output). A group runs on one host; compare hosts with one group per host.
+
+```json
+{
+  "host": { "name": "claude-code", "version": "2.1.296" },
+  "model": { "model": "anthropic/claude-haiku-5-5", "thinking": "low" },
+  "subject": { "kind": "none" },
+  "environment": { "kind": "container", "image": "python@sha256:<64 hex characters>", "workdir": "/testbed", "network": "none" }
+}
+```
+
+- **Login.** Claude Code's login reaches a subject only from the evaluator's environment: `CLAUDE_CODE_OAUTH_TOKEN` (on a Mac whose login is in the keychain, `claude setup-token` prints one), `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` or `CLAUDE_SESSION_INGRESS_TOKEN_FILE`, with `ANTHROPIC_BASE_URL` and proxy variables when set. No credential file is copied. `run.json` records the variable names under `isolation.credentials`, never their values. Without one, the arm is invalid before it starts.
+- **Model.** Every arm declares one: `anthropic/<model>` or a bare Claude model name. `thinking` is Claude Code's `--effort`: `low`, `medium`, `high`, `xhigh` or `max`.
+- **Tools.** `read`, `write`, `edit` and `grep` run as Claude Code's Read, Write, Edit and Grep; `ls` and `find` as Glob. Nothing else is enabled: no Agent, web or MCP tools. A Glob or Grep pattern must be relative to its path. `bash` runs as Bash only in a [Container Environment](#container-environment): Claude Code has no isolation extension, so `shell` is refused.
+- **Isolation.** Each process has its own home, temp and `CLAUDE_CONFIG_DIR`, and starts with `--setting-sources ""`, `--strict-mcp-config`, `--disable-slash-commands`, `--permission-mode dontAsk` and the evaluator's guard as a PreToolUse hook. CLAUDE.md files, auto memory, automatic compaction, the updater and nonessential traffic are off. Client retries stay at Claude Code's default.
+- **Prompt.** `isolated` (the default) replaces Claude Code's system prompt with the evaluator's, which lists the declared tools, skills and context; `host` keeps Claude Code's and appends the skills listing and context. Claude Code still adds its own identity line and an environment note to every request; the note says whether a Git repository encloses the workspace, so keep results outside a repository (`--results`) when that matters. A local relay records each request in `<arm>/host-context.json`, with what Claude Code reported loading (`init`), and serves `context-text` expectations.
+- **Skills.** Claude Code's own skill loader is off. Declared skills are listed in the system prompt; a body run's target arrives as the text Pi's `/skill:<name>` command expands to, recorded as an `explicit-skill-command` delivery.
+- **Settings.** `settings` is a Claude Code settings object, passed with `--settings`. Settings that would replace the guard, permissions, login or environment, or load plugins, MCP servers or a status line, are refused (`hooks`, `permissions`, `env`, `apiKeyHelper`, `enabledPlugins` and the like).
+- **Not supported yet:** `host.extensions`, runtime extension bundles, `freeflow`, `commands`, and `shell`.
+
 ## Shell
 
 A body group may give its subject `bash` only through a host extension that runs the shell in isolation, such as a micro-VM. The evaluator does not choose or ship a sandbox; it verifies the one the configuration names:
@@ -449,7 +471,7 @@ A runtime profile, under `configuration.runtime`, is shared by every arm, except
 }
 ```
 
-The host comes from `configuration.host.name` (`pi`); the evaluator maps it to the installed Pi command and records the selected host. Optional `prompt` is `isolated` (default) or `host`:
+The host comes from `configuration.host.name` (`pi` or `claude-code`); the evaluator maps it to the installed `pi` or `claude` command and records the selected host. Optional `prompt` is `isolated` (default) or `host`:
 
 - `isolated` replaces the host's system prompt with a minimal evaluator-owned prompt. Use it to isolate the target skill.
 - `host` keeps the host's own system prompt and whatever declared extensions compose onto it, appending declared context. Use it when evidence must reflect the production prompt, for example by declaring the Freeflow Pi extension bundle with a fixture containing `.freeflow/config.json`.

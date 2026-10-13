@@ -800,6 +800,8 @@ async function judgeGroup(groupDirectory, group, definition, rubric, judges, opt
         rubric,
       });
       records.push({
+        // The host the judge ran on: its own configuration's, or the group's.
+        host,
         model: judge.model,
         provider,
         // Family is approximated by the provider, as in the pairwise review.

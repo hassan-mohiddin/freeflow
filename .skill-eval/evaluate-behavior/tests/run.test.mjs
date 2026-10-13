@@ -297,7 +297,7 @@ printf invoked > ${JSON.stringify(marker)}
     });
 
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /group.configuration.host.name must be pi/);
+    assert.match(result.stderr, /group.configuration.host.name must be pi or claude-code/);
     await assert.rejects(readFile(marker), { code: "ENOENT" });
   });
 });
