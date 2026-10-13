@@ -10,11 +10,13 @@ import { validateShell, validateShellGroup } from "./shell.mjs";
 import { referenceFiles, validateReferenceSolution } from "./reference.mjs";
 import { rubricFiles, validateJudging } from "./judge.mjs";
 import { participantFiles, validateParticipants } from "./participants.mjs";
+import { claudeCodeGroupProblems, claudeCodeSetupProblems } from "./hosts/claude-code/constraints.mjs";
 import { EVALUATION_HOSTS } from "./hosts/names.mjs";
 
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const EVALUATION_TYPES = new Set(["description", "body"]);
 const PROMPT_MODES = new Set(["isolated", "host"]);
+const HOST_NAMES = [...EVALUATION_HOSTS].join(" or ");
 export const COMMAND_TOOL = "run_command";
 const MAX_COMMAND_TIMEOUT_MS = 10 * 60 * 1000;
 const RESERVED_ENVIRONMENT_KEYS = new Set([
@@ -162,7 +164,7 @@ function validateRuntime(value, definitionPath) {
     definitionPath,
   );
   if (!EVALUATION_HOSTS.has(runtime.host)) {
-    fail("invalid-definition", "group.configuration.host.name must be pi", definitionPath);
+    fail("invalid-definition", `group.configuration.host.name must be ${HOST_NAMES}`, definitionPath);
   }
   if (Object.hasOwn(runtime, "prompt") && !PROMPT_MODES.has(runtime.prompt)) {
     fail("invalid-definition", "group.runtime.prompt must be isolated or host", definitionPath);
@@ -353,7 +355,7 @@ const CONFIGURATION_FIELDS = [
   "environment",
   "participants",
 ];
-// Arms may not differ here: runtime bundles are prepared once per group, and Pi is the only host. Host extensions
+// Arms may not differ here: runtime bundles are prepared once per group, and a group runs on one host. Host extensions
 // and settings may differ, like the rest of the configuration, and so may runtime environment literals, which each
 // arm's subject receives as its own.
 const SHARED_ONLY = ["host.name", "host.version", "runtime"];
@@ -419,7 +421,7 @@ function validateEffectiveConfiguration(value, label, definitionPath) {
     definitionPath,
   );
   if (!EVALUATION_HOSTS.has(host.name))
-    fail("invalid-definition", "group.configuration.host.name must be pi", definitionPath);
+    fail("invalid-definition", `group.configuration.host.name must be ${HOST_NAMES}`, definitionPath);
   if (Object.hasOwn(host, "version")) requireString(host.version, `${label}.host.version`, definitionPath);
   if (Object.hasOwn(host, "extensions"))
     validateHostExtensions(host.extensions, `${label}.host.extensions`, definitionPath);
@@ -782,6 +784,10 @@ async function validateGroup(value, definitionPath, root) {
   if (resolved[reference].runtime !== undefined) internal.runtime = resolved[reference].runtime;
   // The host may not differ between arms (SHARED_ONLY), so the reference's is the group's.
   internal.host = resolved[reference].configuration.host.name;
+  if (internal.host === "claude-code") {
+    const problems = claudeCodeGroupProblems(group, internal.configurations);
+    if (problems.length > 0) fail("invalid-definition", problems[0], definitionPath);
+  }
   return internal;
 }
 
@@ -884,7 +890,8 @@ function hostSetup(configuration, label, absolute) {
       `${label}.host`,
       absolute,
     );
-    if (!EVALUATION_HOSTS.has(declared.name)) fail("invalid-definition", `${label}.host.name must be pi`, absolute);
+    if (!EVALUATION_HOSTS.has(declared.name))
+      fail("invalid-definition", `${label}.host.name must be ${HOST_NAMES}`, absolute);
     host = declared.name;
     if (Object.hasOwn(declared, "extensions")) {
       validateHostExtensions(declared.extensions, `${label}.host.extensions`, absolute);
@@ -905,6 +912,10 @@ function hostSetup(configuration, label, absolute) {
   if (Object.hasOwn(configuration, "model")) {
     validateModel(configuration.model, `${label}.model`, absolute);
     model = configuration.model;
+  }
+  if (host === "claude-code") {
+    const problems = claudeCodeSetupProblems({ label, model, extensions, settings });
+    if (problems.length > 0) fail("invalid-definition", problems[0], absolute);
   }
   // `host` is null when the configuration names none; the process then runs on the host it inherits.
   return { host, model, extensions, settings };

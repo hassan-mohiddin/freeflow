@@ -217,6 +217,8 @@ async function runOneShotDescription(options) {
     eventsFile: subject.eventsFile,
     stderrFile: subject.stderrFile,
     signal: options.signal,
+    // Pi takes the prompt as its last argument (`args`); a host that reads prompts from stdin takes it here.
+    prompts: [options.group.input.prompt],
     environment: subject.processEnvironment,
   });
   const contextObservation = await readContextObservations(

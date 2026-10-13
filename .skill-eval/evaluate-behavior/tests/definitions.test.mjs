@@ -509,7 +509,7 @@ test("definitions reject PiFlow as a removed runtime host", async () => {
 
     await assert.rejects(loadDefinition(groupFile, { root }), {
       code: "invalid-definition",
-      message: "group.configuration.host.name must be pi",
+      message: "group.configuration.host.name must be pi or claude-code",
     });
   });
 });
