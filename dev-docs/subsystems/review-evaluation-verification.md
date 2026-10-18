@@ -1,8 +1,8 @@
 # Review, Evaluation and Verification
 
-> **Covers:** `skills/review-work/`, `skills/evaluate-behavior/`, `skills/verify-work/SKILL.md`, `.skill-eval/scripts/gate.mjs`, `.skill-eval/gate.json`, `.skill-eval/gate/`, `scripts/validation/check-eval-definitions.mjs`
-> **Tests:** `.skill-eval/evaluate-behavior/tests/`
-> **Verified at:** `76d2471d` (2026-10-13)
+> **Covers:** `skills/review-work/`, `skills/evaluate-behavior/`, `skills/verify-work/SKILL.md`, `skills/verify-work/scripts/`, `.skill-eval/scripts/gate.mjs`, `.skill-eval/gate.json`, `.skill-eval/gate/`, `scripts/validation/check-eval-definitions.mjs`
+> **Tests:** `.skill-eval/evaluate-behavior/tests/`, `.skill-eval/verify-work/tests/`
+> **Verified at:** `535aba16` (2026-10-19)
 
 For contributors changing how Freeflow reviews work, evaluates agent behavior, or verifies claims: what each part does, how they depend on each other, why they are shaped this way, and which of their behaviors are deliberate. It also covers the evaluator's code, the evidence it stores, and the contributor gate that measures Freeflow's own changes.
 
@@ -141,6 +141,8 @@ The gate suites under `.skill-eval/gate/` are written by `.skill-eval/gate/tools
 
 Verify Work determines what fresh direct evidence establishes about a specific claim at the boundary where it must hold, with references for browser runtime, integration, performance evidence and test design. It is unchanged by the evaluator work. The evaluator shares its observing mechanisms (command graders run tests on a workspace; deterministic checks read final state), but Verify Work does not run the evaluator, and there is no Freeflow skill that drives a running application end to end.
 
+Verify Work's one script, `skills/verify-work/scripts/test-changes.mjs`, lists every test file, fixture, snapshot and shared test setup file that existed at a base and changed, moved or was deleted by a head (the working tree by default), with the changed hunks. Test Design's one Rule has the agent give each listed change a reason (the property is preserved, or the user agreed the behavior change) or return it to the user before reporting the work done; Verify Work's body links the script from the Test Design entry.
+
 ## Decisions
 
 - **One review skill with kinds, and it owns the judge contract.** Review Artifact was merged into Review Work; new review kinds are references, not skills. A judge is a reviewer, so the contract lives with review, and the evaluator is one consumer. Rejected: separate skills per kind (every rule change made twice and drifted); the contract in the evaluator (other judges would restate it). Source: ADR 0013.
@@ -160,6 +162,7 @@ Verify Work determines what fresh direct evidence establishes about a specific c
 - **Judges inherit the subjects' host setup unless they declare their own.** A judge launched without the subscription's auth extension was refused by the provider as unbilled extra usage; inheritance makes the default correct, and a declared `configuration` lets a judge differ on purpose.
 - **Reuse by content, not by name.** `--reuse` counts an indexed complete run as a trial only when a hash over the task, group inputs, the arm's effective configuration and inputs, model, host version and the evaluator's own code matches. Rejected: reusing by result ID or commit alone, which cannot tell that a grader or the evaluator changed.
 - **The gate is local, not CI.** It calls real models, needs the contributor's credentials, and costs money; `npm run check` stays deterministic. The gate measures each change base against head on a cheap model with reuse, so later autonomy work can call it.
+- **`test-changes.mjs` lists and never judges.** It answers which existing checks changed, which an agent can miss in its own work (a shared fixture edited to make broken tests pass, reported as "Fixed"); whether a change is justified stays with the agent and the user. It matches paths, not content, with defaults for common JavaScript, TypeScript and Python layouts and `--pattern`, `--only` and `--exclude` for the rest. Git runs with fixed flags (`--no-color`, `--no-ext-diff`, `--no-textconv`, `--no-relative`, `-M`, fixed prefixes) so the user's diff configuration cannot change the listing. Rejected: failing on any test change, which refactors and agreed behavior changes would trip and agents would learn to argue past; detecting setup hooks from the changed lines, a partial signal that would read as "no setup changed".
 - **Prefer measuring before adopting guidance.** Review Work's evidence sentence was adopted after it raised clean-change acceptance from 77% to 91% with detection unchanged; a second candidate sentence was dropped because it lost guard bypasses (`.skill-eval/review-suite/results/`).
 
 ## Intended Behavior That Looks Wrong
@@ -173,6 +176,7 @@ Verify Work determines what fresh direct evidence establishes about a specific c
 - **A pairwise review is never calibrated.** It compares arms side by side for reading, not measuring; calibration applies to rubric judges.
 - **The isolated prompt replaces the host's system prompt.** It removes ambient instructions so only declared context reaches the subject. When the component is something the host prompt carries, such as Freeflow, the group declares `runtime.prompt: "host"`.
 - **A judge's answers count as one vote however many times it runs.** Repeated calls to one configuration are not independent judges.
+- **`test-changes.mjs` exits 0 when it lists changes, and never lists a new test file.** It reports and does not gate (see Decisions). A file that did not exist at the base is a new test, not a changed one; whether it asserts agreed behavior is Test Design's judgment. Against the working tree, a moved file that is not staged shows as deleted, because Git pairs renames only between tracked files.
 
 ## Surface
 
@@ -201,6 +205,14 @@ skill-eval.mjs review <result-or-aggregate> --calibrate <labels.json>
 | `--limit name=chars` | `response` 8000, `argument` 300, `file` 20000, `materials` 60000 | What a judge sees; cut material is recorded as truncated |
 
 Exit codes: 0 complete; 1 for an incomplete run, a declined plan, a stopped pilot, a review or judge error, a failing `check-tasks`, or an argument error; 2 for an unknown command.
+
+Verify Work's script:
+
+```text
+test-changes.mjs --base <ref> [--head <ref>] [--root <repository>] [--pattern <glob>]... [--only] [--exclude <glob>]... [--json]
+```
+
+It exits 0 whenever it lists, even nothing, and 2 on a usage or Git error.
 
 ### Contributor scripts
 
@@ -322,6 +334,7 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
 | `lib/view.mjs`, `view-html.mjs` | Text views and the self-contained HTML page |
 | `skills/review-work/SKILL.md`, `references/` | Review Rules, roles, classification, budget; per-kind methods, reviewer contract, adjudication, judge contract, security lens |
 | `skills/verify-work/SKILL.md`, `references/` | Claim verification and its evidence references |
+| `skills/verify-work/scripts/test-changes.mjs` | Lists changed, moved and deleted existing tests, fixtures, snapshots and test setup between a base and a head |
 | `.skill-eval/scripts/gate.mjs`, `gate.md`, `.skill-eval/gate.json`, `.skill-eval/gate/` | The contributor gate, its configuration and suites |
 | `.skill-eval/review-suite/` | The review suite: 25 cases, 50 groups (clean, seeded and real defects, a held-out third), the F3 and F7 suites, generators in `tools/`, results in `results/` |
 | `.skill-eval/skill-family/` | Write Skill and Evaluate Behavior guidance cases (14 groups), including W3 description cases for instruction text other than skills |
@@ -342,6 +355,8 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
 
 These prove the evaluator's mechanics with stand-in models. They do not prove behavior with real models, which only runs prove.
 
+`.skill-eval/verify-work/tests/test-changes.test.mjs`, run by `npm run test:verify-work`, builds throwaway Git repositories and checks what `test-changes.mjs` lists and leaves out per kind, including a shared fixture edited to make a broken function's tests pass, head refs, patterns, paths with spaces, and errors. They prove what the script lists, not how agents use it.
+
 ## Limits
 
 - A group runs on one host, so a question comparing Pi with Claude Code is two groups, not two arms.
@@ -358,6 +373,7 @@ These prove the evaluator's mechanics with stand-in models. They do not prove be
 
 ## Changes
 
+- 2026-10-19: Verify Work gains `test-changes.mjs` and Test Design's Rule for changed tests, fixtures and setup, plus agreed-behavior assertions, weak-test signs, regression checks on the pre-fix code, performance limits, saved browser evidence, and one-line guidance on safety claims, baselines and keeping check scripts.
 - 2026-10-13: Claude Code added as a second host (`lib/hosts/claude-code/`); the guard's rules moved to `guard-rules.mjs`, shared by Pi's extension and Claude Code's hook.
 - 2026-10-13: the Pi-specific code moved behind a host adapter (`lib/hosts/pi/`), with no change in behavior; `lib/pi.mjs` became the host-neutral `lib/subject.mjs`.
 - 2026-10-12 to 2026-10-13 (branch `feat/evaluate-behavior`): the evaluator generalised for any eval: named arms with a reference, decisions with adaptive trials, run metrics, rubric judges with agreement and calibration, command graders and reference solutions, components built from source, conversations and pipelines, the confined shell and containers, concurrency, budget, reuse, pilots, `--source`, the HTML view, one-arm measure groups, judge host-setup inheritance, and the contributor gate.

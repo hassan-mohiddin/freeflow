@@ -23,7 +23,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 Goal: know exactly what is being claimed, where it must hold, and why it is expected, before choosing a check.
 
-Identify the behavior or property, the required observing boundary, and the source of its expectation. Keep this compact when obvious; do not let an available test silently narrow a broader claim. Claims may concern behavior, a reported failure, structural validity, interfaces, integration, host lifecycle, installed artifacts, failure or recovery semantics, performance, or repository state.
+Identify the behavior or property, the required observing boundary, and the source of its expectation. Keep this compact when obvious; do not let an available test silently narrow a broader claim. Claims may concern behavior, a reported failure, structural validity, interfaces, integration, host lifecycle, installed artifacts, failure or recovery semantics, performance, or repository state. A claim that a change is safe names the one fact it rests on, with a check that shows it.
 
 Distinguish required acceptance from an optional stronger assertion. If evidence for an optional claim is unavailable, qualify or withdraw that claim rather than automatically add implementation. A required guarantee remains unresolved until supported or explicitly changed by its owner.
 
@@ -39,7 +39,7 @@ Use [Action Selection](../../skills/action-selection/SKILL.md) when several obse
 
 Read the relevant reference before designing or selecting evidence:
 
-- [Test Design](references/test-design.md) before designing or materially changing a behavior check, including regression or characterization coverage.
+- [Test Design](references/test-design.md) before designing or materially changing a behavior check, including regression or characterization coverage and a test's fixture or shared setup. Before reporting such a change, list it with [test-changes](scripts/test-changes.mjs).
 - [Integration Evidence](references/integration-evidence.md) when a claim depends on a registered callback or executor, host lifecycle, producer invocation, fallback protocol, installed package, or absence counter.
 - [Browser Runtime Evidence](references/browser-runtime-evidence.md) for rendered UI, browser behavior, accessibility, networking, console state, visual output, or browser runtime performance.
 - [Performance Evidence](references/performance-evidence.md) for latency, throughput, memory, CPU, bundle, query, rendering, capacity, or resource-regression claims.
@@ -60,6 +60,8 @@ For each covered check:
 2. Inspect output, exit status, assertions, and lower-level evidence that could contradict its summary.
 3. Confirm that the intended path ran and the observer matched the claim.
 4. Compare the observation with the independent expectation and its source.
+
+For a consequential claim, keep the check as a re-runnable script in the task's scratch location and point to it.
 
 Before revising a material assertion after failure, use Test Design to compare what the old and new checks establish. Repair source-backed observer or expectation errors.
 
@@ -85,7 +87,7 @@ A check may Pass by observing an expected rejection or failure.
 - **Inconclusive:** available evidence cannot establish or refute it at that boundary.
 - **Unavailable:** required evidence cannot currently be obtained safely or reliably.
 
-A Passed check can leave the claim Inconclusive. A Failed check can expose a defect, an invalid expectation, an environment problem, or a source conflict; classify only the supported conclusion. Use [Diagnose Failure](../../skills/diagnose-failure/SKILL.md) when contradictions are unexplained or failure repeats.
+A Passed check can leave the claim Inconclusive. A no-regression or parity claim without an observed baseline is Inconclusive. A Failed check can expose a defect, an invalid expectation, an environment problem, or a source conflict; classify only the supported conclusion. Use [Diagnose Failure](../../skills/diagnose-failure/SKILL.md) when contradictions are unexplained or failure repeats.
 
 ## Return Evidence To Its Owner
 

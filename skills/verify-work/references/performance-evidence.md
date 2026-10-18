@@ -41,6 +41,8 @@ A microbenchmark is diagnostic when it isolates a hypothesis; it becomes accepta
 - Separate elapsed-time improvement from increased cost, memory, load, or downstream work.
 - Check normal and failure behavior after optimization.
 - Preserve saved regressions; do not rerun until an unfavorable sample disappears.
+- Bound the claim by the share of the run that changed: if the changed step took 20% of the time, removing it entirely saves at most 20%. A larger measured gain means the measurement or its attribution is wrong; find out which before reporting it.
+- Name the resource that bounds the number, such as CPU, disk or network I/O, a lock, memory, a rate limit or a queue, and the observation that shows it. Without it, you cannot say whether a change could move the number.
 
 Parallelism may reduce elapsed time while increasing total resources. Caching may improve repeats while weakening freshness or memory bounds. State the tradeoff.
 

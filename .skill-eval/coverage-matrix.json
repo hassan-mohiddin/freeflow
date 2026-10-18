@@ -448,9 +448,9 @@
       "neighbours": ["workflow", "execute-work", "diagnose-failure", "review-work"],
       "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Compare a neutral target with current verify-work on a saved green proof bundle containing contradictory event and runtime-identity evidence; candidate must downgrade the claim and name the exact missing boundary proof.",
-      "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
+      "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified. The test-changes script has its own tests (.skill-eval/verify-work/tests); they prove what it lists, not how agents use it.",
       "source_path": "skills/verify-work/SKILL.md",
-      "source_sha256": "bbac0e1da379e77988903e793ddd7fb18b4a26ac1d6af9cbe4120b1aeb8960a8",
+      "source_sha256": "c6269f44c5b3f15d8c00a0585a94f41ff6b550094e8d395564811086a18b7f6d",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
