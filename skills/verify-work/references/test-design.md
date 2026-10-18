@@ -1,6 +1,6 @@
 # Test Design
 
-Read this before designing or materially changing a behavior check, including regression or characterization coverage.
+Read this before designing or materially changing a behavior check, including regression or characterization coverage and a test's fixture or shared setup.
 
 This reference is judgment, with one Rule: before reporting work done, give each changed existing test, fixture, snapshot or shared test setup its reason: it preserves the property the test checked, or it follows a behavior change the user agreed. Return any other such change to the user. Choose a real observing boundary and an independent expected result. It does not prescribe test-first sequencing, a fixed unit/integration/end-to-end ratio, or a test-count target.
 
