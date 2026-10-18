@@ -30,7 +30,7 @@ A screenshot does not prove semantics, network correctness, console cleanliness,
 
 1. Reproduce the pre-change failure or establish the baseline when relevant.
 2. Exercise the accepted user path on the changed build.
-3. Capture the smallest evidence that proves the claim.
+3. Capture the smallest evidence that proves the claim, save it (screenshot, trace, DOM or accessibility excerpt, console or network log) in the task's scratch location, and point the claim to that file so it can be rechecked.
 4. Check console and network surfaces when the change can affect them.
 5. Exercise required error, loading, empty, permission, offline, or recovery states.
 6. Repeat only when environment or code changed, or variance requires evidence.
