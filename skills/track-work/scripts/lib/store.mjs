@@ -30,12 +30,14 @@ async function gitCommand(root, args) {
   }
 }
 
-async function assertGitSafePath(root, path) {
+async function assertGitSafePath(root, path, { directory = false } = {}) {
   const repository = await gitCommand(root, ["rev-parse", "--show-toplevel"]);
   if (!repository.ok) return;
   const repositoryRoot = canonicalPath(repository.stdout.trim());
   const relativePath = relative(repositoryRoot, canonicalPath(path)).split(sep).join("/");
-  const ignored = await gitCommand(repositoryRoot, ["check-ignore", "--no-index", "-q", "--", relativePath]);
+  // A trailing slash lets a directory-only rule such as `.freeflow/*/` match a folder that does not exist yet.
+  const ignorePath = directory ? `${relativePath}/` : relativePath;
+  const ignored = await gitCommand(repositoryRoot, ["check-ignore", "--no-index", "-q", "--", ignorePath]);
   if (!ignored.ok) fail("unignored-path", `Record path is not ignored by Git: ${relativePath}`);
   const tracked = await gitCommand(repositoryRoot, ["ls-files", "--error-unmatch", "--", relativePath]);
   if (tracked.ok) fail("tracked-path", `Record path is already tracked by Git: ${relativePath}`);
@@ -184,7 +186,7 @@ export async function nextTaskNumber(tasks) {
 
 export async function createRecordPath(root, taskName, slug) {
   const tasks = taskRoot(root);
-  await assertGitSafePath(root, tasks);
+  await assertGitSafePath(root, tasks, { directory: true });
   await mkdir(tasks, { recursive: true });
   await assertNoSymlinkPath(tasks, canonicalPath(root));
   const number = await nextTaskNumber(tasks);
