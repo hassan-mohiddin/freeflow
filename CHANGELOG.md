@@ -62,6 +62,7 @@
 
 ### Fixed
 
+- Track Work: creating the first inline task record works in a repository whose only matching ignore rule is directory-only, such as `.freeflow/*/` in a fresh clone of Freeflow. Before, it failed with "Record path is not ignored by Git" because the tasks folder did not exist yet.
 - Evaluate Behavior: in a container environment, a subject's declared commands (`run_command`) run in its container, as `bash` does, instead of on the host, and the container starts for a group that declares commands without `bash`; graders already ran in the image.
 - Evaluate Behavior: judges and the pairwise reviewer run with the evaluator's Pi defaults (automatic retry and compaction off) under their declared settings, as subjects do.
 - A trial aggregate counts a trial whose grade file is unreadable, or a check that could not be graded, as unavailable for that check, so a check no longer reads "passed in every trial" over fewer trials than ran.

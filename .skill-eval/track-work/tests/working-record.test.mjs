@@ -1989,6 +1989,26 @@ test("resume stays bounded while full grows with History", async () => {
   }
 });
 
+test("init works when only a directory-only ignore rule covers the not-yet-created tasks folder", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { mkdir } = await import("node:fs/promises");
+  const workspace = await makeWorkspace();
+  try {
+    const repo = join(workspace, "repo");
+    await mkdir(repo);
+    execFileSync("git", ["-C", repo, "init", "-q"]);
+    await writeFile(join(repo, ".gitignore"), ".freeflow/*/\n");
+    const initialized = await runScript(
+      repo,
+      ["init", "--root", repo, "--name", "fresh-clone", "--input", "-"],
+      "### Goal\n- Start in a fresh clone.\n\n### Next useful action\n- Continue.\n",
+    );
+    assert.equal(initialized.exitCode, 0, initialized.stderr);
+  } finally {
+    await cleanup(workspace);
+  }
+});
+
 test("a repository reached through a symlinked directory works like any other", async () => {
   const { execFileSync } = await import("node:child_process");
   const { mkdir, realpath, symlink } = await import("node:fs/promises");
