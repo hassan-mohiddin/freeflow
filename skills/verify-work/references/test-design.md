@@ -56,7 +56,7 @@ A changed fixture, snapshot or shared setup (a `beforeEach`, `conftest.py`, a se
 node <verify-work-directory>/scripts/test-changes.mjs --base <the work's base commit> [--head <ref>] [--pattern <glob>] [--json]
 ```
 
-It compares the base with the working tree unless `--head` is given, lists only files that existed at the base, and matches common JavaScript, TypeScript and Python layouts; add `--pattern` for test helpers or fixtures stored elsewhere. Give each listed change its reason, or return it to the user. Matching what the code now returns is not a reason: it makes the test agree with the code by construction.
+It compares the base with the working tree unless `--head` is given, lists only files that existed at the base, and matches common test layouts for most mainstream languages by path; add `--pattern` for test helpers or fixtures stored elsewhere. Tests written inside source files, such as Rust's `#[cfg(test)]` modules or Python doctests, have no path of their own, so check those changes in the diff yourself. Give each listed change its reason, or return it to the user. Matching what the code now returns is not a reason: it makes the test agree with the code by construction.
 
 If the replacement establishes less, leave the original claim unresolved unless other adequate evidence still establishes it at the required boundary. Return any remaining evidence limitation before acceptance. Under delegation, return it to the directing participant; changing user-owned acceptance still requires the user's decision. Do not freeze a demonstrably wrong test, or weaken a correct property because it is difficult to observe.
 
