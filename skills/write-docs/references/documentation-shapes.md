@@ -1,6 +1,6 @@
 # Documentation Shapes
 
-Read this before choosing the structure of an overview, a subsystem doc, or a folder README, or before restructuring one.
+Read this before choosing the structure of an overview, a subsystem doc, a folder README, a feature file, or a live-verification guide, or before restructuring one.
 
 This reference is judgment except for the header: these are shapes to adapt, not mandatory templates. Where the repository already has documentation conventions, follow them and borrow from these shapes only what they lack. Use the sections a document's readers need, in the order that serves them, and leave out a section with nothing true to say.
 
@@ -8,7 +8,7 @@ The header is binding when you use it, because the [docs check](../scripts/docs-
 
 ## Header
 
-An overview and a subsystem doc start with a title and a header block:
+An overview, a subsystem doc, a feature file, and a live-verification guide start with a title and a header block:
 
 ```markdown
 # Compaction
@@ -103,6 +103,52 @@ Tests: `<path to the folder's tests>`.
 ```
 
 Keep it to what someone editing the folder needs first. Explanation belongs in the subsystem doc it points to.
+
+## Feature File
+
+Subsystem docs describe the software the way the code is built; a feature map describes it the way a user meets it, with the exact steps that show each feature working in the running software. Features cut across subsystems, so the map is its own folder beside them (`features/` in the developer docs): a `README.md` index and one file per user-facing feature. Software with nothing to run, such as a pure library, has no feature map; its tests are the live check.
+
+A feature file uses the header. **Covers** names the code behind what the user sees, so the docs check flags the steps when that code changes. **Verified at** is the commit at which every step was last driven, not only read. Then:
+
+```markdown
+# <Feature name>
+
+<One paragraph: what the user sees and does.>
+
+## Sub-features
+## How to get to it (user POV)
+## Driving it
+## Gotchas
+```
+
+- **Sub-features:** one line each, led by a short ID (`settings-open`) that evidence names reuse.
+- **How to get to it (user POV):** every entry point a user has: a command, a key, a menu, a URL.
+- **Driving it:** `Preconditions:` first, then one labeled bullet per user action, with the exact command and the observable result, including side effects such as files written. Mark a step that calls a paid service, such as a model, and say what it needs before it runs.
+- **Gotchas:** traps that waste or invalidate a run, entry points not driven yet, and steps left unverified, with the reason.
+
+Name only user paths, stable handles, required state, commands, and observable results; a source path appears only when it is the only stable handle. Link the subsystem docs the feature touches. A step that could not be driven stays marked unverified. A product bug the steps expose is reported to the user, never written into the steps as expected behavior.
+
+The index `README.md` holds what every file shares: baseline preconditions, driving conventions, how proof and skipped steps are reported, and one line per feature file.
+
+## Live-Verification Guide
+
+One guide shared by every feature file (for example `guides/verify-live.md` in the developer docs), with the helper script it documents kept in the repository. It uses the header, covering the helper.
+
+```markdown
+## Launch
+## Health Check
+## Drive
+## Evidence
+## Clean Up
+## Paid Calls
+```
+
+- **Launch:** the exact command that starts an isolated instance from empty state, and the signal that it is usable, not merely running.
+- **Health Check:** one read-only command that says whether this instance is worth driving: it is the one the run started, on the right build, with isolated state. Run it before the first step and after anything surprising.
+- **Drive:** the helper's commands and the stable handles they rely on (prompts, labels, on-screen text), not coordinates or tab order.
+- **Evidence:** what each step saves and where (an ignored folder), and the proof standards: drive the real user path, capture the action and the resulting state, and check side effects from a second view.
+- **Clean Up:** stop only what the run started, never by process name; remove scratch state; keep the evidence.
+- **Paid Calls:** which inputs call a model or another paid service, the guard that refuses them by default, and what a step needs before it may run one, such as a pinned cheap model and the user's yes.
 
 ## Adapting To The Software
 

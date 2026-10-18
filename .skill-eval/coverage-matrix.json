@@ -504,7 +504,7 @@
       "case_concept": "After a behavior change, the stale subsystem doc is corrected in the same change and an intended-but-surprising behavior is recorded rather than 'fixed'.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/write-docs/SKILL.md",
-      "source_sha256": "9153fd87db9dec3504730f737ff03cfb1702d9e66d6015d36da12766af3781aa",
+      "source_sha256": "83e500dd3cfa23b07f495801819495fe3579e76eb5f0f970574628f8f3c6043b",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
