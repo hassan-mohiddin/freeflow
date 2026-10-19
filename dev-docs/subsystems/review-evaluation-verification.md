@@ -375,7 +375,7 @@ These prove the evaluator's mechanics with stand-in models. They do not prove be
 
 - A group runs on one host, so a question comparing Pi with Claude Code is two groups, not two arms.
 - On Claude Code: bash only in a container, no `run_command`, Pi extensions or Freeflow, and retries at Claude Code's own default; its identity line and environment note cannot be removed, only recorded, and the note reports a Git repository above the workspace (Claude Code finds it itself, ignoring `GIT_CEILING_DIRECTORIES`).
-- The Gondolin shell is tested only with fakes and skipped cases. Containers were checked once on the real Colima engine (2026-10-19, the V0 image, a fake Pi and no model): probes held, a skill's script ran by its path, the network and the login path were unreachable, and a grader ran in a fresh container.
+- The Gondolin shell is tested only with fakes and skipped cases; it has not run on a real VM. Containers have: on 2026-10-19 the V0 to V3 groups, V2 and the pstack trial ran container subjects and graders on the real Colima engine (Docker 29.2.1, digest-pinned images), and a no-model check with the V0 image showed the probes holding, a skill's script running by its path, the network and the login path unreachable, and a grader in a fresh container.
 - Network policy is `none` or `host`; a named allowlist of hosts is not supported. On `host`, declared commands and graders can read the user's files, including the provider login on disk.
 - A pipeline stage cannot have its own configuration: every stage uses the arm's.
 - Each rubric judge answers all dimensions in one call, so answers to one dimension can influence another.
