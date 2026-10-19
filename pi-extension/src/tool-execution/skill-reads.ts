@@ -163,11 +163,14 @@ export class SkillReads {
     this.built = true;
   }
 
-  /** Skills whose `SKILL.md` text the model holds, by name, in first-read order. */
+  /**
+   * Skills whose `SKILL.md` text the model holds, by name, sorted: parallel reads record in completion order live and
+   * in branch order on rebuild, so a sorted list is the same before and after a resume and costs no new state copy.
+   */
   skills(): string[] {
-    return [...this.seen.keys()].flatMap(
-      (key) => key.match(/^(?:skills|capabilities)\/([^/]+)\/SKILL\.md$/)?.[1] ?? [],
-    );
+    return [...this.seen.keys()]
+      .flatMap((key) => key.match(/^(?:skills|capabilities)\/([^/]+)\/SKILL\.md$/)?.[1] ?? [])
+      .sort();
   }
 
   private record(key: string, read: Seen): void {
