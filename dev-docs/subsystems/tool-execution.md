@@ -131,6 +131,7 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 | Freeflow does not set `TMPDIR`; background output goes to a per-session folder under the OS temp directory. | Pi's `bash` inherits the whole Pi process environment, so changing `TMPDIR` would change it for every tool, extension and MCP server. | Pointing `TMPDIR` at a session folder. | `fc32691` |
 | Messages state the fact and one next step, with no reassurance. | The wording was reviewed against Freeflow's Beyond the Weights research on model behavior. | — | `48a9387`, `3894a01` |
 | Settings of the retired v2 runtime still load and do nothing. | Existing configuration files stay valid. | Rejecting them. | `ca1cc90` |
+| The prompt section does not repeat habits the Working Method states, such as trying a new script on a case whose answer is known. | Pi sends the Working Method whenever Freeflow is on, so a repeated line is paid for twice on every request (Write Skill's Guidance Placement). The section keeps the mechanics of working in the environment. | Keeping both copies. | Context cut, October 2026 |
 | A monitor's guidance (when to use it instead of `bash_background`, flushing each pipe stage, matching failures as well as success) lives in its tool description, not in the prompt section or Verify Work. | It is needed only when choosing or writing a watch, where the description is read; Working Method already states the general rule that a check proves only what it could have caught (Write Skill's Guidance Placement). | A line in the always-sent prompt section; a Verify Work rule. | Task 002 |
 | Monitor notices wake an idle agent, bounded by 20 notices a minute and 40 lines a notice. | A watch that cannot wake the agent cannot report a failure while it waits (spec O-6); each wake is a model request, so the limit bounds the cost. | Holding idle events until the next turn. | Task 002 |
 
@@ -207,7 +208,7 @@ All four have `exposure: "direct"` (callable from codemode) and refuse to run wh
 - `tool_result` for a non-tracked tool stats every observed file and hashes only files whose size or mtime moved. This grows with the number of files read in the session, not with session length.
 - `before_agent_start` does the same once per prompt, and only after state was built.
 - Nothing runs in `context_with_system`. See [Performance](../guides/performance.md) for the request-path rules.
-- The prompt section is about 480 words of fixed text, written once and then read from the provider's cache.
+- The prompt section is about 460 words of fixed text, written once and then read from the provider's cache.
 
 ## Code Map
 

@@ -10,11 +10,11 @@ Freeflow’s model-facing behavior is delivered through coordinated core, capabi
 
 - Freeflow identity and shared boundaries;
 - shared terminology;
-- the Interaction Lifecycle, Feedback Loop, and Environment Interaction Loop;
-- compact readiness and recovery invariants;
+- loading a selected skill's method, and when a skill applies: its subject, not a trigger word;
+- compact readiness and recovery invariants, including what counts as context loss: the conversation about the current work is no longer in context, so a new message, a pause or a resumed session that keeps it is not context loss;
 - Project Memory: reading the project's developer docs before changing or judging code, and keeping what is learned where it lasts (task state in the Working Record, how the project works in developer docs, only agent rules in instruction files such as AGENTS.md or CLAUDE.md);
 
-Core guidance is mandatory whenever Freeflow is enabled and also contains the guidance previously separated into `skills.md`. Detailed planning, execution, verification, and handback methods remain in skills rather than being duplicated into the standing prompt.
+Core guidance is mandatory whenever Freeflow is enabled and also contains the guidance previously separated into `skills.md`. Detailed planning, execution, verification, and handback methods remain in skills rather than being duplicated into the standing prompt. The Working Method likewise keeps the everyday habits an ordinary turn needs and leaves what a skill already owns there: the diagnosis template to Diagnose Failure, performance measurement to Verify Work, and readiness before an edit and the smallest change to Execute Work.
 
 ### 2. Interaction Contract
 
@@ -143,7 +143,7 @@ Manual control runs the ordinary unsplit Workflow for the held profile. Automati
 - Runtime State unavailable: do not infer it from model identity, response style, or old transition history.
 - Native Pi request replay preserves Freeflow-generated snapshots only when the permitted ancestry and rendered prefix remain compatible; model/provider, tool/schema, instruction, earlier-content, compaction, navigation, or unsupported effort changes may shorten reuse. Provider cache hits remain outside the local assembly contract.
 - Configuration establishes activation but does not prove host delivery.
-- After context loss, the core cue requires Working Record recovery in Track Work's order when a record exists (the `resume` view with its History index, defining artifacts, Recovery sources, then the History entries the next action depends on), current capability/owner methods, and reconciliation with current direction and live evidence. An intact session uses bounded readback instead of repeating recovery.
+- After context loss, the core cue requires Working Record recovery in Track Work's order when a record exists (the `resume` view with its History index, defining artifacts, Recovery sources, then the History entries the next action depends on), current capability/owner methods, and reconciliation with current direction and live evidence. An intact session uses bounded readback instead of repeating recovery: a resumed session or a new message after a pause, with the conversation still in context, is not context loss. Real Pi sessions (October 2026) showed agents reloading skills they still had after such pauses because the earlier wording counted session resume and uncertain continuity as context loss.
 - Attached recovery is not general task access: the recorded worker receives only selected existing evidence, exact admitted task-file reads, packaged Freeflow methods, and recovery return controls. Fresh attention does not finish that recovery; supplement or cancellation precedes assessment resumption.
 - A Runtime State refresh alone is not a user interruption or a replacement execution contract.
 

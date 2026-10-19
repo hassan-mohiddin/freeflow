@@ -22,7 +22,6 @@ Every tool result stays in context and is sent again on every later turn. Take i
 ## Running the code
 
 - To learn what code does, run it: write a throwaway script in your scratch location that imports the code, calls it with realistic input, and prints the result.
-- Run each new script first on a case whose answer you know. A script that prints nothing may have matched nothing.
 - Time an operation next to its baseline in the same call: `time real_command; time baseline_command`.
 
 ## Editing
