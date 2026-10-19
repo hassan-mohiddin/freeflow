@@ -453,7 +453,12 @@ test("a container group's command graders are checked in its image", async () =>
 
     assert.equal(result.state, "solvable", result.reason);
     assert.equal(result.arms[0].before.state, "fails-before");
-    const runs = (await dockerCalls(docker.log)).filter((args) => args[0] === "run");
+    const all = (await dockerCalls(docker.log)).filter((args) => args[0] === "run");
+    // One read-only run checks that the engine shares the folder the graded copies live under; two run graders.
+    const probes = all.filter((args) => args.includes("--entrypoint"));
+    assert.equal(probes.length, 1);
+    assert.ok(probes[0].some((arg) => arg.endsWith(":/testbed:ro")));
+    const runs = all.filter((args) => !args.includes("--entrypoint"));
     assert.equal(runs.length, 2);
     for (const args of runs) {
       assert.ok(args.includes(IMAGE));

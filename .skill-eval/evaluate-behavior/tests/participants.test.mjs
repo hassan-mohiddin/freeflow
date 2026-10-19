@@ -392,6 +392,69 @@ test("a pipeline runs each stage separately, gives each exactly what it declares
   });
 });
 
+test("a stage can start from an earlier stage's workspace, binary files included, and nothing else", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    const blob = Buffer.from([0xff, 0x00, 0xfe, 0x01]);
+    await mkdir(path.join(root, "fixtures/task"), { recursive: true });
+    await writeFile(path.join(root, "fixtures/task/blob.bin"), blob);
+    const handoff = {
+      protocol: "pipeline",
+      stages: [
+        { id: "setup", input: "Set the project up.", sees: ["fixture"] },
+        { id: "follow", input: "Follow what setup wrote.", sees: ["setup.workspace"] },
+      ],
+    };
+    const file = await writeTask(root, baseGroup({ participants: handoff }));
+    const loaded = await loadDefinition(file, { root });
+    assert.deepEqual(loaded.participants.stages[1].sees, ["setup.workspace"]);
+
+    const result = cli(root, bin, ["run", file]);
+
+    assert.equal(result.status, 0, result.stderr);
+    const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)[1], "groups/multi");
+    const subjects = await readLog(path.join(root, "subject.jsonl"));
+    for (const arm of ["baseline", "candidate"]) {
+      const [setup, follow] = subjects.filter((entry) => path.basename(path.dirname(entry.cwd)).startsWith(arm));
+      assert.ok(setup.workspace.includes("plan.md") && setup.workspace.includes("blob.bin"));
+      assert.deepEqual(
+        follow.workspace,
+        ["blob.bin", "notes-setup.md", "plan.md"],
+        "the follow stage starts from setup's final workspace: the fixture and what setup wrote",
+      );
+      assert.deepEqual(follow.context, [], "a workspace handoff delivers files, not context");
+      assert.deepEqual(await readFile(path.join(groupDirectory, arm, "workspace/blob.bin")), blob, "bytes kept");
+      const run = await readJson(path.join(groupDirectory, arm, "run.json"));
+      assert.equal(run.state, "complete");
+      assert.deepEqual(run.participants.stages[1].sees, ["setup.workspace"]);
+    }
+  });
+});
+
+test("a workspace handoff is refused with the fixture, outside body groups, and on a fresh stage", async () => {
+  await withTempDirectory(async (root) => {
+    const first = { id: "setup", sees: ["fixture"] };
+    const cases = [
+      [{ protocol: "pipeline", stages: [first, { id: "b", sees: ["fixture", "setup.workspace"] }] }, /more than one/],
+      [{ protocol: "pipeline", stages: [first, { id: "b", sees: ["setup.workspace"], fresh: true }] }, /is fresh/],
+      [{ protocol: "pipeline", stages: [first, { id: "b", sees: ["setup.workspaces"] }] }, /\.workspace/],
+    ];
+    for (const [participants, message] of cases) {
+      const file = await writeTask(root, baseGroup({ participants }));
+      await assert.rejects(loadDefinition(file, { root }), message, JSON.stringify(participants));
+    }
+    const description = await writeTask(
+      root,
+      baseGroup({
+        type: "description",
+        tools: ["read"],
+        participants: { protocol: "pipeline", stages: [first, { id: "b", sees: ["setup.workspace"] }] },
+      }),
+    );
+    await assert.rejects(loadDefinition(description, { root }), /only body stages write files/);
+  });
+});
+
 test("arms may differ in participants: one subject against a pipeline, declared as the component", async () => {
   await withTempDirectory(async (root) => {
     const bin = await installFakePi(root);
