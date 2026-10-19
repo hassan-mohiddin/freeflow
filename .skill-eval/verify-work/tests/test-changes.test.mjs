@@ -122,6 +122,45 @@ test("lists changed, deleted and moved existing tests, fixtures, snapshots and s
   }
 });
 
+test("default patterns cover common test layouts beyond JavaScript and Python", async () => {
+  const files = {
+    "pkg/parse.go": "package pkg\n",
+    "pkg/parse_test.go": "package pkg\n",
+    "lib/user_spec.rb": "describe User do\nend\n",
+    "spec/spec_helper.rb": "require 'rspec'\n",
+    "src/Shop.Tests/CartTests.cs": "class CartTests {}\n",
+    "Sources/App/Cart.swift": "struct Cart {}\n",
+    "Tests/AppTests/CartTests.swift": "final class CartTests {}\n",
+    "src/parse_unittest.cc": "TEST(Parse, Empty) {}\n",
+    "app/src/androidTest/kotlin/CartTest.kt": "class CartTest\n",
+    "phpunit.xml": "<phpunit/>\n",
+    "test/test_helper.exs": "ExUnit.start()\n",
+  };
+  const root = await repository(files);
+  try {
+    await write(
+      root,
+      Object.fromEntries(Object.entries(files).map(([path, content]) => [path, `${content}// changed\n`])),
+    );
+    const kinds = Object.fromEntries(
+      listed(root, "--base", "main").changes.map((change) => [change.path, change.kind]),
+    );
+    assert.deepEqual(kinds, {
+      "pkg/parse_test.go": "test",
+      "lib/user_spec.rb": "test",
+      "spec/spec_helper.rb": "setup",
+      "src/Shop.Tests/CartTests.cs": "test",
+      "Tests/AppTests/CartTests.swift": "test",
+      "src/parse_unittest.cc": "test",
+      "app/src/androidTest/kotlin/CartTest.kt": "test",
+      "phpunit.xml": "setup",
+      "test/test_helper.exs": "setup",
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("lists a shared fixture change that makes a broken function's tests pass", async () => {
   // The shape of a fixture edit that hides a bug: the function stops normalizing case, and instead of fixing it the
   // shared fixture is changed to the value the broken code returns, so every test using it passes again.

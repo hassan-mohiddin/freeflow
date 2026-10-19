@@ -14,10 +14,18 @@ import { parseArgs } from "node:util";
 const USAGE =
   "Usage: test-changes.mjs --base <ref> [--head <ref>] [--root <repository>] [--pattern <glob>]... [--only] [--exclude <glob>]... [--json]";
 
-// Common JavaScript, TypeScript and Python layouts. --pattern adds to these; --only replaces them.
+// Common layouts for JavaScript, TypeScript, Python, Go, Ruby, Java, Kotlin, C#, Swift, C and C++, PHP, Elixir and
+// Dart. Matching is case-sensitive, so capitalised folders such as Swift's Tests/ are listed separately. --pattern adds
+// to these; --only replaces them.
 const DEFAULT_PATTERNS = [
   "**/*.{test,spec}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
-  "**/{test,tests,__tests__,spec,e2e}/**",
+  "**/{test,tests,__tests__,spec,e2e,Tests}/**",
+  "**/*.{Tests,UnitTests,IntegrationTests}/**",
+  "**/src/*Test/**",
+  "**/*_test.{go,dart,exs}",
+  "**/*_{test,unittest}.{c,cc,cpp,cxx}",
+  "**/*_spec.rb",
+  "**/*{Test,Tests}.{java,kt,cs,swift,php}",
   "**/test_*.py",
   "**/*_test.py",
   "**/conftest.py",
@@ -30,6 +38,10 @@ const DEFAULT_PATTERNS = [
   "**/*.setup.{js,mjs,cjs,ts,mts,cts}",
   "**/.mocharc*",
   "**/{pytest.ini,tox.ini,noxfile.py}",
+  "**/{spec_helper,rails_helper}.rb",
+  "**/.rspec",
+  "**/phpunit.xml*",
+  "**/test_helper.exs",
 ];
 
 // The first matching kind wins, so a snapshot under tests/ is a snapshot and a fixture under tests/ is a fixture.
@@ -45,6 +57,10 @@ const KINDS = [
       "**/.mocharc*",
       "**/{pytest.ini,tox.ini,noxfile.py}",
       "**/*.setup.{js,mjs,cjs,ts,mts,cts}",
+      "**/{spec_helper,rails_helper}.rb",
+      "**/.rspec",
+      "**/phpunit.xml*",
+      "**/test_helper.exs",
     ],
   ],
   ["fixture", ["**/{fixtures,__fixtures__,testdata,__mocks__}/**"]],
