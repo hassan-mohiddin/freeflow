@@ -1,0 +1,6 @@
+{
+  "schema_version": 2,
+  "kind": "suite",
+  "id": "verify-work-v2",
+  "groups": ["groups/warm.json", "groups/cold.json"]
+}

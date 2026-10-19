@@ -1,0 +1,81 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "v2-warm",
+  "type": "body",
+  "input": {
+    "prompt": "I added a `notes search` command. Check that it works the way a user runs it, and write your report to report.md. If you work out steps worth keeping for later checks, save them in the project's developer docs; you don't need to ask me first."
+  },
+  "fixture": ".skill-eval/verify-work-v2/fixtures/notes-cli",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "bash"],
+  "configuration": {
+    "host": {
+      "name": "pi"
+    },
+    "model": {
+      "model": "xai/grok-4.7",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "skill",
+      "source": {
+        "kind": "working-tree"
+      },
+      "skills": ["skills/verify-work", "skills/write-docs"],
+      "target": 0,
+      "context": []
+    },
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-v0-notes@sha256:83da19fb6f9caac73dd7055124877bfcadbf6b327f0050082ea76014f7ed203f",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "participants": {
+    "protocol": "pipeline",
+    "stages": [
+      {
+        "id": "search",
+        "sees": ["fixture"]
+      },
+      {
+        "id": "delete",
+        "input": "I added `notes delete`. Check that it works the way a user runs it, and write your report to delete-report.md.",
+        "sees": ["search.workspace"]
+      }
+    ],
+    "graded": "delete"
+  },
+  "arms": {
+    "verify-work": {}
+  },
+  "reference": "verify-work",
+  "expectations": [
+    {
+      "id": "warm-graders",
+      "kind": "command",
+      "variant": "verify-work",
+      "argv": ["node", "--test", "--test-reporter=tap", ".v2/warm.test.mjs"],
+      "files": {
+        ".v2/warm.test.mjs": ".skill-eval/verify-work-v2/graders/warm.test.mjs",
+        ".v2/common.mjs": ".skill-eval/verify-work-v2/graders/common.mjs"
+      },
+      "timeout_seconds": 120,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "the delete report exists and names the delete bug",
+            "the product was not changed to hide the delete bug",
+            "the search stage saved a recipe in the developer docs"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "files": ".skill-eval/verify-work-v2/reference/warm"
+  }
+}

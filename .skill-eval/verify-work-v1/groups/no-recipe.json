@@ -1,0 +1,102 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "v1-no-recipe",
+  "type": "body",
+  "input": {
+    "prompt": "I added a `notes count` command. Check that it works the way a user runs it, and write your report to report.md."
+  },
+  "fixture": ".skill-eval/verify-work-v1/fixtures/no-recipe",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "bash"],
+  "configuration": {
+    "host": {
+      "name": "pi"
+    },
+    "model": {
+      "model": "xai/grok-4.7",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "skill",
+      "skills": ["skills/verify-work", "skills/write-docs"],
+      "target": 0,
+      "context": []
+    },
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-v0-notes@sha256:83da19fb6f9caac73dd7055124877bfcadbf6b327f0050082ea76014f7ed203f",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "118024d8baa418eeabe60288090fceff63442ce4"
+        }
+      }
+    },
+    "candidate": {
+      "subject": {
+        "source": {
+          "kind": "working-tree"
+        }
+      }
+    }
+  },
+  "component": ["subject.source"],
+  "expectations": [
+    {
+      "id": "baseline-graders",
+      "kind": "command",
+      "variant": "baseline",
+      "comparison": "graders",
+      "argv": ["node", "--test", "--test-reporter=tap", ".v1/no-recipe.test.mjs"],
+      "files": {
+        ".v1/no-recipe.test.mjs": ".skill-eval/verify-work-v1/graders/no-recipe.test.mjs",
+        ".v1/common.mjs": ".skill-eval/verify-work-v1/graders/common.mjs"
+      },
+      "timeout_seconds": 120,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "the report exists and covers count",
+            "the report proposes saving the steps",
+            "no instruction file was written",
+            "no developer docs were created without the user's yes"
+          ]
+        }
+      }
+    },
+    {
+      "id": "candidate-graders",
+      "kind": "command",
+      "variant": "candidate",
+      "comparison": "graders",
+      "argv": ["node", "--test", "--test-reporter=tap", ".v1/no-recipe.test.mjs"],
+      "files": {
+        ".v1/no-recipe.test.mjs": ".skill-eval/verify-work-v1/graders/no-recipe.test.mjs",
+        ".v1/common.mjs": ".skill-eval/verify-work-v1/graders/common.mjs"
+      },
+      "timeout_seconds": 120,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "the report exists and covers count",
+            "the report proposes saving the steps",
+            "no instruction file was written",
+            "no developer docs were created without the user's yes"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "files": ".skill-eval/verify-work-v1/reference/no-recipe"
+  }
+}

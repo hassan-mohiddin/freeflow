@@ -1,0 +1,13 @@
+{
+  "name": "notes-cli",
+  "version": "1.0.0",
+  "description": "Keep short notes from the terminal.",
+  "type": "module",
+  "bin": {
+    "notes": "bin/notes.mjs"
+  },
+  "scripts": {
+    "start": "node bin/notes.mjs"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,6 @@
+{
+  "schema_version": 2,
+  "kind": "suite",
+  "id": "verify-work-v1",
+  "groups": ["groups/no-recipe.json", "groups/with-recipe.json", "groups/drifted.json", "groups/broken.json"]
+}
