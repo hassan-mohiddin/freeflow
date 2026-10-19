@@ -40,10 +40,6 @@ npm run snapshot:refresh
 
 Commit intended Freeflow changes before refreshing; uncommitted and ignored files are not in a snapshot. Snapshots are development-only, and a snapshot does not establish host support or runtime delivery. How the tool builds one: [Pi extension](dev-docs/subsystems/pi-extension.md#development-boundary).
 
-## Reference Stack For Skill Development
-
-When a skill change needs an outside reference, use the reference stack and its conflict order in [ADR 0008](dev-docs/adr/0008-reference-skill-stack.md). The references guide development only; they are not runtime dependencies.
-
 ## Working Rules
 
 - Use ADRs sparingly for hard-to-reverse, surprising, tradeoff-driven decisions.
