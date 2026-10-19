@@ -32,7 +32,7 @@
       {
         "id": "follow",
         "input": "This repository has developer docs under dev-docs/. Using only those docs and the helper they describe, check that adding a note and listing notes work, exactly as the docs say: launch, drive, save the evidence, and clean up. Then write follow-report.json in the workspace root with: launched (true or false), feature_file (the path you followed), evidence_dir (where the evidence is, relative to the workspace root), cleaned_up (true or false), and steps_that_failed (a list, empty if none).",
-        "sees": ["fixture", "setup.files"]
+        "sees": ["setup.workspace"]
       }
     ],
     "graded": "follow"
