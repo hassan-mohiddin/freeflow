@@ -11,6 +11,7 @@
 
 ### Added
 
+- Evaluate Behavior body groups on Pi can close and resume the subject's session between turns: `input.resume_before` names the turns to resume before, with `runtime.session` on.
 - Evaluate Behavior groups can run any number of named arms against a reference arm (`reference`, default `baseline`), or a single arm that measures one setup with nothing to compare (pass^k, metrics and judged scores, no comparison claim). Two-arm groups keep working unchanged.
 - A suite can declare a `decision` rule before it runs (the measure, the two arms, the direction, alpha and the minimum cases): the aggregate then reports "beats", "worse" or "no difference shown" from an exact sign test over cases, and only then says "beats". A rule's `trials` schedule adds trials only to cases still undecided, up to a maximum.
 - Every run records metrics (duration, turns, tool calls and errors, tokens, cost, cache hit rate), and an aggregate summarizes them per arm with paired differences against the reference; a decision can use them as its measure.

@@ -88,6 +88,7 @@ export async function runBody({
       stderrFile: subject.stderrFile,
       signal,
       prompts: declaredPrompts,
+      resumeBefore: group.input.resume_before ?? [],
       targetPath: subject.environment.targetPath,
       environment: subject.processEnvironment,
       nextPrompt,
@@ -122,6 +123,7 @@ export async function runBody({
       assistantError: turn.assistantError,
       settled: turn.settled,
       workspace: turn.workspace ?? null,
+      ...(turn.resumed ? { resumed: turn.resumed } : {}),
     });
   }
 
