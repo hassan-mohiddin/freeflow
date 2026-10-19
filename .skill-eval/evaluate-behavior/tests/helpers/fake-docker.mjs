@@ -1,6 +1,6 @@
 // Test helper only: a `docker` stand-in that logs every invocation and acts like a small container engine.
-// `exec` runs the command in the mounted workspace with no network client and nothing outside the mount;
-// `run` runs a grader's argv in the mounted copy.
+// `exec` runs the command in the mounted workspace with no network client and nothing outside its mounts (the
+// workspace, and read-only resources at their own host paths); `run` runs a grader's argv in the mounted copy.
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -32,14 +32,16 @@ const stateFile = (name) => path.join(${JSON.stringify(state)}, name + ".json");
 const VALUED = new Set(["--name", "--label", "--network", "--memory", "--cpus", "--pids-limit", "--volume", "--workdir", "--entrypoint"]);
 function parseRun(list) {
   const options = {};
+  const volumes = [];
   let index = 0;
   while (index < list.length && list[index].startsWith("-")) {
     if (VALUED.has(list[index])) {
-      options[list[index]] = list[index + 1];
+      if (list[index] === "--volume") volumes.push(list[index + 1]);
+      options[list[index]] ??= list[index + 1];
       index += 2;
     } else index += 1;
   }
-  return { options, image: list[index], argv: list.slice(index + 1) };
+  return { options, volumes, image: list[index], argv: list.slice(index + 1) };
 }
 const fail = (message, code = 1) => {
   process.stderr.write(message + "\\n");
@@ -57,9 +59,12 @@ if (command === "version") {
   const entry = (architecture) => ({ Descriptor: { platform: { os: "linux", architecture } }, SchemaV2Manifest: { layers: [{ size: 3 * 1024 * 1024 }, { size: 1024 * 1024 }] } });
   process.stdout.write(JSON.stringify([entry("amd64"), entry("arm64")]) + "\\n");
 } else if (command === "create") {
-  const { options } = parseRun(rest);
-  const [source, workdir] = options["--volume"].split(":");
-  writeFileSync(stateFile(options["--name"]), JSON.stringify({ source, workdir }));
+  const { options, volumes } = parseRun(rest);
+  const [source, workdir] = volumes[0].split(":");
+  // Further volumes are read-only resources mounted at their own host path.
+  const resources = volumes.slice(1).map((volume) => volume.split(":"));
+  if (resources.some(([from, to, mode]) => from !== to || mode !== "ro")) fail("fake docker: a resource mount must be path:path:ro");
+  writeFileSync(stateFile(options["--name"]), JSON.stringify({ source, workdir, resources: resources.map(([from]) => from) }));
   process.stdout.write("fake-container-id\\n");
 } else if (command === "start") {
   if (!existsSync(stateFile(rest[0]))) fail("Error: No such container: " + rest[0]);
@@ -69,14 +74,14 @@ if (command === "version") {
   const workdir = rest[rest.indexOf("--workdir") + 1];
   const name = rest[rest.indexOf("--workdir") + 2];
   if (!existsSync(stateFile(name))) fail("Error: No such container: " + name);
-  const { source } = JSON.parse(readFileSync(stateFile(name), "utf8"));
+  const { source, resources = [] } = JSON.parse(readFileSync(stateFile(name), "utf8"));
   const script = rest.at(-1).replaceAll(workdir, source);
   // Nothing outside the mount exists in the container, and it has no network client.
   if (/curl|wget/.test(script)) {
     process.stdout.write("NO-HTTP-CLIENT\\n");
     process.exit(0);
   }
-  const outside = (script.match(/(?:^|[\\s'"=>])(\\/[^\\s'";]*)/g) ?? []).map((match) => match.trim().replace(/^['"=>]/, "")).filter((entry) => !entry.startsWith(source));
+  const outside = (script.match(/(?:^|[\\s'"=>])(\\/[^\\s'";]*)/g) ?? []).map((match) => match.trim().replace(/^['"=>]/, "")).filter((entry) => ![source, ...resources].some((mount) => entry === mount || entry.startsWith(mount + "/")));
   if (outside.length > 0) fail("sh: " + outside[0] + ": No such file or directory");
   const result = spawnSync("/bin/sh", ["-c", script], { cwd: source, env: { PATH: "/usr/bin:/bin" }, encoding: "utf8" });
   process.stdout.write(result.stdout);

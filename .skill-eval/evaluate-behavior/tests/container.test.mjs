@@ -375,6 +375,61 @@ test("a container group without bash still runs its declared commands in a subje
   });
 });
 
+test("a container subject's bash runs a declared skill's script at the path it was given, mounted read-only", async () => {
+  await withTempDirectory(async (root) => {
+    const pi = await installFakePi(root, { rpcBash: "sh {skill}/scripts/hello.sh > from-skill.txt" });
+    const docker = await installFakeDocker(root);
+    await write(
+      path.join(root, "skills/helper/SKILL.md"),
+      "---\nname: helper\ndescription: Use when greeting.\n---\n\n# Helper\n\nRun scripts/hello.sh.\n",
+    );
+    // The fake engine, like an image, has no host node; a script the skill ships runs by its path.
+    await write(path.join(root, "skills/helper/scripts/hello.sh"), "echo hello from the skill\n");
+    const definition = await write(
+      path.join(root, "groups/boxed.json"),
+      containerGroup(
+        {
+          arms: { only: {} },
+          reference: "only",
+          component: undefined,
+          expectations: [
+            {
+              id: "ran-script",
+              kind: "file-text",
+              variant: "only",
+              path: "from-skill.txt",
+              expect: "contains",
+              value: "hello from the skill",
+            },
+          ],
+        },
+        {
+          subject: {
+            kind: "skill",
+            source: { kind: "working-tree" },
+            skills: ["skills/helper"],
+            target: null,
+            context: [],
+          },
+        },
+      ),
+    );
+
+    const result = runCli(root, [pi.bin, docker.bin], ["run", definition, "--dry-run"]);
+
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)?.[1], "groups/boxed");
+    const run = await readJson(path.join(groupDirectory, "only/run.json"));
+    assert.equal(run.state, "complete");
+    const skill = run.resources.skills[0].path;
+    const created = (await dockerCalls(docker.log)).filter((args) => args[0] === "create").at(-1);
+    const volumes = created.flatMap((arg, index) => (created[index - 1] === "--volume" ? [arg] : []));
+    assert.deepEqual(volumes, [`${run.workspace}:/testbed`, `${skill}:${skill}:ro`]);
+    const grade = await readJson(path.join(groupDirectory, "deterministic-grade.json"));
+    assert.equal(grade.checks[0].state, "pass", JSON.stringify(grade.checks[0]));
+  });
+});
+
 test("cancelling a running subject removes its container", async () => {
   await withTempDirectory(async (root) => {
     const pi = await installFakePi(root);

@@ -74,7 +74,13 @@ export async function runBody({
   let container = null;
   if (declaredContainer !== undefined) {
     const { containerTarget, startContainer } = await import("./container.mjs");
-    container = await startContainer({ container: declaredContainer, workspace: subject.workspace });
+    // The subject's declared resources are mounted read-only at the paths it was given, so its bash can run a
+    // skill's scripts; the workspace is the only writable mount.
+    container = await startContainer({
+      container: declaredContainer,
+      workspace: subject.workspace,
+      resources: subject.resourceRoots,
+    });
     subject.processEnvironment.SKILL_EVAL_CONTAINER = containerTarget(container, declaredContainer);
   }
   let observation;
@@ -402,6 +408,8 @@ async function prepareSubject(
     host,
     fixture,
     workspace,
+    // Every readable root but the workspace: the declared skills, context, runtime resources and Freeflow's package.
+    resourceRoots: allowedRoots.slice(1),
     contextObservationPath,
     requiresContextObservation,
     sessionDirectory,
