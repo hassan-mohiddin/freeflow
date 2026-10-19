@@ -370,9 +370,12 @@ export async function verifyConfinement({ arm, host = "pi", shell, extensions, d
   const nonce = randomBytes(12).toString("hex");
   const adapter = hostAdapter(host);
   const isolation = await adapter.prepareIsolation(directory, null, { settings: adapter.effectiveSettings({}) });
-  // The isolated HOME's parent holds a marker the shell must not read.
+  // The isolated HOME's parent holds a marker the shell must not read, and so does the directory where the host keeps
+  // its login: a shell that can read there could read a subject's copied login.
   const marker = path.join(isolation.evidence.root, "probe-marker");
   await writeFile(marker, `${nonce}\n`);
+  const loginMarker = path.join(isolation.loginDirectory ?? isolation.evidence.root, "probe-login-marker");
+  await writeFile(loginMarker, `${nonce}\n`);
   const written = path.join(outside, `written-${nonce}`);
 
   const listener = await startListener(nonce);
@@ -405,6 +408,11 @@ export async function verifyConfinement({ arm, host = "pi", shell, extensions, d
       id: "environment",
       purpose: `the ${PROBE_VARIABLE} variable planted in ${adapter.label}'s environment must be absent`,
       command: `printenv ${PROBE_VARIABLE} || echo unset`,
+    },
+    {
+      id: "read-login",
+      purpose: `reading a marker in ${adapter.label}'s login directory must fail`,
+      command: `cat ${quote(loginMarker)}; echo "exit=$?"`,
     },
   ];
 
@@ -467,6 +475,7 @@ export async function verifyConfinement({ arm, host = "pi", shell, extensions, d
     "read-home-parent": !includes(judged[2], nonce),
     network: listener.connections === 0 && !/REACHED:(?!000)\S+/.test(judged[3].output ?? ""),
     environment: !includes(judged[4], nonce),
+    "read-login": !includes(judged[5], nonce),
   };
   const record = {
     verified: false,

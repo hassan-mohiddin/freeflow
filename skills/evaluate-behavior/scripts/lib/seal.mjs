@@ -43,21 +43,39 @@ export function sealPaths(group, arm, shell) {
 /**
  * The arm's sealing record: the network subject-written code actually had (`none` only when every path is confined),
  * the declared policy (null when the definition declares none), where each path runs, and whether the provider
- * login on disk was out of reach of subject-written code.
+ * login on disk was out of reach of subject-written code. With bash, the login is "out of reach" only when the
+ * arm's confinement probe of a marker in the host's login directory held; otherwise it is "not shown out of reach"
+ * ("not probed" before the probes run).
+ *
+ * @param {{ bash: string | null, commands: string | null, graders: string | null }} paths
+ * @param {string | null | undefined} declared
+ * @param {any} [confinement] the arm's confinement record, from its shell probes
  */
-export function sealing(paths, declared) {
+export function sealing(paths, declared, confinement = undefined) {
   const onHost = [paths.commands, paths.graders].includes("host");
   return {
     network: onHost ? "host" : "none",
     declared: declared ?? null,
     ...paths,
-    login: onHost ? "reachable from code run on the host" : "out of reach",
+    login: loginReach(paths, onHost, confinement),
   };
 }
 
+function loginReach(paths, onHost, confinement) {
+  if (onHost) return "reachable from code run on the host";
+  if (paths.bash === null) return "out of reach";
+  if (confinement === undefined) return "not probed";
+  const probe = (confinement.probes ?? []).find((entry) => entry.id === "read-login");
+  return probe?.held === true ? "out of reach" : "not shown out of reach";
+}
+
 /** One arm's sealing record from a loaded group (its resolved variant and declared configuration). */
-export function armSealing(group, arm) {
-  return sealing(sealPaths(group, arm, group.variants?.[arm]?.shell), group.configurations?.[arm]?.network);
+export function armSealing(group, arm, confinement = undefined) {
+  return sealing(
+    sealPaths(group, arm, group.variants?.[arm]?.shell),
+    group.configurations?.[arm]?.network,
+    confinement,
+  );
 }
 
 /** Why a declared "none" cannot hold for an arm, or null. */

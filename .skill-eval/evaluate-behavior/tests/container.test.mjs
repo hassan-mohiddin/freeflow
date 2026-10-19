@@ -303,7 +303,7 @@ test("probes, subjects and graders run in containers with the declared limits, i
     const calls = await dockerCalls(docker.log);
     const verbs = calls.map((args) => (args[0] === "--host" ? `host ${args[2]}` : args[0]));
     // After the image, one `run` checks that the engine shares the folder the workspaces live under.
-    const probe = ["version", "image", "run", "context", "create", "start", ...Array(5).fill("host exec"), "rm"];
+    const probe = ["version", "image", "run", "context", "create", "start", ...Array(6).fill("host exec"), "rm"];
     const subject = ["context", "create", "start", "rm"];
     assert.deepEqual(verbs, [...probe, ...probe, ...subject, "run", "rm", ...subject, "run", "rm"]);
 

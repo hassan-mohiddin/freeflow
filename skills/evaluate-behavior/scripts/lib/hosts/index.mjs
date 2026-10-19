@@ -5,8 +5,9 @@
 // - resolveExtensions(declared, { deferSources }): declared host extensions, found among the installed ones.
 // - refreshLogins(providers): make every login a batch uses valid before it starts.
 // - effectiveSettings(declared): the evaluator's host defaults with declared settings winning.
-// - prepareIsolation(directory, model, { settings }) -> { environment, evidence }: a private home, temp and host
-//   configuration for one process, with only the declared provider's login; removeCredentials(directory) after.
+// - prepareIsolation(directory, model, { settings }) -> { environment, evidence, loginDirectory }: a private home,
+//   temp and host configuration for one process, with only the declared provider's login, and the directory that
+//   login lives in (the shell probes plant a marker there); removeCredentials(directory) after.
 // - prepareLaunch(context) -> { args, environment }: one subject's arguments and the host's own variables.
 // - runOneShot(options), runSession(options): run a subject and return the normalized observation (see subject.mjs).
 // - modelCall(directory, prompt, options): one tool-less call for a judge, reviewer or simulated user.

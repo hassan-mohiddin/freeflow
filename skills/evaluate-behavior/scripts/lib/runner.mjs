@@ -413,7 +413,7 @@ async function runGroup({
         if (executed) {
           if (confinement[variant] !== undefined) run.confinement = confinement[variant];
           // What the subject's own code could reach: the network policy and where each path ran.
-          run.sealing = armSealing(group, variant);
+          run.sealing = armSealing(group, variant, confinement[variant]);
           if (sources?.[variant] !== undefined) run.sourceOverride = sources[variant];
           if (sourceCommit !== null && run.resources?.source?.kind === "working-tree") {
             run.resources.source.commit = sourceCommit;

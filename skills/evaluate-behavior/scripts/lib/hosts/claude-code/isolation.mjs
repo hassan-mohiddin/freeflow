@@ -32,7 +32,7 @@ const CONNECTION_VARIABLES = [
  * @param {string} directory where the isolation root is created
  * @param {string | null} model the declared model, or null for a probe
  * @param {{settings?: Record<string, unknown>}} [options]
- * @returns {Promise<{environment: Record<string, string>, evidence: any}>}
+ * @returns {Promise<{environment: Record<string, string>, evidence: any, loginDirectory: string}>}
  */
 export async function prepareClaudeIsolation(directory, model, { settings = {} } = {}) {
   const root = path.join(directory, "isolation");
@@ -68,5 +68,7 @@ export async function prepareClaudeIsolation(directory, model, { settings = {} }
       passed,
       settings,
     },
+    // Where the host keeps its configuration and any login file: the confinement probe plants a marker here.
+    loginDirectory: config,
   };
 }
