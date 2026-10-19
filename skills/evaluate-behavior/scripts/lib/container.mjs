@@ -6,6 +6,8 @@
 
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { promisify } from "node:util";
 
 const run = promisify(execFile);
@@ -89,13 +91,15 @@ const DOCKER_START = {
 };
 
 /**
- * What is missing for a container environment, in the shell tier's refusal shape: the docker CLI, its daemon, and
- * the image present locally (with its pull command and, when the registry reports it, its download size).
+ * What is missing for a container environment, in the shell tier's refusal shape: the docker CLI, its daemon, the
+ * image present locally (with its pull command and, when the registry reports it, its download size), and, given the
+ * folder workspaces will live under, that the engine shares that folder with its containers.
  *
- * @param {{ image: string }} container
+ * @param {{ image: string, workdir: string }} container
  * @param {string | null} manager "macos", "apt", "dnf" or null
+ * @param {string | null} [workspaceRoot] the folder the run's workspaces are created under
  */
-export async function missingContainerPrerequisites(container, manager) {
+export async function missingContainerPrerequisites(container, manager, workspaceRoot = null) {
   const reason = "the configuration runs the subject's shell and the command graders in a container";
   try {
     await run("docker", ["version", "--format", "{{.Server.Version}}"], { timeout: DOCKER_TIMEOUT_MS });
@@ -125,7 +129,6 @@ export async function missingContainerPrerequisites(container, manager) {
   }
   try {
     await run("docker", ["image", "inspect", container.image], { timeout: DOCKER_TIMEOUT_MS });
-    return [];
   } catch {
     const size = await imageDownloadSize(container.image);
     return [
@@ -138,6 +141,63 @@ export async function missingContainerPrerequisites(container, manager) {
         download: size === null ? null : `about ${formatBytes(size)} compressed, from docker manifest inspect`,
       },
     ];
+  }
+  const hidden = workspaceRoot === null ? null : await hiddenWorkspace(container, workspaceRoot);
+  if (hidden === null) return [];
+  return [
+    {
+      name: "a workspace folder the container engine can see",
+      need: `containers to see folders under ${workspaceRoot}`,
+      found: hidden,
+      reason,
+      install:
+        "a VM-based engine shares only some host folders (Colima, by default, only your home folder): run from a folder it shares (for check-tasks, set TMPDIR to one), pass --results there, or add the folder to the engine's mounts",
+      download: null,
+    },
+  ];
+}
+
+/**
+ * Whether a folder under `root` reaches containers. A VM-based engine (Colima, Docker Desktop, OrbStack, Podman's
+ * machine) mounts only the host folders it shares, and a workspace elsewhere appears empty inside the container, so
+ * graders and shells would run on nothing. Writes a marker in a fresh folder under `root` and reads it back through
+ * the image. Returns null when it arrives (or when the image has no `cat` to tell), else what went wrong.
+ */
+async function hiddenWorkspace(container, root) {
+  await mkdir(root, { recursive: true });
+  const probe = await mkdtemp(path.join(root, ".skill-eval-share-"));
+  const marker = randomBytes(8).toString("hex");
+  try {
+    await writeFile(path.join(probe, "marker"), marker);
+    const { stdout } = await run(
+      "docker",
+      [
+        "run",
+        "--rm",
+        "--label",
+        "skill-eval=1",
+        "--network",
+        "none",
+        "--volume",
+        `${probe}:${container.workdir}:ro`,
+        "--workdir",
+        container.workdir,
+        "--entrypoint",
+        "cat",
+        container.image,
+        "marker",
+      ],
+      { timeout: DOCKER_TIMEOUT_MS },
+    );
+    if (stdout.trim() === marker) return null;
+    return `the container read something other than the marker written in ${probe}`;
+  } catch (error) {
+    const detail = firstLine(error?.stderr) ?? String(error?.message ?? error);
+    // An image without `cat` cannot answer the question; it is not evidence of a hidden folder.
+    if (/executable file not found|no such file or directory: unknown|exec: "cat"/i.test(detail)) return null;
+    return `a marker written in ${probe} did not reach the container: ${detail}`;
+  } finally {
+    await rm(probe, { recursive: true, force: true });
   }
 }
 

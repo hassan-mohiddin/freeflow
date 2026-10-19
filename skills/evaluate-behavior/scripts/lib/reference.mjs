@@ -89,11 +89,10 @@ export async function checkGroupReference(group, { root, signal } = {}) {
   if (byArm.length === 0) {
     return { ...base, state: "not-checkable", reason: "no workspace or command expectation for any checked arm" };
   }
-  const unready = await containerReadiness(group, byArm);
-  if (unready !== null) return { ...base, ...unready };
-
   const work = await mkdtemp(path.join(os.tmpdir(), "skill-eval-reference-"));
   try {
+    const unready = await containerReadiness(group, byArm, work);
+    if (unready !== null) return { ...base, ...unready };
     const applied = await applyReference(group, { root, workspace: path.join(work, "after", "workspace") });
     if (applied.error) return { ...base, state: "unsolvable", reason: applied.error, arms: [] };
     const after = await gradeWorkspace(group, byArm, { root, signal, directory: path.join(work, "after"), ...applied });
@@ -138,13 +137,16 @@ export async function checkGroupReference(group, { root, signal } = {}) {
   }
 }
 
-/** For a container arm, the docker CLI, engine and image must be ready, or the task is not checkable here. */
-async function containerReadiness(group, byArm) {
+/**
+ * For a container arm, the docker CLI, engine and image must be ready, and the engine must see `workspaceRoot`, where
+ * the graded copies live; otherwise the task is not checkable here.
+ */
+async function containerReadiness(group, byArm, workspaceRoot) {
   for (const { arm, container, expectations } of byArm) {
     if (container === undefined || !expectations.some((expectation) => expectation.kind === "command")) continue;
     const { missingContainerPrerequisites } = await import("./container.mjs");
     const { packageManager, prerequisiteRefusal } = await import("./shell.mjs");
-    const missing = await missingContainerPrerequisites(container, await packageManager(process.env));
+    const missing = await missingContainerPrerequisites(container, await packageManager(process.env), workspaceRoot);
     if (missing.length > 0) {
       return {
         state: "not-checkable",

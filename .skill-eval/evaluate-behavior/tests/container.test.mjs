@@ -215,6 +215,35 @@ test("without a docker command line, the refusal says what to install and to ask
   });
 });
 
+test("a workspace folder the engine does not share is refused by name, before anything runs on an empty mount", async () => {
+  await withTempDirectory(async (root) => {
+    const container = { image: IMAGE, workdir: "/testbed", network: "none" };
+    const saved = process.env.PATH;
+    try {
+      const hidden = await installFakeDocker(path.join(root, "hidden"), { hiddenMounts: true });
+      process.env.PATH = `${hidden.bin}${path.delimiter}${saved}`;
+      const [missing, ...rest] = await missingContainerPrerequisites(container, "macos", path.join(root, "work"));
+      assert.deepEqual(rest, []);
+      assert.equal(missing.name, "a workspace folder the container engine can see");
+      assert.match(missing.found, /did not reach the container: cat: marker: No such file or directory/);
+      assert.match(missing.install, /Colima, by default, only your home folder/);
+      assert.match(missing.install, /set TMPDIR/);
+
+      const shared = await installFakeDocker(path.join(root, "shared"));
+      process.env.PATH = `${shared.bin}${path.delimiter}${saved}`;
+      assert.deepEqual(await missingContainerPrerequisites(container, "macos", path.join(root, "work")), []);
+      const run = (await dockerCalls(shared.log)).find((args) => args[0] === "run");
+      assert.ok(run.includes("--network") && run[run.indexOf("--network") + 1] === "none", "the probe has no network");
+      assert.ok(
+        run.some((arg) => arg.endsWith(":/testbed:ro")),
+        "the probe mounts read-only",
+      );
+    } finally {
+      process.env.PATH = saved;
+    }
+  });
+});
+
 test("a stopped engine or a missing image makes the group invalid before anything starts, and nothing is pulled", async () => {
   await withTempDirectory(async (root) => {
     const pi = await installFakePi(root);
@@ -273,7 +302,8 @@ test("probes, subjects and graders run in containers with the declared limits, i
     const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)?.[1], "groups/boxed");
     const calls = await dockerCalls(docker.log);
     const verbs = calls.map((args) => (args[0] === "--host" ? `host ${args[2]}` : args[0]));
-    const probe = ["version", "image", "context", "create", "start", ...Array(5).fill("host exec"), "rm"];
+    // After the image, one `run` checks that the engine shares the folder the workspaces live under.
+    const probe = ["version", "image", "run", "context", "create", "start", ...Array(5).fill("host exec"), "rm"];
     const subject = ["context", "create", "start", "rm"];
     assert.deepEqual(verbs, [...probe, ...probe, ...subject, "run", "rm", ...subject, "run", "rm"]);
 
@@ -339,7 +369,7 @@ test("a container group without bash still runs its declared commands in a subje
     const calls = await dockerCalls(docker.log);
     const verbs = calls.map((args) => (args[0] === "--host" ? `host ${args[2]}` : args[0]));
     // No shell to probe; each arm gets a subject container, then its grader runs in a fresh one.
-    const prerequisites = ["version", "image"];
+    const prerequisites = ["version", "image", "run"];
     const subject = ["context", "create", "start", "rm"];
     assert.deepEqual(verbs, [...prerequisites, ...prerequisites, ...subject, "run", "rm", ...subject, "run", "rm"]);
   });
