@@ -1,7 +1,8 @@
 // Reuse (E-1): a complete, canonical run can stand in for a new trial of the same arm when nothing that could
 // change its behavior changed. Each such run is indexed in `<results>/index.jsonl` under a key over the group's
 // task and inputs, the arm's effective configuration and inputs, the model, the host version and this
-// evaluator's own source. `--reuse` counts a matching run instead of running the arm again.
+// evaluator's own source, whenever a canonical run completes. `--reuse` counts a matching run instead of running
+// the arm again.
 
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -187,8 +188,9 @@ async function readJson(file) {
 }
 
 /**
- * The reuse state shared by every invocation of one run or aggregate: whether `--reuse` is on, the index as it
- * stood when the run began, each host's version, and the runs already reused, so none is reused twice.
+ * The reuse state shared by every invocation of one run or aggregate: whether `--reuse` is on (only then does it
+ * claim indexed runs; keys are computed either way, so new runs are indexed), the index as it stood when the run
+ * began, each host's version, and the runs already reused, so none is reused twice.
  *
  * @param {{resultsDirectory: string, enabled: boolean, hostVersion: (host: string) => Promise<string | null>}} options
  */

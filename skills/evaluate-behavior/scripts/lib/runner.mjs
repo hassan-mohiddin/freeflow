@@ -133,7 +133,8 @@ export async function runEvaluation(definitionFile, selectors = {}, options = {}
     runGroup({ ...context, selected, hostExtensions: hostExtensions.get(selected.group.id) });
   const groups =
     subjects.limit === 1 ? await sequential(selection.groups, runOne) : await Promise.all(selection.groups.map(runOne));
-  // Canonical complete runs become reusable; an index that cannot be written never fails the run.
+  // Canonical complete runs become reusable, with or without --reuse; an index that cannot be written never fails
+  // the run.
   if (!dryRun) await appendIndex(runsDirectory, context.indexEntries).catch(() => {});
   const state = batchState(groups);
   const summary = {
@@ -376,9 +377,9 @@ async function runGroup({
     } else if (stopped()) {
       runs[variant] = cancelledRun(group, variant);
     } else if (resourceError === null) {
-      // With --reuse a canonical run has a reuse key: an indexed run under it stands in for this one, and a new
-      // run is indexed under it. Without --reuse nothing extra runs (not even the host's version check).
-      keys[variant] = dryRun || !reuse.enabled ? null : await reuse.keyFor(group, variant, root).catch(() => null);
+      // A canonical run has a reuse key, and a new complete run is indexed under it with or without --reuse, so a
+      // run made without it (a first run, a pilot on its own) can stand in later. Only --reuse claims an indexed run.
+      keys[variant] = dryRun ? null : await reuse.keyFor(group, variant, root).catch(() => null);
       const claimed = await reuse.claim(keys[variant]);
       const adopted = claimed === null ? null : await adoptRun(claimed, variantDirectory).catch(() => null);
       if (adopted !== null) {

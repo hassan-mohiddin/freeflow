@@ -52,6 +52,11 @@ import { appendFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 const args = process.argv.slice(2);
+// The evaluator asks for the version to key a run for reuse; that is not a subject.
+if (args[0] === "--version") {
+  process.stdout.write("0.0.0-fake\\n");
+  process.exit(0);
+}
 const extensions = args.flatMap((arg, index) => (arg === "--extension" ? [args[index + 1]] : []));
 const versions = [];
 for (const extension of extensions.filter((entry) => entry.includes("host-extensions"))) {

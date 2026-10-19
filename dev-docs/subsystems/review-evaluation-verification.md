@@ -200,7 +200,7 @@ skill-eval.mjs review <result-or-aggregate> --calibrate <labels.json>
 | `--jobs <n>` | 1 | Subjects at once |
 | `--cpu-jobs <n>` | 2 | Local CPU work at once: command graders, builds, probes |
 | `--results <dir>` | `<root>/.skill-eval/runs` | Where results are written and found |
-| `--reuse` | off | Count matching indexed runs as trials, and index this batch's runs |
+| `--reuse` | off | Count matching indexed runs as trials; every canonical run is indexed either way |
 | `--pilot <n>` | off | Run the first n groups once; stop before the batch on a failed, invalid or cancelled arm, a grade error, or a comparison no arm passed; otherwise the pilot is the first trial |
 | `--source <arm>=<sha>` | none | Repeatable; replaces every Git ref the arm declares for this run |
 | `--skip-reference-check` | off | Run despite a failing reference check; recorded in `reference-check.json` |
@@ -261,7 +261,7 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
 
 - Everything is on disk; nothing lives only in memory between commands. `rebuildAggregate` rereads every trial's `summary.json` and grades and rewrites `aggregate.json` (sections, decision and claim), keeping its ID, trials, schedule and budget. It runs after rubric judging and calibration of an aggregate.
 - Calibration is stored in each judged grade's `judges[].calibration`: state, agreement, kappa per dimension, the labels file's path and SHA-256 (the labels are not copied), and when it was checked.
-- Only `--reuse` invocations write `index.jsonl`, and only for complete, graded, non-reused runs outside dry runs.
+- Every canonical invocation writes `index.jsonl`, with or without `--reuse`, for its complete, graded, non-reused runs; dry runs never do. Only `--reuse` reads it.
 
 ## Invariants
 
@@ -375,6 +375,7 @@ These prove the evaluator's mechanics with stand-in models. They do not prove be
 
 ## Changes
 
+- 2026-10-19: Every canonical run is indexed for reuse, not only `--reuse` runs, so a run made without the flag (a pilot on its own) counts later.
 - 2026-10-19: Each result's `summary.json` records its own `cost`, and its `budget` names the run's shared total `runTotal`; a trial's `budget.spent` had read like that trial's own cost.
 - 2026-10-19: A pipeline stage can start from an earlier stage's workspace (`<stage>.workspace`), and the container preflight refuses a workspace folder the engine does not share.
 - 2026-10-19: Map Features sets up and rechecks a project's feature map, guide and helper; Verify Work's Project Recipe reference proposes it when no recipe exists.
