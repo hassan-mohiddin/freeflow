@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
-import { checkEvalDefinitions } from "../../../scripts/validation/check-eval-definitions.mjs";
+import { checkEvalDefinitions, findDefinitionFiles } from "../../../scripts/validation/check-eval-definitions.mjs";
+
+const REPOSITORY = fileURLToPath(new URL("../../../", import.meta.url));
 import { toV2 } from "./helpers/to-v2.mjs";
 
 async function writeJson(root, relativePath, value) {
@@ -120,4 +123,36 @@ test("a declared fixture must be a directory inside the repository, resolved fro
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("every evaluation definition in this repository sits where the check loads it", async () => {
+  // A group or suite saved outside groups/, cases/ or a suite file name would never be loaded by the check.
+  const evalRoot = path.join(REPOSITORY, ".skill-eval");
+  const skipped = new Set(["runs", "cache", "fixtures", "node_modules", "subjects", "reports", "provenance"]);
+  const definitions = [];
+  async function walk(directory) {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const entryPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        if (!skipped.has(entry.name)) await walk(entryPath);
+      } else if (entry.isFile() && entry.name.endsWith(".json")) {
+        let value = null;
+        try {
+          value = JSON.parse(await readFile(entryPath, "utf8"));
+        } catch {
+          continue;
+        }
+        if (value?.schema_version === 2 && (value.kind === "group" || value.kind === "suite")) {
+          definitions.push(entryPath);
+        }
+      }
+    }
+  }
+  await walk(evalRoot);
+  const loaded = new Set(await findDefinitionFiles(evalRoot));
+  assert.ok(definitions.length > 0);
+  assert.deepEqual(
+    definitions.filter((file) => !loaded.has(file)).map((file) => path.relative(REPOSITORY, file)),
+    [],
+  );
 });
