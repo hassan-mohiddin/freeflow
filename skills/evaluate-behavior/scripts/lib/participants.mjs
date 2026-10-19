@@ -12,7 +12,7 @@ import { sha256, writeJson, writeText } from "./evidence.mjs";
 import { hostAdapter } from "./hosts/index.mjs";
 import { launchModel } from "./model-call.mjs";
 import { mergeUsage } from "./process.mjs";
-import { fingerprintDirectory } from "./sandbox.mjs";
+import { fingerprintDirectory, WORKSPACE } from "./sandbox.mjs";
 import { runBody, runDescription, VariantSetupError } from "./subject.mjs";
 
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
@@ -470,18 +470,18 @@ async function recordOutputs(directory, run, stageId) {
   for (const relative of written) {
     const source = path.join(run.workspace, relative);
     await mkdir(path.dirname(path.join(files, relative)), { recursive: true });
-    await cp(source, path.join(files, relative), { dereference: false });
+    await cp(source, path.join(files, relative), { dereference: false, verbatimSymlinks: true });
   }
   let workspace = null;
   if (typeof run.workspace === "string" && (await stat(run.workspace).catch(() => null))?.isDirectory()) {
     const snapshotPath = path.join(directory, "workspace");
-    await cp(run.workspace, snapshotPath, { recursive: true, dereference: false });
+    await cp(run.workspace, snapshotPath, { recursive: true, dereference: false, verbatimSymlinks: true });
     const canonical = await realpath(snapshotPath);
     workspace = {
       declaredPath: `${stageId}.workspace`,
       sourcePath: run.workspace,
       snapshotPath: canonical,
-      files: await fingerprintDirectory(canonical),
+      files: await fingerprintDirectory(canonical, WORKSPACE),
     };
   }
   return { response, files, written, workspace };
@@ -533,10 +533,17 @@ export async function deliverStageContext(environment, variantDirectory, deliver
   for (const [index, delivery] of deliveries.entries()) {
     const destination = path.join(contextRoot, String(index));
     await mkdir(path.dirname(destination), { recursive: true });
-    await cp(delivery.source, destination, { recursive: true, dereference: false });
+    await cp(delivery.source, destination, { recursive: true, dereference: false, verbatimSymlinks: true });
     const snapshot = await realpath(destination);
-    const files = await fingerprintDirectory(snapshot);
-    environment.context.push({ declaredPath: delivery.label, sourcePath: delivery.source, path: snapshot, files });
+    // Written files may include links the earlier stage made; they are recorded, and only regular files are delivered.
+    const files = await fingerprintDirectory(snapshot, WORKSPACE);
+    environment.context.push({
+      declaredPath: delivery.label,
+      sourcePath: delivery.source,
+      path: snapshot,
+      files,
+      links: WORKSPACE.links,
+    });
     const delivered = [];
     for (const file of files.filter((entry) => entry.type === "file")) {
       let content;

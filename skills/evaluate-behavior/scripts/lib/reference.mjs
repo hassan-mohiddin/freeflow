@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { armNames } from "./arms.mjs";
 import { runCommandExpectation } from "./grade-command.mjs";
 import { gradeDeterministic } from "./grade.mjs";
-import { fingerprintDirectory, workspaceChanges } from "./sandbox.mjs";
+import { fingerprintDirectory, WORKSPACE, workspaceChanges } from "./sandbox.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -292,18 +292,23 @@ async function applyReference(group, { root, workspace }) {
       return { error: error instanceof Error ? error.message : String(error) };
     }
   }
-  const after = await fingerprintDirectory(workspace);
+  const after = await fingerprintDirectory(workspace, WORKSPACE);
   return { after, changes: workspaceChanges(before, after) };
 }
 
 /** Copies the fixture into `workspace` unchanged; the evidence shows no change. */
 async function copyFixture(group, { root, workspace }) {
   if (group.fixture !== null) {
-    await cp(path.resolve(root, group.fixture), workspace, { recursive: true, dereference: false, force: false });
+    await cp(path.resolve(root, group.fixture), workspace, {
+      recursive: true,
+      dereference: false,
+      verbatimSymlinks: true,
+      force: false,
+    });
   } else {
     await mkdir(workspace, { recursive: true });
   }
-  const after = await fingerprintDirectory(workspace);
+  const after = await fingerprintDirectory(workspace, WORKSPACE);
   return { after, changes: workspaceChanges(after, after) };
 }
 

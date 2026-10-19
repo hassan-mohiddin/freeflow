@@ -74,6 +74,7 @@
 
 ### Fixed
 
+- Evaluate Behavior: a link the subject makes in its workspace, such as a CLI an installer links into a scratch prefix, is recorded as a link with its target and never followed, instead of failing the whole run as infrastructure and losing its transcript. A fixture's or skill's relative link is now copied as it is; it used to be rewritten into an absolute link and refused.
 - Evaluate Behavior: `--reuse` can count a run made without it. Every complete canonical run is now indexed; before, only runs made with `--reuse` were, so a pilot run on its own was run again as a new trial.
 - Evaluate Behavior: each result's `summary.json` records its own cost (`cost.spent`, with how many subjects ran and how many reported no cost), and an aggregate lists each trial's cost. A trial's `budget.spent` used to be the whole run's running total, which read like that trial's own cost; the summary now names it `budget.runTotal`.
 - Track Work: creating the first inline task record works in a repository whose only matching ignore rule is directory-only, such as `.freeflow/*/` in a fresh clone of Freeflow. Before, it failed with "Record path is not ignored by Git" because the tasks folder did not exist yet.

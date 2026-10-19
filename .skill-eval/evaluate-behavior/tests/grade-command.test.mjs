@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmod, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readlink, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -51,13 +51,13 @@ function git(root, ...args) {
  * A body subject over Pi's RPC protocol that fixes `src/add.mjs` in its workspace: correctly in the candidate arm,
  * wrongly (absolute values) in the baseline arm. The arm is read from the workspace path.
  */
-async function installFakePi(root) {
+async function installFakePi(root, { afterWrite = "" } = {}) {
   const bin = path.join(root, "bin");
   const executable = path.join(bin, "pi");
   await write(
     executable,
     `#!/usr/bin/env node
-import { appendFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 appendFileSync(${JSON.stringify(path.join(root, "pi.log"))}, "started\\n");
 const arm = path.basename(path.dirname(process.cwd()));
@@ -81,6 +81,7 @@ process.stdin.on("data", (chunk) => {
     const body = arm === "candidate" ? "return a + b;" : "return Math.abs(a) + Math.abs(b);";
     emit({ type: "tool_execution_start", toolCallId: "w", toolName: "write", args: { path: "src/add.mjs" } });
     writeFileSync("src/add.mjs", "export function add(a, b) {\\n  " + body + "\\n}\\n");
+    ${afterWrite}
     emit({ type: "tool_execution_end", toolCallId: "w", toolName: "write", isError: false });
     const message = {
       role: "assistant",
@@ -241,6 +242,60 @@ test("hidden node tests pass on the right fix and fail on the wrong one, without
     // An arm records only its own commands.
     const baseline = await readJson(path.join(groupDirectory, "baseline/run.json"));
     assert.deepEqual(Object.keys(baseline.postRun.commands), ["baseline-hidden", "baseline-exit"]);
+  });
+});
+
+test("links a subject makes are recorded with their targets, never followed, and the run is graded", async () => {
+  await withTempDirectory(async (root) => {
+    const outside = await write(path.join(root, "outside/secret.txt"), "host secret\n");
+    // Like an installer in a container: a link at the image's workdir, and one at a host file outside.
+    const bin = await installFakePi(root, {
+      afterWrite: `mkdirSync("scratch/run/prefix/bin", { recursive: true });
+    symlinkSync("/testbed/bin/notes.mjs", "scratch/run/prefix/bin/notes");
+    symlinkSync(${JSON.stringify(outside)}, "scratch/secret");`,
+    });
+    const linkCheck = [
+      "const fs = require('node:fs');",
+      "if (fs.readlinkSync('scratch/run/prefix/bin/notes') !== '/testbed/bin/notes.mjs') process.exit(1);",
+      "if (!fs.lstatSync('scratch/secret').isSymbolicLink()) process.exit(2);",
+      "if (fs.readlinkSync('src/alias.mjs') !== 'add.mjs') process.exit(3);",
+    ].join(" ");
+    const definition = await writeRepository(
+      root,
+      calcGroup({
+        expectations: [
+          {
+            id: "links-kept",
+            kind: "command",
+            variant: "candidate",
+            argv: [NODE, "-e", linkCheck],
+            pass: { exit_code: 0 },
+          },
+        ],
+      }),
+    );
+    // A declared fixture's relative link is copied as it is, not rewritten into an absolute one.
+    await symlink("add.mjs", path.join(root, "fixtures/calc/src/alias.mjs"));
+
+    const result = runCli(root, bin, ["run", definition, "--dry-run"]);
+
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)?.[1], "groups/calc");
+    const run = await readJson(path.join(groupDirectory, "candidate/run.json"));
+    assert.equal(run.state, "complete", JSON.stringify(run.error));
+    const grade = await readJson(path.join(groupDirectory, "deterministic-grade.json"));
+    assert.equal(grade.checks.find((check) => check.id === "links-kept").state, "pass");
+    assert.deepEqual(run.effects.changes.created.sort(), ["scratch/run/prefix/bin/notes", "scratch/secret"]);
+    const recorded = Object.fromEntries(
+      run.effects.after.filter((entry) => entry.type === "symlink").map((entry) => [entry.path, entry.target]),
+    );
+    assert.deepEqual(recorded, {
+      "scratch/run/prefix/bin/notes": "/testbed/bin/notes.mjs",
+      "scratch/secret": outside,
+      "src/alias.mjs": "add.mjs",
+    });
+    // The workspace keeps the links as links; the host file was never copied in.
+    assert.equal(await readlink(path.join(run.workspace, "scratch/secret")), outside);
   });
 });
 

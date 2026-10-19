@@ -18,6 +18,7 @@ import {
   snapshotWorkspace,
   verifyEnvironment,
   verifyRuntime,
+  WORKSPACE,
   workspaceChanges,
 } from "./sandbox.mjs";
 
@@ -64,7 +65,7 @@ export async function runBody({
   const options = { group, variant, root, variantDirectory, fixture, runtime, freeflow, hostExtensions, signal };
   options.extendEnvironment = extendEnvironment;
   const subject = await prepareSubject(options, "rpc");
-  const before = await fingerprintDirectory(subject.workspace);
+  const before = await fingerprintDirectory(subject.workspace, WORKSPACE);
   const declaredPrompts = group.input.prompt === undefined ? [...group.input.turns] : [group.input.prompt];
   // A container environment runs the subject's bash and declared commands in a container of its own, removed even
   // when the run is cancelled. A group with neither needs no subject container; its graders still run in the image.
@@ -106,7 +107,8 @@ export async function runBody({
   observation.contextObservationArtifact = contextObservation.artifact;
   if (contextObservation.error) (observation.protocolErrors ??= []).push(contextObservation.error);
   await verifySubjectResources(subject, observation);
-  const after = await fingerprintDirectory(subject.workspace);
+  // Links the subject made are recorded with their targets, never followed, so an installer's link cannot lose the run.
+  const after = await fingerprintDirectory(subject.workspace, WORKSPACE);
 
   const turns = [];
   for (const [index, turn] of observation.turns.entries()) {

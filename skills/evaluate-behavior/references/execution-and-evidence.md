@@ -64,7 +64,8 @@ For each selected variant:
 - keep criteria and review questions outside the subject prompt;
 - allow reads only from workspace and declared immutable resources;
 - allow writes and edits only inside the workspace;
-- reject traversal, symlink escape, unsupported Git entries, and invalid UTF-8;
+- reject traversal, symlink escape, unsupported Git entries, and invalid UTF-8 in declared resources and the fixture;
+- record a link the subject makes in its workspace as a link with its `target`, never following it, so a link to the container's workdir or outside the workspace neither fails the run nor copies anything in;
 - verify immutable resource fingerprints after execution.
 
 Working-tree sources snapshot current paths. Git sources resolve one exact commit and record both the declared ref and resolved identity.

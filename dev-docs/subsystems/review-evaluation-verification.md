@@ -272,6 +272,7 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
 - A canonical run has no uncommitted inputs, and a declared host version matches the installed Pi. Guarded by `identity.test.mjs`.
 - Each subject has its own home, temp and agent directories, and only its provider's login, removed after exit. Guarded by `isolation.test.mjs`.
 - A subject's tools stay inside declared roots, and `bash` exists only behind a probed shell or a container. Guarded by `pi-guard.test.mjs`, `shell.test.mjs`, `container.test.mjs`.
+- A link in a subject's workspace is recorded with its target and never followed, in the run, a pipeline handoff and a grader's copy; a declared resource or fixture may hold only relative links inside it, copied as they are (`fingerprintDirectory`'s `links` option). Guarded by `grade-command.test.mjs` and `participants.test.mjs`.
 - In a container environment, the subject's `bash` and declared commands run in its container and graders in a fresh one from the same image. Guarded by `container.test.mjs` and `command-tool.test.mjs`.
 - Every model the evaluator launches (subject, simulated user, judge, reviewer) gets the evaluator's Pi defaults under its declared settings. Guarded by `isolation.test.mjs` and `review.test.mjs`.
 - "beats" is reported only from a declared decision. Guarded by `decision.test.mjs` and `trials.test.mjs`.
@@ -375,6 +376,7 @@ These prove the evaluator's mechanics with stand-in models. They do not prove be
 
 ## Changes
 
+- 2026-10-19: A link the subject makes is recorded with its target instead of failing the run as infrastructure ("resource symlink escapes its declared root"), and fixtures, resources and stage handoffs copy links as they are instead of Node's rewriting a relative link into an absolute one.
 - 2026-10-19: Every canonical run is indexed for reuse, not only `--reuse` runs, so a run made without the flag (a pilot on its own) counts later.
 - 2026-10-19: Each result's `summary.json` records its own `cost`, and its `budget` names the run's shared total `runTotal`; a trial's `budget.spent` had read like that trial's own cost.
 - 2026-10-19: A pipeline stage can start from an earlier stage's workspace (`<stage>.workspace`), and the container preflight refuses a workspace folder the engine does not share.

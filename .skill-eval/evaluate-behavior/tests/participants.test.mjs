@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readlink, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -51,7 +51,7 @@ async function installFakePi(root) {
   await write(
     executable,
     `#!/usr/bin/env node
-import { appendFileSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 const root = ${JSON.stringify(root)};
 const args = process.argv.slice(2);
@@ -97,6 +97,12 @@ process.stdin.on("data", (chunk) => {
     emit({ type: "turn_start" });
     emit({ type: "tool_execution_start", toolCallId: "w" + turn, toolName: "write", args: { path: "SECRET-TOOL-ARG-" + stage + ".md" } });
     writeFileSync("notes-" + stage + ".md", "NOTES from " + stage + "\\n");
+    // With make-links present, the setup stage installs a CLI whose link points at the container's workdir.
+    if (stage === "setup" && existsSync(path.join(root, "make-links"))) {
+      mkdirSync("scratch/bin", { recursive: true });
+      symlinkSync("/testbed/bin/notes.mjs", "scratch/bin/notes");
+      symlinkSync("../../plan.md", "scratch/bin/plan");
+    }
     emit({ type: "tool_execution_end", toolCallId: "w" + turn, toolName: "write", isError: false });
     const reply = message("REPLY-" + stage + "-" + turn);
     emit({ type: "message_end", message: reply });
@@ -427,6 +433,36 @@ test("a stage can start from an earlier stage's workspace, binary files included
       const run = await readJson(path.join(groupDirectory, arm, "run.json"));
       assert.equal(run.state, "complete");
       assert.deepEqual(run.participants.stages[1].sees, ["setup.workspace"]);
+    }
+  });
+});
+
+test("links an earlier stage made reach the next stage as links, and never lose the run", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    await writeFile(path.join(root, "make-links"), "");
+    const handoff = {
+      protocol: "pipeline",
+      stages: [
+        { id: "setup", input: "Set the project up.", sees: ["fixture"] },
+        { id: "follow", input: "Follow what setup wrote.", sees: ["setup.workspace", "setup.files"] },
+      ],
+    };
+    const file = await writeTask(root, baseGroup({ participants: handoff }));
+
+    const result = cli(root, bin, ["run", file]);
+
+    assert.equal(result.status, 0, result.stderr);
+    const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)[1], "groups/multi");
+    for (const arm of ["baseline", "candidate"]) {
+      const run = await readJson(path.join(groupDirectory, arm, "run.json"));
+      assert.equal(run.state, "complete", JSON.stringify(run.error));
+      // The follow stage started from setup's workspace with both links as they were, absolute and relative.
+      const workspace = path.join(groupDirectory, arm, "workspace");
+      assert.equal(await readlink(path.join(workspace, "scratch/bin/notes")), "/testbed/bin/notes.mjs");
+      assert.equal(await readlink(path.join(workspace, "scratch/bin/plan")), "../../plan.md");
+      const link = run.effects.after.find((entry) => entry.path === "scratch/bin/notes");
+      assert.deepEqual([link.type, link.target], ["symlink", "/testbed/bin/notes.mjs"]);
     }
   });
 });
