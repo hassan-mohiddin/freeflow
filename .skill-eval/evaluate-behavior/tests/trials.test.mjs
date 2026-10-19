@@ -10,7 +10,7 @@ import { aggregateGroups } from "../../../skills/evaluate-behavior/scripts/lib/t
 import { toV2 } from "./helpers/to-v2.mjs";
 
 const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-behavior/scripts/skill-eval.mjs", import.meta.url));
-const FAKE_KEYS = ["FAKE_PI_LOG", "FAKE_PI_COST"];
+const FAKE_KEYS = ["FAKE_PI_LOG", "FAKE_PI_COST", "FAKE_PI_HOLLOW"];
 
 async function withTempDirectory(run) {
   const directory = await realpath(await mkdtemp(path.join(tmpdir(), "skill-eval-trials-test-")));
@@ -41,6 +41,16 @@ const skills = args.flatMap((arg, index) => arg === "--skill" ? [args[index + 1]
 if (process.env.FAKE_PI_LOG) appendFileSync(process.env.FAKE_PI_LOG, JSON.stringify({ kind: "spawn", cwd: process.cwd() }) + "\\n");
 const emit = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
 emit({ type: "agent_start" });
+// A host that exits cleanly without a model behind it, as after a failed login: no message, or an empty one.
+if (process.env.FAKE_PI_HOLLOW === "no-message") {
+  emit({ type: "agent_settled" });
+  process.exit(0);
+}
+if (process.env.FAKE_PI_HOLLOW === "empty") {
+  emit({ type: "message_end", message: { role: "assistant", content: [], provider: "fake", model: "fake-model", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } }, stopReason: "stop" } });
+  emit({ type: "agent_settled" });
+  process.exit(0);
+}
 if (skills[0]) {
   emit({ type: "tool_execution_start", toolCallId: "r", toolName: "read", args: { path: skills[0] + "/SKILL.md" } });
   emit({ type: "tool_execution_end", toolCallId: "r", toolName: "read", isError: false });
@@ -250,6 +260,56 @@ test("each trial records its own cost, apart from the run's running total", asyn
     const trialView = runCli(root, bin, ["view", aggregate.trials[2].id]);
     assert.match(trialView.stdout, /^cost\tspent=0\.8\tsubjects=2$/m);
     assert.match(trialView.stdout, /^budget\tmax-cost=10\trun-total=2\.4\texhausted=false$/m);
+  });
+});
+
+test("a run that never reached a model is invalid with its reasons, never a fail, and stops a pilot", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    await writeSkill(root);
+    const definition = await writeJson(root, "groups/activation.json", group("activation"));
+
+    // The failed-login pattern: the host exits cleanly and no model ever answers.
+    const piloted = runCli(root, bin, ["run", definition, "--trials", "3", "--pilot", "1"], {
+      FAKE_PI_HOLLOW: "no-message",
+    });
+
+    assert.equal(piloted.status, 1);
+    assert.match(piloted.stdout, /^Pilot: (\S+) stopped the run$/m);
+    assert.match(
+      piloted.stdout,
+      /^ {2}- activation: arm baseline is invalid \(not valid evidence: no model turn: .+; no tokens: .+\)$/m,
+    );
+    const pilotId = piloted.stdout.match(/^Pilot: (\S+) stopped the run$/m)[1];
+    const groupDirectory = path.join(root, ".skill-eval/runs", pilotId, "groups/activation");
+    const run = JSON.parse(await readFile(path.join(groupDirectory, "candidate/run.json"), "utf8"));
+    assert.equal(run.state, "invalid");
+    assert.equal(run.error.kind, "validity");
+    assert.deepEqual(
+      run.error.reasons.map((reason) => reason.split(":")[0]),
+      ["no model turn", "no tokens", "no answer and nothing written in the workspace"],
+    );
+    // Never a fail: every check and the comparison are unavailable.
+    const grade = JSON.parse(await readFile(path.join(groupDirectory, "deterministic-grade.json"), "utf8"));
+    assert.deepEqual(
+      grade.checks.map((check) => check.state),
+      ["unavailable", "unavailable"],
+    );
+
+    // An empty answer with no tokens is invalid too; it has a message, so only the other two reasons hold.
+    const empty = runCli(root, bin, ["run", definition], { FAKE_PI_HOLLOW: "empty" });
+    assert.equal(empty.status, 1);
+    const summary = JSON.parse(
+      await readFile(path.join(empty.stdout.match(/^Path: (.+)$/m)[1], "summary.json"), "utf8"),
+    );
+    assert.deepEqual(summary.groups[0].variants, { baseline: "invalid", candidate: "invalid" });
+    assert.match(
+      summary.groups[0].invalid.candidate,
+      /^not valid evidence: no tokens: .+; no answer and nothing written/,
+    );
+    const viewed = runCli(root, bin, ["view", empty.stdout.match(/^Result: (.+)$/m)[1]]);
+    assert.match(viewed.stdout, /Candidate \[invalid\]/);
+    assert.match(viewed.stdout, /no tokens/);
   });
 });
 

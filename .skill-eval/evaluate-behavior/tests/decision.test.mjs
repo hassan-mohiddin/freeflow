@@ -223,7 +223,7 @@ test("an arm-keyed comparison is read by arm name", () => {
 });
 
 /** Trial result directories whose runs record `metrics`, as the run-metrics hook writes them. */
-async function sectionTrials(root, metricsFor) {
+async function sectionTrials(root, metricsFor, stateFor = () => "complete") {
   const trials = [];
   for (let trial = 1; trial <= 2; trial += 1) {
     const directory = path.join(root, `trial-${trial}`);
@@ -240,6 +240,7 @@ async function sectionTrials(root, metricsFor) {
       for (const arm of ["baseline", "candidate"]) {
         await writeJson(path.join(groupDirectory, arm, "run.json"), {
           variant: arm,
+          state: stateFor(index, arm, trial),
           metrics: metricsFor(index, arm, trial),
         });
       }
@@ -282,6 +283,23 @@ test("a metric measure is read from the real metrics aggregator's perTrial value
       assert.deepEqual([absent.excluded, absent.decided], [6, 0]);
       assert.equal(absent.cases[0].reason, "no metrics section");
     }
+  });
+});
+
+test("a run that is not complete adds no metric to a decision", async () => {
+  await withTempDirectory(async (root) => {
+    // Case 1's candidate runs were hollow (invalid) and recorded a duration of 0, which would read as fastest.
+    const trials = await sectionTrials(
+      root,
+      (index, arm) => ({ durationMs: arm === "candidate" ? (index === 1 ? 0 : 100) : 200 }),
+      (index, arm) => (index === 1 && arm === "candidate" ? "invalid" : "complete"),
+    );
+    const groups = await aggregateGroups(trials);
+    const decision = decide({ ...RULE, measure: { metric: "durationMs" }, direction: "lower", min_cases: 5 }, groups);
+    assert.deepEqual(decision.cases[0].arms.candidate, { n: 0, mean: null, excluded: 2 });
+    assert.equal(decision.cases[0].sign, "excluded");
+    assert.deepEqual([decision.better, decision.excluded], [5, 1]);
+    assert.equal(groups[0].metrics.arms.candidate.durationMs.count, 0);
   });
 });
 

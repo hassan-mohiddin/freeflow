@@ -68,7 +68,12 @@ export function metricValues(run) {
 export function aggregateMetrics({ arms, reference, trials }) {
   const perTrial = [];
   for (const trial of trials) {
-    for (const arm of arms) perTrial.push({ trial: trial.id, arm, values: metricValues(trial.runs?.[arm]) });
+    // Only a complete run's metrics count: an invalid, failed or cancelled run's cost or turns are no measure of
+    // the arm, and must never reach a decision.
+    for (const arm of arms) {
+      const run = trial.runs?.[arm];
+      perTrial.push({ trial: trial.id, arm, values: metricValues(run?.state === "complete" ? run : null) });
+    }
   }
   const valuesOf = (arm, name) => perTrial.filter((entry) => entry.arm === arm).map((entry) => entry.values[name]);
   const summaries = {};

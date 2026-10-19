@@ -19,6 +19,7 @@ import { adoptRun, appendIndex, createReuse } from "./reuse.mjs";
 import { prepareFixture, prepareRuntime, verifyDescriptionOnlyRevision } from "./sandbox.mjs";
 import { applySourceOverrides } from "./source-override.mjs";
 import { runBody, runDescription, VariantSetupError } from "./subject.mjs";
+import { applyValidityGate } from "./validity.mjs";
 
 const DESCRIPTION_TOOLS = new Set(["read"]);
 const BODY_TOOLS = new Set(["read", "write", "edit", "ls", "find", "grep"]);
@@ -413,6 +414,8 @@ async function runGroup({
           if (sourceCommit !== null && run.resources?.source?.kind === "working-tree") {
             run.resources.source.commit = sourceCommit;
           }
+          // A run that shows no model at work is invalid before anything grades it; its graders then do not start.
+          applyValidityGate(run);
           // Post-run hooks see the finished run before it is persisted; their records land in run.json.
           const records = await postRunRecords({ group, arm: variant, run, root, directory: variantDirectory, signal });
           if (records !== null) run.postRun = records;
@@ -450,6 +453,11 @@ async function runGroup({
     errors: persistedGrade.errors,
   };
   if (Object.keys(reusedFrom).length > 0) groupResult.reused = reusedFrom;
+  // Why each invalid arm is invalid, so a pilot or a view can say it without opening the run.
+  const invalid = Object.fromEntries(
+    arms.filter((arm) => runs[arm].state === "invalid").map((arm) => [arm, runs[arm].error?.message ?? "invalid"]),
+  );
+  if (Object.keys(invalid).length > 0) groupResult.invalid = invalid;
   // A complete run with a readable grade is indexed for reuse; a reused run is not, so it is reused once.
   const gradeReadable =
     persistedGrade.artifact === "deterministic-grade.json" && persistedGrade.grade.state !== "grade-error";

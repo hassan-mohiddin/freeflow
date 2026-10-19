@@ -171,7 +171,8 @@ export async function pilotProblems(result) {
   for (const group of result.summary?.groups ?? []) {
     for (const [arm, state] of Object.entries(group.variants ?? {})) {
       if (["cancelled", "infrastructure-failed", "invalid"].includes(state)) {
-        problems.push(`${group.id}: arm ${arm} is ${state}`);
+        const reason = state === "invalid" ? group.invalid?.[arm] : undefined;
+        problems.push(`${group.id}: arm ${arm} is ${state}${reason ? ` (${reason})` : ""}`);
       }
     }
     for (const error of group.errors ?? []) problems.push(`${group.id}: ${error.message ?? error.kind}`);
