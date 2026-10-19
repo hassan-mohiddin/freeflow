@@ -326,7 +326,7 @@ export async function prepareShell({ group, variants, hostExtensions, groupDirec
     const missing =
       shell.container === undefined
         ? await missingPrerequisites(shell)
-        : await missingContainerPrerequisites(shell.container, await packageManager(process.env));
+        : await missingContainerPrerequisites(shell.container, await packageManager(process.env), groupDirectory);
     if (missing.length > 0) {
       throw new ShellError(prerequisiteRefusal(group.id, arm, shell, missing), {
         kind: "shell-prerequisites",

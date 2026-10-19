@@ -6,10 +6,11 @@ import path from "node:path";
 
 /**
  * @param {string} root
- * @param {{ daemonDown?: boolean, imageMissing?: boolean }} [options]
+ * @param {{ daemonDown?: boolean, imageMissing?: boolean, hiddenMounts?: boolean }} [options] `hiddenMounts` acts
+ *   like a VM-based engine that does not share the host folder: a `run` mount arrives empty.
  * @returns {Promise<{ bin: string, log: string }>}
  */
-export async function installFakeDocker(root, { daemonDown = false, imageMissing = false } = {}) {
+export async function installFakeDocker(root, { daemonDown = false, imageMissing = false, hiddenMounts = false } = {}) {
   const bin = path.join(root, "docker-bin");
   const log = path.join(root, "docker.jsonl");
   const state = path.join(root, "docker-state");
@@ -82,8 +83,10 @@ if (command === "version") {
   process.stderr.write(result.stderr);
   process.exit(result.status ?? 1);
 } else if (command === "run") {
-  const { options, argv } = parseRun(rest);
+  const { options, argv: given } = parseRun(rest);
+  const argv = options["--entrypoint"] ? [options["--entrypoint"], ...given] : given;
   const [source] = options["--volume"].split(":");
+  if (${hiddenMounts}) fail(argv[0] + ": " + (argv[1] ?? "") + ": No such file or directory");
   const result = spawnSync(argv[0], argv.slice(1), { cwd: source, env: process.env, encoding: "utf8" });
   process.stdout.write(result.stdout ?? "");
   process.stderr.write(result.stderr ?? "");

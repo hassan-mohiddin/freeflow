@@ -137,7 +137,8 @@ A **pipeline** runs ordered stages, each a separate subject:
 ```
 
 - Stage `id`s follow the group ID pattern and are unique. `input` is a prompt or an array of turns, and defaults to the group's `input`.
-- `sees` lists exactly what the stage gets: `fixture` (a fresh copy, only when the group declares one), `<stage>.response` (that earlier stage's final response) or `<stage>.files` (the files it created or modified; body groups only). Anything not listed never reaches the stage. It defaults to nothing.
+- `sees` lists exactly what the stage gets: `fixture` (a fresh copy, only when the group declares one), `<stage>.response` (that earlier stage's final response), `<stage>.files` (the files it created or modified, delivered as text to read; body groups only, and UTF-8 text only) or `<stage>.workspace` (the stage starts in a copy of that earlier stage's final workspace, every file and binary file kept, so it can run what the earlier stage wrote; body groups only). Anything not listed never reaches the stage. It defaults to nothing.
+- A stage starts from at most one workspace: `fixture` or one `<stage>.workspace`, never both. Without either it starts empty.
 - `fresh: true` declares the stage independent: it may see the fixture but no earlier stage.
 - `graded` names the stage the group's expectations, comparisons and review questions apply to; it defaults to the last stage.
 

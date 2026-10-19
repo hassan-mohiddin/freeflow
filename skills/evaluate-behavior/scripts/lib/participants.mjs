@@ -3,7 +3,7 @@
 // - `pipeline`: ordered stages, each a separate subject process that sees exactly what it declares.
 // Arms still differ only in their component: every participant of an arm uses that arm's configuration.
 
-import { cp, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { DefinitionError } from "./definitions.mjs";
@@ -167,13 +167,18 @@ function validatePipeline(value, participantsLabel, group, fail) {
         continue;
       }
       const [source, kind, extra] = typeof entry === "string" ? entry.split(".") : [];
-      if (extra !== undefined || !["response", "files"].includes(kind) || !ids.includes(source)) {
-        fail(`${label}.sees entry ${JSON.stringify(entry)} must be fixture, or <earlier stage>.response or .files`);
+      if (extra !== undefined || !["response", "files", "workspace"].includes(kind) || !ids.includes(source)) {
+        fail(
+          `${label}.sees entry ${JSON.stringify(entry)} must be fixture, or <earlier stage>.response, .files or .workspace`,
+        );
       }
-      if (kind === "files" && group.type !== "body") fail(`${label}.sees ${entry}: only body stages write files`);
+      if (kind !== "response" && group.type !== "body") fail(`${label}.sees ${entry}: only body stages write files`);
       // A fresh stage is independent: it sees no earlier stage's work.
       if (fresh) fail(`${label} is fresh, so it may not see ${entry}`);
     }
+    // A stage starts from one workspace: a fresh fixture copy, or an earlier stage's final workspace.
+    const starts = sees.filter((entry) => entry === "fixture" || entry.endsWith(".workspace"));
+    if (starts.length > 1) fail(`${label}.sees names more than one starting workspace: ${starts.join(", ")}`);
     ids.push(stage.id);
     return { id: stage.id, input, sees: [...sees], fresh };
   });
@@ -320,9 +325,9 @@ function userPrompt(user, opening, messages, turns, neutral) {
 }
 
 /**
- * Runs the stages in order, each a separate subject process with its own isolation and workspace. A stage sees the
- * fixture (a fresh copy) only when it declares it, and an earlier stage's response or written files only as
- * declared context copied into its own resources. The graded stage runs in the arm's directory, so its evidence is
+ * Runs the stages in order, each a separate subject process with its own isolation and workspace. A stage starts
+ * from a fresh fixture copy or an earlier stage's final workspace only when it declares it, and sees an earlier
+ * stage's response or written files only as declared context copied into its own resources. The graded stage runs in the arm's directory, so its evidence is
  * the arm's run; every other stage keeps its evidence beside it in `<arm>.<id>/`. Every stage's workspace is then at
  * the same depth as a single subject's, so a declared command that reaches the repository by a relative path works
  * in every stage. (Arm names and stage IDs contain no dot, so these names cannot collide with an arm.)
@@ -346,7 +351,7 @@ async function runPipeline(options, participants) {
     await rm(isGraded ? path.join(directory, "outputs") : directory, { recursive: true, force: true });
     await mkdir(directory, { recursive: true });
     const deliveries = stage.sees
-      .filter((entry) => entry !== "fixture")
+      .filter((entry) => entry !== "fixture" && !entry.endsWith(".workspace"))
       .map((entry) => {
         const [source, kind] = entry.split(".");
         return { label: entry, source: outputs.get(source)[kind] };
@@ -366,7 +371,7 @@ async function runPipeline(options, participants) {
         ...options,
         group: stageGroup,
         variantDirectory: directory,
-        fixture: stage.sees.includes("fixture") ? fixture : null,
+        fixture: startingWorkspace(stage, fixture, outputs),
         extendEnvironment:
           deliveries.length === 0
             ? null
@@ -384,7 +389,7 @@ async function runPipeline(options, participants) {
       if (!isGraded) await hostAdapter(group.host ?? "pi").removeCredentials(directory);
     }
     usage = mergeUsage(usage, run.usage);
-    const stageOutputs = await recordOutputs(path.join(directory, "outputs"), run);
+    const stageOutputs = await recordOutputs(path.join(directory, "outputs"), run, stage.id);
     outputs.set(stage.id, stageOutputs);
     if (isGraded) gradedRun = run;
     else await persistStage(directory, run);
@@ -440,8 +445,20 @@ function failedStageRun(group, variant, state, message) {
   };
 }
 
-/** A stage's response and written files, copied out so later stages can be given exactly these. */
-async function recordOutputs(directory, run) {
+/**
+ * The workspace a stage starts from: a fresh fixture copy, an earlier stage's final workspace (every file, binary
+ * included, in the fixture's snapshot shape), or nothing.
+ */
+function startingWorkspace(stage, fixture, outputs) {
+  if (stage.sees.includes("fixture")) return fixture;
+  const entry = stage.sees.find((each) => each.endsWith(".workspace"));
+  return entry === undefined ? null : outputs.get(entry.split(".")[0]).workspace;
+}
+
+/**
+ * A stage's response, written files and final workspace, copied out so later stages can be given exactly these.
+ */
+async function recordOutputs(directory, run, stageId) {
   await rm(directory, { recursive: true, force: true });
   const response = path.join(directory, "response");
   const files = path.join(directory, "files");
@@ -455,7 +472,19 @@ async function recordOutputs(directory, run) {
     await mkdir(path.dirname(path.join(files, relative)), { recursive: true });
     await cp(source, path.join(files, relative), { dereference: false });
   }
-  return { response, files, written };
+  let workspace = null;
+  if (typeof run.workspace === "string" && (await stat(run.workspace).catch(() => null))?.isDirectory()) {
+    const snapshotPath = path.join(directory, "workspace");
+    await cp(run.workspace, snapshotPath, { recursive: true, dereference: false });
+    const canonical = await realpath(snapshotPath);
+    workspace = {
+      declaredPath: `${stageId}.workspace`,
+      sourcePath: run.workspace,
+      snapshotPath: canonical,
+      files: await fingerprintDirectory(canonical),
+    };
+  }
+  return { response, files, written, workspace };
 }
 
 async function persistStage(directory, run) {
