@@ -110,6 +110,8 @@ export function freeflowRuntimeStateMessage(
     projectionFailure?: string;
     /** Task memory's lines, present only while it is effective. */
     taskMemory?: readonly string[];
+    /** Freeflow skills already read in this context, by name. */
+    skills?: readonly string[];
   } = {},
 ) {
   const cognitiveRoutingEffective = capabilityState?.cognitiveRouting?.effective === true;
@@ -158,6 +160,7 @@ export function freeflowRuntimeStateMessage(
       ...(control === "automatic" ? [] : [`- Profile: \`${profile}\``]),
       `- Delegation: \`${cognitiveRoutingRuntime?.delegation ?? capabilityState?.cognitiveRouting?.delegation ?? "executor"}\``,
       `- Projection: \`${projectionMode}\``,
+      ...(options.skills?.length ? ["", `Freeflow skills read in this context: ${options.skills.join(", ")}`] : []),
       ...(options.taskMemory?.length ? ["", ...options.taskMemory] : []),
     ].join("\n"),
     display: false,
@@ -199,12 +202,14 @@ export function withFreeflowRuntimeState(
     projectionFailure?: string;
     anchor?: RuntimeStateAnchor;
     taskMemory?: readonly string[];
+    skills?: readonly string[];
   } = {},
 ) {
   const source = Array.isArray(messages) ? messages : [];
   const runtimeState = freeflowRuntimeStateMessage(capabilityState, cognitiveRoutingRuntime, freeflowContext, {
     projectionFailure: options.projectionFailure,
     taskMemory: options.taskMemory,
+    skills: options.skills,
   });
   const runtimeStateMessages = source.filter(
     (message) =>

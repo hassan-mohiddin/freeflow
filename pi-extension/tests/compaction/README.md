@@ -1,10 +1,11 @@
 # Compaction tests
 
-Tests for [`src/compaction/`](../../src/compaction/README.md). `thresholds.test.js` is a unit test; the others are native: a real Pi session with scripted model responses (see [`fixtures/`](../fixtures/README.md)).
+Tests for [`src/compaction/`](../../src/compaction/README.md). `thresholds.test.js` and `harness.test.js` are unit tests; the others are native: a real Pi session with scripted model responses (see [`fixtures/`](../fixtures/README.md)).
 
 | File | Covers |
 |---|---|
 | `thresholds.test.js` | Warning and compact-now points for several windows, Pi's reserve lookup, the strictest window, the carry budget's cap by the warning point, and the result index (ordering, size floor, ids stable across compaction, previously carried results). |
+| `harness.test.js` | The harness part naming the Freeflow skills read in the cycle it ends, and nothing when there are none. |
 | `notices.test.js` | The warning once mid-run, then compact now, either making compaction acceptable and carrying a result by id; a warning at the end of a run waiting for the next prompt; compact now repeating each further 10k tokens within a run; the Coordinator warned through the full-history estimate under projection. |
 | `carry.test.js` | Context reuse: no list under routing and a worker carrying a result by routing ref; context reuse off refusing carry items with no list; a list moving the warning point earlier by its size. |
 | `worker-warning.test.js` | The warning reaching a worker mid-assignment under projection: the worker's notice (not the Coordinator's) in its next request, the worker keeping its run, compacting, continuing its re-sent contract, and returning. |

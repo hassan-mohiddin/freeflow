@@ -234,7 +234,10 @@ export default function freeflow(pi: FreeflowAPI) {
   // Whether the session has had a prompt. Pi builds the system prompt only for prompts, so until then a turn Freeflow
   // started for a notice would reach the model with none: notices wait for the user's first prompt instead.
   let prompted = false;
-  const files = new FileTracking();
+  // A Coordinator under projection sees only part of the history, so earlier reads may not be in its view.
+  const files = new FileTracking({
+    selectiveView: () => routing.projectionEnabled && routing.state().activeProfile === "coordinator",
+  });
   const toolExecutionEffective = () => capability?.toolExecution?.effective === true;
   const compactionEffective = () => capability?.compaction?.effective === true;
   const taskMemoryEffective = () => capability?.taskMemory?.effective === true;
@@ -243,6 +246,9 @@ export default function freeflow(pi: FreeflowAPI) {
   const cacheHealth = new CacheHealth();
   let prompts: any;
   let refreshState = true;
+  // Skills already read, as the Runtime State lists them: taken only where the state refreshes anyway (run
+  // boundaries, settings changes, compaction, navigation), so a skill read mid-run adds no state message.
+  let stateSkills: string[] = [];
   // Pi's event contexts read the host model and effort live. Its interactive shortcut contexts copy them at the
   // key press, so after a switch they still name the previous model; routing must never judge a switch by them.
   let liveHost: any;
@@ -297,6 +303,8 @@ export default function freeflow(pi: FreeflowAPI) {
     await routing.refresh(ctx, next.cognitiveRouting);
     status(ctx);
     refreshState = true;
+    // The Coordinator's projected view may lack reads the full history holds, and every profile shares the state.
+    stateSkills = toolExecutionEffective() && !routing.projectionEnabled ? files.loadedSkills(ctx) : [];
   }
   /**
    * Turn Cognitive Routing on for this session when it is off: clear a session "off" (such as the one an outside model
@@ -759,6 +767,7 @@ export default function freeflow(pi: FreeflowAPI) {
     await loadSurface(ctx);
     cacheHealth.reset();
     files.reset();
+    stateSkills = [];
     compaction.reset();
     await routing.bind(ctx, capability.cognitiveRouting, (event as any)?.reason !== "reload");
     taskMemory.rebuild(cachedBranch(ctx.sessionManager));
@@ -814,6 +823,7 @@ export default function freeflow(pi: FreeflowAPI) {
     await background.stopAll();
     inbound.reset();
     files.reset();
+    stateSkills = [];
     compaction.reset();
     resetHistory();
     routing.unbind();
@@ -940,8 +950,9 @@ export default function freeflow(pi: FreeflowAPI) {
   pi.on("turn_start", async (_event, ctx) => {
     const compacted = compaction.takeCompacted();
     if (!compacted) return;
-    await restore(ctx, false);
+    // File state first, so the state restore refreshes lists no skill from before the compaction.
     await files.compacted(compacted.carriedFiles, ctx);
+    await restore(ctx, false);
   });
   pi.on("agent_settled", async (_event, ctx) => {
     promptRun = false;
@@ -1007,6 +1018,7 @@ export default function freeflow(pi: FreeflowAPI) {
       anchor: runtimeStateAnchor,
       projectionFailure: routing.state().projectionFailure,
       taskMemory: taskMemory.runtimeLines(),
+      skills: stateSkills,
     });
     refreshState = false;
     // Disabled Freeflow pays no per-request provenance work; re-enabling rebuilds it from session history.
@@ -1056,6 +1068,7 @@ export default function freeflow(pi: FreeflowAPI) {
   // Pi compacting on its own (threshold, overflow, /compact) keeps its summarizer and kept tail, with Freeflow's additions.
   pi.on("session_before_compact", async (event, ctx) => compaction.fallback(event, ctx));
   pi.on("session_compact", async (_event, ctx) => {
+    files.piCompacted();
     await restore(ctx, false);
     background.restate();
     await taskMemory.deliver(cachedBranch(ctx.sessionManager));

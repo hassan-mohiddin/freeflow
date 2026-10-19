@@ -1,7 +1,6 @@
-import { resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 import { estimateTokens } from "./carry.js";
 import { currentCycle } from "./harness.js";
+import { isFreeflowInstruction } from "../tool-execution/skill-reads.js";
 
 /**
  * The result index: this cycle's larger tool results, each with an id the agent can carry by. Ids number tool results
@@ -73,16 +72,6 @@ function label(name: string, input: any): string {
                 : name;
   const line = firstLine(String(value));
   return line.length > 80 ? `${line.slice(0, 77)}...` : line;
-}
-
-/** The Freeflow package root: reads of its skills, references and prompts are instructions, not work to carry. */
-const FREEFLOW_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
-const INSTRUCTION_DIRS = ["capabilities", "skills", "runtime"].map((dir) => resolve(FREEFLOW_ROOT, dir) + sep);
-
-function isFreeflowInstruction(tool: string, input: any): boolean {
-  if (tool !== "read" || typeof input?.path !== "string") return false;
-  const path = resolve(input.path);
-  return INSTRUCTION_DIRS.some((dir) => path.startsWith(dir));
 }
 
 /** Every tool result on the branch with its id, oldest first. */
