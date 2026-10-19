@@ -8,6 +8,7 @@ import { armNames } from "./arms.mjs";
 import { runCommandExpectation } from "./grade-command.mjs";
 import { gradeDeterministic } from "./grade.mjs";
 import { fingerprintDirectory, WORKSPACE, workspaceChanges } from "./sandbox.mjs";
+import { taskCopyGaps } from "./task-copy.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -233,10 +234,16 @@ function armOutcome(arm, result) {
   return { arm, state: "solvable", reason: null, checks };
 }
 
-/** Checks every selected group that declares a reference; groups without one are reported as not checkable. */
+/**
+ * Checks every selected group that declares a reference (groups without one are reported as not checkable), and
+ * lists for every group what its task copy lacks against the original setting (`copy`, from task-copy.mjs).
+ */
 export async function checkSelection(selection, { root, signal } = {}) {
   const results = [];
-  for (const { group } of selection.groups) results.push(await checkGroupReference(group, { root, signal }));
+  for (const { group } of selection.groups) {
+    const result = await checkGroupReference(group, { root, signal });
+    results.push({ ...result, copy: await taskCopyGaps(group, { root }) });
+  }
   return results;
 }
 

@@ -69,7 +69,9 @@ Commands:
   run     Execute selected evaluation groups
   view    Render selected stored evidence or a trial aggregate
   review  Record an advisory, arm-blind model answer to each group's review questions
-  check-tasks  Check that each group's reference_solution passes its workspace and command checks, which must fail before it; no model
+  check-tasks  Check that each group's reference_solution passes its workspace and command checks, which must fail before it,
+          and list what each task's copy lacks against its original setting (Git history, ignored files, tools,
+          network); no model
   clear   Record that a person read a run's transcript-scan flags and they do not taint it (with --reason), then
           rebuild the aggregates that list the run; until then a flagged run is held out of every count and decision
 
@@ -461,6 +463,11 @@ async function checkTasks(operation) {
   for (const result of results) {
     process.stdout.write(`${result.id}: ${result.state}${result.reason ? ` (${result.reason})` : ""}\n`);
     for (const arm of result.arms ?? []) process.stdout.write(`  ${arm.arm}: ${arm.state}\n`);
+    // What the task's copy lacks against its original setting; reported for the author to judge, never refused.
+    for (const gap of result.copy?.gaps ?? []) process.stdout.write(`  copy lacks: ${gap}\n`);
+    for (const [arm, tools] of Object.entries(result.copy?.tools ?? {})) {
+      process.stdout.write(`  ${arm} tools: ${tools.join(", ") || "none"}; network: ${result.copy.network[arm]}\n`);
+    }
   }
   if (results.some((result) => result.state === "unsolvable" || result.state === "already-solved")) {
     process.exitCode = 1;

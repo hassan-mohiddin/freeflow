@@ -106,7 +106,7 @@ The same core runs every mode; a mode is a group shape (`skills/evaluate-behavio
 - **Measure:** one arm, no component, no comparison; yields a rate on the suite. A decision and a pairwise review refuse it.
 - **Conversation:** `participants.protocol: "conversation"`; a simulated user answers only from its card, until a stop phrase or `max_turns` (1 to 50).
 - **Pipeline:** `participants.protocol: "pipeline"`; ordered stages, each a separate subject that sees only what its `sees` lists (`fresh` stages see nothing earlier). An earlier stage's `response` and `files` arrive as fenced text in the stage's context, to read; `<stage>.workspace` instead starts the stage in a copy of that stage's final workspace, binary files kept, so it can run what the earlier stage wrote (`startingWorkspace` in `lib/participants.mjs`). A stage starts from the fixture or one earlier workspace, never both. The `graded` stage (last by default) is the arm's run; others are stored as `<arm>.<stage>/`. Arms may differ in `participants` when `component` names it, so one review can be compared with two reviews and an adjudicator.
-- **Coding task:** the fixture is a repository; `command` expectations run hidden tests on a copy of the final workspace with grader `files` from outside the fixture; `reference_solution` proves solvability; declared `commands` give the subject `run_command`.
+- **Coding task:** the fixture is a repository copied as plain files; `check-tasks` lists what that copy lacks (Git history, ignored files the fixture holds or the task names, tools and network the task refers to) and reports it without refusing; `command` expectations run hidden tests on a copy of the final workspace with grader `files` from outside the fixture; `reference_solution` proves solvability; declared `commands` give the subject `run_command`.
 - **Judged evaluation:** a `rubric` of dimensions (`yes/no/unknown` or `0-2`, with an optional judge-only `reference`), `judges`, and `combine` (`majority`, `unanimous`, `any`, `mean`).
 
 ### Decisions and claims
@@ -341,7 +341,7 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
 | `lib/sandbox.mjs`, `identity.mjs`, `evidence.mjs` | Snapshots and fingerprints, commit identity and host version, evidence writing |
 | `lib/freeflow.mjs`, `build-source.mjs` | Freeflow and other extensions built from a commit or path |
 | `lib/shell.mjs`, `container.mjs`, `seal.mjs` | Confined shell and its probes; container environments; the network policy over bash, commands and graders |
-| `lib/reference.mjs` | Reference solutions and `check-tasks` |
+| `lib/reference.mjs`, `task-copy.mjs` | Reference solutions and `check-tasks`; what a task's copy lacks against its original setting |
 | `lib/grade*.mjs` | Deterministic graders, command graders (TAP, JUnit), comparisons |
 | `lib/review.mjs`, `judge.mjs`, `agreement.mjs` | Pairwise review, rubric judging, combining, fencing, calibration, agreement |
 | `lib/decision.mjs`, `metrics.mjs`, `validity.mjs` | Decision rule and sign test; run metrics; the validity gate |
@@ -376,6 +376,7 @@ These prove the evaluator's mechanics with stand-in models. They do not prove be
 - A group runs on one host, so a question comparing Pi with Claude Code is two groups, not two arms.
 - On Claude Code: bash only in a container, no `run_command`, Pi extensions or Freeflow, and retries at Claude Code's own default; its identity line and environment note cannot be removed, only recorded, and the note reports a Git repository above the workspace (Claude Code finds it itself, ignoring `GIT_CEILING_DIRECTORIES`).
 - The Gondolin shell is tested only with fakes and skipped cases; it has not run on a real VM. Containers have: on 2026-10-19 the V0 to V3 groups, V2 and the pstack trial ran container subjects and graders on the real Colima engine (Docker 29.2.1, digest-pinned images), and a no-model check with the V0 image showed the probes holding, a skill's script running by its path, the network and the login path unreachable, and a grader in a fresh container.
+- A task copy never has Git history, and a definition cannot ask for it: putting `.git` in the workspace would put Git's internals into the workspace fingerprints and changed paths. Ignored files in a fixture are copied but make a run non-canonical. `check-tasks` reports both.
 - Network policy is `none` or `host`; a named allowlist of hosts is not supported. On `host`, declared commands and graders can read the user's files, including the provider login on disk.
 - A pipeline stage cannot have its own configuration: every stage uses the arm's.
 - Each rubric judge answers all dimensions in one call, so answers to one dimension can influence another.
@@ -388,6 +389,7 @@ These prove the evaluator's mechanics with stand-in models. They do not prove be
 
 ## Changes
 
+- 2026-10-19: `check-tasks` lists what each task's copy lacks against its original setting (`lib/task-copy.mjs`): Git history, ignored files the fixture holds or the task names, and tools and network the task refers to.
 - 2026-10-19: Transcript scan (`lib/scan.mjs`) flags outside reads, network attempts, instruction files and answer copies; a flagged run is held out of counts and decisions until `skill-eval clear` records a person's reason; a pipeline's earlier stages are scanned and gated for validity too.
 - 2026-10-19: `configuration.network` (`"none"` or `"host"`) declares one policy for bash, declared commands and command graders; `"none"` is refused where commands or graders would run on the host; runs record `sealing`, the plan names unsealed arms, and declared commands lose `PI_CODING_AGENT_DIR` and login variables.
 - 2026-10-19: Validity gate: a complete run with no assistant message, zero tokens, or no answer and nothing written is `invalid` before grading, and only complete runs' metrics count.
