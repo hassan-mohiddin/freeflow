@@ -450,6 +450,48 @@ test("--reuse counts matching canonical runs instead of running them, each once 
   });
 });
 
+test("--reuse never claims a run held for transcript flags no one has cleared", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    await gitRepository(root);
+    const suite = await writeSuite(root, [group("one")]);
+    await commitAll(root, "inputs");
+    const first = runCli(root, bin, ["run", suite], {}, { dryRun: false });
+    assert.equal(first.status, 0, first.stderr);
+    const firstId = first.stdout.match(/^Result: (.+)$/m)[1];
+    // The scan flagged the candidate's run, and no person has cleared it.
+    const candidateRun = path.join(root, ".skill-eval/runs", firstId, "groups/one/candidate/run.json");
+    const stored = await readJson(candidateRun);
+    stored.postRun = { ...stored.postRun, scan: { flags: [{ id: "network-1", kind: "network", detail: "curl" }] } };
+    await writeFile(candidateRun, `${JSON.stringify(stored, null, 2)}\n`);
+    const starts = async () => (await events(root)).filter((entry) => entry.kind === "start").length;
+    assert.equal(await starts(), 2);
+
+    const held = runCli(root, bin, ["run", suite, "--reuse"], {}, { dryRun: false });
+    assert.equal(held.status, 0, held.stderr);
+    const heldSummary = await readJson(path.join(held.stdout.match(/^Path: (.+)$/m)[1], "summary.json"));
+    assert.deepEqual(Object.keys(heldSummary.groups[0].reused), ["baseline"]);
+    assert.equal(await starts(), 3);
+
+    // Once a person clears the flag, the run counts again, and --reuse may claim it.
+    const cleared = runCli(root, bin, [
+      "clear",
+      firstId,
+      "--variant",
+      "candidate",
+      "--all",
+      "--reason",
+      "a local server",
+    ]);
+    assert.equal(cleared.status, 0, cleared.stderr);
+    const reused = runCli(root, bin, ["run", suite, "--reuse"], {}, { dryRun: false });
+    assert.equal(reused.status, 0, reused.stderr);
+    const reusedSummary = await readJson(path.join(reused.stdout.match(/^Path: (.+)$/m)[1], "summary.json"));
+    assert.equal(reusedSummary.groups[0].reused.candidate.result, firstId);
+    assert.equal(await starts(), 3);
+  });
+});
+
 test("--pilot stops before the batch on a broken group", async () => {
   await withTempDirectory(async (root) => {
     const bin = await installFakePi(root);
