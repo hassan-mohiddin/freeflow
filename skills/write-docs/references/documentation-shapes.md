@@ -177,15 +177,21 @@ A decision record (ADR) keeps one hard-to-reverse choice and why it was made. Nu
 ## Status
 ## Decision
 ## Rationale
+## Alternatives Rejected
 ## Consequences
+## Revisit When
 ```
 
 - **Status:** Accepted; Superseded by a named later record; or Retired, with the date and the reason.
 - **Decision:** what was decided, in a few sentences or bullets.
-- **Rationale:** the context that forced a choice, the alternatives rejected and why.
+- **Rationale:** the context that forced a choice, and why this option won.
+- **Alternatives Rejected:** each alternative and why it lost, so a later reader does not rebuild it.
 - **Consequences:** what follows from the decision, including what it rules out.
+- **Revisit When:** the condition under which the decision should be reconsidered, so re-proposing it is fair only then.
 
-A record is history: once accepted, its body is not rewritten. A later change of course adds a dated amendment section, supersedes it with a new record, or retires it; a superseded or retired record keeps its body.
+A settled decision in a task's Working Record has the same fields (decision, rationale, consequences, revisit when), so it moves into a record without translation.
+
+A record is history: once accepted, its body is not rewritten, and records written before a field existed are not filled in afterwards. A later change of course adds a dated amendment section, supersedes it with a new record, or retires it; a superseded or retired record keeps its body.
 
 ## Adapting To The Software
 
