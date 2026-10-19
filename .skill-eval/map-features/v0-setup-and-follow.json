@@ -10,7 +10,7 @@
   "tools": ["read", "write", "edit", "ls", "find", "grep", "bash"],
   "configuration": {
     "host": { "name": "pi" },
-    "model": { "model": "anthropic/claude-haiku-5-5", "thinking": "medium" },
+    "model": { "model": "xai/grok-4.7", "thinking": "medium" },
     "subject": {
       "kind": "skill",
       "source": { "kind": "working-tree" },
@@ -20,7 +20,7 @@
     },
     "environment": {
       "kind": "container",
-      "image": "freeflow-v0-notes@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "image": "freeflow-v0-notes@sha256:83da19fb6f9caac73dd7055124877bfcadbf6b327f0050082ea76014f7ed203f",
       "workdir": "/testbed",
       "network": "none"
     }
