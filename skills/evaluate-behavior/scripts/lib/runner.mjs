@@ -2,7 +2,7 @@ import { mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 
 import { armNames } from "./arms.mjs";
-import { budgetEvidence, charge, costEvidence, reserve, runBudgetEvidence } from "./budget.mjs";
+import { budgetEvidence, charge, costEvidence, measuredCost, reserve, runBudgetEvidence } from "./budget.mjs";
 import { COMMAND_TOOL, loadDefinition, selectDefinition } from "./definitions.mjs";
 import { createInvocationId, fileIdentity, writeJson, writeText } from "./evidence.mjs";
 import { gradeDeterministic } from "./grade.mjs";
@@ -300,11 +300,11 @@ async function runSubject({ group, variant, stopped, budget, cost, subjects, exe
     const reservation = reserve(budget);
     if (reservation === null) return { run: cancelledRun(group, variant), executed: false };
     const run = await execute();
-    const spent = run.usage?.cost?.total;
+    const spent = measuredCost(run.usage);
     charge(budget, reservation, spent ?? 0);
     cost.subjects += 1;
-    if (typeof spent === "number" && Number.isFinite(spent)) cost.spent += spent;
-    else cost.unmeasured += 1;
+    if (spent === null) cost.unmeasured += 1;
+    else cost.spent += spent;
     return { run, executed: true };
   });
 }

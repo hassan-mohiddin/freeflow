@@ -391,6 +391,7 @@ These prove the evaluator's mechanics with stand-in models. They do not prove be
 
 ## Changes
 
+- 2026-10-19: A run that used tokens but reports a cost of 0 (Pi's figure for a model it has no price for) counts as `unmeasured` in a result's `cost`, and its `cost` metric is null (`measuredCost` in `lib/budget.mjs`).
 - 2026-10-19: `--reuse` skips an indexed run held for transcript flags no one has cleared; once a person clears them, it can be reused.
 - 2026-10-19: A sixth shell probe reads a marker in the host's login directory (Pi's agent directory); `sealing.login` says `out of reach` with bash only when it held, instead of inferring it from the home-parent probe.
 - 2026-10-19: The transcript scan flags network attempts only with an external target in a command, package installs only on a sealed run naming a registry package, no reads inside the arm's own directory (except `isolation/`) or of temp scratch files, credential locations under a home, and answer copies only as a block of distinctive lines; on 2,027 stored complete runs, flagged runs fell from 362 to 203, each remaining one a read outside the run (199 of them old review-suite runs reaching for the live repository, all blocked).

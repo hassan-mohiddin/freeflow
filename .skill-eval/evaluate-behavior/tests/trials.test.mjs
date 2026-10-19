@@ -229,6 +229,26 @@ test("the cost ceiling is shared across trials", async () => {
   });
 });
 
+test("a subject that used tokens but reports no price counts as unmeasured cost, never as free", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    await writeSkill(root);
+    const definition = await writeJson(root, "groups/activation.json", group("activation"));
+
+    // The fake host reports tokens and a cost of 0, as Pi does for a model it has no price for.
+    const result = runCli(root, bin, ["run", definition]);
+
+    assert.equal(result.status, 0, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    const summary = JSON.parse(await readFile(path.join(resultDirectory, "summary.json"), "utf8"));
+    assert.deepEqual(summary.cost, { spent: 0, subjects: 2, unmeasured: 2 });
+    const run = JSON.parse(await readFile(path.join(resultDirectory, "groups/activation/candidate/run.json"), "utf8"));
+    assert.equal(run.metrics.cost, null);
+    const viewed = runCli(root, bin, ["view", summary.id]);
+    assert.match(viewed.stdout, /^cost\tspent=0\tsubjects=2\tunmeasured=2$/m);
+  });
+});
+
 test("each trial records its own cost, apart from the run's running total", async () => {
   await withTempDirectory(async (root) => {
     const bin = await installFakePi(root);
