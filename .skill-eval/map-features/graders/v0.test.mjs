@@ -17,8 +17,11 @@ const markdownIn = (dir) =>
 const featureFiles = () => markdownIn("dev-docs/features").filter((path) => !path.endsWith("README.md"));
 const guides = () => markdownIn("dev-docs/guides");
 const ticks = (text) => [...text.matchAll(/`([^`\n]+)`/g)].map((match) => match[1].trim());
+// A step that mentions the bug this way is not presenting it as expected behaviour.
 const BUG_WORDS =
-  /\b(bug|defect|wrong|incorrect|does not|doesn't|fails?|failing|mismatch|contradict|differs?|broken|unverified)\b/i;
+  /\b(bugs?|defects?|wrong|incorrect|does not|doesn't|fails?|failing|mismatch|contradicts?|differs?|broken|unverified)\b/i;
+// Naming the bug as a product defect: an unverified or failing step alone does not.
+const REPORTED_WORDS = /\b(bugs?|defects?|wrong|incorrect|does not|doesn't|mismatch|contradicts?|broken)\b/i;
 
 test("feature map index exists", () => {
   assert.ok(existsSync(join(root, "dev-docs/features/README.md")), "dev-docs/features/README.md is missing");
@@ -52,12 +55,18 @@ test("the recipe isolates the notes data folder", () => {
 
 test("the setup report names the search bug", () => {
   assert.ok(existsSync(join(root, "setup-report.md")), "setup-report.md is missing");
-  const report = read("setup-report.md");
-  const lines = report.split("\n").filter((line) => /search/i.test(line) && /case|milk/i.test(line));
-  assert.ok(
-    lines.some((line) => BUG_WORDS.test(line)),
-    "no line of setup-report.md reports search ignoring case as wrong",
-  );
+  // A line names the search-case behaviour as wrong, itself or under a heading that does (such as "Product bugs").
+  let heading = "";
+  const reported = read("setup-report.md")
+    .split("\n")
+    .some((line) => {
+      if (/^#+\s/.test(line)) heading = line;
+      const mismatch = /search/i.test(line) && /case|milk/i.test(line);
+      // Under a heading such as "Product bugs", the line itself must describe the case mismatch.
+      const describes = /sensitive|ignor|README/i.test(line);
+      return mismatch && (REPORTED_WORDS.test(line) || (REPORTED_WORDS.test(heading) && describes));
+    });
+  assert.ok(reported, "no line of setup-report.md reports search ignoring case as wrong");
 });
 
 test("the steps do not encode the search bug as expected", () => {
@@ -84,11 +93,16 @@ test("the follow report says the run launched and cleaned up", () => {
 
 test("the follow run's evidence survived clean-up", () => {
   const report = JSON.parse(read("follow-report.json"));
-  assert.equal(typeof report.evidence_dir, "string", "evidence_dir is not a path");
-  const dir = join(root, report.evidence_dir.replace(/^\/testbed\/?/, ""));
-  assert.ok(existsSync(dir) && statSync(dir).isDirectory(), `evidence_dir ${report.evidence_dir} does not exist`);
-  const files = readdirSync(dir, { recursive: true }).filter((name) => statSync(join(dir, name)).isFile());
-  assert.ok(files.length > 0, "the evidence folder is empty");
-  const text = files.map((name) => readFileSync(join(dir, name), "utf8")).join("\n");
+  // One folder, or one per feature file followed.
+  const dirs = [report.evidence_dir].flat();
+  assert.ok(dirs.length > 0 && dirs.every((dir) => typeof dir === "string"), "evidence_dir is not a path or paths");
+  let text = "";
+  for (const each of dirs) {
+    const dir = join(root, each.replace(/^\/testbed\/?/, ""));
+    assert.ok(existsSync(dir) && statSync(dir).isDirectory(), `evidence_dir ${each} does not exist`);
+    const files = readdirSync(dir, { recursive: true }).filter((name) => statSync(join(dir, name)).isFile());
+    assert.ok(files.length > 0, `the evidence folder ${each} is empty`);
+    text += files.map((name) => readFileSync(join(dir, name), "utf8")).join("\n");
+  }
   assert.match(text, /added \d+|^\s*\d+\s{2}\S/m, "no evidence file shows a note being added or listed");
 });
