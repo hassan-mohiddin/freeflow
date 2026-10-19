@@ -1,6 +1,6 @@
 ---
 name: write-docs
-description: "Use when writing, updating, or reviewing docs of how existing software works and why, or when a change makes docs wrong; or when a project lacks developer docs, or that knowledge is headed for AGENTS.md or CLAUDE.md."
+description: "Use when writing, updating, or reviewing docs of how existing software works and why, or when a change makes docs wrong; or when a project lacks developer docs."
 ---
 
 # Write Docs

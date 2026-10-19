@@ -335,9 +335,9 @@ Only the user changes task state. Closing a Slice does not complete the task.
 
 ### Recovery after context loss
 
-After compaction, clear, resume/navigation, transfer, or uncertain continuity, the agent recovers the record through its `resume` view: the record's present state and a one-line index of closed History. It then reads what defines the task and the record's Recovery sources, opens the closed History entries the next action depends on by ID, and reconciles all of it with current user direction, live files, and actual effects. It does not open the whole record to recover it; that loads every History entry, most of which the next step does not need.
+When the conversation about the current work is no longer in context (after compaction, clear, a transfer, or a session that continues the work without it), the agent recovers the record through its `resume` view: the record's present state and a one-line index of closed History. It then reads what defines the task and the record's Recovery sources, opens the closed History entries the next action depends on by ID, and reconciles all of it with current user direction, live files, and actual effects. It does not open the whole record to recover it; that loads every History entry, most of which the next step does not need.
 
-With intact context, re-reading the record after every ordinary turn wastes context and does not make it more authoritative.
+While that conversation is still in context, including after a new message, a pause or a resumed session, re-reading the record wastes context and does not make it more authoritative.
 
 ### Ask for task memory directly
 

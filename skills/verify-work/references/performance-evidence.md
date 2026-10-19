@@ -37,6 +37,7 @@ A microbenchmark is diagnostic when it isolates a hypothesis; it becomes accepta
 
 - Keep behavior-relevant configuration matched.
 - Report median/percentiles or variance rather than one favorable run.
+- For how cost grows with input size, run the same operation on the input and on double it.
 - Include cold/warm cache distinctions when they affect users.
 - Separate elapsed-time improvement from increased cost, memory, load, or downstream work.
 - Check normal and failure behavior after optimization.

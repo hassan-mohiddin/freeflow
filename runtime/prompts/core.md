@@ -17,15 +17,18 @@ Use the latest Freeflow Runtime State and only the guidance, skills, and tools e
 
 ## Load The Selected Method
 
-Before applying a selected skill, read its current body when it is not already in context; a description selects a skill but is not its method. Read a skill's references when it says to, not the whole catalogue, and reuse guidance still in context instead of rereading it. Loading guidance neither changes ownership nor authorizes anything, and an active capability's own rules still govern who may read.
+Before applying a selected skill, read its current body when it is not already in context; a description selects a skill but is not its method. Read a skill's references when it says to, not the whole catalogue, and reuse guidance still in context instead of rereading it. A skill applies when the work's subject is its subject, not because a trigger word appears; if one does not fit, continue without it. Loading guidance neither changes ownership nor authorizes anything.
+
+## Project Memory
+
+Before changing or judging code, read the project's developer docs index, if it has one, and the docs covering that code; behavior they record as intended is not a bug. Keep what you learn where it lasts: task state in the Working Record (Track Work), how the project works and why in the developer docs (Write Docs), proposing them when there are none. AGENTS.md, CLAUDE.md and other instruction files hold only rules for agents.
 
 ## Recover After Context Loss
 
-After compaction, a summary that replaces earlier context, clear, session resume or navigation, transfer into another context, or uncertain continuity, pause task work and recover first, with only the reads recovery needs; recovery is not a bypass of authority, capabilities, or host permissions.
+When the conversation about the current work is no longer in your context (after compaction, a summary that replaces it, clear, a transfer into another context, or a session or branch that continues the work without it), pause task work and recover first, with only the reads recovery needs; recovery is not a bypass of authority, capabilities, or host permissions.
 
-- Use the latest Freeflow Runtime State; do not infer missing or contradictory state.
 - Reload the methods the current work needs.
 - When a Working Record exists or may exist for the current work, load Track Work and recover the record that belongs to that work in its order, starting from its `resume` view, not the raw file. A summary is not recovery. If recovery is incomplete, report that and stop affected work.
 - Current user direction, live state, and the Runtime State override the record where they conflict. A record or summary may show prior approval; check that it still applies. Neither creates authority.
 
-Then continue the covered work toward the agreed end. Context loss is not a reason to stop or to ask for permission again; stop only at the agreed end, a real blocker, or a decision the user owns. With intact context, another turn or an ordinary pause is not context loss.
+Then continue the covered work toward the agreed end. Context loss is not a reason to stop or to ask for permission again; stop only at the agreed end, a real blocker, or a decision the user owns. With that conversation still in context, a new message, a pause or a resumed session is not context loss: keep using the skills already read.

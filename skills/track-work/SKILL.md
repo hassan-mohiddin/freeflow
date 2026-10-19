@@ -139,7 +139,7 @@ On long tasks, a `preserve` Checkpoint every few Slices keeps a recoverable poin
 
 ## Recover After Context Loss
 
-Context loss includes compaction, summarization that replaces context, clear, session resume or navigation, transfer to another context, or uncertain continuity. Recover before task work (Rules), in order:
+Context loss means the conversation about the current work is no longer in context: after compaction, a summary that replaces it, clear, a transfer to another context, or a session or branch that continues the work without it. Recover before task work (Rules), in order:
 
 1. `view resume`: the record's present state and a one-line index of closed History. If output is truncated, keep reading until complete. Do not open `record.md` itself for this: it loads the whole History, which the index lets you read only where needed. A summary is not recovery.
 2. Every artifact listed under `What defines this task`, such as the task's Spec and Plan.
@@ -153,7 +153,7 @@ Then reconcile before acting. Establish the task and Slice state, the Work agree
 - If the record conflicts with a defining Spec or Plan, the record does not win. Return the conflict to that artifact's owner before dependent work.
 - Reuse evidence that still applies instead of repeating the investigation. Reopen further sources only when their exact content or freshness changes the next action.
 
-With context intact, use `view resume` or read the relevant section. Another turn or an ordinary pause is not context loss.
+With that conversation still in context, use `view resume` or read the relevant section; a new message, a pause or a resumed session is not context loss.
 
 ## Prepare For A Context Boundary
 
