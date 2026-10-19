@@ -27,7 +27,7 @@ The request fixes **what** must be true; **how** is yours, to change when eviden
 
 When the requester suggests how, check its preconditions against the actual state first (`git status`, what gets built or deployed, what else touches the same files). If they do not hold, keep the goal, adjust the approach, and say why.
 
-When an open choice matters and code, tests, docs or the conversation do not settle it, ask the user; when nobody can answer (a routed assignment, an unattended run), choose what matches existing behavior and is easiest to reverse, and state the assumption in your report. Before adding something unrequested (a dependency, a stored field, an option), ask whether the outcome needs it or only your approach does.
+When an open choice matters and nobody can answer it (a routed assignment, an unattended run), choose what matches existing behavior and is easiest to reverse, and state the assumption in your report. Before adding something unrequested (a dependency, a stored field, an option), ask whether the outcome needs it or only your approach does.
 
 ## Find what the change touches
 
@@ -40,7 +40,7 @@ echo '--- old data'; grep -rn 'write.*state_field' src | head
 echo '--- concurrent or scheduled'; grep -rn 'async\|schedule' src | head
 ```
 
-Decide each line and write the decision next to it. Anything the request does not ask to change keeps behaving as today. Put the change where the behavior is owned, even when many callers share that code: keep callers correct by checking each, not by avoiding the shared code. After your change works, rerun the queries against the final code and check each line.
+Decide each line and write the decision next to it. Anything the request does not ask to change keeps behaving as today. Put the change where the behavior is owned, even when many callers share that code: keep callers correct by checking each, not by avoiding the shared code.
 
 ## Predict, observe, compare
 
@@ -67,7 +67,7 @@ When your last two actions did not change what you believe, stop repeating them.
 
 - Read the tests that cover the code before editing; they are the contract.
 - Before the first edit, be able to say what changes and where, why that meets every requirement, and which check could fail if it does not.
-- Change the code that owns the behavior, so every path through it is fixed. Keep data written before the change readable. Record an effect only after it happened.
+- Record an effect only after it happened.
 - Make the smallest change that meets every requirement. When corrections keep adding flags, special cases or states, your model of the code is wrong; diagnose again.
 
 ## Check what your evidence can show
@@ -89,9 +89,8 @@ Before you report, read the actual change, not your memory of it: `git status`, 
 
 ## Instructions around the task
 
-- Apply repository instruction files as written, with their own scoping.
 - A skill or helper applies when the work's subject is its subject, not because a trigger word appears. If one does not fit, continue without it.
-- If the checkout may be shared (changes you did not make), do not disturb it (Rule 4); use a separate `git worktree` if needed.
+- If the checkout may be shared, use a separate `git worktree` if needed.
 
 ## Report a finished change
 
@@ -104,5 +103,3 @@ When you finish a code change, end with:
    R2 <requirement> — not verified: <why>
    ```
 3. **Assumptions** where the request left a choice open, **what you did not verify**, and anything you noticed but did not change.
-
-Say "works" only for what you observed on the user's path; otherwise "should work; not verified".

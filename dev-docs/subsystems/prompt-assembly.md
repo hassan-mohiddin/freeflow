@@ -12,6 +12,7 @@ Freeflow’s model-facing behavior is delivered through coordinated core, capabi
 - shared terminology;
 - the Interaction Lifecycle, Feedback Loop, and Environment Interaction Loop;
 - compact readiness and recovery invariants;
+- Project Memory: reading the project's developer docs before changing or judging code, and keeping what is learned where it lasts (task state in the Working Record, how the project works in developer docs, only agent rules in instruction files such as AGENTS.md or CLAUDE.md);
 
 Core guidance is mandatory whenever Freeflow is enabled and also contains the guidance previously separated into `skills.md`. Detailed planning, execution, verification, and handback methods remain in skills rather than being duplicated into the standing prompt.
 
