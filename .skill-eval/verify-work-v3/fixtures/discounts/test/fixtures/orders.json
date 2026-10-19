@@ -1,0 +1,18 @@
+[
+  { "total": 19.99, "code": "SAVE10", "expected": 17.99 },
+  { "total": 10.05, "code": "SAVE10", "expected": 9.05 },
+  { "total": 12.35, "code": "SAVE10", "expected": 11.12 },
+  { "total": 5.35, "code": "SAVE10", "expected": 4.82 },
+  { "total": 24.99, "code": "SAVE15", "expected": 21.24 },
+  { "total": 1.1, "code": "SAVE15", "expected": 0.94 },
+  { "total": 3.3, "code": "SAVE15", "expected": 2.81 },
+  { "total": 4.1, "code": "SAVE15", "expected": 3.49 },
+  { "total": 4, "code": "FLAT5", "expected": 0 },
+  { "total": 10.1, "code": "FLAT5", "expected": 5.1 },
+  { "total": 25, "code": "FLAT5", "expected": 20 },
+  { "total": 99.99, "code": "BULK20", "expected": 99.99 },
+  { "total": 100.01, "code": "BULK20", "expected": 80 },
+  { "total": 120, "code": "BULK20", "expected": 96 },
+  { "total": 150.1, "code": "BULK20", "expected": 120.08 },
+  { "total": 212.37, "code": "BULK20", "expected": 169.89 }
+]
