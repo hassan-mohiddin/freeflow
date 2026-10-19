@@ -184,7 +184,8 @@ test("--max-cost stops starting subjects once host-reported cost reaches the cei
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
     const summary = JSON.parse(await readFile(path.join(resultDirectory, "summary.json"), "utf8"));
     assert.equal(summary.state, "cancelled");
-    assert.deepEqual(summary.budget, { maxCost: 0.5, spent: 0.8, exhausted: true, overshoot: 0.3 });
+    assert.deepEqual(summary.budget, { maxCost: 0.5, runTotal: 0.8, exhausted: true, overshoot: 0.3 });
+    assert.deepEqual(summary.cost, { spent: 0.8, subjects: 2, unmeasured: 0 });
     assert.deepEqual(summary.groups[1].variants, { baseline: "cancelled", candidate: "cancelled" });
   });
 });
@@ -210,6 +211,45 @@ test("the cost ceiling is shared across trials", async () => {
     assert.equal(aggregate.state, "cancelled");
     assert.equal(aggregate.trials.length, 2);
     assert.deepEqual(aggregate.budget, { maxCost: 1, spent: 1.2, exhausted: true, overshoot: 0.2 });
+  });
+});
+
+test("each trial records its own cost, apart from the run's running total", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    await writeSkill(root);
+    const definition = await writeJson(root, "groups/activation.json", group("activation"));
+
+    const result = runCli(root, bin, ["run", definition, "--trials", "3", "--max-cost", "10"], { FAKE_PI_COST: "0.4" });
+
+    assert.equal(result.status, 0, result.stderr);
+    const aggregateId = result.stdout.match(/^Aggregate: (.+)$/m)?.[1];
+    const runs = path.join(root, ".skill-eval/runs");
+    const aggregate = JSON.parse(await readFile(path.join(runs, aggregateId, "aggregate.json"), "utf8"));
+    const summaries = await Promise.all(
+      aggregate.trials.map(async (trial) =>
+        JSON.parse(await readFile(path.join(runs, trial.id, "summary.json"), "utf8")),
+      ),
+    );
+    // Two subjects at 0.4 each: every trial's own cost is 0.8, while the run's total grows trial by trial.
+    assert.deepEqual(
+      summaries.map((summary) => summary.cost),
+      Array(3).fill({ spent: 0.8, subjects: 2, unmeasured: 0 }),
+    );
+    assert.deepEqual(
+      summaries.map((summary) => summary.budget.runTotal),
+      [0.8, 1.6, 2.4],
+    );
+    assert.deepEqual(
+      aggregate.trials.map((trial) => trial.cost),
+      [0.8, 0.8, 0.8],
+    );
+    assert.equal(aggregate.budget.spent, 2.4);
+    const viewed = runCli(root, bin, ["view", aggregateId]);
+    assert.match(viewed.stdout, /^trial\t\S+\tcomplete\tcost=0\.8$/m);
+    const trialView = runCli(root, bin, ["view", aggregate.trials[2].id]);
+    assert.match(trialView.stdout, /^cost\tspent=0\.8\tsubjects=2$/m);
+    assert.match(trialView.stdout, /^budget\tmax-cost=10\trun-total=2\.4\texhausted=false$/m);
   });
 });
 

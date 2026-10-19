@@ -308,7 +308,8 @@ test("--max-cost with --jobs stops starting subjects and states the overshoot", 
     const summary = await readJson(path.join(result.stdout.match(/^Path: (.+)$/m)[1], "summary.json"));
     assert.equal(summary.budget.exhausted, true);
     assert.ok(summary.budget.overshoot <= 2 * 0.4 + 1e-9);
-    assert.equal(summary.budget.spent, Number((started * 0.4).toFixed(10)));
+    assert.equal(summary.budget.runTotal, Number((started * 0.4).toFixed(10)));
+    assert.deepEqual(summary.cost, { spent: Number((started * 0.4).toFixed(10)), subjects: started, unmeasured: 0 });
   });
 });
 

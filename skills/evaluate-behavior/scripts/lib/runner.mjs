@@ -2,7 +2,7 @@ import { mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 
 import { armNames } from "./arms.mjs";
-import { budgetEvidence, charge, reserve } from "./budget.mjs";
+import { budgetEvidence, charge, costEvidence, reserve, runBudgetEvidence } from "./budget.mjs";
 import { COMMAND_TOOL, loadDefinition, selectDefinition } from "./definitions.mjs";
 import { createInvocationId, fileIdentity, writeJson, writeText } from "./evidence.mjs";
 import { gradeDeterministic } from "./grade.mjs";
@@ -126,6 +126,8 @@ export async function runEvaluation(definitionFile, selectors = {}, options = {}
     dryRun,
     indexEntries: [],
     sources,
+    // This invocation's own spend, apart from the run's shared budget, which every trial charges.
+    cost: { spent: 0, subjects: 0, unmeasured: 0 },
   };
   const runOne = (selected) =>
     runGroup({ ...context, selected, hostExtensions: hostExtensions.get(selected.group.id) });
@@ -147,7 +149,9 @@ export async function runEvaluation(definitionFile, selectors = {}, options = {}
     completedAt: new Date().toISOString(),
   };
   if (hostVersion !== null) summary.hostVersion = hostVersion;
-  if (budget !== null) summary.budget = budgetEvidence(budget);
+  summary.cost = costEvidence(context.cost);
+  // The budget is the whole run's, shared by every trial: its total is what the run had spent when this one ended.
+  if (budget !== null) summary.budget = runBudgetEvidence(budget);
   await writeJson(path.join(resultDirectory, "summary.json"), summary);
   return { id: invocationId, path: resultDirectory, state, summary };
 }
@@ -283,15 +287,20 @@ export { budgetEvidence };
 
 /**
  * One subject in a slot: it waits for a free slot, starts only if nothing stopped the run and the budget can
- * reserve for it, and is charged what it cost. Returns `{ run, executed }`.
+ * reserve for it, and is charged what it cost, to the run's budget and to this invocation's own `cost`. Returns
+ * `{ run, executed }`.
  */
-async function runSubject({ group, variant, stopped, budget, subjects, execute }) {
+async function runSubject({ group, variant, stopped, budget, cost, subjects, execute }) {
   return subjects.run(async () => {
     if (stopped()) return { run: cancelledRun(group, variant), executed: false };
     const reservation = reserve(budget);
     if (reservation === null) return { run: cancelledRun(group, variant), executed: false };
     const run = await execute();
-    charge(budget, reservation, run.usage?.cost?.total ?? 0);
+    const spent = run.usage?.cost?.total;
+    charge(budget, reservation, spent ?? 0);
+    cost.subjects += 1;
+    if (typeof spent === "number" && Number.isFinite(spent)) cost.spent += spent;
+    else cost.unmeasured += 1;
     return { run, executed: true };
   });
 }
@@ -311,6 +320,7 @@ async function runGroup({
   dryRun,
   indexEntries,
   sources = null,
+  cost,
 }) {
   const { group } = selected;
   const arms = armNames(group);
@@ -380,6 +390,7 @@ async function runGroup({
           variant,
           stopped,
           budget,
+          cost,
           subjects,
           execute: () =>
             executeVariant({

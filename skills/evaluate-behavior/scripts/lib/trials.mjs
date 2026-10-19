@@ -65,7 +65,9 @@ export async function runTrials(definitionFile, selectors, options = {}) {
   const invoke = async (runSelectors, entry, extra = {}) => {
     const result = await evaluate(definitionFile, runSelectors, { ...shared, ...extra });
     onTrial?.(result);
-    return { result, entry: { id: result.id, state: result.state, ...entry } };
+    // Each trial's own spend; the aggregate's budget holds the run's total.
+    const cost = result.summary?.cost?.spent;
+    return { result, entry: { id: result.id, state: result.state, ...(cost === undefined ? {} : { cost }), ...entry } };
   };
   // Invocations in order with one job; otherwise all at once, sharing the subject slots. Recorded in plan order.
   const runAll = async (tasks) => {

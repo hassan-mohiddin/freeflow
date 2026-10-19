@@ -56,6 +56,26 @@ export async function renderResult(
   }
 
   const lines = [`Result ${summary.id} [${summary.state}]`, `Path: ${escapeCell(resultDirectory)}`];
+  // This invocation's own spend; in a trial, the budget's total is the whole run's so far.
+  if (summary.cost) {
+    const unmeasured = summary.cost.unmeasured ? [`unmeasured=${summary.cost.unmeasured}`] : [];
+    lines.push(
+      compactRow("cost", [
+        `spent=${formatNumber(summary.cost.spent)}`,
+        `subjects=${summary.cost.subjects}`,
+        ...unmeasured,
+      ]),
+    );
+  }
+  if (summary.budget) {
+    lines.push(
+      compactRow("budget", [
+        `max-cost=${formatNumber(summary.budget.maxCost)}`,
+        `run-total=${formatNumber(summary.budget.runTotal ?? summary.budget.spent)}`,
+        `exhausted=${summary.budget.exhausted}`,
+      ]),
+    );
+  }
   for (const group of groups) {
     lines.push("", ...(await renderGroup(resultDirectory, group, selectors.variant)));
   }
@@ -217,7 +237,15 @@ function renderAggregate(resultDirectory, aggregate) {
       ]),
     );
   }
-  for (const trial of aggregate.trials) lines.push(compactRow("trial", [trial.id, trial.state]));
+  for (const trial of aggregate.trials) {
+    lines.push(
+      compactRow("trial", [
+        trial.id,
+        trial.state,
+        ...(trial.cost === undefined ? [] : [`cost=${formatNumber(trial.cost)}`]),
+      ]),
+    );
+  }
   lines.push(...renderClaim(aggregate));
   for (const group of aggregate.groups) {
     const unreadable = group.unreadableGrades ? ` unreadable-grades=${group.unreadableGrades}` : "";

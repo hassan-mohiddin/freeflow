@@ -47,3 +47,20 @@ export function budgetEvidence(budget) {
     overshoot: Number(Math.max(0, budget.spent - budget.maxCost).toFixed(10)),
   };
 }
+
+/**
+ * The budget as a trial's evidence. The budget belongs to the whole run, so its total is named as the run's: what
+ * every trial had spent when this one ended. The trial's own spend is its summary's `cost`.
+ */
+export function runBudgetEvidence(budget) {
+  const { spent, ...rest } = budgetEvidence(budget);
+  return { maxCost: rest.maxCost, runTotal: spent, exhausted: rest.exhausted, overshoot: rest.overshoot };
+}
+
+/**
+ * One invocation's own spend: the host-reported cost of the subjects it ran (reused runs cost nothing again), how
+ * many ran, and how many reported no cost, so a missing figure is never read as free.
+ */
+export function costEvidence(cost) {
+  return { spent: Number(cost.spent.toFixed(10)), subjects: cost.subjects, unmeasured: cost.unmeasured };
+}

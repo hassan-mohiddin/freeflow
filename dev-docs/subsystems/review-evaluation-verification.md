@@ -238,7 +238,7 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
   index.jsonl                         reuse index: key, result, group, arm, indexedAt
   <invocation-id>/                    YYYYMMDDHHMMSS-<8 hex>
     invocation.json                   selection, jobs, reuse, sources, startedAt
-    summary.json                      state, dryRun, inputs.commit, groups, hostVersion, budget
+    summary.json                      state, dryRun, inputs.commit, groups, hostVersion, cost (this result's own spend), budget (the run's ceiling and runTotal so far)
     groups/<group>/
       definition.json                 the resolved group
       reference-check.json            when reference_solution is declared
@@ -256,7 +256,7 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
       <arm>/judged-grade.json         judged evidence
       <arm>/isolation/                HOME, agent dir, tmp; copied logins removed after exit
       <arm>.<stage>/                  pipeline stages other than the graded one
-  <aggregate-id>/aggregate.json       per-check counts, pass^k, metrics, judged, decision, claim; trials are sibling directories
+  <aggregate-id>/aggregate.json       per-check counts, pass^k, metrics, judged, decision, claim, each trial's cost, budget; trials are sibling directories
 ```
 
 - Everything is on disk; nothing lives only in memory between commands. `rebuildAggregate` rereads every trial's `summary.json` and grades and rewrites `aggregate.json` (sections, decision and claim), keeping its ID, trials, schedule and budget. It runs after rubric judging and calibration of an aggregate.
@@ -375,6 +375,7 @@ These prove the evaluator's mechanics with stand-in models. They do not prove be
 
 ## Changes
 
+- 2026-10-19: Each result's `summary.json` records its own `cost`, and its `budget` names the run's shared total `runTotal`; a trial's `budget.spent` had read like that trial's own cost.
 - 2026-10-19: A pipeline stage can start from an earlier stage's workspace (`<stage>.workspace`), and the container preflight refuses a workspace folder the engine does not share.
 - 2026-10-19: Map Features sets up and rechecks a project's feature map, guide and helper; Verify Work's Project Recipe reference proposes it when no recipe exists.
 - 2026-10-19: Verify Work gains the Project Recipe reference, which finds, uses and triages a project's feature map.

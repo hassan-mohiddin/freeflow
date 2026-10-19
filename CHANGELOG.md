@@ -74,6 +74,7 @@
 
 ### Fixed
 
+- Evaluate Behavior: each result's `summary.json` records its own cost (`cost.spent`, with how many subjects ran and how many reported no cost), and an aggregate lists each trial's cost. A trial's `budget.spent` used to be the whole run's running total, which read like that trial's own cost; the summary now names it `budget.runTotal`.
 - Track Work: creating the first inline task record works in a repository whose only matching ignore rule is directory-only, such as `.freeflow/*/` in a fresh clone of Freeflow. Before, it failed with "Record path is not ignored by Git" because the tasks folder did not exist yet.
 - Evaluate Behavior: in a container environment, a subject's declared commands (`run_command`) run in its container, as `bash` does, instead of on the host, and the container starts for a group that declares commands without `bash`; graders already ran in the image.
 - Evaluate Behavior: judges and the pairwise reviewer run with the evaluator's Pi defaults (automatic retry and compaction off) under their declared settings, as subjects do.
