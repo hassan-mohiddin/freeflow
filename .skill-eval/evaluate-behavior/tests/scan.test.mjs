@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { scanRun } from "../../../skills/evaluate-behavior/scripts/lib/scan.mjs";
+import { scanHook, scanRun } from "../../../skills/evaluate-behavior/scripts/lib/scan.mjs";
+import { hostileWorkspace, SECRET, SECRET_LINES, WRITTEN, within } from "./helpers/hostile-workspace.mjs";
 
 async function withRoot(run) {
   const root = await realpath(await mkdtemp(path.join(tmpdir(), "skill-eval-scan-test-")));
@@ -140,5 +141,34 @@ test("hidden-test lines, hidden test names and most of the reference solution in
     await write(path.join(workspace, "src/add.mjs"), "export function add(a, b) {\n  return a + b;\n}\n");
     const fixed = runWith(root, [], { effects: { changes: { created: [], modified: ["src/add.mjs"] } } });
     assert.deepEqual(await scanRun({ run: fixed, group, arm: "arm", root, home: path.join(root, "home") }), []);
+  });
+});
+
+test("the scan reads no file through a link the subject made, nor a FIFO, and finishes", async () => {
+  await withRoot(async (root) => {
+    const workspace = path.join(root, "runs/arm/workspace");
+    const hostile = await hostileWorkspace(workspace, path.join(root, "outside"));
+    try {
+      // A reference solution made of the secret's own lines: read through the link, they would count as copied.
+      await write(path.join(root, "reference/notes.md"), `${SECRET_LINES.join("\n")}\n`);
+      const group = { reference_solution: { files: "reference" }, expectations: [] };
+      const run = runWith(root, [], { effects: { changes: { created: WRITTEN, modified: [] } } });
+      const record = await within(
+        scanHook({ group, arm: "arm", run, root, directory: path.dirname(workspace) }),
+        5000,
+        "the scan",
+      );
+      assert.equal(JSON.stringify(record).includes(SECRET), false);
+      assert.deepEqual(record.flags, []);
+      assert.deepEqual(
+        record.skipped.map((entry) => entry.path),
+        ["login.md", "zero.md", "pipe.md", "fifo.md", "linked-dir/inner.md"],
+      );
+      assert.match(record.skipped[0].note, /a link the run made, to .*auth\.json; not followed/);
+      assert.equal(record.skipped[3].note, "not read: not a regular file");
+      assert.equal(record.skipped[4].note, "not read: outside the workspace");
+    } finally {
+      hostile.release();
+    }
   });
 });

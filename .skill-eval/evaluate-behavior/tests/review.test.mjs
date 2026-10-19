@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { HONEST, hostileWorkspace, SECRET, WRITTEN } from "./helpers/hostile-workspace.mjs";
 import { toV2 } from "./helpers/to-v2.mjs";
 
 const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-behavior/scripts/skill-eval.mjs", import.meta.url));
@@ -432,6 +433,51 @@ test("the judge sees written files in full, the fixture, and no run paths or arm
     assert.ok(call.prompt.includes("FIXTURE-MARK"), "the task materials reach the judge");
     assert.ok(!call.prompt.includes(root), "no absolute run path reaches the judge");
     assert.doesNotMatch(call.prompt, /baseline|candidate/i);
+  });
+});
+
+test("the judge never sees a file through a link the run made, nor a FIFO, and the review finishes", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installReviewerPi(root);
+    const { groupDirectory } = await writeWorkspaceResult(root);
+    const workspace = path.join(groupDirectory, "candidate", "workspace");
+    const hostile = await hostileWorkspace(workspace, path.join(root, "outside"));
+    try {
+      const run = JSON.parse(await readFile(path.join(groupDirectory, "candidate", "run.json"), "utf8"));
+      run.effects.changes.created = WRITTEN;
+      await writeJson(path.join(groupDirectory, "candidate", "run.json"), run);
+      writeFileSync(
+        path.join(bin, "fake-review.json"),
+        JSON.stringify({
+          log: path.join(root, "review.jsonl"),
+          output: JSON.stringify({ answers: [{ question: 1, A: "yes", B: "no", rationale: "A names rollback." }] }),
+        }),
+      );
+
+      const result = spawnSync(process.execPath, [entrypoint, "review", RESULT_ID, "--model", "reviewer/model"], {
+        cwd: root,
+        encoding: "utf8",
+        timeout: 30_000,
+        env: {
+          ...process.env,
+          PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+          SKILL_EVAL_CREDENTIALS_DIR: path.join(root, "no-credentials"),
+        },
+      });
+
+      assert.equal(result.error, undefined, "the review finished");
+      assert.equal(result.status, 0, result.stderr);
+      const [call] = (await readFile(path.join(root, "review.jsonl"), "utf8"))
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line));
+      assert.ok(call.prompt.includes(HONEST), "a regular written file reaches the judge");
+      assert.equal(call.prompt.includes(SECRET), false, "nothing behind a link reaches the judge");
+      assert.match(call.prompt, /### File written: login\.md\n\(a link the run made, to .*; not followed\)/);
+      assert.match(call.prompt, /### File written: fifo\.md\n\(not read: not a regular file\)/);
+    } finally {
+      hostile.release();
+    }
   });
 });
 

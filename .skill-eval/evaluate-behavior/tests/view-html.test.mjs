@@ -6,6 +6,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { renderHtml, writeHtml } from "../../../skills/evaluate-behavior/scripts/lib/view-html.mjs";
+import { HONEST, hostileWorkspace, SECRET, WRITTEN, within } from "./helpers/hostile-workspace.mjs";
 
 const SNAPSHOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "snapshots", "view-html.html");
 const HOSTILE = "NOTES.md <script>alert('x')</script> holds the note";
@@ -20,6 +21,8 @@ async function withFixtureResult(
     finalText = "Added NOTES.md with a short note.\n",
     fileText = "Note: keep it short.\n",
     candidateExtras = true,
+    created = ["NOTES.md"],
+    prepareWorkspace = null,
   } = {},
 ) {
   const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "skill-eval-view-html-")));
@@ -88,17 +91,22 @@ async function withFixtureResult(
           ],
         },
       ],
-      effects: { changes: { created: ["NOTES.md"], modified: [], deleted: ["old.txt"] } },
+      effects: { changes: { created, modified: [], deleted: ["old.txt"] } },
       artifacts: { final: "final.md" },
       ...(candidateExtras && run.metrics === undefined ? { metrics: { turnsUsed: 1, editedFiles: 1 } } : {}),
     });
     await writeText(result, "groups/behavior/candidate/final.md", finalText);
     await writeText(result, "groups/behavior/candidate/workspace/NOTES.md", fileText);
+    const release = await prepareWorkspace?.(path.join(result, "groups/behavior/candidate/workspace"), root);
     if (candidateExtras) {
       await writeJson(result, "groups/behavior/candidate/judged-grade.json", judgedGrade());
       await writeJson(result, "groups/behavior/semantic-grade.json", advisoryReview());
     }
-    return await renderHtml("fixture-result", { root });
+    try {
+      return await within(renderHtml("fixture-result", { root }), 5000, "the HTML view");
+    } finally {
+      release?.();
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -400,5 +408,27 @@ test("writeHtml refuses selectors, because the page always covers the whole resu
   await assert.rejects(
     writeHtml("fixture-result", "out.html", { root: os.tmpdir(), selectors: { group: "1", variant: null } }),
     /drop --group and --variant/,
+  );
+});
+
+test("a changed file is never shown through a link the run made, nor read from a FIFO, and the page finishes", async () => {
+  const html = await withFixtureResult(
+    {},
+    {
+      created: WRITTEN,
+      prepareWorkspace: async (workspace, root) =>
+        (await hostileWorkspace(workspace, path.join(root, "outside"))).release,
+    },
+  );
+  assert.ok(html.includes(HONEST), "a regular written file is shown");
+  assert.equal(html.includes(SECRET), false, "nothing behind a link is shown");
+  assert.match(
+    html,
+    /created login\.md<\/summary><p class="missing">a link the run made, to .*auth\.json; not followed\.<\/p>/,
+  );
+  assert.match(html, /created fifo\.md<\/summary><p class="missing">not read: not a regular file\.<\/p>/);
+  assert.match(
+    html,
+    /created linked-dir\/inner\.md<\/summary><p class="missing">not read: outside the workspace\.<\/p>/,
   );
 });

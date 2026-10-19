@@ -278,6 +278,7 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
 - Each subject has its own home, temp and agent directories, and only its provider's login, removed after exit. Guarded by `isolation.test.mjs`.
 - A subject's tools stay inside declared roots, and `bash` exists only behind a probed shell or a container. Guarded by `pi-guard.test.mjs`, `shell.test.mjs`, `container.test.mjs`.
 - A link in a subject's workspace is recorded with its target and never followed, in the run, a pipeline handoff and a grader's copy; a declared resource or fixture may hold only relative links inside it, copied as they are (`fingerprintDirectory`'s `links` option). Guarded by `grade-command.test.mjs` and `participants.test.mjs`.
+- Every reader of a file the subject wrote (the judge's and reviewer's evidence, the HTML view, the transcript scan) opens it through `lib/subject-file.mjs`: never through a link, only a regular file whose real path is inside the workspace, and at most a bounded number of bytes; a skipped file is named with why. Guarded by `review.test.mjs`, `view-html.test.mjs` and `scan.test.mjs` (a link to a secret, to `/dev/zero` and to a FIFO).
 - In a container environment, the subject's `bash` and declared commands run in its container and graders in a fresh one from the same image. Guarded by `container.test.mjs` and `command-tool.test.mjs`.
 - A declared `network: "none"` holds on every path that runs subject-written code, or the group is refused at load; every run records `sealing`. Guarded by `container.test.mjs` and `grade-command.test.mjs`.
 - Every model the evaluator launches (subject, simulated user, judge, reviewer) gets the evaluator's Pi defaults under its declared settings. Guarded by `isolation.test.mjs` and `review.test.mjs`.
@@ -333,6 +334,7 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
 | `lib/definitions.mjs`, `arms.mjs`, `source-override.mjs` | Loading and validation, arms and reference, `--source` |
 | `lib/runner.mjs`, `trials.mjs`, `hooks.mjs`, `queue.mjs`, `budget.mjs`, `reuse.mjs` | Execution, trials and aggregation (`rebuildAggregate`), hook registries, concurrency, budget, reuse index |
 | `lib/scan.mjs`, `clear.mjs` | The transcript scan and its flags; `skill-eval clear` and the clearances file |
+| `lib/subject-file.mjs` | Reading a file the subject wrote: no links, regular files inside the workspace, bounded |
 | `lib/subject.mjs`, `model-call.mjs`, `process.mjs` | One subject's host-neutral run (materialized environment, launch through the host adapter, the run record); a model call routed to its host; base environment and process watchdogs |
 | `lib/hosts/index.mjs`, `hosts/names.mjs` | The host interface and its registry; the host names a definition may use |
 | `lib/hosts/pi/` | The Pi adapter: arguments and one-shot JSON runs (`process.mjs`), RPC sessions (`rpc.mjs`), extension resolution, settings and login refresh (`host.mjs`), per-subject isolation (`isolation.mjs`), model calls (`model-call.mjs`), the shell probes' launch (`confinement.mjs`) |
@@ -389,6 +391,7 @@ These prove the evaluator's mechanics with stand-in models. They do not prove be
 
 ## Changes
 
+- 2026-10-19: Readers of a subject's files (judge and reviewer evidence, the HTML view, the scan) no longer follow a link the subject made or open a FIFO or device; they read regular files inside the workspace, to a bound, through `lib/subject-file.mjs`.
 - 2026-10-19: `check-tasks` lists what each task's copy lacks against its original setting (`lib/task-copy.mjs`): Git history, ignored files the fixture holds or the task names, and tools and network the task refers to.
 - 2026-10-19: Transcript scan (`lib/scan.mjs`) flags outside reads, network attempts, instruction files and answer copies; a flagged run is held out of counts and decisions until `skill-eval clear` records a person's reason; a pipeline's earlier stages are scanned and gated for validity too.
 - 2026-10-19: `configuration.network` (`"none"` or `"host"`) declares one policy for bash, declared commands and command graders; `"none"` is refused where commands or graders would run on the host; runs record `sealing`, the plan names unsealed arms, and declared commands lose `PI_CODING_AGENT_DIR` and login variables.

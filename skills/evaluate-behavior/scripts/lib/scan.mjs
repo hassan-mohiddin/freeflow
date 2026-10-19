@@ -21,6 +21,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { registerPostRunHook } from "./hooks.mjs";
+import { readRegularFile, readSubjectFile, skippedNote } from "./subject-file.mjs";
 
 export const CLEARANCES = "clearances.json";
 const READ_TOOLS = new Set(["read", "ls", "find", "grep"]);
@@ -106,9 +107,19 @@ function flagOf(kind, detail, evidence) {
 /**
  * The scan's flags for one run, in a stable order with IDs `<kind>-<n>`.
  *
- * @param {{ run: any, group?: any, arm?: string, root?: string, home?: string, copies?: boolean }} input
+ * Files the subject wrote that the scan did not read (a link it made, a FIFO) are added to `skipped` with why.
+ *
+ * @param {{ run: any, group?: any, arm?: string, root?: string, home?: string, copies?: boolean, skipped?: {path: string, note: string}[] }} input
  */
-export async function scanRun({ run, group = null, arm = null, root = null, home = os.homedir(), copies = true }) {
+export async function scanRun({
+  run,
+  group = null,
+  arm = null,
+  root = null,
+  home = os.homedir(),
+  copies = true,
+  skipped = [],
+}) {
   const workspace = typeof run?.workspace === "string" ? run.workspace : null;
   const readable = readableRoots(run);
   const guest = arm === null ? undefined : group?.variants?.[arm]?.shell?.workspace;
@@ -176,7 +187,7 @@ export async function scanRun({ run, group = null, arm = null, root = null, home
     if (match) flags.push(flagOf("network", "a tool result reports a failed network lookup", { matched: match[0] }));
   }
   if (copies && group !== null && root !== null && arm !== null) {
-    flags.push(...(await answerCopies({ run, group, arm, root })));
+    flags.push(...(await answerCopies({ run, group, arm, root, skipped })));
   }
 
   const counts = {};
@@ -213,14 +224,14 @@ async function filesUnder(target) {
   return files;
 }
 
+/** A definition file's text (a grader, the fixture, the reference solution), never through a link, to a bound. */
 async function textFile(file) {
-  const buffer = await readFile(file).catch(() => null);
-  if (buffer === null || buffer.length > OUTPUT_FILE_LIMIT || buffer.includes(0)) return "";
-  return buffer.toString("utf8");
+  const result = await readRegularFile(file, OUTPUT_FILE_LIMIT);
+  return result.skipped === undefined ? result.text : "";
 }
 
 /** Hidden-test and reference-solution text found in what the subject answered or wrote. */
-async function answerCopies({ run, group, arm, root }) {
+async function answerCopies({ run, group, arm, root, skipped }) {
   const fixtureLines = new Set();
   const fixture = run.resources?.fixture?.snapshotPath ?? run.resources?.fixture?.sourcePath ?? null;
   if (typeof fixture === "string") {
@@ -235,7 +246,12 @@ async function answerCopies({ run, group, arm, root }) {
   ];
   const changes = run.effects?.changes ?? {};
   for (const relative of [...(changes.created ?? []), ...(changes.modified ?? [])]) {
-    if (typeof run.workspace === "string") output.push(await textFile(path.join(run.workspace, relative)));
+    if (typeof run.workspace !== "string") continue;
+    // A file the subject wrote is read only as a regular file inside its workspace, never through a link it made.
+    const file = await readSubjectFile(run.workspace, relative, { limit: OUTPUT_FILE_LIMIT });
+    if (file.skipped === undefined) output.push(file.text);
+    else if (file.skipped !== "missing" && file.skipped !== "binary")
+      skipped.push({ path: relative, note: skippedNote(file) });
   }
   const produced = new Set(output.flatMap((text) => lines(text)));
   const producedText = output.join("\n");
@@ -299,11 +315,13 @@ async function answerCopies({ run, group, arm, root }) {
 }
 
 /**
- * Post-run hook: the scan's flags land in run.json under `postRun.scan`. A pipeline's earlier stages are scanned
- * too, from their stored runs, with each flag's ID prefixed by its stage (`setup.network-1`).
+ * Post-run hook: the scan's flags land in run.json under `postRun.scan`, with any written file it did not read under
+ * `skipped`. A pipeline's earlier stages are scanned too, from their stored runs, with each flag's ID prefixed by its
+ * stage (`setup.network-1`).
  */
 export async function scanHook({ group, arm, run, root, directory }) {
-  const flags = await scanRun({ run, group, arm, root });
+  const skipped = [];
+  const flags = await scanRun({ run, group, arm, root, skipped });
   for (const stage of run.participants?.stages ?? []) {
     if (stage.graded || typeof stage.run !== "string") continue;
     const stored = path.join(path.dirname(directory), stage.run);
@@ -319,7 +337,8 @@ export async function scanHook({ group, arm, run, root, directory }) {
       flags.push({ ...flag, id: `${stage.id}.${flag.id}`, stage: stage.id });
     }
   }
-  return { flags };
+  // What the scan left unread, and why, so a person can see that a linked or special file was not looked into.
+  return skipped.length > 0 ? { flags, skipped } : { flags };
 }
 
 /** A run's clearances, from `clearances.json` in its arm directory; empty when there is none. */
