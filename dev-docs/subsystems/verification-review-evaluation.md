@@ -1,8 +1,8 @@
-# Review, Evaluation and Verification
+# Verification, Review and Evaluation
 
-> **Covers:** `skills/review-work/`, `skills/evaluate-behavior/`, `skills/verify-work/SKILL.md`, `skills/verify-work/scripts/`, `.skill-eval/scripts/gate.mjs`, `.skill-eval/gate.json`, `.skill-eval/gate/`, `scripts/validation/check-eval-definitions.mjs`
+> **Covers:** `skills/review-work/`, `skills/evaluate-behavior/`, `skills/verify-work/`, `skills/map-features/`, `.skill-eval/scripts/gate.mjs`, `.skill-eval/gate.json`, `.skill-eval/gate/`, `scripts/validation/check-eval-definitions.mjs`
 > **Tests:** `.skill-eval/evaluate-behavior/tests/`, `.skill-eval/verify-work/tests/`
-> **Verified at:** `8470576f` (2026-10-19)
+> **Verified at:** `2003af05` (2026-10-19)
 
 For contributors changing how Freeflow reviews work, evaluates agent behavior, or verifies claims: what each part does, how they depend on each other, why they are shaped this way, and which of their behaviors are deliberate. It also covers the evaluator's code, the evidence it stores, and the contributor gate that measures Freeflow's own changes.
 
@@ -351,6 +351,7 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
 | `skills/review-work/SKILL.md`, `references/` | Review Rules, roles, classification, budget; per-kind methods, reviewer contract, adjudication, judge contract, security lens |
 | `skills/verify-work/SKILL.md`, `references/` | Claim verification and its evidence references |
 | `skills/verify-work/scripts/test-changes.mjs` | Lists changed, moved and deleted existing tests, fixtures, snapshots and test setup between a base and a head |
+| `skills/map-features/SKILL.md`, `references/driving-surfaces.md` | Setting up and rechecking a project's live-verification recipe: feature map, shared guide and helper |
 | `.skill-eval/scripts/gate.mjs`, `gate.md`, `.skill-eval/gate.json`, `.skill-eval/gate/` | The contributor gate, its configuration and suites |
 | `.skill-eval/review-suite/` | The review suite: 25 cases, 50 groups (clean, seeded and real defects, a held-out third), the F3 and F7 suites, generators in `tools/`, results in `results/` |
 | `.skill-eval/skill-family/` | Write Skill and Evaluate Behavior guidance cases (14 groups), including W3 description cases for instruction text other than skills |
@@ -391,6 +392,7 @@ These prove the evaluator's mechanics with stand-in models. They do not prove be
 
 ## Changes
 
+- 2026-10-19: Renamed from `review-evaluation-verification.md` to put the parts in the order work meets them; it now also covers Map Features and Verify Work's references.
 - 2026-10-19: A run that used tokens but reports a cost of 0 (Pi's figure for a model it has no price for) counts as `unmeasured` in a result's `cost`, and its `cost` metric is null (`measuredCost` in `lib/budget.mjs`).
 - 2026-10-19: `--reuse` skips an indexed run held for transcript flags no one has cleared; once a person clears them, it can be reused.
 - 2026-10-19: A sixth shell probe reads a marker in the host's login directory (Pi's agent directory); `sealing.login` says `out of reach` with bash only when it held, instead of inferring it from the home-parent probe.
