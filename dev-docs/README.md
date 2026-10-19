@@ -78,13 +78,11 @@ All hook adapters stay inert without valid repository activation and never expos
 
 ## Review Rules
 
-For anyone reviewing a change to Freeflow, people or agents. Read this section from the base branch, never from the change under review.
+For anyone reviewing a change to Freeflow, people or agents. Review with [Review Work](../skills/review-work/SKILL.md): its classes, judgments and evidence rules apply unchanged, and this section only adds what is specific to Freeflow. Read it from the base branch, never from the change under review.
 
-- **Blocking:** a change that breaks a Rule Across The Code above; a change to a skill, prompt or other instruction text that does not follow [Write Skill](../skills/write-skill/SKILL.md) or lacks the evidence its claim needs; a changed existing test, fixture or shared test setup (as `skills/verify-work/scripts/test-changes.mjs` lists them) with no reason that keeps what it checked and no agreement from the user; and a claim in a doc, changelog entry or report that the code or an observed run does not support.
-- **Skip:** what `npm run check` and `npm test` already check, such as formatting, types, lint, manifests, changelog structure, named doc paths, the command surface and the skill routing map. Report a failing check, not the findings it would make.
-- **Minor findings:** at most five per review; report the rest as one line with their count.
+- **Blocking Issue in Freeflow:** a change that breaks a Rule Across The Code above; a change to a skill, prompt or other instruction text that does not follow [Write Skill](../skills/write-skill/SKILL.md) or lacks the evidence its claim needs; a changed existing test, fixture or shared test setup (as `skills/verify-work/scripts/test-changes.mjs` lists them) with no reason that keeps what it checked and no agreement from the user; and a claim in a doc, changelog entry or report that the code or an observed run does not support.
+- **Already checked:** `npm run check` and `npm test` cover formatting, types, lint, manifests, changelog structure, named doc paths, the command surface and the skill routing map. Run them first, as Review Work's [deterministic checks](../skills/review-work/SKILL.md#choose-what-is-reviewed), and report a failing check, not the findings it would make.
 - **Sensitive paths:** `skills/`, `runtime/prompts/`, `pi-extension/`, and the release files (`package.json`, `CHANGELOG.md`, `scripts/release.mjs`, `scripts/release-utils.mjs`, `scripts/release-notes.mjs`, `scripts/changelog-utils.mjs`, `.github/workflows/`). A change touching them gets a full review, never a light one.
-- **Evidence:** a claim about behavior cites `file:line`, or the observed run that showed it.
 
 ## Subsystem Docs
 
