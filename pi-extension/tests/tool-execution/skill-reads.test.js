@@ -192,3 +192,31 @@ test("file tracking answers a repeat read, rebuilt after resume, until a compact
   selective = false;
   assert.ok(replaced(await coordinator.read(BODY)), "its reads still count for the full history");
 });
+
+test("the skills read are listed in one order, whether recorded live or rebuilt after a resume", () => {
+  const workflow = join(ROOT, "skills/workflow/SKILL.md");
+  // Parallel reads: the results complete in one order live, and the branch keeps them in another.
+  const live = new SkillReads();
+  live.result(read({ path: workflow }, "workflow body"), cwd);
+  live.result(read({ path: SKILL }, BODY), cwd);
+  const rebuilt = new SkillReads();
+  rebuilt.rebuild(
+    [
+      {
+        type: "message",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "toolCall", id: "1", name: "read", arguments: { path: SKILL } },
+            { type: "toolCall", id: "2", name: "read", arguments: { path: workflow } },
+          ],
+        },
+      },
+      result("1", BODY),
+      result("2", "workflow body"),
+    ],
+    cwd,
+  );
+  assert.deepEqual(live.skills(), ["track-work", "workflow"]);
+  assert.deepEqual(rebuilt.skills(), live.skills());
+});
