@@ -9,7 +9,7 @@ Durable decisions for the public Freeflow plugin behavior:
 - [ADR 0005: Discuss And Track Work Replace Discover](0005-discuss-and-track-work-replace-discover.md)
 - [ADR 0006: Prompt Fragments And Discoverable Skills](0006-prompt-fragments-and-discoverable-skills.md)
 - [ADR 0007: Handoffs Are Memory, Not Authority](0007-handoffs-are-memory-not-authority.md)
-- [ADR 0008: Reference Skill Stack While Bootstrapping](0008-reference-skill-stack.md)
+- [ADR 0008: Reference Skill Stack While Bootstrapping](0008-reference-skill-stack.md) — retired 2026-10-19
 - [ADR 0009: No Silent Path Substitution](0009-no-silent-path-substitution.md)
 - [ADR 0010: Remove Pi Compatibility Aliases](0010-remove-pi-compatibility-aliases.md)
 - [ADR 0011: Single Adaptive Workflow](0011-single-adaptive-workflow.md), amended 2026-10-05: runtime prompts are selectable on hosts other than Pi

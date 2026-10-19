@@ -64,6 +64,8 @@ Release preparation updates every version-bearing manifest, including `package.j
 
 ## Human-controlled boundaries
 
+npm Trusted Publishing (the workflow's `id-token: write`) and the protected `npm` GitHub environment are prerequisites outside the repository; no source check can prove they are configured.
+
 A release is not complete because local preparation or a build passes. The human-controlled sequence is:
 
 ```text

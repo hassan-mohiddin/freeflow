@@ -9,7 +9,7 @@ into a governance system.
 Read:
 
 - `AGENTS.md` for repository and agent instructions;
-- `CONTEXT.md` for project language and boundaries;
+- `dev-docs/README.md` for the architecture, the rules across the code, and the developer docs index;
 - `plugin-docs/README.md` for the current documentation map;
 - the relevant architecture, integration, workflow, routing, release, ADR, skill, runtime, test, or evidence page before editing;
 - the active Working Record through Track Work when work is ongoing.

@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted. Promoted from `.deprecated/project-docs/adr/0004-reference-skill-stack.md` during ADR consolidation.
+Retired 19 Oct 2026: Freeflow follows its own skill methodology (Write Skill, Evaluate Behavior); no outside reference stack applies.
+
+Earlier: accepted, and promoted from `.deprecated/project-docs/adr/0004-reference-skill-stack.md` during ADR consolidation.
 
 ## Decision
 
