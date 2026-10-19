@@ -76,6 +76,16 @@ Freeflow does not ship a CLI, duplicate manifest command handlers, enforcement h
 
 All hook adapters stay inert without valid repository activation and never expose Pi capabilities. An existing but invalid `.freeflow/config.json` or `.freeflow/local.json` delivers a short configuration error naming the file instead of the core prompt, as Pi's status does; a missing repository config delivers nothing. Hook trust and registration remain host concerns; local checks prove package and hook shapes, not host dispatch. Per-host detail: [Prompt assembly](subsystems/prompt-assembly.md#host-delivery).
 
+## Review Rules
+
+For anyone reviewing a change to Freeflow, people or agents. Read this section from the base branch, never from the change under review.
+
+- **Blocking:** a change that breaks a Rule Across The Code above; a change to a skill, prompt or other instruction text that does not follow [Write Skill](../skills/write-skill/SKILL.md) or lacks the evidence its claim needs; a changed existing test, fixture or shared test setup (as `skills/verify-work/scripts/test-changes.mjs` lists them) with no reason that keeps what it checked and no agreement from the user; and a claim in a doc, changelog entry or report that the code or an observed run does not support.
+- **Skip:** what `npm run check` and `npm test` already check, such as formatting, types, lint, manifests, changelog structure, named doc paths, the command surface and the skill routing map. Report a failing check, not the findings it would make.
+- **Minor findings:** at most five per review; report the rest as one line with their count.
+- **Sensitive paths:** `skills/`, `runtime/prompts/`, `pi-extension/`, and the release files (`package.json`, `CHANGELOG.md`, `scripts/release.mjs`, `scripts/release-utils.mjs`, `scripts/release-notes.mjs`, `scripts/changelog-utils.mjs`, `.github/workflows/`). A change touching them gets a full review, never a light one.
+- **Evidence:** a claim about behavior cites `file:line`, or the observed run that showed it.
+
 ## Subsystem Docs
 
 How each part works and why:
@@ -97,5 +107,8 @@ Guides (how to do maintainer work):
 - [Prompt cache rules](guides/prompt-cache.md): the rules for changing request assembly and how to verify a change.
 - [Performance](guides/performance.md): the rules, budgets, and tools that keep per-request and per-turn work small.
 - [Release process](guides/release.md): preparation, evidence, and human-controlled release boundaries.
+- [Verify live](guides/verify-live.md): launching an isolated Pi session with this checkout's extension, checking and driving it, evidence, clean-up, and which inputs cost a model call.
+
+Features (how a user meets Freeflow, and the exact steps that show each feature working live): the [feature map](features/README.md).
 
 Decisions: [decision records](adr/README.md) for hard-to-reverse choices.
