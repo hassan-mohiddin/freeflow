@@ -285,7 +285,7 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
 - "beats" is reported only from a declared decision. Guarded by `decision.test.mjs` and `trials.test.mjs`.
 - A missing metric is `null`, never 0, and a run that is not complete adds no metric to a summary or decision. Guarded by `metrics.test.mjs` and `decision.test.mjs`.
 - A complete run that shows no model at work is `invalid`, never graded as a fail. Guarded by `validity.test.mjs` and `trials.test.mjs`.
-- A run with a transcript flag no person has cleared counts toward no claim or decision, and clearing never changes the run's files. Guarded by `scan.test.mjs`, `trials.test.mjs` and `participants.test.mjs`.
+- A run with a transcript flag no person has cleared counts toward no claim or decision, and clearing never changes the run's files. Guarded by `held.test.mjs` (checks, comparison arms, pairs and transitions, metrics, scores, judged answers and every decision measure), `scan.test.mjs`, `trials.test.mjs` and `participants.test.mjs`.
 - No more than `--jobs` subjects run at once, and parallel subjects cannot overshoot `--max-cost` by more than the running set. Guarded by `concurrency.test.mjs`.
 - The evaluator never pulls an image and never installs anything. No test can prove an absence; `container.test.mjs` and `shell.test.mjs` check that missing prerequisites refuse.
 - No test calls a real model: tests use `helpers/fake-pi.mjs` and `helpers/fake-docker.mjs`.
