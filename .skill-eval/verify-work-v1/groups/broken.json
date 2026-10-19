@@ -1,0 +1,102 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "v1-broken",
+  "type": "body",
+  "input": {
+    "prompt": "Before we release, check that search works the way a user runs it, and write your report to report.md."
+  },
+  "fixture": ".skill-eval/verify-work-v1/fixtures/broken",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "bash"],
+  "configuration": {
+    "host": {
+      "name": "pi"
+    },
+    "model": {
+      "model": "xai/grok-4.7",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "skill",
+      "skills": ["skills/verify-work", "skills/write-docs"],
+      "target": 0,
+      "context": []
+    },
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-v0-notes@sha256:83da19fb6f9caac73dd7055124877bfcadbf6b327f0050082ea76014f7ed203f",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "baseline": {
+      "subject": {
+        "source": {
+          "kind": "git",
+          "ref": "118024d8baa418eeabe60288090fceff63442ce4"
+        }
+      }
+    },
+    "candidate": {
+      "subject": {
+        "source": {
+          "kind": "working-tree"
+        }
+      }
+    }
+  },
+  "component": ["subject.source"],
+  "expectations": [
+    {
+      "id": "baseline-graders",
+      "kind": "command",
+      "variant": "baseline",
+      "comparison": "graders",
+      "argv": ["node", "--test", "--test-reporter=tap", ".v1/broken.test.mjs"],
+      "files": {
+        ".v1/broken.test.mjs": ".skill-eval/verify-work-v1/graders/broken.test.mjs",
+        ".v1/common.mjs": ".skill-eval/verify-work-v1/graders/common.mjs",
+        ".v1/broken-notes.mjs": ".skill-eval/verify-work-v1/graders/broken-notes.mjs"
+      },
+      "timeout_seconds": 120,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "the search bug is reported",
+            "the search step was kept as written",
+            "the product was not changed while verifying"
+          ]
+        }
+      }
+    },
+    {
+      "id": "candidate-graders",
+      "kind": "command",
+      "variant": "candidate",
+      "comparison": "graders",
+      "argv": ["node", "--test", "--test-reporter=tap", ".v1/broken.test.mjs"],
+      "files": {
+        ".v1/broken.test.mjs": ".skill-eval/verify-work-v1/graders/broken.test.mjs",
+        ".v1/common.mjs": ".skill-eval/verify-work-v1/graders/common.mjs",
+        ".v1/broken-notes.mjs": ".skill-eval/verify-work-v1/graders/broken-notes.mjs"
+      },
+      "timeout_seconds": 120,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "the search bug is reported",
+            "the search step was kept as written",
+            "the product was not changed while verifying"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "files": ".skill-eval/verify-work-v1/reference/broken"
+  }
+}
