@@ -1,10 +1,27 @@
 # Documentation Shapes
 
-Read this before choosing the structure of an overview, a subsystem doc, a folder README, a feature file, or a live-verification guide, or before restructuring one.
+Read this before looking for a project's developer docs or proposing them for a project that has none, before choosing the structure of an overview, a subsystem doc, a folder README, a feature file, a live-verification guide, or a decision record, or before restructuring one.
 
 This reference is judgment except for the header: these are shapes to adapt, not mandatory templates. Where the repository already has documentation conventions, follow them and borrow from these shapes only what they lack. Use the sections a document's readers need, in the order that serves them, and leave out a section with nothing true to say.
 
 The header is binding when you use it, because the [docs check](../scripts/docs-check.mjs) reads it. Use it on a document whose code the check should watch for staleness.
+
+## Starting Developer Docs
+
+First look for the project's own docs index, in this order: `dev-docs/README.md`, `ARCHITECTURE.md`, `docs/README.md`, then a docs folder the root `README.md` names. The first one found is the index. A project that has one keeps its home and its conventions: map these shapes onto what is there, never start a second tree, and never move existing docs without the user's yes.
+
+Only when the project has no developer docs, propose this layout:
+
+```text
+dev-docs/
+  README.md      overview: purpose, parts, code map, rules across the code, review rules, index of docs
+  subsystems/    how each part works and why
+  features/      what the user sees, and how to drive it live
+  guides/        recurring maintainer jobs, such as a release or live verification
+  adr/           hard-to-reverse decisions
+```
+
+Grow it on demand: start with `README.md` alone, and add a folder when its first document is needed. A small project may never need more than the overview and `features/`. The proposal names what the first change writes (the overview only, from the code), roughly what it costs, and what it gains.
 
 ## Header
 
@@ -149,6 +166,26 @@ One guide shared by every feature file (for example `guides/verify-live.md` in t
 - **Evidence:** what each step saves and where (an ignored folder), and the proof standards: drive the real user path, capture the action and the resulting state, and check side effects from a second view.
 - **Clean Up:** stop only what the run started, never by process name; remove scratch state; keep the evidence.
 - **Paid Calls:** which inputs call a model or another paid service, the guard that refuses them by default, and what a step needs before it may run one, such as a pinned cheap model and the user's yes.
+
+## Decision Record
+
+A decision record (ADR) keeps one hard-to-reverse choice and why it was made. Number records in order and keep them in one folder (`adr/` in the developer docs), with an index listing each record and its status.
+
+```markdown
+# ADR NNNN: <The decision, as a short statement>
+
+## Status
+## Decision
+## Rationale
+## Consequences
+```
+
+- **Status:** Accepted; Superseded by a named later record; or Retired, with the date and the reason.
+- **Decision:** what was decided, in a few sentences or bullets.
+- **Rationale:** the context that forced a choice, the alternatives rejected and why.
+- **Consequences:** what follows from the decision, including what it rules out.
+
+A record is history: once accepted, its body is not rewritten. A later change of course adds a dated amendment section, supersedes it with a new record, or retires it; a superseded or retired record keeps its body.
 
 ## Adapting To The Software
 
