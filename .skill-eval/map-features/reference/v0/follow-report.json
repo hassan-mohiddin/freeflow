@@ -1,0 +1,7 @@
+{
+  "launched": true,
+  "feature_file": "dev-docs/features/add-and-list.md",
+  "evidence_dir": "verify-evidence/run-1",
+  "cleaned_up": true,
+  "steps_that_failed": []
+}

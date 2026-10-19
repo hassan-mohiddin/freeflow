@@ -1,0 +1,71 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "v0-setup-and-follow",
+  "type": "body",
+  "input": {
+    "prompt": "Use the Map Features skill to set up a tested way to check this notes CLI live, the way a user runs it. Put the developer docs under dev-docs/ (you may create them) and the helper where the skill says. Nothing here calls a paid service. Drive everything you write. When you are done, write your final report to setup-report.md in the workspace root."
+  },
+  "fixture": ".skill-eval/map-features/fixtures/notes-cli",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "bash"],
+  "configuration": {
+    "host": { "name": "pi" },
+    "model": { "model": "anthropic/claude-haiku-5-5", "thinking": "medium" },
+    "subject": {
+      "kind": "skill",
+      "source": { "kind": "working-tree" },
+      "skills": ["skills/map-features", "skills/write-docs", "skills/verify-work"],
+      "target": null,
+      "context": []
+    },
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-v0-notes@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "participants": {
+    "protocol": "pipeline",
+    "stages": [
+      { "id": "setup", "sees": ["fixture"] },
+      {
+        "id": "follow",
+        "input": "This repository has developer docs under dev-docs/. Using only those docs and the helper they describe, check that adding a note and listing notes work, exactly as the docs say: launch, drive, save the evidence, and clean up. Then write follow-report.json in the workspace root with: launched (true or false), feature_file (the path you followed), evidence_dir (where the evidence is, relative to the workspace root), cleaned_up (true or false), and steps_that_failed (a list, empty if none).",
+        "sees": ["fixture", "setup.files"]
+      }
+    ],
+    "graded": "follow"
+  },
+  "arms": {
+    "map-features": {}
+  },
+  "reference": "map-features",
+  "expectations": [
+    {
+      "id": "v0-graders",
+      "kind": "command",
+      "variant": "map-features",
+      "argv": ["node", "--test", "--test-reporter=tap", ".v0-graders.test.mjs"],
+      "files": { ".v0-graders.test.mjs": ".skill-eval/map-features/graders/v0.test.mjs" },
+      "timeout_seconds": 120,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "feature map index exists",
+            "a feature file has Covers and Verified at",
+            "the guide names an executable helper that exists",
+            "the recipe isolates the notes data folder",
+            "the setup report names the search bug",
+            "the steps do not encode the search bug as expected",
+            "the follow report says the run launched and cleaned up",
+            "the follow run's evidence survived clean-up"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": { "files": ".skill-eval/map-features/reference/v0" }
+}
