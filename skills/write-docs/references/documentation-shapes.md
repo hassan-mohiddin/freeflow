@@ -8,7 +8,7 @@ The header is binding when you use it, because the [docs check](../scripts/docs-
 
 ## Starting Developer Docs
 
-First look for the project's own docs index, in this order: `dev-docs/README.md`, `ARCHITECTURE.md`, `docs/README.md`, then a docs folder the root `README.md` names. The first one found is the index. A project that has one keeps its home and its conventions: map these shapes onto what is there, never start a second tree, and never move existing docs without the user's yes.
+First look for the project's own docs index, in this order: `dev-docs/README.md`, `ARCHITECTURE.md`, a `README.md` in `docs/`, then a docs folder the root `README.md` names. The first one found is the index. A project that has one keeps its home and its conventions: map these shapes onto what is there, never start a second tree, and never move existing docs without the user's yes.
 
 Only when the project has no developer docs, propose this layout:
 

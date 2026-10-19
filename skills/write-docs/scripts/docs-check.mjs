@@ -121,7 +121,7 @@ function check(file) {
 function docsIndex() {
   if (existsSync(join(root, "dev-docs/README.md"))) return join(root, "dev-docs");
   if (existsSync(join(root, "ARCHITECTURE.md"))) return join(root, "ARCHITECTURE.md");
-  if (existsSync(join(root, "docs/README.md"))) return join(root, "docs");
+  if (existsSync(join(root, "docs", "README.md"))) return join(root, "docs");
   return null;
 }
 
@@ -135,7 +135,7 @@ function covering(paths) {
   const inputs = positionals.length ? positionals.map((input) => resolve(input)) : [docsIndex()].filter(Boolean);
   if (!inputs.length) {
     console.error(
-      "docs-check: no developer docs found (dev-docs/README.md, ARCHITECTURE.md, docs/README.md); pass the docs to search",
+      "docs-check: no developer docs found (dev-docs/README.md, ARCHITECTURE.md, a README.md in docs/); pass the docs to search",
     );
     process.exit(2);
   }
