@@ -108,7 +108,7 @@ Keep it to what someone editing the folder needs first. Explanation belongs in t
 
 Subsystem docs describe the software the way the code is built; a feature map describes it the way a user meets it, with the exact steps that show each feature working in the running software. Features cut across subsystems, so the map is its own folder beside them (`features/` in the developer docs): a `README.md` index and one file per user-facing feature. Software with nothing to run, such as a pure library, has no feature map; its tests are the live check.
 
-A feature file uses the header. **Covers** names the code behind what the user sees, so the docs check flags the steps when that code changes. **Verified at** is the commit at which every step was last driven, not only read. Then:
+A feature file uses the header. **Covers** names the code behind what the user sees, so the docs check flags the steps when that code changes. **Verified at** is the commit at which every step not marked unverified was last driven, not only read. Then:
 
 ```markdown
 # <Feature name>
