@@ -93,8 +93,8 @@ The evaluator is `skills/evaluate-behavior/scripts/skill-eval.mjs`. `run <suite-
 5. **Prepare each subject** (`prepareSubject`, then the host adapter's `prepareIsolation` and `prepareLaunch`). Its own `HOME`, temp, `XDG_*` and Pi agent directory under `<arm>/isolation/`; only the declared provider's login copied in, mode 0600, and deleted after exit. Host extensions resolved by exact version; source-built extensions and Freeflow built once per distinct commit. Pi starts with `--no-extensions`, `--no-skills`, `--no-context-files` and the rest, plus the evaluator's guard extension. Claude Code starts headless (`claude -p`, stream-json in and out) with only the declared tools (`--tools`), no setting sources, MCP servers or slash commands, `dontAsk` permissions, and the guard as a PreToolUse hook; its login comes only from the evaluator's environment (`CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY` and the like), never from a copied file.
 6. **Confine** (`guard-rules.mjs`, through `pi-guard.mjs` on Pi and the `claude-guard.mjs` hook on Claude Code). Only declared tools; `read`, `ls`, `find` and `grep` resolve inside the declared roots; `write` and `edit` stay in the workspace; declared context files are verified by SHA-256. The default `isolated` prompt mode replaces the host's system prompt with one listing the declared tools, skills and context; `host` keeps the host prompt. `bash` exists only behind a declared, probed shell or a container; in a container environment, `bash` and declared commands both run in the subject's container, which mounts the workspace at `workdir` and every other readable root (skills, context, runtime resources, Freeflow's package) read-only at its host path, so a skill's scripts run from bash by the path the subject was given. Before any container starts, `missingContainerPrerequisites` (`lib/container.mjs`) also reads a marker back through the image from the folder the workspaces live under, so an engine that does not share that folder (Colima shares only the home folder by default) is refused by name instead of grading an empty mount.
 7. **Run** the subject: on Pi, RPC for body groups (`rpc.mjs`) and one-shot JSON mode for description groups; on Claude Code, one stream-json session (`hosts/claude-code/session.mjs`), whose requests pass through a local relay that records what Claude Code sent (`host-context.json`). Conversations and pipelines run several participants (`lib/participants.mjs`). Up to `--jobs` subjects at once; budget is reserved before each start and charged after (`lib/budget.mjs`).
-8. **Check validity, persist, then grade.** A run the host reported complete that shows no model at work (no assistant message, zero tokens, or no answer and nothing written) becomes `invalid` with its reasons (`lib/validity.mjs`), so graders never start on it. `run.json`, the transcript, events and the workspace are written first. Post-run hooks record metrics (`lib/metrics.mjs`) and run command graders on a copy of the workspace (`lib/grade-command.mjs`). Deterministic grades and comparisons are written after (`gradeDeterministic`, `gradeComparisons`); a malformed expectation becomes `grade-error`, never a changed run.
-9. **Aggregate** trials (`runTrials`, `aggregateGroups`): per-check counts with pass^k, metrics per arm with paired differences, judged answers, and the decision's verdict. With a decision's `trials` schedule, undecided cases get more trials, up to `max`.
+8. **Check validity, persist, then grade.** A run the host reported complete that shows no model at work (no assistant message, zero tokens, or no answer and nothing written) becomes `invalid` with its reasons (`lib/validity.mjs`), so graders never start on it. `run.json`, the transcript, events and the workspace are written first. Post-run hooks record metrics (`lib/metrics.mjs`), run command graders on a copy of the workspace (`lib/grade-command.mjs`), and scan the transcript (`lib/scan.mjs`): reads outside the workspace and declared resources, network attempts, instruction files reached outside the workspace, and hidden-test or reference-solution text in the output become `postRun.scan.flags`, over a pipeline's earlier stages too. Deterministic grades and comparisons are written after (`gradeDeterministic`, `gradeComparisons`); a malformed expectation becomes `grade-error`, never a changed run.
+9. **Aggregate** trials (`runTrials`, `aggregateGroups`): a run with a transcript flag no person has cleared (`clearances.json` beside it, written by `skill-eval clear`) is held, counted as `unavailable` and listed under `held`, and adds nothing to sections or the decision; then per-check counts with pass^k, metrics per arm with paired differences, judged answers, and the decision's verdict. With a decision's `trials` schedule, undecided cases get more trials, up to `max`.
 10. **Judge**, as a separate command (`review`), after the evidence exists. `review --rubric` writes judged evidence and rebuilds the aggregate (`rebuildAggregate`).
 
 ### Group shapes and modes
@@ -158,6 +158,7 @@ Verify Work's one script, `skills/verify-work/scripts/test-changes.mjs`, lists e
 - **Judged evidence is its own class.** Judge answers never change run or deterministic grade files; they are stored apart with identity and calibration, and count toward a claim only through a decision declared before the run. Rejected: judges kept purely advisory (rubric scores could not be measures), and judges writing into grades (one class silently promoted into another).
 - **The sign test first, with the case as the unit.** Trials of one case are repeated draws of one question, so they are averaged rather than counted as independent. The sign test is conservative and assumption-light; other methods (such as a paired bootstrap) can be added later.
 - **Validity by tokens, not by cost or tool use.** A failed login graded "ok" across a whole BtW batch; the gate makes a hollow run `invalid` instead. Cost is zero for real work on an unpriced model, so tokens are the signal; requiring tool use would make every one-answer run invalid, including a description run whose target did not activate, which is the behavior such a run measures. Rejected: the literal spec rule of "more than one turn or real tool use".
+- **A flag holds a run until a person clears it; the scan never fails one.** Its patterns are heuristics with false positives (a fixture can name `AGENTS.md`; a legitimate fix can match a reference line), so a flag is evidence to read, held out of claims rather than graded. A clearance is a separate file with the person's reason, so canonical run evidence never changes, and clearing rebuilds the aggregates that list the run. A pilot stops on an uncleared flag, as it does on an invalid run. Rejected: dropping flagged runs (the evidence would vanish), and letting the agent clear them (the Rule says only the user decides).
 - **Deterministic first.** A judge answers only what checks cannot. Command graders, reference solutions and the ten expectation kinds carry as much as they can before any model judges.
 - **No required dependencies; optional ones only when declared.** The user layer runs on Node and Pi. A confined shell needs a declared isolation extension (such as the Gondolin example) and a container needs the `docker` CLI; each is checked only for a group that declares it. When something is missing, the evaluator refuses with what is missing and how to install it, and the skill tells the agent to ask the user before installing. Images are pinned by digest and never pulled.
 - **One network policy for all code the subject wrote.** `configuration.network` covers bash, declared commands and command graders alike (`lib/seal.mjs`). `"none"` is refused at load unless every such path is confined (bash by a probed shell or container, commands and graders by the arm's container), and each run records `sealing`. Without a declaration the arm gets what its paths allow, so existing definitions whose declared commands run `node --test` on the host keep loading; the plan names unsealed arms. A declared command on the host gets no `PI_CODING_AGENT_DIR` or login variable. Rejected: a named host allowlist for now (Docker needs a user-defined network and an egress proxy, which nothing here verifies); refusing unsealed host commands by default (would break the Work Agreement suites until they declare `"host"` or move to an image).
@@ -193,6 +194,7 @@ skill-eval.mjs view <result-or-aggregate> [--group] [--variant] [--html <file>] 
 skill-eval.mjs review <result-or-aggregate> (--model | --configuration) [--thinking] [--swap | --swap-sample <f>] [--limit name=chars] [--group] [--results]
 skill-eval.mjs review <result-or-aggregate> --rubric [--model] [--configuration]
 skill-eval.mjs review <result-or-aggregate> --calibrate <labels.json>
+skill-eval.mjs clear <result> [--group] [--variant] (--flag <id>... | --all) --reason <text> [--results]
 ```
 
 | Flag | Default | Effect |
@@ -208,7 +210,7 @@ skill-eval.mjs review <result-or-aggregate> --calibrate <labels.json>
 | `--skip-reference-check` | off | Run despite a failing reference check; recorded in `reference-check.json` |
 | `--limit name=chars` | `response` 8000, `argument` 300, `file` 20000, `materials` 60000 | What a judge sees; cut material is recorded as truncated |
 
-Exit codes: 0 complete; 1 for an incomplete run, a declined plan, a stopped pilot, a review or judge error, a failing `check-tasks`, or an argument error; 2 for an unknown command.
+Exit codes: 0 complete; 1 for an incomplete run, an unknown flag or missing reason for `clear`, a declined plan, a stopped pilot, a review or judge error, a failing `check-tasks`, or an argument error; 2 for an unknown command.
 
 Verify Work's script:
 
@@ -256,9 +258,10 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
       <arm>/transcript.json, final.md, events.jsonl, stderr.log, context-observations.jsonl
       <arm>/workspace/                the subject's final workspace
       <arm>/judged-grade.json         judged evidence
+      <arm>/clearances.json           a person's clearances of transcript flags, with reasons
       <arm>/isolation/                HOME, agent dir, tmp; copied logins removed after exit
       <arm>.<stage>/                  pipeline stages other than the graded one
-  <aggregate-id>/aggregate.json       per-check counts, pass^k, metrics, judged, decision, claim, each trial's cost, budget; trials are sibling directories
+  <aggregate-id>/aggregate.json       per-check counts, pass^k, metrics, judged, decision, claim, held runs, each trial's cost, budget; trials are sibling directories
 ```
 
 - Everything is on disk; nothing lives only in memory between commands. `rebuildAggregate` rereads every trial's `summary.json` and grades and rewrites `aggregate.json` (sections, decision and claim), keeping its ID, trials, schedule and budget. It runs after rubric judging and calibration of an aggregate.
@@ -281,6 +284,7 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
 - "beats" is reported only from a declared decision. Guarded by `decision.test.mjs` and `trials.test.mjs`.
 - A missing metric is `null`, never 0, and a run that is not complete adds no metric to a summary or decision. Guarded by `metrics.test.mjs` and `decision.test.mjs`.
 - A complete run that shows no model at work is `invalid`, never graded as a fail. Guarded by `validity.test.mjs` and `trials.test.mjs`.
+- A run with a transcript flag no person has cleared counts toward no claim or decision, and clearing never changes the run's files. Guarded by `scan.test.mjs`, `trials.test.mjs` and `participants.test.mjs`.
 - No more than `--jobs` subjects run at once, and parallel subjects cannot overshoot `--max-cost` by more than the running set. Guarded by `concurrency.test.mjs`.
 - The evaluator never pulls an image and never installs anything. No test can prove an absence; `container.test.mjs` and `shell.test.mjs` check that missing prerequisites refuse.
 - No test calls a real model: tests use `helpers/fake-pi.mjs` and `helpers/fake-docker.mjs`.
@@ -302,6 +306,7 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
 | No progress for 30 minutes | `no-progress-watchdog` ends the subject |
 | Budget reached | Remaining subjects are `cancelled` before execution; overshoot is recorded |
 | Malformed expectation or grader failure | `grade-error` evidence; the run stays as it was |
+| Transcript flag not cleared | The run is graded but held: `unavailable` in the aggregate, out of the decision; a pilot stops |
 | Judge exits early, returns non-JSON, or misses a dimension | `judge-error` for that grade; other grades unaffected |
 | Pilot finds a problem | The batch does not start; no aggregate is written |
 | Unreadable trial during `rebuildAggregate` | Refused rather than counted as passing |
@@ -320,13 +325,14 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
 | --- | --- |
 | `skills/evaluate-behavior/SKILL.md` | The method: Rules, questions, claims, components, modes, reporting |
 | `skills/evaluate-behavior/references/` | `evaluation-definition-schema.md` (binding schema), `eval-modes.md`, `evaluation-design.md`, `execution-and-evidence.md`, `measurement.md`, `defect-suites.md`, `review-and-revision.md` |
-| `skills/evaluate-behavior/scripts/skill-eval.mjs` | CLI: options, `planRun`, `run`, `checkTasks`, `review`, `judge`, `calibrate` |
+| `skills/evaluate-behavior/scripts/skill-eval.mjs` | CLI: options, `planRun`, `run`, `checkTasks`, `review`, `judge`, `calibrate`, `clear` |
 | `skills/evaluate-behavior/scripts/guard-rules.mjs` | The confinement rules every host's guard decides with |
 | `skills/evaluate-behavior/scripts/pi-guard.mjs`, `pi-command-tool.mjs`, `pi-observer.mjs`, `pi-login-refresh.mjs` | Subject-side Pi extensions: confinement and prompt, `run_command`, context observation, central login refresh |
 | `skills/evaluate-behavior/scripts/claude-guard.mjs` | Claude Code's PreToolUse hook: the same confinement for Claude Code's tool names |
 | `skills/evaluate-behavior/scripts/lib/` | The evaluator's modules, in the rows below |
 | `lib/definitions.mjs`, `arms.mjs`, `source-override.mjs` | Loading and validation, arms and reference, `--source` |
 | `lib/runner.mjs`, `trials.mjs`, `hooks.mjs`, `queue.mjs`, `budget.mjs`, `reuse.mjs` | Execution, trials and aggregation (`rebuildAggregate`), hook registries, concurrency, budget, reuse index |
+| `lib/scan.mjs`, `clear.mjs` | The transcript scan and its flags; `skill-eval clear` and the clearances file |
 | `lib/subject.mjs`, `model-call.mjs`, `process.mjs` | One subject's host-neutral run (materialized environment, launch through the host adapter, the run record); a model call routed to its host; base environment and process watchdogs |
 | `lib/hosts/index.mjs`, `hosts/names.mjs` | The host interface and its registry; the host names a definition may use |
 | `lib/hosts/pi/` | The Pi adapter: arguments and one-shot JSON runs (`process.mjs`), RPC sessions (`rpc.mjs`), extension resolution, settings and login refresh (`host.mjs`), per-subject isolation (`isolation.mjs`), model calls (`model-call.mjs`), the shell probes' launch (`confinement.mjs`) |
@@ -351,13 +357,13 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
 
 ## Tests
 
-`.skill-eval/evaluate-behavior/tests/` has 32 test files, run by `npm run test:skill-eval` with a fake Pi (`helpers/fake-pi.mjs`) and a fake Docker (`helpers/fake-docker.mjs`):
+`.skill-eval/evaluate-behavior/tests/` has 33 test files, run by `npm run test:skill-eval` with a fake Pi (`helpers/fake-pi.mjs`) and a fake Docker (`helpers/fake-docker.mjs`):
 
 - **Definitions and arms:** `definitions`, `arms`, `measure`, `source-override`, `entrypoint`, `check-eval-definitions`.
 - **Execution and isolation:** `run`, `isolation`, `identity`, `pi-guard`, `rpc`, `command-tool`, `concurrency`, `participants`, `freeflow`, `build-source`, `claude-code`.
 - **Environments:** `shell` (probes, refusals, the Gondolin example; the real micro-VM case is skipped without QEMU), `container`.
 - **Grading and tasks:** `grading`, `grade-command`, `reference`.
-- **Measurement:** `trials`, `decision`, `metrics`, `validity`.
+- **Measurement:** `trials`, `decision`, `metrics`, `validity`, `scan`.
 - **Judging:** `review`, `judge`, `agreement`.
 - **Views and gate:** `view`, `view-html` (snapshot, escaping, no scripts or network), `gate`.
 
@@ -382,6 +388,7 @@ These prove the evaluator's mechanics with stand-in models. They do not prove be
 
 ## Changes
 
+- 2026-10-19: Transcript scan (`lib/scan.mjs`) flags outside reads, network attempts, instruction files and answer copies; a flagged run is held out of counts and decisions until `skill-eval clear` records a person's reason; a pipeline's earlier stages are scanned and gated for validity too.
 - 2026-10-19: `configuration.network` (`"none"` or `"host"`) declares one policy for bash, declared commands and command graders; `"none"` is refused where commands or graders would run on the host; runs record `sealing`, the plan names unsealed arms, and declared commands lose `PI_CODING_AGENT_DIR` and login variables.
 - 2026-10-19: Validity gate: a complete run with no assistant message, zero tokens, or no answer and nothing written is `invalid` before grading, and only complete runs' metrics count.
 - 2026-10-19: A subject's container mounts its declared skills and other readable resources read-only at their host paths, so `node <skill>/scripts/x.mjs` runs from bash.

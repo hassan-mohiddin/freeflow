@@ -522,7 +522,8 @@ export async function judgedSection({ arms, trials }) {
         typeof trial.directory === "string"
           ? await readJsonOrNull(path.join(trial.directory, arm, JUDGED_GRADE))
           : null;
-      if (grade === null || grade.state !== "complete") {
+      // A run held for transcript flags no one has cleared counts as not judged until it is cleared.
+      if (grade === null || grade.state !== "complete" || trial.held?.includes(arm)) {
         for (const dimension of rubric) counts[arm][dimension.id].notJudged += 1;
         continue;
       }

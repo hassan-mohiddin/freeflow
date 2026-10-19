@@ -94,6 +94,16 @@ process.stdin.on("data", (chunk) => {
     turn += 1;
     appendFileSync(path.join(root, "prompts.jsonl"), JSON.stringify({ stage, turn, message: command.message }) + "\\n");
     emit({ type: "agent_start" });
+    // With hollow-setup present, the setup stage settles with no model behind it, as after a failed login.
+    if (stage === "setup" && existsSync(path.join(root, "hollow-setup"))) {
+      emit({ type: "agent_settled" });
+      continue;
+    }
+    // With peek-setup present, the setup stage tries to read a host file outside its workspace.
+    if (stage === "setup" && existsSync(path.join(root, "peek-setup"))) {
+      emit({ type: "tool_execution_start", toolCallId: "p" + turn, toolName: "read", args: { path: "/etc/hosts" } });
+      emit({ type: "tool_execution_end", toolCallId: "p" + turn, toolName: "read", isError: true });
+    }
     emit({ type: "turn_start" });
     emit({ type: "tool_execution_start", toolCallId: "w" + turn, toolName: "write", args: { path: "SECRET-TOOL-ARG-" + stage + ".md" } });
     writeFileSync("notes-" + stage + ".md", "NOTES from " + stage + "\\n");
@@ -464,6 +474,40 @@ test("links an earlier stage made reach the next stage as links, and never lose 
       const link = run.effects.after.find((entry) => entry.path === "scratch/bin/notes");
       assert.deepEqual([link.type, link.target], ["symlink", "/testbed/bin/notes.mjs"]);
     }
+  });
+});
+
+test("an earlier stage is scanned too, and a hollow earlier stage makes the arm invalid", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    const handoff = {
+      protocol: "pipeline",
+      stages: [
+        { id: "setup", input: "Set the project up.", sees: ["fixture"] },
+        { id: "follow", input: "Follow what setup wrote.", sees: ["setup.workspace"] },
+      ],
+    };
+    const file = await writeTask(root, baseGroup({ participants: handoff }));
+
+    await writeFile(path.join(root, "peek-setup"), "");
+    const peeked = cli(root, bin, ["run", file]);
+    assert.equal(peeked.status, 0, peeked.stderr);
+    const groupDirectory = path.join(peeked.stdout.match(/^Path: (.+)$/m)[1], "groups/multi");
+    const run = await readJson(path.join(groupDirectory, "baseline/run.json"));
+    assert.deepEqual(
+      run.postRun.scan.flags.map(({ id, stage, evidence }) => [id, stage, evidence.path]),
+      [["setup.outside-read-1", "setup", "/etc/hosts"]],
+    );
+    await rm(path.join(root, "peek-setup"));
+
+    await writeFile(path.join(root, "hollow-setup"), "");
+    const hollow = cli(root, bin, ["run", file]);
+    assert.notEqual(hollow.status, 0);
+    const hollowRun = await readJson(
+      path.join(hollow.stdout.match(/^Path: (.+)$/m)[1], "groups/multi/baseline/run.json"),
+    );
+    assert.equal(hollowRun.state, "invalid");
+    assert.match(hollowRun.error.message, /^stage setup did not complete: not valid evidence: no model turn/);
   });
 });
 

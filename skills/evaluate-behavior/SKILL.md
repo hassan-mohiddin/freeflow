@@ -35,6 +35,7 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 - Judged evidence is its own class. Judge answers are stored apart from run and deterministic grade files, with each judge's identity and calibration status, and count toward a claim only through a decision rule declared before the run. They never change run or grade files and never establish readiness.
 - Installing anything an eval needs, such as the VM runtime behind a confined shell, is the user's decision. Relay the evaluator's exact refusal and ask before installing; never install silently.
 - Never invoke archived evaluators.
+- Never clear a run's transcript-scan flag on your own judgment. Show the user the flag and its evidence, and run `skill-eval clear` only with their decision and their reason.
 
 ## Start From Existing Evidence
 
@@ -178,6 +179,7 @@ node <evaluate-behavior-directory>/scripts/skill-eval.mjs view <result-id-or-dir
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-id-or-directory> (--model <provider/model> | --configuration <file>) [--group <id-or-position>] [--thinking <level>] [--swap | --swap-sample <fraction>] [--limit <name>=<chars>]
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-or-aggregate-id> --rubric [--model <provider/model>] [--configuration <file>]
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-or-aggregate-id> --calibrate <labels.json>
+node <evaluate-behavior-directory>/scripts/skill-eval.mjs clear <result-id-or-directory> [--group <id-or-position>] [--variant <arm>] (--flag <id>... | --all) --reason <text>
 ```
 
 One run per arm cannot separate a behavioral difference from sampling noise. Use `--trials <n>` before claiming a difference; each trial is an independent complete result, and the aggregate counts their deterministic grades with pass^k, summarizes run metrics such as cost, turns and tokens per arm, and, when the suite declares a decision, records its verdict. A suite with a decision always runs as trials, and may schedule extra trials for undecided cases itself. Use `--max-cost` when trials or suites could spend more than intended; it bounds the host's list-price estimate, not a subscription's plan limit, so state the subject count before a large batch. Run `check-tasks` before spending on a coding task; it calls no model. `--pilot`, `--reuse` and `--jobs` cut the cost and time of a batch ([Eval Modes](references/eval-modes.md)); `--results` stores results outside the definition root, and `view` and `review` take the same flag to find them. `--source <arm>=<commit>` runs an arm at another commit for that run only, without editing the definition.
@@ -240,7 +242,7 @@ Report:
 - metrics that bear on the question, such as cost, turns or duration per arm;
 - the decision's verdict, with its split, p and rule, when the suite declares one, and otherwise the claim class reached;
 - judged evidence apart from deterministic results, with each judge's identity and calibration status;
-- infrastructure failures, cancellation, or unavailable evidence;
+- infrastructure failures, invalid runs with their reasons, runs held for transcript flags no one has cleared, cancellation, or unavailable evidence;
 - viewed scope;
 - canonical result paths;
 - what the evidence proves;

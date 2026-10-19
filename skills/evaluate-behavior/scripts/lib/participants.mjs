@@ -13,6 +13,7 @@ import { hostAdapter } from "./hosts/index.mjs";
 import { launchModel } from "./model-call.mjs";
 import { mergeUsage } from "./process.mjs";
 import { fingerprintDirectory, WORKSPACE } from "./sandbox.mjs";
+import { applyValidityGate } from "./validity.mjs";
 import { runBody, runDescription, VariantSetupError } from "./subject.mjs";
 
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
@@ -388,6 +389,9 @@ async function runPipeline(options, participants) {
     } finally {
       if (!isGraded) await hostAdapter(group.host ?? "pi").removeCredentials(directory);
     }
+    // An earlier stage that shows no model at work is invalid, and stops the pipeline (the graded stage is checked
+    // with every run).
+    if (!isGraded) applyValidityGate(run);
     usage = mergeUsage(usage, run.usage);
     const stageOutputs = await recordOutputs(path.join(directory, "outputs"), run, stage.id);
     outputs.set(stage.id, stageOutputs);

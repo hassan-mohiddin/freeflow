@@ -1,6 +1,6 @@
 # Execution And Evidence
 
-Read this when operating `run|view|review|check-tasks`, resolving paths, interpreting states, or reasoning about Pi execution, isolation, persistence, cancellation, and safeguards.
+Read this when operating `run|view|review|check-tasks|clear`, resolving paths, interpreting states, or reasoning about Pi execution, isolation, persistence, cancellation, and safeguards.
 
 This reference is a contract: it states how the evaluator behaves. Rely on that behavior as written; its binding requirements on you restate [Evaluate Behavior](../SKILL.md) Rules.
 
@@ -16,6 +16,7 @@ node <evaluate-behavior-directory>/scripts/skill-eval.mjs check-tasks <suite-or-
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-id-or-directory> (--model <provider/model> | --configuration <file>) [--group <id-or-position>] [--thinking <level>] [--swap | --swap-sample <fraction>] [--limit <name>=<chars>] [--results <dir>]
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-or-aggregate-id> --rubric [--model <provider/model>] [--configuration <file>] [--group <id-or-position>] [--thinking <level>] [--limit <name>=<chars>] [--results <dir>]
 node <evaluate-behavior-directory>/scripts/skill-eval.mjs review <result-or-aggregate-id> --calibrate <labels.json> [--results <dir>]
+node <evaluate-behavior-directory>/scripts/skill-eval.mjs clear <result-id-or-directory> [--group <id>] [--variant <arm>] (--flag <id>... | --all) --reason <text> [--results <dir>]
 ```
 
 - The current working directory is the definition root and result root.
@@ -93,6 +94,7 @@ Run states are `complete`, `invalid`, `infrastructure-failed`, `cancelled`, and 
 - Failed deterministic checks are ordinary complete behavioral evidence and exit zero when no infrastructure/grade failure exists.
 - A grade whose every selected check is `unavailable` observed nothing, so its group is `partially-complete` and the command exits nonzero.
 - A missing or malformed context observation makes the run `infrastructure-failed` but keeps its transcript, response, usage, and process evidence.
+- **Transcript scan.** After each executed run, and over a pipeline's earlier stages, the evaluator records `postRun.scan.flags`: `outside-read` (a read, `ls`, `find` or `grep` of a path outside the workspace and declared resources, blocked or not, or a bash command naming a path under the user's home or the definition root that is neither), `network` (a bash command that reaches for the network, such as `curl`, `git clone`, a package install, a URL or `fetch(`, or a tool result reporting a failed lookup), `instruction-file` (`CLAUDE.md`, `AGENTS.md` or `.claude/` reached outside the workspace) and `answer-copy` (a distinctive line of a hidden grader file, a hidden test's name, or most of the reference solution's distinctive lines in the subject's answer or written files). A flag is evidence for a person, not a verdict: the run is graded as usual, but until a person clears every flag it is held, counted as `unavailable` and named under `held` in the aggregate, its metrics, scores and judged answers count toward no claim or decision, and a pilot stops on it. `skill-eval clear` records the person's reason in `clearances.json` beside the run (the run's files never change) and rebuilds every aggregate that lists its result. Clear a flag only on the user's decision.
 - **Validity gate.** A run the host reported complete is graded only when it shows a model at work: at least one assistant message, a nonzero token total, and an answer or something written in the workspace. Otherwise it becomes `invalid` before any grader runs, with `error.kind` `validity` and the failed conditions in `error.reasons`, and its group's `group.json` names the reason under `invalid`. An invalid run keeps everything it recorded, its checks are `unavailable` (never a fail), its metrics count toward no summary or decision, and a pilot stops on it. Tokens, not cost, are the signal: a model with no configured price reports zero cost for real work, while a provider that reports no token usage at all cannot be told apart from one that never answered. Tool use is not required: one answer without tools, such as a description run whose target did not activate, is behavior to grade.
 - Variant-local invalidity or infrastructure failure preserves evidence and does not stop safe queued work.
 - Shared fixture failure invalidates the group.

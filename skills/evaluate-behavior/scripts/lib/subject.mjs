@@ -191,6 +191,8 @@ function subjectRun({ group, variant }, subject, observation) {
       hostExtensions: subject.hostExtensions,
       contextDelivery: subject.environment.contextDelivery,
       targetPath: subject.environment.targetPath,
+      // Everything the subject's tools could read: the workspace first, then its declared resources.
+      readableRoots: [subject.workspaceRoot, ...subject.resourceRoots],
     },
     isolation: subject.isolation,
     contextObservationArtifact: observation.contextObservationArtifact ?? null,
@@ -408,6 +410,7 @@ async function prepareSubject(
     host,
     fixture,
     workspace,
+    workspaceRoot: allowedRoots[0],
     // Every readable root but the workspace: the declared skills, context, runtime resources and Freeflow's package.
     resourceRoots: allowedRoots.slice(1),
     contextObservationPath,

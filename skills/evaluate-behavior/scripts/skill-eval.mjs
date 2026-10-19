@@ -5,6 +5,7 @@ import path from "node:path";
 import { createInterface } from "node:readline/promises";
 
 import { extensionLabel } from "./lib/build-source.mjs";
+import { clearRun } from "./lib/clear.mjs";
 import { loadDefinition, selectDefinition } from "./lib/definitions.mjs";
 import "./lib/metrics.mjs";
 import { createBudget } from "./lib/budget.mjs";
@@ -35,6 +36,7 @@ const OPTIONS = {
     "--source",
   ],
   "check-tasks": ["--group"],
+  clear: ["--group", "--variant", "--flag", "--all", "--reason", "--results"],
   view: ["--group", "--variant", "--html", "--results"],
   review: [
     "--results",
@@ -61,12 +63,15 @@ function printUsage() {
   skill-eval check-tasks <suite-or-group-path> [--group <id-or-position>]
   skill-eval review <result-or-aggregate-id> --rubric [options]
   skill-eval review <result-or-aggregate-id> --calibrate <labels.json>
+  skill-eval clear <result-id-or-directory> [--group <id>] [--variant <arm>] (--flag <id>... | --all) --reason <text>
 
 Commands:
   run     Execute selected evaluation groups
   view    Render selected stored evidence or a trial aggregate
   review  Record an advisory, arm-blind model answer to each group's review questions
   check-tasks  Check that each group's reference_solution passes its workspace and command checks, which must fail before it; no model
+  clear   Record that a person read a run's transcript-scan flags and they do not taint it (with --reason), then
+          rebuild the aggregates that list the run; until then a flagged run is held out of every count and decision
 
 Selectors:
   --group <id-or-position>
@@ -148,6 +153,7 @@ function parseOperation(values) {
     swapSample: null,
     calibrate: null,
     html: null,
+    reason: null,
     jobs: null,
     cpuJobs: null,
     results: null,
@@ -160,7 +166,9 @@ function parseOperation(values) {
   let dryRun = false;
   let reuse = false;
   let skipReferenceCheck = false;
+  let all = false;
   const sourceValues = [];
+  const flags = [];
   const keys = {
     "--jobs": "jobs",
     "--cpu-jobs": "cpuJobs",
@@ -176,6 +184,7 @@ function parseOperation(values) {
     "--swap-sample": "swapSample",
     "--calibrate": "calibrate",
     "--html": "html",
+    "--reason": "reason",
   };
   for (let index = 0; index < options.length; index += 1) {
     const option = options[index];
@@ -187,6 +196,16 @@ function parseOperation(values) {
     }
     if (option === "--rubric") {
       rubric = true;
+      continue;
+    }
+    if (option === "--all") {
+      all = true;
+      continue;
+    }
+    if (option === "--flag") {
+      if (!value || value.startsWith("--")) throw new Error("--flag requires a flag ID, such as network-1");
+      flags.push(value);
+      index += 1;
       continue;
     }
     if (option === "--source") {
@@ -256,8 +275,13 @@ function parseOperation(values) {
   if (needsModel && parsed.model === null && parsed.configuration === null) {
     throw new Error("skill-eval review requires --model or --configuration");
   }
+  if (command === "clear") {
+    if (all === flags.length > 0) throw new Error("skill-eval clear needs either --flag <id> (repeatable) or --all");
+    if (parsed.reason === null) throw new Error("skill-eval clear needs --reason, the person's reason for clearing");
+  }
   return {
     target,
+    clear: { flags: all ? "all" : flags, reason: parsed.reason },
     selectors: { group: parsed.group, variant: parsed.variant },
     trials,
     maxCost,
@@ -528,6 +552,20 @@ if (!command || command === "--help" || command === "-h") {
       await review(operation);
     } else if (command === "check-tasks") {
       await checkTasks(operation);
+    } else if (command === "clear") {
+      const outcome = await clearRun(operation.target, {
+        group: operation.selectors.group,
+        variant: operation.selectors.variant,
+        flags: operation.clear.flags,
+        reason: operation.clear.reason,
+        root: process.cwd(),
+        results: operation.results,
+      });
+      process.stdout.write(
+        `Cleared ${outcome.result} ${outcome.group} ${outcome.arm}: ${outcome.cleared.join(", ") || "nothing new"}\n` +
+          `Still held by: ${outcome.remaining.join(", ") || "nothing"}\n` +
+          `Aggregates rebuilt: ${outcome.rebuilt.join(", ") || "none"}\n`,
+      );
     } else {
       await run(operation);
     }

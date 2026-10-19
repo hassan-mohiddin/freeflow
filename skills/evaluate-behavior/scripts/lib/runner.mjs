@@ -19,6 +19,7 @@ import { adoptRun, appendIndex, createReuse } from "./reuse.mjs";
 import { prepareFixture, prepareRuntime, verifyDescriptionOnlyRevision } from "./sandbox.mjs";
 import { applySourceOverrides } from "./source-override.mjs";
 import { runBody, runDescription, VariantSetupError } from "./subject.mjs";
+import { unclearedFlags } from "./scan.mjs";
 import { armSealing } from "./seal.mjs";
 import { applyValidityGate } from "./validity.mjs";
 
@@ -461,6 +462,13 @@ async function runGroup({
     arms.filter((arm) => runs[arm].state === "invalid").map((arm) => [arm, runs[arm].error?.message ?? "invalid"]),
   );
   if (Object.keys(invalid).length > 0) groupResult.invalid = invalid;
+  // Each arm's transcript-scan flags no person has cleared yet; such a run is held out of every claim.
+  const flagged = {};
+  for (const arm of arms) {
+    const uncleared = await unclearedFlags(runs[arm], path.join(groupDirectory, arm));
+    if (uncleared.length > 0) flagged[arm] = uncleared;
+  }
+  if (Object.keys(flagged).length > 0) groupResult.flagged = flagged;
   // A complete run with a readable grade is indexed for reuse; a reused run is not, so it is reused once.
   const gradeReadable =
     persistedGrade.artifact === "deterministic-grade.json" && persistedGrade.grade.state !== "grade-error";

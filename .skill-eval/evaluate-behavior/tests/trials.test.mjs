@@ -10,7 +10,7 @@ import { aggregateGroups } from "../../../skills/evaluate-behavior/scripts/lib/t
 import { toV2 } from "./helpers/to-v2.mjs";
 
 const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-behavior/scripts/skill-eval.mjs", import.meta.url));
-const FAKE_KEYS = ["FAKE_PI_LOG", "FAKE_PI_COST", "FAKE_PI_HOLLOW"];
+const FAKE_KEYS = ["FAKE_PI_LOG", "FAKE_PI_COST", "FAKE_PI_HOLLOW", "FAKE_PI_PEEK"];
 
 async function withTempDirectory(run) {
   const directory = await realpath(await mkdtemp(path.join(tmpdir(), "skill-eval-trials-test-")));
@@ -50,6 +50,11 @@ if (process.env.FAKE_PI_HOLLOW === "empty") {
   emit({ type: "message_end", message: { role: "assistant", content: [], provider: "fake", model: "fake-model", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } }, stopReason: "stop" } });
   emit({ type: "agent_settled" });
   process.exit(0);
+}
+// A subject that tries to read a host instruction file outside its workspace (the guard would block it).
+if (process.env.FAKE_PI_PEEK) {
+  emit({ type: "tool_execution_start", toolCallId: "p", toolName: "read", args: { path: process.env.FAKE_PI_PEEK } });
+  emit({ type: "tool_execution_end", toolCallId: "p", toolName: "read", isError: true });
 }
 if (skills[0]) {
   emit({ type: "tool_execution_start", toolCallId: "r", toolName: "read", args: { path: skills[0] + "/SKILL.md" } });
@@ -310,6 +315,104 @@ test("a run that never reached a model is invalid with its reasons, never a fail
     const viewed = runCli(root, bin, ["view", empty.stdout.match(/^Result: (.+)$/m)[1]]);
     assert.match(viewed.stdout, /Candidate \[invalid\]/);
     assert.match(viewed.stdout, /no tokens/);
+  });
+});
+
+test("a flagged run is held out of the counts until a person clears it, and a pilot stops on it", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    await writeSkill(root);
+    const definition = await writeJson(root, "groups/activation.json", group("activation"));
+    const peek = { FAKE_PI_PEEK: path.join(root, "host-home/.claude/CLAUDE.md") };
+
+    const piloted = runCli(root, bin, ["run", definition, "--trials", "2", "--pilot", "1"], peek);
+    assert.equal(piloted.status, 1);
+    assert.match(
+      piloted.stdout,
+      /^ {2}- activation: arm candidate has transcript flags no one has cleared \(instruction-file-1\)/m,
+    );
+
+    const result = runCli(root, bin, ["run", definition, "--trials", "2"], peek);
+    assert.equal(result.status, 0, result.stderr);
+    const runs = path.join(root, ".skill-eval/runs");
+    const aggregateId = result.stdout.match(/^Aggregate: (.+)$/m)?.[1];
+    const read = async () => JSON.parse(await readFile(path.join(runs, aggregateId, "aggregate.json"), "utf8"));
+    let aggregate = await read();
+    const [first, second] = aggregate.trials.map((trial) => trial.id);
+    const run = JSON.parse(await readFile(path.join(runs, first, "groups/activation/candidate/run.json"), "utf8"));
+    assert.deepEqual(
+      run.postRun.scan.flags.map(({ id, kind, evidence }) => [id, kind, evidence.path, evidence.blocked]),
+      [["instruction-file-1", "instruction-file", peek.FAKE_PI_PEEK, true]],
+    );
+    // The run is graded as usual, but the counts hold it: unavailable, named as held, and no pass^k.
+    const check = (id) => aggregate.groups[0].checks.find((entry) => entry.id === id);
+    assert.deepEqual(
+      { ...check("candidate-read"), trials: undefined },
+      {
+        id: "candidate-read",
+        variant: "candidate",
+        kind: "skill-read",
+        pass: 0,
+        fail: 0,
+        unavailable: 2,
+        held: 2,
+        trials: undefined,
+        passAll: false,
+      },
+    );
+    assert.equal(aggregate.held.length, 4);
+    assert.equal(aggregate.claim.held, 4);
+
+    // A person clears the first trial's flags with a reason; the aggregate is rebuilt and counts those runs again.
+    for (const arm of ["baseline", "candidate"]) {
+      const cleared = runCli(root, bin, [
+        "clear",
+        first,
+        "--variant",
+        arm,
+        "--all",
+        "--reason",
+        "the fixture names that file",
+      ]);
+      assert.equal(cleared.status, 0, cleared.stderr);
+      assert.match(cleared.stdout, new RegExp(`^Aggregates rebuilt: ${aggregateId}$`, "m"));
+    }
+    aggregate = await read();
+    assert.deepEqual([check("candidate-read").pass, check("candidate-read").held], [1, 1]);
+    assert.deepEqual(
+      aggregate.held.map(({ trial, arm }) => [trial, arm]),
+      [
+        [second, "baseline"],
+        [second, "candidate"],
+      ],
+    );
+    const clearances = JSON.parse(
+      await readFile(path.join(runs, first, "groups/activation/candidate/clearances.json"), "utf8"),
+    );
+    assert.deepEqual(
+      clearances.cleared.map(({ flag, reason }) => [flag, reason]),
+      [["instruction-file-1", "the fixture names that file"]],
+    );
+    const trialView = runCli(root, bin, ["view", first, "--variant", "candidate"]);
+    assert.match(trialView.stdout, /^ {2}flag\tinstruction-file-1\t.+\tcleared: the fixture names that file$/m);
+    const aggregateView = runCli(root, bin, ["view", aggregateId]);
+    assert.match(
+      aggregateView.stdout,
+      new RegExp(`^held\\t${second}\\tactivation\\tcandidate\\tflags=instruction-file-1$`, "m"),
+    );
+    // An unknown flag is refused.
+    const unknown = runCli(root, bin, [
+      "clear",
+      second,
+      "--variant",
+      "candidate",
+      "--flag",
+      "network-9",
+      "--reason",
+      "x",
+    ]);
+    assert.equal(unknown.status, 1);
+    assert.match(unknown.stderr, /the run has no flag network-9; its flags: instruction-file-1/);
   });
 });
 

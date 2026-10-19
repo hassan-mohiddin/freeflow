@@ -6,6 +6,7 @@ import { renderClaim, trialCounts } from "./decision.mjs";
 import { judgedAggregateLines, judgedLines } from "./judge.mjs";
 import { aggregateMetricsLines, runMetricsLines } from "./metrics.mjs";
 import { participantLines } from "./participants.mjs";
+import { readClearances } from "./scan.mjs";
 
 const DEFAULT_SELECTORS = /** @type {{group: string | null, variant: string | null}} */ ({
   group: null,
@@ -237,6 +238,9 @@ function renderAggregate(resultDirectory, aggregate) {
       ]),
     );
   }
+  for (const entry of aggregate.held ?? []) {
+    lines.push(compactRow("held", [entry.trial, entry.group, entry.arm, `flags=${entry.flags.join(",")}`]));
+  }
   for (const trial of aggregate.trials) {
     lines.push(
       compactRow("trial", [
@@ -357,6 +361,12 @@ async function appendVariantEvidence(lines, resultDirectory, groupDirectory, gro
   lines.push("", `${title(variant)} [${run.state}]`);
   appendRunEvidence(lines, run);
   const variantDirectory = path.dirname(runFile);
+  // Transcript-scan flags, each with whether a person cleared it and why; an uncleared one holds the run.
+  const cleared = new Map((await readClearances(variantDirectory)).map((entry) => [entry.flag, entry.reason]));
+  for (const flag of run.postRun?.scan?.flags ?? []) {
+    const status = cleared.has(flag.id) ? `cleared: ${cleared.get(flag.id)}` : "not cleared";
+    lines.push(compactRow("  flag", [flag.id, flag.detail, status]));
+  }
   const artifacts = [["run", relativeArtifact(resultDirectory, runFile)]];
   if (typeof run.workspace === "string") {
     artifacts.push(["workspace", relativeArtifact(resultDirectory, run.workspace)]);

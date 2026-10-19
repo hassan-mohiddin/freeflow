@@ -69,10 +69,11 @@ export function aggregateMetrics({ arms, reference, trials }) {
   const perTrial = [];
   for (const trial of trials) {
     // Only a complete run's metrics count: an invalid, failed or cancelled run's cost or turns are no measure of
-    // the arm, and must never reach a decision.
+    // the arm, and must never reach a decision; nor do a run's held for transcript flags no one has cleared.
     for (const arm of arms) {
       const run = trial.runs?.[arm];
-      perTrial.push({ trial: trial.id, arm, values: metricValues(run?.state === "complete" ? run : null) });
+      const counted = run?.state === "complete" && !trial.held?.includes(arm);
+      perTrial.push({ trial: trial.id, arm, values: metricValues(counted ? run : null) });
     }
   }
   const valuesOf = (arm, name) => perTrial.filter((entry) => entry.arm === arm).map((entry) => entry.values[name]);
