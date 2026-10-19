@@ -1,6 +1,6 @@
 ---
 name: write-docs
-description: "Use when writing, updating, or reviewing documentation of how existing software works and why: architecture or subsystem docs, feature maps, folder READMEs, and user guides; when a change makes existing documentation wrong; or when a project with code has no developer docs, or knowledge of how it works is about to go into AGENTS.md or CLAUDE.md."
+description: "Use when writing, updating, or reviewing docs of how existing software works and why, or when a change makes docs wrong; or when a project lacks developer docs, or that knowledge is headed for AGENTS.md or CLAUDE.md."
 ---
 
 # Write Docs
@@ -29,12 +29,12 @@ Goal: each fact lives in one place, written for the reader who needs it.
 | Someone finding their way around the code | Overview (an `ARCHITECTURE.md`, or the index of the developer docs) | The problem the software solves, its parts and how they relate, a map of where things are, and the rules that hold across parts. Short and slow to change. |
 | Someone changing one subsystem | Subsystem doc | How the subsystem works and why: its surface, state, invariants, decisions, failure behavior, code map, and tests. |
 | Someone editing files in one folder | Folder `README.md` | What each file owns, local rules, and a pointer to its subsystem doc. |
-| Someone checking a feature in the running software | Feature file, with one shared live-verification guide | What the user sees, how to reach it, and the exact steps and observable results that show it works. |
+| Someone checking a feature in the running software | Feature file, plus a shared live-verification guide | What the user sees and the exact steps that show it works. |
 | Anyone revisiting a hard-to-reverse choice | Decision record | The context, the decision, and its consequences. |
 
 Prefer extending an existing document to creating a new one: a small set of current documents serves readers better than many partly current ones. A subsystem earns its own doc when the reasons behind it cannot be read from the code and readers keep needing them: agents re-derive the same design, or mistake a deliberate behavior for a bug. A user guide and a subsystem doc about the same feature are different documents for different readers; link them rather than merging them.
 
-Write documentation where the repository keeps it. If it keeps none and you are asked to start, propose where it should live and confirm with the user before creating it. When a project has code and no developer docs, recommend creating them, saying where they would live and what they would hold first, and create nothing until the user agrees; keep that knowledge out of `AGENTS.md`, `CLAUDE.md` and other instruction files loaded on every turn, which every request pays for and no docs check keeps current.
+Write documentation where the repository keeps it. If it keeps none and you are asked to start, propose where it should live and confirm with the user before creating it. When a project has code and no developer docs, propose creating them and wait for the user's yes; keep that knowledge out of `AGENTS.md`, `CLAUDE.md` and other always-loaded instruction files, which every request pays for.
 
 ## Write The Document
 
