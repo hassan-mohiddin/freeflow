@@ -1,6 +1,6 @@
 # Documentation Shapes
 
-Read this before looking for a project's developer docs or proposing them for a project that has none, before choosing the structure of an overview, a subsystem doc, a folder README, a feature file, a live-verification guide, or a decision record, or before restructuring one.
+Read this before looking for a project's developer docs or proposing them for a project that has none, before choosing the structure of an overview, a subsystem doc, a folder README, a feature file, or a live-verification guide, or before restructuring one.
 
 This reference is judgment except for the header: these are shapes to adapt, not mandatory templates. Where the repository already has documentation conventions, follow them and borrow from these shapes only what they lack. Use the sections a document's readers need, in the order that serves them, and leave out a section with nothing true to say.
 
@@ -166,32 +166,6 @@ One guide shared by every feature file (for example `guides/verify-live.md` in t
 - **Evidence:** what each step saves and where (an ignored folder), and the proof standards: drive the real user path, capture the action and the resulting state, and check side effects from a second view.
 - **Clean Up:** stop only what the run started, never by process name; remove scratch state; keep the evidence.
 - **Paid Calls:** which inputs call a model or another paid service, the guard that refuses them by default, and what a step needs before it may run one, such as a pinned cheap model and the user's yes.
-
-## Decision Record
-
-A decision record (ADR) keeps one hard-to-reverse choice and why it was made. Number records in order and keep them in one folder (`adr/` in the developer docs), with an index listing each record and its status.
-
-```markdown
-# ADR NNNN: <The decision, as a short statement>
-
-## Status
-## Decision
-## Rationale
-## Alternatives Rejected
-## Consequences
-## Revisit When
-```
-
-- **Status:** Accepted; Superseded by a named later record; or Retired, with the date and the reason.
-- **Decision:** what was decided, in a few sentences or bullets.
-- **Rationale:** the context that forced a choice, and why this option won.
-- **Alternatives Rejected:** each alternative and why it lost, so a later reader does not rebuild it.
-- **Consequences:** what follows from the decision, including what it rules out.
-- **Revisit When:** the condition under which the decision should be reconsidered, so re-proposing it is fair only then.
-
-A settled decision in a task's Working Record has the same fields (decision, rationale, consequences, revisit when), so it moves into a record without translation.
-
-A record is history: once accepted, its body is not rewritten, and records written before a field existed are not filled in afterwards. A later change of course adds a dated amendment section, supersedes it with a new record, or retires it; a superseded or retired record keeps its body.
 
 ## Adapting To The Software
 

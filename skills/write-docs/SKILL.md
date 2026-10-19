@@ -30,7 +30,7 @@ Goal: each fact lives in one place, written for the reader who needs it.
 | Someone changing one subsystem | Subsystem doc | How the subsystem works and why: its surface, state, invariants, decisions, failure behavior, code map, and tests. |
 | Someone editing files in one folder | Folder `README.md` | What each file owns, local rules, and a pointer to its subsystem doc. |
 | Someone checking a feature in the running software | Feature file, plus a shared live-verification guide | What the user sees and the exact steps that show it works. |
-| Anyone revisiting a hard-to-reverse choice | Decision record | The context, the decision, and its consequences. |
+| Anyone revisiting a hard-to-reverse choice | Decision record | The decision and why, in Write Spec's [Decision Records](../write-spec/references/decision-records.md) shape. |
 
 Prefer extending an existing document to creating a new one: a small set of current documents serves readers better than many partly current ones. A subsystem earns its own doc when the reasons behind it cannot be read from the code and readers keep needing them: agents re-derive the same design, or mistake a deliberate behavior for a bug. A user guide and a subsystem doc about the same feature are different documents for different readers; link them rather than merging them.
 
@@ -40,7 +40,7 @@ Write documentation where the repository keeps it; [Starting Developer Docs](ref
 
 ## Write The Document
 
-Read [Documentation Shapes](references/documentation-shapes.md) before choosing the structure of an overview, a subsystem doc, a folder README, a feature file, a live-verification guide, or a decision record, or before restructuring one. Its shapes are judgment to adapt to the software and to the repository's own conventions; only its header, which the docs check reads, is binding where used.
+Read [Documentation Shapes](references/documentation-shapes.md) before choosing the structure of an overview, a subsystem doc, a folder README, a feature file, or a live-verification guide, or before restructuring one. Its shapes are judgment to adapt to the software and to the repository's own conventions; only its header, which the docs check reads, is binding where used.
 
 Goal: a reader with only the document and the code can make a correct change, and can tell what is deliberate.
 
