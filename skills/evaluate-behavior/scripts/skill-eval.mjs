@@ -12,6 +12,7 @@ import { createLimiter, setCpuJobs } from "./lib/queue.mjs";
 import { checkSelection } from "./lib/reference.mjs";
 import { applySourceOverrides, parseSourceOverrides } from "./lib/source-override.mjs";
 import { createRunReuse, resultsDirectory, runEvaluation } from "./lib/runner.mjs";
+import { armSealing } from "./lib/seal.mjs";
 import { calibrateJudges, reviewResult, reviewRubric } from "./lib/review.mjs";
 import { runTrials } from "./lib/trials.mjs";
 import { renderResult } from "./lib/view.mjs";
@@ -319,6 +320,7 @@ async function planRun(operation, root) {
   }
   const trials = schedule?.initial ?? operation.trials ?? 1;
   let arms = 0;
+  let unsealed = 0;
   const models = new Set();
   const freeflow = new Set();
   const extensions = new Set();
@@ -326,6 +328,7 @@ async function planRun(operation, root) {
     for (const [arm, state] of Object.entries(variants)) {
       if (state !== "selected") continue;
       arms += 1;
+      if (armSealing(group, arm).network === "host") unsealed += 1;
       const model = group.variants[arm].model;
       models.add(model ? `${model.model}${model.thinking ? ` (${model.thinking})` : ""}` : "host default");
       if (group.variants[arm].freeflow) freeflow.add(group.variants[arm].freeflow.source.ref);
@@ -348,6 +351,10 @@ async function planRun(operation, root) {
   if (operation.jobs > 1) line += `; ${operation.jobs} subjects at once`;
   if (operation.pilot !== null) line += `; pilot of the first ${Math.min(operation.pilot, groups)} groups`;
   if (operation.reuse) line += "; reusing matching runs";
+  // Said before anything starts: code the subject writes will run on this machine, with its network and files.
+  if (unsealed > 0) {
+    line += `; unsealed: ${unsealed} arm${unsealed === 1 ? " runs" : "s run"} declared commands or graders on the host`;
+  }
   const overridden = Object.entries(operation.sources ?? {});
   if (overridden.length > 0) line += `; sources: ${overridden.map(([arm, commit]) => `${arm}=${commit}`).join(", ")}`;
   if (operation.dryRun) line += "; dry run";

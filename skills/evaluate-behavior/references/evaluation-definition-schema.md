@@ -155,6 +155,7 @@ A configuration has these fields; each arm's effective configuration is the shar
 | `runtime` | no | Host session, prompt mode, extension bundles and environment; see [Runtime Profile](#runtime-profile). |
 | `shell` | no | A confined `bash` for the subject: `{ "isolation", "network": "none", "workspace", "requires" }`; see [Shell](#shell). |
 | `environment` | no | A container the subject's shell and the command graders run in: `{ "kind": "container", "image": "<name>@sha256:<digest>", "workdir", "network": "none" }`; see [Container Environment](#container-environment). |
+| `network` | no | What code the subject could have written may reach: `"none"` (sealed) or `"host"`; see [Network](#network). |
 | `freeflow` | no | Contributor-only (needs a Freeflow repository as the definition root): Freeflow as part of the environment: `{ "source": { "kind": "git", "ref": "<commit>" }, "repository": { ... }, "personal": { ... } }`; see [Freeflow](#freeflow). |
 
 Rules:
@@ -415,6 +416,15 @@ A body group can run its subject's `bash` and its [command graders](#command-gra
 - With `bash` in `tools`, each subject gets its own container from the image (the workspace mounted at `workdir`, `--network none`, 4 GB of memory, 2 CPUs, 1024 processes), removed when the subject ends, cancelled or not. Each declared resource the subject may read (its skills, context, runtime extension resources and Freeflow's package) is mounted read-only at the same path it has on the host, so a path the subject was given, such as `node <skill>/scripts/check.mjs`, works from bash as it does for `read`; the workspace is the only writable mount. The guard rewrites each bash call to `docker exec` into it, so the command runs in the image and Pi runs only the docker client; paths under `workdir` are checked as workspace paths. The [Shell](#shell) probes run first, in a container of their own, and must all hold.
 - Each `command` expectation runs in a fresh container from the same image on the graded copy of the workspace (`docker run --rm`, same mount, network and limits), removed afterwards even on a timeout. Its record names the image and container. `check-tasks` runs them in the image too, and reports the group `not-checkable`, with the same refusal, when docker or the image is missing.
 
+## Network
+
+Three paths run code the subject could have written: its `bash`, its [declared commands](#declared-commands) (which run the workspace's own tests and scripts), and [command graders](#command-graders) (hidden tests that import its code). `network` declares one policy for all three:
+
+- `"none"`: sealed. `bash` runs behind a probed [Shell](#shell) or in the arm's container, and declared commands and command graders run in the arm's [container](#container-environment), each with no network and none of the host's files, so the provider login on disk is out of reach. An arm that declares `"none"` but would run declared commands or command graders on the host, for want of a container environment, is refused at load.
+- `"host"`: unsealed, on purpose. Declared commands and command graders run on the host as the user, with the network and the user's files, including the provider login on disk. A declared command gets no pointer to the login (no `PI_CODING_AGENT_DIR` or login variable), which keeps it out of easy reach, not out of reach.
+
+Without `network`, an arm gets what its paths allow: sealed when every path it has is confined, unsealed when it runs declared commands or command graders without a container. The plan line names the unsealed arms before anything starts, and each run records `sealing`: the `network` its code had, the `declared` policy (or null), where `bash`, `commands` and `graders` ran (`container`, `shell`, `host`, or null when it has none), and whether the `login` was out of reach. The subject's host process (Pi or Claude Code) always keeps the network, which it needs to reach its model, and reads only its own copied login. A named allowlist of hosts is not supported.
+
 ## Freeflow
 
 Contributor-only: this field builds Freeflow itself with `scripts/freeflow-snapshot.mjs`, so it works only when the definition root is a Freeflow repository; elsewhere the group is refused before any subject runs. To compare a host extension, declare it under `host.extensions`.
@@ -652,11 +662,11 @@ A body group that must let the subject run tests or other programs lists the `ru
 
 - `run_command` and `commands` require each other and are valid only in body groups.
 - Each command has a unique `id` (group-ID syntax), a non-empty `argv`, and optional integer `timeout_ms` from 1 to 600000 (default 120000).
-- The subject chooses only a declared `id`; it cannot change `argv`. The argv runs without a shell, in the workspace, without evaluator control variables.
+- The subject chooses only a declared `id`; it cannot change `argv`. The argv runs without a shell, in the workspace (in the arm's container when it has a container environment), without evaluator control variables or a pointer to the login.
 - Output is capped per stream and marked when truncated. A nonzero exit or timeout is an ordinary tool result, not a tool error.
 - Grade calls with `tool-call` expectations, for example `tool: "run_command"` with `argumentContains: ["unit-tests"]`.
 
-Commands are trusted author input with the evaluator's host permissions, like extension bundles; the subject only selects among them.
+A command's argv is trusted author input, like an extension bundle, and the subject only selects among them; but what it runs, such as the workspace's tests, may be the subject's own code. Without a container it runs on the host with the user's permissions and network; declare `network: "none"` and a container environment to seal it ([Network](#network)).
 
 ## Suite
 

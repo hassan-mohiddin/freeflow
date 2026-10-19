@@ -192,6 +192,8 @@ test("hidden node tests pass on the right fix and fail on the wrong one, without
     const result = runCli(root, bin, ["run", definition, "--dry-run"]);
 
     assert.equal(result.status, 0, result.stderr + result.stdout);
+    // The plan says, before anything starts, that the graders will run the subject's code on this machine.
+    assert.match(result.stdout, /^Plan: .+; unsealed: 2 arms run declared commands or graders on the host; dry run$/m);
     const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)?.[1], "groups/calc");
     const grade = await readJson(path.join(groupDirectory, "deterministic-grade.json"));
     assert.deepEqual(grade.errors, []);
@@ -239,6 +241,15 @@ test("hidden node tests pass on the right fix and fail on the wrong one, without
       const contents = await readFile(path.join(run.workspace, file.path));
       assert.equal(createHash("sha256").update(contents).digest("hex"), file.sha256, file.path);
     }
+    // Without a container the graders ran on the host: the run says so, and that the login was within reach.
+    assert.deepEqual(run.sealing, {
+      network: "host",
+      declared: null,
+      bash: null,
+      commands: null,
+      graders: "host",
+      login: "reachable from code run on the host",
+    });
     // An arm records only its own commands.
     const baseline = await readJson(path.join(groupDirectory, "baseline/run.json"));
     assert.deepEqual(Object.keys(baseline.postRun.commands), ["baseline-hidden", "baseline-exit"]);

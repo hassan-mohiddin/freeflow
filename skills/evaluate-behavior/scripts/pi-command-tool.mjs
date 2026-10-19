@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 
 import { containerExecArgv, dockerClientEnvironment, parseContainerTarget } from "./lib/container.mjs";
 import { COMMAND_TOOL } from "./lib/definitions.mjs";
+import { LOGIN_VARIABLES } from "./lib/hosts/claude-code/isolation.mjs";
 
 const DEFAULT_TIMEOUT_MS = 120 * 1000;
 const OUTPUT_LIMIT_BYTES = 32 * 1024;
@@ -13,8 +14,16 @@ function parseCommands(value) {
   return parsed;
 }
 
+// A declared command runs the workspace's own code, so it gets neither the evaluator's control variables nor a
+// pointer to the login: Pi's agent directory, which holds the copied provider login, and any login variable. On the
+// host this keeps the login out of easy reach, not out of reach (the run's network "host"); in a container the
+// command gets none of this environment at all.
+const WITHHELD = new Set(["PI_CODING_AGENT_DIR", ...LOGIN_VARIABLES]);
+
 function commandEnvironment() {
-  return Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("SKILL_EVAL_")));
+  return Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => !key.startsWith("SKILL_EVAL_") && !WITHHELD.has(key)),
+  );
 }
 
 function captureStream(stream) {

@@ -6,6 +6,7 @@ import { validateDecision } from "./decision.mjs";
 import { isSourceExtension, sourceExtensionInputs, validateSourceExtension } from "./build-source.mjs";
 import { validateCommandExpectations } from "./grade-command.mjs";
 import { containerShell, validateContainerEnvironment } from "./container.mjs";
+import { sealPaths, sealProblem, validateNetwork } from "./seal.mjs";
 import { validateShell, validateShellGroup } from "./shell.mjs";
 import { referenceFiles, validateReferenceSolution } from "./reference.mjs";
 import { rubricFiles, validateJudging } from "./judge.mjs";
@@ -386,6 +387,7 @@ const CONFIGURATION_FIELDS = [
   "runtime",
   "shell",
   "environment",
+  "network",
   "participants",
 ];
 // Arms may not differ here: runtime bundles are prepared once per group, and a group runs on one host. Host extensions
@@ -442,7 +444,7 @@ function validateEffectiveConfiguration(value, label, definitionPath) {
   const configuration = requireExactKeys(
     value,
     ["host", "subject"],
-    ["model", "freeflow", "runtime", "shell", "environment", "participants"],
+    ["model", "freeflow", "runtime", "shell", "environment", "network", "participants"],
     label,
     definitionPath,
   );
@@ -502,6 +504,9 @@ function validateEffectiveConfiguration(value, label, definitionPath) {
     validateContainerEnvironment(configuration.environment, `${label}.environment`, (code, message) =>
       fail(code, message, definitionPath),
     );
+  }
+  if (Object.hasOwn(configuration, "network")) {
+    validateNetwork(configuration.network, `${label}.network`, (code, message) => fail(code, message, definitionPath));
   }
   return { configuration, environment, runtime, freeflow };
 }
@@ -784,6 +789,9 @@ async function validateGroup(value, definitionPath, root) {
     variants[arm].hostSettings = resolved[arm].configuration.host.settings ?? {};
     const shell = resolved[arm].configuration.shell ?? containerShell(resolved[arm].configuration.environment);
     if (shell !== undefined) variants[arm].shell = shell;
+    // A declared network "none" must hold on every path that runs subject-written code (seal.mjs).
+    const sealRefusal = sealProblem(arm, sealPaths(group, arm, shell), resolved[arm].configuration.network);
+    if (sealRefusal !== null) fail("invalid-definition", sealRefusal, definitionPath);
     // The group runtime is the reference's; an arm whose environment literals differ carries its own.
     const literal = resolved[arm].runtime?.environment.literal;
     if (JSON.stringify(literal) !== JSON.stringify(resolved[reference].runtime?.environment.literal)) {

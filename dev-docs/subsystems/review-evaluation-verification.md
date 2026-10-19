@@ -160,6 +160,7 @@ Verify Work's one script, `skills/verify-work/scripts/test-changes.mjs`, lists e
 - **Validity by tokens, not by cost or tool use.** A failed login graded "ok" across a whole BtW batch; the gate makes a hollow run `invalid` instead. Cost is zero for real work on an unpriced model, so tokens are the signal; requiring tool use would make every one-answer run invalid, including a description run whose target did not activate, which is the behavior such a run measures. Rejected: the literal spec rule of "more than one turn or real tool use".
 - **Deterministic first.** A judge answers only what checks cannot. Command graders, reference solutions and the ten expectation kinds carry as much as they can before any model judges.
 - **No required dependencies; optional ones only when declared.** The user layer runs on Node and Pi. A confined shell needs a declared isolation extension (such as the Gondolin example) and a container needs the `docker` CLI; each is checked only for a group that declares it. When something is missing, the evaluator refuses with what is missing and how to install it, and the skill tells the agent to ask the user before installing. Images are pinned by digest and never pulled.
+- **One network policy for all code the subject wrote.** `configuration.network` covers bash, declared commands and command graders alike (`lib/seal.mjs`). `"none"` is refused at load unless every such path is confined (bash by a probed shell or container, commands and graders by the arm's container), and each run records `sealing`. Without a declaration the arm gets what its paths allow, so existing definitions whose declared commands run `node --test` on the host keep loading; the plan names unsealed arms. A declared command on the host gets no `PI_CODING_AGENT_DIR` or login variable. Rejected: a named host allowlist for now (Docker needs a user-defined network and an egress proxy, which nothing here verifies); refusing unsealed host commands by default (would break the Work Agreement suites until they declare `"host"` or move to an image).
 - **A shell is allowed only as verified confinement.** Five probes run through the arm's own host (Pi, or Claude Code) before any subject: a workspace write that must succeed, and a write outside, a read of the home's parent, a network call and an environment leak that must all fail. Rejected: trusting an isolation's claims without probing.
 - **One-arm measure groups.** Recording a baseline, scoring a benchmark and regression checks need a rate without a comparison; a one-arm group is its own reference and can never support a comparison claim.
 - **Judges inherit the subjects' host setup unless they declare their own.** A judge launched without the subscription's auth extension was refused by the provider as unbilled extra usage; inheritance makes the default correct, and a declared `configuration` lets a judge differ on purpose.
@@ -229,7 +230,7 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
 
 - **Suite:** `id`, `groups`, optional `decision` (`measure`, `arms`, `direction`, `method: "sign-test"`, `alpha`, `min_cases`, `trials`).
 - **Group:** `id`, `type` (`description` or `body`), `input` (`prompt` or `turns`, plus optional `resume_before` on Pi body groups with a persistent session: before each named turn the RPC session is closed and resumed from its own file through `switch_session`), `fixture`, `tools`, `configuration`, `arms`, `expectations`, `review_questions`; optional `component`, `commands`, `revision: "description-only"`, `reference`, `rubric`, `judges`, `combine`, `reference_solution`, `participants`.
-- **Configuration** (group, arm overlay, or a file via `extends`): `host` (`version`, `extensions`, `settings`), `model`, `subject` (skills, target, source, context), `freeflow`, `runtime`, `shell`, `environment`, `participants`.
+- **Configuration** (group, arm overlay, or a file via `extends`): `host` (`version`, `extensions`, `settings`), `model`, `subject` (skills, target, source, context), `freeflow`, `runtime`, `shell`, `environment`, `network`, `participants`.
 - **Expectation kinds:** `skill-read`, `resource-read`, `path`, `changed-paths`, `file-text`, `json`, `response-text`, `context-text`, `tool-call`, `command`.
 
 ## State
@@ -251,7 +252,7 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
       resources/                      snapshots of fixture, skills, context, runtime, Freeflow, extensions
       confinement/<arm>/confinement.json
       commands/<expectation>/         command-grader workspace copies
-      <arm>/run.json                  the subject's record, metrics, post-run commands, participants
+      <arm>/run.json                  the subject's record, metrics, sealing, post-run commands, participants
       <arm>/transcript.json, final.md, events.jsonl, stderr.log, context-observations.jsonl
       <arm>/workspace/                the subject's final workspace
       <arm>/judged-grade.json         judged evidence
@@ -275,6 +276,7 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
 - A subject's tools stay inside declared roots, and `bash` exists only behind a probed shell or a container. Guarded by `pi-guard.test.mjs`, `shell.test.mjs`, `container.test.mjs`.
 - A link in a subject's workspace is recorded with its target and never followed, in the run, a pipeline handoff and a grader's copy; a declared resource or fixture may hold only relative links inside it, copied as they are (`fingerprintDirectory`'s `links` option). Guarded by `grade-command.test.mjs` and `participants.test.mjs`.
 - In a container environment, the subject's `bash` and declared commands run in its container and graders in a fresh one from the same image. Guarded by `container.test.mjs` and `command-tool.test.mjs`.
+- A declared `network: "none"` holds on every path that runs subject-written code, or the group is refused at load; every run records `sealing`. Guarded by `container.test.mjs` and `grade-command.test.mjs`.
 - Every model the evaluator launches (subject, simulated user, judge, reviewer) gets the evaluator's Pi defaults under its declared settings. Guarded by `isolation.test.mjs` and `review.test.mjs`.
 - "beats" is reported only from a declared decision. Guarded by `decision.test.mjs` and `trials.test.mjs`.
 - A missing metric is `null`, never 0, and a run that is not complete adds no metric to a summary or decision. Guarded by `metrics.test.mjs` and `decision.test.mjs`.
@@ -332,7 +334,7 @@ The binding shape is `skills/evaluate-behavior/references/evaluation-definition-
 | `lib/participants.mjs` | Conversations and pipelines |
 | `lib/sandbox.mjs`, `identity.mjs`, `evidence.mjs` | Snapshots and fingerprints, commit identity and host version, evidence writing |
 | `lib/freeflow.mjs`, `build-source.mjs` | Freeflow and other extensions built from a commit or path |
-| `lib/shell.mjs`, `container.mjs` | Confined shell and its probes; container environments |
+| `lib/shell.mjs`, `container.mjs`, `seal.mjs` | Confined shell and its probes; container environments; the network policy over bash, commands and graders |
 | `lib/reference.mjs` | Reference solutions and `check-tasks` |
 | `lib/grade*.mjs` | Deterministic graders, command graders (TAP, JUnit), comparisons |
 | `lib/review.mjs`, `judge.mjs`, `agreement.mjs` | Pairwise review, rubric judging, combining, fencing, calibration, agreement |
@@ -367,7 +369,8 @@ These prove the evaluator's mechanics with stand-in models. They do not prove be
 
 - A group runs on one host, so a question comparing Pi with Claude Code is two groups, not two arms.
 - On Claude Code: bash only in a container, no `run_command`, Pi extensions or Freeflow, and retries at Claude Code's own default; its identity line and environment note cannot be removed, only recorded, and the note reports a Git repository above the workspace (Claude Code finds it itself, ignoring `GIT_CEILING_DIRECTORIES`).
-- Containers and the Gondolin shell are tested only with fakes and skipped cases; neither has run on a real engine or VM.
+- The Gondolin shell is tested only with fakes and skipped cases. Containers were checked once on the real Colima engine (2026-10-19, the V0 image, a fake Pi and no model): probes held, a skill's script ran by its path, the network and the login path were unreachable, and a grader ran in a fresh container.
+- Network policy is `none` or `host`; a named allowlist of hosts is not supported. On `host`, declared commands and graders can read the user's files, including the provider login on disk.
 - A pipeline stage cannot have its own configuration: every stage uses the arm's.
 - Each rubric judge answers all dimensions in one call, so answers to one dimension can influence another.
 - The only decision method is the sign test; there are no confidence intervals on rates.
@@ -379,6 +382,7 @@ These prove the evaluator's mechanics with stand-in models. They do not prove be
 
 ## Changes
 
+- 2026-10-19: `configuration.network` (`"none"` or `"host"`) declares one policy for bash, declared commands and command graders; `"none"` is refused where commands or graders would run on the host; runs record `sealing`, the plan names unsealed arms, and declared commands lose `PI_CODING_AGENT_DIR` and login variables.
 - 2026-10-19: Validity gate: a complete run with no assistant message, zero tokens, or no answer and nothing written is `invalid` before grading, and only complete runs' metrics count.
 - 2026-10-19: A subject's container mounts its declared skills and other readable resources read-only at their host paths, so `node <skill>/scripts/x.mjs` runs from bash.
 - 2026-10-19: A link the subject makes is recorded with its target instead of failing the run as infrastructure ("resource symlink escapes its declared root"), and fixtures, resources and stage handoffs copy links as they are instead of Node's rewriting a relative link into an absolute one.

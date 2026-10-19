@@ -130,6 +130,33 @@ test("the command process does not inherit evaluator control variables", async (
   );
 });
 
+test("a declared command on the host gets no pointer to the login", async () => {
+  const keys = ["PI_CODING_AGENT_DIR", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"];
+  const saved = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  process.env.PI_CODING_AGENT_DIR = "/run/arm/isolation/agent";
+  process.env.CLAUDE_CODE_OAUTH_TOKEN = "token-value";
+  process.env.ANTHROPIC_API_KEY = "key-value";
+  try {
+    await withWorkspace(
+      [
+        {
+          id: "env",
+          argv: node(`console.log(${JSON.stringify(keys)}.filter((key) => key in process.env).join(',') || 'none')`),
+        },
+      ],
+      async () => {
+        const result = await installTool().execute("call-1", { command: "env" }, undefined, undefined, {});
+        assert.match(result.content[0].text, /^none$/m);
+      },
+    );
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
 test("in a container environment a declared command runs through docker exec in the subject's container", async () => {
   await withWorkspace([{ id: "unit-tests", argv: ["npm", "test"] }], async (workspace) => {
     // A docker stand-in that records its argv and its working directory.

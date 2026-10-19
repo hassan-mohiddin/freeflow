@@ -19,6 +19,7 @@ import { adoptRun, appendIndex, createReuse } from "./reuse.mjs";
 import { prepareFixture, prepareRuntime, verifyDescriptionOnlyRevision } from "./sandbox.mjs";
 import { applySourceOverrides } from "./source-override.mjs";
 import { runBody, runDescription, VariantSetupError } from "./subject.mjs";
+import { armSealing } from "./seal.mjs";
 import { applyValidityGate } from "./validity.mjs";
 
 const DESCRIPTION_TOOLS = new Set(["read"]);
@@ -410,6 +411,8 @@ async function runGroup({
         runs[variant] = run;
         if (executed) {
           if (confinement[variant] !== undefined) run.confinement = confinement[variant];
+          // What the subject's own code could reach: the network policy and where each path ran.
+          run.sealing = armSealing(group, variant);
           if (sources?.[variant] !== undefined) run.sourceOverride = sources[variant];
           if (sourceCommit !== null && run.resources?.source?.kind === "working-tree") {
             run.resources.source.commit = sourceCommit;
