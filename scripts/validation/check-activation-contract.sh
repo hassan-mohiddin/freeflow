@@ -94,7 +94,6 @@ require_text "$claude_adapter" 'eventNames: ["SessionStart"]'
 
 for file in \
 	"$agents_file" \
-	"$repo_root/CONTEXT.md" \
 	"$repo_root/README.md" \
 	"$repo_root/plugin-docs/README.md" \
 	"$workflow_doc" \

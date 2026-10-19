@@ -10,7 +10,6 @@ This file governs contributing to the Freeflow repository. It does not define th
 
 Use the smallest current source set relevant to the change:
 
-- Read `CONTEXT.md` for project language and direction.
 - Read `dev-docs/README.md` for the architecture and the developer docs index, then the subsystem doc or guide for the area you change. Read `plugin-docs/README.md` for user-facing behavior when the change touches it.
 - Before treating behavior as a bug, read its subsystem doc's decisions and intended behavior that looks wrong; listed behavior is a design choice for the user to change, not a fix.
 - Read `dev-docs/adr/` when the change touches a durable decision.
@@ -64,7 +63,7 @@ Use Anthropic `skill-creator` for skill structure, trigger descriptions, progres
 When reference skills conflict during skill development:
 
 1. User instruction wins.
-2. Repo memory wins: `AGENTS.md`, `CONTEXT.md`, ADRs.
+2. Repo memory wins: `AGENTS.md`, ADRs.
 3. Freeflow docs and eval reports win.
 4. Matt style wins for interaction shape and skill wording.
 5. Obra/Superpowers wins for lifecycle coverage.
@@ -72,7 +71,6 @@ When reference skills conflict during skill development:
 
 ## Working Rules
 
-- Use `CONTEXT.md` for project language. Do not turn it into a spec or implementation summary.
 - Use ADRs sparingly for hard-to-reverse, surprising, tradeoff-driven decisions.
 - Do not hardcode volatile repo facts, directory inventories, or stack summaries into durable memory.
 - Do not add enforcement hooks until skill wording and evals prove the behavior needs mechanical enforcement.
