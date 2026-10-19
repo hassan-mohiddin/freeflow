@@ -139,7 +139,9 @@ The gate suites under `.skill-eval/gate/` are written by `.skill-eval/gate/tools
 
 ### Verification
 
-Verify Work determines what fresh direct evidence establishes about a specific claim at the boundary where it must hold, with references for browser runtime, integration, performance evidence and test design. It is unchanged by the evaluator work. The evaluator shares its observing mechanisms (command graders run tests on a workspace; deterministic checks read final state), but Verify Work does not run the evaluator, and there is no Freeflow skill that drives a running application end to end.
+Verify Work determines what fresh direct evidence establishes about a specific claim at the boundary where it must hold, with references for browser runtime, integration, performance evidence, test design and project recipes. It is unchanged by the evaluator work. The evaluator shares its observing mechanisms (command graders run tests on a workspace; deterministic checks read final state), but Verify Work does not run the evaluator, and there is no Freeflow skill that drives a running application end to end.
+
+When a claim needs the project's running software, Verify Work's Project Recipe reference (`skills/verify-work/references/project-recipe.md`) has the agent look for the project's saved steps: a feature map in its developer docs, found by the `Covers` header of each feature file, plus the shared guide and helper. It uses them, triages a failing step as drift, a gap or a product bug, and never edits the steps to make a failing product pass; corrected steps are saved through Write Docs in the same change, or proposed when the agreement does not cover docs. Write Docs owns the feature file and guide shapes. Freeflow's own map is [Features](../features/README.md), driven with [Verify live](../guides/verify-live.md).
 
 Verify Work's one script, `skills/verify-work/scripts/test-changes.mjs`, lists every test file, fixture, snapshot and shared test setup file that existed at a base and changed, moved or was deleted by a head (the working tree by default), with the changed hunks. Test Design's one Rule has the agent give each listed change a reason (the property is preserved, or the user agreed the behavior change) or return it to the user before reporting the work done; Verify Work's body links the script from the Test Design entry.
 
@@ -373,6 +375,7 @@ These prove the evaluator's mechanics with stand-in models. They do not prove be
 
 ## Changes
 
+- 2026-10-19: Verify Work gains the Project Recipe reference, which finds, uses and triages a project's feature map.
 - 2026-10-19: Verify Work gains `test-changes.mjs` and Test Design's Rule for changed tests, fixtures and setup, plus agreed-behavior assertions, weak-test signs, regression checks on the pre-fix code, performance limits, saved browser evidence, and one-line guidance on safety claims, baselines and keeping check scripts.
 - 2026-10-13: Claude Code added as a second host (`lib/hosts/claude-code/`); the guard's rules moved to `guard-rules.mjs`, shared by Pi's extension and Claude Code's hook.
 - 2026-10-13: the Pi-specific code moved behind a host adapter (`lib/hosts/pi/`), with no change in behavior; `lib/pi.mjs` became the host-neutral `lib/subject.mjs`.
