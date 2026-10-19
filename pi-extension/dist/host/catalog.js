@@ -45,6 +45,7 @@ export const FREEFLOW_MODEL_SKILL_NAMES = [
   "review-work",
   "setup-freeflow",
   "launch-work",
+  "map-features",
   "simplify-code",
   "track-work",
   "verify-work",

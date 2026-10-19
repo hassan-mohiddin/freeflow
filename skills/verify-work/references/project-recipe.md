@@ -24,10 +24,14 @@ Intended behavior comes from the agreement, a spec, the feature's subsystem docs
 
 ## Save What Worked
 
+When many steps fail at once, or the docs check flags several feature files as stale, propose a Map Features recheck of the whole map instead of correcting it one claim at a time.
+
+
 When you had to correct or work out steps, save them through [Write Docs](../../write-docs/SKILL.md) in the same change, and move `Verified at` to the commit you drove. When the work's agreement does not cover documentation, propose the feature file in your report instead of writing it.
 
 ## When There Is No Recipe
 
-- **The project has a feature map, but not for this feature:** work out the steps the claim needs, drive them, and propose adding them as a feature file, saying what it would cost and what it would save later checks.
+- **The project has a feature map, but not for this feature:** work out the steps the claim needs, drive them, and propose adding them as a feature file with [Map Features](../../map-features/SKILL.md), saying what it would cost and what it would save later checks.
+- **The project has developer docs but no feature map:** work out the steps the claim needs, and propose setting up a map with Map Features, with its cost and what it would save.
 - **The project has no developer docs:** propose creating them through Write Docs before a feature map. Do not put the steps in `AGENTS.md` or another instruction file loaded on every turn.
 - **The software has nothing to run, such as a pure library:** its tests are the live check; there is no recipe to find.
