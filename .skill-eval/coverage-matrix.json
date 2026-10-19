@@ -450,7 +450,7 @@
       "case_concept": "Compare a neutral target with current verify-work on a saved green proof bundle containing contradictory event and runtime-identity evidence; candidate must downgrade the claim and name the exact missing boundary proof.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified. The test-changes script has its own tests (.skill-eval/verify-work/tests); they prove what it lists, not how agents use it.",
       "source_path": "skills/verify-work/SKILL.md",
-      "source_sha256": "c6269f44c5b3f15d8c00a0585a94f41ff6b550094e8d395564811086a18b7f6d",
+      "source_sha256": "212272969186a7d393af34dd507644e5ecd15793161c511c1a2716f89a36d433",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -504,7 +504,7 @@
       "case_concept": "After a behavior change, the stale subsystem doc is corrected in the same change and an intended-but-surprising behavior is recorded rather than 'fixed'.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/write-docs/SKILL.md",
-      "source_sha256": "9153fd87db9dec3504730f737ff03cfb1702d9e66d6015d36da12766af3781aa",
+      "source_sha256": "9db0ae758cb25367cdc503bc8670072fd59fe314df333f6c58148ed303f3c025",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

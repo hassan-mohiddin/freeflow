@@ -43,6 +43,7 @@ Read the relevant reference before designing or selecting evidence:
 - [Integration Evidence](references/integration-evidence.md) when a claim depends on a registered callback or executor, host lifecycle, producer invocation, fallback protocol, installed package, or absence counter.
 - [Browser Runtime Evidence](references/browser-runtime-evidence.md) for rendered UI, browser behavior, accessibility, networking, console state, visual output, or browser runtime performance.
 - [Performance Evidence](references/performance-evidence.md) for latency, throughput, memory, CPU, bundle, query, rendering, capacity, or resource-regression claims.
+- [Project Recipe](references/project-recipe.md) when a claim needs the project's running software, launched and driven the way a user would, not for a claim that a unit or integration test settles.
 
 Browser-performance claims need both browser fidelity and performance methodology. Loading a reference does not expand the required claim.
 
