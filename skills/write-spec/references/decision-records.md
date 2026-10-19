@@ -38,7 +38,7 @@ Use the repository's ADR or decision format when one exists. Otherwise adapt thi
 
 > **Doc ID:** DECISION-<stable-id>
 > **Type:** Decision | ADR
-> **Status:** Proposed | Accepted | Rejected | Superseded
+> **Status:** Proposed | Accepted | Rejected | Superseded | Retired
 > **Owner:** <decision owner>
 > **Source:** <accepted context and evidence>
 
@@ -66,9 +66,8 @@ Name who made or owns the decision when that matters. A reviewer can challenge a
 
 When a decision changes:
 
-- preserve the old record as `Superseded` rather than rewriting it to match the present;
-- create or identify the replacement decision;
-- link both directions;
+- preserve the old record as `Superseded` rather than rewriting it to match the present, or as `Retired`, with the date and the reason, when nothing replaces it;
+- create or identify the replacement decision, if there is one, and link both directions;
 - identify owning specs, plans, or policies whose current content depends on it and revise them when authorized;
 - mark dependent work contingent when a required decision or source revision remains unresolved;
 - preserve the evidence that justified the change.
@@ -77,4 +76,4 @@ Live evidence may show that implementation violates a decision or that the decis
 
 ## Avoid Duplication
 
-Reference the decision from dependent artifacts instead of copying its full rationale. Keep task-local decisions in the Working Record unless they become durable beyond the task.
+Reference the decision from dependent artifacts instead of copying its full rationale. When a durable decision shapes how existing software works, the owning subsystem doc's Decisions section states its current effect and points to the record; [Write Docs](../../write-docs/SKILL.md) keeps that section current. Keep task-local decisions in the Working Record unless they become durable beyond the task.
