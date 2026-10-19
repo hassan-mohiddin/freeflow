@@ -115,7 +115,7 @@ function requireSuiteReference(value, label, definitionPath) {
 }
 
 function validateInput(value, definitionPath) {
-  const input = requireExactKeys(value, [], ["prompt", "turns"], "group.input", definitionPath);
+  const input = requireExactKeys(value, [], ["prompt", "turns", "resume_before"], "group.input", definitionPath);
   const hasPrompt = Object.hasOwn(input, "prompt");
   const hasTurns = Object.hasOwn(input, "turns");
   if (hasPrompt === hasTurns) {
@@ -126,6 +126,39 @@ function validateInput(value, definitionPath) {
     const turns = requireStringArray(input.turns, "group.input.turns", definitionPath);
     if (turns.length === 0) fail("invalid-definition", "group.input.turns must not be empty", definitionPath);
   }
+  if (Object.hasOwn(input, "resume_before")) {
+    const before = input.resume_before;
+    const count = hasTurns ? input.turns.length : 0;
+    if (
+      !Array.isArray(before) ||
+      before.length === 0 ||
+      !before.every(
+        (turn, i) => Number.isInteger(turn) && turn >= 2 && turn <= count && (i === 0 || turn > before[i - 1]),
+      )
+    )
+      fail(
+        "invalid-definition",
+        "group.input.resume_before must list turn numbers from 2 to the number of turns, ascending, with group.input.turns",
+        definitionPath,
+      );
+  }
+}
+
+/** A session resumed between turns must be a body run in a persistent Pi session with one subject. */
+function validateResume(group, internal, definitionPath) {
+  if (group.input.resume_before === undefined) return;
+  const problem =
+    group.type !== "body"
+      ? "a body group"
+      : internal.host !== "pi"
+        ? "the pi host"
+        : internal.runtime?.session !== true
+          ? "configuration.runtime.session true, so the session has a file to resume"
+          : Object.values(internal.variants).some((variant) => variant.participants !== undefined) ||
+              group.participants !== undefined
+            ? "a group without participants"
+            : null;
+  if (problem !== null) fail("invalid-definition", `group.input.resume_before needs ${problem}`, definitionPath);
 }
 
 function validateSource(value, label, definitionPath) {
@@ -788,6 +821,7 @@ async function validateGroup(value, definitionPath, root) {
     const problems = claudeCodeGroupProblems(group, internal.configurations);
     if (problems.length > 0) fail("invalid-definition", problems[0], definitionPath);
   }
+  validateResume(group, internal, definitionPath);
   return internal;
 }
 

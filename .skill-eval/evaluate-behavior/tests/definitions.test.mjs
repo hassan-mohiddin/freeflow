@@ -612,3 +612,31 @@ test("suite selection preserves group order and marks an unselected variant with
     });
   });
 });
+
+test("resume_before names later turns of a body group in a persistent Pi session", async () => {
+  await withTempDirectory(async (root) => {
+    const definition = group("resumed", "body");
+    definition.input = { turns: ["Start.", "Continue.", "Finish."], resume_before: [3] };
+    const write = () => writeJson(root, "resumed.json", definition);
+    await assert.rejects(loadDefinition(await write(), { root }), {
+      code: "invalid-definition",
+      message: /resume_before needs configuration\.runtime\.session true/,
+    });
+    definition.runtime = { host: "pi", session: true, extensions: [], environment: { literal: {}, inherit: [] } };
+    const loaded = await loadDefinition(await write(), { root });
+    assert.deepEqual(loaded.input.resume_before, [3]);
+
+    for (const resume of [[1], [4], [3, 2], [], "3"]) {
+      definition.input.resume_before = resume;
+      await assert.rejects(loadDefinition(await write(), { root }), {
+        code: "invalid-definition",
+        message: /resume_before must list turn numbers/,
+      });
+    }
+    definition.input = { prompt: "Only one.", resume_before: [2] };
+    await assert.rejects(loadDefinition(await write(), { root }), { message: /resume_before must list turn numbers/ });
+    definition.input = { turns: ["Start.", "Continue."], resume_before: [2] };
+    definition.type = "description";
+    await assert.rejects(loadDefinition(await write(), { root }), { message: /resume_before needs a body group/ });
+  });
+});

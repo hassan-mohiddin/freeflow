@@ -57,6 +57,7 @@ Rules:
 - `input` contains exactly one of:
   - `prompt`: one non-empty string;
   - `turns`: a non-empty ordered array of non-empty strings. Repeated natural turns are allowed.
+- `input.resume_before` is optional, only with `turns`: ascending turn numbers from 2 to the number of turns. Before each named turn the subject's Pi session is closed and resumed from its own file (Pi's RPC `switch_session`, so extensions see `session_shutdown`, then `session_start` with reason `resume`), as a user resuming it would. It needs a body group on the `pi` host with `configuration.runtime.session` set to `true`, and no participants. Each resumed turn records `resumed.sessionFile` in `run.json`.
 - `fixture` is `null` or one contained relative directory path. The directory's contents become the workspace.
 - `tools` is an ordered array with no duplicates.
 - `configuration`, `arms`, `reference` and `component` follow [Configuration And Arms](#configuration-and-arms).

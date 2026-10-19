@@ -39,8 +39,11 @@ class RpcSession {
     afterTurn = null,
     nextPrompt = null,
     settings = {},
+    resumeBefore = [],
   }) {
     this.settings = settings;
+    // Turn numbers before which the session is closed and resumed from its own file, as `pi --resume` would.
+    this.resumeBefore = new Set(resumeBefore);
     // After the last declared prompt settles, `nextPrompt(turns)` may return one more prompt (a simulated user's
     // reply), or null to end the session.
     this.nextPrompt = nextPrompt;
@@ -105,7 +108,9 @@ class RpcSession {
       for (const [index, prompt] of deliveredPrompts.entries()) {
         if (this.signal?.aborted || this.terminationReason !== null) break;
         if (delivery.kind === "unavailable") delivery = { kind: "natural-prompt", turn: 1, targetPath: null };
+        const resumed = this.resumeBefore.has(index + 1) ? await this.resume() : null;
         const turn = await this.runTurn(index + 1, prompt);
+        if (resumed !== null) turn.resumed = resumed;
         this.turns.push(turn);
         if (this.afterTurn !== null) turn.workspace = await this.afterTurn(turn.turn);
         if (turn.assistantError !== null) break;
@@ -139,6 +144,21 @@ class RpcSession {
   async configure() {
     await this.sendCommand({ type: "set_auto_retry", enabled: this.settings.retry?.enabled === true });
     await this.sendCommand({ type: "set_auto_compaction", enabled: this.settings.compaction?.enabled === true });
+  }
+
+  /**
+   * Closes the session and opens it again from its file: Pi tears the session down (`session_shutdown`) and starts
+   * it anew with `session_start` reason `resume`, as a user resuming it would.
+   */
+  async resume() {
+    /** @type {any} */
+    const state = await this.sendCommand({ type: "get_state" });
+    const sessionFile = state.data?.sessionFile;
+    if (typeof sessionFile !== "string" || sessionFile === "") throw new Error("Pi RPC session has no file to resume");
+    /** @type {any} */
+    const result = await this.sendCommand({ type: "switch_session", sessionPath: sessionFile });
+    if (result.data?.cancelled === true) throw new Error("Pi cancelled resuming the session");
+    return { sessionFile };
   }
 
   async resolveSkillCommand(targetPath) {

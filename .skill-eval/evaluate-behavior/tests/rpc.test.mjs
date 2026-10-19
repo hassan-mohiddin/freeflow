@@ -149,6 +149,10 @@ process.stdin.on("data", (chunk) => {
     }
     const responseId = command.type === "prompt" && process.env.FAKE_RPC_WRONG_ID === "1" ? "wrong-id" : command.id;
     const response = { type: "response", id: responseId, command: command.type, success: true };
+    if (command.type === "get_state") {
+      const directory = args[args.indexOf("--session-dir") + 1];
+      response.data = { sessionFile: args.includes("--session-dir") ? path.join(directory, "fake-session.jsonl") : undefined };
+    }
     if (command.type === "get_commands") {
       response.data = {
         commands: skills.map((skill) => ({
@@ -1756,6 +1760,50 @@ test("declared Pi settings decide the RPC session's retry and compaction instead
         { type: "set_auto_retry", enabled: true },
         { type: "set_auto_compaction", enabled: false },
       ],
+    );
+  });
+});
+
+test("a body group resumes its session from its file before each turn resume_before names", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakeRpcPi(root);
+    const group = bodyGroup();
+    group.input = { turns: ["Start the task.", "Continue it.", "Finish it."], resume_before: [3] };
+    group.runtime = fakeRuntime({ session: true });
+    await writeSkill(root, "skills/release-route");
+    const definition = await writeJson(root, "groups/body.json", group);
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "baseline"], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        SKILL_EVAL_CREDENTIALS_DIR: path.join(tmpdir(), "skill-eval-no-credentials"),
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const commands = (await readJsonLines(fakeLog, "fake Pi log"))
+      .filter((entry) => entry.kind === "command" && !entry.command.type.startsWith("set_"))
+      .map(({ command }) => (command.type === "prompt" ? command.message : command.type));
+    assert.deepEqual(commands, ["Start the task.", "Continue it.", "get_state", "switch_session", "Finish it."]);
+    const switched = (await readJsonLines(fakeLog, "fake Pi log")).find(
+      (entry) => entry.command?.type === "switch_session",
+    );
+    assert.match(switched.command.sessionPath, /fake-session\.jsonl$/);
+
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    const run = parseJson(
+      await readFile(path.join(resultDirectory, "groups/body-behavior/baseline/run.json"), "utf8"),
+      "baseline body run",
+    );
+    assert.equal(run.state, "complete");
+    assert.deepEqual(
+      run.turns.map((turn) => turn.resumed?.sessionFile ?? null),
+      [null, null, switched.command.sessionPath],
     );
   });
 });
