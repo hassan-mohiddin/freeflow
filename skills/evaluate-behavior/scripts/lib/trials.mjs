@@ -9,6 +9,7 @@ import { createInvocationId, writeJson } from "./evidence.mjs";
 import { aggregateSections, hasAggregators } from "./hooks.mjs";
 import { createLimiter } from "./queue.mjs";
 import { createRunReuse, refreshSelectedLogins, resultsDirectory, runEvaluation } from "./runner.mjs";
+import { unclearedFlags } from "./scan.mjs";
 
 const CHECK_STATES = ["pass", "fail", "unavailable"];
 
@@ -65,7 +66,9 @@ export async function runTrials(definitionFile, selectors, options = {}) {
   const invoke = async (runSelectors, entry, extra = {}) => {
     const result = await evaluate(definitionFile, runSelectors, { ...shared, ...extra });
     onTrial?.(result);
-    return { result, entry: { id: result.id, state: result.state, ...entry } };
+    // Each trial's own spend; the aggregate's budget holds the run's total.
+    const cost = result.summary?.cost?.spent;
+    return { result, entry: { id: result.id, state: result.state, ...(cost === undefined ? {} : { cost }), ...entry } };
   };
   // Invocations in order with one job; otherwise all at once, sharing the subject slots. Recorded in plan order.
   const runAll = async (tasks) => {
@@ -152,9 +155,11 @@ export async function runTrials(definitionFile, selectors, options = {}) {
   if (pilotRecord !== null) aggregate.pilot = pilotRecord;
   const reused = reusedRuns(results);
   if (reused.length > 0) aggregate.reused = reused;
+  const held = heldRuns(groups);
+  if (held.length > 0) aggregate.held = held;
   if (schedule !== null) aggregate.schedule = { ...schedule, rounds };
   if (rule !== null) aggregate.decision = decide(rule, groups);
-  aggregate.claim = claimFor(results, initial, dryRun, aggregate.decision);
+  aggregate.claim = claimFor(results, initial, dryRun, aggregate.decision, held.length);
   if (budget !== null) aggregate.budget = budgetEvidence(budget);
   await writeJson(path.join(directory, "aggregate.json"), aggregate);
   return { id, path: directory, state: aggregate.state, aggregate };
@@ -169,10 +174,16 @@ export async function pilotProblems(result) {
   for (const group of result.summary?.groups ?? []) {
     for (const [arm, state] of Object.entries(group.variants ?? {})) {
       if (["cancelled", "infrastructure-failed", "invalid"].includes(state)) {
-        problems.push(`${group.id}: arm ${arm} is ${state}`);
+        const reason = state === "invalid" ? group.invalid?.[arm] : undefined;
+        problems.push(`${group.id}: arm ${arm} is ${state}${reason ? ` (${reason})` : ""}`);
       }
     }
     for (const error of group.errors ?? []) problems.push(`${group.id}: ${error.message ?? error.kind}`);
+    for (const [arm, flags] of Object.entries(group.flagged ?? {})) {
+      problems.push(
+        `${group.id}: arm ${arm} has transcript flags no one has cleared (${flags.join(", ")}); read them, then clear them with skill-eval clear or fix the setup`,
+      );
+    }
     const grade = await readJson(path.join(result.path, "groups", group.id, group.artifacts?.grade ?? ""));
     if (grade === null) {
       problems.push(`${group.id}: grade unreadable`);
@@ -187,6 +198,11 @@ export async function pilotProblems(result) {
     }
   }
   return problems;
+}
+
+/** Every run held out of the counts for transcript flags no one has cleared: the trial, group, arm and flags. */
+function heldRuns(groups) {
+  return groups.flatMap((group) => (group.held ?? []).map((entry) => ({ group: group.id, ...entry })));
 }
 
 /** Every run a trial took from the index instead of running it: the trial, group and arm, and where it came from. */
@@ -227,10 +243,13 @@ export async function rebuildAggregate(aggregatePath, { root = process.cwd(), re
     trialResults.push({ id: trial.id, path: directory, state: summary.state, summary });
   }
   const groups = await aggregateGroups(trialResults);
-  const rebuilt = { ...aggregate, groups };
+  const { held: _held, ...kept } = aggregate;
+  const rebuilt = { ...kept, groups };
+  const held = heldRuns(groups);
+  if (held.length > 0) rebuilt.held = held;
   if (aggregate.decision !== undefined) rebuilt.decision = decide(aggregate.decision.rule, groups);
   const k = aggregate.schedule?.initial ?? aggregate.requestedTrials;
-  rebuilt.claim = claimFor(trialResults, k, aggregate.dryRun === true, rebuilt.decision);
+  rebuilt.claim = claimFor(trialResults, k, aggregate.dryRun === true, rebuilt.decision, held.length);
   await writeJson(file, rebuilt);
   return rebuilt;
 }
@@ -260,17 +279,20 @@ async function loadSelection(definitionFile, selectors, root) {
  * on this suite. With one, the claim is the rule's verdict ("beats", "worse" or "no-difference-shown") with its
  * split, p and rule hash. A dry run read inputs no commit identifies, so it supports no claim either way.
  */
-function claimFor(results, k, dryRun, decision) {
+function claimFor(results, k, dryRun, decision, held = 0) {
   const complete = results.filter((result) => result.state === "complete").length;
+  // Runs held for uncleared transcript flags are left out of the counts and the decision; the claim says how many.
+  const heldNote = held > 0 ? { held } : {};
   if (decision !== undefined) {
     const reason = dryRun ? "dry run" : complete === 0 ? "no complete trial" : null;
-    return decisionClaim(decision, { k, supported: reason === null, reason });
+    return { ...decisionClaim(decision, { k, supported: reason === null, reason }), ...heldNote };
   }
   return {
     class: complete > 0 && !dryRun ? "rate-on-suite" : "none",
     ...(dryRun ? { reason: "dry run" } : {}),
     k,
     beats: "not supported: the suite declares no decision rule",
+    ...heldNote,
   };
 }
 
@@ -305,6 +327,7 @@ export async function aggregateGroups(results) {
           checks: new Map(),
           definition: null,
           perTrial: [],
+          held: [],
         };
         groups.set(group.id, entry);
       }
@@ -319,21 +342,30 @@ export async function aggregateGroups(results) {
         const state = group.variants?.[arm];
         if (typeof state === "string") states[state] = (states[state] ?? 0) + 1;
       }
+      const runs = Object.fromEntries(
+        await Promise.all(arms.map(async (arm) => [arm, await readJson(path.join(groupDirectory, arm, "run.json"))])),
+      );
+      // A run with transcript flags no one has cleared counts as unavailable and is named as held; read fresh, so a
+      // clearance made after the run takes effect when the aggregate is rebuilt.
+      const held = [];
+      for (const arm of arms) {
+        const flags = await unclearedFlags(runs[arm], path.join(groupDirectory, arm));
+        if (flags.length === 0) continue;
+        held.push(arm);
+        entry.held.push({ trial: result.id ?? null, arm, flags });
+      }
       // One trial's missing or corrupt grade is counted, not allowed to discard every other trial's evidence.
       const grade = await readJson(path.join(groupDirectory, group.artifacts?.grade ?? "deterministic-grade.json"));
       if (grade === null) entry.unreadableGrades += 1;
-      else countGrade(entry, grade);
+      else countGrade(entry, grade, new Set(held));
       if (collectTrials) {
         entry.perTrial.push({
           id: result.id ?? null,
           directory: groupDirectory,
           state: group.state ?? null,
           grade,
-          runs: Object.fromEntries(
-            await Promise.all(
-              arms.map(async (arm) => [arm, await readJson(path.join(groupDirectory, arm, "run.json"))]),
-            ),
-          ),
+          runs,
+          held,
         });
       }
     }
@@ -355,6 +387,7 @@ export async function aggregateGroups(results) {
         return { ...filled, trials: graded, passAll: graded > 0 && filled.pass === graded };
       }),
     };
+    if (entry.held.length > 0) output.held = entry.held;
     if (collectTrials) {
       Object.assign(
         output,
@@ -394,7 +427,7 @@ function seedChecks(entry) {
   }
 }
 
-function countGrade(entry, grade) {
+function countGrade(entry, grade, held = new Set()) {
   // A check that could not be graded is counted, so it cannot silently leave every denominator.
   entry.gradeErrors += Array.isArray(grade.errors) ? grade.errors.length : 0;
   for (const check of grade.checks ?? []) {
@@ -405,7 +438,8 @@ function countGrade(entry, grade) {
       ...zeroCounts(),
     };
     entry.checks.set(check.id, counts);
-    if (CHECK_STATES.includes(check.state)) counts[check.state] += 1;
+    if (held.has(check.variant)) holdOne(counts);
+    else if (CHECK_STATES.includes(check.state)) counts[check.state] += 1;
   }
   for (const comparison of grade.comparisons ?? []) {
     const { reference, arms, transitions } = comparisonArms(comparison);
@@ -423,14 +457,17 @@ function countGrade(entry, grade) {
       entry.comparisons.set(comparison.id, counts);
     }
     counts.recorded += 1;
+    // A held run's outcome is unavailable here, so the pair it makes is incomplete.
+    const stateOf = (arm) => (held.has(arm) ? "held" : arms?.[arm]?.state);
     for (const [arm, outcome] of Object.entries(arms ?? {})) {
       const armCounts = (counts.arms[arm] ??= zeroCounts());
-      if (CHECK_STATES.includes(outcome?.state)) armCounts[outcome.state] += 1;
+      if (held.has(arm)) holdOne(armCounts);
+      else if (CHECK_STATES.includes(outcome?.state)) armCounts[outcome.state] += 1;
       if (arm === reference) continue;
       const versus = (counts.outcomes[arm] ??= { transitions: {}, pairs: zeroPairs(reference, arm) });
-      const transition = transitions[arm];
+      const transition = held.has(arm) || held.has(reference) ? "held" : transitions[arm];
       versus.transitions[transition] = (versus.transitions[transition] ?? 0) + 1;
-      versus.pairs[pairOf(arms[reference]?.state, outcome?.state, reference, arm)] += 1;
+      versus.pairs[pairOf(stateOf(reference), stateOf(arm), reference, arm)] += 1;
     }
   }
 }
@@ -482,4 +519,10 @@ function zeroPairs(reference, arm) {
 
 function zeroCounts() {
   return { pass: 0, fail: 0, unavailable: 0 };
+}
+
+/** One held outcome: unavailable in every denominator and pass^k, and named in `held`. */
+function holdOne(counts) {
+  counts.unavailable += 1;
+  counts.held = (counts.held ?? 0) + 1;
 }

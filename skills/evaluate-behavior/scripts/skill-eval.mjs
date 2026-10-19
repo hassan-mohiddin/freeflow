@@ -5,6 +5,7 @@ import path from "node:path";
 import { createInterface } from "node:readline/promises";
 
 import { extensionLabel } from "./lib/build-source.mjs";
+import { clearRun } from "./lib/clear.mjs";
 import { loadDefinition, selectDefinition } from "./lib/definitions.mjs";
 import "./lib/metrics.mjs";
 import { createBudget } from "./lib/budget.mjs";
@@ -12,6 +13,7 @@ import { createLimiter, setCpuJobs } from "./lib/queue.mjs";
 import { checkSelection } from "./lib/reference.mjs";
 import { applySourceOverrides, parseSourceOverrides } from "./lib/source-override.mjs";
 import { createRunReuse, resultsDirectory, runEvaluation } from "./lib/runner.mjs";
+import { armSealing } from "./lib/seal.mjs";
 import { calibrateJudges, reviewResult, reviewRubric } from "./lib/review.mjs";
 import { runTrials } from "./lib/trials.mjs";
 import { renderResult } from "./lib/view.mjs";
@@ -34,6 +36,7 @@ const OPTIONS = {
     "--source",
   ],
   "check-tasks": ["--group"],
+  clear: ["--group", "--variant", "--flag", "--all", "--reason", "--results"],
   view: ["--group", "--variant", "--html", "--results"],
   review: [
     "--results",
@@ -60,12 +63,17 @@ function printUsage() {
   skill-eval check-tasks <suite-or-group-path> [--group <id-or-position>]
   skill-eval review <result-or-aggregate-id> --rubric [options]
   skill-eval review <result-or-aggregate-id> --calibrate <labels.json>
+  skill-eval clear <result-id-or-directory> [--group <id>] [--variant <arm>] (--flag <id>... | --all) --reason <text>
 
 Commands:
   run     Execute selected evaluation groups
   view    Render selected stored evidence or a trial aggregate
   review  Record an advisory, arm-blind model answer to each group's review questions
-  check-tasks  Check that each group's reference_solution passes its workspace and command checks, which must fail before it; no model
+  check-tasks  Check that each group's reference_solution passes its workspace and command checks, which must fail before it,
+          and list what each task's copy lacks against its original setting (Git history, ignored files, tools,
+          network); no model
+  clear   Record that a person read a run's transcript-scan flags and they do not taint it (with --reason), then
+          rebuild the aggregates that list the run; until then a flagged run is held out of every count and decision
 
 Selectors:
   --group <id-or-position>
@@ -147,6 +155,7 @@ function parseOperation(values) {
     swapSample: null,
     calibrate: null,
     html: null,
+    reason: null,
     jobs: null,
     cpuJobs: null,
     results: null,
@@ -159,7 +168,9 @@ function parseOperation(values) {
   let dryRun = false;
   let reuse = false;
   let skipReferenceCheck = false;
+  let all = false;
   const sourceValues = [];
+  const flags = [];
   const keys = {
     "--jobs": "jobs",
     "--cpu-jobs": "cpuJobs",
@@ -175,6 +186,7 @@ function parseOperation(values) {
     "--swap-sample": "swapSample",
     "--calibrate": "calibrate",
     "--html": "html",
+    "--reason": "reason",
   };
   for (let index = 0; index < options.length; index += 1) {
     const option = options[index];
@@ -186,6 +198,16 @@ function parseOperation(values) {
     }
     if (option === "--rubric") {
       rubric = true;
+      continue;
+    }
+    if (option === "--all") {
+      all = true;
+      continue;
+    }
+    if (option === "--flag") {
+      if (!value || value.startsWith("--")) throw new Error("--flag requires a flag ID, such as network-1");
+      flags.push(value);
+      index += 1;
       continue;
     }
     if (option === "--source") {
@@ -255,8 +277,13 @@ function parseOperation(values) {
   if (needsModel && parsed.model === null && parsed.configuration === null) {
     throw new Error("skill-eval review requires --model or --configuration");
   }
+  if (command === "clear") {
+    if (all === flags.length > 0) throw new Error("skill-eval clear needs either --flag <id> (repeatable) or --all");
+    if (parsed.reason === null) throw new Error("skill-eval clear needs --reason, the person's reason for clearing");
+  }
   return {
     target,
+    clear: { flags: all ? "all" : flags, reason: parsed.reason },
     selectors: { group: parsed.group, variant: parsed.variant },
     trials,
     maxCost,
@@ -319,6 +346,7 @@ async function planRun(operation, root) {
   }
   const trials = schedule?.initial ?? operation.trials ?? 1;
   let arms = 0;
+  let unsealed = 0;
   const models = new Set();
   const freeflow = new Set();
   const extensions = new Set();
@@ -326,6 +354,7 @@ async function planRun(operation, root) {
     for (const [arm, state] of Object.entries(variants)) {
       if (state !== "selected") continue;
       arms += 1;
+      if (armSealing(group, arm).network === "host") unsealed += 1;
       const model = group.variants[arm].model;
       models.add(model ? `${model.model}${model.thinking ? ` (${model.thinking})` : ""}` : "host default");
       if (group.variants[arm].freeflow) freeflow.add(group.variants[arm].freeflow.source.ref);
@@ -348,6 +377,10 @@ async function planRun(operation, root) {
   if (operation.jobs > 1) line += `; ${operation.jobs} subjects at once`;
   if (operation.pilot !== null) line += `; pilot of the first ${Math.min(operation.pilot, groups)} groups`;
   if (operation.reuse) line += "; reusing matching runs";
+  // Said before anything starts: code the subject writes will run on this machine, with its network and files.
+  if (unsealed > 0) {
+    line += `; unsealed: ${unsealed} arm${unsealed === 1 ? " runs" : "s run"} declared commands or graders on the host`;
+  }
   const overridden = Object.entries(operation.sources ?? {});
   if (overridden.length > 0) line += `; sources: ${overridden.map(([arm, commit]) => `${arm}=${commit}`).join(", ")}`;
   if (operation.dryRun) line += "; dry run";
@@ -430,6 +463,11 @@ async function checkTasks(operation) {
   for (const result of results) {
     process.stdout.write(`${result.id}: ${result.state}${result.reason ? ` (${result.reason})` : ""}\n`);
     for (const arm of result.arms ?? []) process.stdout.write(`  ${arm.arm}: ${arm.state}\n`);
+    // What the task's copy lacks against its original setting; reported for the author to judge, never refused.
+    for (const gap of result.copy?.gaps ?? []) process.stdout.write(`  copy lacks: ${gap}\n`);
+    for (const [arm, tools] of Object.entries(result.copy?.tools ?? {})) {
+      process.stdout.write(`  ${arm} tools: ${tools.join(", ") || "none"}; network: ${result.copy.network[arm]}\n`);
+    }
   }
   if (results.some((result) => result.state === "unsolvable" || result.state === "already-solved")) {
     process.exitCode = 1;
@@ -521,6 +559,20 @@ if (!command || command === "--help" || command === "-h") {
       await review(operation);
     } else if (command === "check-tasks") {
       await checkTasks(operation);
+    } else if (command === "clear") {
+      const outcome = await clearRun(operation.target, {
+        group: operation.selectors.group,
+        variant: operation.selectors.variant,
+        flags: operation.clear.flags,
+        reason: operation.clear.reason,
+        root: process.cwd(),
+        results: operation.results,
+      });
+      process.stdout.write(
+        `Cleared ${outcome.result} ${outcome.group} ${outcome.arm}: ${outcome.cleared.join(", ") || "nothing new"}\n` +
+          `Still held by: ${outcome.remaining.join(", ") || "nothing"}\n` +
+          `Aggregates rebuilt: ${outcome.rebuilt.join(", ") || "none"}\n`,
+      );
     } else {
       await run(operation);
     }

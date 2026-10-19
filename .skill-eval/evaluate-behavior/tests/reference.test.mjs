@@ -349,6 +349,47 @@ async function exists(file) {
   return (await stat(file).catch(() => null)) !== null;
 }
 
+test("check-tasks lists what the task's copy lacks: Git history, ignored files, tools and network", async () => {
+  await withRoot(async (root) => {
+    const group = calcGroup({ expectations: [sourceExpectation("a + b")], reference_solution: undefined });
+    group.input.prompt = "Fix add in src/add.mjs, read the keys in .env, run the tests after npm install, then commit.";
+    group.arms.sealed = {
+      environment: {
+        kind: "container",
+        image: `example.org/task@sha256:${"a".repeat(64)}`,
+        workdir: "/testbed",
+        network: "none",
+      },
+    };
+    group.component = ["environment"];
+    group.tools = ["read", "write", "edit"];
+    const definition = await writeTask(root, group);
+    // In this repository Git ignores .env and build/; the fixture holds a built file a clone would not have.
+    await write(path.join(root, ".gitignore"), ".env\nbuild/\n");
+    await write(path.join(root, "fixtures/calc/build/add.js"), "built\n");
+    spawnSync("git", ["init", "-q"], { cwd: root });
+
+    const result = await checkOne(root, definition);
+
+    assert.deepEqual(result.copy.gaps, [
+      "git history: the workspace is not a Git repository, and the task mentions commit",
+      "ignored files: the fixture holds build/add.js, which Git ignores, so a clone of the repository lacks them",
+      "ignored files the task names: .env; Git ignores them here, and the copy lacks them",
+      ...["baseline", "candidate", "sealed"].flatMap((arm) => [
+        `tools: arm ${arm} has no bash or run_command, and the task asks to run something`,
+        `network: arm ${arm} has none, and the task refers to it (npm install)`,
+      ]),
+    ]);
+    assert.deepEqual(result.copy.network, { baseline: "none", candidate: "none", sealed: "none" });
+    const printed = spawnSync(process.execPath, [entrypoint, "check-tasks", "groups/calc.json"], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    assert.match(printed.stdout, /^ {2}copy lacks: ignored files the task names: \.env;/m);
+    assert.match(printed.stdout, /^ {2}baseline tools: read, write, edit; network: none$/m);
+  });
+});
+
 const HALF_FIXED = "export function add(a, b) {\n  return Math.abs(a) + Math.abs(b);\n}\n";
 
 test("a task whose graders already pass on the unchanged fixture is already solved, and a run refuses it", async () => {

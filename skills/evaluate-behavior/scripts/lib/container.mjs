@@ -261,8 +261,13 @@ export function containerName(purpose) {
   return `skill-eval-${purpose}-${randomBytes(6).toString("hex")}`;
 }
 
-/** The options every evaluator container shares: limits, the declared network, and the workspace mount. */
-function runOptions(container, workspace) {
+/**
+ * The options every evaluator container shares: limits, the declared network, the workspace mount, and each
+ * declared resource (a skill, context, Freeflow's package) read-only at its own host path, so a path the subject
+ * was given, such as `node <skill>/scripts/x.mjs`, resolves in the container exactly as it does for `read`.
+ */
+function runOptions(container, workspace, resources = []) {
+  const mounts = resources.flatMap((resource) => ["--volume", `${resource}:${resource}:ro`]);
   return [
     "--label",
     "skill-eval=1",
@@ -276,6 +281,7 @@ function runOptions(container, workspace) {
     CONTAINER_LIMITS.pids,
     "--volume",
     `${workspace}:${container.workdir}`,
+    ...mounts,
     "--workdir",
     container.workdir,
   ];
@@ -283,10 +289,10 @@ function runOptions(container, workspace) {
 
 /**
  * Creates and starts a long-lived container for one subject (or one probe run) with the workspace mounted at
- * workdir. `remove()` force-removes it and is safe to call more than once; callers call it in `finally`, so a
- * cancelled run removes it too.
+ * workdir and each of `resources` (absolute host directories) read-only at the same path. `remove()` force-removes
+ * it and is safe to call more than once; callers call it in `finally`, so a cancelled run removes it too.
  */
-export async function startContainer({ container, workspace, purpose = "subject" }) {
+export async function startContainer({ container, workspace, resources = [], purpose = "subject" }) {
   const name = containerName(purpose);
   const host = await dockerHost();
   let removed = false;
@@ -302,7 +308,7 @@ export async function startContainer({ container, workspace, purpose = "subject"
         "create",
         "--name",
         name,
-        ...runOptions(container, workspace),
+        ...runOptions(container, workspace, resources),
         "--entrypoint",
         "sh",
         container.image,

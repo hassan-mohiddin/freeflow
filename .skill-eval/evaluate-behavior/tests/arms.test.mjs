@@ -240,8 +240,9 @@ test("a three-arm A/A/B group runs every arm and keys runs, grades, comparisons 
       const run = await readJson(path.join(groupDirectory, arm, "run.json"));
       assert.equal(run.variant, arm);
       assert.equal(run.state, "complete");
-      // With no post-run hook registered, a run has no postRun; the CLI always registers tracked metrics.
-      assert.equal(Object.hasOwn(run, "postRun"), false);
+      // The transcript scan is the only post-run hook that records for every run; the CLI always registers tracked
+      // metrics.
+      assert.deepEqual(run.postRun, { scan: { flags: [] } });
       assert.deepEqual(Object.keys(run.metrics), [
         "durationMs",
         "turns",
@@ -368,6 +369,7 @@ registerRunMetricsHook("dummy", ({ arm, observation, run }) => ({ dummyArm: arm,
       const run = await readJson(path.join(groupDirectory, arm, "run.json"));
       assert.equal(run.state, "complete");
       assert.deepEqual(run.postRun, {
+        scan: { flags: [] },
         dummy: { arm, state: "complete", directory: path.join(groupDirectory, arm) },
         broken: { error: "hook failed" },
       });

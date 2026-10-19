@@ -7,7 +7,8 @@ import { promisify } from "node:util";
 import { armNames } from "./arms.mjs";
 import { runCommandExpectation } from "./grade-command.mjs";
 import { gradeDeterministic } from "./grade.mjs";
-import { fingerprintDirectory, workspaceChanges } from "./sandbox.mjs";
+import { fingerprintDirectory, WORKSPACE, workspaceChanges } from "./sandbox.mjs";
+import { taskCopyGaps } from "./task-copy.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -233,10 +234,16 @@ function armOutcome(arm, result) {
   return { arm, state: "solvable", reason: null, checks };
 }
 
-/** Checks every selected group that declares a reference; groups without one are reported as not checkable. */
+/**
+ * Checks every selected group that declares a reference (groups without one are reported as not checkable), and
+ * lists for every group what its task copy lacks against the original setting (`copy`, from task-copy.mjs).
+ */
 export async function checkSelection(selection, { root, signal } = {}) {
   const results = [];
-  for (const { group } of selection.groups) results.push(await checkGroupReference(group, { root, signal }));
+  for (const { group } of selection.groups) {
+    const result = await checkGroupReference(group, { root, signal });
+    results.push({ ...result, copy: await taskCopyGaps(group, { root }) });
+  }
   return results;
 }
 
@@ -292,18 +299,23 @@ async function applyReference(group, { root, workspace }) {
       return { error: error instanceof Error ? error.message : String(error) };
     }
   }
-  const after = await fingerprintDirectory(workspace);
+  const after = await fingerprintDirectory(workspace, WORKSPACE);
   return { after, changes: workspaceChanges(before, after) };
 }
 
 /** Copies the fixture into `workspace` unchanged; the evidence shows no change. */
 async function copyFixture(group, { root, workspace }) {
   if (group.fixture !== null) {
-    await cp(path.resolve(root, group.fixture), workspace, { recursive: true, dereference: false, force: false });
+    await cp(path.resolve(root, group.fixture), workspace, {
+      recursive: true,
+      dereference: false,
+      verbatimSymlinks: true,
+      force: false,
+    });
   } else {
     await mkdir(workspace, { recursive: true });
   }
-  const after = await fingerprintDirectory(workspace);
+  const after = await fingerprintDirectory(workspace, WORKSPACE);
   return { after, changes: workspaceChanges(after, after) };
 }
 

@@ -2,7 +2,7 @@ import { mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 
 import { armNames } from "./arms.mjs";
-import { budgetEvidence, charge, reserve } from "./budget.mjs";
+import { budgetEvidence, charge, costEvidence, measuredCost, reserve, runBudgetEvidence } from "./budget.mjs";
 import { COMMAND_TOOL, loadDefinition, selectDefinition } from "./definitions.mjs";
 import { createInvocationId, fileIdentity, writeJson, writeText } from "./evidence.mjs";
 import { gradeDeterministic } from "./grade.mjs";
@@ -19,6 +19,9 @@ import { adoptRun, appendIndex, createReuse } from "./reuse.mjs";
 import { prepareFixture, prepareRuntime, verifyDescriptionOnlyRevision } from "./sandbox.mjs";
 import { applySourceOverrides } from "./source-override.mjs";
 import { runBody, runDescription, VariantSetupError } from "./subject.mjs";
+import { unclearedFlags } from "./scan.mjs";
+import { armSealing } from "./seal.mjs";
+import { applyValidityGate } from "./validity.mjs";
 
 const DESCRIPTION_TOOLS = new Set(["read"]);
 const BODY_TOOLS = new Set(["read", "write", "edit", "ls", "find", "grep"]);
@@ -126,12 +129,15 @@ export async function runEvaluation(definitionFile, selectors = {}, options = {}
     dryRun,
     indexEntries: [],
     sources,
+    // This invocation's own spend, apart from the run's shared budget, which every trial charges.
+    cost: { spent: 0, subjects: 0, unmeasured: 0 },
   };
   const runOne = (selected) =>
     runGroup({ ...context, selected, hostExtensions: hostExtensions.get(selected.group.id) });
   const groups =
     subjects.limit === 1 ? await sequential(selection.groups, runOne) : await Promise.all(selection.groups.map(runOne));
-  // Canonical complete runs become reusable; an index that cannot be written never fails the run.
+  // Canonical complete runs become reusable, with or without --reuse; an index that cannot be written never fails
+  // the run.
   if (!dryRun) await appendIndex(runsDirectory, context.indexEntries).catch(() => {});
   const state = batchState(groups);
   const summary = {
@@ -147,7 +153,9 @@ export async function runEvaluation(definitionFile, selectors = {}, options = {}
     completedAt: new Date().toISOString(),
   };
   if (hostVersion !== null) summary.hostVersion = hostVersion;
-  if (budget !== null) summary.budget = budgetEvidence(budget);
+  summary.cost = costEvidence(context.cost);
+  // The budget is the whole run's, shared by every trial: its total is what the run had spent when this one ended.
+  if (budget !== null) summary.budget = runBudgetEvidence(budget);
   await writeJson(path.join(resultDirectory, "summary.json"), summary);
   return { id: invocationId, path: resultDirectory, state, summary };
 }
@@ -283,15 +291,20 @@ export { budgetEvidence };
 
 /**
  * One subject in a slot: it waits for a free slot, starts only if nothing stopped the run and the budget can
- * reserve for it, and is charged what it cost. Returns `{ run, executed }`.
+ * reserve for it, and is charged what it cost, to the run's budget and to this invocation's own `cost`. Returns
+ * `{ run, executed }`.
  */
-async function runSubject({ group, variant, stopped, budget, subjects, execute }) {
+async function runSubject({ group, variant, stopped, budget, cost, subjects, execute }) {
   return subjects.run(async () => {
     if (stopped()) return { run: cancelledRun(group, variant), executed: false };
     const reservation = reserve(budget);
     if (reservation === null) return { run: cancelledRun(group, variant), executed: false };
     const run = await execute();
-    charge(budget, reservation, run.usage?.cost?.total ?? 0);
+    const spent = measuredCost(run.usage);
+    charge(budget, reservation, spent ?? 0);
+    cost.subjects += 1;
+    if (spent === null) cost.unmeasured += 1;
+    else cost.spent += spent;
     return { run, executed: true };
   });
 }
@@ -311,6 +324,7 @@ async function runGroup({
   dryRun,
   indexEntries,
   sources = null,
+  cost,
 }) {
   const { group } = selected;
   const arms = armNames(group);
@@ -366,9 +380,9 @@ async function runGroup({
     } else if (stopped()) {
       runs[variant] = cancelledRun(group, variant);
     } else if (resourceError === null) {
-      // With --reuse a canonical run has a reuse key: an indexed run under it stands in for this one, and a new
-      // run is indexed under it. Without --reuse nothing extra runs (not even the host's version check).
-      keys[variant] = dryRun || !reuse.enabled ? null : await reuse.keyFor(group, variant, root).catch(() => null);
+      // A canonical run has a reuse key, and a new complete run is indexed under it with or without --reuse, so a
+      // run made without it (a first run, a pilot on its own) can stand in later. Only --reuse claims an indexed run.
+      keys[variant] = dryRun ? null : await reuse.keyFor(group, variant, root).catch(() => null);
       const claimed = await reuse.claim(keys[variant]);
       const adopted = claimed === null ? null : await adoptRun(claimed, variantDirectory).catch(() => null);
       if (adopted !== null) {
@@ -380,6 +394,7 @@ async function runGroup({
           variant,
           stopped,
           budget,
+          cost,
           subjects,
           execute: () =>
             executeVariant({
@@ -397,10 +412,14 @@ async function runGroup({
         runs[variant] = run;
         if (executed) {
           if (confinement[variant] !== undefined) run.confinement = confinement[variant];
+          // What the subject's own code could reach: the network policy and where each path ran.
+          run.sealing = armSealing(group, variant, confinement[variant]);
           if (sources?.[variant] !== undefined) run.sourceOverride = sources[variant];
           if (sourceCommit !== null && run.resources?.source?.kind === "working-tree") {
             run.resources.source.commit = sourceCommit;
           }
+          // A run that shows no model at work is invalid before anything grades it; its graders then do not start.
+          applyValidityGate(run);
           // Post-run hooks see the finished run before it is persisted; their records land in run.json.
           const records = await postRunRecords({ group, arm: variant, run, root, directory: variantDirectory, signal });
           if (records !== null) run.postRun = records;
@@ -438,6 +457,18 @@ async function runGroup({
     errors: persistedGrade.errors,
   };
   if (Object.keys(reusedFrom).length > 0) groupResult.reused = reusedFrom;
+  // Why each invalid arm is invalid, so a pilot or a view can say it without opening the run.
+  const invalid = Object.fromEntries(
+    arms.filter((arm) => runs[arm].state === "invalid").map((arm) => [arm, runs[arm].error?.message ?? "invalid"]),
+  );
+  if (Object.keys(invalid).length > 0) groupResult.invalid = invalid;
+  // Each arm's transcript-scan flags no person has cleared yet; such a run is held out of every claim.
+  const flagged = {};
+  for (const arm of arms) {
+    const uncleared = await unclearedFlags(runs[arm], path.join(groupDirectory, arm));
+    if (uncleared.length > 0) flagged[arm] = uncleared;
+  }
+  if (Object.keys(flagged).length > 0) groupResult.flagged = flagged;
   // A complete run with a readable grade is indexed for reuse; a reused run is not, so it is reused once.
   const gradeReadable =
     persistedGrade.artifact === "deterministic-grade.json" && persistedGrade.grade.state !== "grade-error";

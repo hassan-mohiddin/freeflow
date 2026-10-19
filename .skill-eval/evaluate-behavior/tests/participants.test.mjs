@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readlink, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -51,7 +51,7 @@ async function installFakePi(root) {
   await write(
     executable,
     `#!/usr/bin/env node
-import { appendFileSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 const root = ${JSON.stringify(root)};
 const args = process.argv.slice(2);
@@ -94,9 +94,25 @@ process.stdin.on("data", (chunk) => {
     turn += 1;
     appendFileSync(path.join(root, "prompts.jsonl"), JSON.stringify({ stage, turn, message: command.message }) + "\\n");
     emit({ type: "agent_start" });
+    // With hollow-setup present, the setup stage settles with no model behind it, as after a failed login.
+    if (stage === "setup" && existsSync(path.join(root, "hollow-setup"))) {
+      emit({ type: "agent_settled" });
+      continue;
+    }
+    // With peek-setup present, the setup stage tries to read a host file outside its workspace.
+    if (stage === "setup" && existsSync(path.join(root, "peek-setup"))) {
+      emit({ type: "tool_execution_start", toolCallId: "p" + turn, toolName: "read", args: { path: "/etc/hosts" } });
+      emit({ type: "tool_execution_end", toolCallId: "p" + turn, toolName: "read", isError: true });
+    }
     emit({ type: "turn_start" });
     emit({ type: "tool_execution_start", toolCallId: "w" + turn, toolName: "write", args: { path: "SECRET-TOOL-ARG-" + stage + ".md" } });
     writeFileSync("notes-" + stage + ".md", "NOTES from " + stage + "\\n");
+    // With make-links present, the setup stage installs a CLI whose link points at the container's workdir.
+    if (stage === "setup" && existsSync(path.join(root, "make-links"))) {
+      mkdirSync("scratch/bin", { recursive: true });
+      symlinkSync("/testbed/bin/notes.mjs", "scratch/bin/notes");
+      symlinkSync("../../plan.md", "scratch/bin/plan");
+    }
     emit({ type: "tool_execution_end", toolCallId: "w" + turn, toolName: "write", isError: false });
     const reply = message("REPLY-" + stage + "-" + turn);
     emit({ type: "message_end", message: reply });
@@ -428,6 +444,70 @@ test("a stage can start from an earlier stage's workspace, binary files included
       assert.equal(run.state, "complete");
       assert.deepEqual(run.participants.stages[1].sees, ["setup.workspace"]);
     }
+  });
+});
+
+test("links an earlier stage made reach the next stage as links, and never lose the run", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    await writeFile(path.join(root, "make-links"), "");
+    const handoff = {
+      protocol: "pipeline",
+      stages: [
+        { id: "setup", input: "Set the project up.", sees: ["fixture"] },
+        { id: "follow", input: "Follow what setup wrote.", sees: ["setup.workspace", "setup.files"] },
+      ],
+    };
+    const file = await writeTask(root, baseGroup({ participants: handoff }));
+
+    const result = cli(root, bin, ["run", file]);
+
+    assert.equal(result.status, 0, result.stderr);
+    const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)[1], "groups/multi");
+    for (const arm of ["baseline", "candidate"]) {
+      const run = await readJson(path.join(groupDirectory, arm, "run.json"));
+      assert.equal(run.state, "complete", JSON.stringify(run.error));
+      // The follow stage started from setup's workspace with both links as they were, absolute and relative.
+      const workspace = path.join(groupDirectory, arm, "workspace");
+      assert.equal(await readlink(path.join(workspace, "scratch/bin/notes")), "/testbed/bin/notes.mjs");
+      assert.equal(await readlink(path.join(workspace, "scratch/bin/plan")), "../../plan.md");
+      const link = run.effects.after.find((entry) => entry.path === "scratch/bin/notes");
+      assert.deepEqual([link.type, link.target], ["symlink", "/testbed/bin/notes.mjs"]);
+    }
+  });
+});
+
+test("an earlier stage is scanned too, and a hollow earlier stage makes the arm invalid", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    const handoff = {
+      protocol: "pipeline",
+      stages: [
+        { id: "setup", input: "Set the project up.", sees: ["fixture"] },
+        { id: "follow", input: "Follow what setup wrote.", sees: ["setup.workspace"] },
+      ],
+    };
+    const file = await writeTask(root, baseGroup({ participants: handoff }));
+
+    await writeFile(path.join(root, "peek-setup"), "");
+    const peeked = cli(root, bin, ["run", file]);
+    assert.equal(peeked.status, 0, peeked.stderr);
+    const groupDirectory = path.join(peeked.stdout.match(/^Path: (.+)$/m)[1], "groups/multi");
+    const run = await readJson(path.join(groupDirectory, "baseline/run.json"));
+    assert.deepEqual(
+      run.postRun.scan.flags.map(({ id, stage, evidence }) => [id, stage, evidence.path]),
+      [["setup.outside-read-1", "setup", "/etc/hosts"]],
+    );
+    await rm(path.join(root, "peek-setup"));
+
+    await writeFile(path.join(root, "hollow-setup"), "");
+    const hollow = cli(root, bin, ["run", file]);
+    assert.notEqual(hollow.status, 0);
+    const hollowRun = await readJson(
+      path.join(hollow.stdout.match(/^Path: (.+)$/m)[1], "groups/multi/baseline/run.json"),
+    );
+    assert.equal(hollowRun.state, "invalid");
+    assert.match(hollowRun.error.message, /^stage setup did not complete: not valid evidence: no model turn/);
   });
 });
 

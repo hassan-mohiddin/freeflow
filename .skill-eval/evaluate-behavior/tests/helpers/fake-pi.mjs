@@ -13,9 +13,10 @@ async function write(file, contents, mode) {
  * A small Pi stand-in. In JSON mode it loads each --extension with a minimal extension API (on, registerTool),
  * asks the configured models.json endpoint for tool calls, passes each through the extensions' tool_call
  * handlers, and runs it with an extension's tool or, failing that, the host shell, reporting Pi's JSON events.
- * In RPC mode it answers a body subject's prompt with a short reply.
+ * In RPC mode it answers a body subject's prompt with a short reply, first running \`rpcBash\` (when given) as one
+ * bash tool call through the extensions, with \`{skill}\` replaced by the first declared skill's directory.
  */
-export async function installFakePi(root) {
+export async function installFakePi(root, { rpcBash = null } = {}) {
   const bin = path.join(root, "bin");
   const log = path.join(root, "pi.jsonl");
   await write(
@@ -60,6 +61,15 @@ if (mode === "rpc") {
       }
       const message = { role: "assistant", content: [{ type: "text", text: "done" }], provider: "fake", model: "fake", usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } }, stopReason: "stop" };
       emit({ type: "agent_start" });
+      const rpcBash = ${JSON.stringify(rpcBash)};
+      if (rpcBash !== null) {
+        const skill = flag("--skill")[0] ?? "";
+        const input = { command: rpcBash.replaceAll("{skill}", skill) };
+        emit({ type: "tool_execution_start", toolCallId: "b", toolName: "bash", args: input });
+        const blocked = (handlers.get("tool_call") ?? []).map((handler) => handler({ toolName: "bash", input }, { cwd: process.cwd() })).find((result) => result?.block);
+        const result = blocked ? { status: 1 } : spawnSync("/bin/sh", ["-c", input.command], { cwd: process.cwd(), env: process.env, encoding: "utf8" });
+        emit({ type: "tool_execution_end", toolCallId: "b", toolName: "bash", result: { content: [{ type: "text", text: (result.stdout ?? "") + (result.stderr ?? "") }] }, isError: result.status !== 0 });
+      }
       emit({ type: "message_end", message });
       emit({ type: "turn_end", message, toolResults: [] });
       emit({ type: "agent_end", messages: [message], willRetry: false });

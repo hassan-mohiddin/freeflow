@@ -2,6 +2,7 @@
 // Importing this module registers the run-metrics hook and the `metrics` aggregator; the CLI imports it once.
 // A metric whose evidence is missing is null, never 0, so an absent measurement cannot read as a free one.
 
+import { measuredCost } from "./budget.mjs";
 import { registerAggregator, registerRunMetricsHook } from "./hooks.mjs";
 
 /** Metric names as decision rules and `perTrial` values name them; nested run.json fields use a dotted path. */
@@ -44,7 +45,8 @@ export function runMetricsFor({ observation, run }) {
     toolCalls: activity === null ? null : activity.length,
     toolErrors: activity === null ? null : activity.filter((entry) => entry?.isError === true).length,
     tokens,
-    cost: number(usage?.cost?.total),
+    // Null when unmeasured: a zero cost for a run that used tokens is a missing price, not a free run.
+    cost: measuredCost(usage),
     // The share of prompt tokens served from the provider's cache.
     cacheHitRate: prompted === null || prompted === 0 ? null : tokens.cacheRead / prompted,
   };
@@ -68,7 +70,13 @@ export function metricValues(run) {
 export function aggregateMetrics({ arms, reference, trials }) {
   const perTrial = [];
   for (const trial of trials) {
-    for (const arm of arms) perTrial.push({ trial: trial.id, arm, values: metricValues(trial.runs?.[arm]) });
+    // Only a complete run's metrics count: an invalid, failed or cancelled run's cost or turns are no measure of
+    // the arm, and must never reach a decision; nor do a run's held for transcript flags no one has cleared.
+    for (const arm of arms) {
+      const run = trial.runs?.[arm];
+      const counted = run?.state === "complete" && !trial.held?.includes(arm);
+      perTrial.push({ trial: trial.id, arm, values: metricValues(counted ? run : null) });
+    }
   }
   const valuesOf = (arm, name) => perTrial.filter((entry) => entry.arm === arm).map((entry) => entry.values[name]);
   const summaries = {};

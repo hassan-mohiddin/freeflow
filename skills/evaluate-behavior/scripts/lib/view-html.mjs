@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { storedArms } from "./arms.mjs";
 import { claimSummary, trialCounts, verdictText } from "./decision.mjs";
+import { readSubjectFile, skippedNote } from "./subject-file.mjs";
 import { resolveResult } from "./view.mjs";
 
 // Run content (responses, changed files, tool arguments) can be large or hostile; every value passes through esc().
@@ -148,11 +149,18 @@ async function changedFileEntry(kind, relative, workspace) {
   if (!file.startsWith(`${workspace}${path.sep}`)) {
     return `<details><summary>${label}</summary><p class="missing">Path leaves the workspace; not shown.</p></details>`;
   }
-  const text = await readText(file);
-  if (text === null) return `<details><summary>${label}</summary><p class="missing">Content unavailable.</p></details>`;
-  const cut = text.length > CONTENT_CAP;
-  const shown = cut ? text.slice(0, CONTENT_CAP) : text;
-  const note = cut ? `<p class="missing">Cut at ${CONTENT_CAP} of ${text.length} characters.</p>` : "";
+  // Never through a link the run made, and only a regular file inside the workspace, read to a bound.
+  const read = await readSubjectFile(workspace, relative, { limit: CONTENT_CAP * 4 });
+  if (read.skipped !== undefined) {
+    const why =
+      read.skipped === "missing" || read.skipped === "binary" ? "Content unavailable." : `${skippedNote(read)}.`;
+    return `<details><summary>${label}</summary><p class="missing">${esc(why)}</p></details>`;
+  }
+  const { text } = read;
+  const cut = read.truncated || text.length > CONTENT_CAP;
+  const shown = text.length > CONTENT_CAP ? text.slice(0, CONTENT_CAP) : text;
+  const of = read.truncated ? `${read.size} bytes` : `${text.length} characters`;
+  const note = cut ? `<p class="missing">Cut at ${CONTENT_CAP} of ${of}.</p>` : "";
   return `<details><summary>${label}</summary>${preBlock(shown)}${note}</details>`;
 }
 

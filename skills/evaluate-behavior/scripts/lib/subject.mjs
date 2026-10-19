@@ -18,6 +18,7 @@ import {
   snapshotWorkspace,
   verifyEnvironment,
   verifyRuntime,
+  WORKSPACE,
   workspaceChanges,
 } from "./sandbox.mjs";
 
@@ -64,7 +65,7 @@ export async function runBody({
   const options = { group, variant, root, variantDirectory, fixture, runtime, freeflow, hostExtensions, signal };
   options.extendEnvironment = extendEnvironment;
   const subject = await prepareSubject(options, "rpc");
-  const before = await fingerprintDirectory(subject.workspace);
+  const before = await fingerprintDirectory(subject.workspace, WORKSPACE);
   const declaredPrompts = group.input.prompt === undefined ? [...group.input.turns] : [group.input.prompt];
   // A container environment runs the subject's bash and declared commands in a container of its own, removed even
   // when the run is cancelled. A group with neither needs no subject container; its graders still run in the image.
@@ -73,7 +74,13 @@ export async function runBody({
   let container = null;
   if (declaredContainer !== undefined) {
     const { containerTarget, startContainer } = await import("./container.mjs");
-    container = await startContainer({ container: declaredContainer, workspace: subject.workspace });
+    // The subject's declared resources are mounted read-only at the paths it was given, so its bash can run a
+    // skill's scripts; the workspace is the only writable mount.
+    container = await startContainer({
+      container: declaredContainer,
+      workspace: subject.workspace,
+      resources: subject.resourceRoots,
+    });
     subject.processEnvironment.SKILL_EVAL_CONTAINER = containerTarget(container, declaredContainer);
   }
   let observation;
@@ -106,7 +113,8 @@ export async function runBody({
   observation.contextObservationArtifact = contextObservation.artifact;
   if (contextObservation.error) (observation.protocolErrors ??= []).push(contextObservation.error);
   await verifySubjectResources(subject, observation);
-  const after = await fingerprintDirectory(subject.workspace);
+  // Links the subject made are recorded with their targets, never followed, so an installer's link cannot lose the run.
+  const after = await fingerprintDirectory(subject.workspace, WORKSPACE);
 
   const turns = [];
   for (const [index, turn] of observation.turns.entries()) {
@@ -183,6 +191,8 @@ function subjectRun({ group, variant }, subject, observation) {
       hostExtensions: subject.hostExtensions,
       contextDelivery: subject.environment.contextDelivery,
       targetPath: subject.environment.targetPath,
+      // Everything the subject's tools could read: the workspace first, then its declared resources.
+      readableRoots: [subject.workspaceRoot, ...subject.resourceRoots],
     },
     isolation: subject.isolation,
     contextObservationArtifact: observation.contextObservationArtifact ?? null,
@@ -400,6 +410,9 @@ async function prepareSubject(
     host,
     fixture,
     workspace,
+    workspaceRoot: allowedRoots[0],
+    // Every readable root but the workspace: the declared skills, context, runtime resources and Freeflow's package.
+    resourceRoots: allowedRoots.slice(1),
     contextObservationPath,
     requiresContextObservation,
     sessionDirectory,

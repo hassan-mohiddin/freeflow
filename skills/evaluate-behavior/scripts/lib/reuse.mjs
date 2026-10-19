@@ -1,7 +1,8 @@
 // Reuse (E-1): a complete, canonical run can stand in for a new trial of the same arm when nothing that could
 // change its behavior changed. Each such run is indexed in `<results>/index.jsonl` under a key over the group's
 // task and inputs, the arm's effective configuration and inputs, the model, the host version and this
-// evaluator's own source. `--reuse` counts a matching run instead of running the arm again.
+// evaluator's own source, whenever a canonical run completes. `--reuse` counts a matching run instead of running
+// the arm again.
 
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -11,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { isSourceExtension } from "./build-source.mjs";
+import { unclearedFlags } from "./scan.mjs";
 
 const execFileAsync = promisify(execFile);
 const SCRIPTS = fileURLToPath(new URL("../", import.meta.url));
@@ -187,8 +189,9 @@ async function readJson(file) {
 }
 
 /**
- * The reuse state shared by every invocation of one run or aggregate: whether `--reuse` is on, the index as it
- * stood when the run began, each host's version, and the runs already reused, so none is reused twice.
+ * The reuse state shared by every invocation of one run or aggregate: whether `--reuse` is on (only then does it
+ * claim indexed runs; keys are computed either way, so new runs are indexed), the index as it stood when the run
+ * began, each host's version, and the runs already reused, so none is reused twice.
  *
  * @param {{resultsDirectory: string, enabled: boolean, hostVersion: (host: string) => Promise<string | null>}} options
  */
@@ -211,9 +214,9 @@ export function createReuse({ resultsDirectory, enabled, hostVersion }) {
       return reuseKey({ group, arm, root, hostVersion: host });
     },
     /**
-     * Claims an indexed run for this key that this run has not used, whose run is still complete and whose group
-     * grade is still readable; null when there is none. The claim happens before any wait, so parallel groups
-     * never claim the same run.
+     * Claims an indexed run for this key that this run has not used, whose run is still complete, not held for
+     * transcript flags no person has cleared, and whose group grade is still readable; null when there is none. The
+     * claim happens before any wait, so parallel groups never claim the same run.
      */
     async claim(key) {
       if (!enabled || key === null) return null;
@@ -228,6 +231,8 @@ export function createReuse({ resultsDirectory, enabled, hostVersion }) {
         const grade = await readJson(path.join(groupDirectory, "deterministic-grade.json"));
         const summary = await readJson(path.join(resultsDirectory, entry.result, "summary.json"));
         if (run?.state !== "complete" || grade === null || grade.state === "grade-error") continue;
+        // A held run counts toward nothing until a person clears its flags, so it cannot stand in for a new one.
+        if ((await unclearedFlags(run, path.join(groupDirectory, entry.arm))).length > 0) continue;
         if (summary === null || summary.dryRun !== false) continue;
         return { ...entry, directory: path.join(groupDirectory, entry.arm) };
       }

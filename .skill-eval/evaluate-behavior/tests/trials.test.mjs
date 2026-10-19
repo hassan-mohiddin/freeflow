@@ -10,7 +10,7 @@ import { aggregateGroups } from "../../../skills/evaluate-behavior/scripts/lib/t
 import { toV2 } from "./helpers/to-v2.mjs";
 
 const entrypoint = fileURLToPath(new URL("../../../skills/evaluate-behavior/scripts/skill-eval.mjs", import.meta.url));
-const FAKE_KEYS = ["FAKE_PI_LOG", "FAKE_PI_COST"];
+const FAKE_KEYS = ["FAKE_PI_LOG", "FAKE_PI_COST", "FAKE_PI_HOLLOW", "FAKE_PI_PEEK"];
 
 async function withTempDirectory(run) {
   const directory = await realpath(await mkdtemp(path.join(tmpdir(), "skill-eval-trials-test-")));
@@ -41,6 +41,21 @@ const skills = args.flatMap((arg, index) => arg === "--skill" ? [args[index + 1]
 if (process.env.FAKE_PI_LOG) appendFileSync(process.env.FAKE_PI_LOG, JSON.stringify({ kind: "spawn", cwd: process.cwd() }) + "\\n");
 const emit = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
 emit({ type: "agent_start" });
+// A host that exits cleanly without a model behind it, as after a failed login: no message, or an empty one.
+if (process.env.FAKE_PI_HOLLOW === "no-message") {
+  emit({ type: "agent_settled" });
+  process.exit(0);
+}
+if (process.env.FAKE_PI_HOLLOW === "empty") {
+  emit({ type: "message_end", message: { role: "assistant", content: [], provider: "fake", model: "fake-model", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } }, stopReason: "stop" } });
+  emit({ type: "agent_settled" });
+  process.exit(0);
+}
+// A subject that tries to read a host instruction file outside its workspace (the guard would block it).
+if (process.env.FAKE_PI_PEEK) {
+  emit({ type: "tool_execution_start", toolCallId: "p", toolName: "read", args: { path: process.env.FAKE_PI_PEEK } });
+  emit({ type: "tool_execution_end", toolCallId: "p", toolName: "read", isError: true });
+}
 if (skills[0]) {
   emit({ type: "tool_execution_start", toolCallId: "r", toolName: "read", args: { path: skills[0] + "/SKILL.md" } });
   emit({ type: "tool_execution_end", toolCallId: "r", toolName: "read", isError: false });
@@ -184,7 +199,8 @@ test("--max-cost stops starting subjects once host-reported cost reaches the cei
     const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
     const summary = JSON.parse(await readFile(path.join(resultDirectory, "summary.json"), "utf8"));
     assert.equal(summary.state, "cancelled");
-    assert.deepEqual(summary.budget, { maxCost: 0.5, spent: 0.8, exhausted: true, overshoot: 0.3 });
+    assert.deepEqual(summary.budget, { maxCost: 0.5, runTotal: 0.8, exhausted: true, overshoot: 0.3 });
+    assert.deepEqual(summary.cost, { spent: 0.8, subjects: 2, unmeasured: 0 });
     assert.deepEqual(summary.groups[1].variants, { baseline: "cancelled", candidate: "cancelled" });
   });
 });
@@ -210,6 +226,213 @@ test("the cost ceiling is shared across trials", async () => {
     assert.equal(aggregate.state, "cancelled");
     assert.equal(aggregate.trials.length, 2);
     assert.deepEqual(aggregate.budget, { maxCost: 1, spent: 1.2, exhausted: true, overshoot: 0.2 });
+  });
+});
+
+test("a subject that used tokens but reports no price counts as unmeasured cost, never as free", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    await writeSkill(root);
+    const definition = await writeJson(root, "groups/activation.json", group("activation"));
+
+    // The fake host reports tokens and a cost of 0, as Pi does for a model it has no price for.
+    const result = runCli(root, bin, ["run", definition]);
+
+    assert.equal(result.status, 0, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    const summary = JSON.parse(await readFile(path.join(resultDirectory, "summary.json"), "utf8"));
+    assert.deepEqual(summary.cost, { spent: 0, subjects: 2, unmeasured: 2 });
+    const run = JSON.parse(await readFile(path.join(resultDirectory, "groups/activation/candidate/run.json"), "utf8"));
+    assert.equal(run.metrics.cost, null);
+    const viewed = runCli(root, bin, ["view", summary.id]);
+    assert.match(viewed.stdout, /^cost\tspent=0\tsubjects=2\tunmeasured=2$/m);
+  });
+});
+
+test("each trial records its own cost, apart from the run's running total", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    await writeSkill(root);
+    const definition = await writeJson(root, "groups/activation.json", group("activation"));
+
+    const result = runCli(root, bin, ["run", definition, "--trials", "3", "--max-cost", "10"], { FAKE_PI_COST: "0.4" });
+
+    assert.equal(result.status, 0, result.stderr);
+    const aggregateId = result.stdout.match(/^Aggregate: (.+)$/m)?.[1];
+    const runs = path.join(root, ".skill-eval/runs");
+    const aggregate = JSON.parse(await readFile(path.join(runs, aggregateId, "aggregate.json"), "utf8"));
+    const summaries = await Promise.all(
+      aggregate.trials.map(async (trial) =>
+        JSON.parse(await readFile(path.join(runs, trial.id, "summary.json"), "utf8")),
+      ),
+    );
+    // Two subjects at 0.4 each: every trial's own cost is 0.8, while the run's total grows trial by trial.
+    assert.deepEqual(
+      summaries.map((summary) => summary.cost),
+      Array(3).fill({ spent: 0.8, subjects: 2, unmeasured: 0 }),
+    );
+    assert.deepEqual(
+      summaries.map((summary) => summary.budget.runTotal),
+      [0.8, 1.6, 2.4],
+    );
+    assert.deepEqual(
+      aggregate.trials.map((trial) => trial.cost),
+      [0.8, 0.8, 0.8],
+    );
+    assert.equal(aggregate.budget.spent, 2.4);
+    const viewed = runCli(root, bin, ["view", aggregateId]);
+    assert.match(viewed.stdout, /^trial\t\S+\tcomplete\tcost=0\.8$/m);
+    const trialView = runCli(root, bin, ["view", aggregate.trials[2].id]);
+    assert.match(trialView.stdout, /^cost\tspent=0\.8\tsubjects=2$/m);
+    assert.match(trialView.stdout, /^budget\tmax-cost=10\trun-total=2\.4\texhausted=false$/m);
+  });
+});
+
+test("a run that never reached a model is invalid with its reasons, never a fail, and stops a pilot", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    await writeSkill(root);
+    const definition = await writeJson(root, "groups/activation.json", group("activation"));
+
+    // The failed-login pattern: the host exits cleanly and no model ever answers.
+    const piloted = runCli(root, bin, ["run", definition, "--trials", "3", "--pilot", "1"], {
+      FAKE_PI_HOLLOW: "no-message",
+    });
+
+    assert.equal(piloted.status, 1);
+    assert.match(piloted.stdout, /^Pilot: (\S+) stopped the run$/m);
+    assert.match(
+      piloted.stdout,
+      /^ {2}- activation: arm baseline is invalid \(not valid evidence: no model turn: .+; no tokens: .+\)$/m,
+    );
+    const pilotId = piloted.stdout.match(/^Pilot: (\S+) stopped the run$/m)[1];
+    const groupDirectory = path.join(root, ".skill-eval/runs", pilotId, "groups/activation");
+    const run = JSON.parse(await readFile(path.join(groupDirectory, "candidate/run.json"), "utf8"));
+    assert.equal(run.state, "invalid");
+    assert.equal(run.error.kind, "validity");
+    assert.deepEqual(
+      run.error.reasons.map((reason) => reason.split(":")[0]),
+      ["no model turn", "no tokens", "no answer and nothing written in the workspace"],
+    );
+    // Never a fail: every check and the comparison are unavailable.
+    const grade = JSON.parse(await readFile(path.join(groupDirectory, "deterministic-grade.json"), "utf8"));
+    assert.deepEqual(
+      grade.checks.map((check) => check.state),
+      ["unavailable", "unavailable"],
+    );
+
+    // An empty answer with no tokens is invalid too; it has a message, so only the other two reasons hold.
+    const empty = runCli(root, bin, ["run", definition], { FAKE_PI_HOLLOW: "empty" });
+    assert.equal(empty.status, 1);
+    const summary = JSON.parse(
+      await readFile(path.join(empty.stdout.match(/^Path: (.+)$/m)[1], "summary.json"), "utf8"),
+    );
+    assert.deepEqual(summary.groups[0].variants, { baseline: "invalid", candidate: "invalid" });
+    assert.match(
+      summary.groups[0].invalid.candidate,
+      /^not valid evidence: no tokens: .+; no answer and nothing written/,
+    );
+    const viewed = runCli(root, bin, ["view", empty.stdout.match(/^Result: (.+)$/m)[1]]);
+    assert.match(viewed.stdout, /Candidate \[invalid\]/);
+    assert.match(viewed.stdout, /no tokens/);
+  });
+});
+
+test("a flagged run is held out of the counts until a person clears it, and a pilot stops on it", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    await writeSkill(root);
+    const definition = await writeJson(root, "groups/activation.json", group("activation"));
+    const peek = { FAKE_PI_PEEK: path.join(root, "host-home/.claude/CLAUDE.md") };
+
+    const piloted = runCli(root, bin, ["run", definition, "--trials", "2", "--pilot", "1"], peek);
+    assert.equal(piloted.status, 1);
+    assert.match(
+      piloted.stdout,
+      /^ {2}- activation: arm candidate has transcript flags no one has cleared \(instruction-file-1\)/m,
+    );
+
+    const result = runCli(root, bin, ["run", definition, "--trials", "2"], peek);
+    assert.equal(result.status, 0, result.stderr);
+    const runs = path.join(root, ".skill-eval/runs");
+    const aggregateId = result.stdout.match(/^Aggregate: (.+)$/m)?.[1];
+    const read = async () => JSON.parse(await readFile(path.join(runs, aggregateId, "aggregate.json"), "utf8"));
+    let aggregate = await read();
+    const [first, second] = aggregate.trials.map((trial) => trial.id);
+    const run = JSON.parse(await readFile(path.join(runs, first, "groups/activation/candidate/run.json"), "utf8"));
+    assert.deepEqual(
+      run.postRun.scan.flags.map(({ id, kind, evidence }) => [id, kind, evidence.path, evidence.blocked]),
+      [["instruction-file-1", "instruction-file", peek.FAKE_PI_PEEK, true]],
+    );
+    // The run is graded as usual, but the counts hold it: unavailable, named as held, and no pass^k.
+    const check = (id) => aggregate.groups[0].checks.find((entry) => entry.id === id);
+    assert.deepEqual(
+      { ...check("candidate-read"), trials: undefined },
+      {
+        id: "candidate-read",
+        variant: "candidate",
+        kind: "skill-read",
+        pass: 0,
+        fail: 0,
+        unavailable: 2,
+        held: 2,
+        trials: undefined,
+        passAll: false,
+      },
+    );
+    assert.equal(aggregate.held.length, 4);
+    assert.equal(aggregate.claim.held, 4);
+
+    // A person clears the first trial's flags with a reason; the aggregate is rebuilt and counts those runs again.
+    for (const arm of ["baseline", "candidate"]) {
+      const cleared = runCli(root, bin, [
+        "clear",
+        first,
+        "--variant",
+        arm,
+        "--all",
+        "--reason",
+        "the fixture names that file",
+      ]);
+      assert.equal(cleared.status, 0, cleared.stderr);
+      assert.match(cleared.stdout, new RegExp(`^Aggregates rebuilt: ${aggregateId}$`, "m"));
+    }
+    aggregate = await read();
+    assert.deepEqual([check("candidate-read").pass, check("candidate-read").held], [1, 1]);
+    assert.deepEqual(
+      aggregate.held.map(({ trial, arm }) => [trial, arm]),
+      [
+        [second, "baseline"],
+        [second, "candidate"],
+      ],
+    );
+    const clearances = JSON.parse(
+      await readFile(path.join(runs, first, "groups/activation/candidate/clearances.json"), "utf8"),
+    );
+    assert.deepEqual(
+      clearances.cleared.map(({ flag, reason }) => [flag, reason]),
+      [["instruction-file-1", "the fixture names that file"]],
+    );
+    const trialView = runCli(root, bin, ["view", first, "--variant", "candidate"]);
+    assert.match(trialView.stdout, /^ {2}flag\tinstruction-file-1\t.+\tcleared: the fixture names that file$/m);
+    const aggregateView = runCli(root, bin, ["view", aggregateId]);
+    assert.match(
+      aggregateView.stdout,
+      new RegExp(`^held\\t${second}\\tactivation\\tcandidate\\tflags=instruction-file-1$`, "m"),
+    );
+    // An unknown flag is refused.
+    const unknown = runCli(root, bin, [
+      "clear",
+      second,
+      "--variant",
+      "candidate",
+      "--flag",
+      "network-9",
+      "--reason",
+      "x",
+    ]);
+    assert.equal(unknown.status, 1);
+    assert.match(unknown.stderr, /the run has no flag network-9; its flags: instruction-file-1/);
   });
 });
 

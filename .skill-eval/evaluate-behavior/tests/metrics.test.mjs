@@ -107,6 +107,11 @@ test("missing usage, timestamps or tool activity give null, never 0", () => {
   assert.equal(empty.toolCalls, 0);
   assert.equal(empty.cacheHitRate, null);
   assert.equal(empty.cost, null);
+  // A cost of 0 is a measure only when no token was used: tokens at no price are a missing price, not a free run.
+  const priced = (usage) => runMetricsFor({ observation: { turns: [] }, run: { usage } }).cost;
+  assert.equal(priced({ input: 120, output: 30, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } }), null);
+  assert.equal(priced({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } }), 0);
+  assert.equal(priced({ input: 120, output: 30, cacheRead: 0, cacheWrite: 0, cost: { total: 0.004 } }), 0.004);
 });
 
 /** Run metrics per trial and arm: [durationMs, input tokens, cost]; null leaves the run without metrics. */

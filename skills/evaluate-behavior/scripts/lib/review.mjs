@@ -25,6 +25,7 @@ import {
 } from "./judge.mjs";
 import { hostAdapter } from "./hosts/index.mjs";
 import { launchModel as launchJudge } from "./model-call.mjs";
+import { readRegularFile, readSubjectFile, skippedNote } from "./subject-file.mjs";
 import { rebuildAggregate } from "./trials.mjs";
 import { resolveResult } from "./view.mjs";
 
@@ -423,8 +424,14 @@ async function runEvidence(run, neutral, limits, cut) {
     }
     if (typeof run.workspace === "string") {
       for (const relative of [...(changes.created ?? []), ...(changes.modified ?? [])]) {
-        const text = await readText(path.join(run.workspace, relative));
-        if (text === null) continue;
+        // Never through a link the run made, and only a regular file inside the workspace, read to a bound.
+        const file = await readSubjectFile(run.workspace, relative);
+        if (file.skipped === "missing" || file.skipped === "binary") continue;
+        if (file.skipped !== undefined) {
+          lines.push(`### File written: ${relative}`, `(${neutral(skippedNote(file))})`);
+          continue;
+        }
+        const text = file.truncated ? `${file.text}… [cut at ${file.text.length} of ${file.size} bytes]` : file.text;
         lines.push(`### File written: ${relative}`, "```", cut.text(neutral(text), limits.file), "```");
       }
     }
@@ -491,11 +498,10 @@ async function listFiles(directory, prefix = "") {
   return files;
 }
 
-/** Text of a file, or null when it is missing or binary. */
+/** Text of a task file, or null when it is missing, binary or not a regular file; never read through a link. */
 async function readText(file) {
-  const buffer = await readFile(file).catch(() => null);
-  if (buffer === null || buffer.includes(0)) return null;
-  return buffer.toString("utf8");
+  const result = await readRegularFile(file);
+  return result.skipped === undefined ? result.text : null;
 }
 
 function truncate(value, limit) {

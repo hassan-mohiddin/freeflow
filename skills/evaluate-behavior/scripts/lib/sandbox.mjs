@@ -30,7 +30,14 @@ export async function prepareFixture({ declaredPath, root, groupDirectory }) {
   const files = await fingerprintDirectory(sourcePath);
   const snapshotPath = path.join(groupDirectory, "resources", "fixture");
   await mkdir(path.dirname(snapshotPath), { recursive: true });
-  await cp(sourcePath, snapshotPath, { recursive: true, dereference: false, errorOnExist: true, force: false });
+  // Links are copied as they are: Node otherwise rewrites a relative link into an absolute one into the source.
+  await cp(sourcePath, snapshotPath, {
+    recursive: true,
+    dereference: false,
+    verbatimSymlinks: true,
+    errorOnExist: true,
+    force: false,
+  });
   const snapshotFiles = await fingerprintDirectory(await realpath(snapshotPath));
   const sourceFilesAfter = await fingerprintDirectory(sourcePath);
   if (
@@ -57,11 +64,14 @@ export async function materializeFixture({ fixture, workspace }) {
   await cp(fixture.snapshotPath, workspace, {
     recursive: true,
     dereference: false,
+    verbatimSymlinks: true,
     errorOnExist: true,
     force: false,
   });
   const materializedPath = await realpath(workspace);
-  const materializedFiles = await fingerprintDirectory(materializedPath);
+  // A workspace may hold links a subject made (an earlier stage's workspace), recorded rather than followed; a
+  // declared fixture's links were already checked when it was snapshotted.
+  const materializedFiles = await fingerprintDirectory(materializedPath, { links: "record" });
   if (JSON.stringify(materializedFiles) !== JSON.stringify(fixture.files)) {
     throw new Error(`declared fixture changed while it was being copied: ${fixture.declaredPath}`);
   }
@@ -126,6 +136,7 @@ export async function materializeRuntime({ runtime, variantDirectory }) {
     await cp(bundle.root, destination, {
       recursive: true,
       dereference: false,
+      verbatimSymlinks: true,
       errorOnExist: true,
       force: false,
     });
@@ -304,7 +315,8 @@ export async function verifyEnvironment(environment) {
     ["context", environment.context],
   ]) {
     for (const resource of resources) {
-      const current = await fingerprintDirectory(resource.path);
+      // An earlier stage's delivered work may hold links its subject made; it is checked the way it was recorded.
+      const current = await fingerprintDirectory(resource.path, { links: resource.links ?? "strict" });
       if (JSON.stringify(current) !== JSON.stringify(resource.files)) {
         throw new Error(`declared ${label} changed during subject execution: ${resource.declaredPath}`);
       }
@@ -323,9 +335,12 @@ export async function snapshotWorkspace({ workspace, variantDirectory, turn, bef
   await rm(snapshotPath, { recursive: true, force: true });
   await mkdir(path.dirname(snapshotPath), { recursive: true });
 
-  const sourceBefore = await fingerprintDirectory(workspace);
+  const sourceBefore = await fingerprintDirectory(workspace, WORKSPACE);
   await cp(workspace, snapshotPath, { recursive: true, force: false, errorOnExist: true, verbatimSymlinks: true });
-  const [sourceAfter, files] = await Promise.all([fingerprintDirectory(workspace), fingerprintDirectory(snapshotPath)]);
+  const [sourceAfter, files] = await Promise.all([
+    fingerprintDirectory(workspace, WORKSPACE),
+    fingerprintDirectory(snapshotPath, WORKSPACE),
+  ]);
   if (
     JSON.stringify(sourceBefore) !== JSON.stringify(sourceAfter) ||
     JSON.stringify(sourceAfter) !== JSON.stringify(files)
@@ -335,10 +350,22 @@ export async function snapshotWorkspace({ workspace, variantDirectory, turn, bef
   return { path: snapshotPath, files, changes: workspaceChanges(before, files) };
 }
 
-export async function fingerprintDirectory(root) {
+/** How a subject's workspace is fingerprinted: its links are the subject's own work, recorded and never followed. */
+export const WORKSPACE = Object.freeze({ links: "record" });
+
+/**
+ * Every entry under `root`, sorted: files and links with a SHA-256, directories, and each link's target. A declared
+ * resource (`links: "strict"`, the default) may hold only relative links that stay inside it. A subject's workspace
+ * (`links: "record"`) keeps any link the subject made, such as one an installer pointed at the container's
+ * workdir: it is recorded with its target, as a link, and nothing outside is ever read through it.
+ *
+ * @param {string} root
+ * @param {{ links?: "strict" | "record" }} [options]
+ */
+export async function fingerprintDirectory(root, { links = "strict" } = {}) {
   const canonicalRoot = await realpath(root);
   const files = [];
-  await walk(canonicalRoot, canonicalRoot, files);
+  await walk(canonicalRoot, canonicalRoot, files, links);
   return files.sort((left, right) => comparePaths(left.path, right.path));
 }
 
@@ -374,7 +401,13 @@ async function snapshotWorkingTreeResource({ canonicalRoot, declaredPath, destin
     : [{ path: path.basename(sourcePath), type: "file", sha256: sha256(await readFile(sourcePath)) }];
   if (sourceStat.isDirectory()) {
     await mkdir(path.dirname(destination), { recursive: true });
-    await cp(sourcePath, destination, { recursive: true, dereference: false, errorOnExist: true, force: false });
+    await cp(sourcePath, destination, {
+      recursive: true,
+      dereference: false,
+      verbatimSymlinks: true,
+      errorOnExist: true,
+      force: false,
+    });
   } else {
     await mkdir(destination, { recursive: true });
     await copyFile(sourcePath, path.join(destination, path.basename(sourcePath)));
@@ -532,7 +565,7 @@ async function contextFiles(root, fingerprints) {
   return files;
 }
 
-async function walk(root, directory, files) {
+async function walk(root, directory, files, links) {
   const entries = await readdir(directory, { withFileTypes: true });
   entries.sort((left, right) => comparePaths(left.name, right.name));
   for (const entry of entries) {
@@ -541,14 +574,16 @@ async function walk(root, directory, files) {
     const entryStat = await lstat(entryPath);
     if (entryStat.isSymbolicLink()) {
       const target = await readlink(entryPath);
-      const canonicalTarget = await realpath(entryPath).catch(() => null);
-      if (path.isAbsolute(target) || canonicalTarget === null || !isContained(root, canonicalTarget)) {
-        throw new Error(`resource symlink escapes its declared root: ${relativePath}`);
+      if (links !== "record") {
+        const canonicalTarget = await realpath(entryPath).catch(() => null);
+        if (path.isAbsolute(target) || canonicalTarget === null || !isContained(root, canonicalTarget)) {
+          throw new Error(`resource symlink escapes its declared root: ${relativePath}`);
+        }
       }
-      files.push({ path: relativePath, type: "symlink", sha256: sha256(`symlink\0${target}`) });
+      files.push({ path: relativePath, type: "symlink", sha256: sha256(`symlink\0${target}`), target });
     } else if (entryStat.isDirectory()) {
       files.push({ path: relativePath, type: "directory", sha256: sha256("directory") });
-      await walk(root, entryPath, files);
+      await walk(root, entryPath, files, links);
     } else if (entryStat.isFile()) {
       files.push({ path: relativePath, type: "file", sha256: sha256(await readFile(entryPath)) });
     } else {

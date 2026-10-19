@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import registerSkillEvalGuard from "../../../skills/evaluate-behavior/scripts/pi-guard.mjs";
 import { installFakePi } from "./helpers/fake-pi.mjs";
 import { loadDefinition } from "../../../skills/evaluate-behavior/scripts/lib/definitions.mjs";
+import { sealing } from "../../../skills/evaluate-behavior/scripts/lib/seal.mjs";
 import {
   missingPrerequisites,
   prerequisiteRefusal,
@@ -44,7 +45,7 @@ async function readJson(file) {
  * the rest in the workspace with only PATH set; with `passEnvironment` it hands the shell Pi's whole environment,
  * as Pi's original Gondolin example does.
  */
-function isolationExtension({ passEnvironment = false } = {}) {
+function isolationExtension({ passEnvironment = false, exposeAgentDirectory = false } = {}) {
   return `import { spawnSync } from "node:child_process";
 export default function (pi) {
   pi.registerTool({
@@ -54,7 +55,9 @@ export default function (pi) {
     parameters: { type: "object", properties: { command: { type: "string" }, timeout: { type: "number" } }, required: ["command"] },
     async execute(_id, params, _signal, _onUpdate, ctx) {
       const command = String(params.command);
-      if (/(^|[\\s'"=>])\\/|curl|wget/.test(command)) {
+      // An isolation that mounts Pi's agent directory, where a subject's copied login lives, into its shell.
+      const exposed = ${exposeAgentDirectory} && command.includes(process.env.PI_CODING_AGENT_DIR);
+      if (!exposed && /(^|[\\s'"=>])\\/|curl|wget/.test(command)) {
         return { content: [{ type: "text", text: "denied by the stand-in isolation" }], details: {} };
       }
       const env = ${passEnvironment ? "process.env" : '{ PATH: process.env.PATH ?? "/usr/bin:/bin" }'};
@@ -287,11 +290,59 @@ test("a confining isolation passes every probe, its runs record confinement, and
           ["read-home-parent", true, true],
           ["network", true, true],
           ["environment", true, true],
+          ["read-login", true, true],
         ],
       );
       assert.equal(run.confinement.networkConnections, 0);
+      // The login is out of reach because the probe of a marker in Pi's agent directory held.
+      assert.equal(run.sealing.login, "out of reach");
     }
   });
+});
+
+test("an isolation that exposes Pi's agent directory fails the login probe, and the group is invalid", async () => {
+  await withTempDirectory(async (root) => {
+    const { bin } = await installFakePi(root);
+    await write(path.join(root, ISOLATION, "index.mjs"), isolationExtension({ exposeAgentDirectory: true }));
+    const definition = await write(path.join(root, "groups/shell.json"), shellGroup());
+
+    const result = runCli(root, bin, ["run", definition, "--dry-run"]);
+
+    assert.notEqual(result.status, 0);
+    const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)?.[1], "groups/shell");
+    const run = await readJson(path.join(groupDirectory, "baseline/run.json"));
+    assert.equal(run.state, "invalid");
+    assert.match(run.error.message, /is not confined: read-login did not hold/);
+    const login = run.confinement.probes.find((probe) => probe.id === "read-login");
+    assert.equal(login.held, false);
+    assert.match(login.output, /^[0-9a-f]{24}\n/);
+    // The marker beside the isolated home is still out of reach: only the agent directory is exposed.
+    assert.ok(run.confinement.probes.filter((probe) => probe.id !== "read-login").every((probe) => probe.held));
+  });
+});
+
+test("the sealing record says the login is out of reach only where the login probe held", () => {
+  const shell = { bash: "shell", commands: null, graders: null };
+  const probes = (held) => ({
+    probes: [
+      { id: "read-home-parent", held: true },
+      { id: "read-login", held },
+    ],
+  });
+  assert.equal(sealing(shell, "none", probes(true)).login, "out of reach");
+  assert.equal(sealing(shell, "none", probes(false)).login, "not shown out of reach");
+  // A record from before the login probe existed proves nothing about the login.
+  assert.equal(
+    sealing(shell, "none", { probes: [{ id: "read-home-parent", held: true }] }).login,
+    "not shown out of reach",
+  );
+  assert.equal(sealing(shell, "none").login, "not probed");
+  // No bash and nothing on the host: no subject-written code runs beside the login.
+  assert.equal(sealing({ bash: null, commands: "container", graders: "container" }, "none").login, "out of reach");
+  assert.equal(
+    sealing({ bash: "shell", commands: "host", graders: null }, "host", probes(true)).login,
+    "reachable from code run on the host",
+  );
 });
 
 test("an isolation that leaks one probe makes the group invalid with the probe outputs recorded", async () => {
@@ -356,6 +407,7 @@ test(
             ["read-home-parent", false],
             ["network", false],
             ["environment", false],
+            ["read-login", false],
           ],
         );
         const confined = await verifyConfinement({

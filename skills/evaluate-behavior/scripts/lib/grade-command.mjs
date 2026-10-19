@@ -555,7 +555,8 @@ export function aggregateScores({ arms, trials }) {
       const values = {};
       for (const [id, variant] of scored) {
         if (variant !== arm) continue;
-        const score = checks.get(id)?.observed?.score;
+        // A run held for transcript flags no one has cleared scores nothing until it is cleared.
+        const score = trial.held?.includes(arm) ? null : checks.get(id)?.observed?.score;
         const value = typeof score === "number" && Number.isFinite(score) ? score : null;
         values[`score.${id}`] = value;
         if (comparisonOf.has(id)) values[`score.${comparisonOf.get(id)}`] = value;

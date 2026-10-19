@@ -308,7 +308,8 @@ test("--max-cost with --jobs stops starting subjects and states the overshoot", 
     const summary = await readJson(path.join(result.stdout.match(/^Path: (.+)$/m)[1], "summary.json"));
     assert.equal(summary.budget.exhausted, true);
     assert.ok(summary.budget.overshoot <= 2 * 0.4 + 1e-9);
-    assert.equal(summary.budget.spent, Number((started * 0.4).toFixed(10)));
+    assert.equal(summary.budget.runTotal, Number((started * 0.4).toFixed(10)));
+    assert.deepEqual(summary.cost, { spent: Number((started * 0.4).toFixed(10)), subjects: started, unmeasured: 0 });
   });
 });
 
@@ -396,14 +397,9 @@ test("--reuse counts matching canonical runs instead of running them, each once 
     const suite = await writeSuite(root, [group("one")]);
     await commitAll(root, "inputs");
 
-    // Without --reuse nothing is indexed.
-    const plain = runCli(root, bin, ["run", suite], {}, { dryRun: false });
-    assert.equal(plain.status, 0, plain.stderr);
-    assert.equal((await readIndex(path.join(root, ".skill-eval/runs"))).size, 0);
-    await rm(path.join(root, "fake.jsonl"));
-
-    // A canonical run with --reuse finds nothing yet, and indexes its complete runs.
-    const first = runCli(root, bin, ["run", suite, "--reuse"], {}, { dryRun: false });
+    // A canonical run indexes its complete runs even without --reuse, so a first run, such as a pilot run on its
+    // own, can count later.
+    const first = runCli(root, bin, ["run", suite], {}, { dryRun: false });
     assert.equal(first.status, 0, first.stderr);
     const firstId = first.stdout.match(/^Result: (.+)$/m)[1];
     const index = await readIndex(path.join(root, ".skill-eval/runs"));
@@ -451,6 +447,48 @@ test("--reuse counts matching canonical runs instead of running them, each once 
     assert.equal(dry.status, 0, dry.stderr);
     assert.equal((await readIndex(path.join(root, ".skill-eval/runs"))).size, before);
     assert.equal((await events(root)).filter((entry) => entry.kind === "start").length, 7);
+  });
+});
+
+test("--reuse never claims a run held for transcript flags no one has cleared", async () => {
+  await withTempDirectory(async (root) => {
+    const bin = await installFakePi(root);
+    await gitRepository(root);
+    const suite = await writeSuite(root, [group("one")]);
+    await commitAll(root, "inputs");
+    const first = runCli(root, bin, ["run", suite], {}, { dryRun: false });
+    assert.equal(first.status, 0, first.stderr);
+    const firstId = first.stdout.match(/^Result: (.+)$/m)[1];
+    // The scan flagged the candidate's run, and no person has cleared it.
+    const candidateRun = path.join(root, ".skill-eval/runs", firstId, "groups/one/candidate/run.json");
+    const stored = await readJson(candidateRun);
+    stored.postRun = { ...stored.postRun, scan: { flags: [{ id: "network-1", kind: "network", detail: "curl" }] } };
+    await writeFile(candidateRun, `${JSON.stringify(stored, null, 2)}\n`);
+    const starts = async () => (await events(root)).filter((entry) => entry.kind === "start").length;
+    assert.equal(await starts(), 2);
+
+    const held = runCli(root, bin, ["run", suite, "--reuse"], {}, { dryRun: false });
+    assert.equal(held.status, 0, held.stderr);
+    const heldSummary = await readJson(path.join(held.stdout.match(/^Path: (.+)$/m)[1], "summary.json"));
+    assert.deepEqual(Object.keys(heldSummary.groups[0].reused), ["baseline"]);
+    assert.equal(await starts(), 3);
+
+    // Once a person clears the flag, the run counts again, and --reuse may claim it.
+    const cleared = runCli(root, bin, [
+      "clear",
+      firstId,
+      "--variant",
+      "candidate",
+      "--all",
+      "--reason",
+      "a local server",
+    ]);
+    assert.equal(cleared.status, 0, cleared.stderr);
+    const reused = runCli(root, bin, ["run", suite, "--reuse"], {}, { dryRun: false });
+    assert.equal(reused.status, 0, reused.stderr);
+    const reusedSummary = await readJson(path.join(reused.stdout.match(/^Path: (.+)$/m)[1], "summary.json"));
+    assert.equal(reusedSummary.groups[0].reused.candidate.result, firstId);
+    assert.equal(await starts(), 3);
   });
 });
 

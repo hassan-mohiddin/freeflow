@@ -6,6 +6,7 @@ import { renderClaim, trialCounts } from "./decision.mjs";
 import { judgedAggregateLines, judgedLines } from "./judge.mjs";
 import { aggregateMetricsLines, runMetricsLines } from "./metrics.mjs";
 import { participantLines } from "./participants.mjs";
+import { readClearances } from "./scan.mjs";
 
 const DEFAULT_SELECTORS = /** @type {{group: string | null, variant: string | null}} */ ({
   group: null,
@@ -56,6 +57,26 @@ export async function renderResult(
   }
 
   const lines = [`Result ${summary.id} [${summary.state}]`, `Path: ${escapeCell(resultDirectory)}`];
+  // This invocation's own spend; in a trial, the budget's total is the whole run's so far.
+  if (summary.cost) {
+    const unmeasured = summary.cost.unmeasured ? [`unmeasured=${summary.cost.unmeasured}`] : [];
+    lines.push(
+      compactRow("cost", [
+        `spent=${formatNumber(summary.cost.spent)}`,
+        `subjects=${summary.cost.subjects}`,
+        ...unmeasured,
+      ]),
+    );
+  }
+  if (summary.budget) {
+    lines.push(
+      compactRow("budget", [
+        `max-cost=${formatNumber(summary.budget.maxCost)}`,
+        `run-total=${formatNumber(summary.budget.runTotal ?? summary.budget.spent)}`,
+        `exhausted=${summary.budget.exhausted}`,
+      ]),
+    );
+  }
   for (const group of groups) {
     lines.push("", ...(await renderGroup(resultDirectory, group, selectors.variant)));
   }
@@ -217,7 +238,18 @@ function renderAggregate(resultDirectory, aggregate) {
       ]),
     );
   }
-  for (const trial of aggregate.trials) lines.push(compactRow("trial", [trial.id, trial.state]));
+  for (const entry of aggregate.held ?? []) {
+    lines.push(compactRow("held", [entry.trial, entry.group, entry.arm, `flags=${entry.flags.join(",")}`]));
+  }
+  for (const trial of aggregate.trials) {
+    lines.push(
+      compactRow("trial", [
+        trial.id,
+        trial.state,
+        ...(trial.cost === undefined ? [] : [`cost=${formatNumber(trial.cost)}`]),
+      ]),
+    );
+  }
   lines.push(...renderClaim(aggregate));
   for (const group of aggregate.groups) {
     const unreadable = group.unreadableGrades ? ` unreadable-grades=${group.unreadableGrades}` : "";
@@ -329,6 +361,12 @@ async function appendVariantEvidence(lines, resultDirectory, groupDirectory, gro
   lines.push("", `${title(variant)} [${run.state}]`);
   appendRunEvidence(lines, run);
   const variantDirectory = path.dirname(runFile);
+  // Transcript-scan flags, each with whether a person cleared it and why; an uncleared one holds the run.
+  const cleared = new Map((await readClearances(variantDirectory)).map((entry) => [entry.flag, entry.reason]));
+  for (const flag of run.postRun?.scan?.flags ?? []) {
+    const status = cleared.has(flag.id) ? `cleared: ${cleared.get(flag.id)}` : "not cleared";
+    lines.push(compactRow("  flag", [flag.id, flag.detail, status]));
+  }
   const artifacts = [["run", relativeArtifact(resultDirectory, runFile)]];
   if (typeof run.workspace === "string") {
     artifacts.push(["workspace", relativeArtifact(resultDirectory, run.workspace)]);

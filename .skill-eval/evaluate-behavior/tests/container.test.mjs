@@ -303,7 +303,7 @@ test("probes, subjects and graders run in containers with the declared limits, i
     const calls = await dockerCalls(docker.log);
     const verbs = calls.map((args) => (args[0] === "--host" ? `host ${args[2]}` : args[0]));
     // After the image, one `run` checks that the engine shares the folder the workspaces live under.
-    const probe = ["version", "image", "run", "context", "create", "start", ...Array(5).fill("host exec"), "rm"];
+    const probe = ["version", "image", "run", "context", "create", "start", ...Array(6).fill("host exec"), "rm"];
     const subject = ["context", "create", "start", "rm"];
     assert.deepEqual(verbs, [...probe, ...probe, ...subject, "run", "rm", ...subject, "run", "rm"]);
 
@@ -372,6 +372,112 @@ test("a container group without bash still runs its declared commands in a subje
     const prerequisites = ["version", "image", "run"];
     const subject = ["context", "create", "start", "rm"];
     assert.deepEqual(verbs, [...prerequisites, ...prerequisites, ...subject, "run", "rm", ...subject, "run", "rm"]);
+  });
+});
+
+test("a container subject's bash runs a declared skill's script at the path it was given, mounted read-only", async () => {
+  await withTempDirectory(async (root) => {
+    const pi = await installFakePi(root, { rpcBash: "sh {skill}/scripts/hello.sh > from-skill.txt" });
+    const docker = await installFakeDocker(root);
+    await write(
+      path.join(root, "skills/helper/SKILL.md"),
+      "---\nname: helper\ndescription: Use when greeting.\n---\n\n# Helper\n\nRun scripts/hello.sh.\n",
+    );
+    // The fake engine, like an image, has no host node; a script the skill ships runs by its path.
+    await write(path.join(root, "skills/helper/scripts/hello.sh"), "echo hello from the skill\n");
+    const definition = await write(
+      path.join(root, "groups/boxed.json"),
+      containerGroup(
+        {
+          arms: { only: {} },
+          reference: "only",
+          component: undefined,
+          expectations: [
+            {
+              id: "ran-script",
+              kind: "file-text",
+              variant: "only",
+              path: "from-skill.txt",
+              expect: "contains",
+              value: "hello from the skill",
+            },
+          ],
+        },
+        {
+          subject: {
+            kind: "skill",
+            source: { kind: "working-tree" },
+            skills: ["skills/helper"],
+            target: null,
+            context: [],
+          },
+        },
+      ),
+    );
+
+    const result = runCli(root, [pi.bin, docker.bin], ["run", definition, "--dry-run"]);
+
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)?.[1], "groups/boxed");
+    const run = await readJson(path.join(groupDirectory, "only/run.json"));
+    assert.equal(run.state, "complete");
+    const skill = run.resources.skills[0].path;
+    const created = (await dockerCalls(docker.log)).filter((args) => args[0] === "create").at(-1);
+    const volumes = created.flatMap((arg, index) => (created[index - 1] === "--volume" ? [arg] : []));
+    assert.deepEqual(volumes, [`${run.workspace}:/testbed`, `${skill}:${skill}:ro`]);
+    const grade = await readJson(path.join(groupDirectory, "deterministic-grade.json"));
+    assert.equal(grade.checks[0].state, "pass", JSON.stringify(grade.checks[0]));
+  });
+});
+
+test("network none is sealed on every path, refused where commands or graders would run on the host", async () => {
+  await withTempDirectory(async (root) => {
+    const pi = await installFakePi(root);
+    const docker = await installFakeDocker(root);
+    const sealed = await write(path.join(root, "groups/sealed.json"), containerGroup({}, { network: "none" }));
+    await loadDefinition(sealed, { root });
+    // The same task without a container would run its graders on the host: refused, naming the path.
+    const { environment: _environment, ...hostConfiguration } = containerGroup({}, { network: "none" }).configuration;
+    const unsealed = await write(
+      path.join(root, "groups/unsealed.json"),
+      containerGroup({ tools: ["read"], configuration: hostConfiguration }),
+    );
+    await assert.rejects(loadDefinition(unsealed, { root }), {
+      name: "DefinitionError",
+      message: /arm baseline declares network "none", but its command graders would run on the host/,
+    });
+    const commands = await write(
+      path.join(root, "groups/commands.json"),
+      containerGroup({
+        tools: ["read", "run_command"],
+        commands: [{ id: "unit-tests", argv: ["npm", "test"] }],
+        expectations: [{ id: "noted", kind: "response-text", variant: "baseline", expect: "contains", value: "done" }],
+        configuration: hostConfiguration,
+      }),
+    );
+    await assert.rejects(loadDefinition(commands, { root }), {
+      message: /its declared commands would run on the host/,
+    });
+    await assert.rejects(
+      loadDefinition(await write(path.join(root, "groups/odd.json"), containerGroup({}, { network: "open" })), {
+        root,
+      }),
+      { message: /network must be "none" \(sealed\) or "host"/ },
+    );
+
+    // Each run records what held: every path in the container, so no network and the login out of reach.
+    const result = runCli(root, [pi.bin, docker.bin], ["run", sealed, "--dry-run"]);
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    const groupDirectory = path.join(result.stdout.match(/^Path: (.+)$/m)?.[1], "groups/boxed");
+    const run = await readJson(path.join(groupDirectory, "baseline/run.json"));
+    assert.deepEqual(run.sealing, {
+      network: "none",
+      declared: "none",
+      bash: "container",
+      commands: null,
+      graders: "container",
+      login: "out of reach",
+    });
   });
 });
 

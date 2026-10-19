@@ -18,7 +18,7 @@ export const TARGET_MINUTES = 120;
  * @param {string} directory where the isolation root is created
  * @param {string | null} model the declared `provider/model`, or null
  * @param {{settings?: Record<string, unknown>}} [options]
- * @returns {Promise<{environment: Record<string, string>, evidence: any}>}
+ * @returns {Promise<{environment: Record<string, string>, evidence: any, loginDirectory: string}>}
  */
 export async function prepareIsolation(directory, model, { settings = {} } = {}) {
   const root = path.join(directory, "isolation");
@@ -63,6 +63,8 @@ export async function prepareIsolation(directory, model, { settings = {} } = {})
       PI_CODING_AGENT_DIR: agent,
     },
     evidence: { root, provider, credentials, settings },
+    // Where the host keeps its login: the confinement probe plants a marker here that the shell must not read.
+    loginDirectory: agent,
   };
 }
 

@@ -47,3 +47,41 @@ export function budgetEvidence(budget) {
     overshoot: Number(Math.max(0, budget.spent - budget.maxCost).toFixed(10)),
   };
 }
+
+/**
+ * The budget as a trial's evidence. The budget belongs to the whole run, so its total is named as the run's: what
+ * every trial had spent when this one ended. The trial's own spend is its summary's `cost`.
+ */
+export function runBudgetEvidence(budget) {
+  const { spent, ...rest } = budgetEvidence(budget);
+  return { maxCost: rest.maxCost, runTotal: spent, exhausted: rest.exhausted, overshoot: rest.overshoot };
+}
+
+/**
+ * A run's host-reported cost, or null when it is not a measure: no cost at all, or a cost of 0 for a run that used
+ * tokens. Pi reports 0 for a model it has no price for, so real work would otherwise read as free; a run that used
+ * no tokens did cost nothing, and a subscription that reports a list price keeps it.
+ *
+ * @param {any} usage the run's usage, as hosts record it
+ * @returns {number | null}
+ */
+export function measuredCost(usage) {
+  const total = usage?.cost?.total;
+  if (typeof total !== "number" || !Number.isFinite(total)) return null;
+  if (total === 0) {
+    const tokens = ["input", "output", "cacheRead", "cacheWrite"].reduce(
+      (sum, key) => sum + (Number.isFinite(usage?.[key]) ? usage[key] : 0),
+      0,
+    );
+    if (tokens > 0) return null;
+  }
+  return total;
+}
+
+/**
+ * One invocation's own spend: the host-reported cost of the subjects it ran (reused runs cost nothing again), how
+ * many ran, and how many have no measured cost (`measuredCost`), so a missing figure is never read as free.
+ */
+export function costEvidence(cost) {
+  return { spent: Number(cost.spent.toFixed(10)), subjects: cost.subjects, unmeasured: cost.unmeasured };
+}
