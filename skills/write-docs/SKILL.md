@@ -30,11 +30,13 @@ Goal: each fact lives in one place, written for the reader who needs it.
 | Someone changing one subsystem | Subsystem doc | How the subsystem works and why: its surface, state, invariants, decisions, failure behavior, code map, and tests. |
 | Someone editing files in one folder | Folder `README.md` | What each file owns, local rules, and a pointer to its subsystem doc. |
 | Someone checking a feature in the running software | Feature file, plus a shared live-verification guide | What the user sees and the exact steps that show it works. |
-| Anyone revisiting a hard-to-reverse choice | Decision record | The context, the decision, and its consequences. |
+| Anyone revisiting a hard-to-reverse choice | Decision record | The decision and why, in Write Spec's [Decision Records](../write-spec/references/decision-records.md) shape. |
 
 Prefer extending an existing document to creating a new one: a small set of current documents serves readers better than many partly current ones. A subsystem earns its own doc when the reasons behind it cannot be read from the code and readers keep needing them: agents re-derive the same design, or mistake a deliberate behavior for a bug. A user guide and a subsystem doc about the same feature are different documents for different readers; link them rather than merging them.
 
-Write documentation where the repository keeps it. If it keeps none and you are asked to start, propose where it should live and confirm with the user before creating it. When a project has code and no developer docs, propose creating them and wait for the user's yes; keep that knowledge out of `AGENTS.md`, `CLAUDE.md` and other always-loaded instruction files, which every request pays for.
+Each kind of knowledge has one home. How the code works and why, its decisions, and behavior that looks wrong but is intended: developer docs, with hard-to-reverse choices in decision records and what the user sees in feature files. Rules for agents working in the repository: its instruction files. Task progress and decisions in flight: the task's record, until settled decisions move to the docs. The user's own preferences: the host's memory.
+
+Write documentation where the repository keeps it; [Starting Developer Docs](references/documentation-shapes.md#starting-developer-docs) says where to look, and what to propose when there is none. If the repository keeps none and you are asked to start, propose a location and confirm with the user before creating it. When a project has code and no developer docs, propose creating them and wait for the user's yes; keep that knowledge out of `AGENTS.md`, `CLAUDE.md` and other always-loaded instruction files, which every request pays for.
 
 ## Write The Document
 
@@ -69,9 +71,12 @@ Run the bundled [docs check](scripts/docs-check.mjs) after writing or changing d
 
 ```text
 node <write-docs-directory>/scripts/docs-check.mjs <docs-file-or-directory>... [--root <repository>] [--strict] [--json]
+node <write-docs-directory>/scripts/docs-check.mjs [<docs-file-or-directory>...] --covering <path>... [--root <repository>] [--json]
 ```
 
 It reports paths a document names that do not exist and, for documents with the header, those whose covered code changed since the commit they record as verified. A change made together with the document, in the same commit or both uncommitted, counts as reviewed with it. Missing paths are errors (exit code 1). Changed code is a warning, since many changes leave a document true; `--strict` makes it an error. Read the changes it lists and update the document or its verified commit.
+
+`--covering` instead lists the documents that cover each path and whether each is current: the ones a change should reread or update.
 
 For a new subsystem doc or overview, or one you substantially rewrote, test it on a reader without your context. Write five to ten questions a newcomer would ask: where is the code that does X, why does it do Y, is Z a bug, what breaks if W changes, which test proves V. Give a fresh agent only the document and the questions (a subagent where the host has one; otherwise ask the user to run it in a new session). Compare each answer with the code. Where an answer is wrong or unsure, fix the document and ask again. The check passes when the answers are right without new gaps.
 
