@@ -1,7 +1,7 @@
 # Activation and Status
 
 > **Covers:** `pi-extension/src/host/status.ts`, `pi-extension/src/host/config.ts`, `pi-extension/src/host/config-validation.ts`
-> **Verified at:** `c4bdf496` (2026-10-19)
+> **Verified at:** `c07e84ed` (2026-10-19)
 > **User docs:** `plugin-docs/settings.md`
 
 Freeflow is active in a repository only when `.freeflow/config.json` exists and is valid. Pi's footer shows the effective state on every screen, and `/freeflow status` prints the effective capabilities. How configuration is read and validated: [Prompt assembly](../subsystems/prompt-assembly.md) and the overview's [Cross-Cutting Concerns](../README.md#cross-cutting-concerns).
