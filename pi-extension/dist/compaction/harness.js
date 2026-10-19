@@ -84,6 +84,7 @@ export function harnessPart(facts) {
     lines.push(
       `Background commands still running: ${facts.background.map((job) => `${job.id} (${job.label}), output ${job.outputPath}`).join("; ")}.`,
     );
+  if (facts.skills?.length) lines.push(`Freeflow skills read in cycle ${facts.cycle - 1}: ${facts.skills.join(", ")}.`);
   const files = facts.includeFiles === false ? "" : formatFileLists(facts.files);
   if (files) lines.push("", "Files read and modified in this session:", "", files);
   if (facts.listed) lines.push("", facts.listed.replace(/^## /, "### "));

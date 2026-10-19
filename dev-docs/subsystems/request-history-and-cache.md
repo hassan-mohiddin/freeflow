@@ -2,7 +2,7 @@
 
 > **Covers:** `pi-extension/src/host/request-history.ts`, `pi-extension/src/host/section-keeper.ts`, `pi-extension/src/host/runtime-state.ts`, `pi-extension/src/host/projection-tags.ts`, `pi-extension/src/host/read-only-session.ts`, `pi-extension/src/provider-support/`
 > **Tests:** `pi-extension/tests/cache-reuse/`, `pi-extension/tests/provider-support/`, `pi-extension/tests/host/persisted-branch.test.js`, `pi-extension/tests/host/section-keeper.test.js`
-> **Verified at:** `fe1d3460` (2026-10-12)
+> **Verified at:** `c09d7404` (2026-10-19)
 > **User docs:** `plugin-docs/prompt-caching.md`
 
 For contributors changing how Freeflow assembles requests or touches provider payloads. This doc explains the mechanisms: how generated messages keep their positions, where cache breakpoints are added, when a cache is kept warm, and how regressions are detected. The rules every change must follow, and how to verify one, are in [Prompt cache rules](../guides/prompt-cache.md); this doc does not repeat them.
@@ -69,7 +69,7 @@ To add a new generated message kind: give it its own `customType`, add the type 
 
 ### Runtime State placement
 
-`withFreeflowRuntimeState()` places the Runtime State before the first user message the first time. Unchanged, it keeps its position (`runtimeStateAnchor`); changed, it moves to just before the latest user message. Request history normally overrides this placement: it strips transient messages and re-inserts them from frames. The anchor matters on the paths that bypass request history, when it is unavailable or fails. `freeflow-cognitive-routing-runtime-state` is an older type no longer produced; it is still recognized so sessions that contain it assemble correctly.
+`withFreeflowRuntimeState()` places the Runtime State before the first user message the first time. Unchanged, it keeps its position (`runtimeStateAnchor`); changed, it moves to just before the latest user message. Request history normally overrides this placement: it strips transient messages and re-inserts them from frames. The anchor matters on the paths that bypass request history, when it is unavailable or fails. `freeflow-cognitive-routing-runtime-state` is an older type no longer produced; it is still recognized so sessions that contain it assemble correctly. Every change to the state's text costs a new copy at the end, so its sources keep it stable within a run: the line naming the Freeflow skills already read is taken only where the state refreshes anyway ([Tool Execution](tool-execution.md#repeat-reads-of-freeflow-instructions)).
 
 ### Freeflow's sections on runs Pi starts
 

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { resolveToolPath } from "../tool-execution/file-state.js";
+import { skillsRead } from "../tool-execution/skill-reads.js";
 import {
   carryBudget,
   carryProblem,
@@ -15,7 +16,7 @@ import {
   type CarryFile,
   type CarryItem,
 } from "./carry.js";
-import { cycleFiles, harnessPart, nextCycle, previousFileLists, sessionFileLists } from "./harness.js";
+import { currentCycle, cycleFiles, harnessPart, nextCycle, previousFileLists, sessionFileLists } from "./harness.js";
 import {
   INDEX_TOKEN_BOUND,
   renderIndex,
@@ -379,6 +380,7 @@ export class CompactionController {
       requestedBy,
       routingProfile: this.host.routingProfile(),
       background: this.host.background(),
+      skills: skillsRead(currentCycle(branch), ctx.cwd),
       files: sessionFileLists(branch),
     })}`;
     const userMessages = latestUserMessages(branch);
@@ -479,6 +481,7 @@ export class CompactionController {
         cycle,
         routingProfile: this.host.routingProfile(),
         background: this.host.background(),
+        skills: skillsRead(currentCycle(branch), ctx.cwd),
         files: { readFiles: [], modifiedFiles: [] },
         includeFiles: false,
         listed: this.assignmentList(branch),

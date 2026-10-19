@@ -14,7 +14,7 @@ Pi's tools (`read`, `bash`, `edit`, `write`, `grep`, `find`, and codemode, in wh
 With one switch it adds:
 
 - a **system prompt section** on working in the environment, plus platform and shell facts, with three of Pi's generic rule lines removed;
-- **file tracking** around Pi's `read`, `edit` and `write`: a refused blind overwrite, a note when an edited file changed since it was read, and a notice when files the model read change behind it;
+- **file tracking** around Pi's `read`, `edit` and `write`: a refused blind overwrite, a note when an edited file changed since it was read, a notice when files the model read change behind it, and one line instead of a Freeflow skill or prompt the model already holds;
 - **edit error rewrites** that show the closest lines and one next step;
 - **`apply_patch`**, the patch tool OpenAI's Codex trains GPT models on;
 - **background commands** (`bash_background`, `stop_background`) that notify the model when they exit, and **monitors** (`monitor`) that deliver each line a command prints as it happens;
@@ -37,6 +37,8 @@ It deliberately does not:
 | File key | A path resolved as Pi's tools resolve it, then through `realpath`, so `./a`, `a`, `@a` and a symlink are one file. | `resolveToolPath()`, `fileKey()` |
 | Changed behind the model | An observed file whose content differs from the last observation and from the last notice. | `changedSinceNoticed()` |
 | Nested call | A tool call a codemode script made; Pi reports it with a `parentToolCallId`. | `FileTracking.toolResult()` |
+| Instruction file | A file under the Freeflow package's `capabilities/`, `skills/` or `runtime/`, matched by path as written (after `@` and `~`) against the package root and its real path, with no file system access. | `instructionPath()`, `isFreeflowInstruction()` in `skill-reads.ts` |
+| Skill read | The text of an instruction file the model holds in this context: its first line, its lines, and whether it ran to the end of the file. | `SkillReads` in `skill-reads.ts` |
 | Notice tag | `<freeflow-notice type="…">…</freeflow-notice>`, marking Freeflow's notices so the model never reads them as the user's words: Pi gives the model every custom message in the user role. Freeflow's guidance says what the tag means. Notices in saved sessions may still start with the earlier `[Freeflow notice, not from the user]`, which rows still read. | `freeflowNotice()`, `LEGACY_NOTICE_PREFIX` in `host/inbound.ts` |
 | Steer | Pi's delivery mode that adds a message to a running agent loop after the current turn's tool results. | `deliverAs: "steer"` |
 | Request path | Work done for every model request, in Pi's `context_with_system` hook. Tool Execution does none. | `index.ts` |
@@ -64,12 +66,24 @@ Every value comes from the configuration and the machine, so the system prompt i
 - **`tool_call`** for `edit` and `write`: builds state if needed. It refuses a `write` over an existing file the model has not read (with the text of `writeRefusal()` in `edit-messages.ts`), and remembers, by tool call id, when the target changed since it was observed.
 - **`tool_result`**:
   - for `read`, `edit` and `write` (direct or nested): records an observation of the path. After an `edit` it appends "No need to re-read …", and after an `edit` or `write` whose target had changed it appends a note that the change applied to the current text.
+  - for a successful top-level `read` of an instruction file: see Repeat reads of Freeflow instructions.
   - for a failed `edit`: rewrites Pi's not-found or not-unique error (`rewriteEditError()`).
   - for any other tool (not nested): appends `changedFilesNotice()` to that tool's own result when observed files changed behind the model, so a `bash` command that changed a file the model read reports it on its own result. Nested non-tracked calls are skipped; the script's own result carries the notice. Appended lines carry no notice tag: they are part of the tool's result.
 - **`before_agent_start`**: `changedNotice(ctx, false)` returns a `freeflow-files` message for files that changed between prompts. The `false` means it never builds state here, because a branch not yet built has no baseline to compare against.
 - **`turn_end`**: clears remembered changed targets.
 
 State is built lazily from the branch by `rebuild()`, which replays successful `read`, `edit`, `write` and `apply_patch` calls and observes today's content. A Freeflow compaction (see [Compaction](compaction.md)) resets it to the files it carried into the next cycle, both live (`compacted()`) and on rebuild. Navigation (`session_tree`) invalidates it; Pi's own compaction keeps it, because the branch and the files are unchanged.
+
+### Repeat reads of Freeflow instructions
+
+Agents re-read Freeflow's skills while the text is still in their context: in October 2026 sessions, 43% of skill reads were repeats in the same context, 91% of them right after a new user message. `SkillReads` (`skill-reads.ts`, held by `FileTracking`) answers such a read with one line instead of the text.
+
+- **Recording.** A successful top-level `read` of an instruction file records the text the model saw: its first line (from `offset`, as Pi counts it), its lines, and whether it ran to the end of the file. Pi's trailing "[N more lines in file. Use offset=… to continue.]" note after a `limit` is stripped first. A read Pi truncated (`details.truncation.truncated` or `firstLineExceedsLimit`), an image, or an unusual `offset` or `limit` records nothing.
+- **Answering.** A new read is answered when an earlier record's lines contain its lines at the same line numbers, compared by content. A read that runs to the end of the file is answered only by a record that ended on the same line and reached the end too, so a file that lost lines passes through. The result becomes `alreadyInContext()`: the whole file is "unchanged since you read it earlier in this conversation", or lines `a`-`b` are, then "Use that copy.", then Pi's continue note when the read had one. `details.freeflowSkillRead` marks the replacement. Changed text passes through, and is recorded too.
+- **Not answered:** nested reads (the script consumes the text, and nothing is recorded), failed reads, and any read while the request's view is selective: `selectiveView` in `index.ts` is true for a Coordinator under projection, whose view leaves out the workers' reads. Its reads are still recorded, because they are in the history workers see.
+- **Lifetime.** Records are rebuilt from the branch in `ensureBuilt()` (and by `loadedSkills()`): successful top-level reads after the latest `compaction` entry of any kind, skipping results marked `freeflowSkillRead`. A Freeflow compaction (`compacted()`) and Pi's own compaction (`piCompacted()` from `session_compact`) clear them; navigation invalidates them; `reset()` drops them.
+
+`loadedSkills()` names the skills whose `SKILL.md` is recorded, for the Runtime State line `Freeflow skills read in this context: …` ([Prompt assembly](prompt-assembly.md)). `index.ts` takes it in `update()` only, the point where the state refreshes anyway (run start and end, settings changes, compaction, navigation), so a skill read mid-run adds no state message, and leaves it empty while routing projection is on, because every profile shares the state.
 
 ### Edit error rewrites
 
@@ -129,6 +143,9 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 | Notices for files changed behind the model are appended to the result of the next untracked tool (normally the command that changed them), or sent as a message at prompt start. | The model sees the fact when it next acts, and nothing earlier in the conversation is edited (prompt cache). | — | `3894a01` |
 | Background exit notices start an idle turn as a Freeflow custom message. | A user message would read as the user's words; `keepSections()` keeps Freeflow's system sections on the run Pi starts (Pi issue #10267). | Starting the turn as a user message (the earlier workaround). | Task 002 D-008 |
 | Freeflow does not set `TMPDIR`; background output goes to a per-session folder under the OS temp directory. | Pi's `bash` inherits the whole Pi process environment, so changing `TMPDIR` would change it for every tool, extension and MCP server. | Pointing `TMPDIR` at a session folder. | `fc32691` |
+| A repeat read of a Freeflow instruction file the model already holds returns one line; any other file's read is Pi's. | Instruction files are large, read often, and their reads are excluded from compaction's carry and result index as how the agent works, not what it worked on. Comparing the text the model saw, not a file hash, holds across file changes and package rebuilds with no file reads. | Answering repeat reads of every file (a project file's earlier read may be what the model needs to see again after its own edits); a file hash per read. | Skill re-reads, October 2026 |
+| Skill reads are forgotten at any compaction, including Pi's, whose kept tail may still hold some. | A read the model may not have costs a failed step; a repeat read costs only tokens. | Keeping reads in Pi's kept tail. | Skill re-reads, October 2026 |
+| The Runtime State's skills line changes only where the state refreshes anyway, and is left out under routing projection. | Each state change appends a whole state copy (about 100 to 200 tokens) after earlier input; a skill read is about 2,600 tokens. The state is shared by every profile, and the Coordinator's projected view lacks workers' reads. | Updating the line on every read; a line per profile. | Skill re-reads, October 2026 |
 | Messages state the fact and one next step, with no reassurance. | The wording was reviewed against Freeflow's Beyond the Weights research on model behavior. | — | `48a9387`, `3894a01` |
 | Settings of the retired v2 runtime still load and do nothing. | Existing configuration files stay valid. | Rejecting them. | `ca1cc90` |
 | The prompt section does not repeat habits the Working Method states, such as trying a new script on a case whose answer is known. | Pi sends the Working Method whenever Freeflow is on, so a repeated line is paid for twice on every request (Write Skill's Guidance Placement). The section keeps the mechanics of working in the environment. | Keeping both copies. | Context cut, October 2026 |
@@ -145,6 +162,9 @@ In `tool_call` for `bash`, after the routing gate (Cognitive Routing's check of 
 | A changed file is reported once per change, not on every tool. | `noticed` remembers the fingerprint last reported. | Notice spam. |
 | Unrecognized edit errors pass through unchanged. | The rewrite depends on Pi's exact wording, and a wrong rewrite is worse than Pi's text. | — |
 | With Tool Execution off, Pi's prompt and every tool result are exactly Pi's. | The layer is opt-in. | `prompt-native.test.js` fails. |
+| A Coordinator under projection reads a skill it read earlier in full again. | Its view is selective; see Repeat reads of Freeflow instructions. | It is told to use a copy its view may not hold. |
+| A codemode script's read of a skill gets the whole text even when the model holds it. | The script consumes the text, not the model. | A script receives one line where it expected a file. |
+| The Runtime State lists no skill read during the current run. | The line changes only where the state refreshes anyway (see Decisions). | A state copy appended per skill read. |
 | A trailing `&&` is not refused; a trailing `&` is. | Only a single `&` detaches a process. | — |
 | A monitor's stderr lines are not events. | Error output is usually noise for a watch; a watch that needs it redirects it (`2>&1`) into the filter. | — |
 
@@ -173,7 +193,7 @@ All four have `exposure: "direct"` (callable from codemode) and refuse to run wh
 
 ## State
 
-- **Memory only:** `FileState` observations keyed by real path; `FileTracking.changed` (tool call id → path, cleared each turn) and `built`; `BackgroundJobs.jobs`.
+- **Memory only:** `FileState` observations keyed by real path; `FileTracking.changed` (tool call id → path, cleared each turn) and `built`; `SkillReads` records keyed by the instruction file's path inside the package, and its `built`; `BackgroundJobs.jobs`.
 - **On disk:** background output files under the OS temp directory, not cleaned up by Freeflow.
 - **Session:** nothing of Tool Execution's own. File state is rebuilt from the branch's tool calls and Freeflow compaction records (`details.freeflow.carried`).
 - **Reset:** `session_start` and `session_shutdown` reset file state; shutdown also stops all background commands, and nothing reports into the next session.
@@ -184,6 +204,7 @@ All four have `exposure: "direct"` (callable from codemode) and refuse to run wh
 - The system prompt and tool definitions are identical across requests within a configuration, and a later request extends the earlier one. Guarded by `prompt-native.test.js` and `apply-patch-native.test.js`.
 - With Tool Execution off, Pi's prompt is untouched. Guarded by `prompt-native.test.js`.
 - File state is never persisted and never read on the request path (`context_with_system`). No test; only the hooks above touch it.
+- A repeat read is answered only for a top-level read whose exact text an earlier read since the latest compaction showed at the same line numbers, and never in a selective view. Guarded by `skill-reads.test.js` and `skill-reads-native.test.js`.
 - A planning failure in `apply_patch` writes nothing. Guarded by `apply-patch.test.js`.
 - A changed file is reported once per change, on the result the model sees. Guarded by `changed-files-native.test.js`.
 - Background commands never outlive the session or report into the next one. Guarded by `background.test.js`.
@@ -207,6 +228,7 @@ All four have `exposure: "direct"` (callable from codemode) and refuse to run wh
 
 - `tool_result` for a non-tracked tool stats every observed file and hashes only files whose size or mtime moved. This grows with the number of files read in the session, not with session length.
 - `before_agent_start` does the same once per prompt, and only after state was built.
+- An instruction-file read compares its lines with that file's earlier records, with no file system access; a rebuild walks the branch once per navigation, resume or invalidation. `loadedSkills()` returns the recorded skill names.
 - Nothing runs in `context_with_system`. See [Performance](../guides/performance.md) for the request-path rules.
 - The prompt section is about 460 words of fixed text, written once and then read from the provider's cache.
 
@@ -217,7 +239,8 @@ All four have `exposure: "direct"` (callable from codemode) and refuse to run wh
   - `prompt.ts`: `toolExecutionSections()`, `toolExecutionTail()`, `REMOVED_RULES`.
   - `tools.ts`: `TOOL_EXECUTION_TOOLS`, `applyToolExecutionTools()`.
   - `file-state.ts`: `FileState`, `resolveToolPath()`, `touchedPaths()`, `HASH_LIMIT_BYTES`.
-  - `file-tracking.ts`: `FileTracking` (`toolCall`, `toolResult`, `changedNotice`, `compacted`, `forPatch`, `written`).
+  - `file-tracking.ts`: `FileTracking` (`toolCall`, `toolResult`, `changedNotice`, `compacted`, `piCompacted`, `loadedSkills`, `forPatch`, `written`).
+  - `skill-reads.ts`: `SkillReads` (`result`, `rebuild`, `clear`, `skills`), `instructionPath()`, `isFreeflowInstruction()` (shared with compaction's result index), `skillName()`, `skillsRead()` (shared with the compaction summary).
   - `edit-messages.ts`: `rewriteEditError()`, `closestMatch()`, `matchingLines()`, `normalizeForMatch()`, and every message text (`writeRefusal()`, `changedAfterEdit()`, `noNeedToReread()`, `changedFilesNotice()`).
   - `background.ts`: `BackgroundJobs` (`start()`, `monitor()`, `stop()`, `restate()`), `registerBackgroundTools()`, `freeflowNotice` (re-exported), `MAX_RUNNING`, the `MONITOR_*` limits.
   - `bash-guard.ts`: `backgroundRefusal()`, `LONGEST_FOREGROUND_SLEEP_S`.
@@ -228,7 +251,7 @@ All four have `exposure: "direct"` (callable from codemode) and refuse to run wh
 
 ## Tests
 
-See [the tests README](../../pi-extension/tests/tool-execution/README.md). In short: `prompt-native.test.js` (sections on and off), `file-state.test.js` and `file-tracking-native.test.js` (observations, write refusal, changed-since-read, edit error rewrites against Pi's real `edit`), `changed-files-native.test.js` (notices after other tools), `apply-patch.test.js` and `apply-patch-native.test.js` (parser, matcher, declaration, grammar form), `background.test.js`, `monitor.test.js` and `background-native.test.js` (limits, exit codes, stop, shutdown, monitor events, batching, expiry and rate limit, notices in a real session), `bash-guard.test.js`.
+See [the tests README](../../pi-extension/tests/tool-execution/README.md). In short: `prompt-native.test.js` (sections on and off), `file-state.test.js` and `file-tracking-native.test.js` (observations, write refusal, changed-since-read, edit error rewrites against Pi's real `edit`), `changed-files-native.test.js` (notices after other tools), `skill-reads.test.js` and `skill-reads-native.test.js` (repeat reads answered, changed or partial text, truncation, nested calls, compactions, a Coordinator under projection, rebuild after resume, the Runtime State line), `apply-patch.test.js` and `apply-patch-native.test.js` (parser, matcher, declaration, grammar form), `background.test.js`, `monitor.test.js` and `background-native.test.js` (limits, exit codes, stop, shutdown, monitor events, batching, expiry and rate limit, notices in a real session), `bash-guard.test.js`.
 
 ## Limits
 
@@ -240,6 +263,7 @@ See [the tests README](../../pi-extension/tests/tool-execution/README.md). In sh
 
 ## Changes
 
+- October 2026: repeat reads of Freeflow instruction files answered with one line; the skills line in the Runtime State.
 - Task 002 (2026-10-11): monitors.
 - `f51aff6` (2026-09-30): "Working In The Environment" as its own system section; the Tool Execution skill retired.
 - `3894a01` (2026-09-30): notices for files changed behind the model; bash guard; notice prefix.

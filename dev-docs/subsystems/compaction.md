@@ -34,7 +34,7 @@ It deliberately does not:
 | Context reuse | The switch for carrying files and results. Off: only the summary and the user's messages carry over. | `compaction.carry`, `CompactionHost.carryEnabled()` |
 | Result index | Under no routing, the list of this cycle's larger tool results with ids `r1`, `r2`, … the agent carries by. | `resultIndex()`, `renderIndex()` in `results.ts` |
 | Routing ref | Under Cognitive Routing, a tool result's source ref `ctx:<entry-id>`, used instead of `r` ids. | `CompactionHost.nativeRefs()`, `resolveRef()` |
-| Harness part | The part of the summary Freeflow writes from facts it holds. | `harnessPart()` in `harness.ts` |
+| Harness part | The part of the summary Freeflow writes from facts it holds: the cycle, what asked for the compaction, the routing profile, running background commands, the Freeflow skills read in the cycle it ends (by name, from successful top-level reads), and the session's file lists. | `harnessPart()` in `harness.ts`, `skillsRead()` in `tool-execution/skill-reads.ts` |
 | Fallback | Pi's own compaction with Freeflow's instructions and state added. | `CompactionController.fallback()` |
 
 Terms from elsewhere in Freeflow, defined fully in their own docs:
@@ -96,6 +96,7 @@ When Pi compacts (its trigger, an overflowing request, or `/compact`), `session_
 | `compact_context` is callable from codemode scripts (`exposure: "direct"`). | Agents that look for tools in codemode first concluded they could not compact. Routing tools stay model-only. | Model-only exposure. | `257ee32` |
 | Carried files and read results are numbered by file line; a final newline adds no line, and only a read result keeps Pi's partial-read note unnumbered. | Agents re-read carried files with `nl` to cite lines. | Plain copies. | `97b149b` |
 | Context size from the turn's own usage; full-history estimate extended incrementally; result index built only near the warning. | `observe()` runs after every turn; Pi's `getContextUsage()` rebuilds the session projection each call. | Asking Pi each turn; building the index every turn. | `9078dd0` |
+| The harness part names the skills read in the cycle it ends, by name only. | Recovery tells the agent to read again each skill before applying its method; the names say which ones the work was using, so it reloads those rather than guessing. Rules belong to the skills, not the summary. | Summaries of each skill's rules. | Skill re-reads, October 2026 |
 | The tool is `compact_context`, not `freeflow_compact`; the result index still treats `freeflow_compact` and the old routing names in saved history as control calls. | The old name matched `/freeflow compact`, and models confused prefixed tools with `/freeflow` commands. | Keeping the prefix. | Task 003 |
 
 ## Intended Behavior That Looks Wrong
@@ -187,6 +188,7 @@ Pi settings read, never written: `compaction.reserveTokens` and `compaction.mode
   - `carry.ts`: `carryBudget()`, `readCarriedFile()`, `latestUserMessages()`, `numberLines()`, `renderCarried()`, `renderCarriedForCoordinator()`, `renderListed()`.
   - `results.ts`: `resultIndex()`, `scopeResults()`, `resolveResult()`, `resultFirstLine()`, `INDEX_TOKEN_BOUND`.
   - `harness.ts`: `harnessPart()`, `nextCycle()`, `currentCycle()`, `sessionFileLists()`.
+- `pi-extension/src/tool-execution/skill-reads.ts`: `isFreeflowInstruction()` (instruction reads left out of the result index and carry) and `skillsRead()` (the harness part's skill names).
   - `tool.ts`: `registerCompactionTool()`, `applyCompactionTools()`.
   - `config.ts`: `resolveCompactionConfig()`, `validateCompactionConfig()`.
 - `pi-extension/src/index.ts`: the `CompactionHost` implementation (`measure`, `turnContextTokens()`, `fullHistoryTokens()`, `coordinatorUnderProjection`), the event handlers, and `/freeflow compact`.
@@ -196,7 +198,7 @@ Pi settings read, never written: `compaction.reserveTokens` and `compaction.mode
 
 ## Tests
 
-See [the tests README](../../pi-extension/tests/compaction/README.md) for each file. In short: `thresholds.test.js` (points, budget, index), `notices.test.js` (warning and compact now timing), `agent-path.test.js` (the full path, refusals, routed workers), `automatic-carry.test.js` (the four carry cases: routing off or on, context reuse on or off), `carry.test.js` (context reuse and routing refs), `worker-warning.test.js` and `coordinator-view.test.js` (routing), `script-call.test.js` (codemode), `fallback.test.js` (Pi's compaction). `pi-extension/tests/integration/request-path-budget.test.js` bounds the per-turn work.
+See [the tests README](../../pi-extension/tests/compaction/README.md) for each file. In short: `thresholds.test.js` (points, budget, index), `notices.test.js` (warning and compact now timing), `agent-path.test.js` (the full path, refusals, routed workers), `automatic-carry.test.js` (the four carry cases: routing off or on, context reuse on or off), `carry.test.js` (context reuse and routing refs), `worker-warning.test.js` and `coordinator-view.test.js` (routing), `script-call.test.js` (codemode), `fallback.test.js` (Pi's compaction), `harness.test.js` (the harness part's skill names); `pi-extension/tests/tool-execution/skill-reads-native.test.js` checks the names in Pi's compaction. `pi-extension/tests/integration/request-path-budget.test.js` bounds the per-turn work.
 
 ## Limits
 
@@ -208,6 +210,7 @@ See [the tests README](../../pi-extension/tests/compaction/README.md) for each f
 
 ## Changes
 
+- October 2026: the harness part names the Freeflow skills read in the cycle it ends.
 - Task 003 (2026-10-11): `freeflow_compact` renamed `compact_context`.
 - `9078dd0` (2026-10-03): per-turn cost cut (turn usage, incremental estimate, index near the warning).
 - `97b149b`, `257ee32`, `d818051` (2026-10-03): numbered carried files; compact before return only at compact now; codemode calls.

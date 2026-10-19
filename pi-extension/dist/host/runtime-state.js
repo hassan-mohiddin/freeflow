@@ -118,6 +118,7 @@ export function freeflowRuntimeStateMessage(
       ...(control === "automatic" ? [] : [`- Profile: \`${profile}\``]),
       `- Delegation: \`${cognitiveRoutingRuntime?.delegation ?? capabilityState?.cognitiveRouting?.delegation ?? "executor"}\``,
       `- Projection: \`${projectionMode}\``,
+      ...(options.skills?.length ? ["", `Freeflow skills read in this context: ${options.skills.join(", ")}`] : []),
       ...(options.taskMemory?.length ? ["", ...options.taskMemory] : []),
     ].join("\n"),
     display: false,
@@ -153,6 +154,7 @@ export function withFreeflowRuntimeState(
   const runtimeState = freeflowRuntimeStateMessage(capabilityState, cognitiveRoutingRuntime, freeflowContext, {
     projectionFailure: options.projectionFailure,
     taskMemory: options.taskMemory,
+    skills: options.skills,
   });
   const runtimeStateMessages = source.filter(
     (message) =>

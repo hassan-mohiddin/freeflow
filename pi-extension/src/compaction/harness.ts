@@ -2,8 +2,8 @@ import { touchedPaths } from "../tool-execution/file-state.js";
 
 /**
  * The part of a compaction summary Freeflow writes itself, from facts it holds rather than the model's memory: the
- * cycle, what asked for the compaction, the routing profile, running background commands, and the files the session
- * read and changed. It never names a Working Record: Freeflow cannot tell which record belongs to this work, so the
+ * cycle, what asked for the compaction, the routing profile, running background commands, the Freeflow skills read in
+ * the cycle it ends, and the files the session read and changed. It never names a Working Record: Freeflow cannot tell which record belongs to this work, so the
  * agent's own summary names it.
  */
 
@@ -19,6 +19,8 @@ export interface HarnessFacts {
   listed?: string;
   routingProfile?: string;
   background: readonly { id: string; label: string; outputPath: string }[];
+  /** Freeflow skills read in the cycle this compaction ends, by name. */
+  skills?: readonly string[];
   /** Session-wide lists in Pi's details format. */
   files: { readFiles: string[]; modifiedFiles: string[] };
 }
@@ -116,6 +118,7 @@ export function harnessPart(facts: HarnessFacts): string {
     lines.push(
       `Background commands still running: ${facts.background.map((job) => `${job.id} (${job.label}), output ${job.outputPath}`).join("; ")}.`,
     );
+  if (facts.skills?.length) lines.push(`Freeflow skills read in cycle ${facts.cycle - 1}: ${facts.skills.join(", ")}.`);
   const files = facts.includeFiles === false ? "" : formatFileLists(facts.files);
   if (files) lines.push("", "Files read and modified in this session:", "", files);
   if (facts.listed) lines.push("", facts.listed.replace(/^## /, "### "));

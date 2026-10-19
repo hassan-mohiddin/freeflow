@@ -11,6 +11,7 @@ import {
   rewriteEditError,
   writeRefusal,
 } from "./edit-messages.js";
+import { SkillReads } from "./skill-reads.js";
 import { cachedBranch } from "../host/branch.js";
 function existingFile(path, cwd) {
   try {
@@ -42,21 +43,34 @@ function withLines(content, lines) {
 }
 /**
  * Claude Code's file awareness around Pi's read, edit and write: refuse a whole-file write over a file never read,
- * say when an edited file changed since it was read, and turn edit errors into one next action. Nested calls
- * (codemode) are handled like direct ones.
+ * say when an edited file changed since it was read, turn edit errors into one next action, and answer a repeat
+ * read of a Freeflow instruction file the model already holds with one line. Nested calls (codemode) are handled like
+ * direct ones, except that a nested read is never answered for the model: the script consumes its text.
  */
 export class FileTracking {
+  options;
   state = new FileState();
   changed = new Map();
+  skillReads = new SkillReads();
   built = false;
+  /** `selectiveView`: whether the model's request shows only part of the history (a Coordinator under projection). */
+  constructor(options = {}) {
+    this.options = options;
+  }
   reset() {
     this.state.reset();
     this.changed.clear();
+    this.skillReads.reset();
     this.built = false;
   }
   /** Forget the branch's files; they are rebuilt from the new branch before the next tool call. */
   invalidate() {
     this.built = false;
+    this.skillReads.invalidate();
+  }
+  /** After Pi's own compaction the files are unchanged, but the instruction files read before it are out of view. */
+  piCompacted() {
+    this.skillReads.clear();
   }
   clearPending() {
     this.changed.clear();
@@ -67,6 +81,12 @@ export class FileTracking {
     this.changed.clear();
     for (const path of carried) await this.state.observe(path, ctx.cwd, "read");
     this.built = true;
+    this.skillReads.clear();
+  }
+  /** Freeflow skills the model holds in this context, by name; reads are rebuilt from the branch when needed. */
+  loadedSkills(ctx) {
+    if (!this.skillReads.built) this.skillReads.rebuild(cachedBranch(ctx.sessionManager) ?? [], ctx.cwd);
+    return this.skillReads.skills();
   }
   /** The branch's file state for apply_patch, built when needed. */
   async forPatch(ctx) {
@@ -79,6 +99,7 @@ export class FileTracking {
     for (const path of paths) await this.state.observe(path, ctx.cwd, "apply_patch");
   }
   async ensureBuilt(ctx) {
+    if (!this.skillReads.built) this.skillReads.rebuild(cachedBranch(ctx.sessionManager) ?? [], ctx.cwd);
     if (this.built) return;
     await this.state.rebuild(cachedBranch(ctx.sessionManager) ?? [], ctx.cwd);
     this.built = true;
@@ -131,7 +152,7 @@ export class FileTracking {
       return rewritten === undefined ? undefined : { content: [{ type: "text", text: rewritten }] };
     }
     await this.state.observe(path, ctx.cwd, name);
-    if (name === "read") return undefined;
+    if (name === "read") return this.skillReads.result(event, ctx.cwd, this.options.selectiveView?.() !== true);
     const lines =
       name === "edit"
         ? [...(changed ? [changedAfterEdit(path)] : []), noNeedToReread(path)]
