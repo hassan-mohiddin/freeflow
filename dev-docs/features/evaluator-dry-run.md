@@ -3,7 +3,7 @@
 > **Covers:** `skills/evaluate-behavior/scripts/skill-eval.mjs`, `skills/evaluate-behavior/scripts/lib/identity.mjs`
 > **Verified at:** `bc47cf88` (2026-10-19)
 
-A contributor runs the behavior evaluator with `skill-eval run <suite-or-group>`. Before anything starts it prints a plan (subjects, models, builds) and, on a terminal, asks `Start? [y/N]`. A run whose inputs are not committed is refused; `--dry-run` lets it run anyway and marks the result as a dry run that supports no claim. A dry run still runs subjects and calls models. How a run proceeds and why canonical evidence comes from commits: [Review, evaluation and verification](../subsystems/review-evaluation-verification.md).
+A contributor runs the behavior evaluator with `skill-eval run <suite-or-group>`. Before anything starts it prints a plan (subjects, models, builds) and, on a terminal, asks `Start? [y/N]`. A run whose inputs are not committed is refused; `--dry-run` lets it run anyway and marks the result as a dry run that supports no claim. A dry run still runs subjects and calls models. How a run proceeds and why canonical evidence comes from commits: [Review, evaluation and verification](../subsystems/verification-review-evaluation.md).
 
 ## Sub-features
 
