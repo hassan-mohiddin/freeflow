@@ -8,11 +8,11 @@ A **recipe** is a project's saved steps for checking its software live: a featur
 
 ## Find It
 
-Look for the feature files whose `Covers` header names the code the claim concerns, or for the feature the claim is about. When the docs check reports a feature file as possibly stale (its covered code changed after its `Verified at` commit), treat its steps as a lead to confirm, not as fact.
+Look for the feature files whose `Covers` header names the code the claim concerns, or for the feature the claim is about. Read only what reaches the claim: the shared guide, its helper, and those feature files. Other features' files and earlier reports are not needed to check it. When the docs check reports a feature file as possibly stale (its covered code changed after its `Verified at` commit), treat its steps as a lead to confirm, not as fact.
 
 ## Use It
 
-Follow the shared guide's launch, health check and clean-up, and the feature file's steps that reach the claim. Record evidence and claim results as Verify Work describes. A step marked as calling a model or another paid service runs only when the current agreement covers it.
+Follow the shared guide's launch, health check and clean-up, and the feature file's steps that reach the claim. Run them through the saved helper; when a step the claim needs is missing, extend the helper or drive that step with it rather than writing a separate check script. Record evidence and claim results as Verify Work describes. A step marked as calling a model or another paid service runs only when the current agreement covers it.
 
 ## Triage A Failing Step Before Fixing Anything
 
@@ -31,7 +31,9 @@ When you had to correct or work out steps, save them through [Write Docs](../../
 
 ## When There Is No Recipe
 
-- **The project has a feature map, but not for this feature:** work out the steps the claim needs, drive them, and propose adding them as a feature file with [Map Features](../../map-features/SKILL.md), saying what it would cost and what it would save later checks.
+- **The project has a feature map, but not for this feature:** work out the steps the claim needs on top of the shared guide and helper, drive them, and propose adding them as a feature file with [Map Features](../../map-features/SKILL.md), saying what it would cost and what it would save later checks.
 - **The project has developer docs but no feature map:** work out the steps the claim needs, and propose setting up a map with Map Features, with its cost and what it would save.
 - **The project has no developer docs:** propose creating them through Write Docs before a feature map. Do not put the steps in `AGENTS.md` or another instruction file loaded on every turn.
 - **The software has nothing to run, such as a pure library:** its tests are the live check; there is no recipe to find.
+
+Read Map Features or Write Docs only when you are about to write a feature file or the docs; a proposal needs neither.
