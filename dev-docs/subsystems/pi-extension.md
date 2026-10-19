@@ -46,6 +46,8 @@ For local Freeflow development, refresh a snapshot only from a committed Freeflo
 npm run snapshot:refresh
 ```
 
+`scripts/freeflow-snapshot.mjs` resolves the revision to a commit, exports it with `git archive` (so uncommitted and ignored files are never included), installs only runtime dependencies from the committed `package-lock.json` with `npm ci --omit=dev --ignore-scripts`, packs the result with `npm pack --ignore-scripts`, and records the source commit and tree, the lockfile and tarball SHA-256s, and each dependency's integrity in the snapshot's metadata. It replaces the previous snapshot and metadata only after the new ones are complete, restoring the old ones if a step fails.
+
 A snapshot identity and an installed package identity are different. Do not treat an uncommitted working tree as a production package source, and do not infer host behavior from a snapshot. Snapshot refresh does not patch the host or its session state.
 
 ## Related

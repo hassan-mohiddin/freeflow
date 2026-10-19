@@ -1,8 +1,6 @@
 # Freeflow Agent Memory
 
-This repo develops `freeflow`, a plugin/skill pack for guiding coding agents through consequential work without ceremony, silent decisions, or AI slop.
-
-The plugin is not a new agent. It is a portable workflow layer for agents such as Codex, Claude Code, Pi, and similar coding environments.
+This repo develops `freeflow`, a feedback-based control system for coding agents: a portable skill pack and runtime guidance that steer an existing agent such as Codex, Claude Code or Pi through consequential work, plus a native Pi extension. It is not a new agent.
 
 This file governs contributing to the Freeflow repository. It does not define the model-facing workflow or task-memory method; those belong to the runtime context and active skills. Repository-specific constraints here still apply to changes made in this repo.
 
@@ -14,12 +12,12 @@ Use the smallest current source set relevant to the change:
 - Before treating behavior as a bug, read its subsystem doc's decisions and intended behavior that looks wrong; listed behavior is a design choice for the user to change, not a fix.
 - Read `dev-docs/adr/` when the change touches a durable decision.
 - Recover the active Working Record through Track Work when an ongoing task has one.
-- Before designing or changing a capability, check `.freeflow/tasks/` for related tasks and read their `record.md`, `specs/`, and `plans/`. Accepted designs and their rationale often live only there. The directory is Git-ignored: `.ignore` keeps it visible to ripgrep-based search, but tools that honor only `.gitignore` skip it, so search that path explicitly.
-- Read the latest relevant file in `docs/handoffs/` only when a point-in-time transfer is needed or the current record does not cover it.
+- Before designing or changing a capability, check this repository's task records for related tasks and read their `record.md`, `specs/`, and `plans/`. Accepted designs and their rationale often live only there. Records outside a Task Memory project are in `.freeflow/tasks/`, which is Git-ignored: `.ignore` keeps it visible to ripgrep-based search, but tools that honor only `.gitignore` skip it, so search that path explicitly. Once the repository is linked to a project, its records are in the project's store, reached through the `.freeflow/project` link; search that path explicitly too, since search tools do not follow links by default.
+- Read a handoff only when a point-in-time transfer is needed or the current record does not cover it.
 - Read the relevant live skill, runtime contract, test, package metadata, or release-evidence record before editing.
 - Inspect `.skill-eval/` and the accepted bundle when changing or evaluating a skill's evidence. Historical v1 cases and reports under `.deprecated/skill-evals-v1/` are documentary only and never establish current readiness.
 
-Historical plans, research, handoffs, issues, and evidence under `docs/` preserve project context but are not current product authority. Live repository evidence and current `plugin-docs/` pages override them.
+Historical plans, research, handoffs, issues, and evidence under `.deprecated/` (the former `docs/` tree is `.deprecated/project-docs/`) preserve project context but are not current product authority. Live repository evidence and current `plugin-docs/` and `dev-docs/` pages override them.
 
 ## External Host Source Provenance
 
@@ -40,41 +38,18 @@ Pi development consumes a committed Freeflow snapshot, not this checkout's worki
 npm run snapshot:refresh
 ```
 
-Commit intended Freeflow changes before refreshing. The tool archives the selected Git revision, installs only its declared runtime dependencies from the committed lockfile with scripts disabled, packs it with `npm pack --ignore-scripts`, records source/package/dependency provenance, and replaces the self-contained target atomically. It excludes uncommitted and ignored source files and does not mutate host state. Snapshots are development-only; production uses ordinary npm/Git sources. Read `plugin-docs/integrations/pi.md` for current native Pi guidance; use `.deprecated/project-docs/guides/tooling/freeflow-development-snapshot.md` only for detailed historical snapshot mechanics.
-
-Host launch, import, and update behavior remain host-owned; a development snapshot does not establish host support or runtime delivery.
+Commit intended Freeflow changes before refreshing; uncommitted and ignored files are not in a snapshot. Snapshots are development-only, and a snapshot does not establish host support or runtime delivery. How the tool builds one: [Pi extension](dev-docs/subsystems/pi-extension.md#development-boundary).
 
 ## Reference Stack For Skill Development
 
-When authoring or revising a Freeflow skill and current coverage, evidence, or behavior needs an outside reference, consult this stack:
-
-- Matt Pocock skills are the primary style and behavior reference.
-- Obra/Superpowers skills are the workflow lifecycle reference.
-- Anthropic `skill-creator` is the skill authoring and eval methodology reference.
-
-These references guide skill development and evaluation; they are not runtime dependencies and do not replace the active Freeflow skills during ordinary work.
-
-Use Matt for concise skill wording, sharp failure-prevention rules, low-ceremony loops, and practical engineering judgment.
-
-Use Obra/Superpowers for workflow phases, planning, execution, review, verification, debugging, and lifecycle gaps Freeflow has not encoded yet.
-
-Use Anthropic `skill-creator` for skill structure, trigger descriptions, progressive disclosure, baseline versus with-skill evals, and iteration from measured failures.
-
-When reference skills conflict during skill development:
-
-1. User instruction wins.
-2. Repo memory wins: `AGENTS.md`, ADRs.
-3. Freeflow docs and eval reports win.
-4. Matt style wins for interaction shape and skill wording.
-5. Obra/Superpowers wins for lifecycle coverage.
-6. Anthropic `skill-creator` wins for skill creation and eval mechanics.
+When a skill change needs an outside reference, use the reference stack and its conflict order in [ADR 0008](dev-docs/adr/0008-reference-skill-stack.md). The references guide development only; they are not runtime dependencies.
 
 ## Working Rules
 
 - Use ADRs sparingly for hard-to-reverse, surprising, tradeoff-driven decisions.
 - Do not hardcode volatile repo facts, directory inventories, or stack summaries into durable memory.
 - Do not add enforcement hooks until skill wording and evals prove the behavior needs mechanical enforcement.
-- Before adding or moving guidance in `runtime/prompts/`, a skill description, or a tool's text, read Write Skill's [Guidance Placement](skills/write-skill/references/guidance-placement.md): each behavior on the lowest rung that reaches the agent in time, with one owner.
+- Before editing a skill or other instruction text in this repository (a `SKILL.md`, its references, `AGENTS.md`, `runtime/prompts/`, or a tool's description), read and follow [Write Skill](skills/write-skill/SKILL.md). Its [Guidance Placement](skills/write-skill/references/guidance-placement.md) decides where each behavior lives: on the lowest rung that reaches the agent in time, with one owner.
 
 ## Prompt Cache
 
@@ -112,25 +87,10 @@ Freeflow runs on every Pi turn and request, so its work delays every model call 
 - Use `release-work` for version classification, release preparation, artifact checks, publication, recovery, and consumer-side verification.
 - `npm run check` is the deterministic local/CI gate. It does not run model-based skill evaluations or require publication credentials.
 - Release preparation may update version metadata and move verified `Unreleased` notes into a version section, but it must not commit, tag, push, publish, or create a GitHub Release by itself.
-- A Git tag in the form `vX.Y.Z` is the human-controlled release boundary. The tag workflow verifies the exact source and version, validates changelog/release notes before publication, builds and checks generated output, publishes one exact npm tarball with provenance, verifies registry identity, and creates the GitHub Release.
+- A Git tag in the form `vX.Y.Z` is the human-controlled release boundary; what the tag workflow does is in the [Release process](dev-docs/guides/release.md).
 - Never reuse an npm version or force-move a release tag. If publication partially succeeds, inspect remote state before retrying; recovery is allowed only when the existing registry artifact matches the candidate checksum and provenance.
-- npm Trusted Publishing and the protected `npm` GitHub environment are external prerequisites; source checks cannot prove their configuration.
-- Do not run `npm run snapshot:refresh` as part of a production release. Snapshots are development-only.
+- Do not run `npm run snapshot:refresh` as part of a production release.
 
 ## Implementation Pointers
 
-The repo root is the single source of truth for runtime skills, plugin docs, current `.skill-eval/` definitions, and command-surface metadata. Retired Output Router source and evidence live under `.deprecated/output-router/`. The npm tarball contains only runtime-required files; GitHub retains docs and evidence.
-
-For the current skill set, inspect `skills/` when changing or evaluating a skill. Runtime behavior and task-memory mechanics belong to their corresponding skill and runtime sources; this contributor file does not restate them.
-
-## Style
-
-Write like Matt Pocock's best skills:
-
-- concise
-- generalizable
-- specific where behavior can fail
-- light on procedure
-- clear about stop conditions
-
-Do not write long manuals when a sharp rule will do.
+The repository root is the single source of truth: skills, runtime prompts, docs, `.skill-eval/` definitions and command-surface metadata are never copied into a second maintained tree. Where each part lives: the [developer docs](dev-docs/README.md) Code Map.
