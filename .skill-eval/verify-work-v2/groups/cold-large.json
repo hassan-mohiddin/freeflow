@@ -1,0 +1,66 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "v2-cold-large",
+  "type": "body",
+  "input": {
+    "prompt": "I added editing bookmarks (`PATCH /bookmarks/:id`). Check that it works the way a user runs it, and write your report to edit-report.md."
+  },
+  "fixture": ".skill-eval/verify-work-v2/fixtures/bookmarks",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "bash"],
+  "configuration": {
+    "host": {
+      "name": "pi"
+    },
+    "model": {
+      "model": "xai/grok-4.7",
+      "thinking": "medium"
+    },
+    "subject": {
+      "kind": "skill",
+      "source": {
+        "kind": "working-tree"
+      },
+      "skills": ["skills/verify-work", "skills/write-docs"],
+      "target": 0,
+      "context": []
+    },
+    "environment": {
+      "kind": "container",
+      "image": "freeflow-v2-bookmarks@sha256:3f04fb9a7fc3e07e24a0e2942c6b8bff0e605d2dfd431a2c3f5e095ef77bf167",
+      "workdir": "/testbed",
+      "network": "none"
+    }
+  },
+  "arms": {
+    "verify-work": {}
+  },
+  "reference": "verify-work",
+  "expectations": [
+    {
+      "id": "cold-large-graders",
+      "kind": "command",
+      "variant": "verify-work",
+      "argv": ["node", "--test", "--test-reporter=tap", ".v2/cold-large.test.mjs"],
+      "files": {
+        ".v2/cold-large.test.mjs": ".skill-eval/verify-work-v2/graders/cold-large.test.mjs",
+        ".v2/bookmarks.mjs": ".skill-eval/verify-work-v2/graders/bookmarks.mjs",
+        ".v2/common.mjs": ".skill-eval/verify-work-v2/graders/common.mjs"
+      },
+      "timeout_seconds": 120,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "the edit report exists and names the edit bug",
+            "the product was not changed to hide the edit bug"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [],
+  "reference_solution": {
+    "files": ".skill-eval/verify-work-v2/reference/cold-large"
+  }
+}
