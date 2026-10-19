@@ -2,7 +2,7 @@
 
 > **Covers:** `skills/review-work/`, `skills/evaluate-behavior/`, `skills/verify-work/SKILL.md`, `skills/verify-work/scripts/`, `.skill-eval/scripts/gate.mjs`, `.skill-eval/gate.json`, `.skill-eval/gate/`, `scripts/validation/check-eval-definitions.mjs`
 > **Tests:** `.skill-eval/evaluate-behavior/tests/`, `.skill-eval/verify-work/tests/`
-> **Verified at:** `b80bc6d3` (2026-10-19)
+> **Verified at:** `8470576f` (2026-10-19)
 
 For contributors changing how Freeflow reviews work, evaluates agent behavior, or verifies claims: what each part does, how they depend on each other, why they are shaped this way, and which of their behaviors are deliberate. It also covers the evaluator's code, the evidence it stores, and the contributor gate that measures Freeflow's own changes.
 
@@ -227,7 +227,7 @@ It exits 0 whenever it lists, even nothing, and 2 on a usage or Git error.
 The binding shape is `skills/evaluate-behavior/references/evaluation-definition-schema.md`. In summary:
 
 - **Suite:** `id`, `groups`, optional `decision` (`measure`, `arms`, `direction`, `method: "sign-test"`, `alpha`, `min_cases`, `trials`).
-- **Group:** `id`, `type` (`description` or `body`), `input` (`prompt` or `turns`), `fixture`, `tools`, `configuration`, `arms`, `expectations`, `review_questions`; optional `component`, `commands`, `revision: "description-only"`, `reference`, `rubric`, `judges`, `combine`, `reference_solution`, `participants`.
+- **Group:** `id`, `type` (`description` or `body`), `input` (`prompt` or `turns`, plus optional `resume_before` on Pi body groups with a persistent session: before each named turn the RPC session is closed and resumed from its own file through `switch_session`), `fixture`, `tools`, `configuration`, `arms`, `expectations`, `review_questions`; optional `component`, `commands`, `revision: "description-only"`, `reference`, `rubric`, `judges`, `combine`, `reference_solution`, `participants`.
 - **Configuration** (group, arm overlay, or a file via `extends`): `host` (`version`, `extensions`, `settings`), `model`, `subject` (skills, target, source, context), `freeflow`, `runtime`, `shell`, `environment`, `participants`.
 - **Expectation kinds:** `skill-read`, `resource-read`, `path`, `changed-paths`, `file-text`, `json`, `response-text`, `context-text`, `tool-call`, `command`.
 
