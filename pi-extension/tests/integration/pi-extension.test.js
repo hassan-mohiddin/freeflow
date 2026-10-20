@@ -581,7 +581,8 @@ test("plugin-docs/settings.md documents every row the settings screen shows and 
   // Task 005: the reference page cannot fall behind the screen or the configuration code.
   const doc = await readFile(new URL("../../../plugin-docs/settings.md", import.meta.url), "utf8");
   const { SESSION_OVERRIDE_KEYS } = await import("../../dist/host/config.js");
-  const { RUNTIME_PROMPTS, validateRepositoryConfig } = await import("../../dist/host/config-validation.js");
+  const { REVIEW_MODES, RUNTIME_PROMPTS, validateRepositoryConfig } =
+    await import("../../dist/host/config-validation.js");
   const { AUTO_APPROVE_GROUPS } = await import("../../dist/task-memory/config.js");
   const { INBOUND_POLICIES } = await import("../../dist/messaging/config.js");
   const { DELEGATION_MODES } = await import("../../dist/cognitive-routing/types.js");
@@ -592,18 +593,25 @@ test("plugin-docs/settings.md documents every row the settings screen shows and 
     "cognitiveRouting.delegation",
     ...["coordinator", "helper", "executor"].map((profile) => `cognitiveRouting.profiles.${profile}`),
     ...RUNTIME_PROMPTS.map((prompt) => `prompts.${prompt}`),
+    "review.mode",
+    "review.model",
   ];
   for (const key of keys) assert.ok(doc.includes(`| \`${key}\` |`), `settings.md lists ${key}`);
-  for (const value of [...INBOUND_POLICIES, ...DELEGATION_MODES])
+  for (const value of [...INBOUND_POLICIES, ...DELEGATION_MODES, ...REVIEW_MODES])
     assert.ok(doc.includes(`\`${value}\``), `settings.md names the value ${value}`);
   // Every key the page lists is one Freeflow accepts.
+  const values = {
+    "messaging.inbound": "accept",
+    "cognitiveRouting.delegation": "executor",
+    "review.mode": "always",
+    "review.model": "a-model",
+  };
   for (const [, key] of doc.matchAll(/^\| [^|]+ \| `([a-zA-Z.]+)` \|/gm)) {
     const config = {};
     let at = config;
     const parts = key.split(".");
     for (const part of parts.slice(0, -1)) at = at[part] = {};
-    at[parts.at(-1)] =
-      key === "messaging.inbound" ? "accept" : key === "cognitiveRouting.delegation" ? "executor" : true;
+    at[parts.at(-1)] = values[key] ?? true;
     if (!key.startsWith("cognitiveRouting.profiles")) assert.equal(validateRepositoryConfig(config), null, key);
   }
   // Every row the screen shows, in every tab, is in the page's table.

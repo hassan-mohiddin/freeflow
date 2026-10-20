@@ -15,7 +15,7 @@ With nothing configured, Freeflow on Pi runs with these capabilities; each one's
 | [Messaging](capabilities/messaging.md) | off | Messages between the agents in your Pi sessions on this machine |
 | [Cognitive Routing](capabilities/cognitive-routing.md) | off | Coordinator, Helper and Executor profiles on different models |
 
-On Codex, Claude Code, Gemini CLI, Cursor and GitHub Copilot only the `enabled` switch and `prompts` apply; the capabilities above are Pi only.
+On Codex, Claude Code, Gemini CLI, Cursor and GitHub Copilot only the `enabled` switch, `prompts` and `review` apply; the capabilities above are Pi only.
 
 ## Where a setting lives
 
@@ -115,6 +115,8 @@ Keys are paths in `.freeflow/config.json` or `.freeflow/local.json`. The Scopes 
 | — | `prompts.core` | `true`, `false` | `true` | Personal, Repository (Codex, Claude Code, Gemini CLI, Cursor, Copilot) |
 | — | `prompts.interactionContract` | `true`, `false` | `true` | Personal, Repository (same hosts) |
 | — | `prompts.workingMethod` | `true`, `false` | `true` | Personal, Repository (same hosts) |
+| — | `review.mode` | `auto`, `off`, `always` | `auto` | Personal, Repository (every host) |
+| — | `review.model` | a model name, such as `claude-opus-4-5` | none | Personal, Repository (every host) |
 
 What some of them mean:
 
@@ -123,6 +125,7 @@ What some of them mean:
 - **Delegation** chooses which workers automatic routing may use; each needs its preset. A preset's `thinking` is one of the model's thinking levels. See [Cognitive Routing](capabilities/cognitive-routing.md).
 - **Control** holds one profile for the session until you release it; it changes only while routing runs. `/freeflow profile` does the same.
 - **`prompts`** turns each of Freeflow's session-start prompts on or off on hosts other than Pi; Pi always delivers all of them.
+- **`review`** sets when Review Work reviews finished work: `auto` lets its own risk check decide, `off` leaves review to when you ask for it, and `always` reviews every finished task. `auto` in your personal file returns a shared `off` or `always` to the default. `model` names the model a reviewer runs on, where the host lets the agent choose one; Freeflow passes the name on as written and does not check it. A setting other than the default shows in the agent's Runtime State, such as ``Review: `always`, reviewer model `claude-opus-4-5` ``.
 
 A configuration file with a key Freeflow does not know is refused with an error naming the file. Keys of removed features are still accepted and do nothing: `toolExecution` keys `capture`, `programs`, `workspace`, `discovery`, `adapters` and `accounting`, and the top-level `outputRouter`, `observedRouting` and `scriptTransform` (with `processing` in the personal file). `contextVirtualization` and `conversationHistory` belong to removed context features: a file that still has either is invalid and keeps Freeflow off until you delete them.
 

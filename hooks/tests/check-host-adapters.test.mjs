@@ -120,6 +120,9 @@ test("the hooks and Pi agree on every config's validity", async () => {
     ['{"prompts":{"workingMethod":"no"}}', undefined],
     ["{}", '{"prompts":{"skills":false}}'],
     ["{}", '{"prompts":[]}'],
+    ['{"review":{"mode":"off","model":"opus"}}', '{"review":{"mode":"auto"}}'],
+    ['{"review":{"mode":"never"}}', undefined],
+    ["{}", '{"review":{"effort":"high"}}'],
     ["{invalid", undefined],
     ["[]", undefined],
   ];
@@ -131,6 +134,30 @@ test("the hooks and Pi agree on every config's validity", async () => {
     assert.equal(hook.configured, pi.configured, label);
     assert.equal(hook.enabled, pi.configured && pi.coreConfig.enabled, label);
   }
+});
+
+// The user's review choice reaches the agent in the Runtime State, as on Pi; the default adds nothing.
+test("a hook host's Runtime State names the user's review choice, and only a choice", () => {
+  const runtimeState = (config, local) => {
+    const workspace = createWorkspace(`${JSON.stringify(config)}\n`, local && `${JSON.stringify(local)}\n`);
+    const context = contextOf(runAdapter(adapters.claude[0], workspace, inputFor("claude", workspace)));
+    return context.slice(context.indexOf("# Freeflow Runtime State"));
+  };
+  assert.equal(runtimeState({}), "# Freeflow Runtime State\n\nFreeflow: active");
+  assert.equal(runtimeState({ review: { mode: "auto" } }), "# Freeflow Runtime State\n\nFreeflow: active");
+  assert.equal(
+    runtimeState({ review: { mode: "off" } }),
+    "# Freeflow Runtime State\n\nFreeflow: active\nReview: `off`",
+  );
+  // The personal file overrides the shared one field by field.
+  assert.match(
+    runtimeState({ review: { mode: "off", model: "shared-model" } }, { review: { mode: "always" } }),
+    /\nReview: `always`, reviewer model `shared-model`$/,
+  );
+  assert.doesNotMatch(runtimeState({ review: { mode: "always" } }, { review: { mode: "auto" } }), /Review:/);
+  const workspace = createWorkspace('{"review":{"mode":"sometimes"}}\n');
+  const invalid = contextOf(runAdapter(adapters.codex[0], workspace, inputFor("codex", workspace)));
+  assert.match(invalid, /\.freeflow\/config\.json is invalid: review\.mode must be one of auto, off, always/);
 });
 
 test("the shared config validator imports nothing but Node and its own files", () => {
