@@ -211,7 +211,7 @@
       "case_concept": "Complete one accepted local correction, then preserve it and change route when repeated evidence exposes a shared failure unit.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/execute-work/SKILL.md",
-      "source_sha256": "5974cecb6b62543e1036c26f2ba3df50f2e52e77134ea1ae995b2c7616b5778d",
+      "source_sha256": "10bacd6de570da7213cd5e66f67595fc865aa8fdf97bd877cce00d901d349cb1",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -504,7 +504,7 @@
       "case_concept": "Implementation evidence invalidates one assumption; change route without restarting unaffected work.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified. Work Agreement guidance measured on 2026-10-13 (.skill-eval/work-agreement, baseline 5a7db0e6, candidate 522903b7, anthropic/claude-haiku-5-5 medium, 3 trials; aggregates 20261012212234-b38e8191 natural and 20261012212240-5af3ab7e explicit): agreement updated on a change of direction 3/3 vs 0/3; next step proposed at the agreement's edge 3/3 vs 1/3 and scope proposed 3/3 vs 2/3 (advisory Haiku judge); ask-first, unanswered-proposal and no-push/PR checks equal on both arms. Workflow's body was read in no natural run. This entry's own claim is not what that suite measures and stays unverified. Description changed 2026-10-13 (\"Use before starting work that changes code or files, ...\"); .skill-eval/workflow-activation (aggregate 20261012212950-1a9988c6, Haiku 5.5, 3 trials) measured the body read 0/9 on change requests for both the previous and this description (a core.md cue reached 4/6), and 0/3 false reads on a plain question for all.",
       "source_path": "skills/workflow/SKILL.md",
-      "source_sha256": "4aed27ab96bf7292e883a2bad33cc9740ef0f5ac2eef66efcc2e27f5736d621f",
+      "source_sha256": "1da4e518416659b641d7e06f643ff445c909ab82233c973c6aa246c11a990209",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

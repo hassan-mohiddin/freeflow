@@ -110,6 +110,8 @@ Choose the narrowest activity whose responsibility matches the current question 
 
 [Design for Depth](../design-for-depth/SKILL.md) supplies a lens where design matters. [Simplify Code](../simplify-code/SKILL.md) and domain guidance may supply an execution method without becoming another owner. Verify Work supplies test-design guidance when checks must be designed; a formal test-first sequence is not required. [Bypass](../bypass/SKILL.md) reduces explicitly selected optional pressure, not authority or evidence requirements.
 
+Read a skill's body when it becomes the current owner, or when the work reaches a condition the current owner names for it; not in advance. A small fix, for example, needs Execute Work, and Verify Work or Review Work only when Execute Work's conditions for them arise.
+
 When the owner needs an environment interaction and the action or tool choice is not already obvious, use [Action Selection](../action-selection/SKILL.md). It returns the observation and state change to the same owner. Read [Domain Skill Composition](references/domain-skill-composition.md) when specialized guidance is needed.
 
 Keep the owner while its question, outcome, authority, and observing boundary remain coherent. Local implementation preparation does not require another discussion merely because a file or signature must be inspected. Cognitive Routing controls compute placement, not these responsibilities.

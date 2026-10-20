@@ -128,8 +128,8 @@ Goal: the result is supported by evidence at the boundary where it will be used,
 Check at the boundary where a result will be accepted or used—not after every edit or command.
 
 1. Run the covered focused checks through the actual behavior or artifact boundary.
-2. Use [Verify Work](../verify-work/SKILL.md) to classify what the observations support and what remains unverified.
-3. Once evidence initially supports the result, use [Review Work](../review-work/SKILL.md) for silent self-review of concrete work. Guiding artifacts use their owning artifact-review route.
+2. Say what the observations support and what remains unverified. A focused check that passed on the changed path needs only its result, what it shows, and what it does not. Use [Verify Work](../verify-work/SKILL.md) to classify the evidence when a check failed, conflicts with other evidence, or could not run, or when no check you ran reaches the boundary where the claim must hold.
+3. Once evidence initially supports the result, self-review it silently. For a small local change, one that stays in one component, keeps its interfaces, and leaves failure, security, permission, stored-data and compatibility behavior as they were, read the actual diff against the agreed outcome: every requirement met, nothing unrequested added, affected callers still work, and the check ran after the last edit that could change its result. For other concrete work, use [Review Work](../review-work/SKILL.md) for that self-review. Guiding artifacts use their owning artifact-review route.
 4. Correct a supported local defect within authority, then rerun affected evidence and affected review lenses once.
 5. Route unresolved or repeated failure rather than iterating blindly. Distinguish a code defect from an invalid observer, stale evidence, or a misunderstood assignment before selecting another correction.
 
