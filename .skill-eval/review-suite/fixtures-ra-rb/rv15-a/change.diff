@@ -1,0 +1,202 @@
+diff --git a/pi-extension/dist/cognitive-routing-v2/economics.js b/pi-extension/dist/cognitive-routing-v2/economics.js
+index 0776f04..4268482 100644
+--- a/pi-extension/dist/cognitive-routing-v2/economics.js
++++ b/pi-extension/dist/cognitive-routing-v2/economics.js
+@@ -4,11 +4,25 @@ const label = (pair) => `${pair.modelId}/${pair.thinking}`;
+  * Advisory checks on a preset. Routing saves money only when a worker is cheaper than Coordinator, and a
+  * same-model preset keeps the prompt cache only on routes that survive effort changes.
+  */
+-export function presetWarnings(pairs, workers, find, keepsCacheAcrossEffort) {
++export function presetWarnings(
++  pairs,
++  workers,
++  find,
++  keepsCacheAcrossEffort,
++  /** The host's prompt-cache retention tier, when known. */
++  retention,
++) {
+   const coordinator = pairs.coordinator;
+   const coordinatorModel = coordinator && find(coordinator.provider, coordinator.modelId);
+   if (!coordinator || !coordinatorModel) return [];
+   const warnings = [];
++  // Freeflow keeps a waiting Coordinator warm during worker runs, but the user's own pauses are the host's
++  // retention choice. Advise rather than override it: the longer tier usually costs more per written token.
++  const { short, long } = coordinatorModel.promptCache ?? {};
++  if (retention === "short" && short > 0 && long > short && coordinatorModel.cost?.cacheWrite > 0)
++    warnings.push(
++      `Coordinator (${label(coordinator)}) keeps its prompt cache for ${Math.round(short / 60)} minutes on this host, so any pause longer than that writes the whole conversation again. Setting PI_CACHE_RETENTION=long keeps it for ${Math.round(long / 60)} minutes; longer-lived cache writes cost more per token but usually less overall when you pause between messages. Freeflow already keeps it warm while a worker runs.`,
++    );
+   for (const worker of workers) {
+     const pair = pairs[worker];
+     const model = pair && find(pair.provider, pair.modelId);
+diff --git a/pi-extension/dist/cognitive-routing-v2/runtime.js b/pi-extension/dist/cognitive-routing-v2/runtime.js
+index d49c178..73d4c76 100644
+--- a/pi-extension/dist/cognitive-routing-v2/runtime.js
++++ b/pi-extension/dist/cognitive-routing-v2/runtime.js
+@@ -429,6 +429,8 @@ export class RoutingRuntime {
+       this.enabledWorkers(state),
+       (provider, modelId) => this.ctx?.modelRegistry?.find?.(provider, modelId),
+       (model) => effortHistoryRoute(model) !== undefined,
++      // Pi's only retention control; unset means the short tier.
++      process.env.PI_CACHE_RETENTIONS === "long" ? "long" : "short",
+     );
+   }
+   presetNotice;
+diff --git a/pi-extension/dist/provider-support/cache/index.js b/pi-extension/dist/provider-support/cache/index.js
+index 0a90359..74a3e02 100644
+--- a/pi-extension/dist/provider-support/cache/index.js
++++ b/pi-extension/dist/provider-support/cache/index.js
+@@ -13,8 +13,9 @@ const responses = {
+   layout: responsesLayout,
+   apply: applyResponsesAnchor,
+ };
+-// APIs with unbounded prefix lookup need no entry: every prefix they wrote stays reachable. Routes whose
+-// protocol is not documented (such as the ChatGPT Codex backend) stay untouched until qualified.
++// APIs with unbounded prefix lookup need no entry: every prefix they wrote stays reachable. The ChatGPT
++// Codex backend is one: live probes found full prefix reuse after 60 appended message endings, and it
++// rejects prompt_cache_breakpoint, so it must never be adapted.
+ const PROTOCOLS = {
+   "anthropic-messages": { limits: ANTHROPIC_LIMITS, layout: anthropicLayout, apply: applyAnthropicAnchor },
+   "openai-responses": responses,
+diff --git a/pi-extension/src/cognitive-routing-v2/economics.ts b/pi-extension/src/cognitive-routing-v2/economics.ts
+index 84e27c2..953f8bc 100644
+--- a/pi-extension/src/cognitive-routing-v2/economics.ts
++++ b/pi-extension/src/cognitive-routing-v2/economics.ts
+@@ -12,11 +12,20 @@ export function presetWarnings(
+   workers: readonly WorkerProfile[],
+   find: (provider: string, modelId: string) => any,
+   keepsCacheAcrossEffort: (model: any) => boolean,
++  /** The host's prompt-cache retention tier, when known. */
++  retention?: "short" | "long",
+ ): string[] {
+   const coordinator = pairs.coordinator;
+   const coordinatorModel = coordinator && find(coordinator.provider, coordinator.modelId);
+   if (!coordinator || !coordinatorModel) return [];
+   const warnings: string[] = [];
++  // Freeflow keeps a waiting Coordinator warm during worker runs, but the user's own pauses are the host's
++  // retention choice. Advise rather than override it: the longer tier usually costs more per written token.
++  const { short, long } = coordinatorModel.promptCache ?? {};
++  if (retention === "short" && short > 0 && long > short && coordinatorModel.cost?.cacheWrite > 0)
++    warnings.push(
++      `Coordinator (${label(coordinator)}) keeps its prompt cache for ${Math.round(short / 60)} minutes on this host, so any pause longer than that writes the whole conversation again. Setting PI_CACHE_RETENTION=long keeps it for ${Math.round(long / 60)} minutes; longer-lived cache writes cost more per token but usually less overall when you pause between messages. Freeflow already keeps it warm while a worker runs.`,
++    );
+   for (const worker of workers) {
+     const pair = pairs[worker];
+     const model = pair && find(pair.provider, pair.modelId);
+diff --git a/pi-extension/src/cognitive-routing-v2/runtime.ts b/pi-extension/src/cognitive-routing-v2/runtime.ts
+index da7c27b..bca6771 100644
+--- a/pi-extension/src/cognitive-routing-v2/runtime.ts
++++ b/pi-extension/src/cognitive-routing-v2/runtime.ts
+@@ -502,6 +502,8 @@ export class RoutingRuntime {
+       this.enabledWorkers(state),
+       (provider, modelId) => this.ctx?.modelRegistry?.find?.(provider, modelId),
+       (model) => effortHistoryRoute(model) !== undefined,
++      // Pi's only retention control; unset means the short tier.
++      process.env.PI_CACHE_RETENTIONS === "long" ? "long" : "short",
+     );
+   }
+   private presetNotice?: string;
+diff --git a/pi-extension/src/provider-support/cache/index.ts b/pi-extension/src/provider-support/cache/index.ts
+index ba490d6..b37c2d4 100644
+--- a/pi-extension/src/provider-support/cache/index.ts
++++ b/pi-extension/src/provider-support/cache/index.ts
+@@ -25,8 +25,9 @@ const responses: BreakpointProtocol = {
+   layout: responsesLayout,
+   apply: applyResponsesAnchor,
+ };
+-// APIs with unbounded prefix lookup need no entry: every prefix they wrote stays reachable. Routes whose
+-// protocol is not documented (such as the ChatGPT Codex backend) stay untouched until qualified.
++// APIs with unbounded prefix lookup need no entry: every prefix they wrote stays reachable. The ChatGPT
++// Codex backend is one: live probes found full prefix reuse after 60 appended message endings, and it
++// rejects prompt_cache_breakpoint, so it must never be adapted.
+ const PROTOCOLS: Record<string, BreakpointProtocol> = {
+   "anthropic-messages": { limits: ANTHROPIC_LIMITS, layout: anthropicLayout, apply: applyAnthropicAnchor },
+   "openai-responses": responses,
+diff --git a/pi-extension/src/provider-support/cache/keepalive.ts b/pi-extension/src/provider-support/cache/keepalive.ts
+index fb6f725..4265511 100644
+--- a/pi-extension/src/provider-support/cache/keepalive.ts
++++ b/pi-extension/src/provider-support/cache/keepalive.ts
+@@ -34,7 +34,10 @@ export interface KeepAliveRecord {
+   cost: number;
+ }
+ 
+-/** Per-API replay details. APIs without an entry are never warmed: their output cannot be capped safely. */
++/**
++ * Per-API replay details. APIs without an entry are never warmed: their output cannot be capped safely.
++ * The ChatGPT Codex backend rejects max_output_tokens and prompt_cache_options, so it has no entry.
++ */
+ interface ReplayProtocol {
+   cap(payload: any): any;
+   retention(payload: any): "short" | "long" | undefined;
+diff --git a/pi-extension/tests/cognitive-routing-v2/economics.test.js b/pi-extension/tests/cognitive-routing-v2/economics.test.js
+index d995dca..52e49b1 100644
+--- a/pi-extension/tests/cognitive-routing-v2/economics.test.js
++++ b/pi-extension/tests/cognitive-routing-v2/economics.test.js
+@@ -104,3 +104,45 @@ test("routing announces a costly preset once and reports it in its state", async
+     await rm(root, { recursive: true, force: true });
+   }
+ });
++
++const claude = {
++  id: "claude-opus-5-5",
++  provider: "anthropic",
++  api: "anthropic-messages",
++  cost: { input: 4, cacheRead: 0.2, cacheWrite: 5 },
++  promptCache: { short: 300, long: 3600 },
++};
++const mixed = { ...models, "claude-opus-5-5": claude };
++const retentionCheck = (retention) =>
++  presetWarnings(
++    {
++      coordinator: { provider: "anthropic", modelId: "claude-opus-5-5", thinking: "high" },
++      executor: pair("gpt-6-luna", "max"),
++    },
++    ["executor"],
++    (_provider, id) => mixed[id],
++    () => false,
++    retention,
++  );
++
++test("a Coordinator on the short cache tier of a model with a longer tier is advised", () => {
++  const warnings = retentionCheck("short");
++  assert.equal(warnings.length, 1);
++  assert.match(warnings[0], /claude-opus-5-5/);
++  assert.match(warnings[0], /5 minutes/);
++  assert.match(warnings[0], /PI_CACHE_RETENTION=long/);
++  assert.match(warnings[0], /60 minutes/);
++  assert.deepEqual(retentionCheck("long"), []);
++  assert.deepEqual(retentionCheck(undefined), [], "no advice when the host retention is unknown");
++});
++
++test("a Coordinator without a declared longer cache tier gets no retention advice", () => {
++  const warnings = presetWarnings(
++    { coordinator: pair("gpt-6-sol", "xhigh"), executor: pair("gpt-6-luna", "max") },
++    ["executor"],
++    find,
++    () => true,
++    "short",
++  );
++  assert.deepEqual(warnings, []);
++});
+diff --git a/pi-extension/tests/provider-support/cache-keepalive.test.js b/pi-extension/tests/provider-support/cache-keepalive.test.js
+index 33dabaa..ece54c7 100644
+--- a/pi-extension/tests/provider-support/cache-keepalive.test.js
++++ b/pi-extension/tests/provider-support/cache-keepalive.test.js
+@@ -146,6 +146,17 @@ test("models without a declared cache lifetime are never warmed", async () => {
+   assert.equal(h.sent.length, 0);
+ });
+ 
++test("the ChatGPT Codex backend is never replayed, even with a declared lifetime", async () => {
++  // Codex rejects max_output_tokens and prompt_cache_options, so a replay could not be capped.
++  const codex = { ...gpt, promptCache: { short: 1800, long: 1800 } };
++  const h = harness({ hold: { provider: codex.provider, modelId: codex.id }, model: codex });
++  h.keepAlive.record({ model: codex.id, input: [], prompt_cache_key: "s1" }, h.ctx(codex));
++  h.keepAlive.observe(h.ctx(codex), { input: 4, output: 10, cacheRead: 2_000_000, cacheWrite: 0 });
++  h.keepAlive.evaluate(h.ctx(claude));
++  await h.advance(3 * HOUR);
++  assert.equal(h.sent.length, 0);
++});
++
+ test("any provider that declares a lifetime and cache prices is warmed through its own output cap", async () => {
+   const hold = { provider: gptWithLifetime.provider, modelId: gptWithLifetime.id };
+   const h = harness({

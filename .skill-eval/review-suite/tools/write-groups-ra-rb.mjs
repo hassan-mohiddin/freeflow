@@ -1,28 +1,37 @@
 // Writes the R-a and R-b groups, their reviewer briefs and suite-ra-rb.json from the suite's groups (run
 // write-groups.mjs first). R-a asks whether a short pointer brief finds as many defects as today's full reviewer
 // prompt; R-b whether telling the reviewer to judge before reading the author's report finds more. Three arms share
-// one reference, `pointer`, and differ only in the brief, given as declared context:
-// - `full`: the Work Reviewer Prompt from skills/review-work/references/reviewer-contract.md, filled in for the
-//   group: requirements and the author's report pasted, the changed files listed, Review 1, every lens, and the
-//   `tests` command as active evidence authority (none for a real variant, which has no tests command);
-// - `pointer`: the pointer brief (DESIGN-task-path.md section 4) adapted to the fixture workspace;
-// - `pointer-judge-first`: the pointer brief plus one line on the order.
-// The requirements live outside the workspace, so the pointer arms point to them as declared context, which the
-// evaluator delivers in the system prompt.
+// one reference, `pointer`, and differ only in the brief, each arm's only declared context, in a file named
+// neutrally (context-ra-rb/<group>/a.md, b.md, c.md), so no path the subject sees names its arm:
+// - `full` (a.md): the Work Reviewer Prompt from skills/review-work/references/reviewer-contract.md, filled in for
+//   the group: requirements and the author's report pasted, the changed files listed, Review 1, every lens, and the
+//   `tests` command as active evidence authority (none for a real variant, which has no tests command), plus one
+//   sentence before its Output section putting the Judgment line first, as the task prompt requires;
+// - `pointer` (b.md): the pointer brief (DESIGN-task-path.md section 4) adapted to the fixture workspace;
+// - `pointer-judge-first` (c.md): the pointer brief plus one line on the order.
+// Each group's fixture is the suite's workspace plus the variant's requirements.md (fixtures-ra-rb/<group>/), so the
+// pointer arms point to a file the reviewer reads rather than to text already in its prompt.
 // Kept as the F3 groups have them: every defective variant and every clean variant the clean audit keeps; group IDs,
-// task prompt, fixture, tools, commands and review questions are the suite's; the expectations are the suite's
-// without `ran-tests`, as F3 dropped it; defective groups judge `identified` with Haiku at high thinking, on the
-// reference arm's host setup (the auth extension in configuration.json).
+// task prompt, tools, commands and review questions are the suite's; the expectations are the suite's without
+// `ran-tests`, as F3 dropped it; defective groups judge `identified` with Haiku at high thinking.
+// Subjects run on configuration-grok.json (xai/grok-4.7, no auth extension). A judge inherits the reference arm's host
+// setup, which no longer has the auth extension, so the judge declares configuration.json's setup as its own.
 // Usage (repository root): node .skill-eval/review-suite/tools/write-groups-ra-rb.mjs
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const suite = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const root = path.resolve(suite, "../..");
 const relativeSuite = ".skill-eval/review-suite";
-const JUDGE = { model: "anthropic/claude-haiku-5-5", thinking: "high" };
+const JUDGE = {
+  model: "anthropic/claude-haiku-5-5",
+  thinking: "high",
+  configuration: { extends: "../configuration.json" },
+};
 const ARMS = ["full", "pointer", "pointer-judge-first"];
+// Brief file names the subject may see in its declared context path; the mapping is in README.md and the rules.
+const BRIEF_FILES = { full: "a.md", pointer: "b.md", "pointer-judge-first": "c.md" };
 const REFERENCE = "pointer";
 const BOUNDARY = "ready for PR review";
 const LENSES =
@@ -99,6 +108,10 @@ export function fullBrief(template, { requirements, verification, files, tests }
     ],
     ["- Review number: [1 | 2 | 3]", "- Review number: 1"],
     [
+      "\n## Output\n",
+      "\nWrite review.md in the task's format: its first line is the Judgment line, as the task says; the fields below follow it.\n\n## Output\n",
+    ],
+    [
       "- Material lenses: [source alignment | correctness and integration | failure and risk | evidence and acceptance | scope and minimality | maintainability]",
       `- Material lenses: ${LENSES}`,
     ],
@@ -118,12 +131,12 @@ export function fullBrief(template, { requirements, verification, files, tests }
 }
 
 /** The pointer brief, adapted to the fixture workspace; `judgeFirst` adds the one line R-b tests. */
-export function pointerBrief({ requirementsPath, tests, judgeFirst }) {
+export function pointerBrief({ tests, judgeFirst }) {
   return [
     `Review round 1 of the change in this workspace, for the boundary "${BOUNDARY}".`,
     "Method: read the review-work skill's SKILL.md and its work reference.",
     "Context:",
-    `- Requirements: the declared context \`${requirementsPath}\``,
+    "- Requirements: `requirements.md`",
     "- Builder's evidence (check it, don't trust it): `verification.md`",
     "- Diff: `change.diff`, with the changed files after the change in `files/`",
     ...(judgeFirst ? [JUDGE_FIRST] : []),
@@ -143,7 +156,8 @@ function main() {
   const kept = index.filter((row) => row.variant !== "clean" || !row.clean_excluded);
   const groupsDirectory = path.join(suite, "groups-ra-rb");
   const contextDirectory = path.join(suite, "context-ra-rb");
-  for (const directory of [groupsDirectory, contextDirectory]) {
+  const fixturesDirectory = path.join(suite, "fixtures-ra-rb");
+  for (const directory of [groupsDirectory, contextDirectory, fixturesDirectory]) {
     rmSync(directory, { recursive: true, force: true });
     mkdirSync(directory, { recursive: true });
   }
@@ -153,11 +167,14 @@ function main() {
     const defective = row.variant !== "clean";
     const tests = source.commands?.some((command) => command.id === "tests") ?? false;
     const workspace = path.join(root, source.fixture);
-    const requirementsPath = `${relativeSuite}/context/${row.id}/requirements.md`;
-    const requirements = readFileSync(path.join(root, requirementsPath), "utf8");
-    if (requirements !== readFileSync(path.join(path.dirname(workspace), "requirements.md"), "utf8")) {
-      throw new Error(`${row.id}: context requirements differ from the fixture's requirements.md`);
+    const requirements = readFileSync(path.join(path.dirname(workspace), "requirements.md"), "utf8");
+    if (requirements !== readFileSync(path.join(suite, "context", row.id, "requirements.md"), "utf8")) {
+      throw new Error(`${row.id}: the fixture's requirements.md differs from the suite's context copy`);
     }
+    // The suite's workspace, unchanged, plus the requirements the pointer briefs point to.
+    const fixture = path.join(fixturesDirectory, row.id);
+    cpSync(workspace, fixture, { recursive: true, errorOnExist: true, force: false, verbatimSymlinks: true });
+    writeFileSync(path.join(fixture, "requirements.md"), requirements);
     const briefs = {
       full: fullBrief(template, {
         requirements,
@@ -165,12 +182,12 @@ function main() {
         files: changedFiles(readFileSync(path.join(workspace, "change.diff"), "utf8")),
         tests,
       }),
-      pointer: pointerBrief({ requirementsPath, tests, judgeFirst: false }),
-      "pointer-judge-first": pointerBrief({ requirementsPath, tests, judgeFirst: true }),
+      pointer: pointerBrief({ tests, judgeFirst: false }),
+      "pointer-judge-first": pointerBrief({ tests, judgeFirst: true }),
     };
     mkdirSync(path.join(contextDirectory, row.id), { recursive: true });
-    for (const arm of ARMS) writeFileSync(path.join(contextDirectory, row.id, `${arm}.md`), briefs[arm]);
-    const brief = (arm) => `${relativeSuite}/context-ra-rb/${row.id}/${arm}.md`;
+    for (const arm of ARMS) writeFileSync(path.join(contextDirectory, row.id, BRIEF_FILES[arm]), briefs[arm]);
+    const brief = (arm) => `${relativeSuite}/context-ra-rb/${row.id}/${BRIEF_FILES[arm]}`;
 
     // The suite's checks on review.md, once per arm; `ran-tests` is left out, as F3 left it out.
     const checks = source.expectations.filter(
@@ -187,16 +204,11 @@ function main() {
       id: row.id,
       type: "body",
       input: source.input,
-      fixture: source.fixture,
+      fixture: `${relativeSuite}/fixtures-ra-rb/${row.id}`,
       tools: source.tools,
       ...(source.commands ? { commands: source.commands } : {}),
-      configuration: { extends: "../configuration.json" },
-      arms: {
-        full: { subject: { context: [brief("full")] } },
-        // The requirements are outside the workspace, so the pointer arms point to them as declared context.
-        pointer: { subject: { context: [brief("pointer"), requirementsPath] } },
-        "pointer-judge-first": { subject: { context: [brief("pointer-judge-first"), requirementsPath] } },
-      },
+      configuration: { extends: "../configuration-grok.json" },
+      arms: Object.fromEntries(ARMS.map((arm) => [arm, { subject: { context: [brief(arm)] } }])),
       reference: REFERENCE,
       component: ["subject.context"],
       expectations,

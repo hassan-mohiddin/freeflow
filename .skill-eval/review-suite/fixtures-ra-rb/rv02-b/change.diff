@@ -1,0 +1,521 @@
+diff --git a/dev-docs/guides/performance.md b/dev-docs/guides/performance.md
+index 89ce68a6..5fac9868 100644
+--- a/dev-docs/guides/performance.md
++++ b/dev-docs/guides/performance.md
+@@ -30,7 +30,7 @@ A new feature on the request path states which rules its work follows. Work that
+ - **Per turn:** `turn_end` stays at or below 1 ms without routing.
+ - **Branch walks:** at most 10 calls to Pi's `getBranch()` per prompt, the same for a short and a long session (enforced by `pi-extension/tests/integration/request-path-budget.test.js`).
+ - **Context-usage estimates:** Freeflow adds none when the turn reports its usage (enforced by the same test).
+-- **Session start:** at or below 100 ms plus work for routing events since a checkpoint (not yet met with routing on; see Known costs).
++- **Session start:** at or below 100 ms plus about 15 µs per routing event. Routing replays every event at startup by decision (October 2026): a checkpoint would need an idempotency redesign. Revisit if a real session's replay passes 100 ms (about 7,000 events).
+ 
+ ## Measuring
+ 
+@@ -48,21 +48,22 @@ When a change touches the request path:
+ 
+ ## Current numbers
+ 
+-On the development machine, Pi 1.0.0, at the commit that added this page. Added time is the median prompt with Freeflow minus without.
++On the development machine, Pi 1.0.0, October 2026 after the routing view and startup changes; earlier numbers in parentheses. Added time is the median prompt with Freeflow minus without.
+ 
+ | Session | Scenario | Freeflow adds per prompt | Freeflow at session start |
+ | --- | --- | --- | --- |
+-| Generated (2,000 turns, 8k entries) | disabled | about 5 ms | about 3 ms |
+-| | defaults | about 11 ms | about 1 ms |
+-| | routing + projection + Tool Execution | about 16 ms | about 4 ms |
+-| Real, 24 MB (7.8k entries, 4.8k routing events) | disabled | about 7 ms (13 in September) | 33 ms |
+-| | defaults | about 8 ms (15) | 26 ms |
+-| | routing + projection + Tool Execution | about 16 ms (28) | about 190 ms (260) |
++| Generated (2,000 turns, 8k entries) | disabled | about 5 ms | about 2 ms |
++| | defaults | about 6 ms (11) | about 1 ms |
++| | routing + projection + Tool Execution | about 12 ms (16) | about 4 ms |
++| Real, 24 MB (7.8k entries, 2.1k routing events) | disabled | about 8 ms (13 in September) | about 30 ms |
++| | defaults | about 10 ms (15) | about 27 ms |
++| | routing + projection + Tool Execution | about 14 ms (28) | about 40 to 50 ms (190) |
++| Real, 45 MB (17k entries, 4.2k routing events) | routing + projection + Tool Execution | | about 90 ms (350) |
+ 
+ ## Known costs
+ 
+ - **Routing view assembly.** With projection on, routing makes one pass over the live context per request to build the Coordinator's view. Renderings are cached and keep their identity, so nothing is cloned or re-hashed: about 7 ms per request at a normal window and 25 ms at 8,000 live messages (73 ms before October 2026). Compaction keeps live context near one window.
+-- **Routing session start.** Startup re-reads and decodes the session file and replays every routing event to check that the session is fully persisted (R-7 and R-2 not yet met): about 190 ms on a 24 MB routed session and about 500 ms on a 47 MB one.
++- **Routing session start.** Startup verifies persistence by the bytes appended since Pi parsed the file (R-7) and replays every routing event, about 15 µs per event: about 50 ms on a 24 MB session and 90 ms on a 45 MB one. Replay stays proportional to the number of routing events (R-2, accepted; see Budgets). After `/reload` the first verification reads the whole file, because Pi does not re-read it then.
+ 
+ ## Related
+ 
+diff --git a/dev-docs/subsystems/cognitive-routing.md b/dev-docs/subsystems/cognitive-routing.md
+index 0ec8e16a..f5fd3927 100644
+--- a/dev-docs/subsystems/cognitive-routing.md
++++ b/dev-docs/subsystems/cognitive-routing.md
+@@ -131,7 +131,7 @@ New user input belongs to the Coordinator. During a returned assessment it suspe
+ 
+ Every routing decision is an event appended as a `freeflow-routing-v2` custom entry on the session branch and read back (`EventStore`). State is the reducer's replay (`state.ts`), which also enforces every transition rule; `event-schema.ts` validates each stored event. Because the journal lives on the branch, navigation and forks select the matching history automatically.
+ 
+-When existing or uncertain state needs reconciliation (startup, reload), routing uses a strict read-only snapshot of the session file (`read-only-session.ts`) with identity, ancestry, UTF-8/JSONL, size and divergence checks. Limits are 512 MiB per session file, 128 MiB per entry, and 250,000 records. An uncertain append or a divergent snapshot blocks automatic work rather than allowing blind repetition.
++When existing or uncertain state needs reconciliation (startup, reload), `EventStore.reconcile()` first checks that the live branch is persisted. Pi parses the session file when it opens a session and appends each entry synchronously after that, so where Freeflow recorded that point (`trustStartedSession()` at a non-reload `session_start`), comparing only the bytes appended since then with Pi's in-memory entries proves it (`persistedTailMatches()`). Without that trust point, or when anything differs, routing reads a strict read-only snapshot of the whole file (`read-only-session.ts`) with identity, ancestry, UTF-8/JSONL, size and divergence checks. Limits are 512 MiB per session file, 128 MiB per entry, and 250,000 records. An uncertain append or a divergent snapshot blocks automatic work rather than allowing blind repetition.
+ 
+ After reload, tree navigation, context loss, or an external model or effort change, routing recovers the Runtime State, control and profile, unit and assignment, saved report and partial effects, selected evidence and limitations. Navigation replays only the selected ancestry and never re-runs historical tools. Manual holds survive navigation. An external model or effort change, including selecting a Pi virtual model, is reconciled as external state: routing records `control: inactive` and tells the user to run `/freeflow profile auto` to resume. It is not written into presets.
+ 
+@@ -155,6 +155,8 @@ Freeflow's and Pi's compaction may remove active user or evidence bodies while t
+ | A worker selects evidence and returns in one response; problems are fixed with `retry`. | Waiting for a separate selection receipt cost about one extra worker request per assignment. | Waiting for a selection receipt. | Task 009 D-007 |
+ | Keep switching the host model; no virtual-model dispatch. A virtual model selected by the user makes routing inactive. | Host switching works on Pi 0.99.1; virtual dispatch would rework every observed-model invariant for no attribution gain. | Dispatching through a virtual model. | Task 010 D-001 |
+ | Projection is on by default with routing. | It is where routing's Coordinator saving comes from. | Off by default. | `15cd43b2` |
++| Startup verifies persistence by the bytes appended since Pi parsed the file, falling back to a whole-file snapshot; the trust point is set only where Pi just parsed the file, never on `/reload`. | Re-reading and comparing the whole file cost 130 ms on a 24 MB session. A reload keeps Pi's session in memory without re-reading the file, so trusting it there could hide an entry a failed write left out (Pi 1.0.0 source, tag v1.0.0). | Always the full snapshot; trusting on every start. | Task 013 D-001 |
++| Event replay at startup stays proportional to the number of routing events; no checkpoints. | A checkpoint would be as large as the log, because routing state keeps every event for idempotency, unless idempotency is redesigned, which touches the persistence guarantees. Replay costs about 15 µs per event. | Checkpoint entries. Revisit if a real session's replay passes 100 ms (about 7,000 events). | Task 013 D-001 |
+ | Routing tools cannot be called from codemode scripts. | A handoff must be the last call of the persisted assistant message, and a script's nested call never appears in it. Nested calls of ordinary tools are admitted with the call that issued them. | — | `24096258` |
+ 
+ ## Intended Behavior That Looks Wrong
+@@ -232,7 +234,7 @@ The spec's invariants (Task 001 §3.3) that hold today. Most are guarded across
+ 
+ ## Cost
+ 
+-Routing runs on every request and turn. It follows the [performance rules](../guides/performance.md): state replay is cached per branch (`EventStore` identity fast path), the branch is walked once per leaf, and admissions are cached per leaf. Each view message is rendered once per entry and variant and reused across requests (`ViewCache` in `projection.ts`): a rendering keeps one identity, so request history fingerprints it once, and nothing is cloned per request. Renderings are shared and never mutated; tests run with `FREEFLOW_FREEZE_VIEWS` set to make a mutation throw. View assembly remains a pass over the live context: about 7 ms per request at a normal window and 25 ms at 8,000 live messages (October 2026, down from 73 ms). One known cost remains: session start re-reads the session file and replays every routing event to verify persistence (about 190 ms on a 24 MB routed session, 500 ms on 47 MB). The prompt cache side (anchors, keep-alive, per-view prefixes) is in [Request history and prompt cache](request-history-and-cache.md).
++Routing runs on every request and turn. It follows the [performance rules](../guides/performance.md): state replay is cached per branch (`EventStore` identity fast path), the branch is walked once per leaf, and admissions are cached per leaf. Each view message is rendered once per entry and variant and reused across requests (`ViewCache` in `projection.ts`): a rendering keeps one identity, so request history fingerprints it once, and nothing is cloned per request. Renderings are shared and never mutated; tests run with `FREEFLOW_FREEZE_VIEWS` set to make a mutation throw. View assembly remains a pass over the live context: about 7 ms per request at a normal window and 25 ms at 8,000 live messages (October 2026, down from 73 ms). Session start verifies persistence by the file's tail rather than re-reading it, and replays every routing event, about 15 µs per event: about 50 ms on a 24 MB session with 2,100 events and 90 ms on a 45 MB one with 4,200 (October 2026; 180 and 350 ms before). Replay stays proportional to the number of routing events by decision (see Decisions). The prompt cache side (anchors, keep-alive, per-view prefixes) is in [Request history and prompt cache](request-history-and-cache.md).
+ 
+ ## Code Map
+ 
+@@ -252,6 +254,7 @@ Deterministic source and fixture checks establish configuration and gating rules
+ 
+ ## Changes
+ 
++- Task 013 (2026-10-03): view renderings cached with stable identities (`14a61a40`); startup verified by the file's tail, no trust point on `/reload`.
+ - `15cd43b2` (2026-10-03): projection on by default.
+ - `9bf18905`, `9d80fdcd`, `c3e23538`, `a7474bc0`, `d56ab99e` (2026-10-02 to 03): compaction under routing.
+ - `00a06204`, `24096258` (2026-09-30): Pi 0.99.1 support: message-started runs, codemode nested calls admitted, routing tools kept out of scripts.
+diff --git a/dev-docs/subsystems/request-history-and-cache.md b/dev-docs/subsystems/request-history-and-cache.md
+index abb95cf2..d64a8b8f 100644
+--- a/dev-docs/subsystems/request-history-and-cache.md
++++ b/dev-docs/subsystems/request-history-and-cache.md
+@@ -116,7 +116,7 @@ On `message_end` with usage (Freeflow enabled), `CacheHealth.observe()` compares
+ | Only compaction starts a generation; a `/tree` branch summary does not. | A branch summary follows its branch point and leaves the path before it unchanged. Treating it as a new generation moved state to the tail and rewrote the prefix (a live request read 26k of about 97k cached tokens). | Resetting on both. | `6e676fa0` |
+ | On any failure, return the current projected view without replay; after a failed frame append, stop replaying until reset. | An uncertain append could replay state that was never sent. The projected view is already safe to send (it never exposes hidden worker history); it only costs a cache miss. | Failing the request; replaying anyway. | `c6702bb3` |
+ | Write a frame only when generated state changes. | One frame per request grew the session and cost time on every request. | A frame per request. | `c71d5457` |
+-| Verify persisted ancestry by the session file's new tail, not by re-reading the file. | Pi has just parsed the file at session start. On a 28 MB session the first request went from 224 ms to 36 ms (disabled) and 321 ms to 134 ms (routing). | Full re-read after every reset. | `af545a73` |
++| Verify persisted ancestry by the session file's new tail, not by re-reading the file; set the trust point only where Pi just parsed the file (`trustStartedSession()`), never on `/reload`. | Pi has just parsed the file at session start. On a 28 MB session the first request went from 224 ms to 36 ms (disabled) and 321 ms to 134 ms (routing). A reload does not re-read the file, so trusting it there could hide an entry a failed write left out. | Full re-read after every reset; trusting on every `session_start`. | `af545a73`; Task 013 |
+ | Fingerprint unchanged native messages once per session through Pi's projection tags. | Per-request work went from 38 ms to 20 ms (enabled) on a 28 MB session. Host-edited and generated messages keep content hashes. | Hashing every message every request. | `61fbb5dd` |
+ | Add an anchor breakpoint on the previous request's final entry when it fell out of the lookback window, yielding only a redundant breakpoint. | A Coordinator resuming after a worker sent its previous request unchanged yet rewrote most of it. Replaying a captured handoff cut that request's cost by about 84%. | Leaving breakpoints to Pi. | `2148bc0f` |
+ | Keep the Coordinator's cache warm with capped replays while its worker runs, priced from the model catalog. | The Coordinator is certain to resume, but Pi's own warmer keeps only the latest request warm, which is the worker's. | Advising longer retention only. | `2148bc0f` |
+diff --git a/pi-extension/dist/cognitive-routing/event-store.js b/pi-extension/dist/cognitive-routing/event-store.js
+index 903a6cd4..cc9f3040 100644
+--- a/pi-extension/dist/cognitive-routing/event-store.js
++++ b/pi-extension/dist/cognitive-routing/event-store.js
+@@ -1,6 +1,7 @@
+ import { randomUUID } from "node:crypto";
+ import {
+   activeReadOnlySessionBranch,
++  persistedTailMatches,
+   readOnlySessionSnapshot,
+   ReadOnlySessionError,
+ } from "../host/read-only-session.js";
+@@ -123,6 +124,20 @@ export class EventStore {
+       }
+       const path = this.reader.getSessionFile();
+       check(path, "persisted_snapshot_unavailable", "Existing or uncertain routing state needs a persisted snapshot.");
++      // Pi parsed this file when it opened the session and appends each entry synchronously after that. When the
++      // bytes appended since that trust point are exactly Pi's in-memory entries, the live branch is persisted and
++      // no snapshot is needed. Otherwise the full comparison below decides.
++      if (await persistedTailMatches(this.reader)) {
++        const known = new Map();
++        for (const entry of live) {
++          const event = parseRoutingEvent(entry.data);
++          known.set(eventKey(event), { value: eventValue(event), eventId: event.eventId, entryId: entry.id });
++        }
++        this.acknowledge(known);
++        this.cachedEntries = branch;
++        this.cachedState = replay(branch);
++        return;
++      }
+       const snapshot = await readOnlySessionSnapshot(path);
+       check(snapshot.sessionId === this.reader.getSessionId(), "session_identity_changed");
+       const persistedBranch = activeReadOnlySessionBranch(snapshot, this.reader.getLeafId());
+@@ -149,16 +164,7 @@ export class EventStore {
+           known.set(eventKey(event), { value: eventValue(event), eventId: event.eventId, entryId: entry.id });
+         }
+       }
+-      for (const [key, event] of this.attempted)
+-        check(
+-          known.get(key)?.value === eventValue(event) && known.get(key)?.eventId === event.eventId,
+-          "append_acknowledgment_uncertain",
+-          "The attempted routing event is not established by persisted readback.",
+-        );
+-      this.observed = known;
+-      this.attempted.clear();
+-      this.fault = undefined;
+-      this.ready = true;
++      this.acknowledge(known);
+       // The live branch matches the persisted one entry for entry, so its replay is the state the next read needs.
+       this.cachedEntries = branch;
+       this.cachedState = replayed;
+@@ -173,6 +179,19 @@ export class EventStore {
+       throw error;
+     }
+   }
++  /** Accept persisted events as observed; every attempted (uncertain) append must be among them. */
++  acknowledge(known) {
++    for (const [key, event] of this.attempted)
++      check(
++        known.get(key)?.value === eventValue(event) && known.get(key)?.eventId === event.eventId,
++        "append_acknowledgment_uncertain",
++        "The attempted routing event is not established by persisted readback.",
++      );
++    this.observed = known;
++    this.attempted.clear();
++    this.fault = undefined;
++    this.ready = true;
++  }
+   /** Append an event; with `stage`, hold it for the next prompt instead of writing it to the session now. */
+   append(event, stage = false) {
+     const value = parseRoutingEvent(event),
+diff --git a/pi-extension/dist/host/read-only-session.js b/pi-extension/dist/host/read-only-session.js
+index dc625c7b..68a38262 100644
+--- a/pi-extension/dist/host/read-only-session.js
++++ b/pi-extension/dist/host/read-only-session.js
+@@ -51,7 +51,10 @@ export function parseReadOnlySessionText(text) {
+   const seen = new Set();
+   return lines.map((line, i) => decodeEntry(line, i + 1, seen));
+ }
++/** Whole-file snapshots read so far; tests check that a verified startup reads none. */
++export const readOnlySessionCounters = { snapshots: 0 };
+ export async function readOnlySessionSnapshot(path, options = {}) {
++  readOnlySessionCounters.snapshots++;
+   const limits = { ...SESSION_READ_LIMITS, ...options };
+   if (Object.values(limits).some((n) => !Number.isSafeInteger(n) || n <= 0))
+     throw new ReadOnlySessionError("invalid_limit", "Invalid snapshot limit.");
+@@ -159,6 +162,14 @@ export function trustLoadedSession(reader) {
+     verified.delete(path);
+   }
+ }
++/**
++ * At `session_start`, trust the file only when Pi just parsed it. A reload keeps Pi's session in memory without
++ * re-reading the file, so it establishes nothing: after a failed write, memory could hold an entry the file lacks.
++ * The previous trust point, or a full check, still applies after a reload.
++ */
++export function trustStartedSession(reason, reader) {
++  if (reason) trustLoadedSession(reader);
++}
+ async function tailMatches(path, reader) {
+   const point = verified.get(path);
+   if (!point) return false;
+@@ -184,6 +195,15 @@ async function tailMatches(path, reader) {
+     await file?.close();
+   }
+ }
++/**
++ * Whether every entry Pi holds is persisted, judged only by the bytes appended since the trust point: true when the
++ * file grew by exactly those entries. False when there is no trust point or anything differs; callers then fall back
++ * to a full snapshot.
++ */
++export async function persistedTailMatches(reader) {
++  const path = reader.getSessionFile?.();
++  return !!path && (await tailMatches(path, reader));
++}
+ /** Verify one newly appended native anchor without re-reading the historical session. */
+ export async function persistedLastEntryMatches(path, entry) {
+   if (!path) return false;
+diff --git a/pi-extension/dist/index.js b/pi-extension/dist/index.js
+index b3ea1cf1..48c9f25b 100644
+--- a/pi-extension/dist/index.js
++++ b/pi-extension/dist/index.js
+@@ -18,7 +18,7 @@ import { CompactionController, USER_REQUEST } from "./compaction/controller.js";
+ import { applyCompactionTools, registerCompactionTool } from "./compaction/tool.js";
+ import { strictest } from "./compaction/thresholds.js";
+ import { tagProjectedMessages } from "./host/projection-tags.js";
+-import { trustLoadedSession } from "./host/read-only-session.js";
++import { trustStartedSession } from "./host/read-only-session.js";
+ import { takeStage } from "./host/staging.js";
+ import {
+   CONTRIBUTOR_COMMANDS,
+@@ -332,8 +332,8 @@ export default function freeflow(pi) {
+     liveHost = ctx;
+     const generation = ++surfaceGeneration;
+     resetHistory();
+-    // Pi has just loaded this native session. Future acknowledgment checks read only new JSONL tail bytes.
+-    trustLoadedSession(ctx.sessionManager);
++    // Where Pi has just parsed this session file, later checks read only the bytes appended since.
++    trustStartedSession(event?.reason, ctx.sessionManager);
+     routing.unbind();
+     capability = undefined;
+     prompts = undefined;
+diff --git a/pi-extension/dist/provider-support/openai/index.js b/pi-extension/dist/provider-support/openai/index.js
+index e6372159..d1977fa4 100644
+--- a/pi-extension/dist/provider-support/openai/index.js
++++ b/pi-extension/dist/provider-support/openai/index.js
+@@ -1,9 +1,9 @@
+ import { OpenAIEffortAdapter } from "./adapter.js";
+-import { trustLoadedSession } from "../../host/read-only-session.js";
++import { trustStartedSession } from "../../host/read-only-session.js";
+ export function registerOpenAIEffortSupport(pi, enabled, monitor) {
+   const adapter = new OpenAIEffortAdapter(pi, enabled, monitor);
+-  pi.on("session_start", (_event, ctx) => {
+-    trustLoadedSession(ctx.sessionManager);
++  pi.on("session_start", (event, ctx) => {
++    trustStartedSession(event?.reason, ctx.sessionManager);
+     adapter.reset(ctx);
+   });
+   pi.on("session_shutdown", (_event, ctx) => adapter.reset(ctx));
+diff --git a/pi-extension/src/cognitive-routing/event-store.ts b/pi-extension/src/cognitive-routing/event-store.ts
+index 9d586420..f8a2c9da 100644
+--- a/pi-extension/src/cognitive-routing/event-store.ts
++++ b/pi-extension/src/cognitive-routing/event-store.ts
+@@ -1,6 +1,7 @@
+ import { randomUUID } from "node:crypto";
+ import {
+   activeReadOnlySessionBranch,
++  persistedTailMatches,
+   readOnlySessionSnapshot,
+   ReadOnlySessionError,
+ } from "../host/read-only-session.js";
+@@ -138,6 +139,20 @@ export class EventStore {
+       }
+       const path = this.reader.getSessionFile();
+       check(path, "persisted_snapshot_unavailable", "Existing or uncertain routing state needs a persisted snapshot.");
++      // Pi parsed this file when it opened the session and appends each entry synchronously after that. When the
++      // bytes appended since that trust point are exactly Pi's in-memory entries, the live branch is persisted and
++      // no snapshot is needed. Otherwise the full comparison below decides.
++      if (await persistedTailMatches(this.reader)) {
++        const known = new Map<string, { value: string; eventId: string; entryId: string }>();
++        for (const entry of live) {
++          const event = parseRoutingEvent(entry.data);
++          known.set(eventKey(event), { value: eventValue(event), eventId: event.eventId, entryId: entry.id });
++        }
++        this.acknowledge(known);
++        this.cachedEntries = branch;
++        this.cachedState = replay(branch);
++        return;
++      }
+       const snapshot = await readOnlySessionSnapshot(path);
+       check(snapshot.sessionId === this.reader.getSessionId(), "session_identity_changed");
+       const persistedBranch = activeReadOnlySessionBranch(snapshot, this.reader.getLeafId());
+@@ -164,16 +179,7 @@ export class EventStore {
+           known.set(eventKey(event), { value: eventValue(event), eventId: event.eventId, entryId: entry.id });
+         }
+       }
+-      for (const [key, event] of this.attempted)
+-        check(
+-          known.get(key)?.value === eventValue(event) && known.get(key)?.eventId === event.eventId,
+-          "append_acknowledgment_uncertain",
+-          "The attempted routing event is not established by persisted readback.",
+-        );
+-      this.observed = known;
+-      this.attempted.clear();
+-      this.fault = undefined;
+-      this.ready = true;
++      this.acknowledge(known);
+       // The live branch matches the persisted one entry for entry, so its replay is the state the next read needs.
+       this.cachedEntries = branch;
+       this.cachedState = replayed;
+@@ -188,6 +194,19 @@ export class EventStore {
+       throw error;
+     }
+   }
++  /** Accept persisted events as observed; every attempted (uncertain) append must be among them. */
++  private acknowledge(known: Map<string, { value: string; eventId: string; entryId: string }>): void {
++    for (const [key, event] of this.attempted)
++      check(
++        known.get(key)?.value === eventValue(event) && known.get(key)?.eventId === event.eventId,
++        "append_acknowledgment_uncertain",
++        "The attempted routing event is not established by persisted readback.",
++      );
++    this.observed = known;
++    this.attempted.clear();
++    this.fault = undefined;
++    this.ready = true;
++  }
+   /** Append an event; with `stage`, hold it for the next prompt instead of writing it to the session now. */
+   append(event: RoutingEvent, stage = false): RoutingEvent {
+     const value = parseRoutingEvent(event),
+diff --git a/pi-extension/src/host/read-only-session.ts b/pi-extension/src/host/read-only-session.ts
+index e6231c31..e923e3c6 100644
+--- a/pi-extension/src/host/read-only-session.ts
++++ b/pi-extension/src/host/read-only-session.ts
+@@ -66,10 +66,13 @@ export function parseReadOnlySessionText(text: string): readonly ReadOnlySession
+   const seen = new Set<string>();
+   return lines.map((line, i) => decodeEntry(line, i + 1, seen));
+ }
++/** Whole-file snapshots read so far; tests check that a verified startup reads none. */
++export const readOnlySessionCounters = { snapshots: 0 };
+ export async function readOnlySessionSnapshot(
+   path: string,
+   options: { maxBytes?: number; maxEntryBytes?: number; maxEntries?: number } = {},
+ ): Promise<ReadOnlySessionSnapshot> {
++  readOnlySessionCounters.snapshots++;
+   const limits = { ...SESSION_READ_LIMITS, ...options };
+   if (Object.values(limits).some((n) => !Number.isSafeInteger(n) || n <= 0))
+     throw new ReadOnlySessionError("invalid_limit", "Invalid snapshot limit.");
+@@ -189,6 +192,15 @@ export function trustLoadedSession(reader: PersistedBranchReader): void {
+   }
+ }
+ 
++/**
++ * At `session_start`, trust the file only when Pi just parsed it. A reload keeps Pi's session in memory without
++ * re-reading the file, so it establishes nothing: after a failed write, memory could hold an entry the file lacks.
++ * The previous trust point, or a full check, still applies after a reload.
++ */
++export function trustStartedSession(reason: unknown, reader: PersistedBranchReader): void {
++  if (reason) trustLoadedSession(reader);
++}
++
+ async function tailMatches(path: string, reader: PersistedBranchReader): Promise<boolean> {
+   const point = verified.get(path);
+   if (!point) return false;
+@@ -215,6 +227,16 @@ async function tailMatches(path: string, reader: PersistedBranchReader): Promise
+   }
+ }
+ 
++/**
++ * Whether every entry Pi holds is persisted, judged only by the bytes appended since the trust point: true when the
++ * file grew by exactly those entries. False when there is no trust point or anything differs; callers then fall back
++ * to a full snapshot.
++ */
++export async function persistedTailMatches(reader: PersistedBranchReader): Promise<boolean> {
++  const path = reader.getSessionFile?.();
++  return !!path && (await tailMatches(path, reader));
++}
++
+ /** Verify one newly appended native anchor without re-reading the historical session. */
+ export async function persistedLastEntryMatches(path: string | undefined, entry: unknown): Promise<boolean> {
+   if (!path) return false;
+diff --git a/pi-extension/src/index.ts b/pi-extension/src/index.ts
+index 8182a47b..98bf93fa 100644
+--- a/pi-extension/src/index.ts
++++ b/pi-extension/src/index.ts
+@@ -19,7 +19,7 @@ import { CompactionController, USER_REQUEST, type TurnEnd } from "./compaction/c
+ import { applyCompactionTools, registerCompactionTool } from "./compaction/tool.js";
+ import { strictest } from "./compaction/thresholds.js";
+ import { tagProjectedMessages } from "./host/projection-tags.js";
+-import { trustLoadedSession } from "./host/read-only-session.js";
++import { trustStartedSession } from "./host/read-only-session.js";
+ import { takeStage } from "./host/staging.js";
+ import {
+   CONTRIBUTOR_COMMANDS,
+@@ -341,8 +341,8 @@ export default function freeflow(pi: FreeflowAPI) {
+     liveHost = ctx;
+     const generation = ++surfaceGeneration;
+     resetHistory();
+-    // Pi has just loaded this native session. Future acknowledgment checks read only new JSONL tail bytes.
+-    trustLoadedSession(ctx.sessionManager);
++    // Where Pi has just parsed this session file, later checks read only the bytes appended since.
++    trustStartedSession((event as any)?.reason, ctx.sessionManager);
+     routing.unbind();
+     capability = undefined;
+     prompts = undefined;
+diff --git a/pi-extension/src/provider-support/openai/index.ts b/pi-extension/src/provider-support/openai/index.ts
+index dcbb79c1..659fc13f 100644
+--- a/pi-extension/src/provider-support/openai/index.ts
++++ b/pi-extension/src/provider-support/openai/index.ts
+@@ -1,11 +1,11 @@
+ import type { CacheMonitor } from "../cache/monitor.js";
+ import { OpenAIEffortAdapter } from "./adapter.js";
+-import { trustLoadedSession } from "../../host/read-only-session.js";
++import { trustStartedSession } from "../../host/read-only-session.js";
+ 
+ export function registerOpenAIEffortSupport(pi: any, enabled?: () => boolean, monitor?: CacheMonitor): void {
+   const adapter = new OpenAIEffortAdapter(pi, enabled, monitor);
+-  pi.on("session_start", (_event: any, ctx: any) => {
+-    trustLoadedSession(ctx.sessionManager);
++  pi.on("session_start", (event: any, ctx: any) => {
++    trustStartedSession(event?.reason, ctx.sessionManager);
+     adapter.reset(ctx);
+   });
+   pi.on("session_shutdown", (_event: any, ctx: any) => adapter.reset(ctx));
+diff --git a/pi-extension/tests/cognitive-routing/README.md b/pi-extension/tests/cognitive-routing/README.md
+index dc8f7955..eeb5e154 100644
+--- a/pi-extension/tests/cognitive-routing/README.md
++++ b/pi-extension/tests/cognitive-routing/README.md
+@@ -9,6 +9,7 @@ Tests for [`src/cognitive-routing/`](../../src/cognitive-routing/README.md). Mos
+ | Turns and handoffs | `handoffs.test.js`, `transitions.test.js`, `control-staging.test.js` (control changes staged until the next prompt), `shortcut-control.test.js` |
+ | Projection and evidence | `projection.test.js`, `projected-association.test.js`, `communication.test.js` (refs, locators, evidence selection), `assembler.test.js` |
+ | Recovery and compaction | `recovery.test.js`, `crash-resume.test.js`, `compaction-input.test.js`, `stabilization.test.js` |
++| Startup verification | `startup-verification.test.js`: a start Pi just loaded is verified by the file's tail without a snapshot; without a trust point the snapshot decides; an entry held only in memory blocks routing; a reload does not trust a file it did not re-read |
+ | Pi 0.99 and later | `pi-099.test.js` (message-started runs, retries, virtual models, codemode, tools other extensions add), `nested-calls.test.js` (routing tools stay out of codemode scripts) |
+ | Runtime, status and rendering | `runtime.test.js` (binding sessions and stale control), `status.test.js`, `render.test.js`, `economics.test.js` (preset warnings) |
+ | Regressions | `review-fixes.test.js`: fixes from earlier code reviews, each named by the behavior it protects |
+diff --git a/pi-extension/tests/cognitive-routing/startup-verification.test.js b/pi-extension/tests/cognitive-routing/startup-verification.test.js
+new file mode 100644
+index 00000000..e75ab566
+--- /dev/null
++++ b/pi-extension/tests/cognitive-routing/startup-verification.test.js
+@@ -0,0 +1,84 @@
++import assert from "node:assert/strict";
++import test from "node:test";
++import { copyFile } from "node:fs/promises";
++import { dirname, join } from "node:path";
++import { SessionManager } from "@earendil-works/pi-coding-agent";
++import { fixture } from "../fixtures/routing-native.js";
++import { EventStore } from "../../dist/cognitive-routing/event-store.js";
++import { replay } from "../../dist/cognitive-routing/state.js";
++import { readOnlySessionCounters, trustLoadedSession } from "../../dist/host/read-only-session.js";
++
++// Routing verifies at startup that the session it replays is persisted. Pi parsed the file when it opened the
++// session, so the bytes appended since then are enough; a whole-file snapshot is the fallback when that trust point
++// is missing or anything differs (dev-docs/subsystems/cognitive-routing.md, Persistence and reconciliation).
++
++// Coordinator delegates; the worker answers once without returning, so the session holds routing events.
++const script = (n) =>
++  n === 1 ? [{ name: "freeflow_delegate", args: { operation: "assign", contract: "Read evidence.txt." } }] : [];
++
++/** Runs a routed fixture and hands its persisted session file to `check` before the fixture removes it. */
++const withRoutedSession = (check) =>
++  fixture(script, false, async ({ manager }) => check(manager.getSessionFile(), manager.getCwd()));
++
++const open = (file, cwd) => SessionManager.open(file, dirname(file), cwd);
++const store = (reader) => new EventStore({ appendEntry() {} }, reader);
++
++test("a start Pi just loaded is verified by the file's tail, without a snapshot", { timeout: 30000 }, async () => {
++  await withRoutedSession(async (file, cwd) => {
++    const reader = open(file, cwd);
++    trustLoadedSession(reader);
++    const before = readOnlySessionCounters.snapshots;
++    const events = store(reader);
++    await events.reconcile();
++    assert.equal(events.blocked, undefined);
++    assert.equal(readOnlySessionCounters.snapshots, before, "no whole-file snapshot");
++    assert.deepEqual(events.state().assignments, replay(reader.getBranch()).assignments);
++  });
++});
++
++test("without a trust point the full snapshot decides", { timeout: 30000 }, async () => {
++  await withRoutedSession(async (file, cwd) => {
++    const copy = join(dirname(file), "untrusted.jsonl");
++    await copyFile(file, copy);
++    const before = readOnlySessionCounters.snapshots;
++    const events = store(open(copy, cwd));
++    await events.reconcile();
++    assert.equal(events.blocked, undefined);
++    assert.equal(readOnlySessionCounters.snapshots, before + 1);
++  });
++});
++
++test("an entry Pi holds but never wrote blocks routing instead of being trusted", { timeout: 30000 }, async () => {
++  await withRoutedSession(async (file, cwd) => {
++    const reader = open(file, cwd);
++    trustLoadedSession(reader);
++    // A failed write leaves the entry in memory only; Pi then appends nothing to the file.
++    reader.persist = false;
++    reader.appendCustomEntry("test-unpersisted", { lost: true });
++    reader.persist = true;
++    const events = store(reader);
++    await assert.rejects(events.reconcile());
++    // The live leaf is not on disk, so the persisted ancestry cannot be established.
++    assert.match(String(events.blocked), /ancestry/);
++  });
++});
++
++test("a reload does not trust a file it did not re-read", { timeout: 30000 }, async () => {
++  let checked = false;
++  // The blocked prompt ends the run in an error, which the fixture's own completion check then reports.
++  await assert.rejects(
++    fixture(script, false, async ({ session, manager, requests }) => {
++      manager.persist = false;
++      manager.appendCustomEntry("test-unpersisted", { lost: true });
++      manager.persist = true;
++      await session.reload();
++      const before = requests.length;
++      await session.prompt("Continue.");
++      await session.waitForIdle();
++      assert.equal(requests.length, before, "routing blocks the request rather than trusting unverified history");
++      checked = true;
++    }),
++    /fixture completes without provider failure/,
++  );
++  assert.ok(checked);
++});

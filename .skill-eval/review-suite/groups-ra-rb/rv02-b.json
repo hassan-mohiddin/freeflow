@@ -6,7 +6,7 @@
   "input": {
     "prompt": "Review the completed change in this workspace against what it must do: `change.diff` is the change, `files/` holds the changed files after the change, and `verification.md` is the author's report. Write only `review.md`. Its first line must be exactly one of `Judgment: Pass`, `Judgment: Non-blocking`, `Judgment: Inconclusive` or `Judgment: Blocking`. After it, list each finding with the file and line it concerns, or write `No findings.`"
   },
-  "fixture": ".skill-eval/review-suite/fixtures/rs-4ab18f5b/seeded/workspace",
+  "fixture": ".skill-eval/review-suite/fixtures-ra-rb/rv02-b",
   "tools": ["read", "write", "ls", "find", "run_command"],
   "commands": [
     {
@@ -16,28 +16,22 @@
     }
   ],
   "configuration": {
-    "extends": "../configuration.json"
+    "extends": "../configuration-grok.json"
   },
   "arms": {
     "full": {
       "subject": {
-        "context": [".skill-eval/review-suite/context-ra-rb/rv02-b/full.md"]
+        "context": [".skill-eval/review-suite/context-ra-rb/rv02-b/a.md"]
       }
     },
     "pointer": {
       "subject": {
-        "context": [
-          ".skill-eval/review-suite/context-ra-rb/rv02-b/pointer.md",
-          ".skill-eval/review-suite/context/rv02-b/requirements.md"
-        ]
+        "context": [".skill-eval/review-suite/context-ra-rb/rv02-b/b.md"]
       }
     },
     "pointer-judge-first": {
       "subject": {
-        "context": [
-          ".skill-eval/review-suite/context-ra-rb/rv02-b/pointer-judge-first.md",
-          ".skill-eval/review-suite/context/rv02-b/requirements.md"
-        ]
+        "context": [".skill-eval/review-suite/context-ra-rb/rv02-b/c.md"]
       }
     }
   },
@@ -196,7 +190,10 @@
   "judges": [
     {
       "model": "anthropic/claude-haiku-5-5",
-      "thinking": "high"
+      "thinking": "high",
+      "configuration": {
+        "extends": "../configuration.json"
+      }
     }
   ]
 }

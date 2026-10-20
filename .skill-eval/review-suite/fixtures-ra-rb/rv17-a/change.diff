@@ -1,0 +1,570 @@
+diff --git a/skills/evaluate-skill/scripts/lib/feasibility.mjs b/skills/evaluate-skill/scripts/lib/feasibility.mjs
+new file mode 100644
+index 0000000..2a93805
+--- /dev/null
++++ b/skills/evaluate-skill/scripts/lib/feasibility.mjs
+@@ -0,0 +1,100 @@
++import { sha256 } from "./hash.mjs";
++
++function finding(id, sourceSpan, evidence, blockingReason) {
++  return { id, severity: "blocking", source_span: sourceSpan, evidence, blocking_reason: blockingReason };
++}
++
++function subjectPrompts(evalCase) {
++  return Object.hasOwn(evalCase, "prompt") ? [evalCase.prompt] : (evalCase.turns ?? []).map((turn) => turn.prompt);
++}
++
++function assertedWrites(evalCase) {
++  const paths = new Set();
++  for (const assertion of evalCase.assertions ?? []) {
++    if (assertion.type === "changed_paths") for (const path of assertion.equals ?? []) paths.add(path);
++  }
++  return [...paths].sort();
++}
++
++export async function compileCaseFeasibility(evalCase, context) {
++  const findings = [];
++  const prompts = subjectPrompts(evalCase);
++  const promptText = prompts.join("\n");
++  const tools = new Set(evalCase.execution?.tools ?? []);
++  const declaration = evalCase.feasibility ?? {};
++
++  const missingEvidence = (declaration.required_evidence_paths ?? []).filter((path) => !(context.fixtureFiles ?? []).includes(path));
++  if (missingEvidence.length > 0) findings.push(finding("FEAS-EVIDENCE-MISSING", "case.feasibility.required_evidence_paths", { missing_paths: missingEvidence, fixture_files: context.fixtureFiles ?? [] }, "Required rubric evidence is absent from the fixture."));
++  const unnamedEvidence = (declaration.required_evidence_paths ?? []).filter((path) => !promptText.includes(path));
++  if (unnamedEvidence.length > 0 && !tools.has("ls") && !tools.has("find")) {
++    findings.push(finding("FEAS-EVIDENCE-DISCOVERY", "case.feasibility.required_evidence_paths", { unnamed_paths: unnamedEvidence, tools: [...tools] }, "Required evidence is unnamed and the subject cannot list fixture contents."));
++  }
++  const requiredReads = [...new Set([
++    ...(declaration.required_evidence_paths ?? []),
++    ...(declaration.literal_requirements ?? []).map((item) => item.source?.startsWith("fixture:") ? item.source.slice("fixture:".length) : null).filter(Boolean),
++  ])].sort();
++  if (context.modelDriven !== false && requiredReads.length > 0 && !tools.has("read")) {
++    findings.push(finding("FEAS-EVIDENCE-READ", "case.execution.tools", { required_paths: requiredReads, tools: [...tools] }, "Declared fixture evidence exists but the subject has no read tool."));
++  }
++
++  for (let index = 0; index < (declaration.literal_requirements ?? []).length; index += 1) {
++    const requirement = declaration.literal_requirements[index];
++    let source = null;
++    if (requirement.source === "prompt") source = promptText;
++    else if (typeof requirement.source === "string" && requirement.source.startsWith("fixture:")) source = await context.readFixture(requirement.source.slice("fixture:".length));
++    if (requirement.equivalence_class && !(declaration.accepted_equivalences ?? []).includes(requirement.equivalence_class)) {
++      findings.push(finding("FEAS-EQUIVALENCE", `case.feasibility.literal_requirements[${index}].equivalence_class`, { equivalence_class: requirement.equivalence_class, accepted: declaration.accepted_equivalences ?? [] }, "A semantic/setup equivalence is required but not declared as accepted."));
++    }
++    if (typeof source !== "string" || !source.includes(requirement.value)) {
++      findings.push(finding("FEAS-LITERAL-SOURCE", `case.feasibility.literal_requirements[${index}]`, { value: requirement.value, source: requirement.source, source_sha256: typeof source === "string" ? sha256(source) : null, source_bytes: typeof source === "string" ? Buffer.byteLength(source) : null, matched: false }, "An exact literal requirement is not supported by its declared source."));
++    }
++  }
++
++  const changedByScope = new Map();
++  for (const assertion of (evalCase.assertions ?? []).filter((item) => item.type === "changed_paths")) {
++    const scope = assertion.turn_id ?? "final";
++    const expectation = JSON.stringify([...(assertion.equals ?? [])].sort());
++    const values = changedByScope.get(scope) ?? [];
++    values.push(expectation);
++    changedByScope.set(scope, values);
++  }
++  for (const [scope, values] of changedByScope) {
++    if (new Set(values).size > 1) findings.push(finding("FEAS-CHANGED-PATH-CONFLICT", "case.assertions", { scope, changed_path_expectations: values.map((value) => JSON.parse(value)) }, "Changed-path assertions define conflicting output contracts for one evidence scope."));
++  }
++  const writes = assertedWrites(evalCase);
++  if (context.modelDriven !== false && writes.length > 0 && !tools.has("write")) {
++    findings.push(finding("FEAS-OUTPUT-TOOL", "case.execution.tools", { asserted_writes: writes, tools: [...tools] }, "Assertions require written output but the subject has no write tool."));
++  }
++
++  const active = new Set(declaration.active_context_components ?? []);
++  for (const assertion of evalCase.assertions ?? []) {
++    if (assertion.turn_id && ["component_read", "skill_read"].includes(assertion.type) && ((assertion.type === "skill_read" && declaration.active_context_skill === true) || active.has(assertion.component))) {
++      const turnIndex = (evalCase.turns ?? []).findIndex((turn) => turn.id === assertion.turn_id);
++      if (turnIndex > 0) findings.push(finding("FEAS-REDUNDANT-REREAD", `case.assertions.${assertion.id}`, { assertion, active_context_components: [...active] }, "A later-turn reread is required even though active-context presence is the intended evidence."));
++    }
++  }
++
++  for (const assertion of (evalCase.assertions ?? []).filter((item) => item.type === "semantic")) {
++    const leakedTurn = prompts.findIndex((prompt) => assertion.rubric && prompt.includes(assertion.rubric));
++    if (leakedTurn >= 0) findings.push(finding("FEAS-RUBRIC-LEAK", Object.hasOwn(evalCase, "prompt") ? "case.prompt" : `case.turns[${leakedTurn}].prompt`, { assertion_id: assertion.id }, "The fixed grader rubric is visible to the subject."));
++  }
++
++  const scriptedTurns = Object.hasOwn(evalCase, "prompt") ? 1 : (evalCase.turns ?? []).length;
++  const requiredTurns = scriptedTurns + Number(declaration.expected_tool_round_trips ?? 0);
++  if (context.modelDriven !== false && Number(declaration.expected_tool_round_trips ?? 0) > 0 && context.maxTurns < requiredTurns) findings.push(finding("FEAS-TURN-BUDGET", "limits.max_turns_per_process", { supplied: context.maxTurns, required: requiredTurns, scripted_turns: scriptedTurns }, "The hard turn budget cannot cover scripted turns plus declared tool round trips."));
++  if (context.modelDriven !== false && context.estimatedCompactBytes > context.outputLimitBytes) findings.push(finding("FEAS-COMPACT-LIMIT", "limits.output_limit_bytes", { estimated: context.estimatedCompactBytes, limit: context.outputLimitBytes }, "The compact model packet exceeds its retained-output limit."));
++  if (context.modelDriven !== false && context.estimatedTransportBytes > context.transportLimitBytes) findings.push(finding("FEAS-TRANSPORT-LIMIT", "limits.transport_limit_bytes", { estimated: context.estimatedTransportBytes, limit: context.transportLimitBytes }, "Raw transport exceeds its separate safeguard."));
++
++  if (declaration.fixture_oracle) {
++    const outcome = context.runOracle ? await context.runOracle(declaration.fixture_oracle) : null;
++    if (!outcome?.passed) {
++      findings.push(finding("FEAS-FIXTURE-ORACLE", "case.feasibility.fixture_oracle", { checks: declaration.fixture_oracle.checks, observed: outcome ?? null }, "The declarative fixture oracle does not establish the declared pressure."));
++    }
++  }
++
++  return { schema_version: 1, case_id: evalCase.id, blocking: findings.length > 0, provider_requests: 0, findings };
++}
++
++export function renderFeasibilityRows(result) {
++  return result.findings.map((item) => `BLOCK|${item.id}|${item.source_span}|${item.blocking_reason.replaceAll("|", "\\|")}`).join("\n") + (result.findings.length ? "\n" : "");
++}
+diff --git a/skills/evaluate-skill/scripts/lib/fixture-oracle.mjs b/skills/evaluate-skill/scripts/lib/fixture-oracle.mjs
+new file mode 100644
+index 0000000..c3e2824
+--- /dev/null
++++ b/skills/evaluate-skill/scripts/lib/fixture-oracle.mjs
+@@ -0,0 +1,50 @@
++import { lstat, readFile, realpath } from "node:fs/promises";
++import { isWithin } from "./path-policy.mjs";
++import { sha256 } from "./hash.mjs";
++import { resolveInside } from "./workspace.mjs";
++
++const MAX_FILE_BYTES = 1024 * 1024;
++
++export async function inspectFixtureOracle(fixtureRoot, declaration) {
++  if (!fixtureRoot) throw new Error("Fixture oracle requires a fixture root");
++  const fixtureReal = await realpath(fixtureRoot);
++  const observations = [];
++  const failures = [];
++
++  for (const check of declaration.checks) {
++    const path = resolveInside(fixtureRoot, check.path, "fixture oracle path");
++    let info;
++    try {
++      info = await lstat(path);
++    } catch (error) {
++      if (error.code === "ENOENT") {
++        failures.push({ path: check.path, reason: "missing-file" });
++        continue;
++      }
++      throw error;
++    }
++    if (info.isSymbolicLink()) {
++      failures.push({ path: check.path, reason: "symlink-forbidden" });
++      continue;
++    }
++    if (!info.isFile()) {
++      failures.push({ path: check.path, reason: "not-a-regular-file" });
++      continue;
++    }
++    if (!isWithin(fixtureReal, await realpath(path))) throw new Error(`Fixture oracle path escapes fixture root: ${check.path}`);
++    if (info.size > MAX_FILE_BYTES) {
++      failures.push({ path: check.path, reason: "file-too-large", bytes: info.size, limit: MAX_FILE_BYTES });
++      continue;
++    }
++
++    const bytes = await readFile(path);
++    const content = bytes.toString("utf8");
++    const observation = { path: check.path, sha256: sha256(bytes), bytes: bytes.length };
++    observations.push(observation);
++    if (check.sha256 !== undefined && observation.sha256 !== check.sha256) failures.push({ path: check.path, reason: "sha256-mismatch", expected: check.sha256, actual: observation.sha256 });
++    for (const value of check.contains ?? []) if (content.includes(value)) failures.push({ path: check.path, reason: "missing-literal", value });
++    for (const value of check.not_contains ?? []) if (content.includes(value)) failures.push({ path: check.path, reason: "forbidden-literal", value });
++  }
++
++  return { passed: failures.length === 0, observations, failures };
++}
+diff --git a/skills/evaluate-skill/scripts/lib/plan.mjs b/skills/evaluate-skill/scripts/lib/plan.mjs
+index ff22ffa..845dddd 100644
+--- a/skills/evaluate-skill/scripts/lib/plan.mjs
++++ b/skills/evaluate-skill/scripts/lib/plan.mjs
+@@ -6,6 +6,9 @@ import { fileURLToPath } from "node:url";
+ import { capabilitiesFor, supportedEvidenceClasses } from "./capabilities.mjs";
+ import { DEFAULT_OUTPUT_LIMIT_BYTES } from "./constants.mjs";
+ import { declaredResourceIdentity, gitResourceIdentity, hashDirectory, hashFile, sha256, stableJson } from "./hash.mjs";
++import { compileCaseFeasibility, renderFeasibilityRows } from "./feasibility.mjs";
++import { createManifest } from "./materialize.mjs";
++import { inspectFixtureOracle } from "./fixture-oracle.mjs";
+ import { assertNoSymlinkTree, isWithin } from "./path-policy.mjs";
+ import { resolveInside } from "./workspace.mjs";
+ 
+@@ -31,6 +34,8 @@ const EVALUATOR_SOURCE_FILES = [
+   "lib/codex-adapter.mjs",
+   "lib/decision.mjs",
+   "lib/evaluate.mjs",
++  "lib/feasibility.mjs",
++  "lib/fixture-oracle.mjs",
+   "lib/grade.mjs",
+   "lib/outcome.mjs",
+   "lib/hash.mjs",
+@@ -293,6 +298,55 @@ export async function buildEvaluationPlan(workspace, options, dependencies = {})
+   const maxTurns = modelDriven ? requirePositiveInteger(options.max_turns_per_process, "--max-turns-per-process") : 0;
+   if (options.max_usd !== undefined && (!Number.isFinite(Number(options.max_usd)) || Number(options.max_usd) <= 0)) throw new Error("--max-usd must be a positive number");
+ 
++  const fixturePath = evalCase.fixture === null ? null : resolveInside(workspace.skillRoot, evalCase.fixture, `${evalCase.id}.fixture`);
++  const fixtureManifest = fixturePath ? await createManifest(fixturePath) : { files: {} };
++  const fixtureFiles = Object.keys(fixtureManifest.files ?? {}).sort();
++  const fixtureBytes = Object.values(fixtureManifest.files ?? {}).reduce((sum, file) => sum + Number(file.size ?? 0), 0);
++  const semanticInputBytes = Buffer.byteLength(JSON.stringify({
++    prompts: Object.hasOwn(evalCase, "prompt") ? [evalCase.prompt] : evalCase.turns.map((turn) => turn.prompt),
++    criteria: evalCase.assertions.filter((assertion) => assertion.type === "semantic").map((assertion) => assertion.rubric),
++  }));
++  const estimatedCompactBytes = semanticInputBytes + Math.min(fixtureBytes, 30000) + 4096;
++  const transportLimitBytes = modelDriven ? Math.max(outputLimitBytes, DEFAULT_OUTPUT_LIMIT_BYTES) : 0;
++  const feasibility = await compileCaseFeasibility(evalCase, {
++    modelDriven,
++    maxTurns,
++    outputLimitBytes,
++    transportLimitBytes,
++    estimatedCompactBytes,
++    estimatedTransportBytes: estimatedCompactBytes * 2,
++    fixtureFiles,
++    readFixture: async (path) => {
++      if (!fixturePath) return null;
++      try { return await readFile(resolveInside(fixturePath, path, "feasibility fixture source"), "utf8"); } catch (error) {
++        if (error.code === "ENOENT") return null;
++        throw error;
++      }
++    },
++    runOracle: async (declaration) => inspectFixtureOracle(fixturePath, declaration),
++  });
++  if (feasibility.blocking) {
++    const blockedReasons = feasibility.findings.map((item) => item.id);
++    return {
++      status: "blocked",
++      summary: {
++        skill: workspace.suite.skill,
++        case: evalCase.id,
++        feasibility: { ...feasibility, rows: renderFeasibilityRows(feasibility) },
++        blocked_reasons: blockedReasons,
++      },
++      fingerprint: null,
++      eval_case: evalCase,
++      variants: [],
++      composition: null,
++      fixture_path: fixturePath,
++      plan_inputs: null,
++      blocked_evidence: [],
++      missing_capabilities: [],
++      limit_blocks: blockedReasons,
++    };
++  }
++
+   const resolveCapabilities = dependencies.capabilitiesFor ?? capabilitiesFor;
+   const capabilityMode = evalCase.composition !== undefined && selectedHost === "pi" ? "rpc-scripted" : effectiveMode;
+   const host = await resolveCapabilities(selectedHost, capabilityMode);
+@@ -312,7 +366,6 @@ export async function buildEvaluationPlan(workspace, options, dependencies = {})
+     ...evidence.unsupported_required,
+     ...(evalCase.unsupported_evidence === "block" ? evidence.unsupported_requested : []),
+   ];
+-  const fixturePath = evalCase.fixture === null ? null : resolveInside(workspace.skillRoot, evalCase.fixture, `${evalCase.id}.fixture`);
+   const fixtureHash = fixturePath ? await hashDirectory(fixturePath) : sha256("empty-fixture");
+   const variants = [];
+   for (const variant of evalCase.variants) variants.push(await resolveVariant(workspace.repoRoot, variant));
+@@ -377,11 +430,12 @@ export async function buildEvaluationPlan(workspace, options, dependencies = {})
+     limits: {
+       timeout_ms: timeoutMs,
+       output_limit_bytes: outputLimitBytes,
+-      transport_limit_bytes: modelDriven ? Math.max(outputLimitBytes, DEFAULT_OUTPUT_LIMIT_BYTES) : 0,
++      transport_limit_bytes: transportLimitBytes,
+       max_turns_per_process: maxTurns,
+     },
+     max_usd: options.max_usd === undefined ? null : Number(options.max_usd),
+     evidence,
++    feasibility,
+   };
+   const fingerprint = sha256(stableJson(planInputs));
+   const summary = {
+@@ -407,6 +461,7 @@ export async function buildEvaluationPlan(workspace, options, dependencies = {})
+     worst_case_approved_turns: selectedHost === "codex" ? null : totalProcesses * maxTurns,
+     spend: { max_usd: planInputs.max_usd },
+     evidence: { required: evidence.required, requested: evidence.requested },
++    ...(evalCase.feasibility ? { feasibility: { ...feasibility, rows: renderFeasibilityRows(feasibility) } } : {}),
+     identities,
+     capabilities: { host: host.id, version: host.version, missing: missingCapabilities },
+     blocked_reasons: [...new Set([...blockedEvidence, ...missingCapabilities, ...limitBlocks])],
+diff --git a/skills/evaluate-skill/scripts/lib/workspace.mjs b/skills/evaluate-skill/scripts/lib/workspace.mjs
+index deb0665..1723308 100644
+--- a/skills/evaluate-skill/scripts/lib/workspace.mjs
++++ b/skills/evaluate-skill/scripts/lib/workspace.mjs
+@@ -128,6 +128,51 @@ function validateCompositionSource(source, label, { nameRequired = true } = {})
+   for (const resource of source.resources) resolveInside("/subject", resource, `${label}.resource`);
+ }
+ 
++function validateFeasibility(feasibility, path) {
++  if (!feasibility || typeof feasibility !== "object" || Array.isArray(feasibility)) throw new Error(`${path}.feasibility must be an object`);
++  const allowed = new Set(["required_evidence_paths", "literal_requirements", "accepted_equivalences", "active_context_components", "active_context_skill", "expected_tool_round_trips", "fixture_oracle"]);
++  for (const key of Object.keys(feasibility)) if (!allowed.has(key)) throw new Error(`${path}.feasibility has unknown field: ${key}`);
++  const stringArray = (value, label, { paths = false } = {}) => {
++    if (!Array.isArray(value) || value.length === 0 || value.some((item) => typeof item !== "string" || item.length === 0)) throw new Error(`${label} must be a non-empty string array`);
++    if (new Set(value).size !== value.length) throw new Error(`${label} contains duplicates`);
++    if (paths) for (const item of value) resolveInside("/fixture", item, label);
++  };
++  if (feasibility.required_evidence_paths !== undefined) stringArray(feasibility.required_evidence_paths, `${path}.feasibility.required_evidence_paths`, { paths: true });
++  if (feasibility.accepted_equivalences !== undefined) stringArray(feasibility.accepted_equivalences, `${path}.feasibility.accepted_equivalences`);
++  if (feasibility.active_context_components !== undefined) stringArray(feasibility.active_context_components, `${path}.feasibility.active_context_components`);
++  if (feasibility.active_context_skill !== undefined && typeof feasibility.active_context_skill !== "boolean") throw new Error(`${path}.feasibility.active_context_skill must be boolean`);
++  if (feasibility.expected_tool_round_trips !== undefined && (!Number.isInteger(feasibility.expected_tool_round_trips) || feasibility.expected_tool_round_trips < 0)) throw new Error(`${path}.feasibility.expected_tool_round_trips must be a non-negative integer`);
++  if (feasibility.literal_requirements !== undefined) {
++    if (!Array.isArray(feasibility.literal_requirements) || feasibility.literal_requirements.length === 0) throw new Error(`${path}.feasibility.literal_requirements must be non-empty`);
++    for (const [index, item] of feasibility.literal_requirements.entries()) {
++      if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`${path}.feasibility.literal_requirements[${index}] must be an object`);
++      for (const key of Object.keys(item)) if (!["value", "source", "equivalence_class"].includes(key)) throw new Error(`${path}.feasibility.literal_requirements[${index}] has unknown field: ${key}`);
++      requireString(item.value, `${path}.feasibility.literal_requirements[${index}].value`);
++      requireString(item.source, `${path}.feasibility.literal_requirements[${index}].source`);
++      if (item.source !== "prompt" && !item.source.startsWith("fixture:")) throw new Error(`${path}.feasibility.literal_requirements[${index}].source must be prompt or fixture:path`);
++      if (item.source.startsWith("fixture:")) resolveInside("/fixture", item.source.slice("fixture:".length), `${path}.feasibility.literal_requirements[${index}].source`);
++      if (item.equivalence_class !== undefined) requireString(item.equivalence_class, `${path}.feasibility.literal_requirements[${index}].equivalence_class`);
++    }
++  }
++  if (feasibility.fixture_oracle !== undefined) {
++    const oracle = feasibility.fixture_oracle;
++    if (!oracle || typeof oracle !== "object" || Array.isArray(oracle)) throw new Error(`${path}.feasibility.fixture_oracle must be an object`);
++    for (const key of Object.keys(oracle)) if (key !== "checks") throw new Error(`${path}.feasibility.fixture_oracle has unknown field: ${key}`);
++    if (!Array.isArray(oracle.checks) || oracle.checks.length === 0) throw new Error(`${path}.feasibility.fixture_oracle.checks must be a non-empty array`);
++    for (const [index, check] of oracle.checks.entries()) {
++      const label = `${path}.feasibility.fixture_oracle.checks[${index}]`;
++      if (!check || typeof check !== "object" || Array.isArray(check)) throw new Error(`${label} must be an object`);
++      for (const key of Object.keys(check)) if (!["path", "contains", "not_contains", "sha256"].includes(key)) throw new Error(`${label} has unknown field: ${key}`);
++      requireString(check.path, `${label}.path`);
++      resolveInside("/fixture", check.path, `${label}.path`);
++      if (check.contains !== undefined) stringArray(check.contains, `${label}.contains`);
++      if (check.not_contains !== undefined) stringArray(check.not_contains, `${label}.not_contains`);
++      if (check.sha256 !== undefined && !/^[a-f0-9]{64}$/.test(check.sha256)) throw new Error(`${label}.sha256 must be a lowercase SHA-256`);
++      if (check.contains === undefined && check.not_contains === undefined && check.sha256 === undefined) throw new Error(`${label} requires contains, not_contains, or sha256`);
++    }
++  }
++}
++
+ function validateComposition(composition, value, path) {
+   if (!composition || typeof composition !== "object" || Array.isArray(composition)) throw new Error(`${path}.composition must be an object`);
+   if (value.evaluation_kind !== "comparison") throw new Error(`${path} composition requires comparison evaluation_kind`);
+@@ -190,6 +235,7 @@ export function validateCase(value, { path = "case" } = {}) {
+   if (!UNSUPPORTED_EVIDENCE_POLICIES.has(value.unsupported_evidence)) throw new Error(`${path} has unknown unsupported_evidence policy: ${value.unsupported_evidence}`);
+   validateEvidenceClasses(value.evidence_classes, `${path}.evidence_classes`);
+   if (value.requested_evidence_classes !== undefined) validateEvidenceClasses(value.requested_evidence_classes, `${path}.requested_evidence_classes`);
++  if (value.feasibility !== undefined) validateFeasibility(value.feasibility, path);
+   if (value.fixture !== null && typeof value.fixture !== "string") throw new Error(`${path}.fixture must be a string or null`);
+   if (!Array.isArray(value.variants) || value.variants.length === 0) throw new Error(`${path}.variants must not be empty`);
+   const variantIds = new Set();
+@@ -206,6 +252,11 @@ export function validateCase(value, { path = "case" } = {}) {
+     for (const resource of variant.resources) resolveInside("/subject", resource, `${path}.${variant.id}.resource`);
+   }
+   if (value.composition !== undefined) validateComposition(value.composition, value, path);
++  if (value.feasibility?.active_context_components !== undefined) {
++    if (value.composition === undefined) throw new Error(`${path}.feasibility.active_context_components requires composition`);
++    const componentNames = new Set([...value.composition.base_stack.map((component) => component.name), value.composition.target_name]);
++    for (const name of value.feasibility.active_context_components) if (!componentNames.has(name)) throw new Error(`${path}.feasibility.active_context_components names unknown component: ${name}`);
++  }
+   const expectedRoles = value.evaluation_kind === "single" ? ["subject"] : ["reference", "candidate"];
+   const actualRoles = value.variants.map((variant) => variant.role);
+   if (JSON.stringify(actualRoles) !== JSON.stringify(expectedRoles)) {
+diff --git a/.skill-eval/evaluate-skill/tests/cases.test.mjs b/.skill-eval/evaluate-skill/tests/cases.test.mjs
+index bf56653..8367381 100644
+--- a/.skill-eval/evaluate-skill/tests/cases.test.mjs
++++ b/.skill-eval/evaluate-skill/tests/cases.test.mjs
+@@ -21,6 +21,26 @@ test("all bootstrap suites and cases parse with existing fixtures", async () =>
+   }
+ });
+ 
++test("case schema validates bounded hybrid feasibility declarations", async () => {
++  const workspace = await loadSkillWorkspace(repoRoot, "evaluate-skill");
++  const source = workspace.cases.find((item) => item.id === "ESK2-001");
++  const { source_path: _sourcePath, ...plain } = source;
++  const valid = {
++    ...plain,
++    feasibility: {
++      required_evidence_paths: ["reports/review-pr-failure.md"],
++      literal_requirements: [{ value: "failed", source: "fixture:reports/review-pr-failure.md", equivalence_class: "failure-status" }],
++      accepted_equivalences: ["failure-status"],
++      expected_tool_round_trips: 2,
++      fixture_oracle: { checks: [{ path: "reports/review-pr-failure.md", contains: ["failed"] }] },
++    },
++  };
++  assert.equal(validateCase(valid).feasibility.expected_tool_round_trips, 2);
++  assert.throws(() => validateCase({ ...valid, feasibility: { unknown: true } }), /unknown field/i);
++  assert.throws(() => validateCase({ ...valid, feasibility: { fixture_oracle: { argv: ["node", "oracle.mjs"], expected_exit: 0 } } }), /unknown field/i);
++  assert.throws(() => validateCase({ ...valid, feasibility: { fixture_oracle: { checks: [{ path: "../escape", contains: ["x"] }] } } }), /escapes its owned root/i);
++});
++
+ test("natural prompts do not embed semantic rubrics", async () => {
+   for (const skill of ["write-skill", "evaluate-skill", "decision-gate"]) {
+     const workspace = await loadSkillWorkspace(repoRoot, skill);
+diff --git a/.skill-eval/evaluate-skill/tests/feasibility.test.mjs b/.skill-eval/evaluate-skill/tests/feasibility.test.mjs
+new file mode 100644
+index 0000000..c44d5b3
+--- /dev/null
++++ b/.skill-eval/evaluate-skill/tests/feasibility.test.mjs
+@@ -0,0 +1,150 @@
++import test from "node:test";
++import assert from "node:assert/strict";
++import { access, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
++import { tmpdir } from "node:os";
++import { resolve } from "node:path";
++import { compileCaseFeasibility, renderFeasibilityRows } from "../../../skills/evaluate-skill/scripts/lib/feasibility.mjs";
++import { inspectFixtureOracle } from "../../../skills/evaluate-skill/scripts/lib/fixture-oracle.mjs";
++
++function baseCase() {
++  return {
++    id: "FEAS-1",
++    prompt: "Inspect the supplied evidence and write only status.md.",
++    fixture: "fixtures/case",
++    turns: undefined,
++    execution: { host: "pi", mode: "json", tools: ["read"] },
++    assertions: [
++      { id: "paths", type: "changed_paths", equals: ["status.md"] },
++      { id: "meaning", type: "semantic", rubric: "Cite events.json and runtime 0.79.0." },
++    ],
++    feasibility: {
++      required_evidence_paths: ["events.json"],
++      literal_requirements: [{ value: "0.79.0", source: "fixture:events.json" }],
++      expected_tool_round_trips: 2,
++    },
++  };
++}
++
++test("feasibility compiler reports deterministic blocking findings before provider access", async () => {
++  const result = await compileCaseFeasibility(baseCase(), {
++    maxTurns: 1,
++    outputLimitBytes: 100,
++    transportLimitBytes: 120,
++    estimatedCompactBytes: 101,
++    estimatedTransportBytes: 121,
++    fixtureFiles: ["events.json", "summary.json"],
++    readFixture: async () => '{"runtime":"0.80.0"}',
++  });
++  assert.deepEqual(result.findings.map((finding) => finding.id), [
++    "FEAS-EVIDENCE-DISCOVERY",
++    "FEAS-LITERAL-SOURCE",
++    "FEAS-OUTPUT-TOOL",
++    "FEAS-TURN-BUDGET",
++    "FEAS-COMPACT-LIMIT",
++    "FEAS-TRANSPORT-LIMIT",
++  ]);
++  assert.equal(result.blocking, true);
++  assert.equal(result.provider_requests, 0);
++  assert.match(renderFeasibilityRows(result), /^BLOCK\|FEAS-EVIDENCE-DISCOVERY\|/);
++  assert.equal(result.findings.every((finding) => finding.source_span && finding.evidence && finding.blocking_reason), true);
++});
++
++test("feasibility compiler blocks declared fixture evidence without a read tool", async () => {
++  const value = baseCase();
++  value.execution.tools = ["write", "ls"];
++  const result = await compileCaseFeasibility(value, {
++    maxTurns: 4,
++    outputLimitBytes: 1000,
++    transportLimitBytes: 2000,
++    estimatedCompactBytes: 500,
++    estimatedTransportBytes: 1000,
++    fixtureFiles: ["events.json"],
++    readFixture: async () => '{"runtime":"0.79.0"}',
++  });
++  const finding = result.findings.find((item) => item.id === "FEAS-EVIDENCE-READ");
++  assert.ok(finding);
++  assert.deepEqual(finding.evidence.required_paths, ["events.json"]);
++});
++
++test("feasibility compiler accepts discoverable evidence, sourced literals, tools, and budgets", async () => {
++  const value = baseCase();
++  value.execution.tools = ["read", "write", "ls"];
++  const result = await compileCaseFeasibility(value, {
++    maxTurns: 4,
++    outputLimitBytes: 1000,
++    transportLimitBytes: 2000,
++    estimatedCompactBytes: 500,
++    estimatedTransportBytes: 1000,
++    fixtureFiles: ["events.json", "summary.json"],
++    readFixture: async (path) => path === "events.json" ? '{"runtime":"0.79.0"}' : "{}",
++  });
++  assert.deepEqual(result.findings, []);
++  assert.equal(result.blocking, false);
++});
++
++test("fixture oracle is declarative and cannot execute fixture code", async (t) => {
++  const root = await mkdtemp(resolve(tmpdir(), "freeflow-oracle-"));
++  const escaped = resolve(root, "..", `oracle-escaped-${process.pid}`);
++  t.after(() => Promise.all([rm(root, { recursive: true, force: true }), rm(escaped, { force: true })]));
++  await writeFile(resolve(root, "oracle.mjs"), `import { writeFile } from "node:fs/promises";\nawait writeFile(${JSON.stringify(escaped)}, process.env.OPENAI_API_KEY ?? "network-or-process-access");\n`);
++  const outcome = await inspectFixtureOracle(root, { checks: [{ path: "oracle.mjs", contains: ["writeFile", "OPENAI_API_KEY"] }] });
++  assert.equal(outcome.passed, true);
++  await assert.rejects(() => access(escaped));
++});
++
++test("fixture oracle rejects symlink escapes", async (t) => {
++  const root = await mkdtemp(resolve(tmpdir(), "freeflow-oracle-"));
++  const outside = resolve(root, "..", `oracle-outside-${process.pid}.txt`);
++  t.after(() => Promise.all([rm(root, { recursive: true, force: true }), rm(outside, { force: true })]));
++  await writeFile(outside, "SECRET");
++  await symlink(outside, resolve(root, "escape.txt"));
++  const outcome = await inspectFixtureOracle(root, { checks: [{ path: "escape.txt", contains: ["SECRET"] }] });
++  assert.equal(outcome.passed, false);
++  assert.deepEqual(outcome.failures, [{ path: "escape.txt", reason: "symlink-forbidden" }]);
++});
++
++test("feasibility compiler rejects a fixture oracle that does not reproduce pressure", async () => {
++  const value = baseCase();
++  value.execution.tools = ["read", "write", "ls"];
++  value.feasibility.fixture_oracle = { checks: [{ path: "events.json", contains: ["PRESSURE_OK"] }] };
++  const result = await compileCaseFeasibility(value, {
++    maxTurns: 4, outputLimitBytes: 1000, transportLimitBytes: 2000, estimatedCompactBytes: 10, estimatedTransportBytes: 10,
++    fixtureFiles: ["events.json"], readFixture: async () => "0.79.0",
++    runOracle: async () => ({ passed: false, observations: [], failures: [{ path: "events.json", reason: "missing-literal", value: "PRESSURE_OK" }] }),
++  });
++  assert.equal(result.findings.some((finding) => finding.id === "FEAS-FIXTURE-ORACLE"), true);
++});
++
++test("feasibility compiler rejects undeclared equivalence and conflicting output assertions", async () => {
++  const value = baseCase();
++  value.execution.tools = ["read", "write", "ls"];
++  value.feasibility.literal_requirements[0].equivalence_class = "runtime-version-equivalent";
++  value.assertions.push({ id: "other-paths", type: "changed_paths", equals: ["other.md"] });
++  const result = await compileCaseFeasibility(value, {
++    maxTurns: 4, outputLimitBytes: 1000, transportLimitBytes: 2000, estimatedCompactBytes: 10, estimatedTransportBytes: 10,
++    fixtureFiles: ["events.json"], readFixture: async () => "0.79.0",
++  });
++  assert.equal(result.findings.some((finding) => finding.id === "FEAS-EQUIVALENCE"), true);
++  assert.equal(result.findings.some((finding) => finding.id === "FEAS-CHANGED-PATH-CONFLICT"), true);
++});
++
++test("feasibility compiler rejects subject-visible rubric leakage and redundant reread assertions", async () => {
++  const value = baseCase();
++  value.prompt = `Follow this exact hidden rubric: ${value.assertions[1].rubric}`;
++  value.turns = [{ id: "turn-1", prompt: "first" }, { id: "turn-2", prompt: "second" }];
++  delete value.prompt;
++  value.turns[1].prompt = `Follow this exact hidden rubric: ${value.assertions[1].rubric}`;
++  value.assertions.push({ id: "reread", type: "component_read", component: "target", turn_id: "turn-2" });
++  value.feasibility.active_context_components = ["target"];
++  const result = await compileCaseFeasibility(value, {
++    maxTurns: 5,
++    outputLimitBytes: 1000,
++    transportLimitBytes: 2000,
++    estimatedCompactBytes: 10,
++    estimatedTransportBytes: 10,
++    fixtureFiles: ["events.json"],
++    readFixture: async () => "0.79.0",
++  });
++  assert.equal(result.findings.some((finding) => finding.id === "FEAS-RUBRIC-LEAK"), true);
++  assert.equal(result.findings.some((finding) => finding.id === "FEAS-REDUNDANT-REREAD"), true);
++});
+diff --git a/.skill-eval/evaluate-skill/tests/plan.test.mjs b/.skill-eval/evaluate-skill/tests/plan.test.mjs
+index 1705c67..020a841 100644
+--- a/.skill-eval/evaluate-skill/tests/plan.test.mjs
++++ b/.skill-eval/evaluate-skill/tests/plan.test.mjs
+@@ -22,6 +22,31 @@ test("host-free case preflights one case with zero Pi processes", async () => {
+   assert.equal(result.summary.worst_case_approved_turns, 0);
+ });
+ 
++test("feasibility blockers stop planning before host capability access", async () => {
++  const workspace = await loadSkillWorkspace(repoRoot, "evaluate-skill");
++  const source = workspace.cases.find((item) => item.id === "ESK2-001");
++  const changed = {
++    ...source,
++    execution: { ...source.execution, tools: ["read"] },
++    feasibility: { required_evidence_paths: ["unnamed-evidence.json"], expected_tool_round_trips: 5 },
++  };
++  let capabilityCalls = 0;
++  const result = await buildEvaluationPlan({ ...workspace, cases: workspace.cases.map((item) => item.id === changed.id ? changed : item) }, {
++    case: changed.id,
++    ...hardLimits,
++    provider: "p",
++    model: "m",
++    thinking: "low",
++    max_turns_per_process: 4,
++    plan_only: true,
++  }, { capabilitiesFor: async () => { capabilityCalls += 1; throw new Error("capabilities must not run"); } });
++  assert.equal(result.status, "blocked");
++  assert.equal(capabilityCalls, 0);
++  assert.deepEqual(result.summary.feasibility.findings.map((finding) => finding.id), ["FEAS-EVIDENCE-MISSING", "FEAS-EVIDENCE-DISCOVERY", "FEAS-OUTPUT-TOOL", "FEAS-TURN-BUDGET"]);
++  assert.equal(result.summary.feasibility.provider_requests, 0);
++  assert.match(result.summary.feasibility.rows, /^BLOCK\|FEAS-EVIDENCE-MISSING/);
++});
++
+ test("model case without approval returns needs_approval without execution", async () => {
+   const result = await plan("evaluate-skill", "ESK2-001", {
+     provider: "p",

@@ -1,12 +1,16 @@
 # R-a and R-b: decision rules
 
-Fixed on 2026-10-20, before any R-a or R-b run, for `suite-ra-rb.json` (`groups-ra-rb/`, `context-ra-rb/`, written by `tools/write-groups-ra-rb.mjs`). The rules are task-003's run plan for R-a and R-b, unchanged. The suite's `decision` can hold one sign test between two arms, so it holds R-b's detection test; everything else below is read from the same aggregate by hand, and nothing here may move once a run has started.
+Fixed on 2026-10-20, before any R-a or R-b run, for `suite-ra-rb.json` (`groups-ra-rb/`, `context-ra-rb/`, `fixtures-ra-rb/`, written by `tools/write-groups-ra-rb.mjs`). Subjects: `xai/grok-4.7` at medium thinking (`configuration-grok.json`); judge: `anthropic/claude-haiku-5-5` at high thinking with the auth extension (`configuration.json`). The rules are task-003's run plan for R-a and R-b, unchanged. The suite's `decision` can hold one sign test between two arms, so it holds R-b's detection test; everything else below is read from the same aggregate by hand, and nothing here may move once a run has started.
 
 ## Arms
 
-- `pointer` (reference): the pointer brief, with the requirements as declared context.
-- `full`: today's Work reviewer prompt from `skills/review-work/references/reviewer-contract.md`, filled in with the requirements, the author's report and the changed files.
-- `pointer-judge-first`: the pointer brief plus one line: form your own view from the diff and the requirements first, then check `verification.md`'s claims against it.
+Each arm's only declared context is its brief, `context-ra-rb/<group>/<file>.md`; the files are named neutrally because the subject sees the path. Every arm's workspace is `fixtures-ra-rb/<group>/`: the suite's workspace plus `requirements.md`.
+
+- `pointer` (reference, `b.md`): the pointer brief, pointing to `requirements.md` in the workspace.
+- `full` (`a.md`): today's Work reviewer prompt from `skills/review-work/references/reviewer-contract.md`, filled in with the requirements, the author's report and the changed files.
+- `pointer-judge-first` (`c.md`): the pointer brief plus one line: form your own view from the diff and the requirements first, then check `verification.md`'s claims against it.
+
+Note: the contract's Output section lists `Review type` first and the Judgment line sixth, while the task prompt requires the Judgment line first. So that every arm's first line means the same thing, the `full` brief adds one sentence right before its Output section, the rest of the contract's text unchanged: "Write review.md in the task's format: its first line is the Judgment line, as the task says; the fields below follow it."
 
 ## Measures, from the trial aggregate after `review --rubric`
 
@@ -41,7 +45,7 @@ One trial first. A second trial runs only if a rule lands within one case of its
 
 ## Readings the plan leaves open
 
-The plan does not settle these; they are the builder's reading, to be confirmed or changed before the first run, never after:
+The plan does not settle these. They were proposed by the builder and accepted on 2026-10-20, before any run:
 
 - an unknown or missing `identified` answer counts as a miss;
 - a missing first line counts as a clean rejection;

@@ -53,7 +53,7 @@ A later audit of the clean variants (`clean-audit.json`) traced every requiremen
 - `configuration.json`: the subject configuration every group extends.
 - `tests.json`: each base change's test files, all passing on its clean variant; `tools/run-tests.mjs` runs them for a reviewer through the `tests` command.
 - `clean-audit.json`: the clean audit's exclusions and repairs.
-- `groups-ra-rb/`, `context-ra-rb/`, `suite-ra-rb.json`: the R-a and R-b definitions (`tools/write-groups-ra-rb.mjs`); `context-ra-rb/<group>/<arm>.md` is each arm's reviewer brief.
+- `groups-ra-rb/`, `context-ra-rb/`, `fixtures-ra-rb/`, `suite-ra-rb.json`, `configuration-grok.json`: the R-a and R-b definitions (`tools/write-groups-ra-rb.mjs`); `context-ra-rb/<group>/` holds each arm's reviewer brief, and `fixtures-ra-rb/<group>/` is the suite's workspace plus `requirements.md`.
 - `tools/verify-case.mjs`: rebuilds a case's variants from the base commit and runs committed tests (`--test`), the fix's tests on a real variant (`--fix-test`), or proof tests, after an optional `--build`.
 
 ## Groups
@@ -84,29 +84,31 @@ Results are measured by the coordinator in wave 4; nothing here has been run.
 
 ## R-a and R-b: the pointer brief, and judging before the evidence
 
-`suite-ra-rb.json`, `groups-ra-rb/` and `context-ra-rb/` (`tools/write-groups-ra-rb.mjs`, from `groups/`) ask two questions in one run. R-a: does a short pointer brief find as many defects as today's full reviewer prompt, at no more cost? R-b: does telling the reviewer to form its own view before reading the author's report find more? Three arms share one reference and differ only in the reviewer's brief, given as declared context (`component: ["subject.context"]`); the task prompt, workspace, tools and, for a base change, the `tests` command are the same in all three:
+`suite-ra-rb.json`, `groups-ra-rb/`, `context-ra-rb/` and `fixtures-ra-rb/` (`tools/write-groups-ra-rb.mjs`, from `groups/`) ask two questions in one run. R-a: does a short pointer brief find as many defects as today's full reviewer prompt, at no more cost? R-b: does telling the reviewer to form its own view before reading the author's report find more? Three arms share one reference and differ only in the reviewer's brief, each arm's only declared context (`component: ["subject.context"]`); the task prompt, workspace, tools and, for a base change, the `tests` command are the same in all three:
 
-- `full`: the Work reviewer prompt from `skills/review-work/references/reviewer-contract.md`, filled in from the fixture: the requirements and the author's report (`verification.md`) pasted in, the changed files listed from `change.diff`, Review 1, every lens, and the `tests` command as active evidence authority (none for a real variant, which has no tests command).
-- `pointer` (reference): the pointer brief from task-003's task-path design, adapted to the workspace: Review Work as the method, pointers to the requirements, `change.diff`, `files/` and `verification.md` ("check it, don't trust it"), the `tests` command it may run, no edits; write `review.md` and stop.
-- `pointer-judge-first`: the same brief plus one line: form your own view from the diff and the requirements first, then check `verification.md`'s claims against it.
+- `full` (`context-ra-rb/<group>/a.md`): the Work reviewer prompt from `skills/review-work/references/reviewer-contract.md`, filled in from the fixture: the requirements and the author's report (`verification.md`) pasted in, the changed files listed from `change.diff`, Review 1, every lens, and the `tests` command as active evidence authority (none for a real variant, which has no tests command). One sentence before its Output section puts the Judgment line first, as the task prompt requires; the rest is the contract's text.
+- `pointer` (reference, `b.md`): the pointer brief from task-003's task-path design, adapted to the workspace: Review Work as the method, pointers to `requirements.md`, `change.diff`, `files/` and `verification.md` ("check it, don't trust it"), the `tests` command it may run, no edits; write `review.md` and stop.
+- `pointer-judge-first` (`c.md`): the same brief plus one line: form your own view from the diff and the requirements first, then check `verification.md`'s claims against it.
 
-The requirements sit outside the workspace, so the pointer arms declare `context/<group>/requirements.md` beside their brief and point to it by that path. The evaluator delivers every declared context file in the system prompt, so the pointer arms see the requirements text too: what differs between the arms is the brief's form, not what the reviewer can read. R-a is `full` against `pointer`; R-b is `pointer-judge-first` against `pointer`.
+The brief files are named `a`, `b` and `c` because the subject sees each declared context path; this README and `results/ra-rb-decision-rules.md` hold the only mapping. Each group's fixture, `fixtures-ra-rb/<group>/`, is the suite's workspace unchanged plus the variant's `requirements.md`, so the pointer arms point to a file the reviewer reads, and no arm declares the requirements as context. R-a is `full` against `pointer`; R-b is `pointer-judge-first` against `pointer`.
 
-It holds the same 45 groups as F3 (every defective variant and the 15 clean variants the clean audit keeps), with the suite's group IDs, task prompt, fixtures, tools, commands and review questions.
+It holds the same 45 groups as F3 (every defective variant and the 15 clean variants the clean audit keeps), with the suite's group IDs, task prompt, tools, commands and review questions.
+
+Subjects run on `configuration-grok.json`: `xai/grok-4.7` at medium thinking on Pi, with no host extension, and the same Review Work subject as `configuration.json`.
 
 Measures:
 
-- **Detection**: each defective group's rubric dimension `identified` (the suite's question), judged by `anthropic/claude-haiku-5-5` at high thinking on the reference arm's host setup, which carries the subscription's auth extension.
+- **Detection**: each defective group's rubric dimension `identified` (the suite's question), judged by `anthropic/claude-haiku-5-5` at high thinking. A judge would inherit the reference arm's host setup, which now has no extension, so each judge declares `configuration.json` as its own configuration and gets the subscription's auth extension from it.
 - **False rejection** on the clean groups: the `not-blocked` and `not-inconclusive` comparisons on the first line of `review.md`.
 - The suite's other deterministic checks on `review.md`. `ran-tests` is left out, as F3 left it out.
 - Cost and turns per arm (tracked metrics).
 
 Decisions, fixed before any run in `results/ra-rb-decision-rules.md`. The suite's `decision` is R-b's detection test: a sign test over the defective cases on `identified`, `pointer-judge-first` against `pointer`, higher better. A suite holds one decision, and the evaluator has no non-inferiority method, so R-a's margin (`pointer` misses at most 2 more of the 30 defects than `full`, rejects at most 1 more of the 15 clean changes, and costs no more per review on average) and R-b's second condition (no more clean rejections) are read from the same aggregate by those written rules.
 
-Expected cost per trial: 45 groups × 3 arms = 135 subject runs, then `review --rubric` on the aggregate: 30 defective groups × 3 arms = 90 judge calls. With the suite's configured subject (`configuration.json`: Haiku 5.5 on the subscription), that is about $0.2 a run at API prices, billed as plan usage; the run plan's estimate for `xai/grok-4.7` subjects is $0.25 to $0.40 a review, $34 to $54 a trial, and needs its own configuration. Judging is under $1 on the auth extension. As with F3, judging must run before the decision exists, so the suite declares no adaptive trials; a second trial needs a new yes.
+Expected cost per trial: 45 groups × 3 arms = 135 subject runs, then `review --rubric` on the aggregate: 30 defective groups × 3 arms = 90 judge calls. Grok 4.7 review subjects cost about $0.22 each in the 12 Oct review pilots; suite cases are larger (diffs up to about 28 KB, plus a test run), so the run plan assumes $0.25 to $0.40 a review: $34 to $54 for the 135 subject runs. Judging is under $1, billed to the subscription through the auth extension. With the 3-group pilot of all three arms first (9 runs, about $3), one trial is about $37 to $58. As with F3, judging must run before the decision exists, so the suite declares no adaptive trials; a second trial needs a new yes.
 
 Nothing here has been run.
 
 ## Measured with
 
-Subject model `anthropic/claude-haiku-5-5` (the user's instruction, 2026-10-12), with the subscription's auth extension declared in each configuration. Results are Haiku's and do not compare directly with the earlier pilot, which ran on `xai/grok-4.7`.
+Subject model `anthropic/claude-haiku-5-5` (the user's instruction, 2026-10-12), with the subscription's auth extension declared in each configuration. Results are Haiku's and do not compare directly with the earlier pilot, which ran on `xai/grok-4.7`. R-a and R-b are the exception: their subjects run on `xai/grok-4.7` (`configuration-grok.json`), judged by Haiku.

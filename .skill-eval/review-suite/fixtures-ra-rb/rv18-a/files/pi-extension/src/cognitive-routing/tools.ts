@@ -1,0 +1,64 @@
+import { RoutingRuntime } from "./runtime.js";
+import { ROUTING_TOOLS } from "./types.js";
+import { ROUTING_SCHEMAS, explainRoutingArguments, matches } from "./schemas.js";
+export { ROUTING_SCHEMAS } from "./schemas.js";
+import { renderRoutingCall, renderRoutingResult } from "./render.js";
+
+const descriptions: Record<string, string> = {
+  freeflow_delegate:
+    "Save a supported assignment contract and request enabled worker execution. Explicit replace supersedes a quiescent outstanding assignment in the same unit.",
+  freeflow_return:
+    "Save or revise the actual assignment report, save an attached recovery supplement, or retry the current saved return without resubmitting text. Returning does not accept or close the unit.",
+  freeflow_unit:
+    "Inspect current responsibility, paginated work history, or exact saved communication. Coordinator can restore an assessment, request or cancel attached evidence recovery, or close a unit without clearing history.",
+  freeflow_project:
+    "Inspect current selection and scoped candidates when needed, then add or remove exposed worker task-evidence refs. Strict shapes: inspect uses operation plus optional scope/cursor; add uses operation plus eligible refs only; remove uses operation plus currently selected or unresolved refs plus required reason. Reason is remove-only. Only tool results are evidence; put anything you would say in the report.",
+};
+const guidance: Record<string, string[]> = {
+  freeflow_delegate: [
+    "freeflow_delegate is Coordinator-only under Automatic control. Put the contract in the input. Choose worker when both Helper and Executor are enabled; the sole worker is inferred otherwise. Use replace only for explicit same-unit replacement; do not supply IDs.",
+  ],
+  freeflow_return: [
+    "freeflow_return submit saves/revises the assignment report; supplement saves separate recovery communication; retry completes the current unchanged saved return without text. Stop ordinary task or recovery-read work after its communication is saved. Keep the handoff last; do not batch it with new task tools.",
+  ],
+  freeflow_unit: [
+    "freeflow_unit inspect defaults to current state; view history returns work refs and detail reads saved communication. Coordinator recover requests bounded evidence work against the current returned assessment; cancel-recovery ends only that recovery; assess restores a suspended evidence obligation; close changes work status without clearing communication or completing a Working Record task.",
+  ],
+  freeflow_project: [
+    "Use exactly one shape: inspect {operation, scope?, cursor?}; add {operation, refs} with no reason; remove {operation, refs, reason}. Reason is required only for remove and invalid for add/inspect. Add exact eligible visible refs directly when identity and eligibility are clear; inspect when identity, eligibility, representation or selection state is unclear. Never add refs marked not offered for new evidence selection. For remove, use currently selected or unresolved refs; a non-selectable ref may be named only to clear its unresolved request and requires a reason. Only tool results are evidence: select the result bodies behind your claims, not calls or your own messages, and say everything else in the report. Correct or explicitly withdraw unresolved items with a limitation. Known previously exposed bodies resolve automatically; target-representation gaps are not successful delivery.",
+  ],
+};
+export function registerRoutingTools(pi: any, runtime: RoutingRuntime): void {
+  for (const name of ROUTING_TOOLS) {
+    const definition = {
+      name,
+      label: name.replace("freeflow_", "Routing "),
+      description: descriptions[name],
+      parameters: ROUTING_SCHEMAS[name],
+      // Handoffs and evidence selection are assistant-issued boundaries: codemode scripts must not call them.
+      exposure: "model-only",
+      executionMode: "sequential",
+      promptGuidelines: guidance[name],
+      renderCall: (args: any, _theme: any, context: any) => renderRoutingCall(name, args, context),
+      renderResult: (result: any, options: any, _theme: any, context: any) =>
+        renderRoutingResult(result, options, name, context),
+      async execute(id: string, input: unknown, signal: AbortSignal, _update: unknown, ctx: any) {
+        if (!matches(input, ROUTING_SCHEMAS[name])) throw new Error(explainRoutingArguments(name, input));
+        return runtime.invoke(name, id, input, signal, ctx);
+      },
+    };
+    pi.registerTool(definition);
+  }
+}
+export function applyRoutingToolVisibility(pi: any, _runtime: RoutingRuntime, _available = true): void {
+  if (!pi.getActiveTools || !pi.setActiveTools) return;
+  const current = pi.getActiveTools();
+  const ordinary = current.filter(
+    (name: string) =>
+      !ROUTING_TOOLS.includes(name as any) &&
+      name !== "freeflow_switch_profile" &&
+      name !== "freeflow_cognitive_routing_history",
+  );
+  const next = [...ordinary, ...ROUTING_TOOLS];
+  if (JSON.stringify(next) !== JSON.stringify(current)) pi.setActiveTools(next);
+}
