@@ -75,6 +75,7 @@
 - Review Work's independence rule now says what the research supports: an independent review needs a separately selected reviewer in a separate context, repeating a review with the same model adds no independent vote, and a reviewer from a different model family changes what gets flagged without a measured gain in real defects found. Reviews record the reviewer's model and family.
 - Evaluate Behavior rejects, before any subject runs, an expectation field its kind does not define (a misspelled field was silently ignored before) and a group with no expectations and no review questions. A run whose selected checks are all unavailable now exits nonzero, because it observed nothing.
 - Write Spec's decision records can be `Retired`, with the date and the reason, when a decision is dropped and nothing replaces it, and a durable decision that shapes how existing software works is also stated, with a pointer to its record, in the owning subsystem doc's Decisions section, which Write Docs keeps current.
+- Verify Work's performance guidance asks for more before a comparison is trusted: write the expected claim sentence before measuring, count failed and non-success results, confirm the timed work actually ran, name no winner against a side left on default settings, and alternate the sides over at least five runs each, reporting median and range. A claim that nothing visible changed needs an image diff against the saved baseline.
 
 ### Fixed
 
