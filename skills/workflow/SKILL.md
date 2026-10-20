@@ -66,7 +66,10 @@ Orient or reconstruct current state
 -> verify what happened
 -> self-review the supported result
 -> continue, re-enter, ask, stop, or complete
+-> at hand-over: the review gate (Review Work), review and adjudicate if selected, then hand over (Finish Branch)
 ```
+
+Self-review of an intermediate result needs no gate.
 
 These are questions to resolve, not mandatory separate reads, documents, or user turns. Reuse understanding that remains supported. One observation can answer both what and how. A factual answer or discussion can exit without implementation.
 
@@ -181,7 +184,7 @@ The agreement holds until its stated end or the user's new direction. Fresh dire
 
 Select checkpoints only when they protect a meaningful dependency, decision, rollback, transfer, integration, or delivery boundary. Their owners perform them; Track Work preserves them when needed. Self-review is ordinary feedback, not a checkpoint.
 
-Independent review must be selected and covered. Reuse adequate evidence and affected self-review; do not create an automatic review-fix-review loop.
+Independent review must be selected and covered; at hand-over, Review Work's gate selects it or proposes it. Reuse adequate evidence and affected self-review; do not create an automatic review-fix-review loop.
 
 ## Reach A Supported Exit
 

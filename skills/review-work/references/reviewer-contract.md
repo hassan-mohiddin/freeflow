@@ -4,6 +4,8 @@ Read this before preparing or performing a separately selected independent revie
 
 This reference is a contract: the required context and the reviewer prompt for the kind under review are binding as written. The reviewer did not produce the reviewed state. Give them the work product or the complete artifact, source truth, dependencies, and evidence needed to judge it directly. Do not provide only the producer's summary, reasoning, claimed result, or change description.
 
+When the task has a task directory, save the brief as `scratch/reviews/R<n>-brief.md` there and the returned report as `R<n>-report.md` beside it, where `<n>` is the review number. Delete nothing there without the user's yes.
+
 ## Work
 
 Use this section for code, a diff, an implementation, or integrated work.
@@ -15,11 +17,12 @@ Provide:
 - the work and future action covered by the review;
 - accepted outcome, requirements, and non-goals;
 - relevant Specs, Plans, tests, policies, ADRs, and established behavior;
+- the project's Review Rules (or its `REVIEW.md`), read from the base branch;
 - the implementation, changed files, or diff range;
 - verification evidence and known gaps;
 - only the review lenses material to this boundary;
-- active evidence authority: none, or each exact covered check with its expected evidence and stop condition;
-- review number and, for follow-up, prior items, adjudication, corrections, and new evidence.
+- active evidence authority: by default the project's declared read-only checks (tests, build, typecheck, the feature map's drive steps), run in the reviewer's own copy with no edits, network calls, or paid runs; plus each other exact covered check with its expected evidence and stop condition, or none;
+- review number and, for Review 2 or 3, the previous report, its adjudication, and the diff since the previous review's reviewed state, not the whole change.
 
 When state transitions or proof integrity matter, also provide the invariant or state owner, affecting paths, observing mechanism, forbidden mutations, prior-state requirements, adversarial disproof, mutation footprint, and fidelity limits.
 
@@ -32,7 +35,7 @@ Review work you did not produce. Inspect the supplied work, source truth, and ev
 
 A pass is valid. Use a high evidence bar, not a high item count. Do not broaden scope or treat possible improvement as unfinished work.
 
-Use supplied and already available evidence. Do not start a missing active check unless the review contract explicitly authorizes that exact check. Otherwise report **Needs evidence** with the claim and required observing boundary. When an exact check is covered, apply Verify Work's check-result and claim-result semantics; active evidence does not authorize editing or broaden the review.
+Read the supplied evidence first. Run a check listed under Active evidence authority, in your own copy, only when that evidence is missing or does not convince you; run nothing else, and make no edits, network calls, or paid runs. When a claim still lacks evidence, report **Needs evidence** with the claim and required observing boundary. When you run a check, apply Verify Work's check-result and claim-result semantics; active evidence does not authorize editing or broaden the review.
 
 ## Boundary
 
@@ -60,13 +63,13 @@ Use supplied and already available evidence. Do not start a missing active check
 
 - Review number: [1 | 2 | 3]
 - Material lenses: [source alignment | correctness and integration | failure and risk | evidence and acceptance | scope and minimality | maintainability]
-- Active evidence authority: [none | exact covered check, expected evidence, and stop condition]
+- Active evidence authority: [the project's declared read-only checks: tests, build, typecheck, feature map drive steps | other exact covered check, expected evidence, and stop condition | none]
 
 For Review 2 or 3:
 
-- Prior items and adjudication: [Accepted | Rejected | Open]
+- Previous report and its adjudication: [report path, or items with Accepted | Rejected | Open]
 - Clarifications: [settled decisions or none]
-- Corrections and new evidence: [changes and verification]
+- Diff since the previous review's reviewed state: [range], with corrections and new evidence
 - Remaining risk: [narrow unresolved scope]
 
 ## Check
@@ -89,11 +92,13 @@ Before calling something an Issue, ask:
 3. Does the boundary require correction? Use **Blocking Issue** when it cannot be crossed safely, otherwise **Non-blocking Issue** when correction can be deferred safely.
 4. Is the change merely useful beyond this boundary? Omit it by default; use **Improvement** only when materially relevant or requested.
 
+A defect the change did not introduce is **Pre-existing**: report it for the user with the evidence that it predates the change. It is never a Blocking Issue.
+
 A **Needs evidence** item must identify the claim, required observing boundary, available evidence and its limit, why the gap affects judgment, and the smallest evidence that could disagree. Establish that the claim is required. Check the candidate examined and any later code/test changes; a weakened assertion or superseded capture cannot establish current acceptance. Missing evidence does not by itself justify an implementation fix or a stronger requirement.
 
-A Blocking Issue must identify the exact location, violated requirement or source truth, evidence, concrete boundary consequence, and correction constraints or owning activity to re-enter. Recommend a specific correction only when directly supported.
+A Blocking Issue must identify the exact location, violated requirement or source truth, evidence, concrete boundary consequence, and correction constraints or owning activity to re-enter. Recommend a specific correction only when directly supported. For any Issue, name the defect's class and every other place in the reviewed state where it occurs, not one line.
 
-For Review 2 or 3, inspect only accepted corrections, affected interactions, new evidence, and remaining risk. Do not reopen Rejected items without contradictory evidence. For each new Blocking Issue, state whether it repeats, extends, invalidates, or exposes another consequence of a prior correction; is independent; or cannot yet be related from the evidence. Report a related pattern rather than proposing another patch. Review 3 is final; do not recommend Review 4.
+For Review 2 or 3, inspect only the diff since the previous review's reviewed state: accepted corrections, affected interactions, new evidence, and remaining risk. Never repeat a finding already Accepted, Rejected, or fixed; reopen a Rejected one only with contradictory evidence. For each new Blocking Issue, state whether it repeats, extends, invalidates, or exposes another consequence of a prior correction; is independent; or cannot yet be related from the evidence. Report a related pattern rather than proposing another patch. Review 3 is final; do not recommend Review 4.
 
 ## Determine The Judgment
 
@@ -102,7 +107,7 @@ For Review 2 or 3, inspect only accepted corrections, affected interactions, new
 3. **Non-blocking:** only Non-blocking Issues remain.
 4. **Pass:** no Issues or material unresolved items remain.
 
-Improvements do not change the judgment.
+Improvements and Pre-existing items do not change the judgment.
 
 ## Output
 
@@ -130,6 +135,9 @@ Relationship to prior items (Review 2 or 3 only): [related consequence | indepen
 #### Unresolved — Needs evidence
 - [claim, required observing boundary, available evidence and limit, why the gap affects judgment, smallest evidence that could disagree]
 
+#### Pre-existing
+- [location, defect, evidence that it predates the change, consequence]
+
 #### Improvements
 - [only when materially relevant or requested: improvement, benefit, evidence]
 
@@ -155,10 +163,11 @@ Provide:
 - unresolved questions and known evidence gaps;
 - the artifact-specific schema or format contract when one exists;
 - relevant code, tests, policies, ADRs, and established behavior;
+- the project's Review Rules (or its `REVIEW.md`), read from the base branch;
 - upstream and downstream artifacts in dependency order;
 - only the review lenses material to the intended use;
-- active evidence authority: none, or each exact covered check with its expected evidence and stop condition;
-- review number and, for follow-up, prior items, adjudication, revisions, and new evidence.
+- active evidence authority: by default the project's declared read-only checks (tests, build, typecheck, the feature map's drive steps), run in the reviewer's own copy with no edits, network calls, or paid runs; plus each other exact covered check with its expected evidence and stop condition, or none;
+- review number and, for Review 2 or 3, the previous report, its adjudication, and the revisions since the previous review's reviewed state, not the whole artifact history.
 
 For an artifact package, identify upstream authority and which material remains provisional or contingent.
 
@@ -171,7 +180,7 @@ Review an artifact state you did not produce. Inspect the complete artifact, sou
 
 A pass is valid. Use a high evidence bar, not a high item count. Do not broaden the artifact's job or treat possible improvement as unfinished work.
 
-Use supplied and already available evidence. Do not start a missing active check unless the review contract explicitly authorizes that exact check. Otherwise report **Needs evidence** with the load-bearing claim and required observing boundary. When an exact check is covered, apply Verify Work's check-result and claim-result semantics; active evidence does not authorize revision or broaden the review.
+Read the supplied evidence first. Run a check listed under Active evidence authority, in your own copy, only when that evidence is missing or does not convince you; run nothing else, and make no edits, network calls, or paid runs. When a claim still lacks evidence, report **Needs evidence** with the load-bearing claim and required observing boundary. When you run a check, apply Verify Work's check-result and claim-result semantics; active evidence does not authorize revision or broaden the review.
 
 ## Artifact And Intended Use
 
@@ -202,12 +211,12 @@ Use supplied and already available evidence. Do not start a missing active check
 
 - Review number: [1 | 2 | 3]
 - Material lenses: [source alignment | sufficiency | decision clarity | evidence and acceptance | failure and risk | dependency integrity | scope and minimality | clarity and continuity]
-- Active evidence authority: [none | exact covered check, expected evidence, and stop condition]
+- Active evidence authority: [the project's declared read-only checks: tests, build, typecheck, feature map drive steps | other exact covered check, expected evidence, and stop condition | none]
 
 For Review 2 or 3:
 
-- Prior items and adjudication: [Accepted | Rejected | Open]
-- Revisions and new evidence: [bounded changes and evidence]
+- Previous report and its adjudication: [report path, or items with Accepted | Rejected | Open]
+- Revisions since the previous review's reviewed state and new evidence: [bounded changes and evidence]
 - Affected dependencies: [dependencies or none]
 - Remaining risk: [narrow unresolved scope]
 
@@ -246,11 +255,13 @@ Before calling something an Issue, ask:
 3. Is there a supported artifact defect requiring revision for the intended use? Use **Blocking Issue** when the artifact cannot safely guide that use, otherwise **Non-blocking Issue** when revision can be deferred safely.
 4. Is the change merely useful beyond the intended use? Omit it by default; use **Improvement** only when materially relevant or requested.
 
+A defect the reviewed revision did not introduce is **Pre-existing**: report it for the user with the evidence that it predates the revision. It is never a Blocking Issue.
+
 A **Needs evidence** item must identify the load-bearing claim or condition, required observing boundary, available evidence and its limit, why the gap affects intended-use fitness, and the smallest evidence that could disagree. Establish that the claim is required. Distinguish a missing observation from a supported artifact defect; check whether evidence applies to the current artifact and accepted requirement rather than a superseded version. Do not prescribe broader implementation merely to fill an evidence gap.
 
-A Blocking Issue must identify the exact location or dependency, violated source truth or artifact responsibility, evidence, concrete consequence for intended use, and revision constraints or owning activity to re-enter. Recommend a specific revision only when source intent and dependency effects support it.
+A Blocking Issue must identify the exact location or dependency, violated source truth or artifact responsibility, evidence, concrete consequence for intended use, and revision constraints or owning activity to re-enter. Recommend a specific revision only when source intent and dependency effects support it. For any Issue, name the defect's class and every other place in the artifact where it occurs, not one instance.
 
-For Review 2 or 3, inspect only accepted revisions, affected dependencies, new evidence, and remaining risk. Do not reopen Rejected items without contradictory evidence. For each new Blocking Issue, state whether it repeats, extends, invalidates, or exposes another consequence of a prior revision; is independent; or cannot yet be related from the evidence. Report a related pattern rather than proposing another revision. Review 3 is final; do not recommend Review 4.
+For Review 2 or 3, inspect only the revisions since the previous review's reviewed state: accepted revisions, affected dependencies, new evidence, and remaining risk. Never repeat a finding already Accepted, Rejected, or fixed; reopen a Rejected one only with contradictory evidence. For each new Blocking Issue, state whether it repeats, extends, invalidates, or exposes another consequence of a prior revision; is independent; or cannot yet be related from the evidence. Report a related pattern rather than proposing another revision. Review 3 is final; do not recommend Review 4.
 
 ## Determine The Judgment
 
@@ -259,7 +270,7 @@ For Review 2 or 3, inspect only accepted revisions, affected dependencies, new e
 3. **Non-blocking:** only Non-blocking Issues remain.
 4. **Pass:** no Issues or material unresolved items remain.
 
-Improvements do not change the judgment.
+Improvements and Pre-existing items do not change the judgment.
 
 ## Output
 
@@ -287,6 +298,9 @@ Relationship to prior items (Review 2 or 3 only): [related consequence | indepen
 
 #### Unresolved — Needs evidence
 - [load-bearing claim or condition, required observing boundary, available evidence and limit, effect on intended-use fitness, smallest evidence that could disagree]
+
+#### Pre-existing
+- [location or dependency, defect, evidence that it predates the revision, consequence]
 
 #### Improvements
 - [only when materially relevant or requested: improvement, benefit, evidence]

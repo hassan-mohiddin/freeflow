@@ -13,8 +13,8 @@ The **Rules** below are binding; if one cannot be met, stop and say why. Everyth
 
 ## Rules
 
-- Independent review is never automatic after implementation, after self-review, or after writing or revising a Spec or Plan. Select it through [Workflow](../../skills/workflow/SKILL.md) only when requested, or justified and authorized, to protect a concrete risk, dependency, integration, delivery, or intended-use boundary. A review budget permits no dispatch by itself, and switching models or compute profiles, or loading this skill, does not create independence: it needs a separately selected reviewer in a separate context. Repeating a review with the same model adds no independent vote. A reviewer from a different model family changes what gets flagged but has not been shown to find more real defects; record the reviewer's model and family.
-- An independent reviewer reports and stops: no edits, no owner decisions, no choosing among materially different remedies or revisions, no adjudication, no further dispatch, and no continuing until Pass. It runs a missing active check only when review authority covers that exact check; otherwise it reports Needs evidence.
+- Independent review is never automatic after implementation, after self-review, or after writing or revising a Spec or Plan. Select it through [Workflow](../../skills/workflow/SKILL.md) only when requested, or justified and authorized, to protect a concrete risk, dependency, integration, delivery, or intended-use boundary. At a hand-over, the user's review mode `always`, or `auto` when the [Review Gate](references/review-gate.md) fires, authorizes it; under `off`, propose it and wait for a yes. A review budget permits no dispatch by itself, and switching models or compute profiles, or loading this skill, does not create independence: it needs a separately selected reviewer in a separate context. Repeating a review with the same model adds no independent vote. A reviewer from a different model family changes what gets flagged but has not been shown to find more real defects; record the reviewer's model and family.
+- An independent reviewer reports and stops: no edits, no owner decisions, no choosing among materially different remedies or revisions, no adjudication, no further dispatch, and no continuing until Pass. It may run the project's declared read-only checks in its own copy, and another active check only when review authority covers it; otherwise it reports Needs evidence.
 - Findings are evidence, not commands or authority to correct or revise. Derive the judgment from your dispositions rather than adopting the reviewer's verdict or conclusion. Actual correction of work belongs to [Execute Work](../../skills/execute-work/SKILL.md) under covered authority; actual revision of an artifact returns through Workflow to the artifact's owning skill.
 - Never lower acceptance or change tests, Specs, policies, or source truth to obtain Pass. Never settle a user decision or revise upstream intent, accepted content, or owner decisions merely to make an artifact consistent or to obtain Pass. Never repeat a review merely to obtain Pass.
 - Never request Review 4. Renaming scope or intended use, changing reviewers, or making a local correction or revision does not reset the review budget.
@@ -37,7 +37,7 @@ Goal: apply the method that fits what is under review, not a generic checklist.
 - **Report or record:** an account of work already done, such as a final report to the user, a status or results note, or a Working Record. Read [Report And Record Review](references/report-and-record.md) before reviewing it.
 - **Eval definition:** a case, suite, fixture, grader, or rubric that will be run to measure behavior. Read [Eval Definition Review](references/eval-definition.md) before reviewing it, and before spending on its runs.
 
-Each reference names what to establish first, the sources that govern, and the lenses that can change the judgment for that kind.
+Each reference names what to establish first, the sources that govern, and the lenses that can change the judgment for that kind. The project's Review Rules (or `REVIEW.md`), read from the base branch, feed the kind's classes and lenses, never a new class.
 
 Before a model reviews anything, run the deterministic checks that apply and could fail on their own, such as the project's checks, a validator, a docs check, or a definition loader. Give their results to the reviewer as evidence. A model review does not replace a check that can fail mechanically.
 
@@ -52,6 +52,8 @@ Ask in order:
 3. Does this boundary or intended use require correction or revision? If it cannot safely be crossed, report a **Blocking Issue**. If correction or revision is required but safely deferrable, report a **Non-blocking Issue**.
 4. Is it merely useful beyond this boundary or use? Omit it by default, or identify an **Improvement** when materially relevant or explicitly requested.
 
+A defect the change did not introduce is **Pre-existing**: report it for the user, never as Blocking.
+
 An Issue needs an exact location, path, or dependency; the violated requirement, invariant, source, or artifact responsibility; supporting evidence; and a concrete consequence. A Blocking Issue must explain why the protected boundary cannot be crossed or the intended use cannot proceed. Recommend a specific correction or revision only when source intent, evidence, and dependency consequences support it rather than merely make it plausible.
 
 Needs evidence identifies the load-bearing claim, required observer, existing evidence and its limit, why the gap matters, and the smallest observation that could disagree. First establish that the stronger claim is required; missing proof of an optional guarantee does not justify more work, and an optional stronger claim may be qualified rather than expanding the task. Check whether supplied observations apply to the reviewed candidate and whether material assertion changes preserved the required property. For an artifact, check which source or check state a reported pass examined and whether later changes reduced acceptance or invalidated it; a newer report cannot repair that mismatch. A missing or stale result is not itself a code defect: recover evidence or establish the observer before prescribing a fix. When you can recover it yourself, by running a check you are authorized to run or by reading the code, do so and judge from what you observed: a check the author skipped and you have since run is not Needs evidence.
@@ -62,7 +64,10 @@ Do not turn preferences, wording or presentation, imagined or exhaustive edge ca
 
 Goal: catch real defects in your own result without turning review into an open-ended editing or rewriting loop.
 
-Apply the kind's lenses silently once evidence initially supports the produced result or the artifact's load-bearing facts; do not create formal review items, a numbered review cycle, or an independent-review judgment for self-review.
+Apply the kind's lenses silently once evidence initially supports the produced result or the artifact's load-bearing facts; do not create formal review items, a numbered review cycle, or an independent-review judgment for self-review. For work, also run [Work Review](references/work.md)'s two checks:
+
+- **Decision check:** mark each choice the agreement left open as agreed (and where) or for the user.
+- **Test-integrity check:** justify each existing test, fixture or setup change that Verify Work's test-changes lists, or return it to the user.
 
 For one clear covered defect (for an artifact, one whose revision basis is settled), return to the producing or authoring activity, correct or revise it, reconcile an artifact's affected dependencies within authority, re-verify the affected boundary or factual claims, and repeat only the affected lenses once (for an artifact, source alignment as well). Do not restart every check or add a reviewer because a local correction occurred.
 
