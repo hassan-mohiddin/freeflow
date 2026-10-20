@@ -36,7 +36,11 @@ Useful causal evidence includes:
 - old-versus-new comparison under matched conditions;
 - a benchmark that exercises the dominant work identified by evidence.
 
+Reduce a large profile, trace, or heap snapshot to a form you can query before reading it, such as one row per sample, frame, or node in SQLite. Then query for the frames holding the most time, or follow the retainer chain from the leaked object to a root. A hot frame without a source mapping is not yet a diagnosis: resolve its symbols, or say the artifact lacks them. One capture supports the strongest remaining hypothesis; a matched before-and-after capture or another distinguishing observation is needed to support the cause.
+
 A microbenchmark can test a hypothesis but does not explain the reported slowdown unless the isolated operation materially determines the real path. Repeated calls with one object justify memoization only when the reported workload repeats that object and measurement shows the repeated work dominates.
+
+When choosing the correction for the dominant work, try the cheapest kind first and stop at the first that meets the target: drop work whose result nothing uses, stop repeating it, do less of it, defer it, move it off the path someone waits on, run it concurrently, and only then make it faster.
 
 Sanitize production traces and payloads. When safe production evidence is unavailable, use representative non-production evidence and downgrade the claim.
 
