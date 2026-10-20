@@ -234,7 +234,7 @@
       "case_concept": "Present safe routes without merging or cleaning a harness worktree until the owner selects one.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/finish-branch/SKILL.md",
-      "source_sha256": "dafcef37765fe76bb84b54fc89b13ccf3726397dd4665bbbeea26ed9e400f7a6",
+      "source_sha256": "08efc6f0dd645c7361e24e61e6563f93e0d6f1abecfacc5173ff9405d71335fd",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

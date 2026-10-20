@@ -25,12 +25,11 @@ Capture:
 
 - target branch and commit range;
 - intended push/upstream behavior;
-- PR summary and source requirements;
-- verification already run;
+- the hand-over (Finish Branch, Hand Over For Acceptance);
 - known residuals, migrations, rollout, or compatibility notes;
 - required reviewers or checks from repo policy.
 
-When the repository has no pull-request template or convention, write the description as a short briefing from which a reviewer who has the diff can accept or reject the change: why it exists; what changed; its scope, including what it deliberately leaves out; what else it could affect and how risky that is; and how it was verified, as the checks run and their results.
+When the repository has no pull-request template or convention, write the description as a short briefing from which a reviewer who has the diff can accept or reject the change: why it exists; what changed; its scope, including what it deliberately leaves out; what else it could affect and how risky that is; and the hand-over, whose evidence says how it was verified.
 
 A draft pull request may preserve or share incomplete work when that route is explicitly approved. State failing or unavailable evidence. Do not claim merge readiness from a pull-request URL alone.
 
