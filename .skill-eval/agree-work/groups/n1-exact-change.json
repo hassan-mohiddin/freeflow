@@ -1,0 +1,69 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "n1-exact-change",
+  "type": "body",
+  "input": {
+    "prompt": "In src/format.js, change the separator between the job id and its name from a space to a tab. Change nothing else."
+  },
+  "fixture": ".skill-eval/agree-work/fixtures/jobs",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "run_command"],
+  "commands": [
+    {
+      "id": "run-tests",
+      "argv": ["node", "--test"]
+    }
+  ],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "baseline": {},
+    "candidate": {
+      "freeflow": {
+        "source": {
+          "kind": "git",
+          "ref": "b785a4681d5e09a9fd7d104f827d10b2b81ce8db"
+        }
+      }
+    }
+  },
+  "component": ["freeflow.source.ref"],
+  "expectations": [
+    {
+      "id": "baseline-acts-on-exact-change",
+      "variant": "baseline",
+      "comparison": "acts-on-exact-change",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["src/format.js"]
+    },
+    {
+      "id": "candidate-acts-on-exact-change",
+      "variant": "candidate",
+      "comparison": "acts-on-exact-change",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": ["src/format.js"]
+    },
+    {
+      "id": "baseline-tab-separator",
+      "variant": "baseline",
+      "comparison": "tab-separator",
+      "kind": "file-text",
+      "path": "src/format.js",
+      "expect": "contains",
+      "value": "${job.id}\\t${job.name}"
+    },
+    {
+      "id": "candidate-tab-separator",
+      "variant": "candidate",
+      "comparison": "tab-separator",
+      "kind": "file-text",
+      "path": "src/format.js",
+      "expect": "contains",
+      "value": "${job.id}\\t${job.name}"
+    }
+  ],
+  "review_questions": []
+}

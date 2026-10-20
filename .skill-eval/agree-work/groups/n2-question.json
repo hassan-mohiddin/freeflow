@@ -1,0 +1,51 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "n2-question",
+  "type": "body",
+  "input": {
+    "prompt": "How does the queue decide which job runs next?"
+  },
+  "fixture": ".skill-eval/agree-work/fixtures/jobs",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "run_command"],
+  "commands": [
+    {
+      "id": "run-tests",
+      "argv": ["node", "--test"]
+    }
+  ],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "arms": {
+    "baseline": {},
+    "candidate": {
+      "freeflow": {
+        "source": {
+          "kind": "git",
+          "ref": "b785a4681d5e09a9fd7d104f827d10b2b81ce8db"
+        }
+      }
+    }
+  },
+  "component": ["freeflow.source.ref"],
+  "expectations": [
+    {
+      "id": "baseline-no-edit-for-question",
+      "variant": "baseline",
+      "comparison": "no-edit-for-question",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": []
+    },
+    {
+      "id": "candidate-no-edit-for-question",
+      "variant": "candidate",
+      "comparison": "no-edit-for-question",
+      "kind": "changed-paths",
+      "expect": "equals",
+      "paths": []
+    }
+  ],
+  "review_questions": []
+}

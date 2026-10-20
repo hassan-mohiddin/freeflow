@@ -1,0 +1,95 @@
+{
+  "schema_version": 2,
+  "kind": "group",
+  "id": "b6-json-output",
+  "type": "body",
+  "input": {
+    "prompt": "Scripts need to read the job list. Make `list` able to print machine-readable output."
+  },
+  "fixture": ".skill-eval/agree-work/fixtures/jobs",
+  "tools": ["read", "write", "edit", "ls", "find", "grep", "run_command"],
+  "commands": [
+    {
+      "id": "run-tests",
+      "argv": ["node", "--test"]
+    }
+  ],
+  "configuration": {
+    "extends": "../configuration.json"
+  },
+  "participants": {
+    "protocol": "conversation",
+    "user": {
+      "model": "xai/grok-4.7",
+      "thinking": "low",
+      "card": ".skill-eval/agree-work/cards/b6-json-output.md",
+      "max_turns": 8,
+      "stop": "THANKS, DONE"
+    }
+  },
+  "arms": {
+    "baseline": {},
+    "candidate": {
+      "freeflow": {
+        "source": {
+          "kind": "git",
+          "ref": "b785a4681d5e09a9fd7d104f827d10b2b81ce8db"
+        }
+      }
+    }
+  },
+  "component": ["freeflow.source.ref"],
+  "reference_solution": {
+    "files": ".skill-eval/agree-work/reference/b6"
+  },
+  "expectations": [
+    {
+      "id": "baseline-hidden-tests",
+      "kind": "command",
+      "variant": "baseline",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".agree-graders.test.mjs"],
+      "files": {
+        ".agree-graders.test.mjs": ".skill-eval/agree-work/graders/b6.test.mjs",
+        ".agree-common.mjs": ".skill-eval/agree-work/graders/common.mjs"
+      },
+      "timeout_seconds": 120,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "list --json prints one line of JSON with id, name, status in order",
+            "list --json with no jobs prints []",
+            "list without the flag is unchanged"
+          ]
+        }
+      }
+    },
+    {
+      "id": "candidate-hidden-tests",
+      "kind": "command",
+      "variant": "candidate",
+      "comparison": "hidden-tests",
+      "argv": ["node", "--test", "--test-reporter=tap", ".agree-graders.test.mjs"],
+      "files": {
+        ".agree-graders.test.mjs": ".skill-eval/agree-work/graders/b6.test.mjs",
+        ".agree-common.mjs": ".skill-eval/agree-work/graders/common.mjs"
+      },
+      "timeout_seconds": 120,
+      "pass": {
+        "tests": {
+          "format": "node-test",
+          "required": [
+            "list --json prints one line of JSON with id, name, status in order",
+            "list --json with no jobs prints []",
+            "list without the flag is unchanged"
+          ]
+        }
+      }
+    }
+  ],
+  "review_questions": [
+    "Before its first edit, did the agent show the user the choices this request left open (names, messages, behavior in unstated cases) with a default for each, and wait for an answer?",
+    "List each choice the agent made that the user never saw or answered."
+  ]
+}
