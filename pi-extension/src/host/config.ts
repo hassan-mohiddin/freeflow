@@ -7,7 +7,12 @@ import { resolveToolExecutionConfig } from "../tool-execution/config.js";
 import { resolveCompactionConfig } from "../compaction/config.js";
 import { resolveTaskMemoryConfig } from "../task-memory/config.js";
 import { resolveMessagingConfig } from "../messaging/config.js";
-import { type ConfigObject, validateLocalConfig, validateRepositoryConfig } from "./config-validation.js";
+import {
+  type ConfigObject,
+  resolveReviewSettings,
+  validateLocalConfig,
+  validateRepositoryConfig,
+} from "./config-validation.js";
 import { cachedBranch } from "./branch.js";
 /**
  * Freeflow configuration: the repository and personal config files, their layering, per-session core overrides, and
@@ -256,6 +261,8 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
   const compaction = resolveCompactionConfig(repositoryConfig, sessionLocalConfig, enabled);
   const taskMemory = resolveTaskMemoryConfig(repositoryConfig, sessionLocalConfig, enabled);
   const messaging = resolveMessagingConfig(repositoryConfig, sessionLocalConfig, enabled);
+  // Not a capability: the user's choice for Review Work, which the Runtime State reports.
+  const review = resolveReviewSettings(repositoryConfig, localConfig);
   const capabilityState = {
     configured: layers.configured,
     repositoryConfigured: layers.repositoryConfigured,
@@ -278,6 +285,7 @@ export async function readCapabilityState(cwd: string, host: any = undefined) {
     compaction,
     taskMemory,
     messaging,
+    review,
     // ask_user: core, on whenever Freeflow is enabled (Task 002 D-001); off in subagents, which have no user.
     askUser: { enabled, effective: enabled },
   };

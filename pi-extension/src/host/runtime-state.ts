@@ -1,3 +1,4 @@
+import { reviewStateLine } from "./config-validation.js";
 import { hasUsableMandatoryPrompts } from "./prompts.js";
 
 /**
@@ -136,6 +137,8 @@ export function freeflowRuntimeStateMessage(
     : capabilityState?.configExists
       ? "config error"
       : "setup needed";
+  // Only a choice the user made: the default adds nothing, so most users' state stays as it was.
+  const review = freeflowStatus === "active" ? reviewStateLine(capabilityState?.review) : null;
 
   return {
     role: "custom",
@@ -146,6 +149,7 @@ export function freeflowRuntimeStateMessage(
       "This is extension-generated runtime state. Use it to interpret the stable Freeflow guidance.",
       "",
       `Freeflow: ${freeflowStatus}`,
+      ...(review ? [review] : []),
       "",
       "Capabilities:",
       `- Cognitive Routing: ${publicCognitiveRoutingStatus(capabilityState?.cognitiveRouting, cognitiveRoutingRuntime)}`,

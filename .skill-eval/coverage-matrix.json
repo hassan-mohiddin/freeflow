@@ -134,7 +134,7 @@
       "case_concept": "A write followed by read returns stale data despite a documented invalidation event; use a diagnostic loop to discriminate cache-key from invalidation-delivery hypotheses before selecting the correction boundary.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/diagnose-failure/SKILL.md",
-      "source_sha256": "c757713f24f5f3266bf9de70e482f69ac50ad2c9e41ca01641101eca8ca09eaf",
+      "source_sha256": "5fb7e3796d0cc3422967cfd020c40474a3552787bc61302ee233a069de4c6855",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -211,7 +211,7 @@
       "case_concept": "Complete one accepted local correction, then preserve it and change route when repeated evidence exposes a shared failure unit.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/execute-work/SKILL.md",
-      "source_sha256": "5974cecb6b62543e1036c26f2ba3df50f2e52e77134ea1ae995b2c7616b5778d",
+      "source_sha256": "70cdf522e77e90bbab99c1e3876b8be9eb6fa7b9df7de351c37c43f8fa384db6",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
