@@ -9,6 +9,7 @@ import freeflowExtension from "../../dist/index.js";
 import { readCapabilityState, readFreeflowConfigLayers, setSessionCoreOverride } from "../../dist/host/config.js";
 import { getRuntimeContext, hasUsableMandatoryPrompts, stableRuntimeContext } from "../../dist/host/prompts.js";
 import { freeflowRuntimeStateMessage } from "../../dist/host/runtime-state.js";
+import { reviewStateLine, validateLocalConfig, validateRepositoryConfig } from "../../dist/host/config-validation.js";
 import { FREEFLOW_MODEL_SKILL_NAMES } from "../../dist/host/catalog.js";
 import { contextHandler, beforeAgentStartHandler } from "../fixtures/pi087-context.js";
 
@@ -106,6 +107,66 @@ test("removed context settings invalidate repository and local configuration wit
       await rm(cwd, { recursive: true, force: true });
     }
   }
+});
+
+test("review accepts a mode and a model in either file and refuses anything else", () => {
+  for (const review of [{}, { mode: "auto" }, { mode: "off" }, { mode: "always", model: "anthropic/claude-opus" }])
+    for (const validate of [validateRepositoryConfig, validateLocalConfig])
+      assert.equal(validate({ review }), null, JSON.stringify(review));
+  for (const [review, error] of [
+    [true, "review must be an object"],
+    [{ mode: "sometimes" }, "review.mode must be one of auto, off, always"],
+    [{ mode: false }, "review.mode must be one of auto, off, always"],
+    [{ model: "" }, "review.model must be a non-empty model name on one line"],
+    [{ model: 5 }, "review.model must be a non-empty model name on one line"],
+    [{ model: "opus\nReview: off" }, "review.model must be a non-empty model name on one line"],
+    [{ effort: "high" }, "review has unsupported key: effort"],
+  ])
+    for (const validate of [validateRepositoryConfig, validateLocalConfig])
+      assert.equal(validate({ review }), error, JSON.stringify(review));
+});
+
+test("the personal review setting overrides the shared one field by field, and only a choice shows in the Runtime State", async () => {
+  const runtimeState = async (config, local) => {
+    const cwd = await configuredRepo(config);
+    try {
+      if (local) await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify(local), "utf8");
+      const state = await readCapabilityState(cwd);
+      return {
+        review: state.review,
+        content: freeflowRuntimeStateMessage(state, undefined, await getRuntimeContext(state)).content,
+      };
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  };
+  const plain = await runtimeState({});
+  assert.deepEqual(plain.review, { mode: "auto" });
+  assert.match(plain.content, /Freeflow: active\n\nCapabilities:/);
+  assert.doesNotMatch(plain.content, /Review:/);
+
+  const off = await runtimeState({ review: { mode: "off" } });
+  assert.match(off.content, /Freeflow: active\nReview: `off`\n\nCapabilities:/);
+
+  const layered = await runtimeState(
+    { review: { mode: "always", model: "shared-model" } },
+    { review: { model: "my-model" } },
+  );
+  assert.deepEqual(layered.review, { mode: "always", model: "my-model" });
+  assert.match(layered.content, /^Review: `always`, reviewer model `my-model`$/m);
+
+  // `auto` in the personal file returns a shared choice to the default; a model alone still shows.
+  assert.doesNotMatch(
+    (await runtimeState({ review: { mode: "off" } }, { review: { mode: "auto" } })).content,
+    /Review:/,
+  );
+  assert.match((await runtimeState({ review: { model: "m" } })).content, /^Review: `auto`, reviewer model `m`$/m);
+
+  // An invalid file leaves Freeflow off, and no review line with it.
+  const invalid = await runtimeState({ review: { mode: "always" } }, { review: { mode: "never" } });
+  assert.match(invalid.content, /Freeflow: config error/);
+  assert.doesNotMatch(invalid.content, /Review:/);
+  assert.equal(reviewStateLine(undefined), null);
 });
 
 test("an empty valid config enables the single Freeflow core", async () => {

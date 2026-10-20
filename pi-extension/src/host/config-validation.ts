@@ -5,7 +5,8 @@ import { validateToolExecutionConfig } from "../tool-execution/config.js";
 
 /**
  * Whether a Freeflow config file is valid: one answer for Pi and for the session-start hooks of the other hosts, which
- * import the built file. Keep this module and its imports free of Pi packages; the hooks run in plain Node.
+ * import the built file. Also how the settings every host reads, `prompts` and `review`, layer. Keep this module and its
+ * imports free of Pi packages; the hooks run in plain Node.
  */
 
 function isRecord(value: unknown): value is ConfigObject {
@@ -35,6 +36,44 @@ export function selectedRuntimePrompts(repository: unknown, local: unknown): Run
   const selection = {} as RuntimePromptSelection;
   for (const key of RUNTIME_PROMPTS) selection[key] = (personal[key] ?? shared[key] ?? true) === true;
   return selection;
+}
+
+/**
+ * How Review Work reviews finished work. Without the key it runs `auto`, its own risk gate; `off` and `always` are the
+ * user's choice for every task, and `model` names the model a reviewer runs on. `auto` is accepted so a personal file
+ * can return a shared `off` or `always` to the default.
+ */
+export const REVIEW_MODES = ["auto", "off", "always"] as const;
+export type ReviewSettings = { mode: (typeof REVIEW_MODES)[number]; model?: string };
+
+function validateReviewConfig(value: unknown) {
+  if (!isRecord(value)) return "review must be an object";
+  const unknown = Object.keys(value).find((key) => key !== "mode" && key !== "model");
+  if (unknown) return `review has unsupported key: ${unknown}`;
+  if (value.mode !== undefined && !(REVIEW_MODES as readonly unknown[]).includes(value.mode))
+    return `review.mode must be one of ${REVIEW_MODES.join(", ")}`;
+  // The model is shown to the agent in the Runtime State, so it must fit on one line in a code span.
+  if (
+    value.model !== undefined &&
+    (typeof value.model !== "string" || !value.model.trim() || /[\p{Cc}`]/u.test(value.model))
+  )
+    return "review.model must be a non-empty model name on one line";
+  return null;
+}
+
+/** Review settings for two valid config layers: the personal layer overrides the repository's, field by field. */
+export function resolveReviewSettings(repository: unknown, local: unknown): ReviewSettings {
+  const layer = (config: any) => (isRecord(config?.review) ? config.review : {});
+  const [shared, personal] = [layer(repository), layer(local)];
+  const mode = personal.mode ?? shared.mode ?? "auto";
+  const model = personal.model ?? shared.model;
+  return model === undefined ? { mode } : { mode, model };
+}
+
+/** The Runtime State line for the user's review choice; none for the default, `auto` with no model. */
+export function reviewStateLine(review: ReviewSettings | undefined): string | null {
+  if (!review || (review.mode === "auto" && review.model === undefined)) return null;
+  return `Review: \`${review.mode}\`${review.model === undefined ? "" : `, reviewer model \`${review.model}\``}`;
 }
 
 function removedContextConfigError(value: ConfigObject, filePath: string) {
@@ -75,6 +114,7 @@ export function validateRepositoryConfig(value: unknown): string | null {
     "taskMemory",
     "messaging",
     "prompts",
+    "review",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -110,6 +150,7 @@ export function validateRepositoryConfig(value: unknown): string | null {
     const error = validateMessagingConfig(value.messaging);
     if (error) return error;
   }
+  if (value.review !== undefined) return validateReviewConfig(value.review);
 
   return null;
 }
@@ -132,6 +173,7 @@ export function validateLocalConfig(value: unknown): string | null {
     "taskMemory",
     "messaging",
     "prompts",
+    "review",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -157,6 +199,10 @@ export function validateLocalConfig(value: unknown): string | null {
     const error = validateTaskMemoryConfig(value.taskMemory);
     if (error) return error;
   }
-  if (value.messaging !== undefined) return validateMessagingConfig(value.messaging);
+  if (value.messaging !== undefined) {
+    const error = validateMessagingConfig(value.messaging);
+    if (error) return error;
+  }
+  if (value.review !== undefined) return validateReviewConfig(value.review);
   return null;
 }

@@ -171,9 +171,12 @@ Current Work holds one Current Slice or `None`, optional Recovery sources, and o
 - Resumed — resolution source: ...
 - Blocker — why unsafe: ...; required resolution: ...
 - Contradiction — ...
-- Review — judgment and effect: ...
+- Review gate — mode: auto | off | always; tier: ...; because: <trigger> | no trigger; result: dispatched | proposed | skipped
+- Review — round: R1 | R2 | R3; reviewer: <model> (<family>); judgment: ...; Accepted: <n>; Rejected: <n>; Open: <n>; reviewed: <commit or version>; report: <path>; effect: ...
 - Correction — ...
 ```
+
+A Review entry is written after adjudication, one per independent review, so outcomes and rounds can be counted later; its report and brief live in the task's `scratch/reviews/` (`R1-brief.md`, `R1-report.md`). Self-review writes no Review entry.
 
 An Evidence entry identifies the state it observed well enough to tell it apart from later versions. When later edits leave a result's applicability unresolved, say so rather than carrying the earlier result forward. Append counterevidence as a new entry instead of rewriting the earlier one. A missing output is unavailable evidence, not proof the check never ran. Label a report you did not observe as a report.
 
@@ -274,7 +277,7 @@ A closed Checkpoint keeps its future fields and adds `Result` and `Task effect`.
 
 A closed Slice keeps `Intended result` and, when present, `Type`, `Authority source`, and `Reopened from`. It adds `Result`, `Evidence and limits`, and `Task effect`. `State` is `completed`, `blocked`, or `abandoned`; `Resume when` is required for blocked and `Reason` for abandoned. `Residual effects` is optional.
 
-Closing does not keep Scope, Stop condition, Starting state, Dependencies, Material updates, or Recovery sources. Anything among them that still matters belongs in `Evidence and limits` or `Task effect` before closing.
+Closing does not keep Scope, Stop condition, Starting state, Dependencies, Material updates, or Recovery sources. Anything among them that still matters belongs in `Evidence and limits` or `Task effect` before closing; Review entries always do, copied whole, so review outcomes stay countable.
 
 | State | Meaning |
 | --- | --- |

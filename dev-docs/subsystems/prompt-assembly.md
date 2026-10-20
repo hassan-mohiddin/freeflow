@@ -27,6 +27,7 @@ Keeping this file separate lets its behavior change without changing the rest of
 The extension supplies one compact volatile Runtime State record at session start, after context reconstruction or loss, and when its displayed state changes, including when Freeflow is disabled or unconfigured. When state is unchanged and the previous record remains in continuous provider context, the extension preserves it rather than appending a replacement. It reports current facts such as:
 
 - whether Freeflow is active, inactive, unavailable, or awaiting setup;
+- while Freeflow is active, the user's `review` setting (``Review: `off` ``, ``Review: `always`, reviewer model `<model>` ``), only when it is other than the default `auto` with no model, so most users' state stays as it was; the hook hosts' state carries the same line;
 - optional capability availability;
 - Cognitive Routing `Control`, `Profile`, `Delegation`, and `Projection`;
 - with Tool Execution on and routing projection off, the Freeflow skills already read in this context (`Freeflow skills read in this context: …`), taken only where the state refreshes anyway; see [Tool Execution](tool-execution.md#repeat-reads-of-freeflow-instructions);

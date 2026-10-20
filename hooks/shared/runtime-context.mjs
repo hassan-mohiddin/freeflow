@@ -4,6 +4,8 @@ import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 // The validator Pi uses, so a config is valid or invalid on every host alike.
 import {
+  resolveReviewSettings,
+  reviewStateLine,
   selectedRuntimePrompts,
   validateLocalConfig,
   validateRepositoryConfig,
@@ -97,6 +99,7 @@ export function readConfig(root) {
     errorPath: repository.valid ? ".freeflow/local.json" : ".freeflow/config.json",
     enabled,
     prompts: selectedRuntimePrompts(repository.parsed, local.parsed),
+    review: resolveReviewSettings(repository.parsed, local.parsed),
   };
 }
 
@@ -121,8 +124,10 @@ function loadRuntimeContext(selection, part) {
   return prompts;
 }
 
-function runtimeStateContext() {
-  return ["# Freeflow Runtime State", "", "Freeflow: active"].join("\n");
+// The review line is Pi's, and as on Pi only a choice the user made adds it.
+function runtimeStateContext(config) {
+  const review = reviewStateLine(config.review);
+  return ["# Freeflow Runtime State", "", "Freeflow: active", ...(review ? [review] : [])].join("\n");
 }
 
 /**
@@ -148,7 +153,7 @@ export function renderRuntimeContext(root, part = undefined) {
 
   // The user chooses the prompts on hosts other than Pi; with none selected there is nothing to deliver.
   const prompts = loadRuntimeContext(config.prompts, part);
-  if (config.prompts.core && (!part || part === "core")) prompts.push(runtimeStateContext());
+  if (config.prompts.core && (!part || part === "core")) prompts.push(runtimeStateContext(config));
   return prompts.join("\n\n");
 }
 
