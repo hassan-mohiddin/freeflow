@@ -58,6 +58,19 @@ Read [Verify Work](../verify-work/SKILL.md) when matching branch-readiness claim
 
 Unverified or failing work may still be preserved, handed off, or shared through an explicitly approved draft route. State the gaps; do not describe it as integration-ready.
 
+## Hand Over For Acceptance
+
+Goal: the user can accept or refuse the change from the hand-over alone, without rereading the conversation.
+
+The pull-request description, or the final report when there is no pull request, carries:
+
+- what done looks like, from the work agreement, against what was done, naming anything left out or changed on the way;
+- choices the work made that the agreement did not settle, each marked agreed (with where) or for the user;
+- the evidence: each check run on the final state and its result;
+- the review outcome: self-review only, or each independent review's judgment with every Rejected finding and why.
+
+Build it from the Working Record ([Track Work](../track-work/SKILL.md)) when one exists, not from memory. When the repository has a pull-request template, fit these into its sections.
+
 ## Execute Only The Chosen Route
 
 ### Local Integration
@@ -72,7 +85,7 @@ Unverified or failing work may still be preserved, handed off, or shared through
 
 - inspect remote and upstream state before pushing;
 - push only intended commits to the accepted destination;
-- create or update the pull request using repository conventions;
+- create or update the pull request using repository conventions, with the hand-over as its description;
 - mark incomplete or failing work as draft when that is the approved route;
 - report CI, review, merge, migration, release, or launch requirements still pending;
 - preserve the worktree when iteration or feedback may continue.

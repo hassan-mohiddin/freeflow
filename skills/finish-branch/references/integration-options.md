@@ -25,8 +25,7 @@ Capture:
 
 - target branch and commit range;
 - intended push/upstream behavior;
-- PR summary and source requirements;
-- verification already run;
+- the hand-over (Finish Branch, Hand Over For Acceptance);
 - known residuals, migrations, rollout, or compatibility notes;
 - required reviewers or checks from repo policy.
 
