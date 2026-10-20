@@ -392,6 +392,7 @@ These prove the evaluator's mechanics with stand-in models. They do not prove be
 
 ## Changes
 
+- 2026-10-21: Verify Work's Performance Evidence reference adds the claim sentence written before measuring, counted errors, a check that the timed work ran, tuned sides and alternating runs; Browser Runtime Evidence asks for an image diff for a visual-parity claim.
 - 2026-10-19: Renamed from `review-evaluation-verification.md` to put the parts in the order work meets them; it now also covers Map Features and Verify Work's references.
 - 2026-10-19: A run that used tokens but reports a cost of 0 (Pi's figure for a model it has no price for) counts as `unmeasured` in a result's `cost`, and its `cost` metric is null (`measuredCost` in `lib/budget.mjs`).
 - 2026-10-19: `--reuse` skips an indexed run held for transcript flags no one has cleared; once a person clears them, it can be reused.

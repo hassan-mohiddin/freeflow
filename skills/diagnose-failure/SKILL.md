@@ -108,6 +108,8 @@ Choose the smallest supported correction that preserves accepted behavior. Class
 - wrong result, scope, order, or strategy;
 - structural ownership, interface, state, or failure-unit pressure.
 
+Before adding a guard that lets the failing state pass, such as a check, default, retry, or caught error, ask whether accepted behavior allows that state. If it should never exist, the guard hides the defect; correct what produced the state. Once the cause is supported, look for the same fault wherever the same mechanism recurs; correct instances inside the accepted boundary and report the rest.
+
 Use [Design for Depth](../../skills/design-for-depth/SKILL.md) when causal or direct design evidence establishes structural pressure. It shapes the boundary without re-proving the cause. If design reveals an unsupported causal premise, return to diagnosis with that exact uncertainty.
 
 ## Contain Harm And Keep Instrumentation Honest
@@ -131,6 +133,7 @@ Return proportionately:
 - causal chain, alternatives weakened, and remaining uncertainty;
 - owning cause and smallest coherent correction;
 - minimized regression signal and the original reported path or strongest available observer;
+- when the deciding fact took deep digging, a proposed cheap always-on signal, such as a log line, assertion, or metric, that would have shown it at first look;
 - instrumentation, containment, residual effects, and authority limits.
 
 An already-covered correction can return to [Execute Work](../../skills/execute-work/SKILL.md). Preserve the diagnostic evidence and use suitable regression checks without prescribing a formal test-first sequence; use Verify Work to design or classify those checks. Use [Simplify Code](../../skills/simplify-code/SKILL.md) only for an accepted behavior-preserving removal of obsolete or workaround machinery, not as a substitute for the fix.
